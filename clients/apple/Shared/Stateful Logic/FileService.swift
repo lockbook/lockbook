@@ -261,11 +261,11 @@ class FileService: ObservableObject {
             if root == nil && $0.id == $0.parent {
                 root = $0
 
-                #if os(iOS)
-                if(path.isEmpty) {
-                    path.append($0)
-                }
-                #endif
+//                #if os(iOS)
+//                if(path.isEmpty) {
+//                    path.append($0)
+//                }
+//                #endif
             }
         }
         openFileChecks()
@@ -303,6 +303,9 @@ class FileService: ObservableObject {
                     self.refresh()
                     DispatchQueue.main.sync {
                         DI.workspace.requestOpenDoc(meta.id)
+                        #if os(iOS)
+                        DI.files.intoChildDirectory(meta)
+                        #endif
                     }
                     
                     return

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
     public var fileType: FileType

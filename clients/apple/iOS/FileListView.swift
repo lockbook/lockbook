@@ -6,71 +6,74 @@ import Foundation
 struct ConstrainedHomeViewWrapper: View {
     
     @EnvironmentObject var workspace: WorkspaceState
+    @EnvironmentObject var files: FileService
     
     @State var searchInput: String = ""
     
     var body: some View {
         ZStack {
-            NavigationView {
-                VStack {
+            VStack {
+                NavigationStack(path: $files.path) {
                     ConstrainedHomeView(searchInput: $searchInput)
                         .searchable(text: $searchInput, prompt: "Search...")
-                    
+                        .navigationDestination(for: File.self, destination: { meta in
+                            if meta.fileType == .Folder {
+                                ScrollView {
+                                    FileListView(parent: meta)
+                                        .navigationTitle(meta.name)
+                                }
+                            } else {
+                                WorkspaceView(DI.workspace, DI.coreService.corePtr)
+                                    .equatable()
+                                    .navigationBarTitleDisplayMode(.inline)
+                                    .toolbar {
+                                        ToolbarItemGroup {
+                                            Button(action: {
+                                                DI.sheets.sharingFileInfo = meta
+                                            }, label: {
+                                                Label("Share", systemImage: "person.wave.2.fill")
+                                            })
+                                            .foregroundColor(.blue)
+                                            .padding(.trailing, 10)
+                                            
+                                            Button(action: {
+                                                exportFileAndShowShareSheet(meta: meta)
+                                            }, label: {
+                                                Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
+                                            })
+                                            .foregroundColor(.blue)
+                                            .padding(.trailing, 10)
+                                        }
+                                    }
+                            }
+                            
+                        })
+                }
+                
+                if files.path.last?.fileType == .Folder || files.path.isEmpty {
                     FilePathBreadcrumb()
+                        .transition(.opacity)
                     
                     BottomBar(isiOS: true)
+                        .transition(.opacity)
+                }
+            }
+            .onChange(of: files.path) { new in
+                if files.path.last?.fileType != .Document && DI.workspace.openDoc != nil {
+                    DI.workspace.closeActiveTab = true
                 }
             }
             
-            NavigationView {
+            if files.path.last?.fileType == .Folder || files.path.isEmpty {
                 WorkspaceView(DI.workspace, DI.coreService.corePtr)
                     .equatable()
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) {
-                            Button(action: {
-                                workspace.closeActiveTab = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "chevron.backward")
-                                        .foregroundStyle(.blue)
-                                        .bold()
-                                    
-                                    Text(DI.accounts.account!.username)
-                                        .foregroundStyle(.blue)
-                                }
-                            }
-                        }
-                        
-                        ToolbarItemGroup {
-                            if let id = workspace.openDoc {
-                                if let meta = DI.files.idsAndFiles[id] {
-                                    Button(action: {
-                                        DI.sheets.sharingFileInfo = meta
-                                    }, label: {
-                                        Label("Share", systemImage: "person.wave.2.fill")
-                                    })
-                                    .foregroundColor(.blue)
-                                    .padding(.trailing, 10)
-                                    
-                                    Button(action: {
-                                        exportFileAndShowShareSheet(meta: meta)
-                                    }, label: {
-                                        Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
-                                    })
-                                    .foregroundColor(.blue)
-                                    .padding(.trailing, 10)
-                                }
-                            }
-                        }
-                    }
+                    .opacity(0)
             }
-            .offset(x: workspace.currentTab != .Welcome ? workspace.dragOffset : UIScreen.current?.bounds.width ?? 0)
         }
     }
 }
 
 struct ConstrainedHomeView: View {
-    @EnvironmentObject var files: FileService
     @EnvironmentObject var search: SearchService
     
     @Binding var searchInput: String
@@ -79,13 +82,10 @@ struct ConstrainedHomeView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismissSearch) private var dismissSearch
     
+    @EnvironmentObject var files: FileService
+    
     var body: some View {
         ScrollView {
-            Divider()
-                .frame(height: 10)
-                .foregroundStyle(.black)
-                .padding(0)
-
             if search.isPathAndContentSearching {
                 if search.isPathAndContentSearchInProgress {
                     ProgressView()
@@ -100,22 +100,30 @@ struct ConstrainedHomeView: View {
                             case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
                                 Button(action: {
                                     DI.workspace.requestOpenDoc(meta.id)
+                                    DI.files.intoChildDirectory(meta)
                                     dismissSearch()
                                 }) {
                                     SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                                 }
+                                .padding(.horizontal)
+
                             case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
                                 Button(action: {
                                     DI.workspace.requestOpenDoc(meta.id)
+                                    DI.files.intoChildDirectory(meta)
                                     dismissSearch()
                                 }) {
                                     SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
                                 }
+                                .padding(.horizontal)
                             }
+                            
+                            Divider()
+                                .padding(.leading, 20)
+                                .padding(.vertical, 5)
                         }
                     }
-                    .padding(.horizontal)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(colorScheme == .light ? .white : Color(uiColor: .secondarySystemBackground)))
+//                    .background(RoundedRectangle(cornerRadius: 10).fill(colorScheme == .light ? .white : Color(uiColor: .secondarySystemBackground)))
                 } else if !search.isPathAndContentSearchInProgress && !search.pathAndContentSearchQuery.isEmpty {
                     Text("No results.")
                         .font(.headline)
@@ -139,12 +147,12 @@ struct ConstrainedHomeView: View {
                 DI.search.endSearch(isPathAndContentSearch: true)
             }
         })
-        .navigationBarTitle(files.parent.map{$0.name} ?? "")
+        .navigationBarTitle(DI.accounts.account!.username)
     }
     
     var suggestAndFilesView: some View {
         VStack(alignment: .leading) {
-            if files.parent?.isRoot == true && files.suggestedDocs?.isEmpty != true {
+            if files.suggestedDocs?.isEmpty != true {
                 Section(header: Text("Suggested")
                     .bold()
                     .foregroundColor(.primary)
@@ -155,27 +163,77 @@ struct ConstrainedHomeView: View {
                         SuggestedDocs(isiOS: true)
                     }
                     .padding(.horizontal, 20)
-            }
-            
-            Section(header: Text("Files")
-                .bold()
-                .foregroundColor(.primary)
-                .textCase(.none)
-                .font(.headline)
-                .padding(.bottom, 3)
-                .padding(.top, 8)) {
-                    VStack {
-                        ForEach(files.childrenOfParent()) { meta in
-                            FileCell(meta: meta)
-                                .padding(.horizontal)
+                
+                if let root = files.root {
+                    Section(header: Text("Files")
+                        .bold()
+                        .foregroundColor(.primary)
+                        .textCase(.none)
+                        .font(.headline)
+                        .padding(.bottom, 3)
+                        .padding(.top, 8)) {
+                            FileListView(parent: root)
                         }
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets())
-                        .listRowSeparator(.hidden)
-                    }
-                    .background(RoundedRectangle(cornerRadius: 10).fill(colorScheme == .light ? .white : Color(uiColor: .secondarySystemBackground)))
+                        .padding(.horizontal, 20)
+                } else {
+                    ProgressView()
                 }
-                .padding(.horizontal, 20)
+                
+            }
+        }
+    }
+}
+
+struct FileListView: View {
+    @EnvironmentObject var files: FileService
+    @EnvironmentObject var share: ShareService
+    @EnvironmentObject var onboarding: OnboardingService
+
+    @Environment(\.colorScheme) var colorScheme
+    
+    var parent: File
+    var children: [File] {
+        get {
+            return files.childrenOf(parent)
+        }
+    }
+    
+    var body: some View {
+        VStack {
+            if children.isEmpty {
+                Spacer()
+                                
+                Image(systemName: "questionmark.folder")
+                    .font(.system(size: 130))
+                    .padding(15)
+                
+                Text("This folder is empty.")
+                    .font(.callout)
+                
+                Spacer()
+            } else {
+                ForEach(files.childrenOf(parent)) { meta in
+                    FileCell(meta: meta)
+                        .padding(.horizontal)
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+            }
+        }
+        .toolbar {
+            ToolbarItemGroup {
+                NavigationLink(
+                    destination: PendingSharesView()) {
+                        pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
+                    }
+                
+                NavigationLink(
+                    destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
+                        Image(systemName: "gearshape.fill").foregroundColor(.blue)
+                            .padding(.horizontal, 10)
+                    }
+            }
         }
     }
 }

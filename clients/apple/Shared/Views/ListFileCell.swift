@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftWorkspace
 import SwiftLockbookCore
 import Introspect
 
@@ -53,13 +54,11 @@ struct FileCell: View {
     @ViewBuilder
     var cell: some View {
         Button(action: {
-            if meta.fileType == .Folder {
-                
-            } else {
-                withAnimation {
-                    DI.workspace.requestOpenDoc(meta.id)
-                }
+            if meta.fileType == .Document {
+                DI.workspace.requestOpenDoc(meta.id)
             }
+            
+            DI.files.intoChildDirectory(meta)
         }) {
             RealFileCell(meta: meta)
         }

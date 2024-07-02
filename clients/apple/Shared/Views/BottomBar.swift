@@ -52,7 +52,7 @@ struct BottomBar: View {
             Button(action: {
                 workspace.requestSync()
             }) {
-                Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                Image(systemName: "arrow.triangle.2.circlepath.circle")
                     .imageScale(.large)
                     .foregroundColor(.accentColor)
                     .frame(width: 40, height: 40, alignment: .center)
@@ -160,7 +160,12 @@ struct BottomBar: View {
     
     @ViewBuilder
     var statusText: some View {
-        Text(workspace.statusMsg)
+        HStack {
+            Text(workspace.statusMsg)
+                .font(.callout)
+            
+            Spacer()
+        }
     }
     
     var body: some View {
