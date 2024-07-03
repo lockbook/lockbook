@@ -79,21 +79,6 @@ struct PlatformView: View {
                 MoveSheet(meta: meta)
             }
         })
-        .toolbar {
-            ToolbarItemGroup {
-                NavigationLink(
-                    destination: PendingSharesView()) {
-                        pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
-                    }
-                
-                NavigationLink(
-                    destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
-                        Image(systemName: "gearshape.fill").foregroundColor(.blue)
-                            .padding(.horizontal, 10)
-                    }
-            }
-        }
-        
     }
     
     var iOS: some View {
