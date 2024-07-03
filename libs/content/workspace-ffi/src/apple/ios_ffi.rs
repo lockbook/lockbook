@@ -862,6 +862,10 @@ pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
 pub unsafe extern "C" fn show_hide_tabs(obj: *mut c_void, show: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
+    if !show {
+        obj.workspace.tabs
+    }
+
     obj.workspace.show_tabs = show;
 }
 

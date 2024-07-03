@@ -5,9 +5,7 @@ import SwiftLockbookCore
 struct FilePathBreadcrumb: View {
     
     @EnvironmentObject var files: FileService
-    
-//    let onBreadcrumbClick: (File) -> Void
-    
+        
     var body: some View {
         ScrollViewReader { scrollHelper in
             ScrollView(.horizontal, showsIndicators: false) {
@@ -40,7 +38,7 @@ struct FilePathBreadcrumb: View {
                         .foregroundColor(.blue)
                     
                     Text(DI.accounts.account!.username)
-                        .font(.footnote)
+                        .font(.callout)
                 })
                 .id(index)
             } else {
@@ -54,7 +52,7 @@ struct FilePathBreadcrumb: View {
                             .foregroundColor(.blue)
                         
                         Text(file.name)
-                            .font(.footnote)
+                            .font(.callout)
                     })
                     .padding(.trailing)
                     .id(index)
@@ -66,7 +64,7 @@ struct FilePathBreadcrumb: View {
                             .foregroundColor(.blue)
                         
                         Text(file.name)
-                            .font(.footnote)
+                            .font(.callout)
                     })
                     .id(index)
                 }
@@ -76,15 +74,6 @@ struct FilePathBreadcrumb: View {
                 Image(systemName: "chevron.right")
                     .foregroundColor(.gray)
             }
-        }
-    }
-}
-
-struct FilePathBreadcrumb_Previews: PreviewProvider {
-    static var previews: some View {
-        NavigationView {
-//            FileListView()
-//                .mockDI()
         }
     }
 }

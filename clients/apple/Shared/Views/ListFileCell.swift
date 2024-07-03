@@ -73,7 +73,7 @@ struct RealFileCell2: View {
             Text(meta.name)
                     .font(.title3)
             HStack {
-                Image(systemName: meta.fileType == .Folder ? "folder.fill" : documentExtensionToImage(name: meta.name))
+                Image(systemName: meta.fileType == .Folder ? "folder.fill" : FileService.docExtToSystemImage(name: meta.name))
                         .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
                 Text(intEpochToString(epoch: max(meta.lastModified, meta.lastModified)))
                         .foregroundColor(.secondary)
@@ -92,7 +92,7 @@ struct RealFileCell: View {
 
     var body: some View {
         HStack(spacing: 20) {
-            Image(systemName: meta.fileType == .Folder ? "folder.fill" : documentExtensionToImage(name: meta.name))
+            Image(systemName: meta.fileType == .Folder ? "folder.fill" : FileService.docExtToSystemImage(name: meta.name))
                 .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
                 .font(.title3)
                 .frame(width: 20)
@@ -116,15 +116,5 @@ struct RealFileCell: View {
         }
         .padding(.vertical, 10)
         .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
-    }
-}
-
-public func documentExtensionToImage(name: String) -> String {
-    if name.hasSuffix(".md") {
-        return "doc.plaintext"
-    } else if name.hasSuffix(".draw") {
-        return "doc.richtext"
-    } else {
-        return "doc"
     }
 }

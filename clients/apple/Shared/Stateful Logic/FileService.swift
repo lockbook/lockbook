@@ -388,6 +388,48 @@ class FileService: ObservableObject {
         NSPasteboard.general.setString("lb://\(id.uuidString.lowercased())", forType: .string)
         #endif
     }
+    
+    public static func docExtToSystemImage(name: String) -> String {
+        guard let ext = name.split(separator: ".").last else {
+            return "doc"
+        }
+        
+        return extToSystemImg[String(ext)] ?? "doc"
+    }
+    
+    static let extToSystemImg: [String: String] = [
+        "md": "doc.richtext",
+        "svg": "doc.text.image",
+        "pdf": "doc.on.doc",
+        
+        "txt": "doc.plaintext",
+        "rtf": "doc.plaintext",
+        "doc": "doc.plaintext",
+        "docx": "doc.plaintext",
+        
+        "html": "chevron.left.slash.chevron.right",
+        "xml": "chevron.left.slash.chevron.right",
+        "json": "curlybraces",
+        "latex": "sum",
+        
+        "png": "photo",
+        "jpg": "photo",
+        "jpeg": "photo",
+        "tiff": "photo",
+        "heif": "photo",
+        "heic": "photo",
+        
+        "zip": "doc.zipper",
+        "tar": "doc.zipper",
+        "gz": "doc.zipper",
+        "7z": "doc.zipper",
+        "bz2": "doc.zipper",
+        "xz": "doc.zipper",
+        "iso": "doc.zipper",
+        
+        "log": "scroll",
+        "csv": "tablecells"
+    ]
 }
 
 public enum FileAction {

@@ -55,7 +55,7 @@ struct PlatformView: View {
     
     #if os(iOS)
     var platform: some View {
-        Group {
+        NavigationView {
             if horizontal == .regular && vertical == .regular {
                 ZStack {
                     iPad
@@ -79,86 +79,29 @@ struct PlatformView: View {
                 MoveSheet(meta: meta)
             }
         })
+        .toolbar {
+            ToolbarItemGroup {
+                NavigationLink(
+                    destination: PendingSharesView()) {
+                        pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
+                    }
+                
+                NavigationLink(
+                    destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
+                        Image(systemName: "gearshape.fill").foregroundColor(.blue)
+                            .padding(.horizontal, 10)
+                    }
+            }
+        }
         
     }
     
     var iOS: some View {
         ConstrainedHomeViewWrapper()
     }
-    
-//    var iOS: some View {
-//        ZStack {
-//            NavigationView {
-//                FileListView()
-//                    .toolbar {
-//                        ToolbarItemGroup {
-//                            NavigationLink(
-//                                destination: PendingSharesView()) {
-//                                    pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
-//                                }
-//                            
-//                            NavigationLink(
-//                                destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
-//                                    Image(systemName: "gearshape.fill").foregroundColor(.blue)
-//                                        .padding(.horizontal, 10)
-//                                }
-//                        }
-//                    }
-//            }
-//            .navigationViewStyle(.stack)
-//            
-//            GeometryReader { geometry in
-//                NavigationView {
-//                    WorkspaceView(DI.workspace, DI.coreService.corePtr)
-//                        .equatable()
-//                        .toolbar {
-//                            ToolbarItem(placement: .navigationBarLeading) {
-//                                Button(action: {
-//                                    workspace.closeActiveTab = true
-//                                }) {
-//                                    HStack {
-//                                        Image(systemName: "chevron.backward")
-//                                            .foregroundStyle(.blue)
-//                                            .bold()
-//                                        
-//                                        Text(DI.accounts.account!.username)
-//                                            .foregroundStyle(.blue)
-//                                    }
-//                                }
-//                            }
-//                            
-//                            ToolbarItemGroup {
-//                                if let id = workspace.openDoc {
-//                                    if let meta = DI.files.idsAndFiles[id] {
-//                                        Button(action: {
-//                                            DI.sheets.sharingFileInfo = meta
-//                                        }, label: {
-//                                            Label("Share", systemImage: "person.wave.2.fill")
-//                                        })
-//                                        .foregroundColor(.blue)
-//                                        .padding(.trailing, 10)
-//                                        
-//                                        Button(action: {
-//                                            exportFileAndShowShareSheet(meta: meta)
-//                                        }, label: {
-//                                            Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
-//                                        })
-//                                        .foregroundColor(.blue)
-//                                        .padding(.trailing, 10)
-//                                    }
-//                                }
-//                            }
-//                        }
-//                }
-//                .offset(x: workspace.currentTab != .Welcome ? workspace.dragOffset : geometry.size.width)
-//            }
-//        }
-//    }
-    
+        
     var iPad: some View {
-        NavigationView {
-            FileTreeView()
-        }
+        FileTreeView()
     }
     
     #else
