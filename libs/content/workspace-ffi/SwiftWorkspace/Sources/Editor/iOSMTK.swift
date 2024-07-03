@@ -179,9 +179,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     func setFloatingCursorLoc(point: CGPoint, animate: Bool) {
         let pos = closestPosition(to: point)
         let cursorRect = caretRect(for: pos!)
-        
-        let animate = animate && cursorRect.origin.y != lastFloatingCursorRect?.origin.y ? false : animate
-                
+                        
         lastFloatingCursorRect = cursorRect
         
         let x = point.x - self.floatingCursorNewStartX
@@ -196,11 +194,11 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         if animate {
             UIView.animate(withDuration: 0.15, animations: { [weak self] in
                 if let textWrapper = self {
-                    textWrapper.floatingCursor.frame = CGRect(x: x, y: cursorRect.origin.y, width: textWrapper.floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
+                    textWrapper.floatingCursor.frame = CGRect(x: x, y: y - (cursorRect.height / 2), width: textWrapper.floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
                 }
             })
         } else {
-            floatingCursor.frame = CGRect(x: x, y: cursorRect.origin.y, width: floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
+            floatingCursor.frame = CGRect(x: x, y: y - (cursorRect.height / 2), width: floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
         }
     }
 
