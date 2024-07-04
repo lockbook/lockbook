@@ -114,16 +114,6 @@ impl<'window> WgpuWorkspace<'window> {
 
         #[cfg(not(target_os = "android"))]
         {
-            #[cfg(target_os = "ios")]
-            {
-                if let Some(markdown) = self.workspace.current_tab_markdown() {
-                    out.workspace_resp.text_updated = markdown.editor.text_updated;
-                    out.workspace_resp.selection_updated = (markdown.editor.scroll_area_offset
-                        != markdown.editor.old_scroll_area_offset)
-                        || markdown.editor.selection_updated;
-                }
-            }
-
             if !full_output.platform_output.copied_text.is_empty() {
                 // todo: can this go in output?
                 out.copied_text = CString::new(full_output.platform_output.copied_text)
