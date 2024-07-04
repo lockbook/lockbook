@@ -96,9 +96,9 @@ impl From<WsOutput> for FfiWorkspaceResp {
             #[cfg(target_os = "ios")]
             hide_virtual_keyboard: value.hide_virtual_keyboard,
             #[cfg(target_os = "ios")]
-            text_updated: false,
+            text_updated: value.markdown_editor_text_updated,
             #[cfg(target_os = "ios")]
-            selection_updated: false,
+            selection_updated: value.markdown_editor_selection_updated,
             #[cfg(target_os = "ios")]
             tab_title_clicked: value.tab_title_clicked,
         }
