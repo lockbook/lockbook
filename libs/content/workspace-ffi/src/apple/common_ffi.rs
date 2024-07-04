@@ -71,6 +71,32 @@ pub unsafe extern "C" fn init_ws(
     Box::into_raw(Box::new(obj)) as *mut c_void
 }
 
+async fn request_device(
+    instance: &wgpu::Instance, surface: &wgpu::Surface<'_>,
+) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue) {
+    let adapter = wgpu::util::initialize_adapter_from_env_or_default(instance, Some(surface))
+        .await
+        .expect("No suitable GPU adapters found on the system!");
+    let adapter_info = adapter.get_info();
+    println!("Using {} ({:?})", adapter_info.name, adapter_info.backend);
+    let res = adapter
+        .request_device(
+            &wgpu::DeviceDescriptor {
+                label: None,
+                required_features: adapter.features(),
+                required_limits: adapter.limits(),
+            },
+            None,
+        )
+        .await;
+    match res {
+        Err(err) => {
+            panic!("request_device failed: {:?}", err);
+        }
+        Ok((device, queue)) => (adapter, device, queue),
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn folder_selected(obj: *mut c_void, id: CUuid) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
@@ -163,10 +189,10 @@ pub unsafe extern "C" fn clipboard_send_image(
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn clipboard_send_file(
-    obj: *mut c_void, content: *const c_char, is_paste: bool,
+    obj: *mut c_void, file_url: *const c_char, is_paste: bool,
 ) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let file_url: String = CStr::from_ptr(content).to_str().unwrap().into();
+    let file_url: String = CStr::from_ptr(file_url).to_str().unwrap().into();
     let content = vec![ClipContent::Files(vec![PathBuf::from(file_url)])];
     let position = egui::Pos2::ZERO; // todo: cursor position
 
@@ -189,48 +215,9 @@ pub unsafe extern "C" fn free_text(s: *const c_char) {
 }
 
 /// # Safety
-/// obj must be a valid pointer to WgpuEditor
-///
-/// used solely for image pasting
-#[no_mangle]
-pub unsafe extern "C" fn paste_text(obj: *mut c_void, content: *const c_char) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let content = CStr::from_ptr(content).to_str().unwrap().into();
-
-    obj.raw_input.events.push(Event::Paste(content));
-}
-
-/// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn deinit_editor(obj: *mut c_void) {
-    println!("EDITOR DENININTEED");
     let _ = Box::from_raw(obj as *mut WgpuWorkspace);
-}
-
-async fn request_device(
-    instance: &wgpu::Instance, surface: &wgpu::Surface<'_>,
-) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue) {
-    let adapter = wgpu::util::initialize_adapter_from_env_or_default(instance, Some(surface))
-        .await
-        .expect("No suitable GPU adapters found on the system!");
-    let adapter_info = adapter.get_info();
-    println!("Using {} ({:?})", adapter_info.name, adapter_info.backend);
-    let res = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                label: None,
-                required_features: adapter.features(),
-                required_limits: adapter.limits(),
-            },
-            None,
-        )
-        .await;
-    match res {
-        Err(err) => {
-            panic!("request_device failed: {:?}", err);
-        }
-        Ok((device, queue)) => (adapter, device, queue),
-    }
 }
 
 /// (macos only)
