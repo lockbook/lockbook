@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use egui::os::OperatingSystem;
-use egui::{Color32, Context, Event, FontDefinitions, Frame, Rect, Sense, Ui, Vec2};
+use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
 use lb_rs::Uuid;
 use serde::Serialize;
 
@@ -31,6 +31,9 @@ pub struct EditorResponse {
     // actions taken
     pub suggested_rename: Option<String>,
     pub hide_virtual_keyboard: bool,
+    pub show_edit_menu: bool,
+    pub edit_menu_x: f32,
+    pub edit_menu_y: f32,
 }
 
 pub struct Editor {
@@ -218,14 +221,19 @@ impl Editor {
         let prior_suggested_title = self.get_suggested_title();
 
         // process events
-        let (text_updated, selection_updated) = if self.initialized {
+        let (text_updated, selection_updated, maybe_menu_location) = if self.initialized {
             if ui.memory(|m| m.has_focus(id))
                 || cfg!(target_os = "ios")
                 || cfg!(target_os = "android")
             {
                 let custom_events = ui.ctx().pop_events();
-                let (maybe_to_clipboard, maybe_opened_url, text_updated, selection_updated) =
-                    self.process_events(events, &custom_events, touch_mode);
+                let (
+                    maybe_to_clipboard,
+                    maybe_opened_url,
+                    maybe_menu_location,
+                    text_updated,
+                    selection_updated,
+                ) = self.process_events(events, &custom_events, touch_mode);
                 if let Some(to_clipboard) = maybe_to_clipboard {
                     ui.output_mut(|o| o.copied_text = to_clipboard);
                 }
@@ -234,9 +242,9 @@ impl Editor {
                         o.open_url = Some(egui::output::OpenUrl::new_tab(opened_url))
                     });
                 }
-                (text_updated, selection_updated)
+                (text_updated, selection_updated, maybe_menu_location)
             } else {
-                (false, false)
+                (false, false, None)
             }
         } else {
             ui.memory_mut(|m| m.request_focus(id));
@@ -250,7 +258,7 @@ impl Editor {
                 },
             });
 
-            (true, true)
+            (true, true, None)
         };
 
         // recalculate dependent state
@@ -377,12 +385,15 @@ impl Editor {
             hide_virtual_keyboard: false, // set by toolbar callback (todo: cleanup)
             selection_updated,
             scroll_updated: false, // set by scroll_ui
+            show_edit_menu: maybe_menu_location.is_some(),
+            edit_menu_x: maybe_menu_location.map(|p| p.x).unwrap_or_default(),
+            edit_menu_y: maybe_menu_location.map(|p| p.y).unwrap_or_default(),
         }
     }
 
     pub fn process_events(
         &mut self, events: &[Event], custom_events: &[crate::Event], touch_mode: bool,
-    ) -> (Option<String>, Option<String>, bool, bool) {
+    ) -> (Option<String>, Option<String>, Option<Pos2>, bool, bool) {
         // if the cursor is in an invalid location, move it to the next valid location
         if let BoundCase::BetweenRanges { range_after, .. } = self
             .buffer
@@ -434,6 +445,73 @@ impl Editor {
             &mut self.appearance,
         );
 
+        // in touch mode, check if we should open the menu
+        let click_checker = EditorClickChecker {
+            ui_rect: self.ui_rect,
+            galleys: &self.galleys,
+            buffer: &self.buffer,
+            ast: &self.ast,
+            appearance: &self.appearance,
+            bounds: &self.bounds,
+        };
+        let maybe_menu_location = if touch_mode {
+            let current_cursor = self.buffer.current.cursor;
+            let current_selection = current_cursor.selection;
+
+            let touched_a_galley = events.iter().any(|e| {
+                if let Event::Touch { pos, .. } | Event::PointerButton { pos, .. } = e {
+                    (&click_checker).text(*pos).is_some()
+                } else {
+                    false
+                }
+            });
+
+            let touched_cursor = current_selection.is_empty()
+                && prior_selection == current_selection
+                && touched_a_galley
+                && combined_events
+                    .iter()
+                    .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
+
+            let touched_selection = current_selection.is_empty()
+                && prior_selection.contains_inclusive(current_selection.1)
+                && touched_a_galley
+                && combined_events
+                    .iter()
+                    .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
+
+            let double_touched_for_selection = !current_selection.is_empty()
+                && touched_a_galley
+                && combined_events.iter().any(|e| {
+                    matches!(
+                        e,
+                        Modification::Select { region: Region::BoundAt { bound: Bound::Word, .. } }
+                    )
+                });
+
+            let maybe_menu_location =
+                if touched_cursor || touched_selection || double_touched_for_selection {
+                    // set menu location
+                    Some(
+                        self.buffer.current.cursor.end_line(
+                            &self.galleys,
+                            &self.bounds.text,
+                            &self.appearance,
+                        )[0],
+                    )
+                } else {
+                    None
+                };
+            if touched_cursor || touched_selection {
+                // put the cursor back the way it was
+                self.buffer.current.cursor.selection = prior_selection;
+            }
+
+            maybe_menu_location
+        } else {
+            None
+        };
+
         // assume https for urls without a scheme
         let maybe_opened_url = maybe_opened_url.map(|url| {
             if !url.contains("://") {
@@ -446,6 +524,7 @@ impl Editor {
         (
             maybe_to_clipboard,
             maybe_opened_url,
+            maybe_menu_location,
             text_updated,
             self.buffer.current.cursor.selection != prior_selection,
         )
