@@ -1,5 +1,5 @@
 use crate::widgets::{toolbar::MOBILE_TOOL_BAR_SIZE, ToolBar, ToolBarVisibility};
-pub use editor::{Editor, EditorResponse};
+pub use editor::{Editor, Response};
 use egui::{FontData, FontDefinitions, FontFamily};
 use lb_rs::Uuid;
 use std::sync::Arc;
@@ -90,7 +90,7 @@ impl Markdown {
         self.editor.debug.frame_count > 1
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui) -> EditorResponse {
+    pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         ui.vertical(|ui| {
             let mut res = if cfg!(target_os = "ios") || cfg!(target_os = "android") {
                 ui.allocate_ui(

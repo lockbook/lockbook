@@ -22,7 +22,7 @@ use crate::tab::markdown_editor::{ast, bounds, galleys, images, register_fonts};
 use crate::tab::EventManager as _;
 
 #[derive(Debug, Serialize, Default)]
-pub struct EditorResponse {
+pub struct Response {
     // state changes
     pub text_updated: bool,
     pub selection_updated: bool,
@@ -115,7 +115,7 @@ impl Editor {
     }
 
     // workspace invokes this
-    pub fn scroll_ui(&mut self, ui: &mut Ui) -> EditorResponse {
+    pub fn scroll_ui(&mut self, ui: &mut Ui) -> Response {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
         let events = ui.ctx().input(|i| i.events.clone());
@@ -207,9 +207,7 @@ impl Editor {
         resp
     }
 
-    fn ui(
-        &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: &[Event],
-    ) -> EditorResponse {
+    fn ui(&mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: &[Event]) -> Response {
         self.debug.frame_start();
 
         // update theme
@@ -384,7 +382,7 @@ impl Editor {
             }
         }
 
-        EditorResponse {
+        Response {
             text_updated,
             suggested_rename,
             hide_virtual_keyboard: false, // set by toolbar callback (todo: cleanup)

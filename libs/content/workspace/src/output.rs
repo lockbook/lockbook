@@ -2,7 +2,7 @@ use lb_rs::{File, SyncStatus, Uuid};
 
 // todo: dirty docs
 #[derive(Default, Clone)]
-pub struct WsOutput {
+pub struct Response {
     /// What file the workspace is currently showing
     pub selected_file: Option<Uuid>,
 
