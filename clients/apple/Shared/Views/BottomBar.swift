@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftLockbookCore
 import SwiftWorkspace
 
-struct BottomBar: View {
+struct BottomBar2: View {
     
     var isiOS = false
     
@@ -17,28 +17,27 @@ struct BottomBar: View {
                     DI.files.createDoc(isDrawing: false)
                 }) {
                     Image(systemName: "doc.badge.plus")
-                        .imageScale(.large)
+                        .font(.title2)
                         .foregroundColor(.accentColor)
-                        .frame(width: 40, height: 40, alignment: .center)
+                        
                 }
                 
                 Button(action: {
                     DI.files.createDoc(isDrawing: true)
                 }) {
                     Image(systemName: "pencil.tip.crop.circle.badge.plus")
-                        .imageScale(.large)
+                        .font(.title2)
                         .foregroundColor(.accentColor)
-                        .frame(width: 40, height: 40, alignment: .center)
                 }
                 
                 Button(action: {
                     DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent() ?? "ERROR", maybeParent: nil)
                 }) {
                     Image(systemName: "folder.badge.plus")
-                        .imageScale(.large)
+                        .font(.title2)
                         .foregroundColor(.accentColor)
-                        .frame(width: 40, height: 40, alignment: .center)
                 }
+                .padding(.trailing)
             }
         }
     }
@@ -163,22 +162,17 @@ struct BottomBar: View {
         HStack {
             Text(workspace.statusMsg)
                 .font(.callout)
+                .lineLimit(1)
             
             Spacer()
         }
+        .padding(.leading)
     }
     
     var body: some View {
         Group {
             #if os(iOS)
-            HStack {
-                syncButton
-                Spacer()
-                statusText
-                Spacer()
-                menu
-            }
-            .padding(.horizontal, 10)
+            
             #else
             VStack {
                 Divider()
@@ -197,74 +191,68 @@ struct BottomBar: View {
 }
 
 #if os(iOS)
-struct SyncingPreview: PreviewProvider {
-    static var previews: some View {
-        NavigationView {
-            HStack {
-            }.toolbar {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    BottomBar()
-                }
+
+struct BottomBar: View {
+    var isiOS = false
+    
+    @EnvironmentObject var workspace: WorkspaceState
+
+    var body: some View {
+        HStack(alignment: .center) {
+            statusText
+            Spacer()
+            if isiOS && !workspace.syncing {
+                menu
             }
         }
-        .mockDI()
-        .onAppear {
-            Mock.sync.syncing = true
+        .padding(.horizontal, 15)
+        .frame(height: 50)
+    }
+    
+    var statusText: some View {
+        Text(workspace.statusMsg)
+            .font(.callout)
+            .lineLimit(1)
+    }
+    
+    var menu: some View {
+        HStack(spacing: 15) {
+            Button(action: {
+                DI.files.createDoc(isDrawing: false)
+            }) {
+                Image(systemName: "doc.badge.plus")
+                    .font(.title2)
+                    .foregroundColor(.accentColor)
+            }
+            
+            Button(action: {
+                DI.files.createDoc(isDrawing: true)
+            }) {
+                Image(systemName: "pencil.tip.crop.circle.badge.plus")
+                    .font(.title2)
+                    .foregroundColor(.accentColor)
+            }
+            
+            Button(action: {
+                DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent() ?? "ERROR", maybeParent: nil)
+            }) {
+                Image(systemName: "folder.badge.plus")
+                    .font(.title2)
+                    .foregroundColor(.accentColor)
+            }
         }
-        
-        
+    }
+
+}
+
+#else
+
+struct BottomBar: View {
+    @EnvironmentObject var settings: SettingsService
+
+    var body: some View {
+        EmptyView()
     }
 }
 
-struct NonSyncingPreview: PreviewProvider {
-    
-    static var previews: some View {
-        NavigationView {
-            HStack {
-            }.toolbar {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    BottomBar()
-                }
-            }
-        }
-        .mockDI()
-    }
-}
-
-struct OfflinePreview: PreviewProvider {
-    
-    static var previews: some View {
-        NavigationView {
-            HStack {
-            }.toolbar {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    BottomBar()
-                }
-            }
-        }
-        .mockDI()
-        .onAppear {
-            Mock.sync.offline = true
-        }
-        
-        
-    }
-}
-
-struct WorkItemsPreview: PreviewProvider {
-    
-    static var previews: some View {
-        NavigationView {
-            HStack {
-            }.toolbar {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    BottomBar()
-                }
-            }
-            .mockDI()
-        }
-        
-        
-    }
-}
 #endif

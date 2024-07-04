@@ -19,18 +19,12 @@ class DI {
     static let search = SearchService(core)
     static let workspace = WorkspaceState()
     
-    #if os(iOS)
-    static var platformViewShown: PlatformViewShown = .unspecifiedMobile
-    #else
-    static var platformViewShown: PlatformViewShown = .macOS
-    #endif
-    
     public static func freshState() {
         DI.accounts.account = nil
         DI.settings.usages = nil
         DI.files.root = nil
         DI.files.idsAndFiles = [:]
-        DI.onboarding.theyChoseToBackup = false
+        DI.settings.showView = false
         DI.onboarding.username = ""
     }
 }

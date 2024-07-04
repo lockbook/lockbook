@@ -8,6 +8,9 @@ struct ConstrainedHomeViewWrapper: View {
     @EnvironmentObject var workspace: WorkspaceState
     @EnvironmentObject var files: FileService
     @EnvironmentObject var search: SearchService
+    @EnvironmentObject var settings: SettingsService
+    @EnvironmentObject var billing: BillingService
+    @EnvironmentObject var share: ShareService
     
     @State var searchInput: String = ""
     
@@ -15,41 +18,13 @@ struct ConstrainedHomeViewWrapper: View {
         ZStack {
             VStack {
                 NavigationStack(path: $files.path) {
-                    VStack {
-                        ConstrainedHomeView(searchInput: $searchInput)
-                            .searchable(text: $searchInput, prompt: "Search...")
-                            .navigationDestination(for: File.self, destination: { meta in
-                                if meta.fileType == .Folder {
-                                    FileListView(parent: meta, haveScrollView: true)
-                                        .navigationTitle(meta.name)
-                                } else {
-                                    WorkspaceView(DI.workspace, DI.coreService.corePtr)
-                                        .equatable()
-                                        .navigationBarTitleDisplayMode(.inline)
-                                        .toolbar {
-                                            ToolbarItemGroup {
-                                                Button(action: {
-                                                    DI.sheets.sharingFileInfo = meta
-                                                }, label: {
-                                                    Label("Share", systemImage: "person.wave.2.fill")
-                                                })
-                                                .foregroundColor(.blue)
-                                                .padding(.trailing, 10)
-                                                
-                                                Button(action: {
-                                                    exportFileAndShowShareSheet(meta: meta)
-                                                }, label: {
-                                                    Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
-                                                })
-                                                .foregroundColor(.blue)
-                                                .padding(.trailing, 10)
-                                            }
-                                        }
-                                        .background(.red)
-                                }
-                                
-                            })
-                    }
+                    mainView
+                }
+                
+                if files.path.last?.fileType != .Document && !settings.showView && !share.showPendingSharesView && !billing.showManageSubscriptionView {
+                    FilePathBreadcrumb()
+                    
+                    BottomBar(isiOS: true)
                 }
             }
             .onChange(of: files.path) { new in
@@ -64,6 +39,52 @@ struct ConstrainedHomeViewWrapper: View {
                     .opacity(0)
             }
         }
+    }
+    
+    var mainView: some View {
+        ConstrainedHomeView(searchInput: $searchInput)
+            .searchable(text: $searchInput, prompt: "Search")
+            .navigationDestination(for: File.self, destination: { meta in
+                if meta.fileType == .Folder {
+                    FileListView(parent: meta, haveScrollView: true)
+                        .navigationTitle(meta.name)
+                } else {
+                    WorkspaceView(DI.workspace, DI.coreService.corePtr)
+                        .equatable()
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItemGroup {
+                                Button(action: {
+                                    DI.sheets.sharingFileInfo = meta
+                                }, label: {
+                                    Label("Share", systemImage: "person.wave.2.fill")
+                                })
+                                .foregroundColor(.blue)
+                                .padding(.trailing, 10)
+                                
+                                Button(action: {
+                                    exportFileAndShowShareSheet(meta: meta)
+                                }, label: {
+                                    Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
+                                })
+                                .foregroundColor(.blue)
+                                .padding(.trailing, 10)
+                            }
+                        }
+                }
+            })
+            .navigationDestination(isPresented: $settings.showView, destination: {
+                SettingsView()
+            })
+            .navigationDestination(isPresented: $share.showPendingSharesView, destination: {
+                PendingSharesView()
+            })
+            .navigationDestination(isPresented: $billing.showManageSubscriptionView, destination: {
+                ManageSubscription()
+            })
+            .refreshable {
+                DI.workspace.requestSync()
+            }
     }
 }
 
@@ -93,7 +114,7 @@ struct ConstrainedHomeView: View {
                     noSearchResultsView
                 }
             } else {
-                suggestAndFilesView
+                suggestedAndFilesView
             }
         }
         .onChange(of: searchInput) { newInput in
@@ -106,7 +127,7 @@ struct ConstrainedHomeView: View {
                 DI.search.endSearch(isPathAndContentSearch: true)
             }
         })
-        .navigationBarTitle(DI.accounts.account!.username)
+        .navigationBarTitle(DI.accounts.account?.username ?? "...")
     }
     
     var noSearchResultsView: some View {
@@ -122,38 +143,36 @@ struct ConstrainedHomeView: View {
     }
     
     var searchResultsView: some View {
-        VStack(spacing: 0) {
-            ForEach(search.pathAndContentSearchResults) { result in
-                switch result {
-                case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                    Button(action: {
-                        DI.workspace.requestOpenDoc(meta.id)
-                        DI.files.intoChildDirectory(meta)
-                        dismissSearch()
-                    }) {
-                        SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
-                    }
-                    .padding(.horizontal)
-
-                case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                    Button(action: {
-                        DI.workspace.requestOpenDoc(meta.id)
-                        DI.files.intoChildDirectory(meta)
-                        dismissSearch()
-                    }) {
-                        SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
-                    }
-                    .padding(.horizontal)
+        ForEach(search.pathAndContentSearchResults) { result in
+            switch result {
+            case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
+                Button(action: {
+                    DI.workspace.requestOpenDoc(meta.id)
+                    DI.files.intoChildDirectory(meta)
+                    dismissSearch()
+                }) {
+                    SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                 }
-                
-                Divider()
-                    .padding(.leading, 20)
-                    .padding(.vertical, 5)
+                .padding(.horizontal)
+
+            case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
+                Button(action: {
+                    DI.workspace.requestOpenDoc(meta.id)
+                    DI.files.intoChildDirectory(meta)
+                    dismissSearch()
+                }) {
+                    SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                }
+                .padding(.horizontal)
             }
+            
+            Divider()
+                .padding(.leading, 20)
+                .padding(.vertical, 5)
         }
     }
     
-    var suggestAndFilesView: some View {
+    var suggestedAndFilesView: some View {
         VStack(alignment: .leading) {
             if files.suggestedDocs?.isEmpty != true {
                 Section(header: Text("Suggested")
@@ -190,7 +209,7 @@ struct ConstrainedHomeView: View {
 struct FileListView: View {
     @EnvironmentObject var files: FileService
     @EnvironmentObject var share: ShareService
-    @EnvironmentObject var onboarding: OnboardingService
+    @EnvironmentObject var workspace: WorkspaceState
 
     @Environment(\.colorScheme) var colorScheme
     
@@ -212,6 +231,9 @@ struct FileListView: View {
                     ScrollView {
                         childrenView
                     }
+                    .refreshable {
+                        DI.workspace.requestSync()
+                    }
                 } else {
                     childrenView
                 }
@@ -219,16 +241,33 @@ struct FileListView: View {
         }
         .toolbar {
             ToolbarItemGroup {
-                NavigationLink(
-                    destination: PendingSharesView()) {
-                        pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
-                    }
                 
-                NavigationLink(
-                    destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
-                        Image(systemName: "gearshape.fill").foregroundColor(.blue)
-                            .padding(.horizontal, 10)
+                Button(action: {
+                    DI.share.showPendingSharesView = true
+                }, label: {
+                    pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
+                })
+                
+                Button(action: {
+                    DI.settings.showView = true
+                }, label: {
+                    Image(systemName: "gearshape.fill").foregroundColor(.blue)
+                        .padding(.horizontal, 10)
+                })
+                
+                if workspace.syncing {
+                    ProgressView()
+                        .frame(width: 40, height: 40, alignment: .center)
+                } else {
+                    Button(action: {
+                        workspace.requestSync()
+                    }) {
+                        Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                            .imageScale(.large)
+                            .foregroundColor(.accentColor)
+                            .frame(width: 40, height: 40, alignment: .center)
                     }
+                }
             }
         }
     }
@@ -239,7 +278,6 @@ struct FileListView: View {
                 .padding(.horizontal)
         }
         .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets())
         .listRowSeparator(.hidden)
     }
     

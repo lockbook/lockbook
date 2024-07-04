@@ -65,28 +65,6 @@ struct FileCell: View {
     }
 }
 
-struct RealFileCell2: View {
-    let meta: File
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(meta.name)
-                    .font(.title3)
-            HStack {
-                Image(systemName: meta.fileType == .Folder ? "folder.fill" : FileService.docExtToSystemImage(name: meta.name))
-                        .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
-                Text(intEpochToString(epoch: max(meta.lastModified, meta.lastModified)))
-                        .foregroundColor(.secondary)
-                
-                Spacer()
-            }
-                    .font(.footnote)
-        }
-            .padding(.vertical, 5)
-            .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
-    }
-}
-
 struct RealFileCell: View {
     let meta: File
 
@@ -101,6 +79,7 @@ struct RealFileCell: View {
                 VStack(alignment: .leading) {
                     Text(meta.name)
                         .font(.body)
+                        .lineLimit(1)
                     
                     Text(DI.core.timeAgo(timeStamp: Int64(meta.lastModified)))
                             .foregroundColor(.secondary)

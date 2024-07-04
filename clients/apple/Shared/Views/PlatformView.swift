@@ -55,7 +55,7 @@ struct PlatformView: View {
     
     #if os(iOS)
     var platform: some View {
-        NavigationView {
+        Group {
             if horizontal == .regular && vertical == .regular {
                 ZStack {
                     iPad
@@ -67,12 +67,6 @@ struct PlatformView: View {
             } else {
                 iOS
             }
-        }
-        .onChange(of: horizontal) { newHorizontal in
-            horizontal == .regular && vertical == .regular ? (DI.platformViewShown = .iPad) : (DI.platformViewShown = .iOS)
-        }
-        .onChange(of: vertical) { newVertical in
-            horizontal == .regular && vertical == .regular ? (DI.platformViewShown = .iPad) : (DI.platformViewShown = .iOS)
         }
         .sheet(isPresented: $sheets.moving, content: {
             if let meta = sheets.movingInfo {
@@ -86,7 +80,7 @@ struct PlatformView: View {
     }
         
     var iPad: some View {
-        FileTreeView()
+        HomeView()
     }
     
     #else

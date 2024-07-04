@@ -18,7 +18,7 @@ struct SuggestedDocs: View {
     
     #if os(iOS)
     var iOSSuggestedDocs: some View {
-        Group {
+        VStack {
             if isiOS {
                 iOSSuggestedDocsBase
             } else {
@@ -54,9 +54,6 @@ struct SuggestedDocs: View {
                     
                     if branchState {
                         iOSSuggestedDocsBase
-                        Spacer()
-                    } else {
-                        Spacer()
                     }
                 }
             }

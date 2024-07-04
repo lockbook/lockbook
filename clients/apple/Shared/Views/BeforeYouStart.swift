@@ -19,7 +19,7 @@ struct BeforeYouStart: View {
             VStack(spacing: 20) {
                 Button("Backup now!") {
                     #if os(iOS)
-                    DI.onboarding.theyChoseToBackup = true
+                    DI.settings.showView = true
                     #else
                     NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                     #endif

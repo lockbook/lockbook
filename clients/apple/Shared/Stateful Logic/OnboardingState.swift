@@ -6,8 +6,6 @@ class OnboardingService: ObservableObject {
     let core: LockbookApi
     
     @Published var anAccountWasCreatedThisSession = false
-    
-    @Published var theyChoseToBackup = false
     @Published var working: Bool = false
     
     @Published var username: String = ""

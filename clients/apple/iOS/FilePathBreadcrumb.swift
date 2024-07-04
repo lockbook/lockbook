@@ -37,7 +37,7 @@ struct FilePathBreadcrumb: View {
                     Image(systemName: "folder.fill")
                         .foregroundColor(.blue)
                     
-                    Text(DI.accounts.account!.username)
+                    Text(DI.accounts.account?.username ?? "...")
                         .font(.callout)
                 })
                 .id(index)
