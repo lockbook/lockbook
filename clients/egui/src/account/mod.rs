@@ -20,7 +20,6 @@ use workspace_rs::workspace::{Workspace, WsConfig};
 use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
 use crate::util::data_dir;
-use crate::UpdateOutput;
 
 use self::full_doc_search::FullDocSearch;
 use self::modals::*;
@@ -104,7 +103,7 @@ impl AccountScreen {
         }
     }
 
-    pub fn update(&mut self, ctx: &egui::Context, output: &mut UpdateOutput) {
+    pub fn update(&mut self, ctx: &egui::Context) {
         self.process_updates(ctx);
         self.process_keys(ctx);
         self.process_dropped_files(ctx);
@@ -174,7 +173,6 @@ impl AccountScreen {
                 drop(settings);
                 self.workspace.focused_parent = Some(self.focused_parent());
                 let wso = self.workspace.show_workspace(ui);
-                output.set_window_title = wso.window_title;
                 if wso.settings_updated {
                     self.settings.write().unwrap().zen_mode =
                         self.workspace.cfg.zen_mode.load(Ordering::Relaxed);

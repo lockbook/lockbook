@@ -184,7 +184,8 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             // only draw frames if we got events (including repaint requests)
             let IntegrationOutput {
                 egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
-                update_output: UpdateOutput { close, set_window_title },
+                window_title,
+                update_output: UpdateOutput { close },
             } = lb.frame();
 
             // set modifiers
@@ -208,7 +209,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             if close {
                 output::close();
             }
-            output::window_title::handle(conn, window_id, &atoms, set_window_title)?;
+            output::window_title::handle(conn, window_id, &atoms, window_title)?;
             cursor_manager.handle(conn, &db, screen_num, window_id, cursor_icon);
             output::open_url::handle(open_url);
             output::clipboard_copy::handle_copy(

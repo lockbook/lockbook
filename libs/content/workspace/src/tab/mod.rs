@@ -87,6 +87,23 @@ pub enum ClipContent {
     Image(Vec<u8>), // image format guessed by egui
 }
 
+pub trait WindowTitleManager {
+    fn set_window_title(&self, title: String);
+    fn pop_window_title(&self) -> Option<String>;
+}
+
+impl WindowTitleManager for egui::Context {
+    fn set_window_title(&self, title: String) {
+        self.memory_mut(|m| {
+            m.data.insert_temp(Id::new("window_title"), title);
+        })
+    }
+
+    fn pop_window_title(&self) -> Option<String> {
+        self.memory_mut(|m| m.data.remove_temp(Id::new("window_title")))
+    }
+}
+
 pub trait EventManager {
     fn push_event(&self, event: Event);
     fn push_markdown_event(&self, event: Modification);

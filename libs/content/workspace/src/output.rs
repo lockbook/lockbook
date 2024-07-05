@@ -6,9 +6,6 @@ pub struct Response {
     /// What file the workspace is currently showing
     pub selected_file: Option<Uuid>,
 
-    /// What the window title should be (based on filename generally)
-    pub window_title: Option<String>,
-
     pub file_renamed: Option<(Uuid, String)>,
 
     pub new_folder_clicked: bool,

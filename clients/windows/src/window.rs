@@ -346,7 +346,8 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
 
                             let IntegrationOutput {
                                 egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
-                                update_output: UpdateOutput { close, set_window_title },
+                                window_title,
+                                update_output: UpdateOutput { close },
                             } = app.frame();
 
                             if let Err(_) = output::clipboard_copy::handle(copied_text.clone()) {
@@ -354,7 +355,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                                 app.context.output_mut(|o| o.copied_text = copied_text);
                             }
                             output::close::handle(close);
-                            output::window_title::handle(hwnd, set_window_title);
+                            output::window_title::handle(hwnd, window_title);
                             output::cursor::update(cursor_icon); // output saved and handled by 'SetCursor' message
                             output::open_url::handle(open_url);
 
