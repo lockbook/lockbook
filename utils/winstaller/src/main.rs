@@ -121,8 +121,6 @@ fn main() {
 
     impl eframe::App for Winstaller {
         fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-            egui_extras::install_image_loaders(ctx);
-
             while let Ok(result) = self.update_rx.try_recv() {
                 self.stage = Stage::Done(result);
             }
