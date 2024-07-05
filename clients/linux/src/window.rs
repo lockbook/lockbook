@@ -3,7 +3,7 @@ use egui_wgpu_backend::{
     wgpu::{self, CompositeAlphaMode},
     ScreenDescriptor,
 };
-use lbeguiapp::{IntegrationOutput, UpdateOutput, WgpuLockbook};
+use lbeguiapp::{IntegrationOutput, Output, WgpuLockbook};
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
     RawWindowHandle, WindowHandle, XcbDisplayHandle, XcbWindowHandle,
@@ -185,7 +185,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             let IntegrationOutput {
                 egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
                 window_title,
-                update_output: UpdateOutput { close },
+                app: Response { close },
             } = lb.frame();
 
             // set modifiers
