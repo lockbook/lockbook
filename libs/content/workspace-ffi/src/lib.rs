@@ -1,3 +1,4 @@
+use egui::Color32;
 use egui_wgpu_backend::wgpu;
 use std::time::Instant;
 
@@ -79,10 +80,14 @@ impl<'window> WgpuWorkspace<'window> {
         self.context.begin_frame(self.raw_input.take());
 
         let workspace_response = {
-            let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
+            let fill = if self.context.style().visuals.dark_mode {
+                Color32::BLACK
+            } else {
+                Color32::WHITE
+            };
             egui::CentralPanel::default()
                 .frame(egui::Frame::default().fill(fill))
-                .show(ctx, |ui| self.show(ui))
+                .show(&self.context, |ui| self.workspace.show(ui))
                 .inner
         }
         .into();

@@ -79,7 +79,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     let mut fonts = FontDefinitions::default();
     register_fonts(&mut fonts);
     context.set_fonts(fonts);
-    egui_extras::install_image_loaders(context);
+    egui_extras::install_image_loaders(&context);
 
     let start_time = Instant::now();
     let obj = WgpuWorkspace {

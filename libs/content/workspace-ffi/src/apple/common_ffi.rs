@@ -51,7 +51,7 @@ pub unsafe extern "C" fn init_ws(
     let mut fonts = FontDefinitions::default();
     register_fonts(&mut fonts);
     context.set_fonts(fonts);
-    egui_extras::install_image_loaders(context);
+    egui_extras::install_image_loaders(&context);
 
     let start_time = Instant::now();
     let obj = WgpuWorkspace {
@@ -127,7 +127,7 @@ pub extern "C" fn request_sync(obj: *mut c_void) {
 }
 
 #[no_mangle]
-pub extern "C" fn frame(obj: *mut c_void) -> Output {
+pub extern "C" fn ws_frame(obj: *mut c_void) -> Output {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.frame()
 }
