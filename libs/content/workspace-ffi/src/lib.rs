@@ -3,8 +3,10 @@ use std::time::Instant;
 
 mod cursor_icon;
 
-use workspace_rs::tab::ExtendedOutput as _;
 use workspace_rs::workspace::Workspace;
+
+#[cfg(any(target_vendor = "apple", target_os = "android"))]
+use workspace_rs::tab::ExtendedOutput as _;
 
 #[cfg(target_vendor = "apple")]
 pub mod apple;
