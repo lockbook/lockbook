@@ -8483,7 +8483,6 @@ dependencies = [
  "bezier-rs",
  "chrono",
  "egui",
- "egui_extras",
  "epaint",
  "glam",
  "image 0.24.9",

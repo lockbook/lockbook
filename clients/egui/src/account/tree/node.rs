@@ -89,7 +89,7 @@ impl TreeNode {
 
             (resp, node_resp)
         } else {
-            self.draw_normal(ui, state)
+            self.show_normal(ui, state)
         };
 
         // Draw any children, if expanded, and merge their responses.
@@ -104,12 +104,12 @@ impl TreeNode {
         egui::InnerResponse::new(node_resp, resp)
     }
 
-    fn draw_normal(
+    fn show_normal(
         &mut self, ui: &mut egui::Ui, state: &mut TreeState,
     ) -> (egui::Response, NodeResponse) {
         let mut node_resp = NodeResponse::default();
 
-        let mut resp = self.draw_icon_and_text(ui, state);
+        let mut resp = self.show_icon_and_text(ui, state);
 
         let scroll_to_this = if let Some(scroll_to) = state.request_scroll {
             scroll_to == self.file.id
@@ -180,7 +180,7 @@ impl TreeNode {
         (resp, node_resp)
     }
 
-    fn draw_icon_and_text(&mut self, ui: &mut egui::Ui, state: &mut TreeState) -> egui::Response {
+    fn show_icon_and_text(&mut self, ui: &mut egui::Ui, state: &mut TreeState) -> egui::Response {
         let text_height = ui.text_style_height(&egui::TextStyle::Body);
         let padding = ui.spacing().button_padding;
 

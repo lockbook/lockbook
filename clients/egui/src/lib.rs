@@ -50,6 +50,7 @@ impl Lockbook {
         workspace_rs::register_fonts(&mut fonts);
         theme::register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
+        egui_extras::install_image_loaders(ctx);
 
         theme::init(&settings, ctx);
 
@@ -59,8 +60,6 @@ impl Lockbook {
     }
 
     pub fn update(&mut self, ctx: &egui::Context) -> Response {
-        egui_extras::install_image_loaders(ctx);
-
         let mut output = Response::default();
         match self {
             // If we're on the Splash screen, we're waiting for the handoff to transition to the

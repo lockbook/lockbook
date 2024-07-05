@@ -95,11 +95,11 @@ impl Markdown {
             let mut res = if cfg!(target_os = "ios") || cfg!(target_os = "android") {
                 ui.allocate_ui(
                     egui::vec2(ui.available_width(), ui.available_height() - MOBILE_TOOL_BAR_SIZE),
-                    |ui| self.editor.scroll_ui(ui),
+                    |ui| self.editor.show(ui),
                 )
                 .inner
             } else {
-                self.editor.scroll_ui(ui)
+                self.editor.show(ui)
             };
             if !self.editor.appearance.plaintext_mode {
                 self.toolbar.show(ui, &mut self.editor, &mut res);

@@ -14,7 +14,7 @@ use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec
 use pulldown_cmark::HeadingLevel;
 
 impl Editor {
-    pub fn draw_text(&mut self, mut ui_size: Vec2, ui: &mut Ui, touch_mode: bool) {
+    pub fn draw_text(&self, mut ui_size: Vec2, ui: &mut Ui, touch_mode: bool) {
         let bullet_radius = self.appearance.bullet_radius();
         for galley in &self.galleys.galleys {
             // draw annotations
@@ -152,7 +152,7 @@ impl Editor {
         );
     }
 
-    pub fn draw_cursor(&mut self, ui: &mut Ui, touch_mode: bool) {
+    pub fn draw_cursor(&self, ui: &mut Ui, touch_mode: bool) {
         // determine cursor style
         let cursor = self.buffer.current.cursor;
         let selection_start_line =
@@ -270,7 +270,7 @@ impl Editor {
         }
     }
 
-    pub fn draw_debug(&mut self, ui: &mut Ui) {
+    pub fn draw_debug(&self, ui: &mut Ui) {
         for galley in &self.galleys.galleys {
             let galley_rect = galley.galley.rect.translate(galley.text_location.to_vec2());
             ui.painter().rect(

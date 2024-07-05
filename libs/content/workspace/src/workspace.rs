@@ -1,4 +1,4 @@
-use egui::{vec2, Color32, Context, Image};
+use egui::{vec2, Context, Image};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;

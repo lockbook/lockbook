@@ -172,7 +172,7 @@ impl AccountScreen {
                 );
                 drop(settings);
                 self.workspace.focused_parent = Some(self.focused_parent());
-                let wso = self.workspace.show_workspace(ui);
+                let wso = self.workspace.show(ui);
                 if wso.settings_updated {
                     self.settings.write().unwrap().zen_mode =
                         self.workspace.cfg.zen_mode.load(Ordering::Relaxed);

@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use egui::os::OperatingSystem;
-use egui::{Color32, Context, Event, FontDefinitions, Frame, Rect, Sense, Ui, Vec2};
+use egui::{Color32, Event, Frame, Rect, Sense, Ui, Vec2};
 use lb_rs::Uuid;
 use serde::Serialize;
 
@@ -18,8 +18,8 @@ use crate::tab::markdown_editor::input::click_checker::{ClickChecker, EditorClic
 use crate::tab::markdown_editor::input::cursor::PointerState;
 use crate::tab::markdown_editor::input::events;
 use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
-use crate::tab::markdown_editor::{ast, bounds, galleys, images, register_fonts};
-use crate::tab::{ExtendedInput as _, ExtendedOutput};
+use crate::tab::markdown_editor::{ast, bounds, galleys, images};
+use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 
 #[derive(Debug, Serialize, Default)]
 pub struct Response {
@@ -170,7 +170,7 @@ impl Editor {
                     .fill(fill)
                     .inner_margin(egui::Margin::symmetric(0.0, 15.0))
                     .show(ui, |ui| {
-                        ui.vertical_centered(|ui| self.ui(ui, self.id, touch_mode, &events))
+                        ui.vertical_centered(|ui| self.show_inner(ui, self.id, touch_mode, &events))
                     })
             });
         self.ui_rect = sao.inner_rect;
@@ -203,7 +203,9 @@ impl Editor {
         resp
     }
 
-    fn ui(&mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: &[Event]) -> Response {
+    fn show_inner(
+        &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: &[Event],
+    ) -> Response {
         self.debug.frame_start();
 
         // update theme
@@ -373,7 +375,7 @@ impl Editor {
         }
     }
 
-    pub fn process_events(
+    fn process_events(
         &mut self, ctx: &egui::Context, events: &[Event], custom_events: &[crate::Event],
         touch_mode: bool,
     ) -> (bool, bool) {
@@ -517,13 +519,7 @@ impl Editor {
         (text_updated, self.buffer.current.cursor.selection != prior_selection)
     }
 
-    pub fn set_font(&self, ctx: &Context) {
-        let mut fonts = FontDefinitions::default();
-        register_fonts(&mut fonts);
-        ctx.set_fonts(fonts);
-    }
-
-    pub fn get_suggested_title(&self) -> Option<String> {
+    fn get_suggested_title(&self) -> Option<String> {
         if !self.needs_name {
             return None;
         }
