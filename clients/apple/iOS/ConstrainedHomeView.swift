@@ -14,6 +14,12 @@ struct ConstrainedHomeViewWrapper: View {
     
     @State var searchInput: String = ""
     
+    var canShowFileTreeInfo: Bool {
+        get {
+            files.path.last?.fileType != .Document && !settings.showView && !share.showPendingSharesView && !billing.showManageSubscriptionView && !search.isPathAndContentSearching
+        }
+    }
+    
     var body: some View {
         ZStack {
             VStack {
@@ -21,7 +27,7 @@ struct ConstrainedHomeViewWrapper: View {
                     mainView
                 }
                 
-                if files.path.last?.fileType != .Document && !settings.showView && !share.showPendingSharesView && !billing.showManageSubscriptionView {
+                if canShowFileTreeInfo {
                     FilePathBreadcrumb()
                     
                     BottomBar(isiOS: true)
@@ -60,7 +66,7 @@ struct ConstrainedHomeViewWrapper: View {
                                     Label("Share", systemImage: "person.wave.2.fill")
                                 })
                                 .foregroundColor(.blue)
-                                .padding(.trailing, 10)
+                                .padding(.trailing, 5)
                                 
                                 Button(action: {
                                     exportFileAndShowShareSheet(meta: meta)
@@ -68,7 +74,6 @@ struct ConstrainedHomeViewWrapper: View {
                                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                                 })
                                 .foregroundColor(.blue)
-                                .padding(.trailing, 10)
                             }
                         }
                 }
@@ -185,22 +190,21 @@ struct ConstrainedHomeView: View {
                         SuggestedDocs(isiOS: true)
                     }
                     .padding(.horizontal, 20)
+            }
                 
-                if let root = files.root {
-                    Section(header: Text("Files")
-                        .bold()
-                        .foregroundColor(.primary)
-                        .textCase(.none)
-                        .font(.headline)
-                        .padding(.bottom, 3)
-                        .padding(.top, 8)) {
-                            FileListView(parent: root, haveScrollView: false)
-                        }
-                        .padding(.horizontal, 20)
-                } else {
-                    ProgressView()
-                }
-                
+            if let root = files.root {
+                Section(header: Text("Files")
+                    .bold()
+                    .foregroundColor(.primary)
+                    .textCase(.none)
+                    .font(.headline)
+                    .padding(.bottom, 3)
+                    .padding(.top, 8)) {
+                        FileListView(parent: root, haveScrollView: false)
+                    }
+                    .padding(.horizontal, 20)
+            } else {
+                ProgressView()
             }
         }
     }
@@ -241,23 +245,10 @@ struct FileListView: View {
         }
         .toolbar {
             ToolbarItemGroup {
-                
-                Button(action: {
-                    DI.share.showPendingSharesView = true
-                }, label: {
-                    pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
-                })
-                
-                Button(action: {
-                    DI.settings.showView = true
-                }, label: {
-                    Image(systemName: "gearshape.fill").foregroundColor(.blue)
-                        .padding(.horizontal, 10)
-                })
-                
                 if workspace.syncing {
                     ProgressView()
                         .frame(width: 40, height: 40, alignment: .center)
+                        .padding(.trailing, 5)
                 } else {
                     Button(action: {
                         workspace.requestSync()
@@ -265,9 +256,22 @@ struct FileListView: View {
                         Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
                             .imageScale(.large)
                             .foregroundColor(.accentColor)
-                            .frame(width: 40, height: 40, alignment: .center)
                     }
+                    .padding(.trailing, 5)
                 }
+                
+                Button(action: {
+                    DI.share.showPendingSharesView = true
+                }, label: {
+                    pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
+                })
+                .padding(.trailing, 5)
+                
+                Button(action: {
+                    DI.settings.showView = true
+                }, label: {
+                    Image(systemName: "gearshape.fill").foregroundColor(.blue)
+                })
             }
         }
     }
@@ -275,7 +279,6 @@ struct FileListView: View {
     var childrenView: some View {
         ForEach(files.childrenOf(parent)) { meta in
             FileCell(meta: meta)
-                .padding(.horizontal)
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)

@@ -18,17 +18,7 @@ struct HomeView: View {
             SidebarView(searchInput: $searchInput)
                 .searchable(text: $searchInput, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
             
-            NavigationStack {
-                workspaceView
-                    .toolbar(.hidden, for: .navigationBar)
-            }
-            .modifier(AnimatedToolbarModifier(
-                isSettingsViewShown: settings.showView,
-                isManageSubscriptionsViewShown: billing.showManageSubscriptionView,
-                isPendingSharesViewShown: share.showPendingSharesView,
-                openDoc: workspace.openDoc)
-            )
-            
+            workspaceView
         }
         .alert(isPresented: Binding(get: { sync.outOfSpace && !hideOutOfSpaceAlert }, set: {_ in sync.outOfSpace = false })) {
             Alert(
@@ -48,33 +38,11 @@ struct HomeView: View {
     var workspaceView: some View {
         WorkspaceView(DI.workspace, DI.coreService.corePtr)
             .equatable()
-            .navigationDestination(isPresented: $settings.showView, destination: {
-                SettingsView()
-            })
-            .navigationDestination(isPresented: $share.showPendingSharesView, destination: {
-                PendingSharesView()
-            })
-            .navigationDestination(isPresented: $billing.showManageSubscriptionView, destination: {
-                ManageSubscription()
-            })
-    }
-}
-
-struct AnimatedToolbarModifier: ViewModifier {
-    var isSettingsViewShown: Bool
-    var isManageSubscriptionsViewShown: Bool
-    var isPendingSharesViewShown: Bool
-    var openDoc: UUID?
-    
-    @State private var isToolbarVisible: Bool = true
-
-    func body(content: Content) -> some View {
-        content
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if let id = openDoc, let meta = DI.files.idsAndFiles[id] {
+                if let id = workspace.openDoc, let meta = DI.files.idsAndFiles[id] {
                     Button(action: {
-                        content.exportFileAndShowShareSheet(meta: meta)
+                        exportFileAndShowShareSheet(meta: meta)
                     }) {
                         Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                     }
@@ -87,24 +55,30 @@ struct AnimatedToolbarModifier: ViewModifier {
                         Label("Share", systemImage: "person.wave.2.fill")
                     }
                     .foregroundColor(.blue)
-                    .padding(.trailing, 5)
                 }
             }
-            .toolbar(isToolbarVisible ? .visible : .hidden, for: .navigationBar)
-            .onChange(of: isSettingsViewShown) { _ in animateToolbar() }
-            .onChange(of: isManageSubscriptionsViewShown) { _ in animateToolbar() }
-            .onChange(of: isPendingSharesViewShown) { _ in animateToolbar() }
-    }
-
-    private func animateToolbar() {
-        isToolbarVisible = isSettingsViewShown || isManageSubscriptionsViewShown || isPendingSharesViewShown
+            .background(VStack {
+                NavigationLink(destination: PendingSharesView(), isActive: $share.showPendingSharesView, label: {
+                        EmptyView()
+                    })
+                    .hidden()
+                
+                NavigationLink(destination: SettingsView(), isActive: $settings.showView, label: {
+                        EmptyView()
+                    })
+                    .hidden()
+                
+                NavigationLink(destination: ManageSubscription(), isActive: $billing.showManageSubscriptionView, label: {
+                        EmptyView()
+                    })
+                    .hidden()
+            })
     }
 }
 
 struct SidebarView: View {
     @EnvironmentObject var files: FileService
     @EnvironmentObject var search: SearchService
-    
     @EnvironmentObject var share: ShareService
     @EnvironmentObject var billing: BillingService
     @EnvironmentObject var settings: SettingsService

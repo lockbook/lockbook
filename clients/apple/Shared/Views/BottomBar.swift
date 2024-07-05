@@ -2,63 +2,89 @@ import SwiftUI
 import SwiftLockbookCore
 import SwiftWorkspace
 
-struct BottomBar2: View {
-    
+#if os(iOS)
+
+struct BottomBar: View {
     var isiOS = false
     
     @EnvironmentObject var workspace: WorkspaceState
-    @EnvironmentObject var settings: SettingsService
-        
-#if os(iOS)
-    var menu: some View {
-        HStack {
+
+    var body: some View {
+        HStack(alignment: .center) {
+            statusText
+            Spacer()
             if isiOS && !workspace.syncing {
-                Button(action: {
-                    DI.files.createDoc(isDrawing: false)
-                }) {
-                    Image(systemName: "doc.badge.plus")
-                        .font(.title2)
-                        .foregroundColor(.accentColor)
-                        
-                }
-                
-                Button(action: {
-                    DI.files.createDoc(isDrawing: true)
-                }) {
-                    Image(systemName: "pencil.tip.crop.circle.badge.plus")
-                        .font(.title2)
-                        .foregroundColor(.accentColor)
-                }
-                
-                Button(action: {
-                    DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent() ?? "ERROR", maybeParent: nil)
-                }) {
-                    Image(systemName: "folder.badge.plus")
-                        .font(.title2)
-                        .foregroundColor(.accentColor)
-                }
-                .padding(.trailing)
+                menu
             }
         }
+        .padding(.horizontal, 15)
+        .frame(height: 50)
     }
     
-    @ViewBuilder var syncButton: some View {
-        if workspace.syncing {
-            ProgressView()
-                .frame(width: 40, height: 40, alignment: .center)
-                .padding(.trailing, 9)
-        } else {
+    var statusText: some View {
+        Text(workspace.statusMsg)
+            .font(.callout)
+            .lineLimit(1)
+            .padding(.leading, 5)
+    }
+    
+    var menu: some View {
+        HStack {
             Button(action: {
-                workspace.requestSync()
+                DI.files.createDoc(isDrawing: false)
             }) {
-                Image(systemName: "arrow.triangle.2.circlepath.circle")
-                    .imageScale(.large)
+                Image(systemName: "doc.badge.plus")
+                    .font(.title2)
                     .foregroundColor(.accentColor)
-                    .frame(width: 40, height: 40, alignment: .center)
+            }
+            .padding(.trailing, 5)
+            
+            Button(action: {
+                DI.files.createDoc(isDrawing: true)
+            }) {
+                Image(systemName: "pencil.tip.crop.circle.badge.plus")
+                    .font(.title2)
+                    .foregroundColor(.accentColor)
+            }
+            .padding(.trailing, 5)
+            
+            Button(action: {
+                DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent() ?? "ERROR", maybeParent: nil)
+            }) {
+                Image(systemName: "folder.badge.plus")
+                    .font(.title2)
+                    .foregroundColor(.accentColor)
             }
         }
     }
+
+}
+
 #else
+
+struct BottomBar: View {
+    @EnvironmentObject var settings: SettingsService
+    @EnvironmentObject var workspace: WorkspaceState
+    
+    var body: some View {
+        VStack {
+            Divider()
+            HStack {
+                statusText
+                Spacer()
+                syncButton
+            }
+            usageBar
+        }
+        .padding(.bottom)
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder
+    var statusText: some View {
+        Text(workspace.statusMsg)
+    }
+    
     @ViewBuilder var syncButton: some View {
         if workspace.syncing {
             Text("")
@@ -154,104 +180,6 @@ struct BottomBar2: View {
                 settings.calculateUsage()
             }
         }
-    }
-#endif
-    
-    @ViewBuilder
-    var statusText: some View {
-        HStack {
-            Text(workspace.statusMsg)
-                .font(.callout)
-                .lineLimit(1)
-            
-            Spacer()
-        }
-        .padding(.leading)
-    }
-    
-    var body: some View {
-        Group {
-            #if os(iOS)
-            
-            #else
-            VStack {
-                Divider()
-                HStack {
-                    statusText
-                    Spacer()
-                    syncButton
-                }
-                usageBar
-            }
-            .padding(.bottom)
-            .padding(.horizontal)
-            #endif
-        }
-    }
-}
-
-#if os(iOS)
-
-struct BottomBar: View {
-    var isiOS = false
-    
-    @EnvironmentObject var workspace: WorkspaceState
-
-    var body: some View {
-        HStack(alignment: .center) {
-            statusText
-            Spacer()
-            if isiOS && !workspace.syncing {
-                menu
-            }
-        }
-        .padding(.horizontal, 15)
-        .frame(height: 50)
-    }
-    
-    var statusText: some View {
-        Text(workspace.statusMsg)
-            .font(.callout)
-            .lineLimit(1)
-    }
-    
-    var menu: some View {
-        HStack(spacing: 15) {
-            Button(action: {
-                DI.files.createDoc(isDrawing: false)
-            }) {
-                Image(systemName: "doc.badge.plus")
-                    .font(.title2)
-                    .foregroundColor(.accentColor)
-            }
-            
-            Button(action: {
-                DI.files.createDoc(isDrawing: true)
-            }) {
-                Image(systemName: "pencil.tip.crop.circle.badge.plus")
-                    .font(.title2)
-                    .foregroundColor(.accentColor)
-            }
-            
-            Button(action: {
-                DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent() ?? "ERROR", maybeParent: nil)
-            }) {
-                Image(systemName: "folder.badge.plus")
-                    .font(.title2)
-                    .foregroundColor(.accentColor)
-            }
-        }
-    }
-
-}
-
-#else
-
-struct BottomBar: View {
-    @EnvironmentObject var settings: SettingsService
-
-    var body: some View {
-        EmptyView()
     }
 }
 

@@ -3,32 +3,70 @@ import SwiftLockbookCore
 import DSFQuickActionBar
 import SwiftWorkspace
 
-struct FileListView: View {
+struct DesktopHomeView: View {
     @State var searchInput: String = ""
+
+    var body: some View {
+        NavigationView {
+            SidebarView(searchInput: $searchInput)
+                .searchable(text: $searchInput, prompt: "Search")
+            
+            DetailView()
+        }
+    }
+}
+
+struct SidebarView: View {
+    @EnvironmentObject var search: SearchService
+    @Environment(\.isSearching) var isSearching
+
+    @Binding var searchInput: String
     @State var expandedFolders: [File] = []
     @State var lastOpenDoc: File? = nil
     
     @State var treeBranchState: Bool = true
         
     var body: some View {
-        VStack {
-            SearchWrapperView(
-                searchInput: $searchInput,
-                mainView: mainView,
-                isiOS: false)
-            .searchable(text: $searchInput, prompt: "Search")
-                
-            BottomBar()
+        Group {
+            if search.isPathAndContentSearching {
+                if !search.isPathAndContentSearchInProgress && !search.pathAndContentSearchQuery.isEmpty && search.pathAndContentSearchResults.isEmpty {
+                    noSearchResultsView
+                } else {
+                    ScrollView {
+                        if search.isPathAndContentSearchInProgress {
+                            ProgressView()
+                                .frame(width: 20, height: 20)
+                                .padding(.top)
+                        }
+                        
+                        if !search.pathAndContentSearchResults.isEmpty {
+                            searchResultsView
+                        }
+                    }
+                }
+            } else {
+                suggestedAndFilesView
+            }
         }
-            
-        DetailView()
+        .onChange(of: searchInput) { newInput in
+            DI.search.search(query: newInput, isPathAndContentSearch: true)
+        }
+        .onChange(of: isSearching, perform: { newInput in
+            if newInput {
+                DI.search.startSearchThread(isPathAndContentSearch: true)
+            } else {
+                DI.search.endSearch(isPathAndContentSearch: true)
+            }
+        })
     }
     
-    var mainView: some View {
+    var suggestedAndFilesView: some View {
         VStack {
             SuggestedDocs()
 
             fileTreeView
+                
+            BottomBar()
         }
     }
     

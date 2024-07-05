@@ -94,6 +94,7 @@ struct RealFileCell: View {
             Spacer()
         }
         .padding(.vertical, 10)
+        .padding(.horizontal)
         .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
 }

@@ -260,12 +260,6 @@ class FileService: ObservableObject {
         newFiles.forEach {
             if root == nil && $0.id == $0.parent {
                 root = $0
-
-//                #if os(iOS)
-//                if(path.isEmpty) {
-//                    path.append($0)
-//                }
-//                #endif
             }
         }
         openFileChecks()
