@@ -11,8 +11,6 @@ pub struct Response {
     pub new_folder_clicked: bool,
     pub tab_title_clicked: bool,
 
-    pub hide_virtual_keyboard: bool,
-
     pub file_created: Option<Result<File, String>>,
 
     pub error: Option<String>,

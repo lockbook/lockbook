@@ -8,7 +8,10 @@ use workspace_rs::output::WsOutput;
 
 #[derive(Serialize, Default)]
 pub struct IntegrationOutput {
+    // widget response
     pub workspace_resp: FfiWorkspaceResp,
+
+    // platform response
     pub redraw_in: u64,
     pub has_copied_text: bool,
     pub copied_text: String,

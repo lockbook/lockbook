@@ -11,7 +11,7 @@ use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
-use crate::tab::{Tab, TabContent, TabFailure, WindowTitleManager};
+use crate::tab::{ExtendedOutput, Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
 use lb_rs::{File, FileType, LbError, NameComponents, SyncProgress, SyncStatus, Uuid};

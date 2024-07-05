@@ -87,12 +87,17 @@ pub enum ClipContent {
     Image(Vec<u8>), // image format guessed by egui
 }
 
-pub trait WindowTitleManager {
+// todo: find a better place for the code that attaches additional things to egui::Context
+pub trait ExtendedOutput {
     fn set_window_title(&self, title: String);
     fn pop_window_title(&self) -> Option<String>;
+    fn set_virtual_keyboard_shown(&self, enabled: bool);
+    fn pop_virtual_keyboard_shown(&self) -> Option<bool>;
+    fn set_edit_menu_pos(&self, pos: egui::Pos2);
+    fn pop_edit_menu_pos(&self) -> Option<egui::Pos2>;
 }
 
-impl WindowTitleManager for egui::Context {
+impl ExtendedOutput for egui::Context {
     fn set_window_title(&self, title: String) {
         self.memory_mut(|m| {
             m.data.insert_temp(Id::new("window_title"), title);
@@ -102,15 +107,36 @@ impl WindowTitleManager for egui::Context {
     fn pop_window_title(&self) -> Option<String> {
         self.memory_mut(|m| m.data.remove_temp(Id::new("window_title")))
     }
+
+    fn set_virtual_keyboard_shown(&self, enabled: bool) {
+        self.memory_mut(|m| {
+            m.data
+                .insert_temp(Id::new("virtual_keyboard_shown"), enabled);
+        })
+    }
+
+    fn pop_virtual_keyboard_shown(&self) -> Option<bool> {
+        self.memory_mut(|m| m.data.remove_temp(Id::new("virtual_keyboard_shown")))
+    }
+
+    fn set_edit_menu_pos(&self, pos: egui::Pos2) {
+        self.memory_mut(|m| {
+            m.data.insert_temp(Id::new("edit_menu_pos"), pos);
+        })
+    }
+
+    fn pop_edit_menu_pos(&self) -> Option<egui::Pos2> {
+        self.memory_mut(|m| m.data.remove_temp(Id::new("edit_menu_pos")))
+    }
 }
 
-pub trait EventManager {
+pub trait ExtendedInput {
     fn push_event(&self, event: Event);
     fn push_markdown_event(&self, event: Modification);
     fn pop_events(&self) -> Vec<Event>;
 }
 
-impl EventManager for egui::Context {
+impl ExtendedInput for egui::Context {
     fn push_event(&self, event: Event) {
         self.memory_mut(|m| {
             let mut events: Vec<Event> = m

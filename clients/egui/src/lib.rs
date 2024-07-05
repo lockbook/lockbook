@@ -9,7 +9,7 @@ mod theme;
 mod util;
 
 pub use crate::settings::Settings;
-use workspace_rs::tab::WindowTitleManager;
+use workspace_rs::tab::ExtendedOutput;
 pub use workspace_rs::Event;
 
 use crate::account::AccountScreen;
@@ -161,8 +161,11 @@ pub struct WgpuLockbook<'window> {
 
 #[derive(Default)]
 pub struct IntegrationOutput {
+    // platform response
     pub egui: PlatformOutput,
     pub window_title: Option<String>,
+
+    // widget response
     pub app: Response,
 }
 

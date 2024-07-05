@@ -925,7 +925,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         
         workspaceState?.reloadFiles = output.workspace_resp.refresh_files
 
-        let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)
+        let selectedFile = UUID(uuid: output.workspace.selected_file._0)
 
         if !selectedFile.isNil() {
             if currentOpenDoc != selectedFile {
@@ -976,7 +976,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             update_virtual_keyboard(wsHandle, keyboard_shown)
         }
 
-        if output.workspace_resp.tab_title_clicked {
+        if output.workspace.tab_title_clicked {
             workspaceState!.renameOpenDoc = true
 
             if showTabs {
@@ -984,12 +984,12 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             }
         }
 
-        let newFile = UUID(uuid: output.workspace_resp.doc_created._0)
+        let newFile = UUID(uuid: output.workspace.doc_created._0)
         if !newFile.isNil() {
             self.workspaceState?.openDoc = newFile
         }
 
-        if output.workspace_resp.new_folder_btn_pressed {
+        if output.workspace.new_folder_btn_pressed {
             workspaceState?.newFolderButtonPressed = true
         }
 

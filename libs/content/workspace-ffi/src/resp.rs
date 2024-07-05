@@ -8,28 +8,35 @@ use workspace_rs::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt a
 #[repr(C)]
 #[derive(Debug)]
 pub struct IntegrationOutput {
-    pub workspace_resp: FfiWorkspaceResp,
+    // widget response
+    pub workspace: Response,
+
+    // platform response
     pub redraw_in: u64,
     pub copied_text: *mut c_char,
     pub url_opened: *mut c_char,
     pub cursor: CCursorIcon,
+    pub virtual_keyboard_shown_set: bool,
+    pub virtual_keyboard_shown_val: bool,
 }
 
 impl Default for IntegrationOutput {
     fn default() -> Self {
         Self {
             redraw_in: Default::default(),
-            workspace_resp: Default::default(),
+            workspace: Default::default(),
             copied_text: std::ptr::null_mut(),
             url_opened: std::ptr::null_mut(),
             cursor: Default::default(),
+            virtual_keyboard_shown_set: Default::default(),
+            virtual_keyboard_shown_val: Default::default(),
         }
     }
 }
 
 #[derive(Debug, Default)]
 #[repr(C)]
-pub struct FfiWorkspaceResp {
+pub struct Response {
     selected_file: CUuid,
     doc_created: CUuid,
 
@@ -39,9 +46,6 @@ pub struct FfiWorkspaceResp {
     new_folder_btn_pressed: bool,
 
     tabs_changed: bool,
-
-    #[cfg(target_os = "ios")]
-    pub hide_virtual_keyboard: bool,
 
     #[cfg(target_os = "ios")]
     pub text_updated: bool,
@@ -74,8 +78,6 @@ impl From<WsOutput> for FfiWorkspaceResp {
             new_folder_btn_pressed: value.new_folder_clicked,
             tabs_changed: value.tabs_changed,
 
-            #[cfg(target_os = "ios")]
-            hide_virtual_keyboard: value.hide_virtual_keyboard,
             #[cfg(target_os = "ios")]
             text_updated: value.markdown_editor_text_updated,
             #[cfg(target_os = "ios")]

@@ -9,7 +9,7 @@ use std::ffi::{c_char, c_void, CStr, CString};
 use std::path::PathBuf;
 use std::time::Instant;
 use workspace_rs::register_fonts;
-use workspace_rs::tab::{ClipContent, EventManager as _};
+use workspace_rs::tab::{ClipContent, ExtendedInput as _};
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::{Workspace, WsConfig};
 

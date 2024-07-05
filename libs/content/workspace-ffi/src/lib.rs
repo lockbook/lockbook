@@ -3,7 +3,7 @@ use std::time::Instant;
 
 mod cursor_icon;
 
-use workspace_rs::workspace::Workspace;
+use workspace_rs::{tab::ExtendedOutput, workspace::Workspace};
 
 #[cfg(target_vendor = "apple")]
 pub mod apple;
@@ -51,7 +51,6 @@ impl<'window> WgpuWorkspace<'window> {
         use std::ffi::CString;
         use std::iter;
 
-        let mut out = IntegrationOutput::default();
         self.configure_surface();
         let output_frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -60,11 +59,11 @@ impl<'window> WgpuWorkspace<'window> {
                 // Silently return here to prevent spamming the console with:
                 // "The underlying surface has changed, and therefore the swap chain must be updated"
                 eprintln!("wgpu::SurfaceError::Outdated");
-                return out;
+                return Default::default();
             }
             Err(e) => {
                 eprintln!("Dropped frame with error: {}", e);
-                return out;
+                return Default::default();
             }
         };
         let output_view = output_frame
@@ -76,7 +75,7 @@ impl<'window> WgpuWorkspace<'window> {
         self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
         self.context.begin_frame(self.raw_input.take());
 
-        out.workspace_resp = self.workspace.draw(&self.context).into();
+        let workspace_response = self.workspace.draw(&self.context).into();
 
         let full_output = self.context.end_frame();
 
@@ -156,7 +155,51 @@ impl<'window> WgpuWorkspace<'window> {
             }
         };
 
-        out
+        #[cfg(not(target_os = "android"))]
+        let copied_text = {
+            let ct = full_output.platform_output.copied_text;
+            if ct.is_empty() {
+                std::ptr::null_mut()
+            } else {
+                CString::new(ct).unwrap().into_raw()
+            }
+        };
+
+        #[cfg(target_os = "android")]
+        let copied_text = full_output.platform_output.copied_text;
+
+        #[cfg(not(target_os = "android"))]
+        let url_opened = {
+            let url = full_output.platform_output.open_url;
+            if let Some(url) = url {
+                CString::new(url.url).unwrap().into_raw()
+            } else {
+                std::ptr::null_mut()
+            }
+        };
+
+        #[cfg(target_os = "android")]
+        let url_opened = full_output
+            .platform_output
+            .open_url
+            .map(|url| url.url)
+            .unwrap_or_default();
+
+        let cursor = full_output.platform_output.cursor_icon.into();
+
+        let virtual_keyboard_shown = self.context.pop_virtual_keyboard_shown();
+        let virtual_keyboard_shown_set = virtual_keyboard_shown.is_some();
+        let virtual_keyboard_shown_val = virtual_keyboard_shown.unwrap_or_default();
+
+        IntegrationOutput {
+            workspace: workspace_response,
+            redraw_in,
+            copied_text,
+            url_opened,
+            cursor,
+            virtual_keyboard_shown_set,
+            virtual_keyboard_shown_val,
+        }
     }
 
     pub fn set_egui_screen(&mut self) {

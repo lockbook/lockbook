@@ -14,7 +14,7 @@ use workspace_rs::tab::markdown_editor::input::mutation;
 use workspace_rs::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;
-use workspace_rs::tab::EventManager as _;
+use workspace_rs::tab::ExtendedInput as _;
 use workspace_rs::tab::TabContent;
 
 use super::keyboard::UIKeys;

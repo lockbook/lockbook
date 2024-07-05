@@ -283,7 +283,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         
         workspaceState?.reloadFiles = output.workspace_resp.refresh_files
 
-        let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)
+        let selectedFile = UUID(uuid: output.workspace.selected_file._0)
         if !selectedFile.isNil() {
             currentOpenDoc = selectedFile
             if selectedFile != self.workspaceState?.openDoc {
@@ -297,7 +297,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
             self.workspaceState?.openDoc = nil
         }
 
-        let newFile = UUID(uuid: output.workspace_resp.doc_created._0)
+        let newFile = UUID(uuid: output.workspace.doc_created._0)
         if !newFile.isNil() {
             openFile(id: newFile)
         }
@@ -310,7 +310,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
             }
         }
 
-        if output.workspace_resp.new_folder_btn_pressed {
+        if output.workspace.new_folder_btn_pressed {
             workspaceState?.newFolderButtonPressed = true
         }
 

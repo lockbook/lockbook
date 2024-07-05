@@ -19,7 +19,7 @@ use crate::tab::markdown_editor::input::cursor::PointerState;
 use crate::tab::markdown_editor::input::events;
 use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
 use crate::tab::markdown_editor::{ast, bounds, galleys, images, register_fonts};
-use crate::tab::EventManager as _;
+use crate::tab::ExtendedInput as _;
 
 #[derive(Debug, Serialize, Default)]
 pub struct Response {
@@ -30,7 +30,6 @@ pub struct Response {
 
     // actions taken
     pub suggested_rename: Option<String>,
-    pub hide_virtual_keyboard: bool,
     pub show_edit_menu: bool,
     pub edit_menu_x: f32,
     pub edit_menu_y: f32,
@@ -385,7 +384,6 @@ impl Editor {
         Response {
             text_updated,
             suggested_rename,
-            hide_virtual_keyboard: false, // set by toolbar callback (todo: cleanup)
             selection_updated,
             scroll_updated: false, // set by scroll_ui
             show_edit_menu: maybe_menu_location.is_some(),

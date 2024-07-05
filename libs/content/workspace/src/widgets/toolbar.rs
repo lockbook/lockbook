@@ -1,13 +1,13 @@
 use pulldown_cmark::LinkType;
 
-use crate::tab::markdown_editor;
+use crate::tab::{markdown_editor, ExtendedOutput};
 use crate::tab::{
     markdown_editor::{
         input::canonical::{Modification, Region},
         style::{BlockNode, InlineNode, ListItem, MarkdownNode},
         Editor,
     },
-    EventManager as _,
+    ExtendedInput as _,
 };
 
 use crate::theme::icons::Icon;
@@ -327,8 +327,8 @@ fn get_hide_keyboard_components() -> Vec<Component> {
         Component::Button(ToolbarButton {
             icon: Icon::KEYBOARD_HIDE,
             id: "keyboard_hide".to_string(),
-            callback: |_, _, res| {
-                res.hide_virtual_keyboard = true;
+            callback: |ui, _, _| {
+                ui.ctx().set_virtual_keyboard_shown(false);
             },
         }),
         Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
