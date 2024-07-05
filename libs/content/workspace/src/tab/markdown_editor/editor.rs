@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use egui::os::OperatingSystem;
-use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Color32, Context, Event, FontDefinitions, Frame, Rect, Sense, Ui, Vec2};
 use lb_rs::Uuid;
 use serde::Serialize;
 
@@ -19,7 +19,7 @@ use crate::tab::markdown_editor::input::cursor::PointerState;
 use crate::tab::markdown_editor::input::events;
 use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
 use crate::tab::markdown_editor::{ast, bounds, galleys, images, register_fonts};
-use crate::tab::ExtendedInput as _;
+use crate::tab::{ExtendedInput as _, ExtendedOutput};
 
 #[derive(Debug, Serialize, Default)]
 pub struct Response {
@@ -30,9 +30,6 @@ pub struct Response {
 
     // actions taken
     pub suggested_rename: Option<String>,
-    pub show_edit_menu: bool,
-    pub edit_menu_x: f32,
-    pub edit_menu_y: f32,
 }
 
 pub struct Editor {
@@ -224,30 +221,17 @@ impl Editor {
         let prior_suggested_title = self.get_suggested_title();
 
         // process events
-        let (text_updated, selection_updated, maybe_menu_location) = if self.initialized {
+        let (text_updated, selection_updated) = if self.initialized {
             if ui.memory(|m| m.has_focus(id))
                 || cfg!(target_os = "ios")
                 || cfg!(target_os = "android")
             {
                 let custom_events = ui.ctx().pop_events();
-                let (
-                    maybe_to_clipboard,
-                    maybe_opened_url,
-                    maybe_menu_location,
-                    text_updated,
-                    selection_updated,
-                ) = self.process_events(events, &custom_events, touch_mode);
-                if let Some(to_clipboard) = maybe_to_clipboard {
-                    ui.output_mut(|o| o.copied_text = to_clipboard);
-                }
-                if let Some(opened_url) = maybe_opened_url {
-                    ui.output_mut(|o| {
-                        o.open_url = Some(egui::output::OpenUrl::new_tab(opened_url))
-                    });
-                }
-                (text_updated, selection_updated, maybe_menu_location)
+                let (text_updated, selection_updated) =
+                    self.process_events(ui.ctx(), events, &custom_events, touch_mode);
+                (text_updated, selection_updated)
             } else {
-                (false, false, None)
+                (false, false)
             }
         } else {
             ui.memory_mut(|m| m.request_focus(id));
@@ -261,7 +245,7 @@ impl Editor {
                 },
             });
 
-            (true, true, None)
+            (true, true)
         };
 
         // recalculate dependent state
@@ -386,15 +370,13 @@ impl Editor {
             suggested_rename,
             selection_updated,
             scroll_updated: false, // set by scroll_ui
-            show_edit_menu: maybe_menu_location.is_some(),
-            edit_menu_x: maybe_menu_location.map(|p| p.x).unwrap_or_default(),
-            edit_menu_y: maybe_menu_location.map(|p| p.y).unwrap_or_default(),
         }
     }
 
     pub fn process_events(
-        &mut self, events: &[Event], custom_events: &[crate::Event], touch_mode: bool,
-    ) -> (Option<String>, Option<String>, Option<Pos2>, bool, bool) {
+        &mut self, ctx: &egui::Context, events: &[Event], custom_events: &[crate::Event],
+        touch_mode: bool,
+    ) -> (bool, bool) {
         // if the cursor is in an invalid location, move it to the next valid location
         if let BoundCase::BetweenRanges { range_after, .. } = self
             .buffer
@@ -455,7 +437,7 @@ impl Editor {
             appearance: &self.appearance,
             bounds: &self.bounds,
         };
-        let maybe_menu_location = if touch_mode {
+        let maybe_context_menu_pos = if touch_mode {
             let current_cursor = self.buffer.current.cursor;
             let current_selection = current_cursor.selection;
 
@@ -490,7 +472,7 @@ impl Editor {
                     )
                 });
 
-            let maybe_menu_location =
+            let maybe_context_menu_pos =
                 if touched_cursor || touched_selection || double_touched_for_selection {
                     // set menu location
                     Some(
@@ -508,7 +490,7 @@ impl Editor {
                 self.buffer.current.cursor.selection = prior_selection;
             }
 
-            maybe_menu_location
+            maybe_context_menu_pos
         } else {
             None
         };
@@ -522,13 +504,17 @@ impl Editor {
             }
         });
 
-        (
-            maybe_to_clipboard,
-            maybe_opened_url,
-            maybe_menu_location,
-            text_updated,
-            self.buffer.current.cursor.selection != prior_selection,
-        )
+        if let Some(clip) = maybe_to_clipboard {
+            ctx.output_mut(|o| o.copied_text = clip);
+        }
+        if let Some(url) = maybe_opened_url {
+            ctx.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
+        }
+        if let Some(pos) = maybe_context_menu_pos {
+            ctx.set_context_menu_pos(pos);
+        }
+
+        (text_updated, self.buffer.current.cursor.selection != prior_selection)
     }
 
     pub fn set_font(&self, ctx: &Context) {

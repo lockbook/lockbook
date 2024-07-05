@@ -93,8 +93,8 @@ pub trait ExtendedOutput {
     fn pop_window_title(&self) -> Option<String>;
     fn set_virtual_keyboard_shown(&self, enabled: bool);
     fn pop_virtual_keyboard_shown(&self) -> Option<bool>;
-    fn set_edit_menu_pos(&self, pos: egui::Pos2);
-    fn pop_edit_menu_pos(&self) -> Option<egui::Pos2>;
+    fn set_context_menu_pos(&self, pos: egui::Pos2);
+    fn pop_context_menu_pos(&self) -> Option<egui::Pos2>;
 }
 
 impl ExtendedOutput for egui::Context {
@@ -119,14 +119,14 @@ impl ExtendedOutput for egui::Context {
         self.memory_mut(|m| m.data.remove_temp(Id::new("virtual_keyboard_shown")))
     }
 
-    fn set_edit_menu_pos(&self, pos: egui::Pos2) {
+    fn set_context_menu_pos(&self, pos: egui::Pos2) {
         self.memory_mut(|m| {
-            m.data.insert_temp(Id::new("edit_menu_pos"), pos);
+            m.data.insert_temp(Id::new("context_menu_pos"), pos);
         })
     }
 
-    fn pop_edit_menu_pos(&self) -> Option<egui::Pos2> {
-        self.memory_mut(|m| m.data.remove_temp(Id::new("edit_menu_pos")))
+    fn pop_context_menu_pos(&self) -> Option<egui::Pos2> {
+        self.memory_mut(|m| m.data.remove_temp(Id::new("context_menu_pos")))
     }
 }
 

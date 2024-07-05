@@ -191,6 +191,8 @@ impl<'window> WgpuWorkspace<'window> {
         let virtual_keyboard_shown_set = virtual_keyboard_shown.is_some();
         let virtual_keyboard_shown_val = virtual_keyboard_shown.unwrap_or_default();
 
+        // todo: export context_menu_pos via self.context.pop_context_menu_pos()
+
         IntegrationOutput {
             workspace: workspace_response,
             redraw_in,
