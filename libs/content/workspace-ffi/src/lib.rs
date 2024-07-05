@@ -3,6 +3,7 @@ use std::time::Instant;
 
 mod cursor_icon;
 
+use workspace_rs::tab::ExtendedOutput;
 use workspace_rs::workspace::Workspace;
 
 #[cfg(target_vendor = "apple")]
