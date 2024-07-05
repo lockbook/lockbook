@@ -1,4 +1,3 @@
-use egui::Color32;
 use egui_wgpu_backend::wgpu;
 use std::time::Instant;
 
