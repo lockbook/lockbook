@@ -3,7 +3,7 @@ use egui_wgpu_backend::{
     wgpu::{self, CompositeAlphaMode},
     ScreenDescriptor,
 };
-use lbeguiapp::{Output, Output, WgpuLockbook};
+use lbeguiapp::{Output, WgpuLockbook};
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
     RawWindowHandle, WindowHandle, XcbDisplayHandle, XcbWindowHandle,
