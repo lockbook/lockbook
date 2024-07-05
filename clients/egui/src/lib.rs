@@ -160,7 +160,7 @@ pub struct WgpuLockbook<'window> {
 }
 
 #[derive(Default)]
-pub struct IntegrationOutput {
+pub struct Output {
     // platform response
     pub egui: PlatformOutput,
     pub window_title: Option<String>,
@@ -170,7 +170,7 @@ pub struct IntegrationOutput {
 }
 
 impl<'window> WgpuLockbook<'window> {
-    pub fn frame(&mut self) -> IntegrationOutput {
+    pub fn frame(&mut self) -> Output {
         self.configure_surface();
         let output_frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -236,7 +236,7 @@ impl<'window> WgpuLockbook<'window> {
             self.context.request_repaint();
         }
 
-        IntegrationOutput {
+        Output {
             egui: full_output.platform_output,
             window_title: self.context.pop_window_title(),
             app: app_response,

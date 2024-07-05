@@ -7,7 +7,7 @@ use serde::Serialize;
 use workspace_rs::output::WsOutput;
 
 #[derive(Serialize, Default)]
-pub struct IntegrationOutput {
+pub struct Output {
     // widget response
     pub workspace_resp: FfiWorkspaceResp,
 

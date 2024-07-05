@@ -3,7 +3,7 @@ use egui_wgpu_backend::{
     wgpu::{self, CompositeAlphaMode},
     ScreenDescriptor,
 };
-use lbeguiapp::{IntegrationOutput, Output, WgpuLockbook};
+use lbeguiapp::{Output, Output, WgpuLockbook};
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
     RawWindowHandle, WindowHandle, XcbDisplayHandle, XcbWindowHandle,
@@ -182,10 +182,10 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             got_events_atomic.store(false, Ordering::SeqCst);
 
             // only draw frames if we got events (including repaint requests)
-            let IntegrationOutput {
+            let Output {
                 egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
                 window_title,
-                app: Response { close },
+                app: lbeguiapp::Response { close },
             } = lb.frame();
 
             // set modifiers

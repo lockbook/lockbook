@@ -9,7 +9,7 @@ use egui_wgpu_backend::{
     wgpu::{self, CompositeAlphaMode},
     ScreenDescriptor,
 };
-use lbeguiapp::{IntegrationOutput, UpdateOutput, WgpuLockbook};
+use lbeguiapp::{Output, UpdateOutput, WgpuLockbook};
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
     RawWindowHandle, Win32WindowHandle, WindowHandle, WindowsDisplayHandle,
@@ -344,7 +344,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                             // https://stackoverflow.com/questions/5841299/difference-between-getdc-and-beginpaint
                             unsafe { BeginPaint(hwnd, std::ptr::null_mut()) };
 
-                            let IntegrationOutput {
+                            let Output {
                                 egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
                                 window_title,
                                 update_output: UpdateOutput { close },

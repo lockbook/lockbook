@@ -1,4 +1,4 @@
-use crate::{CUuid, IntegrationOutput, WgpuWorkspace};
+use crate::{CUuid, Output, WgpuWorkspace};
 use egui::os::OperatingSystem;
 use egui::{vec2, Context, Event, FontDefinitions, Pos2};
 use egui_wgpu_backend::wgpu::{CompositeAlphaMode, SurfaceTargetUnsafe};
@@ -126,7 +126,7 @@ pub extern "C" fn request_sync(obj: *mut c_void) {
 }
 
 #[no_mangle]
-pub extern "C" fn draw_workspace(obj: *mut c_void) -> IntegrationOutput {
+pub extern "C" fn draw_workspace(obj: *mut c_void) -> Output {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.frame()
 }

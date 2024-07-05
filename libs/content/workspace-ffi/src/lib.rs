@@ -3,7 +3,7 @@ use std::time::Instant;
 
 mod cursor_icon;
 
-use workspace_rs::tab::ExtendedOutput;
+use workspace_rs::tab::ExtendedOutput as _;
 use workspace_rs::workspace::Workspace;
 
 #[cfg(target_vendor = "apple")]
@@ -47,7 +47,7 @@ pub struct WgpuWorkspace<'window> {
 
 #[cfg(any(target_vendor = "apple", target_os = "android"))]
 impl<'window> WgpuWorkspace<'window> {
-    pub fn frame(&mut self) -> IntegrationOutput {
+    pub fn frame(&mut self) -> Output {
         #[cfg(not(target_os = "android"))]
         use std::ffi::CString;
         use std::iter;
@@ -194,7 +194,7 @@ impl<'window> WgpuWorkspace<'window> {
 
         // todo: export context_menu_pos via self.context.pop_context_menu_pos()
 
-        IntegrationOutput {
+        Output {
             workspace: workspace_response,
             redraw_in,
             copied_text,

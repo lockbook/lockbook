@@ -7,7 +7,7 @@ use workspace_rs::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt a
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct IntegrationOutput {
+pub struct Output {
     // widget response
     pub workspace: Response,
 
@@ -20,7 +20,7 @@ pub struct IntegrationOutput {
     pub virtual_keyboard_shown_val: bool,
 }
 
-impl Default for IntegrationOutput {
+impl Default for Output {
     fn default() -> Self {
         Self {
             redraw_in: Default::default(),
