@@ -80,9 +80,9 @@ impl<'window> WgpuWorkspace<'window> {
 
         let workspace_response = {
             let fill = if self.context.style().visuals.dark_mode {
-                Color32::BLACK
+                egui::Color32::BLACK
             } else {
-                Color32::WHITE
+                egui::Color32::WHITE
             };
             egui::CentralPanel::default()
                 .frame(egui::Frame::default().fill(fill))

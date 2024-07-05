@@ -9,7 +9,7 @@ use workspace_rs::output::WsOutput;
 #[derive(Serialize, Default)]
 pub struct Output {
     // widget response
-    pub workspace_resp: FfiWorkspaceResp,
+    pub workspace_resp: Response,
 
     // platform response
     pub redraw_in: u64,
@@ -19,7 +19,7 @@ pub struct Output {
 }
 
 #[derive(Serialize, Default)]
-pub struct FfiWorkspaceResp {
+pub struct Response {
     selected_file: Uuid,
     doc_created: Uuid,
 
@@ -37,7 +37,7 @@ pub struct FfiWorkspaceResp {
     pub text_updated: bool,
 }
 
-impl From<WsOutput> for FfiWorkspaceResp {
+impl From<WsOutput> for Response {
     fn from(value: WsOutput) -> Self {
         Self {
             selected_file: value.selected_file.unwrap_or_default(),
