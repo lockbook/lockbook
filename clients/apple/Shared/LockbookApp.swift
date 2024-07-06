@@ -93,21 +93,6 @@ import AppKit
 }
 
 extension View {
-    func hideKeyboard() {
-        #if os(iOS)
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        #endif
-    }
-    
-    /// Allows free use of .autocapitalization without having to if else it on macOS
-    #if os(macOS)
-    func autocapitalization(_ bunk: String?) -> some View {
-        self
-    }
-    #endif
-}
-
-extension View {
     func registeriOSBackgroundTasks(scenePhase: ScenePhase, appDelegate: AppDelegate) -> some View {
         #if os(iOS)
         self

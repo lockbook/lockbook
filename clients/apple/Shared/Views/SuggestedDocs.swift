@@ -18,7 +18,7 @@ struct SuggestedDocs: View {
     
     #if os(iOS)
     var iOSSuggestedDocs: some View {
-        Group {
+        VStack {
             if isiOS {
                 iOSSuggestedDocsBase
             } else {
@@ -54,9 +54,6 @@ struct SuggestedDocs: View {
                     
                     if branchState {
                         iOSSuggestedDocsBase
-                        Spacer()
-                    } else {
-                        Spacer()
                     }
                 }
             }
@@ -72,6 +69,7 @@ struct SuggestedDocs: View {
                             HStack {
                                 Button(action: {
                                     DI.workspace.requestOpenDoc(meta.id)
+                                    DI.files.intoChildDirectory(meta)
                                 }) {
                                     SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
                                 }
@@ -176,7 +174,7 @@ extension View {
     func setSuggestedDocsBackground(isiOS: Bool, colorScheme: ColorScheme) -> some View {
         #if os(iOS)
         if isiOS {
-            let fill: Color = colorScheme == .light ? .white : .blue.opacity(0.19)
+            let fill: Color = colorScheme == .light ? .blue.opacity(0.08) : .blue.opacity(0.19)
             
             self.background(RoundedRectangle(cornerRadius: 10).fill(fill))
         } else {

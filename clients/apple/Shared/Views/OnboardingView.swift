@@ -60,7 +60,7 @@ struct OnboardingView: View {
                         HStack {
                             SecureField("Private Key", text: self.$onboardingState.accountString)
                                 .disableAutocorrection(true)
-                                .autocapitalization(.none)
+                                .modifier(DisableAutoCapitalization())
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .disabled(self.onboardingState.working)
                                 .onSubmit(self.onboardingState.handleImport)
