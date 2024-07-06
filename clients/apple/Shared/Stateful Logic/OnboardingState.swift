@@ -25,7 +25,7 @@ class OnboardingService: ObservableObject {
         self.createAccountError = ""
         self.importAccountError = ""
         DispatchQueue.global(qos: .userInitiated).async {
-            let operation = self.core.createAccount(username: self.username, apiLocation: "https://api.prod.lockbook.net", welcomeDoc: true)
+            let operation = self.core.createAccount(username: self.username, apiLocation: ConfigHelper.get(.apiLocation), welcomeDoc: true)
             DispatchQueue.main.async {
                 self.working = false                
                 switch operation {
