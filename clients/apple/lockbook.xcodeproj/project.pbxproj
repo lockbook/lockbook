@@ -17,7 +17,7 @@
 		4709DC3F2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
 		47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */ = {isa = PBXBuildFile; productRef = 47159F4529CFA05B00969DDF /* DSFQuickActionBar */; };
 		471C788D2B4910A80022B3B2 /* SwiftWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 471C788C2B4910A80022B3B2 /* SwiftWorkspace */; };
-		471E363529FD5F5C00A1958A /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8F925ACBCF9005B7B01 /* FileListView.swift */; };
+		471E363529FD5F5C00A1958A /* DesktopHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8F925ACBCF9005B7B01 /* DesktopHomeView.swift */; };
 		473A3DCE29AC354B0017BC6A /* FilePathBreadcrumb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */; };
 		4756C4DB2A57CE86002C64B1 /* CreateFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4756C4DA2A57CE86002C64B1 /* CreateFolderSheet.swift */; };
 		4756C4DC2A57CE86002C64B1 /* CreateFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4756C4DA2A57CE86002C64B1 /* CreateFolderSheet.swift */; };
@@ -170,7 +170,7 @@
 		8715F92B271641CF0051689E /* Scanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scanner.swift; sourceTree = "<group>"; };
 		873559BD26C31210008B3C36 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		8741E8E325AAA524005B7B01 /* BottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomBar.swift; sourceTree = "<group>"; };
-		8741E8F925ACBCF9005B7B01 /* FileListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileListView.swift; sourceTree = "<group>"; };
+		8741E8F925ACBCF9005B7B01 /* DesktopHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopHomeView.swift; sourceTree = "<group>"; };
 		8741E90E25AD1565005B7B01 /* OutlineBranch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineBranch.swift; sourceTree = "<group>"; };
 		874A88F426D3E91900F010C8 /* DI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DI.swift; sourceTree = "<group>"; };
 		877FB54926D1788D0008AB3F /* CoreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreService.swift; sourceTree = "<group>"; };
@@ -370,7 +370,7 @@
 			children = (
 				B249B9F3282FE532004F5300 /* TreeView */,
 				870DC0A026BF3775002E9A92 /* Settings */,
-				8741E8F925ACBCF9005B7B01 /* FileListView.swift */,
+				8741E8F925ACBCF9005B7B01 /* DesktopHomeView.swift */,
 				DFE4E36E2B847F4300AC8A15 /* WindowManager.swift */,
 				EA5C7D792516606100F7F358 /* Info.plist */,
 				EA5C7D7A2516606100F7F358 /* macOS.entitlements */,
@@ -619,7 +619,7 @@
 				1F7E4FC02521297D0045F606 /* Colors.swift in Sources */,
 				4772A43B29E8656A0032D586 /* SearchWrapperView.swift in Sources */,
 				87F78F7B27094A040001E159 /* BeforeYouStart.swift in Sources */,
-				471E363529FD5F5C00A1958A /* FileListView.swift in Sources */,
+				471E363529FD5F5C00A1958A /* DesktopHomeView.swift in Sources */,
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
 				B249B9F2282C6241004F5300 /* FileTreeView.swift in Sources */,
 				4709DC39296609F100426106 /* PendingSharesView.swift in Sources */,

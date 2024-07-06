@@ -85,7 +85,6 @@ struct SidebarView: View {
     
     @State private var searchBar: UISearchBar?
     
-    @Environment(\.dismissSearch) private var dismissSearch
     @Environment(\.isSearching) var isSearching
     
     @Binding var searchInput: String
@@ -155,8 +154,6 @@ struct SidebarView: View {
             case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
                 Button(action: {
                     DI.workspace.requestOpenDoc(meta.id)
-                    DI.files.intoChildDirectory(meta)
-                    dismissSearch()
                 }) {
                     SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                 }
@@ -165,8 +162,6 @@ struct SidebarView: View {
             case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
                 Button(action: {
                     DI.workspace.requestOpenDoc(meta.id)
-                    DI.files.intoChildDirectory(meta)
-                    dismissSearch()
                 }) {
                     SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
                 }

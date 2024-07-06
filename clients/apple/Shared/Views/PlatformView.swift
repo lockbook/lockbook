@@ -87,9 +87,7 @@ struct PlatformView: View {
     
     var platform: some View {
         ZStack {
-            NavigationView {
-                FileListView()
-            }
+            DesktopHomeView()
             
             if search.isPathSearching {
                 PathSearchActionBar()

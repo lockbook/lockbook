@@ -60,6 +60,45 @@ struct SidebarView: View {
         })
     }
     
+    var noSearchResultsView: some View {
+        VStack {
+            Text("No results.")
+                .font(.headline)
+                .foregroundColor(.gray)
+                .fontWeight(.bold)
+                .padding()
+            
+            Spacer()
+        }
+    }
+    
+    var searchResultsView: some View {
+        ForEach(search.pathAndContentSearchResults) { result in
+            switch result {
+            case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
+                Button(action: {
+                    DI.workspace.requestOpenDoc(meta.id)
+                }) {
+                    SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
+                }
+                .padding(.horizontal)
+
+            case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
+                Button(action: {
+                    DI.workspace.requestOpenDoc(meta.id)
+                }) {
+                    SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                }
+                .padding(.horizontal)
+            }
+            
+            Divider()
+                .padding(.leading, 20)
+                .padding(.vertical, 5)
+        }
+    }
+
+    
     var suggestedAndFilesView: some View {
         VStack {
             SuggestedDocs()
