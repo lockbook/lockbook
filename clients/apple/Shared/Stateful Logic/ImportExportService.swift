@@ -24,7 +24,6 @@ class ImportExportService: ObservableObject {
         case .success(_):
             DI.files.successfulAction = .importFiles
             DI.files.refresh()
-            DI.status.checkForLocalWork()
             
             return true
         case .failure(let error):

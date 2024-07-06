@@ -3,32 +3,112 @@ import SwiftLockbookCore
 import DSFQuickActionBar
 import SwiftWorkspace
 
-struct FileListView: View {
+struct DesktopHomeView: View {
     @State var searchInput: String = ""
     @State var expandedFolders: [File] = []
     @State var lastOpenDoc: File? = nil
+
+    var body: some View {
+        NavigationView {
+            SidebarView(searchInput: $searchInput, expandedFolders: $expandedFolders, lastOpenDoc: $lastOpenDoc)
+                .searchable(text: $searchInput, prompt: "Search")
+            
+            DetailView()
+        }
+    }
+}
+
+struct SidebarView: View {
+    @EnvironmentObject var search: SearchService
+    
+    @Environment(\.isSearching) var isSearching
+
+    @Binding var searchInput: String
+    @Binding var expandedFolders: [File]
+    @Binding var lastOpenDoc: File?
     
     @State var treeBranchState: Bool = true
         
     var body: some View {
-        VStack {
-            SearchWrapperView(
-                searchInput: $searchInput,
-                mainView: mainView,
-                isiOS: false)
-            .searchable(text: $searchInput, prompt: "Search")
-                
-            BottomBar()
+        Group {
+            if search.isPathAndContentSearching {
+                if !search.isPathAndContentSearchInProgress && !search.pathAndContentSearchQuery.isEmpty && search.pathAndContentSearchResults.isEmpty {
+                    noSearchResultsView
+                } else {
+                    ScrollView {
+                        if search.isPathAndContentSearchInProgress {
+                            ProgressView()
+                                .frame(width: 20, height: 20)
+                                .padding(.top)
+                        }
+                        
+                        if !search.pathAndContentSearchResults.isEmpty {
+                            searchResultsView
+                        }
+                    }
+                }
+            } else {
+                suggestedAndFilesView
+            }
         }
-            
-        DetailView()
+        .onChange(of: searchInput) { newInput in
+            DI.search.search(query: newInput, isPathAndContentSearch: true)
+        }
+        .onChange(of: isSearching, perform: { newInput in
+            if newInput {
+                DI.search.startSearchThread(isPathAndContentSearch: true)
+            } else {
+                DI.search.endSearch(isPathAndContentSearch: true)
+            }
+        })
     }
     
-    var mainView: some View {
+    var noSearchResultsView: some View {
+        VStack {
+            Text("No results.")
+                .font(.headline)
+                .foregroundColor(.gray)
+                .fontWeight(.bold)
+                .padding()
+            
+            Spacer()
+        }
+    }
+    
+    var searchResultsView: some View {
+        ForEach(search.pathAndContentSearchResults) { result in
+            switch result {
+            case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
+                Button(action: {
+                    DI.workspace.requestOpenDoc(meta.id)
+                }) {
+                    SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
+                }
+                .padding(.horizontal)
+
+            case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
+                Button(action: {
+                    DI.workspace.requestOpenDoc(meta.id)
+                }) {
+                    SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                }
+                .padding(.horizontal)
+            }
+            
+            Divider()
+                .padding(.leading, 20)
+                .padding(.vertical, 5)
+        }
+    }
+
+    
+    var suggestedAndFilesView: some View {
         VStack {
             SuggestedDocs()
 
             fileTreeView
+                
+            BottomBar()
         }
     }
     

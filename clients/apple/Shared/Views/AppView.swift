@@ -10,13 +10,11 @@ struct AppView: View {
     @ViewBuilder
     var body: some View {
         VStack {
-            switch accounts.account {
-            case .none:
-                OnboardingView()
-            case .some(let account):
-                switch files.root {
-                case .some(let root):
-                    BookView(currentFolder: root, account: account)
+            if accounts.calculated {
+                if accounts.account == nil {
+                    OnboardingView()
+                } else {
+                    PlatformView()
                         .onOpenURL() { url in
                             guard let uuidString = url.host, let id = UUID(uuidString: uuidString), url.scheme == "lb" else {
                                 DI.errors.errorWithTitle("Malformed link", "Cannot open file")
@@ -24,7 +22,7 @@ struct AppView: View {
                             }
         
                             DispatchQueue.global(qos: .userInitiated).async {
-                                while !DI.files.hasRootLoaded {                                    
+                                while !DI.files.hasRootLoaded {
                                     Thread.sleep(until: .now + 1)
                                 }
         
@@ -40,18 +38,9 @@ struct AppView: View {
                             }
                         }
                         .handlesExternalEvents(preferring: ["lb"], allowing: ["lb"])
-
-                case .none:
-                    if files.hasRootLoaded {
-                        OnboardingView()
-                            .onAppear {
-                                DI.onboarding.initialSyncing = true
-                                DI.sync.importSync()
-                            }
-                    } else {
-                        Label("Loading...", systemImage: "clock.arrow.circlepath")
-                    }
                 }
+            } else {
+                Label("Loading...", systemImage: "clock.arrow.circlepath")
             }
         }
             .alert(isPresented: Binding(get: { errors.globalError != nil }, set: { _ in errors.globalError = nil })) {

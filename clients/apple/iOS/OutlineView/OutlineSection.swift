@@ -24,6 +24,8 @@ struct OutlineSection: View {
         }.contextMenu {
             OutlineContextMenu (meta: root, branchState: nil)
         }
-        .navigationTitle(files.root?.name ?? "")
+        .refreshable {
+            DI.workspace.requestSync()
+        }
     }
 }

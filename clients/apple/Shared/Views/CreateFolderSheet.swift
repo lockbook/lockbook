@@ -40,7 +40,7 @@ struct CreateFolderSheet: View {
                 onCommit()
             })
                 .textFieldStyle(RoundedBorderTextFieldStyle())
-                .autocapitalization(.none)
+                .modifier(DisableAutoCapitalization())
             
             if let error = maybeError {
                 Text(error)

@@ -6,8 +6,6 @@ class OnboardingService: ObservableObject {
     let core: LockbookApi
     
     @Published var anAccountWasCreatedThisSession = false
-    
-    @Published var theyChoseToBackup = false
     @Published var working: Bool = false
     
     @Published var username: String = ""
@@ -102,7 +100,7 @@ class OnboardingService: ObservableObject {
     
     func getAccountAndFinalize() {
         DI.accounts.getAccount()
-        DI.status.setLastSynced()
         DI.files.refresh()
+        print("finished!")
     }
 }

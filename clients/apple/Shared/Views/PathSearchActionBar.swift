@@ -364,7 +364,7 @@ struct SearchResultCellView: View {
             DI.search.openPathAtIndex(index: index)
         }, label: {
             HStack {
-                Image(systemName: documentExtensionToImage(name: name))
+                Image(systemName: FileService.docExtToSystemImage(name: name))
                     .resizable()
                     .frame(width: 20, height: 25)
                     .padding(.horizontal, 10)

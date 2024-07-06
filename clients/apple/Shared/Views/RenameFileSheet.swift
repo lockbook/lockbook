@@ -40,7 +40,7 @@ struct RenameFileSheet: View {
                 onCommit(renamingFileInfo: renamingFileInfo)
             })
                 .textFieldStyle(RoundedBorderTextFieldStyle())
-                .autocapitalization(.none)
+                .modifier(DisableAutoCapitalization())
             
             if let error = maybeError {
                 Text(error)

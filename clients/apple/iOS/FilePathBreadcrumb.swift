@@ -4,22 +4,20 @@ import SwiftLockbookCore
 
 struct FilePathBreadcrumb: View {
     
-    @EnvironmentObject var fileService: FileService
-    
-    let onBreadcrumbClick: (File) -> Void
-    
+    @EnvironmentObject var files: FileService
+        
     var body: some View {
         ScrollViewReader { scrollHelper in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack {
-                    if(fileService.path.count - 2 >= 0) {
+                    if(files.path.count > 0) {
                         breadcrumb
                     }
                 }
-                .onChange(of: fileService.path.count) { count in
+                .onChange(of: files.path.count) { count in
                     if count > 0 {
                         withAnimation {
-                            scrollHelper.scrollTo(fileService.path.count - 2, anchor: .trailing)
+                            scrollHelper.scrollTo(files.path.count - 2, anchor: .trailing)
                         }
                     }
                 }
@@ -29,44 +27,53 @@ struct FilePathBreadcrumb: View {
     }
     
     var breadcrumb: some View {
-        ForEach(0...fileService.path.count - 2, id: \.self) { index in
-            let lastFileIndex = fileService.path.count - 2
-            let file = fileService.path[index];
+        ForEach(0..<files.path.count, id: \.self) { index in
+            let lastFileIndex = files.path.count - 1
 
-            if(index == lastFileIndex) {
+            if index == 0 {
                 Button(action: {
-                    onBreadcrumbClick(file)
+                    DI.files.path.removeAll()
                 }, label: {
                     Image(systemName: "folder.fill")
                         .foregroundColor(.blue)
-                    Text(file.name)
+                    
+                    Text(DI.accounts.account?.username ?? "...")
+                        .font(.callout)
                 })
-                .padding(.trailing)
                 .id(index)
             } else {
-                Button(action: {
-                    onBreadcrumbClick(file)
-                }, label: {
-                    Image(systemName: "folder.fill")
-                        .foregroundColor(.blue)
-                    Text(file.name)
-                })
-                .id(index)
+                let file = files.path[index - 1]
+
+                if index == lastFileIndex {
+                    Button(action: {
+                        DI.files.pathBreadcrumbClicked(file)
+                    }, label: {
+                        Image(systemName: "folder.fill")
+                            .foregroundColor(.blue)
+                        
+                        Text(file.name)
+                            .font(.callout)
+                    })
+                    .padding(.trailing)
+                    .id(index)
+                } else {
+                    Button(action: {
+                        DI.files.pathBreadcrumbClicked(file)
+                    }, label: {
+                        Image(systemName: "folder.fill")
+                            .foregroundColor(.blue)
+                        
+                        Text(file.name)
+                            .font(.callout)
+                    })
+                    .id(index)
+                }
             }
             
-            if(lastFileIndex != index) {
+            if lastFileIndex != index {
                 Image(systemName: "chevron.right")
                     .foregroundColor(.gray)
             }
-        }
-    }
-}
-
-struct FilePathBreadcrumb_Previews: PreviewProvider {
-    static var previews: some View {
-        NavigationView {
-            FileListView()
-                .mockDI()
         }
     }
 }

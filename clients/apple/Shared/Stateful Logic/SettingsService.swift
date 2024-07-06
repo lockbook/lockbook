@@ -15,6 +15,8 @@ class SettingsService: ObservableObject {
     let core: LockbookApi
     @Published var offline: Bool = false
     @Published var usages: PrerequisiteInformation?
+    
+    @Published var showView: Bool = false
 
     var usageProgress: Double {
         switch usages {

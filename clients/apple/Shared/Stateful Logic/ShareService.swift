@@ -14,6 +14,8 @@ class ShareService: ObservableObject {
     @Published var id: UUID? = nil
     @Published var shareInfo: ShareInfo? = nil
     
+    var showPendingSharesView: Bool = false
+    
     init(_ core: LockbookApi) {
         self.core = core
         
