@@ -16,6 +16,22 @@ struct BottomBar: View {
             if isiOS && !workspace.syncing {
                 menu
             }
+            if !isiOS {
+                if workspace.syncing {
+                    ProgressView()
+                        .frame(width: 40, height: 40, alignment: .center)
+                        .padding(.trailing, 5)
+                } else {
+                    Button(action: {
+                        workspace.requestSync()
+                    }) {
+                        Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                            .imageScale(.large)
+                            .foregroundColor(.accentColor)
+                    }
+                    .padding(.trailing, 5)
+                }
+            }
         }
         .padding(.horizontal, 15)
         .frame(height: 50)
@@ -153,8 +169,6 @@ struct BottomBar: View {
                             Image(systemName: "dollarsign.circle")
                                 .foregroundColor(.gray)
                         })
-                        
-                        Spacer()
                     }
                 }
             }
