@@ -8,7 +8,6 @@ use std::env;
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
-    os::unix::fs::MetadataExt,
     path::PathBuf,
 };
 
@@ -32,7 +31,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         if path.exists() {
             path.push(LOG_FILE);
             let mut file = File::open(path)?;
-            let size = file.metadata()?.size();
+            let size = file.metadata()?.len();
             let read_amount = 20 * 1024;
             let pos = if read_amount > size { 0 } else { size - read_amount };
 
