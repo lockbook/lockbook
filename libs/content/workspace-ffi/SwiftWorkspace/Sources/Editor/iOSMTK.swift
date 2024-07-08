@@ -45,9 +45,11 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         super.init(frame: .infinite)
                 
         mtkView.onSelectionChanged = { [weak self] in
+            print("selection did change!")
             self?.inputDelegate?.selectionDidChange(self)
         }
         mtkView.onTextChanged = { [weak self] in
+            print("text did change!")
             self?.inputDelegate?.textDidChange(self)
         }
         
@@ -335,6 +337,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
         }
         
+        inputDelegate?.selectionWillChange(self)
+        inputDelegate?.textWillChange(self)
+        
         clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
     }
 
@@ -377,6 +382,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         }
          
         inputDelegate?.textWillChange(self)
+        
         insert_text(wsHandle, text)
         mtkView.drawImmediately()
         inputDelegate?.textDidChange(self)
@@ -697,6 +703,11 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     @objc func deleteWord() {
+        if selectedTextRange?.isEmpty == false {
+            inputDelegate?.selectionWillChange(self)
+            inputDelegate?.textWillChange(self)
+        }
+        
         delete_word(wsHandle)
     }
     
