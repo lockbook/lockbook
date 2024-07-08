@@ -36,7 +36,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     var floatingCursorNewStartY = 0.0
     var floatingCursorNewEndY = 0.0
-    
         
     init(mtkView: iOSMTK) {
         self.mtkView = mtkView
@@ -102,7 +101,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         addSubview(floatingCursor)
     }
-    
+        
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -167,7 +166,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 if let textWrapper = self {
                     textWrapper.floatingCursor.isHidden = true
                     textWrapper.tintColor = .systemBlue
-                    textWrapper.inputDelegate?.selectionDidChange(self)
+                    textWrapper.inputDelegate?.selectionWillChange(textWrapper)
+                    textWrapper.mtkView.drawImmediately()
+                    textWrapper.inputDelegate?.selectionDidChange(textWrapper)
                     
                     textWrapper.floatingCursorNewStartX = 0
                     textWrapper.floatingCursorNewEndX = textWrapper.bounds.size.width
@@ -282,13 +283,12 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
         }
         
-        inputDelegate?.selectionWillChange(self)
-        inputDelegate?.textWillChange(self)
-        
         clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
     }
 
     func importContent(_ importFormat: SupportedImportFormat, isPaste: Bool) {
+        inputDelegate?.textWillChange(self)
+        inputDelegate?.selectionWillChange(self)
         switch importFormat {
         case .url(let url):
             if url.pathExtension.lowercased() == "png" {
@@ -305,33 +305,30 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 sendImage(img: img, isPaste: isPaste)
             }
         case .text(let text):
-            pasteText(text: text)
+            paste_text(wsHandle, text)
+            workspaceState?.pasted = true
         }
-        
         mtkView.drawImmediately()
+        inputDelegate?.selectionDidChange(self)
+        inputDelegate?.textDidChange(self)
     }
     
     func setClipboard() {
         pasteboardString = UIPasteboard.general.string
         self.pasteBoardEventId = UIPasteboard.general.changeCount
     }
-
-    func pasteText(text: String) {
-        if !text.isEmpty {
-            inputDelegate?.selectionWillChange(self)
-            inputDelegate?.textWillChange(self)
-        }
-        
-        paste_text(wsHandle, text)
-        workspaceState?.pasted = true
-    }
     
     public func insertText(_ text: String) {
-        inputDelegate?.selectionWillChange(self)
+        print("inserting text... \(text)")
+        guard let rangeToReplace = (markedTextRange ?? selectedTextRange) as? LBTextRange,
+            !text.isEmpty else {
+            return
+        }
+         
         inputDelegate?.textWillChange(self)
-        
         insert_text(wsHandle, text)
         mtkView.drawImmediately()
+        inputDelegate?.textDidChange(self)
     }
     
     public func text(in range: UITextRange) -> String? {
@@ -346,10 +343,14 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     
     public func replace(_ range: UITextRange, withText text: String) {
-        let range = range as! LBTextRange
+        guard let range = range as? LBTextRange else {
+            return
+        }
+        
         inputDelegate?.textWillChange(self)
         replace_text(wsHandle, range.c, text)
         mtkView.drawImmediately()
+        inputDelegate?.textDidChange(self)
     }
     
     public var selectedTextRange: UITextRange? {
@@ -357,10 +358,16 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             guard let range = (newValue as? LBTextRange)?.c else {
                 return
             }
+
+            if !floatingCursor.isHidden {
+                set_selected(wsHandle, range)
+                return
+            }
             
             inputDelegate?.selectionWillChange(self)
             set_selected(wsHandle, range)
             mtkView.drawImmediately()
+            inputDelegate?.selectionDidChange(self)
         }
         
         get {
@@ -394,23 +401,25 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
-        if markedTextRange?.isEmpty == false {
-            inputDelegate?.selectionWillChange(self)
-            inputDelegate?.textWillChange(self)
+        guard let range = (markedTextRange ?? selectedTextRange) as? LBTextRange else {
+            return
         }
-
+        
+        inputDelegate?.textWillChange(self)
         set_marked(wsHandle, CTextRange(none: false, start: CTextPosition(none: false, pos: UInt(selectedRange.lowerBound)), end: CTextPosition(none: false, pos: UInt(selectedRange.upperBound))), markedText)
         mtkView.drawImmediately()
+        inputDelegate?.textDidChange(self)
     }
     
     public func unmarkText() {
-        if markedTextRange?.isEmpty == false {
-            inputDelegate?.selectionWillChange(self)
-            inputDelegate?.textWillChange(self)
+        guard let range = markedTextRange as? LBTextRange else {
+            return
         }
         
+        inputDelegate?.textWillChange(self)
         unmark_text(wsHandle)
         mtkView.drawImmediately()
+        inputDelegate?.textDidChange(self)
     }
     
     public var beginningOfDocument: UITextPosition {
@@ -557,66 +566,42 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func deleteBackward() {
-        if selectedTextRange?.isEmpty == false {
-            inputDelegate?.selectionWillChange(self)
-            inputDelegate?.textWillChange(self)
+        if !hasText {
+            return
         }
         
+        guard let rangeToReplace = (markedTextRange ?? selectedTextRange) as? LBTextRange else {
+            return
+        }
+        
+        inputDelegate?.textWillChange(self)
         backspace(wsHandle)
         mtkView.drawImmediately()
+        inputDelegate?.textDidChange(self)
     }
     
-    public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
-        let customMenu = self.selectedTextRange?.isEmpty == false ? UIMenu(title: "", options: .displayInline, children: [
-            UIAction(title: "Cut") { [weak self] _ in
-                self?.clipboardCut()
-            },
-            UIAction(title: "Copy") { [weak self] _ in
-                self?.clipboardCopy()
-            },
-            UIAction(title: "Paste") { [weak self] _ in
-                self?.clipboardPaste()
-            },
-            UIAction(title: "Select All") { [weak self] _ in
-                self?.keyboardSelectAll()
-            },
-        ]) : UIMenu(title: "", options: .displayInline, children: [
-            UIAction(title: "Select") { [weak self] _ in
-                if let inputWrapper = self {
-                    inputWrapper.inputDelegate?.selectionWillChange(inputWrapper)
-                    select_current_word(inputWrapper.wsHandle)
-                    inputWrapper.mtkView.drawImmediately()
-                }
-            },
-            UIAction(title: "Select All") { [weak self] _ in
-                self?.keyboardSelectAll()
-            },
-            UIAction(title: "Paste") { [weak self] _ in
-                self?.clipboardPaste()
-            },
-        ])
-        
-        var actions = suggestedActions
-        actions.append(customMenu)
-        return UIMenu(children: actions)
-    }
-    
-    @objc func clipboardCopy() {
-        clipboard_copy(self.wsHandle)
-        self.mtkView.setNeedsDisplay(mtkView.frame)
-    }
-    
-    @objc func clipboardCut() {
-        if selectedTextRange?.isEmpty == false {
-            inputDelegate?.selectionWillChange(self)
-            inputDelegate?.textWillChange(self)
+    public override func cut(_ sender: Any?) {
+        print("doing cut")
+        guard let range = (markedTextRange ?? selectedTextRange) as? LBTextRange,
+            !range.isEmpty else {
+                print("early exit")
+            return
         }
         
+        inputDelegate?.textWillChange(self)
+        inputDelegate?.selectionWillChange(self)
         clipboard_cut(self.wsHandle)
         mtkView.drawImmediately()
+        inputDelegate?.selectionDidChange(self)
+        inputDelegate?.textDidChange(self)
     }
     
-    @objc func clipboardPaste() {
+    public override func copy(_ sender: Any?) {
+        clipboard_copy(self.wsHandle)
+        setNeedsDisplay(self.frame)
+    }
+    
+    public override func paste(_ sender: Any?) {
         self.setClipboard()
         
         if let image = UIPasteboard.general.image {
@@ -624,24 +609,21 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         } else if let pastedString = pasteboardString {
             importContent(.text(pastedString), isPaste: true)
         }
-
-        mtkView.drawImmediately()
     }
     
-    @objc func keyboardSelectAll() {
+    public override func selectAll(_ sender: Any?) {
+        if !hasText {
+            return
+        }
+        
         inputDelegate?.selectionWillChange(self)
         select_all(self.wsHandle)
         mtkView.drawImmediately()
+        inputDelegate?.selectionDidChange(self)
     }
-        
+         
     func undoRedo(redo: Bool) {
-        if (!redo && undoManager?.canUndo == true) || (redo && undoManager?.canRedo == true) {
-            inputDelegate?.selectionWillChange(self)
-            inputDelegate?.textWillChange(self)
-        }
-        
         undo_redo(self.wsHandle, redo)
-        mtkView.drawImmediately()
     }
     
     func getText() -> String {
@@ -661,22 +643,12 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         deleteWord.wantsPriorityOverSystemBehavior = true
 
         return [
-            UIKeyCommand(input: "c", modifierFlags: .command, action: #selector(clipboardCopy)),
-            UIKeyCommand(input: "x", modifierFlags: .command, action: #selector(clipboardCut)),
-            UIKeyCommand(input: "v", modifierFlags: .command, action: #selector(clipboardPaste)),
-            UIKeyCommand(input: "a", modifierFlags: .command, action: #selector(keyboardSelectAll)),
             deleteWord,
         ]
     }
     
     @objc func deleteWord() {
-        if selectedTextRange?.isEmpty == false {
-            inputDelegate?.selectionWillChange(self)
-            inputDelegate?.textWillChange(self)
-        }
-        
         delete_word(wsHandle)
-        mtkView.drawImmediately()
     }
     
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -908,21 +880,13 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             self.workspaceState?.openDoc = nil
         }
         
-        if(currentTab == .Markdown) {
+        if currentTab == .Markdown && currentWrapper is iOSMTKTextInputWrapper {
             if(output.workspace_resp.hide_virtual_keyboard) {
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
             
-            if output.workspace_resp.selection_updated {
-                onSelectionChanged?()
-            }
-            
-            if output.workspace_resp.text_updated {
-                onTextChanged?()
-            }
-            
             if output.workspace_resp.scroll_updated {
-                print("scrolling...")
+                (currentWrapper as! iOSMTKTextInputWrapper).inputDelegate?.selectionDidChange((currentWrapper as! iOSMTKTextInputWrapper))
             }
 
             let keyboard_shown = currentWrapper?.isFirstResponder ?? false && GCKeyboard.coalesced == nil;
