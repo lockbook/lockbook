@@ -44,9 +44,11 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         super.init(frame: .infinite)
                 
         mtkView.onSelectionChanged = { [weak self] in
+            print("selection did change!")
             self?.inputDelegate?.selectionDidChange(self)
         }
         mtkView.onTextChanged = { [weak self] in
+            print("text did change!")
             self?.inputDelegate?.textDidChange(self)
         }
         
@@ -280,6 +282,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
         }
         
+        inputDelegate?.selectionWillChange(self)
+        inputDelegate?.textWillChange(self)
+        
         clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
     }
 
@@ -302,6 +307,8 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         case .text(let text):
             pasteText(text: text)
         }
+        
+        mtkView.drawImmediately()
     }
     
     func setClipboard() {
@@ -310,14 +317,21 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
 
     func pasteText(text: String) {
+        if !text.isEmpty {
+            inputDelegate?.selectionWillChange(self)
+            inputDelegate?.textWillChange(self)
+        }
+        
         paste_text(wsHandle, text)
         workspaceState?.pasted = true
     }
     
     public func insertText(_ text: String) {
+        inputDelegate?.selectionWillChange(self)
         inputDelegate?.textWillChange(self)
+        
         insert_text(wsHandle, text)
-        self.mtkView.setNeedsDisplay(mtkView.frame)
+        mtkView.drawImmediately()
     }
     
     public func text(in range: UITextRange) -> String? {
@@ -335,7 +349,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         let range = range as! LBTextRange
         inputDelegate?.textWillChange(self)
         replace_text(wsHandle, range.c, text)
-        self.mtkView.setNeedsDisplay(mtkView.frame)
+        mtkView.drawImmediately()
     }
     
     public var selectedTextRange: UITextRange? {
@@ -346,7 +360,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             
             inputDelegate?.selectionWillChange(self)
             set_selected(wsHandle, range)
-            self.mtkView.setNeedsDisplay()
+            mtkView.drawImmediately()
         }
         
         get {
@@ -380,15 +394,23 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
-        inputDelegate?.textWillChange(self)
+        if markedTextRange?.isEmpty == false {
+            inputDelegate?.selectionWillChange(self)
+            inputDelegate?.textWillChange(self)
+        }
+
         set_marked(wsHandle, CTextRange(none: false, start: CTextPosition(none: false, pos: UInt(selectedRange.lowerBound)), end: CTextPosition(none: false, pos: UInt(selectedRange.upperBound))), markedText)
-        self.mtkView.setNeedsDisplay()
+        mtkView.drawImmediately()
     }
     
     public func unmarkText() {
-        inputDelegate?.textWillChange(self)
+        if markedTextRange?.isEmpty == false {
+            inputDelegate?.selectionWillChange(self)
+            inputDelegate?.textWillChange(self)
+        }
+        
         unmark_text(wsHandle)
-        self.mtkView.setNeedsDisplay()
+        mtkView.drawImmediately()
     }
     
     public var beginningOfDocument: UITextPosition {
@@ -535,48 +557,41 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func deleteBackward() {
-        inputDelegate?.textWillChange(self)
+        if selectedTextRange?.isEmpty == false {
+            inputDelegate?.selectionWillChange(self)
+            inputDelegate?.textWillChange(self)
+        }
+        
         backspace(wsHandle)
-        self.mtkView.setNeedsDisplay(mtkView.frame)
+        mtkView.drawImmediately()
     }
     
     public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
         let customMenu = self.selectedTextRange?.isEmpty == false ? UIMenu(title: "", options: .displayInline, children: [
             UIAction(title: "Cut") { [weak self] _ in
-                self?.inputDelegate?.selectionWillChange(self)
                 self?.clipboardCut()
             },
             UIAction(title: "Copy") { [weak self] _ in
                 self?.clipboardCopy()
             },
             UIAction(title: "Paste") { [weak self] _ in
-                self?.inputDelegate?.textWillChange(self)
                 self?.clipboardPaste()
             },
             UIAction(title: "Select All") { [weak self] _ in
-                if let inputWrapper = self {
-                    inputWrapper.inputDelegate?.selectionWillChange(inputWrapper)
-                    select_all(inputWrapper.wsHandle)
-                    inputWrapper.mtkView.setNeedsDisplay(inputWrapper.mtkView.frame)
-                }
+                self?.keyboardSelectAll()
             },
         ]) : UIMenu(title: "", options: .displayInline, children: [
             UIAction(title: "Select") { [weak self] _ in
                 if let inputWrapper = self {
                     inputWrapper.inputDelegate?.selectionWillChange(inputWrapper)
                     select_current_word(inputWrapper.wsHandle)
-                    inputWrapper.mtkView.setNeedsDisplay(inputWrapper.mtkView.frame)
+                    inputWrapper.mtkView.drawImmediately()
                 }
             },
             UIAction(title: "Select All") { [weak self] _ in
-                if let inputWrapper = self {
-                    inputWrapper.inputDelegate?.selectionWillChange(inputWrapper)
-                    select_all(inputWrapper.wsHandle)
-                    inputWrapper.mtkView.setNeedsDisplay(inputWrapper.mtkView.frame)
-                }
+                self?.keyboardSelectAll()
             },
             UIAction(title: "Paste") { [weak self] _ in
-                self?.inputDelegate?.textWillChange(self)
                 self?.clipboardPaste()
             },
         ])
@@ -592,9 +607,13 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     @objc func clipboardCut() {
-        inputDelegate?.textWillChange(self)
+        if selectedTextRange?.isEmpty == false {
+            inputDelegate?.selectionWillChange(self)
+            inputDelegate?.textWillChange(self)
+        }
+        
         clipboard_cut(self.wsHandle)
-        self.mtkView.setNeedsDisplay(mtkView.frame)
+        mtkView.drawImmediately()
     }
     
     @objc func clipboardPaste() {
@@ -606,19 +625,23 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             importContent(.text(pastedString), isPaste: true)
         }
 
-        self.mtkView.setNeedsDisplay()
+        mtkView.drawImmediately()
     }
     
     @objc func keyboardSelectAll() {
         inputDelegate?.selectionWillChange(self)
         select_all(self.wsHandle)
-        self.mtkView.setNeedsDisplay()
+        mtkView.drawImmediately()
     }
         
     func undoRedo(redo: Bool) {
-        inputDelegate?.textWillChange(self)
+        if (!redo && undoManager?.canUndo == true) || (redo && undoManager?.canRedo == true) {
+            inputDelegate?.selectionWillChange(self)
+            inputDelegate?.textWillChange(self)
+        }
+        
         undo_redo(self.wsHandle, redo)
-        self.mtkView.setNeedsDisplay(mtkView.frame)
+        mtkView.drawImmediately()
     }
     
     func getText() -> String {
@@ -647,8 +670,13 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     @objc func deleteWord() {
+        if selectedTextRange?.isEmpty == false {
+            inputDelegate?.selectionWillChange(self)
+            inputDelegate?.textWillChange(self)
+        }
+        
         delete_word(wsHandle)
-        mtkView.setNeedsDisplay(mtkView.frame)
+        mtkView.drawImmediately()
     }
     
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -771,8 +799,8 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         
-        self.isPaused = true
-        self.enableSetNeedsDisplay = true
+        self.isPaused = false
+        self.enableSetNeedsDisplay = false
         self.delegate = self
         self.preferredFramesPerSecond = 120
         self.isUserInteractionEnabled = true
@@ -824,6 +852,16 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         resize_editor(wsHandle, Float(size.width), Float(size.height), Float(self.contentScaleFactor))
         self.setNeedsDisplay()
+    }
+    
+    public func drawImmediately() {
+        redrawTask?.cancel()
+        redrawTask = nil
+        
+        self.isPaused = true
+        self.enableSetNeedsDisplay = false
+        
+        self.draw(in: self)
     }
     
     public func draw(in view: MTKView) {
@@ -882,6 +920,10 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             if output.workspace_resp.text_updated {
                 onTextChanged?()
             }
+            
+            if output.workspace_resp.scroll_updated {
+                print("scrolling...")
+            }
 
             let keyboard_shown = currentWrapper?.isFirstResponder ?? false && GCKeyboard.coalesced == nil;
             update_virtual_keyboard(wsHandle, keyboard_shown)
@@ -929,6 +971,8 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
             redrawTask = newRedrawTask
         }
+        
+        self.enableSetNeedsDisplay = self.isPaused
     }
     
     override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {

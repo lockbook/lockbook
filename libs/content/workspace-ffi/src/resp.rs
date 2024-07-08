@@ -46,6 +46,8 @@ pub struct FfiWorkspaceResp {
     pub text_updated: bool,
     #[cfg(target_os = "ios")]
     pub selection_updated: bool,
+    #[cfg(target_os = "ios")]
+    pub scroll_updated: bool,
 
     #[cfg(target_os = "ios")]
     pub tab_title_clicked: bool,
@@ -66,6 +68,8 @@ impl Default for FfiWorkspaceResp {
             text_updated: Default::default(),
             #[cfg(target_os = "ios")]
             selection_updated: Default::default(),
+            #[cfg(target_os = "ios")]
+            scroll_updated: Default::default(),
             #[cfg(target_os = "ios")]
             tab_title_clicked: false,
         }
@@ -99,6 +103,8 @@ impl From<WsOutput> for FfiWorkspaceResp {
             text_updated: value.markdown_editor_text_updated,
             #[cfg(target_os = "ios")]
             selection_updated: value.markdown_editor_selection_updated,
+            #[cfg(target_os = "ios")]
+            scroll_updated: value.markdown_editor_scroll_updated,
             #[cfg(target_os = "ios")]
             tab_title_clicked: value.tab_title_clicked,
         }
