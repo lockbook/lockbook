@@ -11,7 +11,6 @@ mod zoom;
 use std::time::Instant;
 
 use crate::tab::svg_editor::toolbar::Toolbar;
-use egui::EventFilter;
 pub use eraser::Eraser;
 pub use history::DeleteElement;
 pub use history::Event;
@@ -110,19 +109,8 @@ impl SVGEditor {
         });
 
         handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
-        
-        
-        let start_of_touch = ui.input(|i|{
-            i.events.iter().any(|e| {
-                if let egui::Event::Touch  { device_id: _, id: _ , phase, pos: _, force: _ } = e{
-                    phase.eq(&egui::TouchPhase::Start)
-                }else{
-                    false
-                }
-            })
-        });
-        
-        if ui.input(|r| r.multi_touch().is_some()) || self.skip_frame || start_of_touch {
+
+        if ui.input(|r| r.multi_touch().is_some()) || self.skip_frame {
             self.skip_frame = false;
             return;
         }
