@@ -68,7 +68,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
             let gestureName = gestureRecognizer.name?.lowercased()
-            
+                        
             if gestureName?.contains("tap") ?? false {
                 gestureRecognizer.cancelsTouchesInView = false
             }
