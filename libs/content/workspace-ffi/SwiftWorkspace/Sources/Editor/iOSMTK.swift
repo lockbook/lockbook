@@ -45,11 +45,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         super.init(frame: .infinite)
                 
         mtkView.onSelectionChanged = { [weak self] in
-            print("selection did change!")
             self?.inputDelegate?.selectionDidChange(self)
         }
         mtkView.onTextChanged = { [weak self] in
-            print("text did change!")
             self?.inputDelegate?.textDidChange(self)
         }
         
