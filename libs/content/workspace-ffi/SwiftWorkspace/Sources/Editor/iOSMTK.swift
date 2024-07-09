@@ -45,11 +45,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         super.init(frame: .infinite)
                 
         mtkView.onSelectionChanged = { [weak self] in
-            print("selection did change!")
             self?.inputDelegate?.selectionDidChange(self)
         }
         mtkView.onTextChanged = { [weak self] in
-            print("text did change!")
             self?.inputDelegate?.textDidChange(self)
         }
         
@@ -426,7 +424,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
-        guard let range = (markedTextRange ?? selectedTextRange) as? LBTextRange else {
+        guard let _ = (markedTextRange ?? selectedTextRange) as? LBTextRange else {
             return
         }
         
@@ -437,7 +435,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func unmarkText() {
-        guard let range = markedTextRange as? LBTextRange else {
+        guard let _ = markedTextRange as? LBTextRange else {
             return
         }
         
