@@ -37,6 +37,8 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     var floatingCursorNewStartY = 0.0
     var floatingCursorNewEndY = 0.0
         
+    var isLongPressCursorDrag = false
+    
     init(mtkView: iOSMTK) {
         self.mtkView = mtkView
         
@@ -66,9 +68,17 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
             let gestureName = gestureRecognizer.name?.lowercased()
-            
+                        
             if gestureName?.contains("tap") ?? false {
                 gestureRecognizer.cancelsTouchesInView = false
+            }
+        }
+        
+        for gesture in gestureRecognizers ?? [] {
+            let gestureName = gesture.name?.lowercased()
+                        
+            if gestureName?.contains("interactiverefinement") ?? false {
+                gesture.addTarget(self, action: #selector(longPressGestureStateChanged(_:)))
             }
         }
         
@@ -101,7 +111,22 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         addSubview(floatingCursor)
     }
-        
+    
+    @objc private func longPressGestureStateChanged(_ recognizer: UIGestureRecognizer) {
+        switch recognizer.state {
+        case .began:
+            isLongPressCursorDrag = true
+        case .cancelled, .ended:
+            isLongPressCursorDrag = false
+            
+            inputDelegate?.selectionWillChange(self)
+            mtkView.drawImmediately()
+            inputDelegate?.selectionDidChange(self)
+        default:
+            break
+        }
+    }
+            
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -359,7 +384,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 return
             }
 
-            if !floatingCursor.isHidden {
+            if !floatingCursor.isHidden || isLongPressCursorDrag {
                 set_selected(wsHandle, range)
                 return
             }
@@ -768,6 +793,9 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     var showTabs = true
     var overrideDefaultKeyboardBehavior = false
     
+    var ignoreSelectionUpdate = false
+    var ignoreTextUpdate = false
+    
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         
@@ -830,10 +858,16 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         redrawTask?.cancel()
         redrawTask = nil
         
+        ignoreSelectionUpdate = true
+        ignoreTextUpdate = true
+        
         self.isPaused = true
         self.enableSetNeedsDisplay = false
         
         self.draw(in: self)
+        
+        ignoreSelectionUpdate = false
+        ignoreTextUpdate = false
     }
     
     public func draw(in view: MTKView) {
@@ -886,7 +920,15 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             }
             
             if output.workspace_resp.scroll_updated {
-                (currentWrapper as! iOSMTKTextInputWrapper).inputDelegate?.selectionDidChange((currentWrapper as! iOSMTKTextInputWrapper))
+                onSelectionChanged?()
+            }
+            
+            if output.workspace_resp.text_updated && !ignoreTextUpdate {
+                onTextChanged?()
+            }
+            
+            if output.workspace_resp.selection_updated && !ignoreSelectionUpdate {
+                onSelectionChanged?()
             }
 
             let keyboard_shown = currentWrapper?.isFirstResponder ?? false && GCKeyboard.coalesced == nil;
