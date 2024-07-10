@@ -35,28 +35,29 @@ impl ThemePalette {
         white: Color32::from_rgb(255, 255, 255),
     };
 
-    // todo: passing the is_dark_mode aram doesn't feel like good data modeling
-    pub fn as_array(is_dark_mode: bool) -> Vec<(String, Color32)> {
-        let palette = if is_dark_mode { ThemePalette::DARK } else { ThemePalette::LIGHT };
-
+    pub fn as_array() -> Vec<(Color32, Color32)> {
         vec![
-            ("magenta".to_string(), palette.magenta),
-            ("blue".to_string(), palette.blue),
-            ("cyan".to_string(), palette.cyan),
-            ("green".to_string(), palette.green),
-            ("yellow".to_string(), palette.yellow),
-            ("red".to_string(), palette.red),
-            ("fg".to_string(), if is_dark_mode { palette.white } else { palette.black }),
+            (ThemePalette::LIGHT.magenta, ThemePalette::DARK.magenta),
+            (ThemePalette::LIGHT.blue, ThemePalette::DARK.blue),
+            (ThemePalette::LIGHT.cyan, ThemePalette::DARK.cyan),
+            (ThemePalette::LIGHT.green, ThemePalette::DARK.green),
+            (ThemePalette::LIGHT.yellow, ThemePalette::DARK.yellow),
+            (ThemePalette::LIGHT.red, ThemePalette::DARK.red),
+            Self::get_fg_color(),
         ]
     }
 
-    pub fn get_fg_color(is_dark_mode: bool) -> Color32 {
-        let palette = if is_dark_mode { ThemePalette::DARK } else { ThemePalette::LIGHT };
+    pub fn get_fg_color() -> (Color32, Color32) {
+        (ThemePalette::LIGHT.black, ThemePalette::DARK.white)
+    }
 
-        if is_dark_mode {
-            palette.white
+    pub fn resolve_dynamic_color(
+        dynamic_color: (egui::Color32, egui::Color32), ui: &mut egui::Ui,
+    ) -> egui::Color32 {
+        if ui.visuals().dark_mode {
+            dynamic_color.1
         } else {
-            palette.black
+            dynamic_color.0
         }
     }
 }

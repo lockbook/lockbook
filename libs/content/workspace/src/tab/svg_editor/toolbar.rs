@@ -220,6 +220,16 @@ impl Toolbar {
                 ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
                 ui.add_space(4.0);
 
+                ui.label(egui::RichText::from("Opacity:").size(15.0));
+                ui.add_space(10.0);
+                ui.add(
+                    egui::Slider::new(&mut self.pen.active_opacity, 0.0..=1.0).show_value(false),
+                );
+
+                ui.add_space(4.0);
+                ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
+                ui.add_space(4.0);
+
                 self.show_default_color_swatches(ui);
             }
             Tool::Eraser => {
@@ -234,12 +244,13 @@ impl Toolbar {
     }
 
     fn show_default_color_swatches(&mut self, ui: &mut egui::Ui) {
-        let theme_colors = ThemePalette::as_array(ui.visuals().dark_mode);
+        let theme_colors = ThemePalette::as_array();
 
         theme_colors.iter().for_each(|theme_color| {
             // let color = ColorSwatch { id: theme_color.0.clone(), color: theme_color.1 };
-            if self.show_color_btn(ui, theme_color.1).clicked() {
-                self.pen.active_color = Some(theme_color.1);
+            let color = ThemePalette::resolve_dynamic_color(*theme_color, ui);
+            if self.show_color_btn(ui, color).clicked() {
+                self.pen.active_color = Some(*theme_color);
             }
         });
     }
@@ -251,6 +262,7 @@ impl Toolbar {
         );
 
         if let Some(active_color) = self.pen.active_color {
+            let active_color = if ui.visuals().dark_mode { active_color.1 } else { active_color.0 };
             let opacity = if active_color.eq(&color) {
                 1.0
             } else if response.hovered() {
