@@ -400,7 +400,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         inputDelegate?.textWillChange(self)
         replace_text(wsHandle, range.c, text)
-        mtkView.drawImmediately()
+//        mtkView.drawImmediately()
         inputDelegate?.textDidChange(self)
     }
     
