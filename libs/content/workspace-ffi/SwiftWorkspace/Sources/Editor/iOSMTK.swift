@@ -238,15 +238,12 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         }
         
         if action == #selector(replace(_:withText:)) {
-            print("got here!")
             return false
         }
         
         if action == NSSelectorFromString("replace:") {
             return true
         }
-
-        print("asking for \(action) from \(sender)!")
         
         return super.canPerformAction(action, withSender: sender)
     }
@@ -258,9 +255,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                   let replacementText = replacement.value(forKey: "replacementText") as? NSString else {
                 return
             }
-            
-            print("got replacement request!")
-                        
+                                    
             replace(range, withText: replacementText as String)
         }
     }
@@ -379,11 +374,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func insertText(_ text: String) {
-        print("inserting text... \(text)")
-//        guard let rangeToReplace = (markedTextRange ?? selectedTextRange) as? LBTextRange,
-//            !text.isEmpty else {
-//            return
-//        }
+        guard let _ = (markedTextRange ?? selectedTextRange) as? LBTextRange,
+            !text.isEmpty else {
+            return
+        }
          
         inputDelegate?.textWillChange(self)
         insert_text(wsHandle, text)
@@ -641,10 +635,8 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public override func cut(_ sender: Any?) {
-        print("doing cut")
         guard let range = (markedTextRange ?? selectedTextRange) as? LBTextRange,
             !range.isEmpty else {
-                print("early exit")
             return
         }
         
@@ -895,7 +887,6 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         self.isPaused = true
         self.enableSetNeedsDisplay = false
         
-        print("drawing immediately: \n\(Thread.callStackSymbols[2])")
         self.draw(in: self)
         
         ignoreSelectionUpdate = false
