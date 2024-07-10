@@ -227,7 +227,44 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             floatingCursor.frame = CGRect(x: x, y: y - (cursorRect.height / 2), width: floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
         }
     }
+    
+    public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if action == #selector(cut(_:)) || action == #selector(copy(_:)) {
+            return selectedTextRange?.isEmpty == false
+        }
+        
+        if action == #selector(paste(_:)) {
+            return UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages || UIPasteboard.general.hasURLs
+        }
+        
+        if action == #selector(replace(_:withText:)) {
+            print("got here!")
+            return false
+        }
+        
+        if action == NSSelectorFromString("replace:") {
+            return true
+        }
 
+        print("asking for \(action) from \(sender)!")
+        
+        return super.canPerformAction(action, withSender: sender)
+    }
+    
+    @objc func replace(_ sender: Any?) {
+        if let sender = sender {
+            guard let replacement = sender as? NSObject,
+                  let range = replacement.value(forKey: "range") as? UITextRange,
+                  let replacementText = replacement.value(forKey: "replacementText") as? NSString else {
+                return
+            }
+            
+            print("doing replace...")
+            
+            replace(range, withText: replacementText as String)
+        }
+    }
+    
     public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
         guard session.items.count == 1 else { return false }
         
@@ -343,10 +380,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func insertText(_ text: String) {
         print("inserting text... \(text)")
-        guard let rangeToReplace = (markedTextRange ?? selectedTextRange) as? LBTextRange,
-            !text.isEmpty else {
-            return
-        }
+//        guard let rangeToReplace = (markedTextRange ?? selectedTextRange) as? LBTextRange,
+//            !text.isEmpty else {
+//            return
+//        }
          
         inputDelegate?.textWillChange(self)
         insert_text(wsHandle, text)
@@ -862,6 +899,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         self.isPaused = true
         self.enableSetNeedsDisplay = false
         
+        print("drawing immediately: \n\(Thread.callStackSymbols[2])")
         self.draw(in: self)
         
         ignoreSelectionUpdate = false
