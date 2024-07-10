@@ -85,10 +85,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         self.addInteraction(dropInteraction)
         
         // undo redo support
+        self.textUndoManager.textWrapper = self
         self.textUndoManager.wsHandle = self.wsHandle
-        self.textUndoManager.onUndoRedo = { [weak self] in
-            self?.mtkView.setNeedsDisplay(mtkView.frame)
-        }
+        self.textUndoManager.mtkView = mtkView
+        self.textUndoManager.inputDelegate = inputDelegate
         
         // floating cursor support
         if #available(iOS 17.4, *) {
@@ -259,8 +259,8 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 return
             }
             
-            print("doing replace...")
-            
+            print("got replacement request!")
+                        
             replace(range, withText: replacementText as String)
         }
     }
@@ -680,10 +680,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         select_all(self.wsHandle)
         mtkView.drawImmediately()
         inputDelegate?.selectionDidChange(self)
-    }
-         
-    func undoRedo(redo: Bool) {
-        undo_redo(self.wsHandle, redo)
     }
     
     func getText() -> String {
@@ -1234,7 +1230,10 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
 class iOSUndoManager: UndoManager {
     
     public var wsHandle: UnsafeMutableRawPointer? = nil
-    var onUndoRedo: (() -> Void)? = nil
+    
+    weak var textWrapper: iOSMTKTextInputWrapper? = nil
+    weak var mtkView: iOSMTK? = nil
+    weak var inputDelegate: UITextInputDelegate? = nil
     
     override var canUndo: Bool {
         get {
@@ -1249,13 +1248,21 @@ class iOSUndoManager: UndoManager {
     }
     
     override func undo() {
+        inputDelegate?.textWillChange(textWrapper)
+        inputDelegate?.selectionWillChange(textWrapper)
         undo_redo(wsHandle, false)
-        onUndoRedo?()
+        mtkView?.drawImmediately()
+        inputDelegate?.selectionDidChange(textWrapper)
+        inputDelegate?.textDidChange(textWrapper)
     }
     
     override func redo() {
+        inputDelegate?.textWillChange(textWrapper)
+        inputDelegate?.selectionWillChange(textWrapper)
         undo_redo(wsHandle, true)
-        onUndoRedo?()
+        mtkView?.drawImmediately()
+        inputDelegate?.selectionDidChange(textWrapper)
+        inputDelegate?.textDidChange(textWrapper)
     }
 }
 
