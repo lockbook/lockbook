@@ -894,7 +894,6 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         self.isPaused = true
         self.enableSetNeedsDisplay = false
         
-        print("drawing immediately: \n\(Thread.callStackSymbols[2])")
         self.draw(in: self)
         
         ignoreSelectionUpdate = false
