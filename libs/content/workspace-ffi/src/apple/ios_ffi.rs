@@ -3,13 +3,16 @@ use crate::{
     TabsIds, UITextSelectionRects, WgpuWorkspace,
 };
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
-use egui_editor::input::canonical::{Bound, Increment, Location, Modification, Offset, Region};
-use egui_editor::input::cursor::Cursor;
-use egui_editor::input::mutation;
-use egui_editor::offset_types::{DocCharOffset, RangeExt};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::ptr::null;
+use workspace_rs::tab::markdown_editor::input::canonical::{
+    Bound, Increment, Modification, Offset, Region,
+};
+use workspace_rs::tab::markdown_editor::input::cursor::Cursor;
+use workspace_rs::tab::markdown_editor::input::mutation;
+use workspace_rs::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt};
+use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::EventManager as _;
 use workspace_rs::tab::TabContent;
@@ -433,24 +436,12 @@ pub unsafe extern "C" fn is_position_at_bound(
         None => return false,
     };
 
-    let bound: Bound = match granularity {
-        CTextGranularity::Character => Bound::Char,
-        CTextGranularity::Word => Bound::Word,
-        CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
-        CTextGranularity::Paragraph => Bound::Paragraph,
-        CTextGranularity::Line => Bound::Line,
-        CTextGranularity::Document => Bound::Doc,
-    };
-    if let Some(range) =
-        DocCharOffset(pos.pos).range_bound(bound, backwards, false, &markdown.editor.bounds)
-    {
-        // forwards: the provided position is at the end of the enclosing range
-        // backwards: the provided position is at the start of the enclosing range
-        if !backwards && pos.pos == range.end() || backwards && pos.pos == range.start() {
-            return true;
-        }
-    }
-    false
+    let text_position = pos.pos.into();
+    let at_boundary = granularity.into();
+
+    markdown
+        .editor
+        .is_position_at_boundary(text_position, at_boundary, backwards)
 }
 
 /// # Safety
@@ -467,23 +458,12 @@ pub unsafe extern "C" fn is_position_within_bound(
         None => return false,
     };
 
-    let pos: DocCharOffset = pos.pos.into();
+    let text_position = pos.pos.into();
+    let at_boundary = granularity.into();
 
-    let bound = match granularity {
-        CTextGranularity::Character => Bound::Char,
-        CTextGranularity::Word => Bound::Word,
-        CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
-        CTextGranularity::Paragraph => Bound::Paragraph,
-        CTextGranularity::Line => Bound::Line,
-        CTextGranularity::Document => Bound::Doc,
-    };
-    if let Some(range) = pos.range_bound(bound, backwards, false, &markdown.editor.bounds) {
-        // this implementation doesn't meet the specification in apple's docs, but the implementation that does creates word jumping bugs
-        if range.contains_inclusive(pos) {
-            return true;
-        }
-    }
-    false
+    markdown
+        .editor
+        .is_position_within_text_unit(text_position, at_boundary, backwards)
 }
 
 /// # Safety
@@ -500,21 +480,13 @@ pub unsafe extern "C" fn bound_from_position(
         None => return CTextPosition::default(),
     };
 
-    let buffer = &markdown.editor.buffer.current;
-    let galleys = &markdown.editor.galleys;
+    let text_position = pos.pos.into();
+    let to_boundary = granularity.into();
 
-    let mut cursor: Cursor = pos.pos.into();
-    let bound = match granularity {
-        CTextGranularity::Character => Bound::Char,
-        CTextGranularity::Word => Bound::Word,
-        CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
-        CTextGranularity::Paragraph => Bound::Paragraph,
-        CTextGranularity::Line => Bound::Line,
-        CTextGranularity::Document => Bound::Doc,
-    };
-    cursor.advance(Offset::Next(bound), backwards, buffer, galleys, &markdown.editor.bounds);
-
-    CTextPosition { none: false, pos: cursor.selection.1 .0 }
+    markdown
+        .editor
+        .position_from(text_position, to_boundary, backwards)
+        .into()
 }
 
 /// # Safety
@@ -531,30 +503,13 @@ pub unsafe extern "C" fn bound_at_position(
         None => return CTextRange::default(),
     };
 
-    let buffer = &markdown.editor.buffer.current;
-    let galleys = &markdown.editor.galleys;
+    let text_position = pos.pos.into();
+    let with_granularity = granularity.into();
 
-    let bound = match granularity {
-        CTextGranularity::Character => Bound::Char,
-        CTextGranularity::Word => Bound::Word,
-        CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
-        CTextGranularity::Paragraph => Bound::Paragraph,
-        CTextGranularity::Line => Bound::Line,
-        CTextGranularity::Document => Bound::Doc,
-    };
-    let cursor = mutation::region_to_cursor(
-        Region::BoundAt { bound, location: Location::DocCharOffset(pos.pos.into()), backwards },
-        buffer.cursor,
-        buffer,
-        galleys,
-        &markdown.editor.bounds,
-    );
-
-    CTextRange {
-        none: false,
-        start: CTextPosition { none: false, pos: cursor.selection.start().0 },
-        end: CTextPosition { none: false, pos: cursor.selection.end().0 },
-    }
+    markdown
+        .editor
+        .range_enclosing_position(text_position, with_granularity, backwards)
+        .into()
 }
 
 /// # Safety
