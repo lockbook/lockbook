@@ -167,8 +167,50 @@ mod test {
     }
 
     #[test]
-    fn is_position_at_boundary_line() {
-        // "a\nline"
+    fn is_position_within_text_unit_char() {
+        // "hey"
+        let bounds = Bounds {
+            ast: [(0, 3)]
+                .into_iter()
+                .map(|r| AstTextRange {
+                    range_type: AstTextRangeType::Text,
+                    range: (r.start().into(), r.end().into()),
+                    ancestors: vec![],
+                })
+                .collect(),
+            words: [(0, 3)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            lines: [(0, 3)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            paragraphs: [(0, 3)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            text: [(0, 3)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            links: vec![],
+        };
+
+        assert_eq!(bounds.is_position_within_text_unit(0.into(), Bound::Char, false), true);
+        assert_eq!(bounds.is_position_within_text_unit(1.into(), Bound::Char, false), true);
+        assert_eq!(bounds.is_position_within_text_unit(2.into(), Bound::Char, false), true);
+        assert_eq!(bounds.is_position_within_text_unit(3.into(), Bound::Char, false), true);
+
+        assert_eq!(bounds.is_position_within_text_unit(0.into(), Bound::Char, true), true);
+        assert_eq!(bounds.is_position_within_text_unit(1.into(), Bound::Char, true), true);
+        assert_eq!(bounds.is_position_within_text_unit(2.into(), Bound::Char, true), true);
+        assert_eq!(bounds.is_position_within_text_unit(3.into(), Bound::Char, true), true);
+    }
+
+    #[test]
+    fn is_position_within_text_unit_word() {
+        // "a word"
         let bounds = Bounds {
             ast: [(0, 6)]
                 .into_iter()
@@ -182,11 +224,11 @@ mod test {
                 .into_iter()
                 .map(|r| (r.start().into(), r.end().into()))
                 .collect(),
-            lines: [(0, 1), (2, 6)]
+            lines: [(0, 6)]
                 .into_iter()
                 .map(|r| (r.start().into(), r.end().into()))
                 .collect(),
-            paragraphs: [(0, 1), (2, 6)]
+            paragraphs: [(0, 6)]
                 .into_iter()
                 .map(|r| (r.start().into(), r.end().into()))
                 .collect(),
@@ -197,80 +239,20 @@ mod test {
             links: vec![],
         };
 
-        assert_eq!(bounds.is_position_at_boundary(0.into(), Bound::Line, false), false);
-        assert_eq!(bounds.is_position_at_boundary(1.into(), Bound::Line, false), true);
-        assert_eq!(bounds.is_position_at_boundary(2.into(), Bound::Line, false), false);
-        assert_eq!(bounds.is_position_at_boundary(3.into(), Bound::Line, false), false);
-        assert_eq!(bounds.is_position_at_boundary(4.into(), Bound::Line, false), false);
-        assert_eq!(bounds.is_position_at_boundary(5.into(), Bound::Line, false), false);
-        assert_eq!(bounds.is_position_at_boundary(6.into(), Bound::Line, false), true);
+        assert_eq!(bounds.is_position_within_text_unit(0.into(), Bound::Char, false), true);
+        assert_eq!(bounds.is_position_within_text_unit(1.into(), Bound::Char, false), true);
+        assert_eq!(bounds.is_position_within_text_unit(2.into(), Bound::Char, false), true);
+        assert_eq!(bounds.is_position_within_text_unit(3.into(), Bound::Char, false), true);
+        assert_eq!(bounds.is_position_within_text_unit(4.into(), Bound::Char, false), true);
+        assert_eq!(bounds.is_position_within_text_unit(5.into(), Bound::Char, false), true);
+        assert_eq!(bounds.is_position_within_text_unit(6.into(), Bound::Char, false), true);
 
-        assert_eq!(bounds.is_position_at_boundary(0.into(), Bound::Line, true), true);
-        assert_eq!(bounds.is_position_at_boundary(1.into(), Bound::Line, true), false);
-        assert_eq!(bounds.is_position_at_boundary(2.into(), Bound::Line, true), true);
-        assert_eq!(bounds.is_position_at_boundary(3.into(), Bound::Line, true), false);
-        assert_eq!(bounds.is_position_at_boundary(4.into(), Bound::Line, true), false);
-        assert_eq!(bounds.is_position_at_boundary(5.into(), Bound::Line, true), false);
-        assert_eq!(bounds.is_position_at_boundary(6.into(), Bound::Line, true), false);
-    }
-
-    #[test]
-    fn is_position_at_boundary_paragraph() {
-        // "a\n\nparagraph"
-        let bounds = Bounds {
-            ast: [(0, 12)]
-                .into_iter()
-                .map(|r| AstTextRange {
-                    range_type: AstTextRangeType::Text,
-                    range: (r.start().into(), r.end().into()),
-                    ancestors: vec![],
-                })
-                .collect(),
-            words: [(0, 1), (3, 12)]
-                .into_iter()
-                .map(|r| (r.start().into(), r.end().into()))
-                .collect(),
-            lines: [(0, 1), (2, 2), (3, 12)]
-                .into_iter()
-                .map(|r| (r.start().into(), r.end().into()))
-                .collect(),
-            paragraphs: [(0, 1), (2, 2), (3, 12)]
-                .into_iter()
-                .map(|r| (r.start().into(), r.end().into()))
-                .collect(),
-            text: [(0, 12)]
-                .into_iter()
-                .map(|r| (r.start().into(), r.end().into()))
-                .collect(),
-            links: vec![],
-        };
-
-        assert_eq!(bounds.is_position_at_boundary(0.into(), Bound::Paragraph, false), false);
-        assert_eq!(bounds.is_position_at_boundary(1.into(), Bound::Paragraph, false), true);
-        assert_eq!(bounds.is_position_at_boundary(2.into(), Bound::Paragraph, false), true);
-        assert_eq!(bounds.is_position_at_boundary(3.into(), Bound::Paragraph, false), false);
-        assert_eq!(bounds.is_position_at_boundary(4.into(), Bound::Paragraph, false), false);
-        assert_eq!(bounds.is_position_at_boundary(5.into(), Bound::Paragraph, false), false);
-        assert_eq!(bounds.is_position_at_boundary(6.into(), Bound::Paragraph, false), false);
-        assert_eq!(bounds.is_position_at_boundary(7.into(), Bound::Paragraph, false), false);
-        assert_eq!(bounds.is_position_at_boundary(8.into(), Bound::Paragraph, false), false);
-        assert_eq!(bounds.is_position_at_boundary(9.into(), Bound::Paragraph, false), false);
-        assert_eq!(bounds.is_position_at_boundary(10.into(), Bound::Paragraph, false), false);
-        assert_eq!(bounds.is_position_at_boundary(11.into(), Bound::Paragraph, false), false);
-        assert_eq!(bounds.is_position_at_boundary(12.into(), Bound::Paragraph, false), true);
-
-        assert_eq!(bounds.is_position_at_boundary(0.into(), Bound::Paragraph, true), true);
-        assert_eq!(bounds.is_position_at_boundary(1.into(), Bound::Paragraph, true), false);
-        assert_eq!(bounds.is_position_at_boundary(2.into(), Bound::Paragraph, true), true);
-        assert_eq!(bounds.is_position_at_boundary(3.into(), Bound::Paragraph, true), true);
-        assert_eq!(bounds.is_position_at_boundary(4.into(), Bound::Paragraph, true), false);
-        assert_eq!(bounds.is_position_at_boundary(5.into(), Bound::Paragraph, true), false);
-        assert_eq!(bounds.is_position_at_boundary(6.into(), Bound::Paragraph, true), false);
-        assert_eq!(bounds.is_position_at_boundary(7.into(), Bound::Paragraph, true), false);
-        assert_eq!(bounds.is_position_at_boundary(8.into(), Bound::Paragraph, true), false);
-        assert_eq!(bounds.is_position_at_boundary(9.into(), Bound::Paragraph, true), false);
-        assert_eq!(bounds.is_position_at_boundary(10.into(), Bound::Paragraph, true), false);
-        assert_eq!(bounds.is_position_at_boundary(11.into(), Bound::Paragraph, true), false);
-        assert_eq!(bounds.is_position_at_boundary(12.into(), Bound::Paragraph, true), false);
+        assert_eq!(bounds.is_position_within_text_unit(0.into(), Bound::Char, true), true);
+        assert_eq!(bounds.is_position_within_text_unit(1.into(), Bound::Char, true), true);
+        assert_eq!(bounds.is_position_within_text_unit(2.into(), Bound::Char, true), true);
+        assert_eq!(bounds.is_position_within_text_unit(3.into(), Bound::Char, true), true);
+        assert_eq!(bounds.is_position_within_text_unit(4.into(), Bound::Char, true), true);
+        assert_eq!(bounds.is_position_within_text_unit(5.into(), Bound::Char, true), true);
+        assert_eq!(bounds.is_position_within_text_unit(6.into(), Bound::Char, true), true);
     }
 }
