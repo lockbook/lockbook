@@ -30,16 +30,44 @@ pub type PlainTextLinks = Vec<(DocCharOffset, DocCharOffset)>;
 /// inferred from the other regions.
 #[derive(Debug, Default)]
 pub struct Bounds {
+    /// AST text ranges are separated according to markdown syntax and annotated with a type (head/tail/text) and a list of
+    /// ancestor AST nodes so that text can be associated with its position in the AST. An AST node will always have a head
+    /// or tail range containing the syntax characters that define the node. Text ranges are between the head and tail.
+    /// * Documents may have no AST text ranges.
+    /// * AST text ranges cannot be empty.
+    /// * AST text ranges can touch.
     pub ast: AstTextRanges,
 
+    /// Words are separated by UAX#29 (Unicode Standard Annex #29) word boundaries and do not contain whitespace. Some
+    /// punctuation marks count as words. Markdown syntax sequences count as single words.
+    /// * Documents may have no words.
+    /// * Words cannot be empty.
+    /// * Words can touch.
     pub words: Words,
+
+    /// Lines are separated by newline characters or by line wrap.
+    /// * Documents have at least one line.
+    /// * Lines can be empty.
+    /// * Lines can touch.
     pub lines: Lines,
+
+    /// Paragraphs are separated by newline characters.
+    /// * Documents have at least one paragraph.
+    /// * Paragraphs can be empty.
+    /// * Paragraphs cannot touch.
     pub paragraphs: Paragraphs,
 
-    /// Text consists of all rendered text. Every valid cursor position is in some possibly-empty text range.
+    /// Text consists of all rendered text separated by captured syntax ranges. Every valid cursor position is in some text
+    /// range.
+    /// * Documents have at least one text range.
+    /// * Text ranges can be empty.
+    /// * Text ranges can touch.
     pub text: Text,
 
     /// Plain text links are styled and clickable but aren't markdown links.
+    /// * Documents may have no links.
+    /// * Links cannot be empty.
+    /// * Links cannot touch.
     pub links: PlainTextLinks,
 }
 
@@ -274,7 +302,8 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text, ast: &Ast) -> PlainTextLinks 
 }
 
 impl Bounds {
-    /// Returns the range with start < char_offset <= end, or None if there's no such range.
+    /// Returns the next range before char_offset that doesn't have char_offset in it.
+    // todo: binary search
     fn range_before(
         ranges: &[(DocCharOffset, DocCharOffset)], char_offset: DocCharOffset,
     ) -> Option<usize> {
@@ -286,7 +315,8 @@ impl Bounds {
             .map(|(idx, _)| idx)
     }
 
-    /// Returns the range with start <= char_offset < end, or None if there's no such range.
+    /// Returns the next range after char_offset that doesn't have char_offset in it.
+    // todo: binary search
     fn range_after(
         ranges: &[(DocCharOffset, DocCharOffset)], char_offset: DocCharOffset,
     ) -> Option<usize> {
@@ -303,51 +333,67 @@ impl Bounds {
 }
 
 pub enum BoundCase {
-    // |
+    /// There are no ranges to contextualize the position.
+    ///
+    /// |
     NoRanges,
-    // |xx yy
+    /// The position is at the start of the first range. This may or may not be the start of the document e.g. the
+    /// first word in the document may be preceded by whitespace. Positions in the empty space before the first range
+    /// are also described by this variant.
+    ///
+    /// |(range)
     AtFirstRangeStart {
         first_range: (DocCharOffset, DocCharOffset),
         range_after: (DocCharOffset, DocCharOffset),
     },
-    // xx yy|
+    /// The position is at the end of the last range. This may or may not be the end of the document e.g. the last word
+    /// in the document may be followed by whitespace.
+    ///
+    /// (range)|
     AtLastRangeEnd {
         last_range: (DocCharOffset, DocCharOffset),
         range_before: (DocCharOffset, DocCharOffset),
     },
-    // x|x yy
-    InsideRange {
-        range: (DocCharOffset, DocCharOffset),
-    },
-    /*
-     *  xx
-     *  |
-     *  yy
-     */
+    /// The position is inside a range and not at its start or end. The range must have length at least 2.
+    ///
+    /// (ra|nge)
+    InsideRange { range: (DocCharOffset, DocCharOffset) },
+    /// The position is at the start/end of an empty range. The ranges before and after may be touching i.e. the
+    /// position may additionally be at the end of the range before and/or the start of the range after.
+    ///
+    /// (|)
     AtEmptyRange {
         range: (DocCharOffset, DocCharOffset),
         range_before: (DocCharOffset, DocCharOffset),
         range_after: (DocCharOffset, DocCharOffset),
     },
-    // xx|yy
-    // both ranges nonempty
-    AtRangesBound {
+    /// The position is between two ranges, both at the end of the range before and the start of the range after.
+    ///
+    /// (range1)|(range2)
+    AtSharedBoundOfTouchingNonemptyRanges {
         range_before: (DocCharOffset, DocCharOffset),
         range_after: (DocCharOffset, DocCharOffset),
     },
-    // xx| yy
-    // range before is nonempty
-    AtEndOfRangeBefore {
+    /// The position is at the end of a nonempty range with space between it and the range after. There is a range
+    /// after: otherwise, the variant would be AtLastRangeEnd.
+    ///
+    /// (range1)| (range2)
+    AtEndOfNonemptyRange {
         range_before: (DocCharOffset, DocCharOffset),
         range_after: (DocCharOffset, DocCharOffset),
     },
-    // xx |yy
-    // range after is nonempty
-    AtStartOfRangeAfter {
+    /// The position is at the start of a nonempty range with space between it and the range before. There is a range
+    /// before: otherwise, the variant would be AtFirstRangeStart.
+    ///
+    /// (range1) |(range2)
+    AtStartOfNonemptyRange {
         range_before: (DocCharOffset, DocCharOffset),
         range_after: (DocCharOffset, DocCharOffset),
     },
-    // xx | yy
+    /// The position is between two ranges without being at the start/end of either range. It is inside the space
+    /// between ranges.
+    ///
+    /// (range1) | (range2)
     BetweenRanges {
         range_before: (DocCharOffset, DocCharOffset),
         range_after: (DocCharOffset, DocCharOffset),
@@ -355,10 +401,15 @@ pub enum BoundCase {
 }
 
 impl DocCharOffset {
-    /// Returns the range in the direction of `backwards` from offset `self`. If `jump` is true, `self` will not be at
-    /// the boundary of the result in the direction of `backwards` (e.g. alt+left/right), otherwise it will be (e.g.
-    /// cmd+left/right). For instance, if `jump` is true, advancing beyond the first or last range in the doc will
-    /// return None, otherwise it will return the first or last range in the doc.
+    /// Returns the range in the direction of `backwards` from offset `self`. `jump` is used to control behavior when
+    /// `self` is at a boundary in the direction of `backwards`. When `backwards` and `jump` are false and `self` is at
+    /// the end of a range, returns that range. When `backwards` is `false` but `jump` is true and `self` is at the end
+    /// of a range, returns the next range. If `jump` is true, advancing beyond the first or last character in the doc
+    /// will return None, otherwise it will return the first or last range in the doc.
+    ///
+    /// For example, `jump` would be set to `true` when implementing alt+left/right behavior, which should always move
+    /// the cursor to the next word, but set to `false` when implementing cmd+left/right behavior, which should not
+    /// move the cursor if it is already at the line bound in the same direction.
     pub fn range_bound(
         self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds,
     ) -> Option<(Self, Self)> {
@@ -415,33 +466,31 @@ impl DocCharOffset {
                 }
                 BoundCase::InsideRange { range } => Some(range),
                 BoundCase::AtEmptyRange { range, .. } => Some(range),
-                BoundCase::AtRangesBound { range_before, range_after } => {
+                BoundCase::AtSharedBoundOfTouchingNonemptyRanges { range_before, range_after } => {
                     if backwards {
-                        Some(range_before)
-                    } else {
                         Some(range_after)
+                    } else {
+                        Some(range_before)
                     }
                 }
-                BoundCase::AtEndOfRangeBefore { range_before, .. } => Some(range_before),
-                BoundCase::AtStartOfRangeAfter { range_after, .. } => Some(range_after),
-                BoundCase::BetweenRanges { range_before, range_after } => {
-                    if backwards {
-                        Some(range_before)
-                    } else {
-                        Some(range_after)
-                    }
-                }
+                BoundCase::AtEndOfNonemptyRange { range_before, .. } => Some(range_before),
+                BoundCase::AtStartOfNonemptyRange { range_after, .. } => Some(range_after),
+                BoundCase::BetweenRanges { .. } => None,
             }
         }
     }
 
-    /// Returns the range in the direction of `backwards` from offset `self` representing a single character. If a
-    /// range is returned, it's either a single character in a paragraph or a nonempty range between paragraphs. If
+    /// Returns the range in the direction of `backwards` from offset `self` representing a single character for the
+    /// purposes of cursor navigation. Spaces between ranges of rendered text, including markdown syntax sequences
+    /// replaced with bullets or hidden entirely, are considered single characters so that the cursor navigates over
+    /// them in one keystroke.
+    ///
+    /// If a range is returned, it's either a single unicode character or a nonempty range between rendered text. If
     /// `jump` is true, advancing beyond the first or last character in the doc will return None, otherwise it will
     /// return the first or last character in the doc.
     fn char_bound(self, backwards: bool, jump: bool, text: &Text) -> Option<(Self, Self)> {
         match self.bound_case(text) {
-            BoundCase::NoRanges => None,
+            BoundCase::NoRanges => None, // never happens because we always have at least one text range
             BoundCase::AtFirstRangeStart { first_range, range_after } => {
                 if backwards && jump {
                     // jump backwards off the edge from the start of the first paragraph
@@ -450,7 +499,7 @@ impl DocCharOffset {
                     // nonempty range between paragraphs
                     // paragraph after is not first_paragraph because Bounds::range_after does not consider the range (offset, offset) to be after offset
                     // range is nonempty because paragraphs cannot both be empty and touch a paragraph before/after
-                    Some((first_range.start(), range_after.start()))
+                    Some((first_range.end(), range_after.start()))
                 } else {
                     // first character of the first paragraph
                     Some((first_range.start(), first_range.start() + 1))
@@ -464,42 +513,42 @@ impl DocCharOffset {
                     // nonempty range between paragraphs
                     // paragraph before is not last_paragraph because Bounds::range_before does not consider the range (offset, offset) to be before offset
                     // range is nonempty because paragraphs cannot both be empty and touch a paragraph before/after
-                    Some((range_before.end(), last_range.end()))
+                    Some((range_before.end(), last_range.start()))
                 } else {
                     // last character of the last paragraph
                     Some((last_range.end() - 1, last_range.end()))
                 }
             }
             BoundCase::InsideRange { .. } => {
-                if backwards {
+                if backwards ^ !jump {
                     Some((self - 1, self))
                 } else {
                     Some((self, self + 1))
                 }
             }
             BoundCase::AtEmptyRange { range: _, range_before, range_after } => {
-                if backwards {
+                if backwards ^ !jump {
                     Some((range_before.end(), self))
                 } else {
                     Some((self, range_after.start()))
                 }
             }
-            BoundCase::AtRangesBound { .. } => {
-                if backwards {
+            BoundCase::AtSharedBoundOfTouchingNonemptyRanges { .. } => {
+                if backwards ^ !jump {
                     Some((self - 1, self))
                 } else {
                     Some((self, self + 1))
                 }
             }
-            BoundCase::AtEndOfRangeBefore { range_after, .. } => {
-                if backwards {
+            BoundCase::AtEndOfNonemptyRange { range_after, .. } => {
+                if backwards ^ !jump {
                     Some((self - 1, self))
                 } else {
                     Some((self, range_after.start()))
                 }
             }
-            BoundCase::AtStartOfRangeAfter { range_before, .. } => {
-                if backwards {
+            BoundCase::AtStartOfNonemptyRange { range_before, .. } => {
+                if backwards ^ !jump {
                     Some((range_before.end(), self))
                 } else {
                     Some((self, self + 1))
@@ -549,11 +598,11 @@ impl DocCharOffset {
                 if range_before_idx + 1 != range_after_idx {
                     BoundCase::AtEmptyRange { range: (self, self), range_before, range_after }
                 } else if range_before.end() == range_after.start() {
-                    BoundCase::AtRangesBound { range_before, range_after }
+                    BoundCase::AtSharedBoundOfTouchingNonemptyRanges { range_before, range_after }
                 } else if self == range_before.end() {
-                    BoundCase::AtEndOfRangeBefore { range_before, range_after }
+                    BoundCase::AtEndOfNonemptyRange { range_before, range_after }
                 } else if self == range_after.start() {
-                    BoundCase::AtStartOfRangeAfter { range_before, range_after }
+                    BoundCase::AtStartOfNonemptyRange { range_before, range_after }
                 } else {
                     BoundCase::BetweenRanges { range_before, range_after }
                 }
@@ -580,7 +629,8 @@ impl DocCharOffset {
     }
 
     /// Advances to a bound in a direction, stopping at the bound (e.g. cmd+left/right). If you're beyond the furthest
-    /// bound, this snaps you into it, even if that moves you in the opposite direction.
+    /// bound, this snaps you into it, even if that moves you in the opposite direction. If you're not in a bound e.g.
+    /// jumping to end of word while not in a word, this does nothing.
     pub fn advance_to_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self {
         self.advance_bound(bound, backwards, false, bounds)
     }
@@ -1006,10 +1056,7 @@ mod test {
             DocCharOffset(3).range_bound(Bound::Word, false, false, &bounds),
             Some((DocCharOffset(1), DocCharOffset(3)))
         );
-        assert_eq!(
-            DocCharOffset(4).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
-        );
+        assert_eq!(DocCharOffset(4).range_bound(Bound::Word, false, false, &bounds), None);
         assert_eq!(
             DocCharOffset(5).range_bound(Bound::Word, false, false, &bounds),
             Some((DocCharOffset(5), DocCharOffset(7)))
@@ -1022,10 +1069,7 @@ mod test {
             DocCharOffset(7).range_bound(Bound::Word, false, false, &bounds),
             Some((DocCharOffset(5), DocCharOffset(7)))
         );
-        assert_eq!(
-            DocCharOffset(8).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
-        );
+        assert_eq!(DocCharOffset(8).range_bound(Bound::Word, false, false, &bounds), None);
         assert_eq!(
             DocCharOffset(9).range_bound(Bound::Word, false, false, &bounds),
             Some((DocCharOffset(9), DocCharOffset(11)))
@@ -1059,10 +1103,7 @@ mod test {
             DocCharOffset(3).range_bound(Bound::Word, true, false, &bounds),
             Some((DocCharOffset(1), DocCharOffset(3)))
         );
-        assert_eq!(
-            DocCharOffset(4).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
-        );
+        assert_eq!(DocCharOffset(4).range_bound(Bound::Word, true, false, &bounds), None);
         assert_eq!(
             DocCharOffset(5).range_bound(Bound::Word, true, false, &bounds),
             Some((DocCharOffset(5), DocCharOffset(7)))
@@ -1075,10 +1116,7 @@ mod test {
             DocCharOffset(7).range_bound(Bound::Word, true, false, &bounds),
             Some((DocCharOffset(5), DocCharOffset(7)))
         );
-        assert_eq!(
-            DocCharOffset(8).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
-        );
+        assert_eq!(DocCharOffset(8).range_bound(Bound::Word, true, false, &bounds), None);
         assert_eq!(
             DocCharOffset(9).range_bound(Bound::Word, true, false, &bounds),
             Some((DocCharOffset(9), DocCharOffset(11)))
@@ -1213,7 +1251,7 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(3).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(3), DocCharOffset(5)))
+            Some((DocCharOffset(1), DocCharOffset(3)))
         );
         assert_eq!(
             DocCharOffset(4).range_bound(Bound::Word, false, false, &bounds),
@@ -1221,7 +1259,7 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(5).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Some((DocCharOffset(3), DocCharOffset(5)))
         );
         assert_eq!(
             DocCharOffset(6).range_bound(Bound::Word, false, false, &bounds),
@@ -1250,7 +1288,7 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(3).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Some((DocCharOffset(3), DocCharOffset(5)))
         );
         assert_eq!(
             DocCharOffset(4).range_bound(Bound::Word, true, false, &bounds),
@@ -1258,7 +1296,7 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(5).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(3), DocCharOffset(5)))
+            Some((DocCharOffset(5), DocCharOffset(7)))
         );
         assert_eq!(
             DocCharOffset(6).range_bound(Bound::Word, true, false, &bounds),
@@ -1373,7 +1411,7 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(4).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
+            DocCharOffset(4)
         );
         assert_eq!(
             DocCharOffset(5).advance_to_bound(Bound::Word, false, &bounds),
@@ -1389,7 +1427,7 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(8).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
+            DocCharOffset(8)
         );
         assert_eq!(
             DocCharOffset(9).advance_to_bound(Bound::Word, false, &bounds),
@@ -1412,11 +1450,11 @@ mod test {
         assert_eq!(DocCharOffset(1).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
         assert_eq!(DocCharOffset(2).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
         assert_eq!(DocCharOffset(3).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
-        assert_eq!(DocCharOffset(4).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
+        assert_eq!(DocCharOffset(4).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(4));
         assert_eq!(DocCharOffset(5).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
         assert_eq!(DocCharOffset(6).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
         assert_eq!(DocCharOffset(7).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
-        assert_eq!(DocCharOffset(8).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
+        assert_eq!(DocCharOffset(8).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(8));
         assert_eq!(DocCharOffset(9).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(9));
         assert_eq!(
             DocCharOffset(10).advance_to_bound(Bound::Word, true, &bounds),
@@ -1454,7 +1492,7 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(3).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(5)
+            DocCharOffset(3)
         );
         assert_eq!(
             DocCharOffset(4).advance_to_bound(Bound::Word, false, &bounds),
@@ -1462,7 +1500,7 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(5).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
+            DocCharOffset(5)
         );
         assert_eq!(
             DocCharOffset(6).advance_to_bound(Bound::Word, false, &bounds),
@@ -1480,9 +1518,9 @@ mod test {
         assert_eq!(DocCharOffset(0).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
         assert_eq!(DocCharOffset(1).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
         assert_eq!(DocCharOffset(2).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
-        assert_eq!(DocCharOffset(3).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
+        assert_eq!(DocCharOffset(3).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(3));
         assert_eq!(DocCharOffset(4).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(3));
-        assert_eq!(DocCharOffset(5).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(3));
+        assert_eq!(DocCharOffset(5).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
         assert_eq!(DocCharOffset(6).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
         assert_eq!(DocCharOffset(7).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
         assert_eq!(DocCharOffset(8).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
@@ -1516,7 +1554,7 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(4).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(5)
+            DocCharOffset(4)
         );
         assert_eq!(
             DocCharOffset(5).advance_to_bound(Bound::Word, false, &bounds),
@@ -1524,7 +1562,7 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(6).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
+            DocCharOffset(6)
         );
         assert_eq!(
             DocCharOffset(7).advance_to_bound(Bound::Word, false, &bounds),
@@ -1532,7 +1570,7 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(8).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
+            DocCharOffset(8)
         );
         assert_eq!(
             DocCharOffset(9).advance_to_bound(Bound::Word, false, &bounds),
@@ -1798,11 +1836,11 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(2).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(2), DocCharOffset(3)))
+            Some((DocCharOffset(1), DocCharOffset(2)))
         );
         assert_eq!(
             DocCharOffset(3).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(3), DocCharOffset(5)))
+            Some((DocCharOffset(2), DocCharOffset(3)))
         );
         assert_eq!(
             DocCharOffset(4).char_bound(false, false, &bounds.text),
@@ -1810,15 +1848,15 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(5).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(5), DocCharOffset(6)))
+            Some((DocCharOffset(3), DocCharOffset(5)))
         );
         assert_eq!(
             DocCharOffset(6).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(6), DocCharOffset(7)))
+            Some((DocCharOffset(5), DocCharOffset(6)))
         );
         assert_eq!(
             DocCharOffset(7).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(7), DocCharOffset(9)))
+            Some((DocCharOffset(6), DocCharOffset(7)))
         );
         assert_eq!(
             DocCharOffset(8).char_bound(false, false, &bounds.text),
@@ -1826,11 +1864,11 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(9).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(9), DocCharOffset(10)))
+            Some((DocCharOffset(7), DocCharOffset(9)))
         );
         assert_eq!(
             DocCharOffset(10).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(10), DocCharOffset(11)))
+            Some((DocCharOffset(9), DocCharOffset(10)))
         );
         assert_eq!(
             DocCharOffset(11).char_bound(false, false, &bounds.text),
@@ -1851,11 +1889,11 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(2).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(1), DocCharOffset(2)))
+            Some((DocCharOffset(2), DocCharOffset(3)))
         );
         assert_eq!(
             DocCharOffset(3).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(2), DocCharOffset(3)))
+            Some((DocCharOffset(3), DocCharOffset(5)))
         );
         assert_eq!(
             DocCharOffset(4).char_bound(true, false, &bounds.text),
@@ -1863,15 +1901,15 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(5).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(3), DocCharOffset(5)))
-        );
-        assert_eq!(
-            DocCharOffset(6).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(5), DocCharOffset(6)))
         );
         assert_eq!(
-            DocCharOffset(7).char_bound(true, false, &bounds.text),
+            DocCharOffset(6).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(6), DocCharOffset(7)))
+        );
+        assert_eq!(
+            DocCharOffset(7).char_bound(true, false, &bounds.text),
+            Some((DocCharOffset(7), DocCharOffset(9)))
         );
         assert_eq!(
             DocCharOffset(8).char_bound(true, false, &bounds.text),
@@ -1879,11 +1917,11 @@ mod test {
         );
         assert_eq!(
             DocCharOffset(9).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(7), DocCharOffset(9)))
+            Some((DocCharOffset(9), DocCharOffset(10)))
         );
         assert_eq!(
             DocCharOffset(10).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(9), DocCharOffset(10)))
+            Some((DocCharOffset(10), DocCharOffset(11)))
         );
         assert_eq!(
             DocCharOffset(11).char_bound(true, false, &bounds.text),
