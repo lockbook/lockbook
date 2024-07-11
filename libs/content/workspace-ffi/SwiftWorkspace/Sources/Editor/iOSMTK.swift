@@ -249,15 +249,13 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     @objc func replace(_ sender: Any?) {
-        if let sender = sender {
-            guard let replacement = sender as? NSObject,
-                  let range = replacement.value(forKey: "range") as? UITextRange,
-                  let replacementText = replacement.value(forKey: "replacementText") as? NSString else {
-                return
-            }
-                                    
-            replace(range, withText: replacementText as String)
+        guard let replacement = sender as? NSObject,
+              let range = replacement.value(forKey: "range") as? UITextRange,
+              let replacementText = replacement.value(forKey: "replacementText") as? NSString else {
+            return
         }
+        
+        replace(range, withText: replacementText as String)
     }
     
     public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
@@ -311,7 +309,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
         if let event = sender {
-            
             if event.state == .ended || event.state == .cancelled || event.state == .failed {
                 // todo: evaluate fling when desired
                 lastKnownTapLocation = nil
@@ -403,7 +400,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         inputDelegate?.textWillChange(self)
         replace_text(wsHandle, range.c, text)
-//        mtkView.drawImmediately()
+        mtkView.drawImmediately()
         inputDelegate?.textDidChange(self)
     }
     
@@ -492,6 +489,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         }
         let end = (toPosition as! LBTextPos).c
         let range = text_range(start, end)
+
         if range.none {
             return nil
         } else {
@@ -537,6 +535,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func offset(from: UITextPosition, to toPosition: UITextPosition) -> Int {
+        
         guard let left = (from as? LBTextPos)?.c.pos, let right = (toPosition as? LBTextPos)?.c.pos else {
             return 0
         }
@@ -588,11 +587,13 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         free_selection_rects(result)
         
-        return buffer.enumerated().map { (index, rect) in
+        let selectionRects: [UITextSelectionRect] = buffer.enumerated().map { (index, rect) in
             let new_rect = CRect(min_x: rect.min_x, min_y: rect.min_y - iOSMTK.TAB_BAR_HEIGHT, max_x: rect.max_x, max_y: rect.max_y - iOSMTK.TAB_BAR_HEIGHT)
             
             return LBTextSelectionRect(cRect: new_rect, loc: index, size: buffer.count)
         }
+        
+        return selectionRects
     }
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
@@ -1184,7 +1185,7 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
             return false
         }
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
-        let backwards = direction.rawValue == 1
+        let backwards = direction.rawValue == UITextStorageDirection.backward.rawValue
         return is_position_at_bound(wsHandle, position, granularity, backwards)
     }
     
@@ -1193,7 +1194,7 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
             return false
         }
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
-        let backwards = direction.rawValue == 1
+        let backwards = direction.rawValue == UITextStorageDirection.backward.rawValue
         return is_position_within_bound(wsHandle, position, granularity, backwards)
     }
     
@@ -1202,7 +1203,7 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
             return nil
         }
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
-        let backwards = direction.rawValue == 1
+        let backwards = direction.rawValue == UITextStorageDirection.backward.rawValue
         let result = bound_from_position(wsHandle, position, granularity, backwards)
         return LBTextPos(c: result)
     }
@@ -1212,8 +1213,13 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
             return nil
         }
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
-        let backwards = direction.rawValue == 1
+        let backwards = direction.rawValue == UITextStorageDirection.backward.rawValue
         let result = bound_at_position(wsHandle, position, granularity, backwards)
+        
+        if result.start.pos == result.end.pos {
+            return nil
+        }
+        
         return LBTextRange(c: result)
     }
 }
