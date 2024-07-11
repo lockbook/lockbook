@@ -441,6 +441,7 @@ pub unsafe extern "C" fn is_position_at_bound(
 
     markdown
         .editor
+        .bounds
         .is_position_at_boundary(text_position, at_boundary, backwards)
 }
 
@@ -463,6 +464,7 @@ pub unsafe extern "C" fn is_position_within_bound(
 
     markdown
         .editor
+        .bounds
         .is_position_within_text_unit(text_position, at_boundary, backwards)
 }
 
@@ -485,6 +487,7 @@ pub unsafe extern "C" fn bound_from_position(
 
     markdown
         .editor
+        .bounds
         .position_from(text_position, to_boundary, backwards)
         .into()
 }
@@ -508,6 +511,7 @@ pub unsafe extern "C" fn bound_at_position(
 
     markdown
         .editor
+        .bounds
         .range_enclosing_position(text_position, with_granularity, backwards)
         .into()
 }
