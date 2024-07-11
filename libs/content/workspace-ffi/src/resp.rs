@@ -1,9 +1,11 @@
 use crate::cursor_icon::CCursorIcon;
-use egui_editor::input::canonical::{Location, Region};
-use egui_editor::offset_types::{DocCharOffset, RelCharOffset};
 use lb_external_interface::lb_rs::Uuid;
 use std::ffi::{c_char, CString};
 use workspace_rs::output::WsOutput;
+use workspace_rs::tab::markdown_editor::input::canonical::{Bound, Location, Region};
+use workspace_rs::tab::markdown_editor::offset_types::{
+    DocCharOffset, RangeExt as _, RelCharOffset,
+};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -129,12 +131,42 @@ pub struct CTextRange {
     pub end: CTextPosition,
 }
 
+impl From<(DocCharOffset, DocCharOffset)> for CTextRange {
+    fn from(value: (DocCharOffset, DocCharOffset)) -> Self {
+        CTextRange { none: false, start: value.start().into(), end: value.end().into() }
+    }
+}
+
+impl From<Option<(DocCharOffset, DocCharOffset)>> for CTextRange {
+    fn from(value: Option<(DocCharOffset, DocCharOffset)>) -> Self {
+        match value {
+            Some(range) => range.into(),
+            None => CTextRange { none: true, start: Default::default(), end: Default::default() },
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Default)]
 pub struct CTextPosition {
     /// used to represent a non-existent state of this struct
     pub none: bool,
     pub pos: usize, // represents a grapheme index
+}
+
+impl From<DocCharOffset> for CTextPosition {
+    fn from(value: DocCharOffset) -> Self {
+        CTextPosition { none: false, pos: value.0 }
+    }
+}
+
+impl From<Option<DocCharOffset>> for CTextPosition {
+    fn from(value: Option<DocCharOffset>) -> Self {
+        match value {
+            Some(offset) => offset.into(),
+            None => CTextPosition { none: true, pos: 0 },
+        }
+    }
 }
 
 #[repr(C)]
@@ -162,6 +194,19 @@ pub enum CTextGranularity {
     Paragraph = 3,
     Line = 4,
     Document = 5,
+}
+
+impl Into<Bound> for CTextGranularity {
+    fn into(self) -> Bound {
+        match self {
+            CTextGranularity::Character => Bound::Char,
+            CTextGranularity::Word => Bound::Word,
+            CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
+            CTextGranularity::Paragraph => Bound::Paragraph,
+            CTextGranularity::Line => Bound::Line,
+            CTextGranularity::Document => Bound::Doc,
+        }
+    }
 }
 
 #[repr(C)]
