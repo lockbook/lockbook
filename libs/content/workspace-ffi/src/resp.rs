@@ -133,7 +133,11 @@ pub struct CTextRange {
 
 impl From<(DocCharOffset, DocCharOffset)> for CTextRange {
     fn from(value: (DocCharOffset, DocCharOffset)) -> Self {
-        CTextRange { none: false, start: value.start().into(), end: value.end().into() }
+        if value.is_empty() {
+            CTextRange { none: true, ..Default::default() }
+        } else {
+            CTextRange { none: false, start: value.start().into(), end: value.end().into() }
+        }
     }
 }
 
