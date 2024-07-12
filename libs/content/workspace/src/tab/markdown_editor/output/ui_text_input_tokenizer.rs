@@ -60,7 +60,7 @@ impl UITextInputTokenizer for Bounds {
     ) -> Option<(DocCharOffset, DocCharOffset)> {
         Some(
             text_position
-                .range_bound(with_granularity, in_backward_direction, true, self)
+                .range_bound(with_granularity, in_backward_direction, false, self)
                 .unwrap_or((text_position, text_position)),
         )
     }
@@ -254,5 +254,251 @@ mod test {
         assert_eq!(bounds.is_position_within_text_unit(4.into(), Bound::Char, true), true);
         assert_eq!(bounds.is_position_within_text_unit(5.into(), Bound::Char, true), true);
         assert_eq!(bounds.is_position_within_text_unit(6.into(), Bound::Char, true), true);
+    }
+
+    #[test]
+    fn position_from_char() {
+        // "hey"
+        let bounds = Bounds {
+            ast: [(0, 3)]
+                .into_iter()
+                .map(|r| AstTextRange {
+                    range_type: AstTextRangeType::Text,
+                    range: (r.start().into(), r.end().into()),
+                    ancestors: vec![],
+                })
+                .collect(),
+            words: [(0, 3)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            lines: [(0, 3)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            paragraphs: [(0, 3)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            text: [(0, 3)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            links: vec![],
+        };
+
+        assert_eq!(bounds.position_from(0.into(), Bound::Char, false), Some(1.into()));
+        assert_eq!(bounds.position_from(1.into(), Bound::Char, false), Some(2.into()));
+        assert_eq!(bounds.position_from(2.into(), Bound::Char, false), Some(3.into()));
+        assert_eq!(bounds.position_from(3.into(), Bound::Char, false), Some(3.into()));
+
+        assert_eq!(bounds.position_from(0.into(), Bound::Char, true), Some(0.into()));
+        assert_eq!(bounds.position_from(1.into(), Bound::Char, true), Some(0.into()));
+        assert_eq!(bounds.position_from(2.into(), Bound::Char, true), Some(1.into()));
+        assert_eq!(bounds.position_from(3.into(), Bound::Char, true), Some(2.into()));
+    }
+
+    #[test]
+    fn position_from_word() {
+        // "a word"
+        let bounds = Bounds {
+            ast: [(0, 6)]
+                .into_iter()
+                .map(|r| AstTextRange {
+                    range_type: AstTextRangeType::Text,
+                    range: (r.start().into(), r.end().into()),
+                    ancestors: vec![],
+                })
+                .collect(),
+            words: [(0, 1), (2, 6)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            lines: [(0, 6)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            paragraphs: [(0, 6)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            text: [(0, 6)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            links: vec![],
+        };
+
+        assert_eq!(bounds.position_from(0.into(), Bound::Word, false), Some(1.into()));
+        assert_eq!(bounds.position_from(1.into(), Bound::Word, false), Some(6.into()));
+        assert_eq!(bounds.position_from(2.into(), Bound::Word, false), Some(6.into()));
+        assert_eq!(bounds.position_from(3.into(), Bound::Word, false), Some(6.into()));
+        assert_eq!(bounds.position_from(4.into(), Bound::Word, false), Some(6.into()));
+        assert_eq!(bounds.position_from(5.into(), Bound::Word, false), Some(6.into()));
+        assert_eq!(bounds.position_from(6.into(), Bound::Word, false), Some(6.into()));
+
+        assert_eq!(bounds.position_from(0.into(), Bound::Word, true), Some(0.into()));
+        assert_eq!(bounds.position_from(1.into(), Bound::Word, true), Some(0.into()));
+        assert_eq!(bounds.position_from(2.into(), Bound::Word, true), Some(0.into()));
+        assert_eq!(bounds.position_from(3.into(), Bound::Word, true), Some(2.into()));
+        assert_eq!(bounds.position_from(4.into(), Bound::Word, true), Some(2.into()));
+        assert_eq!(bounds.position_from(5.into(), Bound::Word, true), Some(2.into()));
+        assert_eq!(bounds.position_from(6.into(), Bound::Word, true), Some(2.into()));
+    }
+
+    #[test]
+    fn range_enclosing_position_char() {
+        // "hey"
+        let bounds = Bounds {
+            ast: [(0, 3)]
+                .into_iter()
+                .map(|r| AstTextRange {
+                    range_type: AstTextRangeType::Text,
+                    range: (r.start().into(), r.end().into()),
+                    ancestors: vec![],
+                })
+                .collect(),
+            words: [(0, 3)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            lines: [(0, 3)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            paragraphs: [(0, 3)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            text: [(0, 3)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            links: vec![],
+        };
+
+        assert_eq!(
+            bounds.range_enclosing_position(0.into(), Bound::Char, false),
+            Some((0.into(), 1.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(1.into(), Bound::Char, false),
+            Some((0.into(), 1.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(2.into(), Bound::Char, false),
+            Some((1.into(), 2.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(3.into(), Bound::Char, false),
+            Some((2.into(), 3.into()))
+        );
+
+        assert_eq!(
+            bounds.range_enclosing_position(0.into(), Bound::Char, true),
+            Some((0.into(), 1.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(1.into(), Bound::Char, true),
+            Some((1.into(), 2.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(2.into(), Bound::Char, true),
+            Some((2.into(), 3.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(3.into(), Bound::Char, true),
+            Some((2.into(), 3.into()))
+        );
+    }
+
+    #[test]
+    fn range_enclosing_position_word() {
+        // "a word"
+        let bounds = Bounds {
+            ast: [(0, 6)]
+                .into_iter()
+                .map(|r| AstTextRange {
+                    range_type: AstTextRangeType::Text,
+                    range: (r.start().into(), r.end().into()),
+                    ancestors: vec![],
+                })
+                .collect(),
+            words: [(0, 1), (2, 6)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            lines: [(0, 6)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            paragraphs: [(0, 6)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            text: [(0, 6)]
+                .into_iter()
+                .map(|r| (r.start().into(), r.end().into()))
+                .collect(),
+            links: vec![],
+        };
+
+        assert_eq!(
+            bounds.range_enclosing_position(0.into(), Bound::Word, false),
+            Some((0.into(), 1.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(1.into(), Bound::Word, false),
+            Some((0.into(), 1.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(2.into(), Bound::Word, false),
+            Some((2.into(), 6.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(3.into(), Bound::Word, false),
+            Some((2.into(), 6.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(4.into(), Bound::Word, false),
+            Some((2.into(), 6.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(5.into(), Bound::Word, false),
+            Some((2.into(), 6.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(6.into(), Bound::Word, false),
+            Some((2.into(), 6.into()))
+        );
+
+        assert_eq!(
+            bounds.range_enclosing_position(0.into(), Bound::Word, true),
+            Some((0.into(), 1.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(1.into(), Bound::Word, true),
+            Some((0.into(), 1.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(2.into(), Bound::Word, true),
+            Some((2.into(), 6.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(3.into(), Bound::Word, true),
+            Some((2.into(), 6.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(4.into(), Bound::Word, true),
+            Some((2.into(), 6.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(5.into(), Bound::Word, true),
+            Some((2.into(), 6.into()))
+        );
+        assert_eq!(
+            bounds.range_enclosing_position(6.into(), Bound::Word, true),
+            Some((2.into(), 6.into()))
+        );
     }
 }
