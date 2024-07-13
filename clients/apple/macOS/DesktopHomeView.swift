@@ -4,17 +4,30 @@ import DSFQuickActionBar
 import SwiftWorkspace
 
 struct DesktopHomeView: View {
-    @State var searchInput: String = ""
     @State var expandedFolders: [File] = []
     @State var lastOpenDoc: File? = nil
 
     var body: some View {
         NavigationView {
-            SidebarView(searchInput: $searchInput, expandedFolders: $expandedFolders, lastOpenDoc: $lastOpenDoc)
-                .searchable(text: $searchInput, prompt: "Search")
+            SidebarView(expandedFolders: $expandedFolders, lastOpenDoc: $lastOpenDoc)
             
-            DetailView()
+            Color.red
         }
+    }
+}
+
+struct SearchBar: View {
+    @Binding var searchInput: String
+    
+    var body: some View {
+        VStack {
+            TextField("Search", text: $searchInput)
+        }
+        .padding(5)
+        .background(
+            RoundedRectangle(cornerSize: CGSize(width: 20, height: 20))
+                .foregroundColor(Color(nsColor: .windowBackgroundColor))
+        )
     }
 }
 
@@ -23,14 +36,17 @@ struct SidebarView: View {
     
     @Environment(\.isSearching) var isSearching
 
-    @Binding var searchInput: String
+    @State var searchInput: String = ""
+    
     @Binding var expandedFolders: [File]
     @Binding var lastOpenDoc: File?
     
     @State var treeBranchState: Bool = true
         
     var body: some View {
-        Group {
+        VStack {
+            SearchBar(searchInput: $searchInput)
+            
             if search.isPathAndContentSearching {
                 if !search.isPathAndContentSearchInProgress && !search.pathAndContentSearchQuery.isEmpty && search.pathAndContentSearchResults.isEmpty {
                     noSearchResultsView

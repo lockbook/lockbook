@@ -4,7 +4,6 @@ import SwiftLockbookCore
 import Foundation
 
 struct ConstrainedHomeViewWrapper: View {
-    
     @EnvironmentObject var workspace: WorkspaceState
     @EnvironmentObject var files: FileService
     @EnvironmentObject var search: SearchService
