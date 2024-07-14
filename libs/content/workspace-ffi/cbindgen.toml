@@ -1,0 +1,14 @@
+# A list of substitutions for converting cfg's to ifdefs. cfgs which aren't
+# defined here will just be discarded.
+#
+# e.g.
+# `#[cfg(target = "freebsd")] ...`
+# becomes
+# `#if defined(DEFINE_FREEBSD) ... #endif`
+#
+# Values chosen to match standard variables defined for the C preprocessor on respective platforms according to:
+# https://github.com/cpredef/predef/blob/master/OperatingSystems.md
+[defines]
+"target_vendor = apple" = "__APPLE__"
+"target_os = ios" = "__APPLE__"
+"target_os = android" = "__ANDROID__"
