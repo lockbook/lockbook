@@ -28,6 +28,8 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let content = CStr::from_ptr(content).to_str().unwrap().into();
 
+    println!("  \ninsert_text({:?})\n", content);
+
     if content == "\n" {
         obj.context
             .push_markdown_event(Modification::Newline { advance_cursor: true });
@@ -46,6 +48,8 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
 #[no_mangle]
 pub unsafe extern "C" fn backspace(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("  \nbackspace()\n");
 
     obj.raw_input.events.push(Event::Key {
         key: Key::Backspace,
@@ -68,6 +72,8 @@ pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
         None => return false,
     };
 
+    println!("  has_text()");
+
     !markdown.editor.buffer.is_empty()
 }
 
@@ -78,11 +84,15 @@ pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
 #[no_mangle]
 pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let text = CStr::from_ptr(text).to_str().unwrap().into();
+    let text: String = CStr::from_ptr(text).to_str().unwrap().into();
     if !range.none {
-        obj.context
-            .push_markdown_event(Modification::Replace { region: range.into(), text });
+        obj.context.push_markdown_event(Modification::Replace {
+            region: range.clone().into(),
+            text: text.clone(),
+        });
     }
+
+    println!("  \nreplace_text({:?}, {:?})\n", (range.start.pos, range.end.pos), text);
 }
 
 /// # Safety
@@ -119,6 +129,8 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
     let buffer = &markdown.editor.buffer.current;
     let text = cursor.selection_text(buffer);
 
+    println!("  text_in_range({:?}) -> {:?}", (start, end), text);
+
     CString::new(text)
         .expect("Could not Rust String -> C String")
         .into_raw()
@@ -138,6 +150,8 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 
     let (start, end) = markdown.editor.buffer.current.cursor.selection;
 
+    println!("  get_selected() -> {:?}", (start, end));
+
     CTextRange {
         none: false,
         start: CTextPosition { pos: start.0, ..Default::default() },
@@ -153,8 +167,10 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     if !range.none {
+        let region = range.into();
         obj.context
-            .push_markdown_event(Modification::Select { region: range.into() });
+            .push_markdown_event(Modification::Select { region });
+        println!("  set_selected({:?})", region);
     }
 }
 
@@ -166,6 +182,8 @@ pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
     obj.context.push_markdown_event(Modification::Select {
         region: Region::Bound { bound: Bound::Word, backwards: true },
     });
+
+    println!("  select_current_word()");
 }
 
 /// # Safety
@@ -176,6 +194,8 @@ pub unsafe extern "C" fn select_all(obj: *mut c_void) {
     obj.context.push_markdown_event(Modification::Select {
         region: Region::Bound { bound: Bound::Doc, backwards: true },
     });
+
+    println!("  select_all()");
 }
 
 /// # Safety
@@ -189,6 +209,8 @@ pub unsafe extern "C" fn get_marked(obj: *mut c_void) -> CTextRange {
         Some(markdown) => markdown,
         None => return CTextRange::default(),
     };
+
+    println!("  get_marked() -> {:?}", markdown.editor.buffer.current.cursor.mark);
 
     match markdown.editor.buffer.current.cursor.mark {
         None => CTextRange { none: true, ..Default::default() },
@@ -210,6 +232,9 @@ pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *
     let text =
         if text.is_null() { None } else { Some(CStr::from_ptr(text).to_str().unwrap().into()) };
 
+    let region: (DocCharOffset, DocCharOffset) = range.clone().into();
+    println!("  set_marked({:?}, {:?})", region, text);
+
     obj.context.push_markdown_event(Modification::StageMarked {
         highlighted: range.into(),
         text: text.unwrap_or_default(),
@@ -224,6 +249,8 @@ pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *
 pub unsafe extern "C" fn unmark_text(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.context.push_markdown_event(Modification::CommitMarked);
+
+    println!("  unmark_text()");
 }
 
 /// # Safety
@@ -234,6 +261,8 @@ pub unsafe extern "C" fn unmark_text(obj: *mut c_void) {
 /// should we be returning a subset of the document? https://stackoverflow.com/questions/12676851/uitextinput-is-it-ok-to-return-incorrect-beginningofdocument-endofdocumen
 #[no_mangle]
 pub unsafe extern "C" fn beginning_of_document(_obj: *mut c_void) -> CTextPosition {
+    println!("  beginning_of_document() -> 0");
+
     CTextPosition { ..Default::default() }
 }
 
@@ -249,6 +278,11 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
         Some(markdown) => markdown,
         None => return CTextPosition::default(),
     };
+
+    println!(
+        "  end_of_document() -> {:?}",
+        markdown.editor.buffer.current.segs.last_cursor_position().0
+    );
 
     CTextPosition {
         pos: markdown.editor.buffer.current.segs.last_cursor_position().0,
@@ -353,6 +387,7 @@ pub unsafe extern "C" fn tab_count(obj: *mut c_void) -> i64 {
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
 pub extern "C" fn text_range(start: CTextPosition, end: CTextPosition) -> CTextRange {
+    println!("  text_range({:?})", (start.pos, end.pos));
     if start.pos < end.pos {
         CTextRange { none: false, start, end }
     } else {
@@ -374,9 +409,10 @@ pub unsafe extern "C" fn position_offset(
         None => return CTextPosition::default(),
     };
 
+    let start_tmp = start.pos;
     let buffer = &markdown.editor.buffer.current;
 
-    if (offset < 0 && -offset > start.pos as i32)
+    let result = if (offset < 0 && -offset > start.pos as i32)
         || (offset > 0
             && (start.pos).saturating_add(offset as usize) > buffer.segs.last_cursor_position().0)
     {
@@ -387,7 +423,12 @@ pub unsafe extern "C" fn position_offset(
     } else {
         start.pos += offset as usize;
         start
-    }
+    };
+
+    let result_tmp: DocCharOffset = result.clone().into();
+    println!("  position_offset({:?}, {}) -> {:?}", start_tmp, offset, result_tmp);
+
+    result
 }
 
 /// # Safety
@@ -419,6 +460,12 @@ pub unsafe extern "C" fn position_offset_in_direction(
     for _ in 0..offset {
         cursor.advance(offset_type, backwards, buffer, galleys, &markdown.editor.bounds);
     }
+
+    println!(
+        "  position_offset_in_direction({:?}, {:?}, {}) -> {:?}",
+        start.pos, direction, offset, cursor
+    );
+
     CTextPosition { none: start.none, pos: cursor.selection.1 .0 }
 }
 
@@ -439,10 +486,18 @@ pub unsafe extern "C" fn is_position_at_bound(
     let text_position = pos.pos.into();
     let at_boundary = granularity.into();
 
-    markdown
-        .editor
-        .bounds
-        .is_position_at_boundary(text_position, at_boundary, backwards)
+    let result =
+        markdown
+            .editor
+            .bounds
+            .is_position_at_boundary(text_position, at_boundary, backwards);
+
+    println!(
+        "* is_position_at_bound({:?}, {:?}, {:?}) -> {:?}",
+        text_position, at_boundary, backwards, result
+    );
+
+    result
 }
 
 /// # Safety
@@ -462,10 +517,18 @@ pub unsafe extern "C" fn is_position_within_bound(
     let text_position = pos.pos.into();
     let at_boundary = granularity.into();
 
-    markdown
-        .editor
-        .bounds
-        .is_position_within_text_unit(text_position, at_boundary, backwards)
+    let result =
+        markdown
+            .editor
+            .bounds
+            .is_position_within_text_unit(text_position, at_boundary, backwards);
+
+    println!(
+        "* is_position_within_bound({:?}, {:?}, {:?}) -> {:?}",
+        text_position, at_boundary, backwards, result
+    );
+
+    result
 }
 
 /// # Safety
@@ -485,11 +548,17 @@ pub unsafe extern "C" fn bound_from_position(
     let text_position = pos.pos.into();
     let to_boundary = granularity.into();
 
-    markdown
+    let result = markdown
         .editor
         .bounds
-        .position_from(text_position, to_boundary, backwards)
-        .into()
+        .position_from(text_position, to_boundary, backwards);
+
+    println!(
+        "> bound_from_position({:?}, {:?}, {:?}) -> {:?}",
+        text_position, to_boundary, backwards, result
+    );
+
+    result.into()
 }
 
 /// # Safety
@@ -509,11 +578,18 @@ pub unsafe extern "C" fn bound_at_position(
     let text_position = pos.pos.into();
     let with_granularity = granularity.into();
 
-    markdown
-        .editor
-        .bounds
-        .range_enclosing_position(text_position, with_granularity, backwards)
-        .into()
+    let result =
+        markdown
+            .editor
+            .bounds
+            .range_enclosing_position(text_position, with_granularity, backwards);
+
+    println!(
+        "^ bound_at_position({:?}, {:?}, {:?}) -> {:?}",
+        text_position, with_granularity, backwards, result
+    );
+
+    result.into()
 }
 
 /// # Safety
@@ -534,7 +610,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
     let appearance = &markdown.editor.appearance;
 
     let cursor_representing_rect: Cursor = {
-        let range: (DocCharOffset, DocCharOffset) = range.into();
+        let range: (DocCharOffset, DocCharOffset) = range.clone().into();
         let selection_start = range.start();
         let selection_end = range.end();
         let mut cursor: Cursor = selection_start.into();
@@ -546,6 +622,9 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
 
     let start_line = cursor_representing_rect.start_line(galleys, text, appearance);
     let end_line = cursor_representing_rect.end_line(galleys, text, appearance);
+
+    println!("  first_rect({:?}) -> ...", range);
+
     CRect {
         min_x: (start_line[1].x + 1.0) as f64,
         min_y: start_line[0].y as f64,
@@ -590,6 +669,9 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
         segs,
         text,
     );
+
+    println!("  position_at_point({:?}) -> {:?}", point, offset.0);
+
     CTextPosition { none: false, pos: offset.0 }
 }
 
@@ -603,6 +685,8 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
     };
 
     let value = markdown.editor.buffer.current.text.as_str();
+
+    println!("  get_text() -> {:?}", value);
 
     CString::new(value)
         .expect("Could not Rust String -> C String")
@@ -625,6 +709,8 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
 
     let cursor: Cursor = pos.pos.into();
     let line = cursor.start_line(galleys, text, appearance);
+
+    println!("  cursor_rect_at_position({:?}) -> ...", pos.pos);
 
     CRect {
         min_x: line[0].x as f64,
@@ -690,6 +776,8 @@ pub unsafe extern "C" fn selection_rects(
         new_end.advance(Offset::Next(Bound::Char), false, buffer, galleys, &markdown.editor.bounds);
         cont_start = new_end.selection.end();
     }
+
+    println!("# selection_rects({:?}) -> ({:?} rects)", range, selection_rects.len());
 
     UITextSelectionRects {
         size: selection_rects.len() as i32,
@@ -786,6 +874,8 @@ pub unsafe extern "C" fn delete_word(obj: *mut c_void) {
         repeat: false,
         modifiers: Modifiers::ALT,
     });
+
+    println!("  delete_word()");
 }
 
 /// # Safety
