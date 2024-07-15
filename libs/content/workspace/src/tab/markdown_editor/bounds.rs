@@ -142,42 +142,35 @@ pub fn calc_lines(galleys: &Galleys, ast: &AstTextRanges, text: &Text) -> Lines 
     result
 }
 
-pub fn calc_paragraphs(buffer: &SubBuffer, ast: &AstTextRanges) -> Paragraphs {
+pub fn calc_paragraphs(buffer: &SubBuffer) -> Paragraphs {
     let mut result = vec![];
 
-    let captured_newlines = {
-        let mut captured_newlines = HashSet::new();
-        for text_range in ast {
-            match text_range.range_type {
-                AstTextRangeType::Head | AstTextRangeType::Tail => {
-                    // newlines in syntax sequences don't break paragraphs
-                    let range_start_byte = buffer.segs.offset_to_byte(text_range.range.0);
-                    captured_newlines.extend(buffer[text_range.range].match_indices('\n').map(
-                        |(idx, _)| {
-                            buffer
-                                .segs
-                                .offset_to_char(range_start_byte + RelByteOffset(idx))
-                        },
-                    ))
-                }
-                AstTextRangeType::Text => {}
-            }
-        }
-        captured_newlines
-    };
+    let carriage_return_matches = buffer
+        .text
+        .match_indices('\r')
+        .map(|(idx, _)| DocByteOffset(idx))
+        .collect::<HashSet<_>>();
+    let line_feed_matches = buffer
+        .text
+        .match_indices('\n')
+        .map(|(idx, _)| DocByteOffset(idx))
+        .filter(|&byte_offset| !carriage_return_matches.contains(&(byte_offset - 1)));
+
+    let mut newline_matches = Vec::new();
+    newline_matches.extend(line_feed_matches);
+    newline_matches.extend(carriage_return_matches);
+    newline_matches.sort();
 
     let mut prev_char_offset = DocCharOffset(0);
-    for (byte_offset, _) in (buffer.text.to_string() + "\n").match_indices('\n') {
-        let char_offset = buffer.segs.offset_to_char(DocByteOffset(byte_offset));
-        if captured_newlines.contains(&char_offset) {
-            continue;
-        }
+    for byte_offset in newline_matches {
+        let char_offset = buffer.segs.offset_to_char(byte_offset);
 
         // note: paragraphs can be empty
         result.push((prev_char_offset, char_offset));
 
         prev_char_offset = char_offset + 1 // skip the matched newline;
     }
+    result.push((prev_char_offset, buffer.segs.last_cursor_position()));
 
     result
 }
