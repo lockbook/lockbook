@@ -85,7 +85,23 @@ impl Ast {
 
     fn push_children(&mut self, current_idx: usize, iter: &mut OffsetIter, buffer: &SubBuffer) {
         let mut skipped = 0;
-        while let Some((event, range)) = iter.next() {
+        while let Some((event, mut range)) = iter.next() {
+            // correct for windows-style line endings by keeping \r and \n together
+            if buffer.text[range.clone()].starts_with('\n') {
+                if range.start > 0 {
+                    if &buffer.text[range.start - 1..range.start] == "\r" {
+                        range.start -= 1;
+                    }
+                }
+            }
+            if buffer.text[range.clone()].ends_with('\r') {
+                if range.end < buffer.text.len() {
+                    if &buffer.text[range.end..range.end + 1] == "\n" {
+                        range.end += 1;
+                    }
+                }
+            }
+
             let range = buffer
                 .segs
                 .range_to_char((range.start.into(), range.end.into()));
@@ -210,7 +226,7 @@ impl Ast {
             ) {
                 while range.0 > 0
                     && buffer[(range.0 - 1, range.1)]
-                        .starts_with(|c: char| c.is_whitespace() && c != '\n')
+                        .starts_with(|c: char| c.is_whitespace() && c != '\r' && c != '\n')
                 {
                     range.0 -= 1;
                 }
@@ -280,8 +296,9 @@ impl Ast {
                     }
                 }
                 MarkdownNode::Block(BlockNode::Code) => {
-                    if (buffer[range].starts_with("```\n") && buffer[range].ends_with("\n```"))
-                        || (buffer[range].starts_with("~~~\n") && buffer[range].ends_with("\n~~~"))
+                    if (buffer[range].starts_with("```") && buffer[range].ends_with("```")
+                        || buffer[range].starts_with("~~~") && buffer[range].ends_with("~~~"))
+                        && range.len() > 3
                     {
                         /*
                         ```
