@@ -24,7 +24,6 @@ import AppKit
             .registeriOSBackgroundTasks(scenePhase: scenePhase, appDelegate: appDelegate)
     }
     
-    
     var window: some Scene {
         #if os(macOS)
         Window("Lockbook", id: "main") {
@@ -61,13 +60,6 @@ import AppKit
             CommandMenu("Lockbook") {
                 Button("Sync", action: { DI.workspace.requestSync() }).keyboardShortcut("S", modifiers: .command)
                 Button("Search Paths", action: { DI.search.startSearchThread(isPathAndContentSearch: false) }).keyboardShortcut("O", modifiers: .command)
-                #if os(macOS)
-                Button("Search Paths And Content") {
-                    if let toolbar = NSApp.keyWindow?.toolbar, let search = toolbar.items.first(where: { $0.itemIdentifier.rawValue == "com.apple.SwiftUI.search" }) as? NSSearchToolbarItem {
-                        search.beginSearchInteraction()
-                    }
-                }.keyboardShortcut("f", modifiers: [.command, .shift])
-                #endif
                 
                 Button("Copy file link", action: {
                     if let id = DI.workspace.openDoc {
