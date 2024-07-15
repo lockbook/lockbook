@@ -228,20 +228,14 @@ struct FileListView: View {
     
     var body: some View {
         VStack {
-            if children.isEmpty {
-                emptyView
-            } else {
-                if haveScrollView {
-                    ScrollView {
-                        childrenView
-                    }
-                    .refreshable {
-                        DI.workspace.requestSync()
-                    }
+            Group {
+                if children.isEmpty {
+                    emptyView
                 } else {
                     childrenView
                 }
             }
+            .modifier(FilesListScrollViewModifier(haveScrollView: haveScrollView, isEmptyView: children.isEmpty))
         }
         .toolbar {
             ToolbarItemGroup {
@@ -273,7 +267,7 @@ struct FileListView: View {
         VStack {
             Spacer()
             
-            Image(systemName: "questionmark.folder")
+            Image(systemName: "doc")
                 .font(.system(size: 130))
                 .padding(15)
             
@@ -285,14 +279,35 @@ struct FileListView: View {
     }
 }
 
-extension UIScreen {
-    static var current: UIScreen? {
-        for scene in UIApplication.shared.connectedScenes {
-            guard let windowScene = scene as? UIWindowScene else { continue }
-            for window in windowScene.windows {
-                if window.isKeyWindow { return window.screen }
+struct FilesListScrollViewModifier: ViewModifier {
+    var haveScrollView: Bool
+    var isEmptyView: Bool
+    
+    func body(content: Content) -> some View {
+        Group {
+            if haveScrollView {
+                if isEmptyView {
+                    GeometryReader { geometry in
+                        ScrollView {
+                            content
+                                .frame(width: geometry.size.width)
+                                .frame(minHeight: geometry.size.height)
+                        }
+                        .refreshable {
+                            DI.workspace.requestSync()
+                        }
+                    }
+                } else {
+                    ScrollView {
+                        content
+                    }
+                    .refreshable {
+                        DI.workspace.requestSync()
+                    }
+                }
+            } else {
+                content
             }
         }
-        return nil
     }
 }
