@@ -87,19 +87,17 @@ impl Ast {
         let mut skipped = 0;
         while let Some((event, mut range)) = iter.next() {
             // correct for windows-style line endings by keeping \r and \n together
-            if buffer.text[range.clone()].starts_with('\n') {
-                if range.start > 0 {
-                    if &buffer.text[range.start - 1..range.start] == "\r" {
-                        range.start -= 1;
-                    }
-                }
+            if buffer.text[range.clone()].starts_with('\n')
+                && range.start > 0
+                && &buffer.text[range.start - 1..range.start] == "\r"
+            {
+                range.start -= 1;
             }
-            if buffer.text[range.clone()].ends_with('\r') {
-                if range.end < buffer.text.len() {
-                    if &buffer.text[range.end..range.end + 1] == "\n" {
-                        range.end += 1;
-                    }
-                }
+            if buffer.text[range.clone()].ends_with('\r')
+                && range.end < buffer.text.len()
+                && &buffer.text[range.end..range.end + 1] == "\n"
+            {
+                range.end += 1;
             }
 
             let range = buffer
