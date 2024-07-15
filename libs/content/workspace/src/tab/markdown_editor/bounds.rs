@@ -167,7 +167,18 @@ pub fn calc_lines(galleys: &Galleys, ast: &AstTextRanges, text: &Text) -> Lines 
         }
     }
 
-    result
+    // ios testing hack: break lines every 5 characters
+    let mut new_result = vec![];
+    for (start, end) in result {
+        let mut start = start;
+        while end - start > 5 {
+            new_result.push((start, start + 5));
+            start += 5;
+        }
+        new_result.push((start, end));
+    }
+
+    new_result
 }
 
 pub fn calc_paragraphs(buffer: &SubBuffer) -> Paragraphs {

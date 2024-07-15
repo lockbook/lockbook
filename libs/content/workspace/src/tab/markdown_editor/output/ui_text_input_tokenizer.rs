@@ -1,11 +1,11 @@
 use crate::tab::markdown_editor::{
-    bounds::{BoundCase, Bounds},
+    bounds::{BoundCase, Bounds, Lines},
     input::canonical::Bound,
     offset_types::{DocCharOffset, RangeExt as _},
 };
 
-// Swift protocol for tokenizing text input.
-// https://developer.apple.com/documentation/uikit/uitextinputtokenizer
+/// Swift protocol for tokenizing text input:
+/// https://developer.apple.com/documentation/uikit/uitextinputtokenizer
 pub trait UITextInputTokenizer {
     /// Returns whether a text position is at a boundary of a text unit of a specified granularity in a specified direction.
     fn is_position_at_boundary(
@@ -36,9 +36,9 @@ impl UITextInputTokenizer for Bounds {
             Bound::Char => {
                 return true;
             }
-            Bound::Word => &self.words,
-            Bound::Line => &self.lines,
-            Bound::Paragraph => &self.paragraphs,
+            Bound::Word => self.words.clone(),
+            Bound::Line => adjust_line_boundaries(&self.lines),
+            Bound::Paragraph => self.paragraphs.clone(),
             Bound::Doc => {
                 return text_position == DocCharOffset(0)
                     || text_position == self.text.last().copied().unwrap_or_default().end();
@@ -82,9 +82,9 @@ impl UITextInputTokenizer for Bounds {
             Bound::Char => {
                 return true;
             }
-            Bound::Word => &self.words,
-            Bound::Line => &self.lines,
-            Bound::Paragraph => &self.paragraphs,
+            Bound::Word => self.words.clone(),
+            Bound::Line => adjust_line_boundaries(&self.lines),
+            Bound::Paragraph => self.paragraphs.clone(),
             Bound::Doc => {
                 return true;
             }
@@ -127,9 +127,9 @@ impl UITextInputTokenizer for Bounds {
             Bound::Char => {
                 unimplemented!()
             }
-            Bound::Word => &self.words,
-            Bound::Line => &self.lines,
-            Bound::Paragraph => &self.paragraphs,
+            Bound::Word => self.words.clone(),
+            Bound::Line => adjust_line_boundaries(&self.lines),
+            Bound::Paragraph => self.paragraphs.clone(),
             Bound::Doc => {
                 unimplemented!()
             }
@@ -151,7 +151,7 @@ impl UITextInputTokenizer for Bounds {
                 }
             }
             BoundCase::InsideRange { range } => Some(range),
-            BoundCase::AtEmptyRange { range, .. } => Some(range),
+            BoundCase::AtEmptyRange { .. } => None,
             BoundCase::AtSharedBoundOfTouchingNonemptyRanges { range_before, range_after } => {
                 Some(if in_backward_direction { range_before } else { range_after })
             }
@@ -172,6 +172,17 @@ impl UITextInputTokenizer for Bounds {
             BoundCase::BetweenRanges { .. } => None,
         }
     }
+}
+
+// "A text position is a line boundary in the forward direction if the text position is one before the end of a line's
+// text range." -A stranger on the internet
+// https://gist.github.com/allending/805570#file-nkttextviewtokenizer-m-L234-L235
+fn adjust_line_boundaries(lines: &Lines) -> Lines {
+    lines.clone()
+    // lines
+    //     .iter()
+    //     .map(|&range| if range.is_empty() { range } else { (range.0 + 1, range.1) })
+    //     .collect()
 }
 
 #[cfg(test)]

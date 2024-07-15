@@ -279,15 +279,9 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
         None => return CTextPosition::default(),
     };
 
-    println!(
-        "  end_of_document() -> {:?}",
-        markdown.editor.buffer.current.segs.last_cursor_position().0
-    );
-
-    CTextPosition {
-        pos: markdown.editor.buffer.current.segs.last_cursor_position().0,
-        ..Default::default()
-    }
+    let result = markdown.editor.buffer.current.segs.last_cursor_position().0;
+    println!("  end_of_document() -> {:?}", result);
+    CTextPosition { pos: result, ..Default::default() }
 }
 
 /// # Safety
