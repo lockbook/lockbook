@@ -20,6 +20,8 @@ struct SearchBar: View {
     @Binding var searchInput: String
     @FocusState var isFocused: Bool
     
+    @EnvironmentObject var files: FileService
+    
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass")
@@ -31,11 +33,8 @@ struct SearchBar: View {
                     isFocused = false
                 }
                 .onExitCommand {
+                    searchInput = ""
                     isFocused = false
-                    if !searchInput.isEmpty {
-                        DI.search.endSearch(isPathAndContentSearch: true)
-                        searchInput = ""
-                    }
                 }
                 .textFieldStyle(.plain)
                 .background(
@@ -56,8 +55,8 @@ struct SearchBar: View {
             
             if isFocused {
                 Button(action: {
-                    DI.search.endSearch(isPathAndContentSearch: true)
                     searchInput = ""
+                    isFocused = false
                 }, label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.gray)
@@ -68,6 +67,7 @@ struct SearchBar: View {
         .modifier(SearchBarSelectionBackgroundModifier(isFocused: $isFocused))
         .padding(.horizontal, 10)
         .padding(.bottom, 10)
+        .opacity(files.root != nil ? 1 : 0)
     }
 }
 
