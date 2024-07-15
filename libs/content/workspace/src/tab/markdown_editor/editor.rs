@@ -271,8 +271,7 @@ impl Editor {
                 &self.bounds.ast,
                 &self.appearance,
             );
-            self.bounds.paragraphs =
-                bounds::calc_paragraphs(&self.buffer.current, &self.bounds.ast);
+            self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer.current);
         }
         if text_updated || selection_updated || self.capture.mark_changes_processed() {
             self.bounds.text = bounds::calc_text(
