@@ -11,37 +11,92 @@ struct DesktopHomeView: View {
         NavigationView {
             SidebarView(expandedFolders: $expandedFolders, lastOpenDoc: $lastOpenDoc)
             
-            Color.red
+            DetailView()
         }
     }
 }
 
 struct SearchBar: View {
     @Binding var searchInput: String
+    @FocusState var isFocused: Bool
     
     var body: some View {
-        VStack {
+        HStack {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.gray)
+            
             TextField("Search", text: $searchInput)
+                .focused($isFocused)
+                .onAppear {
+                    isFocused = false
+                }
+                .onExitCommand {
+                    isFocused = false
+                    if !searchInput.isEmpty {
+                        DI.search.endSearch(isPathAndContentSearch: true)
+                        searchInput = ""
+                    }
+                }
+                .textFieldStyle(.plain)
+                .background(
+                    Button("Search Paths And Content") {
+                        isFocused = true
+                    }
+                    .keyboardShortcut("F", modifiers: [.command, .shift])
+                    .hidden()
+                )
+                .onChange(of: isFocused, perform: { newValue in
+                    if isFocused {
+                        DI.search.startSearchThread(isPathAndContentSearch: true)
+                    } else if !isFocused && searchInput.isEmpty {
+                        searchInput = ""
+                        DI.search.endSearch(isPathAndContentSearch: true)
+                    }
+                })
+            
+            if isFocused {
+                Button(action: {
+                    DI.search.endSearch(isPathAndContentSearch: true)
+                    searchInput = ""
+                }, label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.gray)
+                })
+            }
         }
         .padding(5)
-        .background(
-            RoundedRectangle(cornerSize: CGSize(width: 20, height: 20))
-                .foregroundColor(Color(nsColor: .windowBackgroundColor))
-        )
+        .modifier(SearchBarSelectionBackgroundModifier(isFocused: $isFocused))
+        .padding(.horizontal, 10)
+        .padding(.bottom, 10)
+    }
+}
+
+struct SearchBarSelectionBackgroundModifier: ViewModifier {
+    @FocusState<Bool>.Binding var isFocused: Bool
+    
+    func body(content: Content) -> some View {
+        let rectangle = RoundedRectangle(cornerRadius: 5)
+        
+        return content
+            .background(
+                rectangle
+                    .fill(Color.gray)
+                    .opacity(0.2)
+                    .overlay(
+                        isFocused ? rectangle.stroke(Color(nsColor: .selectedContentBackgroundColor).opacity(0.5), lineWidth: 3) : nil
+                    )
+            )
     }
 }
 
 struct SidebarView: View {
     @EnvironmentObject var search: SearchService
     
-    @Environment(\.isSearching) var isSearching
-
     @State var searchInput: String = ""
+    @State var treeBranchState: Bool = true
     
     @Binding var expandedFolders: [File]
     @Binding var lastOpenDoc: File?
-    
-    @State var treeBranchState: Bool = true
         
     var body: some View {
         VStack {
@@ -54,8 +109,8 @@ struct SidebarView: View {
                     ScrollView {
                         if search.isPathAndContentSearchInProgress {
                             ProgressView()
-                                .frame(width: 20, height: 20)
-                                .padding(.top)
+                                .controlSize(.small)
+                                .padding(.horizontal)
                         }
                         
                         if !search.pathAndContentSearchResults.isEmpty {
@@ -70,13 +125,6 @@ struct SidebarView: View {
         .onChange(of: searchInput) { newInput in
             DI.search.search(query: newInput, isPathAndContentSearch: true)
         }
-        .onChange(of: isSearching, perform: { newInput in
-            if newInput {
-                DI.search.startSearchThread(isPathAndContentSearch: true)
-            } else {
-                DI.search.endSearch(isPathAndContentSearch: true)
-            }
-        })
     }
     
     var noSearchResultsView: some View {
