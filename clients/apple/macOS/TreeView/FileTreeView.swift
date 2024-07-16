@@ -111,6 +111,7 @@ class MenuOutlineView: NSOutlineView {
         if let meta = item(atRow: clickedRow) as? File {
             if meta.fileType == .Document {
                 DI.workspace.requestOpenDoc(meta.id)
+                
                 return
             }
             
