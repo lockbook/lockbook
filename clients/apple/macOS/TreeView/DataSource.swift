@@ -7,7 +7,6 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
 
     var dragged: File? = nil
     var lastFilesHash: Int? = nil
-    var expandedFolders: [UUID] = []
     var selectedDoc: UUID? = nil
     
     func outlineView(
@@ -140,7 +139,7 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
 
     func outlineView(_ outlineView: NSOutlineView,
                      shouldSelectItem item: Any) -> Bool {
-        return false
+        return true
     }
 }
 

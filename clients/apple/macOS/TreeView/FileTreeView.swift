@@ -6,7 +6,7 @@ struct FileTreeView: NSViewRepresentable, Equatable {
     let scrollView = NSScrollView()
     let treeView = MenuOutlineView()
     let delegate = TreeDelegate()
-    static let dataSource = DataSource()
+    let dataSource = DataSource()
 
     @EnvironmentObject var files: FileService
     @EnvironmentObject var workspace: WorkspaceState
@@ -35,13 +35,11 @@ struct FileTreeView: NSViewRepresentable, Equatable {
         onlyColumn.minWidth = 100
         treeView.addTableColumn(onlyColumn)
         
-        treeView.dataSource = Self.dataSource
+        treeView.dataSource = dataSource
         treeView.delegate = delegate
         treeView.stronglyReferencesItems = true
-        
-        Self.dataSource.selectedDoc = nil
-                
-        for id in Self.dataSource.expandedFolders {
+                        
+        for id in DI.files.expandedFolders {
             if let meta = DI.files.idsAndFiles[id] {
                 expandToFile(meta: meta)
             }
@@ -53,8 +51,8 @@ struct FileTreeView: NSViewRepresentable, Equatable {
     }
         
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        if Self.dataSource.lastFilesHash != files.idsAndFiles.hashValue {
-            Self.dataSource.lastFilesHash = files.idsAndFiles.hashValue
+        if dataSource.lastFilesHash != files.idsAndFiles.hashValue {
+            dataSource.lastFilesHash = files.idsAndFiles.hashValue
             
             treeView.reloadData()
         }
@@ -63,15 +61,15 @@ struct FileTreeView: NSViewRepresentable, Equatable {
     }
         
     func selectOpenDoc() {
-        if workspace.openDoc == nil && Self.dataSource.selectedDoc != nil {
-            Self.dataSource.selectedDoc = nil
+        if workspace.openDoc == nil && dataSource.selectedDoc != nil {
+            dataSource.selectedDoc = nil
             treeView.selectRowIndexes(IndexSet(), byExtendingSelection: false)
         } else if let openDoc = workspace.openDoc,
             let meta = files.idsAndFiles[openDoc] {
                         
-            if workspace.openDoc != nil && Self.dataSource.selectedDoc != workspace.openDoc {
+            if workspace.openDoc != nil && dataSource.selectedDoc != workspace.openDoc {
                 expandToFile(meta: meta)
-                Self.dataSource.selectedDoc = workspace.openDoc
+                dataSource.selectedDoc = workspace.openDoc
                 
                 treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: false)
                 treeView.animator().scrollRowToVisible(treeView.row(forItem: meta))
@@ -116,10 +114,10 @@ class MenuOutlineView: NSOutlineView {
             }
             
             if isItemExpanded(meta) {
-                FileTreeView.dataSource.expandedFolders.removeAll(where: { $0 == meta.id })
+                DI.files.expandedFolders.removeAll(where: { $0 == meta.id })
                 animator().collapseItem(meta)
             } else {
-                FileTreeView.dataSource.expandedFolders.append(meta.id)
+                DI.files.expandedFolders.append(meta.id)
                 animator().expandItem(meta)
             }
             
