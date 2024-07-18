@@ -93,7 +93,6 @@ class SheetState: ObservableObject {
     }
     @Published var deleteConfirmationInfo: File? {
         didSet {
-            print("was set!")
             deleteConfirmation = deleteConfirmationInfo != nil
         }
     }

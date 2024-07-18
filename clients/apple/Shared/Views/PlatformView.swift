@@ -52,7 +52,7 @@ struct PlatformView: View {
                 }
             }
     }
-
+    
     #if os(iOS)
     var platform: some View {
         Group {
