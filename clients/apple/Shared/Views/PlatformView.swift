@@ -97,15 +97,17 @@ struct PlatformView: View {
     var platform: some View {
         ZStack {
             DesktopHomeView()
-                .confirmationDialog(
-                    "Are you sure? This action cannot be undone.",
-                    isPresented: $sheets.deleteConfirmation,
-                    titleVisibility: .visible,
-                    actions: {
-                        if let meta = sheets.deleteConfirmationInfo {
-                            DeleteConfirmationButtons(meta: meta)
-                        }
-                    })
+                .alert(
+                    "Are you sure?",
+                    isPresented: $sheets.deleteConfirmation
+                ) {
+                    if let meta = sheets.deleteConfirmationInfo {
+                        DeleteConfirmationButtons(meta: meta)
+                    }
+                } message: {
+                    Text("This action cannot be undone.")
+                }
+
             
             if search.isPathSearching {
                 PathSearchActionBar()
