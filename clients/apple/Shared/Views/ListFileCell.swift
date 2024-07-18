@@ -24,12 +24,6 @@ struct FileCell: View {
                 })
                 
                 Button(action: {
-                    DI.files.deleteFile(id: meta.id)
-                }) {
-                    Label("Delete", systemImage: "trash.fill")
-                }
-                
-                Button(action: {
                     DI.sheets.sharingFileInfo = meta
                 }, label: {
                     Label("Share", systemImage: "person.wave.2.fill")
@@ -47,6 +41,12 @@ struct FileCell: View {
                     }) {
                         Label("Copy file link", systemImage: "link")
                     }
+                }
+                
+                Button(role: .destructive, action: {
+                    DI.sheets.deleteConfirmationInfo = meta
+                }) {
+                    Label("Delete", systemImage: "trash.fill")
                 }
             })
     }

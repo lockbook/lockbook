@@ -52,7 +52,7 @@ struct PlatformView: View {
                 }
             }
     }
-    
+
     #if os(iOS)
     var platform: some View {
         Group {
@@ -77,6 +77,15 @@ struct PlatformView: View {
     
     var iOS: some View {
         ConstrainedHomeViewWrapper()
+            .confirmationDialog(
+                "Are you sure? This action cannot be undone.",
+                isPresented: $sheets.deleteConfirmation,
+                titleVisibility: .visible,
+                actions: {
+                    if let meta = sheets.deleteConfirmationInfo {
+                        DeleteConfirmationButtons(meta: meta)
+                    }
+                })
     }
         
     var iPad: some View {
@@ -88,6 +97,15 @@ struct PlatformView: View {
     var platform: some View {
         ZStack {
             DesktopHomeView()
+                .confirmationDialog(
+                    "Are you sure? This action cannot be undone.",
+                    isPresented: $sheets.deleteConfirmation,
+                    titleVisibility: .visible,
+                    actions: {
+                        if let meta = sheets.deleteConfirmationInfo {
+                            DeleteConfirmationButtons(meta: meta)
+                        }
+                    })
             
             if search.isPathSearching {
                 PathSearchActionBar()
