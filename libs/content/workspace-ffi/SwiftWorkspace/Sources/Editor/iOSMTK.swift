@@ -520,6 +520,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func compare(_ position: UITextPosition, to other: UITextPosition) -> ComparisonResult {
         guard let left = (position as? LBTextPos)?.c.pos, let right = (other as? LBTextPos)?.c.pos else {
+            print("compare(position=\((position as? LBTextPos)?.c), to=\((other as? LBTextPos)?.c) result=\(ComparisonResult.orderedAscending)")
             return ComparisonResult.orderedAscending
         }
         
@@ -531,15 +532,19 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         } else {
             res = ComparisonResult.orderedDescending
         }
+        
+        print("compare(position=\((position as? LBTextPos)?.c), to=\((other as? LBTextPos)?.c) result=\(res)")
         return res
     }
     
     public func offset(from: UITextPosition, to toPosition: UITextPosition) -> Int {
         
         guard let left = (from as? LBTextPos)?.c.pos, let right = (toPosition as? LBTextPos)?.c.pos else {
+            print("offset(from=\((from as? LBTextPos)?.c), to=\((toPosition as? LBTextPos)?.c) result=\(0)")
             return 0
         }
 
+        print("offset(from=\((from as? LBTextPos)?.c), to=\((toPosition as? LBTextPos)?.c) result=\(Int(right) - Int(left))")
         return Int(right) - Int(left)
     }
     
