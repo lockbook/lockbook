@@ -615,6 +615,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         let point = CPoint(x: x, y: y + iOSMTK.TAB_BAR_HEIGHT)
         let result = position_at_point(wsHandle, point)
+        if result.none {
+            print("\(#function) returned nil (new)")
+            return nil
+        }
         
         return LBTextPos(c: result)
     }
@@ -1238,6 +1242,10 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
         let backwards = direction.rawValue == UITextStorageDirection.backward.rawValue
         let result = bound_from_position(wsHandle, position, granularity, backwards)
+        if result.none {
+            print("\(#function) returned nil (new)")
+            return nil
+        }
         return LBTextPos(c: result)
     }
     
@@ -1249,7 +1257,8 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
         let backwards = direction.rawValue == UITextStorageDirection.backward.rawValue
         let result = bound_at_position(wsHandle, position, granularity, backwards)
         
-        if result.start.pos == result.end.pos {
+        if result.none {
+            print("\(#function) returned nil (new)")
             return nil
         }
         
