@@ -373,6 +373,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public func insertText(_ text: String) {
         guard let _ = (markedTextRange ?? selectedTextRange) as? LBTextRange,
             !text.isEmpty else {
+            print("\(#function) early returned")
             return
         }
          
@@ -385,6 +386,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public func text(in range: UITextRange) -> String? {
         let range = (range as! LBTextRange).c
         guard let result = text_in_range(wsHandle, range) else {
+            print("\(#function) early returned")
             return nil
         }
         let str = String(cString: result)
@@ -395,6 +397,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func replace(_ range: UITextRange, withText text: String) {
         guard let range = range as? LBTextRange else {
+            print("\(#function) early returned")
             return
         }
         
@@ -407,10 +410,12 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public var selectedTextRange: UITextRange? {
         set {
             guard let range = (newValue as? LBTextRange)?.c else {
+                print("setting \(#function) early returned (1)")
                 return
             }
 
             if !floatingCursor.isHidden || isLongPressCursorDrag {
+                print("setting \(#function) early returned (2)")
                 set_selected(wsHandle, range)
                 return
             }
@@ -453,6 +458,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
         guard let _ = (markedTextRange ?? selectedTextRange) as? LBTextRange else {
+            print("\(#function) early returned")
             return
         }
         
@@ -464,6 +470,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func unmarkText() {
         guard let _ = markedTextRange as? LBTextRange else {
+            print("\(#function) early returned")
             return
         }
         
@@ -485,6 +492,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func textRange(from fromPosition: UITextPosition, to toPosition: UITextPosition) -> UITextRange? {
         guard let start = (fromPosition as? LBTextPos)?.c else {
+            print("\(#function) early returned")
             return nil
         }
         let end = (toPosition as! LBTextPos).c
@@ -499,6 +507,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func position(from position: UITextPosition, offset: Int) -> UITextPosition? {
         guard let start = (position as? LBTextPos)?.c else {
+            print("\(#function) early returned")
             return nil
         }
         let new = position_offset(wsHandle, start, Int32(offset))
@@ -627,10 +636,12 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func deleteBackward() {
         if !hasText {
+            print("\(#function) early returned (1)")
             return
         }
         
         guard let rangeToReplace = (markedTextRange ?? selectedTextRange) as? LBTextRange else {
+            print("\(#function) early returned (2)")
             return
         }
         
