@@ -3,17 +3,18 @@ mod scale;
 mod translate;
 
 use bezier_rs::Subpath;
+use glam::{DAffine2, DMat2, DVec2};
+use resvg::usvg::Transform;
+
+use crate::tab::svg_editor::selection::scale::snap_scale;
 
 use self::{
     rect::SelectionRectContainer,
-    scale::{scale_group_from_center, snap_scale},
-    translate::{detect_translation, end_translation, save_translate, save_translates},
+    scale::scale_group_from_center,
+    translate::{detect_translation, end_translation},
 };
 
-use super::{
-    util::{bb_to_rect, deserialize_transform},
-    Buffer, DeleteElement,
-};
+use super::{history::History, parser, util::bb_to_rect, Buffer, DeleteElement};
 
 #[derive(Default)]
 pub struct Selection {
@@ -29,30 +30,38 @@ pub struct Selection {
 #[derive(Clone)]
 struct SelectedElement {
     id: String,
-    original_pos: egui::Pos2,
-    original_matrix: (String, [f64; 6]),
+    prev_pos: egui::Pos2,
+    transform: Transform,
 }
 
 impl Selection {
     pub fn handle_input(
-        &mut self, ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut Buffer,
+        &mut self, ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut parser::Buffer,
+        history: &mut History,
     ) {
-        let maybe_pos = ui.ctx().pointer_hover_pos();
+        let pos = match ui.ctx().pointer_hover_pos() {
+            Some(cp) => {
+                if ui.is_enabled() {
+                    cp
+                } else {
+                    egui::Pos2::ZERO
+                }
+            }
+            None => egui::Pos2::ZERO,
+        };
 
         let mut maybe_selected_el = None;
 
         if let Some(selection_rect) = &self.selection_rect {
-            if selection_rect.show_delete_btn(buffer, ui, working_rect) {
-                self.delete_selection(buffer);
+            if selection_rect.show_delete_btn(ui, working_rect) {
+                self.delete_selection(buffer, history);
                 self.laso_original_pos = None;
                 return;
             }
         }
 
         if matches!(self.current_op, SelectionOperation::Idle) {
-            if let Some(pos) = maybe_pos {
-                maybe_selected_el = detect_translation(buffer, self.last_pos, pos);
-            }
+            maybe_selected_el = detect_translation(buffer, self.last_pos, pos);
             if maybe_selected_el.is_some() {
                 ui.output_mut(|r| r.cursor_icon = egui::CursorIcon::Grab);
             }
@@ -62,7 +71,7 @@ impl Selection {
         if ui.input(|r| r.pointer.primary_clicked()) {
             // is cursor inside of a selected element?
             let pos_over_selected_el = if let Some(r) = &self.selection_rect {
-                r.get_cursor_icon(maybe_pos.unwrap_or_default()).is_some()
+                r.get_cursor_icon(pos).is_some()
             } else {
                 false
             };
@@ -71,20 +80,18 @@ impl Selection {
             if let Some(new_selected_el) = maybe_selected_el {
                 if ui.input(|r| r.modifiers.shift) {
                     self.selected_elements.push(new_selected_el);
-                    // end_translation(buffer, &mut self.selected_elements, pos);
                 } else if !pos_over_selected_el {
                     self.selected_elements = vec![new_selected_el]
                 }
-                self.current_op = SelectionOperation::Translation;
             } else if !pos_over_selected_el {
                 self.selected_elements.clear();
-                self.laso_original_pos = maybe_pos;
+                self.laso_original_pos = Some(pos);
             }
         }
 
         if self.selected_elements.is_empty() && self.laso_original_pos.is_some() {
             if ui.input(|r| r.pointer.primary_down()) {
-                let mut corners = [self.laso_original_pos.unwrap(), maybe_pos.unwrap_or_default()];
+                let mut corners = [self.laso_original_pos.unwrap(), pos];
                 corners.sort_by(|a, b| (a.x.total_cmp(&b.x)));
                 let mut rect = egui::Rect { min: corners[0], max: corners[1] };
                 if rect.height() < 0. {
@@ -110,45 +117,46 @@ impl Selection {
                         ui.visuals().hyperlink_color.gamma_multiply(0.1),
                     );
                     // if the path bounding box intersects with the laso rect then it's a match
-                    buffer.paths.iter().for_each(|(id, path)| {
-                        let bb = path.bounding_box().unwrap();
+                    buffer.elements.iter().for_each(|(id, el)| {
+                        let el_intersects_laso = match el {
+                            parser::Element::Path(path) => {
+                                let bb = path.data.bounding_box().unwrap();
+                                let path_rect = bb_to_rect(bb);
+                                if self.laso_rect.unwrap().intersects(path_rect) {
+                                    let laso_bb = Subpath::new_rect(
+                                        glam::DVec2 {
+                                            x: self.laso_rect.unwrap().min.x as f64,
+                                            y: self.laso_rect.unwrap().min.y as f64,
+                                        },
+                                        glam::DVec2 {
+                                            x: self.laso_rect.unwrap().max.x as f64,
+                                            y: self.laso_rect.unwrap().max.y as f64,
+                                        },
+                                    );
 
-                        let path_rect = bb_to_rect(bb);
-
-                        if self.laso_rect.unwrap().intersects(path_rect) {
-                            let bb_subpath = Subpath::new_rect(
-                                glam::DVec2 {
-                                    x: self.laso_rect.unwrap().min.x as f64,
-                                    y: self.laso_rect.unwrap().min.y as f64,
-                                },
-                                glam::DVec2 {
-                                    x: self.laso_rect.unwrap().max.x as f64,
-                                    y: self.laso_rect.unwrap().max.y as f64,
-                                },
-                            );
-
-                            if !path
-                                .subpath_intersections(&bb_subpath, None, None)
-                                .is_empty()
-                                || self.laso_rect.unwrap().contains_rect(path_rect)
-                            {
-                                let transform = buffer
-                                    .current
-                                    .children()
-                                    .find(|el| el.attr("id").unwrap_or_default().eq(id))
-                                    .unwrap()
-                                    .attr("transform")
-                                    .unwrap_or_default();
-
-                                self.candidate_selected_elements.push(SelectedElement {
-                                    id: id.to_owned(),
-                                    original_pos: maybe_pos.unwrap_or_default(),
-                                    original_matrix: (
-                                        transform.to_string(),
-                                        deserialize_transform(transform),
-                                    ),
-                                });
+                                    !path
+                                        .data
+                                        .subpath_intersections(&laso_bb, None, None)
+                                        .is_empty()
+                                        || self.laso_rect.unwrap().contains_rect(path_rect)
+                                } else {
+                                    false
+                                }
                             }
+                            parser::Element::Image(img) => {
+                                let img_bb = img.bounding_box();
+                                self.laso_rect.unwrap().contains_rect(img_bb)
+                                    || self.laso_rect.unwrap().intersects(img_bb)
+                            }
+                            parser::Element::Text(_) => todo!(),
+                        };
+
+                        if el_intersects_laso {
+                            self.candidate_selected_elements.push(SelectedElement {
+                                id: id.to_owned(),
+                                prev_pos: pos,
+                                transform: Transform::identity(),
+                            });
                         }
                     });
 
@@ -173,19 +181,14 @@ impl Selection {
         let mut intent = None;
         if let Some(r) = &self.selection_rect {
             r.show(ui);
-            intent = r.get_cursor_icon(maybe_pos.unwrap_or_default());
+            intent = r.get_cursor_icon(pos);
         }
 
-        let pos = match maybe_pos {
-            Some(p) => p,
-            None => return,
-        };
-
         if ui.input(|r| r.pointer.primary_released()) {
-            end_translation(buffer, &mut self.selected_elements, pos, true);
+            end_translation(buffer, history, &mut self.selected_elements, pos, true);
             self.current_op = SelectionOperation::Idle;
         } else if ui.input(|r| r.pointer.primary_clicked()) {
-            end_translation(buffer, &mut self.selected_elements, pos, false);
+            end_translation(buffer, history, &mut self.selected_elements, pos, false);
         } else if ui.input(|r| r.pointer.primary_down()) {
             if matches!(self.current_op, SelectionOperation::Idle) {
                 if let Some(r) = &mut intent {
@@ -196,15 +199,23 @@ impl Selection {
 
             match self.current_op {
                 SelectionOperation::Translation => {
-                    self.selected_elements.iter_mut().for_each(|el| {
-                        let mut delta =
-                            egui::pos2(pos.x - el.original_pos.x, pos.y - el.original_pos.y);
-                        if let Some(transform) = buffer.current.attr("transform") {
-                            let transform = deserialize_transform(transform);
-                            delta.x /= transform[0] as f32;
-                            delta.y /= transform[3] as f32;
+                    self.selected_elements.iter_mut().for_each(|selection| {
+                        if let Some(el) = buffer.elements.get_mut(&selection.id) {
+                            let transform = Transform::identity().post_translate(
+                                pos.x - selection.prev_pos.x,
+                                pos.y - selection.prev_pos.y,
+                            );
+                            selection.transform = selection.transform.post_concat(transform);
+                            match el {
+                                parser::Element::Path(p) => {
+                                    p.data.apply_transform(u_transform_to_bezier(&transform));
+                                }
+                                parser::Element::Image(img) => img.apply_transform(transform),
+                                parser::Element::Text(_) => todo!(),
+                            }
                         }
-                        save_translate(delta, el, buffer);
+
+                        selection.prev_pos = pos;
                         ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::Grabbing);
                     });
                 }
@@ -238,12 +249,11 @@ impl Selection {
             None
         };
 
-        if let Some(d) = delta {
-            save_translates(d, &mut self.selected_elements, buffer);
-            end_translation(buffer, &mut self.selected_elements, pos, true);
+        if delta.is_some() {
+            end_translation(buffer, history, &mut self.selected_elements, pos, true);
         }
 
-        let is_scaling_up = ui.input(|r| r.key_pressed(egui::Key::Plus));
+        let is_scaling_up = ui.input(|r| r.key_pressed(egui::Key::Equals));
         let is_scaling_down = ui.input(|r| r.key_pressed(egui::Key::Minus));
 
         let factor = if is_scaling_up {
@@ -258,53 +268,36 @@ impl Selection {
             scale_group_from_center(
                 factor,
                 &mut self.selected_elements,
-                self.selection_rect.as_ref().unwrap(),
+                self.selection_rect.as_ref().unwrap(), // todo: remove unwrap cus it can be none
                 buffer,
             );
-            end_translation(buffer, &mut self.selected_elements, pos, true);
+            end_translation(buffer, history, &mut self.selected_elements, pos, true);
         }
 
         if ui.input(|r| r.key_pressed(egui::Key::Backspace)) && !self.selected_elements.is_empty() {
-            self.delete_selection(buffer);
+            self.delete_selection(buffer, history);
         }
 
         self.last_pos = Some(pos);
     }
 
-    fn delete_selection(&mut self, buffer: &mut Buffer) {
+    fn delete_selection(&mut self, buffer: &mut Buffer, history: &mut History) {
         let elements = self
             .selected_elements
             .iter()
-            .map(|el| {
-                let element = buffer
-                    .current
-                    .children()
-                    .find(|node| node.attr("id").map_or(false, |id| id.eq(&el.id)))
-                    .unwrap()
-                    .clone();
-                DeleteElement { id: el.id.clone(), element }
+            .map(|selection| {
+                buffer
+                    .elements
+                    .iter()
+                    .find(|(id, _el)| id.to_owned().eq(&selection.id));
+                DeleteElement { id: selection.id.clone() }
             })
             .collect();
 
         let delete_event = super::Event::Delete(elements);
-        buffer.apply_event(&delete_event);
-        buffer.save(delete_event);
+        history.apply_event(&delete_event, buffer);
+        history.save(delete_event);
         self.selected_elements.clear();
-    }
-
-    pub fn select_el_by_id(&mut self, id: &str, current_pos: egui::Pos2, buffer: &mut Buffer) {
-        if let Some(el) = buffer
-            .current
-            .children()
-            .find(|el| el.attr("id").unwrap_or_default().eq(id))
-        {
-            let transform = el.attr("transform").unwrap_or_default();
-            self.selected_elements = vec![SelectedElement {
-                id: id.to_string(),
-                original_pos: current_pos,
-                original_matrix: (transform.to_string(), deserialize_transform(transform)),
-            }];
-        }
     }
 }
 
@@ -337,4 +330,26 @@ impl SelectionResponse {
 
         Self { current_op, cursor_icon }
     }
+}
+
+/// converts a usvg transform into a bezier_rs transform
+pub fn u_transform_to_bezier(src: &Transform) -> DAffine2 {
+    glam::DAffine2 {
+        matrix2: DMat2 {
+            x_axis: DVec2 { x: src.sx.into(), y: src.ky.into() },
+            y_axis: DVec2 { x: src.kx.into(), y: src.sy.into() },
+        },
+        translation: glam::DVec2 { x: src.tx.into(), y: src.ty.into() },
+    }
+}
+
+pub fn bezier_transform_to_u(src: &glam::DAffine2) -> Transform {
+    Transform::from_row(
+        src.matrix2.x_axis.x as f32,
+        src.matrix2.x_axis.y as f32,
+        src.matrix2.y_axis.x as f32,
+        src.matrix2.y_axis.y as f32,
+        src.translation.x as f32,
+        src.translation.y as f32,
+    )
 }

@@ -1,9 +1,9 @@
 use crate::tab::markdown_editor::appearance::{Appearance, CaptureCondition};
 use crate::tab::markdown_editor::ast::{Ast, AstTextRange, AstTextRangeType};
 use crate::tab::markdown_editor::buffer::SubBuffer;
-use crate::tab::markdown_editor::editor::HoverSyntaxRevealDebounceState;
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::canonical::Bound;
+use crate::tab::markdown_editor::input::capture::CaptureState;
 use crate::tab::markdown_editor::input::cursor::Cursor;
 use crate::tab::markdown_editor::offset_types::{
     DocByteOffset, DocCharOffset, RangeExt, RelByteOffset,
@@ -15,10 +15,8 @@ use egui::epaint::text::cursor::RCursor;
 use linkify::LinkFinder;
 use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::time::{Duration, Instant};
+use tldextract::{TldExtractor, TldOption};
 use unicode_segmentation::UnicodeSegmentation;
-
-pub const HOVER_SYNTAX_REVEAL_DEBOUNCE: Duration = Duration::from_millis(500);
 
 pub type AstTextRanges = Vec<AstTextRange>;
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
@@ -144,67 +142,49 @@ pub fn calc_lines(galleys: &Galleys, ast: &AstTextRanges, text: &Text) -> Lines 
     result
 }
 
-pub fn calc_paragraphs(buffer: &SubBuffer, ast: &AstTextRanges) -> Paragraphs {
+pub fn calc_paragraphs(buffer: &SubBuffer) -> Paragraphs {
     let mut result = vec![];
 
-    let captured_newlines = {
-        let mut captured_newlines = HashSet::new();
-        for text_range in ast {
-            match text_range.range_type {
-                AstTextRangeType::Head | AstTextRangeType::Tail => {
-                    // newlines in syntax sequences don't break paragraphs
-                    let range_start_byte = buffer.segs.offset_to_byte(text_range.range.0);
-                    captured_newlines.extend(buffer[text_range.range].match_indices('\n').map(
-                        |(idx, _)| {
-                            buffer
-                                .segs
-                                .offset_to_char(range_start_byte + RelByteOffset(idx))
-                        },
-                    ))
-                }
-                AstTextRangeType::Text => {}
-            }
-        }
-        captured_newlines
-    };
+    let carriage_return_matches = buffer
+        .text
+        .match_indices('\r')
+        .map(|(idx, _)| DocByteOffset(idx))
+        .collect::<HashSet<_>>();
+    let line_feed_matches = buffer
+        .text
+        .match_indices('\n')
+        .map(|(idx, _)| DocByteOffset(idx))
+        .filter(|&byte_offset| !carriage_return_matches.contains(&(byte_offset - 1)));
+
+    let mut newline_matches = Vec::new();
+    newline_matches.extend(line_feed_matches);
+    newline_matches.extend(carriage_return_matches);
+    newline_matches.sort();
 
     let mut prev_char_offset = DocCharOffset(0);
-    for (byte_offset, _) in (buffer.text.to_string() + "\n").match_indices('\n') {
-        let char_offset = buffer.segs.offset_to_char(DocByteOffset(byte_offset));
-        if captured_newlines.contains(&char_offset) {
-            continue;
-        }
+    for byte_offset in newline_matches {
+        let char_offset = buffer.segs.offset_to_char(byte_offset);
 
         // note: paragraphs can be empty
         result.push((prev_char_offset, char_offset));
 
         prev_char_offset = char_offset + 1 // skip the matched newline;
     }
+    result.push((prev_char_offset, buffer.segs.last_cursor_position()));
 
     result
 }
 
 pub fn calc_text(
     ast: &Ast, ast_ranges: &AstTextRanges, paragraphs: &Paragraphs, appearance: &Appearance,
-    segs: &UnicodeSegs, cursor: Cursor,
-    hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState,
+    segs: &UnicodeSegs, cursor: Cursor, capture: &CaptureState,
 ) -> Text {
-    let cursor_paragraphs = paragraphs.find_intersecting(cursor.selection, true);
-
     let mut result = vec![];
     let mut last_range_pushed = false;
-    for text_range in ast_ranges {
-        let captured = captured(
-            cursor,
-            paragraphs,
-            ast,
-            text_range,
-            hover_syntax_reveal_debounce_state,
-            appearance,
-            cursor_paragraphs,
-        );
+    for (i, text_range) in ast_ranges.iter().enumerate() {
+        let captured = capture.captured(cursor, paragraphs, ast, ast_ranges, i, appearance);
 
-        let this_range_pushed = if text_range.range_type == AstTextRangeType::Text || !captured {
+        let this_range_pushed = if !captured {
             // text range or uncaptured syntax range
             result.push(text_range.range);
             true
@@ -248,6 +228,34 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text, ast: &Ast) -> PlainTextLinks 
                 continue;
             }
 
+            let link_text = if buffer[link_range].contains("://") {
+                buffer[link_range].to_string()
+            } else {
+                format!("http://{}", &buffer[link_range])
+            };
+
+            match TldExtractor::new(TldOption::default()).extract(&link_text) {
+                Ok(tld) => {
+                    // the last one of these must be a top level domain
+                    if let Some(ref d) = tld.suffix {
+                        if !tld::exist(d) {
+                            continue;
+                        }
+                    } else if let Some(ref d) = tld.domain {
+                        if !tld::exist(d) {
+                            continue;
+                        }
+                    } else if let Some(ref d) = tld.subdomain {
+                        if !tld::exist(d) {
+                            continue;
+                        }
+                    }
+                }
+                Err(_) => {
+                    continue;
+                }
+            }
+
             // ignore links in code blocks because field references or method invocations can look like URLs
             for node in &ast.nodes {
                 let node_type_ignores_links = node.node_type.node_type()
@@ -263,37 +271,6 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text, ast: &Ast) -> PlainTextLinks 
     }
 
     result
-}
-
-pub fn captured(
-    cursor: Cursor, paragraphs: &Paragraphs, ast: &Ast, text_range: &AstTextRange,
-    hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState, appearance: &Appearance,
-    cursor_paragraphs: (usize, usize),
-) -> bool {
-    let ast_node_range = ast.nodes[*text_range.ancestors.last().unwrap()].range;
-    let intersects_selection = ast_node_range.intersects_allow_empty(&cursor.selection);
-
-    let debounce_satisfied = hover_syntax_reveal_debounce_state.pointer_offset_updated_at
-        < Instant::now() - HOVER_SYNTAX_REVEAL_DEBOUNCE;
-    let intersects_pointer = debounce_satisfied
-        && hover_syntax_reveal_debounce_state
-            .pointer_offset
-            .map(|pointer_offset| {
-                ast_node_range.intersects(&(pointer_offset, pointer_offset), true)
-            })
-            .unwrap_or(false);
-
-    let text_range_paragraphs = paragraphs.find_intersecting(text_range.range, true);
-    let in_capture_disabled_paragraph = appearance.markdown_capture_disabled_for_cursor_paragraph
-        && cursor_paragraphs.intersects(&text_range_paragraphs, false);
-
-    match appearance.markdown_capture(text_range.node(ast).node_type()) {
-        CaptureCondition::Always => true,
-        CaptureCondition::NoCursor => {
-            !(intersects_selection || intersects_pointer || in_capture_disabled_paragraph)
-        }
-        CaptureCondition::Never => false,
-    }
 }
 
 impl Bounds {
@@ -852,14 +829,38 @@ pub fn split<const N: usize>(
 
 impl Editor {
     pub fn print_bounds(&self) {
+        self.print_ast_bounds();
+        self.print_words_bounds();
+        self.print_lines_bounds();
+        self.print_paragraphs_bounds();
+        self.print_text_bounds();
+        self.print_links_bounds();
+    }
+
+    pub fn print_ast_bounds(&self) {
         println!(
             "ast: {:?}",
             self.ranges_text(&self.bounds.ast.iter().map(|r| r.range).collect::<Vec<_>>())
         );
+    }
+
+    pub fn print_words_bounds(&self) {
         println!("words: {:?}", self.ranges_text(&self.bounds.words));
+    }
+
+    pub fn print_lines_bounds(&self) {
         println!("lines: {:?}", self.ranges_text(&self.bounds.lines));
+    }
+
+    pub fn print_paragraphs_bounds(&self) {
         println!("paragraphs: {:?}", self.ranges_text(&self.bounds.paragraphs));
+    }
+
+    pub fn print_text_bounds(&self) {
         println!("text: {:?}", self.ranges_text(&self.bounds.text));
+    }
+
+    pub fn print_links_bounds(&self) {
         println!("links: {:?}", self.ranges_text(&self.bounds.links));
     }
 

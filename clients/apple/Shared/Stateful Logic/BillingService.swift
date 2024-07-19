@@ -33,6 +33,8 @@ class BillingService: ObservableObject {
     
     var showPurchaseToast: Bool = false
     
+    @Published var showManageSubscriptionView: Bool = false
+    
     init(_ core: LockbookApi) {
         self.core = core
     }

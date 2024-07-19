@@ -12,8 +12,8 @@ use egui_wgpu_backend::ScreenDescriptor;
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jstring};
 use jni::JNIEnv;
+use lb_external_interface::lb_rs::Core;
 use lb_external_interface::lb_rs::Uuid;
-use lb_external_interface::Core;
 use std::panic::catch_unwind;
 use std::time::Instant;
 use workspace_rs::register_fonts;
@@ -330,7 +330,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
             Some(tab) => match tab {
                 TabContent::Image(_) => 2,
                 TabContent::Markdown(_) => 3,
-                TabContent::PlainText(_) => 4,
+                // TabContent::PlainText(_) => 4,
                 TabContent::Pdf(_) => 5,
                 TabContent::Svg(_) => 6,
             },

@@ -1,11 +1,10 @@
 import SwiftUI
+import SwiftWorkspace
 import SwiftLockbookCore
 import Introspect
 
 struct FileCell: View {
     let meta: File
-
-    let enterFolderAnim: () -> Void
 
     var body: some View {
         cell
@@ -55,13 +54,11 @@ struct FileCell: View {
     @ViewBuilder
     var cell: some View {
         Button(action: {
-            if meta.fileType == .Folder {
-                enterFolderAnim()
-            } else {
-                withAnimation {
-                    DI.workspace.requestOpenDoc(meta.id)
-                }
+            if meta.fileType == .Document {
+                DI.workspace.requestOpenDoc(meta.id)
             }
+            
+            DI.files.intoChildDirectory(meta)
         }) {
             RealFileCell(meta: meta)
         }
@@ -72,30 +69,32 @@ struct RealFileCell: View {
     let meta: File
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(meta.name)
-                    .font(.title3)
-            HStack {
-                Image(systemName: meta.fileType == .Folder ? "folder.fill" : documentExtensionToImage(name: meta.name))
-                        .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
-                Text(intEpochToString(epoch: max(meta.lastModified, meta.lastModified)))
-                        .foregroundColor(.secondary)
-                
-                Spacer()
+        HStack(spacing: 20) {
+            Image(systemName: meta.fileType == .Folder ? "folder.fill" : FileService.docExtToSystemImage(name: meta.name))
+                .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
+                .font(.title3)
+                .frame(width: 20)
+            
+            if meta.fileType == .Document {
+                VStack(alignment: .leading) {
+                    Text(meta.name)
+                        .font(.body)
+                        .lineLimit(1)
+                    
+                    Text(DI.core.timeAgo(timeStamp: Int64(meta.lastModified)))
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                }
+            } else {
+                Text(meta.name)
+                    .font(.body)
             }
-                    .font(.footnote)
+            
+            
+            Spacer()
         }
-            .padding(.vertical, 5)
-            .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
-    }
-}
-
-public func documentExtensionToImage(name: String) -> String {
-    if name.hasSuffix(".md") {
-        return "doc.plaintext"
-    } else if name.hasSuffix(".draw") {
-        return "doc.richtext"
-    } else {
-        return "doc"
+        .padding(.vertical, 10)
+        .padding(.horizontal)
+        .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
 }

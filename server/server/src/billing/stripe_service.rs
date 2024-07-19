@@ -10,7 +10,7 @@ use lockbook_shared::api::{
 };
 use lockbook_shared::file_metadata::Owner;
 
-use stripe::{Invoice, WebhookEvent};
+use stripe::{Event, Invoice};
 use tracing::*;
 use uuid::Uuid;
 
@@ -180,7 +180,7 @@ where
 
     pub fn verify_request_and_get_event(
         &self, request_body: &Bytes, stripe_sig: HeaderValue,
-    ) -> Result<WebhookEvent, ServerError<StripeWebhookError>> {
+    ) -> Result<Event, ServerError<StripeWebhookError>> {
         let payload = std::str::from_utf8(request_body).map_err(|e| {
             ClientError(StripeWebhookError::InvalidBody(format!("Cannot get body as str: {:?}", e)))
         })?;

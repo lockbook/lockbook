@@ -8,9 +8,11 @@ use workspace_rs::workspace::Workspace;
 #[cfg(target_vendor = "apple")]
 pub mod apple;
 
+/// cbindgen:ignore
 #[cfg(target_os = "android")]
 pub mod android;
 
+/// cbindgen:ignore
 #[cfg(target_os = "android")]
 pub use android::resp::*;
 
@@ -114,16 +116,6 @@ impl<'window> WgpuWorkspace<'window> {
 
         #[cfg(not(target_os = "android"))]
         {
-            #[cfg(target_os = "ios")]
-            {
-                if let Some(markdown) = self.workspace.current_tab_markdown() {
-                    out.workspace_resp.text_updated = markdown.editor.text_updated;
-                    out.workspace_resp.selection_updated = (markdown.editor.scroll_area_offset
-                        != markdown.editor.old_scroll_area_offset)
-                        || markdown.editor.selection_updated;
-                }
-            }
-
             if !full_output.platform_output.copied_text.is_empty() {
                 // todo: can this go in output?
                 out.copied_text = CString::new(full_output.platform_output.copied_text)
@@ -149,28 +141,20 @@ impl<'window> WgpuWorkspace<'window> {
             if out.has_copied_text {
                 out.copied_text = full_output.platform_output.copied_text;
             }
-
-            if let Some(markdown) = self.workspace.current_tab_markdown() {
-                out.workspace_resp.show_edit_menu = markdown.editor.maybe_menu_location.is_some();
-
-                out.workspace_resp.edit_menu_x = markdown
-                    .editor
-                    .maybe_menu_location
-                    .map(|p| p.x)
-                    .unwrap_or_default();
-
-                out.workspace_resp.edit_menu_y = markdown
-                    .editor
-                    .maybe_menu_location
-                    .map(|p| p.y)
-                    .unwrap_or_default();
-
-                out.workspace_resp.selection_updated = (markdown.editor.scroll_area_offset
-                    != markdown.editor.old_scroll_area_offset)
-                    || markdown.editor.selection_updated;
-                out.workspace_resp.text_updated = markdown.editor.text_updated;
-            }
         }
+
+        out.redraw_in = match full_output
+            .viewport_output
+            .values()
+            .next()
+            .map(|v| v.repaint_delay)
+        {
+            Some(d) => d.as_millis() as u64,
+            None => {
+                eprintln!("VIEWPORT Missing, not requesting redraw");
+                u64::max_value()
+            }
+        };
 
         out
     }

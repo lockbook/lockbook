@@ -103,7 +103,6 @@ class FileService: ObservableObject {
                 case .success(_):
                     self.successfulAction = .move
                     self.refresh()
-                    DI.status.checkForLocalWork()
                 case .failure(let error):
                     switch error.kind {
                     case .UiError(let uiError):
@@ -131,7 +130,6 @@ class FileService: ObservableObject {
         case .success(_):
             self.successfulAction = .move
             refresh()
-            DI.status.checkForLocalWork()
             return true
         case .failure(let error):
             switch error.kind {
@@ -162,7 +160,6 @@ class FileService: ObservableObject {
                     self.refresh()
                     self.successfulAction = .delete
                     DI.workspace.fileOpCompleted = .Delete(id: id)
-                    DI.status.checkForLocalWork()
                 case .failure(let error):
                     DI.errors.handleError(error)
                 }
@@ -244,7 +241,7 @@ class FileService: ObservableObject {
 
     func refresh() {
         DispatchQueue.global(qos: .userInteractive).async {
-            let allFiles = self.core.listFiles()
+            let allFiles = DI.core.listFiles()
 
             DispatchQueue.main.async {
                 switch allFiles {
@@ -260,16 +257,9 @@ class FileService: ObservableObject {
     private func postRefreshFiles(_ newFiles: [File]) {
         idsAndFiles = Dictionary(uniqueKeysWithValues: newFiles.map { ($0.id, $0) })
         refreshSuggestedDocs()
-        DI.status.setLastSynced()
         newFiles.forEach {
             if root == nil && $0.id == $0.parent {
                 root = $0
-
-                #if os(iOS)
-                if(path.isEmpty) {
-                    path.append($0)
-                }
-                #endif
             }
         }
         openFileChecks()
@@ -307,6 +297,9 @@ class FileService: ObservableObject {
                     self.refresh()
                     DispatchQueue.main.sync {
                         DI.workspace.requestOpenDoc(meta.id)
+                        #if os(iOS)
+                        DI.files.intoChildDirectory(meta)
+                        #endif
                     }
                     
                     return
@@ -389,6 +382,48 @@ class FileService: ObservableObject {
         NSPasteboard.general.setString("lb://\(id.uuidString.lowercased())", forType: .string)
         #endif
     }
+    
+    public static func docExtToSystemImage(name: String) -> String {
+        guard let ext = name.split(separator: ".").last else {
+            return "doc"
+        }
+        
+        return extToSystemImg[String(ext)] ?? "doc"
+    }
+    
+    static let extToSystemImg: [String: String] = [
+        "md": "doc.richtext",
+        "svg": "doc.text.image",
+        "pdf": "doc.on.doc",
+        
+        "txt": "doc.plaintext",
+        "rtf": "doc.plaintext",
+        "doc": "doc.plaintext",
+        "docx": "doc.plaintext",
+        
+        "html": "chevron.left.slash.chevron.right",
+        "xml": "chevron.left.slash.chevron.right",
+        "json": "curlybraces",
+        "latex": "sum",
+        
+        "png": "photo",
+        "jpg": "photo",
+        "jpeg": "photo",
+        "tiff": "photo",
+        "heif": "photo",
+        "heic": "photo",
+        
+        "zip": "doc.zipper",
+        "tar": "doc.zipper",
+        "gz": "doc.zipper",
+        "7z": "doc.zipper",
+        "bz2": "doc.zipper",
+        "xz": "doc.zipper",
+        "iso": "doc.zipper",
+        
+        "log": "scroll",
+        "csv": "tablecells"
+    ]
 }
 
 public enum FileAction {

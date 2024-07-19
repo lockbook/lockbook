@@ -20,6 +20,8 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     var lastCursor: NSCursor = NSCursor.arrow
     var cursorHidden: Bool = false
+    
+    var modifierEventHandle: Any? = nil
 
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
@@ -86,7 +88,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer!).toOpaque())
         self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode())
 
-        NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
+        modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
         registerForDraggedTypes([.png, .tiff, .fileURL, .string])
         becomeFirstResponder()
     }
@@ -155,7 +157,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     public override func keyDown(with event: NSEvent) {
         if event.modifierFlags.contains(.command) && event.keyCode == 9 { // cmd+v
-            importFromPasteboard(NSPasteboard.general, isPaste: true)
+            let _ = importFromPasteboard(NSPasteboard.general, isPaste: true)
         } else {
             key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
         }
@@ -199,7 +201,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         } else if !isPaste {
             if let data = pasteBoard.data(forType: .fileURL) {
                 if let url = URL(dataRepresentation: data, relativeTo: nil) {
-                    if url.pathExtension.lowercased() == "png" {
+                    if isSupportedImageFormat(ext: url.pathExtension.lowercased()) {
                         guard let data = try? Data(contentsOf: url) else {
                             return false
                         }
@@ -227,6 +229,17 @@ public class MacMTK: MTKView, MTKViewDelegate {
         }
         
         clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
+    }
+    
+    // copy of workspace::tab::image_viewer::is_supported_image_fmt() because ffi seems like overkill
+    func isSupportedImageFormat(ext: String) -> Bool {
+        // Complete list derived from which features are enabled on image crate according to image-rs default features:
+        // https://github.com/image-rs/image/blob/main/Cargo.toml#L70
+        let imgFormats: Set<String> = [
+            "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "jpg", "png", "pnm", "qoi", "tga",
+            "tiff", "webp"
+        ]
+        return imgFormats.contains(ext)
     }
 
     func viewCoordinates(_ event: NSEvent) -> NSPoint {
@@ -257,7 +270,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let scale = Float(self.window?.backingScaleFactor ?? 1.0)
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, scale)
-        let output = draw_editor(wsHandle)
+        let output = draw_workspace(wsHandle)
 
         workspaceState?.syncing = output.workspace_resp.syncing
         workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
@@ -295,7 +308,8 @@ public class MacMTK: MTKView, MTKViewDelegate {
         }
 
         redrawTask?.cancel()
-        self.isPaused = output.redraw_in > 100
+        redrawTask = nil
+        self.isPaused = output.redraw_in > 50
         if self.isPaused {
             let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
             let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)));
@@ -329,6 +343,16 @@ public class MacMTK: MTKView, MTKViewDelegate {
                 NSCursor.unhide()
                 cursorHidden = false
             }
+        }
+    }
+    
+    deinit {        
+        if let wsHandle = wsHandle {
+            deinit_editor(wsHandle)
+        }
+        
+        if let modifierEventHandle = modifierEventHandle {
+            NSEvent.removeMonitor(modifierEventHandle)
         }
     }
 }

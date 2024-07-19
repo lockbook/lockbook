@@ -10,7 +10,6 @@ use crate::output::{DirtynessMsg, PersistentWsStatus, WsOutput};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
-use crate::tab::plain_text::PlainText;
 use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
@@ -389,11 +388,29 @@ impl Workspace {
                                     tab.last_changed = Instant::now();
                                 }
 
-                                if let Some(new_name) = resp.document_renamed {
+                                if let Some(new_name) = resp.suggested_rename {
                                     rename_req = Some((tab.id, new_name))
                                 }
+
+                                if resp.hide_virtual_keyboard {
+                                    output.hide_virtual_keyboard = resp.hide_virtual_keyboard;
+                                }
+                                if resp.text_updated {
+                                    output.markdown_editor_text_updated = true;
+                                }
+                                if resp.selection_updated || resp.scroll_updated {
+                                    // markdown_editor_selection_updated represents a change to the screen position of
+                                    // the cursor, which is also updated when scrolling
+                                    output.markdown_editor_selection_updated = true;
+                                }
+
+                                if resp.show_edit_menu {
+                                    // used just for android
+                                    output.markdown_editor_show_edit_menu = true;
+                                    output.markdown_editor_edit_menu_x = resp.edit_menu_x;
+                                    output.markdown_editor_edit_menu_y = resp.edit_menu_y;
+                                }
                             }
-                            TabContent::PlainText(txt) => txt.show(ui),
                             TabContent::Image(img) => img.show(ui),
                             TabContent::Pdf(pdf) => pdf.show(ui),
                             TabContent::Svg(svg) => {
@@ -490,7 +507,7 @@ impl Workspace {
                                     let id = self.current_tab().unwrap().id;
                                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                                         if let Some(TabContent::Markdown(md)) = &mut tab.content {
-                                            md.needs_name = false;
+                                            md.editor.needs_name = false;
                                         }
                                     }
                                     self.rename_file((id, name.clone()));
@@ -594,15 +611,7 @@ impl Workspace {
                 .read_document(id)
                 .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
                 .map(|bytes| {
-                    if ext == "md" {
-                        TabContent::Markdown(Markdown::new(
-                            core.clone(),
-                            &bytes,
-                            &toolbar_visibility,
-                            is_new_file,
-                            id,
-                        ))
-                    } else if is_supported_image_fmt(ext) {
+                    if is_supported_image_fmt(ext) {
                         TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes))
                     } else if ext == "pdf" {
                         TabContent::Pdf(PdfViewer::new(
@@ -614,7 +623,14 @@ impl Workspace {
                     } else if ext == "svg" {
                         TabContent::Svg(SVGEditor::new(&bytes, core.clone(), id))
                     } else {
-                        TabContent::PlainText(PlainText::new(&bytes))
+                        TabContent::Markdown(Markdown::new(
+                            core.clone(),
+                            &bytes,
+                            &toolbar_visibility,
+                            is_new_file,
+                            id,
+                            ext != "md",
+                        ))
                     }
                 });
             update_tx.send(WsMsg::FileLoaded(id, content)).unwrap();
@@ -632,19 +648,19 @@ impl Workspace {
     }
 
     fn process_keys(&mut self, output: &mut WsOutput) {
-        const CTRL: egui::Modifiers = egui::Modifiers::COMMAND;
+        const COMMAND: egui::Modifiers = egui::Modifiers::COMMAND;
         // Ctrl-N pressed while new file modal is not open.
-        if self.ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
+        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::N)) {
             self.create_file(false);
         }
 
         // Ctrl-S to save current tab.
-        if self.ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::S)) {
+        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::S)) {
             self.save_tab(self.active_tab);
         }
 
         // Ctrl-W to close current tab.
-        if self.ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::W)) && !self.is_empty() {
+        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::W)) && !self.is_empty() {
             self.close_tab(self.active_tab);
             output.window_title = Some(
                 self.current_tab()
@@ -659,7 +675,7 @@ impl Workspace {
         // Ctrl-{1-9} to easily navigate tabs (9 will always go to the last tab).
         self.ctx.clone().input_mut(|input| {
             for i in 1..10 {
-                if input.consume_key(CTRL, NUM_KEYS[i - 1]) {
+                if input.consume_key_exact(COMMAND, NUM_KEYS[i - 1]) {
                     self.goto_tab(i);
                     // Remove any text event that's also present this frame so that it doesn't show up
                     // in the editor.
@@ -924,3 +940,45 @@ pub const NUM_KEYS: [egui::Key; 9] = [
     egui::Key::Num8,
     egui::Key::Num9,
 ];
+
+// The only difference from count_and_consume_key is that here we use matches_exact instead of matches_logical,
+// preserving the behavior before egui 0.25.0. The documentation for the 0.25.0 count_and_consume_key says
+// "you should match most specific shortcuts first", but this doesn't go well with egui's usual pattern where widgets
+// process input in the order in which they're drawn, with parent widgets (e.g. workspace) drawn before children
+// (e.g. editor). Using this older way of doing things affects matching keyboard shortcuts with shift included e.g. '+'
+trait InputStateExt {
+    fn count_and_consume_key_exact(
+        &mut self, modifiers: egui::Modifiers, logical_key: egui::Key,
+    ) -> usize;
+    fn consume_key_exact(&mut self, modifiers: egui::Modifiers, logical_key: egui::Key) -> bool;
+}
+
+impl InputStateExt for egui::InputState {
+    fn count_and_consume_key_exact(
+        &mut self, modifiers: egui::Modifiers, logical_key: egui::Key,
+    ) -> usize {
+        let mut count = 0usize;
+
+        self.events.retain(|event| {
+            let is_match = matches!(
+                event,
+                egui::Event::Key {
+                    key: ev_key,
+                    modifiers: ev_mods,
+                    pressed: true,
+                    ..
+                } if *ev_key == logical_key && ev_mods.matches_exact(modifiers)
+            );
+
+            count += is_match as usize;
+
+            !is_match
+        });
+
+        count
+    }
+
+    fn consume_key_exact(&mut self, modifiers: egui::Modifiers, logical_key: egui::Key) -> bool {
+        self.count_and_consume_key_exact(modifiers, logical_key) > 0
+    }
+}

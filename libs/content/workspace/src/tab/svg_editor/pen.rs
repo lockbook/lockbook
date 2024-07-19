@@ -1,19 +1,24 @@
-use minidom::Element;
+use bezier_rs::{Bezier, Subpath};
+use resvg::usvg::Transform;
 use std::{
     collections::VecDeque,
     time::{Duration, Instant},
 };
 
+use crate::theme::palette::ThemePalette;
+
 use super::{
-    toolbar::ColorSwatch,
-    util::{self, apply_transform_to_pos, d_to_subpath, deserialize_transform},
+    history::History,
+    parser::{self, ManipulatorGroupId, Path, Stroke},
     Buffer, InsertElement,
 };
 
 pub struct Pen {
-    pub active_color: Option<ColorSwatch>,
+    pub active_color: Option<(egui::Color32, egui::Color32)>,
     pub active_stroke_width: u32,
+    pub active_opacity: f32,
     path_builder: CubicBezBuilder,
+    pub simplification_tolerance: f32,
     pub current_id: usize, // todo: this should be at a higher component state, maybe in buffer
     maybe_snap_started: Option<Instant>,
 }
@@ -30,99 +35,123 @@ impl Pen {
             active_color: None,
             active_stroke_width: default_stroke_width,
             current_id: max_id,
+            simplification_tolerance: if cfg!(target_os = "ios") || cfg!(target_os = "android") {
+                0.2
+            } else {
+                1.0
+            },
             path_builder: CubicBezBuilder::new(),
             maybe_snap_started: None,
+            active_opacity: 1.0,
         }
     }
 
     pub fn handle_input(
-        &mut self, ui: &mut egui::Ui, inner_rect: egui::Rect, buffer: &mut Buffer,
+        &mut self, ui: &mut egui::Ui, inner_rect: egui::Rect, buffer: &mut parser::Buffer,
+        history: &mut History,
     ) -> Option<PenResponse> {
+        if self.active_color.is_none() {
+            self.active_color = Some(ThemePalette::get_fg_color());
+        }
+
+        if ui.input(|r| r.key_down(egui::Key::F2)) {
+            self.path_builder.original_points.iter().for_each(|p| {
+                ui.painter()
+                    .circle(*p, 2.0, egui::Color32::RED, egui::Stroke::NONE);
+            });
+        } else if ui.input(|r| r.key_down(egui::Key::F3)) {
+            self.path_builder.simplified_points.iter().for_each(|p| {
+                ui.painter()
+                    .circle(*p, 2.0, egui::Color32::BLUE, egui::Stroke::NONE);
+            });
+        }
+
         let event = match self.setup_events(ui, inner_rect) {
             Some(e) => e,
             None => return None,
         };
-
         match event {
-            PathEvent::Draw(mut pos, id) => {
-                apply_transform_to_pos(&mut pos, buffer);
-
-                let mut master_transform = None;
-                if let Some(transform) = buffer.current.attr("transform") {
-                    master_transform = Some(deserialize_transform(transform));
-                }
-
-                if self.detect_snap(pos, master_transform) {
-                    let curr_id = self.current_id; // needed because end path will advance to the next id
-                    self.end_path(buffer, true);
-                    return Some(PenResponse::ToggleSelection(curr_id));
-                } else if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
-                    self.path_builder.cubic_to(pos);
-                    node.set_attr("d", &self.path_builder.data);
-
-                    if let Some(color) = &self.active_color {
-                        node.set_attr("stroke", format!("url(#{})", color.id));
-                    } else {
-                        node.set_attr("stroke", "url(#fg)");
+            PathEvent::Draw(pos, id) => {
+                // for some reason in ipad there are  two draw events on the same pos which results in a knot.
+                if let Some(last_pos) = self.path_builder.original_points.last() {
+                    if last_pos.eq(&pos) && self.path_builder.path.len() > 1 {
+                        return None;
                     }
+                }
+                if self.detect_snap(pos, buffer.master_transform) {
+                    let curr_id = self.current_id; // needed because end path will advance to the next id
+                    self.end_path(buffer, history, true);
+                    return Some(PenResponse::ToggleSelection(curr_id));
+                } else if let Some(parser::Element::Path(p)) =
+                    buffer.elements.get_mut(&id.to_string())
+                {
+                    self.path_builder.cubic_to(pos);
+                    p.data = self.path_builder.path.clone();
                 } else {
                     self.path_builder.cubic_to(pos);
+                    let mut stroke = Stroke::default();
+                    if let Some(c) = self.active_color {
+                        stroke.color = c;
+                    }
+                    stroke.width = self.active_stroke_width as f32;
 
-                    let child = Element::builder("path", "")
-                        .attr("stroke-width", self.active_stroke_width.to_string())
-                        .attr("fill", "none")
-                        .attr("stroke-linejoin", "round")
-                        .attr("stroke-linecap", "round")
-                        .attr("id", id)
-                        .attr("d", &self.path_builder.data)
-                        .build();
-
-                    buffer.current.append_child(child);
+                    buffer.elements.insert(
+                        id.to_string(),
+                        parser::Element::Path(Path {
+                            data: self.path_builder.path.clone(),
+                            visibility: resvg::usvg::Visibility::Visible,
+                            fill: None,
+                            stroke: Some(stroke),
+                            transform: Transform::identity()
+                                .post_scale(buffer.master_transform.sx, buffer.master_transform.sy),
+                            opacity: self.active_opacity,
+                        }),
+                    );
                 }
             }
             PathEvent::End => {
-                self.end_path(buffer, false);
+                self.end_path(buffer, history, false);
+
                 self.maybe_snap_started = None;
             }
         }
+
         None
     }
 
-    fn end_path(&mut self, buffer: &mut Buffer, is_snapped: bool) {
-        if self.path_builder.points.len() < 2 {
-            buffer.current.remove_child(&self.current_id.to_string());
-            self.path_builder.clear();
-            return;
+    fn end_path(&mut self, buffer: &mut Buffer, history: &mut History, is_snapped: bool) {
+        if self.path_builder.path.len() > 2 && is_snapped {
+            self.path_builder
+                .finish(is_snapped, buffer, self.simplification_tolerance);
         }
 
-        self.path_builder.finish(is_snapped, buffer);
+        history.save(super::Event::Insert(vec![InsertElement { id: self.current_id.to_string() }]));
 
-        if let Some(node) = util::node_by_id(&mut buffer.current, self.current_id.to_string()) {
-            node.set_attr("d", &self.path_builder.data);
-
-            let node = node.clone();
-
-            buffer.save(super::Event::Insert(vec![InsertElement {
-                id: self.current_id.to_string(),
-                element: node,
-            }]));
+        if let Some(parser::Element::Path(p)) =
+            buffer.elements.get_mut(&self.current_id.to_string())
+        {
+            p.data = self.path_builder.path.clone();
         }
+
         self.path_builder.clear();
+
         self.current_id += 1;
     }
 
-    fn detect_snap(&mut self, current_pos: egui::Pos2, master_transform: Option<[f64; 6]>) -> bool {
-        if self.path_builder.points.len() < 2 {
+    fn detect_snap(&mut self, current_pos: egui::Pos2, master_transform: Transform) -> bool {
+        if self.path_builder.path.len() < 2 {
             return false;
         }
 
-        if let Some(last_pos) = self.path_builder.points.last() {
+        if let Some(last_pos) = self.path_builder.path.iter().last() {
+            let last_pos = last_pos.end();
+            let last_pos = egui::pos2(last_pos.x as f32, last_pos.y as f32);
+
             let dist_diff = last_pos.distance(current_pos).abs();
 
             let mut dist_to_trigger_snap = 1.5;
-            if let Some(t) = master_transform {
-                dist_to_trigger_snap /= t[0] as f32;
-            }
+
+            dist_to_trigger_snap /= master_transform.sx;
 
             let time_to_trigger_snap = Duration::from_secs(1);
 
@@ -153,7 +182,7 @@ impl Pen {
             }
 
             let pointer_gone_out_of_canvas =
-                !self.path_builder.points.is_empty() && !inner_rect.contains(cursor_pos);
+                !self.path_builder.path.is_empty() && !inner_rect.contains(cursor_pos);
             let pointer_released_in_canvas =
                 ui.input(|i| i.pointer.any_released()) && inner_rect.contains(cursor_pos);
             let pointer_pressed_and_originated_in_canvas = ui.input(|i| {
@@ -168,7 +197,7 @@ impl Pen {
             } else {
                 None
             }
-        } else if !self.path_builder.points.is_empty() {
+        } else if !self.path_builder.path.is_empty() {
             Some(PathEvent::End)
         } else {
             None
@@ -185,8 +214,9 @@ pub enum PathEvent {
 pub struct CubicBezBuilder {
     /// store the 4 past points
     prev_points_window: VecDeque<egui::Pos2>,
-    points: Vec<egui::Pos2>,
-    pub data: String,
+    path: Subpath<ManipulatorGroupId>,
+    simplified_points: Vec<egui::Pos2>,
+    original_points: Vec<egui::Pos2>,
 }
 
 impl Default for CubicBezBuilder {
@@ -199,38 +229,35 @@ impl CubicBezBuilder {
     pub fn new() -> Self {
         CubicBezBuilder {
             prev_points_window: VecDeque::from(vec![]),
-            points: vec![],
-            data: String::new(),
+            path: Subpath::<ManipulatorGroupId>::from_anchors(vec![], false),
+            simplified_points: vec![],
+            original_points: vec![],
         }
     }
 
     fn line_to(&mut self, dest: egui::Pos2) {
-        let is_first_point = self.prev_points_window.is_empty();
-
-        if is_first_point {
-            self.data = format!("M {} {}", dest.x, dest.y);
+        self.original_points.push(dest);
+        if let Some(prev) = self.prev_points_window.back() {
+            let bez = Bezier::from_linear_coordinates(
+                prev.x.into(),
+                prev.y.into(),
+                dest.x.into(),
+                dest.y.into(),
+            );
+            self.path
+                .append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
         }
-        self.data
-            .push_str(format!(" L{} {}", dest.x, dest.y).as_str());
-
         self.prev_points_window.push_back(dest);
     }
 
-    fn catmull_to(&mut self, dest: egui::Pos2, is_last_point: bool) {
+    fn catmull_to(&mut self, dest: egui::Pos2) {
         let is_first_point = self.prev_points_window.is_empty();
 
         if is_first_point {
-            self.data = format!("M {} {}", dest.x, dest.y);
-
             // repeat the first pos twice to avoid later index arithmetic
             self.prev_points_window.push_back(dest);
+            self.prev_points_window.push_back(dest);
         };
-
-        if is_last_point {
-            if let Some(last) = self.prev_points_window.back() {
-                self.prev_points_window.push_back(*last);
-            }
-        }
 
         self.prev_points_window.push_back(dest);
 
@@ -251,68 +278,84 @@ impl CubicBezBuilder {
         let cp2x = p2.x - (p3.x - p1.x) / 10.;
         let cp2y = p2.y - (p3.y - p1.y) / 10.;
 
-        self.data
-            .push_str(format!("C {cp1x},{cp1y},{cp2x},{cp2y},{},{}", p2.x, p2.y).as_str());
+        let bez = Bezier::from_cubic_coordinates(
+            self.prev_points_window.back().unwrap().x.into(),
+            self.prev_points_window.back().unwrap().y.into(),
+            cp1x.into(),
+            cp1y.into(),
+            cp2x.into(),
+            cp2y.into(),
+            p2.x.into(),
+            p2.y.into(),
+        );
+        self.path
+            .append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
 
         // shift the window foreword
         self.prev_points_window.pop_front();
     }
 
     pub fn cubic_to(&mut self, dest: egui::Pos2) {
-        self.points.push(dest);
-        self.catmull_to(dest, false);
+        if self.prev_points_window.is_empty() {
+            self.original_points.clear();
+        }
+        self.original_points.push(dest);
+        self.catmull_to(dest);
     }
 
-    pub fn finish(&mut self, is_snapped: bool, buffer: &mut Buffer) {
+    pub fn finish(&mut self, is_snapped: bool, buffer: &mut Buffer, user_tolerance: f32) {
         let mut tolerance = if is_snapped {
-            let perim = d_to_subpath(&self.data).length(None) as f32;
+            let perim = self.path.length(None) as f32;
             perim * 0.04
         } else {
-            2.0
+            user_tolerance
         };
-        if let Some(transform) = buffer.current.attr("transform") {
-            tolerance /= deserialize_transform(transform)[0] as f32;
+
+        tolerance *= buffer.master_transform.sx;
+        let maybe_simple_points = self.simplify(tolerance);
+
+        self.clear();
+
+        if let Some(simple_points) = maybe_simple_points {
+            self.simplified_points = simple_points.clone();
+            simple_points.iter().enumerate().for_each(|(i, p)| {
+                if is_snapped {
+                    self.line_to(*p);
+                } else {
+                    if i == simple_points.len() - 1 {
+                        self.catmull_to(*p);
+                    }
+                    self.catmull_to(*p);
+                }
+            });
         }
-        self.simplify(tolerance);
-
-        self.data.clear();
-        self.prev_points_window.clear();
-
-        self.points.clone().iter().enumerate().for_each(|(i, p)| {
-            if is_snapped {
-                self.line_to(*p);
-            } else {
-                self.catmull_to(*p, false);
-                if i == self.points.len() - 1 {
-                    self.catmull_to(*p, true);
-                };
-            }
-        });
     }
 
     pub fn clear(&mut self) {
         self.prev_points_window.clear();
-        self.data.clear();
-        self.points.clear();
+        self.path = Subpath::<ManipulatorGroupId>::from_anchors(vec![], false);
     }
 
     /// Ramer–Douglas–Peucker algorithm courtesy of @author: Michael-F-Bryan
     /// https://github.com/Michael-F-Bryan/arcs/blob/master/core/src/algorithms/line_simplification.rs
-    fn simplify(&mut self, tolerance: f32) {
-        if self.points.len() <= 2 {
-            return;
-        }
-
-        let mut buffer = Vec::new();
+    fn simplify(&mut self, tolerance: f32) -> Option<Vec<egui::Pos2>> {
+        let mut simplified_points = Vec::new();
 
         // push the first point
-        buffer.push(self.points[0]);
-        // then simplify every point in between the start and end
-        self.simplify_points(&self.points[..], tolerance, &mut buffer);
-        // and finally the last one
-        buffer.push(*self.points.last().unwrap());
+        let mut points = vec![];
+        self.path.iter().for_each(|b| {
+            points.push(egui::pos2(b.start().x as f32, b.start().y as f32));
+            points.push(egui::pos2(b.end().x as f32, b.end().y as f32));
+        });
 
-        self.points = buffer;
+        simplified_points.push(points[0]);
+
+        // then simplify every point in between the start and end
+        self.simplify_points(&points, tolerance, &mut simplified_points);
+        // and finally the last one
+        simplified_points.push(*points.last().unwrap());
+
+        Some(simplified_points)
     }
 
     fn simplify_points(&self, points: &[egui::Pos2], tolerance: f32, buffer: &mut Vec<egui::Pos2>) {

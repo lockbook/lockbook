@@ -10,7 +10,6 @@ class DI {
     static let accounts = AccountService(core)
     static let settings = SettingsService(core)
     static let billing = BillingService(core)
-    static let status = StatusService(core)
     static let files = FileService(core)
     static let importExport = ImportExportService(core)
     static let sync = SyncService(core)
@@ -25,7 +24,7 @@ class DI {
         DI.settings.usages = nil
         DI.files.root = nil
         DI.files.idsAndFiles = [:]
-        DI.onboarding.theyChoseToBackup = false
+        DI.settings.showView = false
         DI.onboarding.username = ""
     }
 }
@@ -39,7 +38,6 @@ class Mock {
     static let accounts = AccountService(core)
     static let settings = SettingsService(core)
     static let billing = BillingService(core)
-    static let status = StatusService(core)
     static let files = FileService(core)
     static let importExport = ImportExportService(core)
     static let sync = SyncService(core)
@@ -57,7 +55,6 @@ extension View {
             .environmentObject(DI.errors)
             .environmentObject(DI.accounts)
             .environmentObject(DI.settings)
-            .environmentObject(DI.status)
             .environmentObject(DI.files)
             .environmentObject(DI.importExport)
             .environmentObject(DI.sync)
@@ -75,7 +72,6 @@ extension View {
             .environmentObject(Mock.errors)
             .environmentObject(Mock.accounts)
             .environmentObject(Mock.settings)
-            .environmentObject(Mock.status)
             .environmentObject(Mock.files)
             .environmentObject(Mock.importExport)
             .environmentObject(Mock.sync)

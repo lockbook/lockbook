@@ -9,7 +9,7 @@ use workspace_rs::output::WsOutput;
 #[derive(Serialize, Default)]
 pub struct IntegrationOutput {
     pub workspace_resp: FfiWorkspaceResp,
-    pub redraw_in: u128,
+    pub redraw_in: u64,
     pub has_copied_text: bool,
     pub copied_text: String,
     pub url_opened: String,
@@ -56,12 +56,12 @@ impl From<WsOutput> for FfiWorkspaceResp {
             },
             new_folder_btn_pressed: value.new_folder_clicked,
             tab_title_clicked: value.tab_title_clicked,
-            show_edit_menu: false,
-            edit_menu_x: Default::default(),
-            edit_menu_y: Default::default(),
+            show_edit_menu: value.markdown_editor_show_edit_menu,
+            edit_menu_x: value.markdown_editor_edit_menu_x,
+            edit_menu_y: value.markdown_editor_edit_menu_y,
 
-            selection_updated: false,
-            text_updated: false,
+            selection_updated: value.markdown_editor_selection_updated,
+            text_updated: value.markdown_editor_text_updated,
         }
     }
 }

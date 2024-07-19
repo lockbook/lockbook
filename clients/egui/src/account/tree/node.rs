@@ -129,7 +129,7 @@ impl TreeNode {
         {
             self.primary_press = ui.input(|i| i.pointer.press_origin());
 
-            if ui.input(|i| i.modifiers.ctrl) {
+            if ui.input(|i| i.modifiers.command) {
                 state.toggle_selected(self.file.id);
             } else if !state.selected.contains(&self.file.id) {
                 state.selected.clear();
@@ -142,7 +142,7 @@ impl TreeNode {
                     && resp.rect.contains(pos)
                     && state.selected.len() > 1
                     && state.selected.contains(&self.file.id)
-                    && !ui.input(|i| i.modifiers.ctrl)
+                    && !ui.input(|i| i.modifiers.command)
                 {
                     state.selected.retain(|id| *id == self.file.id);
                 }

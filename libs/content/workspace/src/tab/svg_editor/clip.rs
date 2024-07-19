@@ -1,4 +1,4 @@
-use minidom::Element;
+use resvg::usvg::{AspectRatio, NonZeroRect, Transform, ViewBox};
 
 use crate::tab::{ClipContent, EventManager as _};
 
@@ -11,19 +11,43 @@ impl SVGEditor {
                 crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
                     for clip in content {
                         match clip {
-                            ClipContent::Png(data) => {
+                            ClipContent::Image(data) => {
                                 let file =
                                     crate::tab::import_image(&self.core, self.open_file, &data);
-                                let image_href = format!("lb://{}", file.id);
+                                let href = crate::tab::core_get_relative_path(
+                                    &self.core,
+                                    self.open_file,
+                                    file.id,
+                                );
+                                let img = image::load_from_memory(&data).unwrap();
 
-                                let child = Element::builder("image", "")
-                                    .attr("id", self.toolbar.pen.current_id)
-                                    .attr("href", image_href)
-                                    .build();
-
-                                self.buffer.current.append_child(child);
+                                let position = ui.input(|r| {
+                                    r.pointer.hover_pos().unwrap_or(self.inner_rect.center())
+                                });
+                                self.buffer.elements.insert(
+                                    self.toolbar.pen.current_id.to_string(),
+                                    crate::tab::svg_editor::parser::Element::Image(
+                                        crate::tab::svg_editor::parser::Image {
+                                            data: resvg::usvg::ImageKind::PNG(data.into()),
+                                            visibility: resvg::usvg::Visibility::Visible,
+                                            transform: Transform::identity(),
+                                            view_box: ViewBox {
+                                                rect: NonZeroRect::from_xywh(
+                                                    position.x,
+                                                    position.y,
+                                                    img.width() as f32,
+                                                    img.height() as f32,
+                                                )
+                                                .unwrap(),
+                                                aspect: AspectRatio::default(),
+                                            },
+                                            texture: None,
+                                            href: Some(href),
+                                            opacity: 1.0,
+                                        },
+                                    ),
+                                );
                                 self.toolbar.pen.current_id += 1;
-                                println!("pasted image: {:?} bytes", data.len());
                             }
                             ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
                         }

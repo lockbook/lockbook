@@ -1,6 +1,11 @@
 import Foundation
 import SwiftLockbookCore
 
+#if os(macOS)
+import AppKit
+import Combine
+#endif
+
 class AccountService: ObservableObject {
     let core: LockbookApi
     
@@ -26,7 +31,7 @@ class AccountService: ObservableObject {
         
         calculated = true
     }
-    
+        
     func getAccount() {
         if account == nil {
             switch core.getAccount() {

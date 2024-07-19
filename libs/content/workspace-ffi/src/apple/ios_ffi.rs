@@ -9,7 +9,6 @@ use egui_editor::input::mutation;
 use egui_editor::offset_types::{DocCharOffset, RangeExt};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
-use std::mem::ManuallyDrop;
 use std::ptr::null;
 use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::EventManager as _;
@@ -434,7 +433,9 @@ pub unsafe extern "C" fn is_position_at_bound(
     if let Some(range) =
         DocCharOffset(pos.pos).range_bound(bound, backwards, false, &markdown.editor.bounds)
     {
-        if !backwards && pos.pos == range.0 || backwards && pos.pos == range.1 {
+        // forwards: the provided position is at the end of the enclosing range
+        // backwards: the provided position is at the start of the enclosing range
+        if !backwards && pos.pos == range.end() || backwards && pos.pos == range.start() {
             return true;
         }
     }
@@ -666,6 +667,19 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
+pub unsafe extern "C" fn update_virtual_keyboard(obj: *mut c_void, showing: bool) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
+        Some(markdown) => markdown,
+        None => return,
+    };
+
+    markdown.editor.is_virtual_keyboard_showing = showing;
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
 pub unsafe extern "C" fn selection_rects(
     obj: *mut c_void, range: CTextRange,
 ) -> UITextSelectionRects {
@@ -682,7 +696,7 @@ pub unsafe extern "C" fn selection_rects(
     let range: (DocCharOffset, DocCharOffset) = range.into();
     let mut cont_start = range.start();
 
-    let mut selection_rects = ManuallyDrop::new(vec![]);
+    let mut selection_rects = vec![];
 
     while cont_start < range.end() {
         let mut new_end: Cursor = cont_start.into();
@@ -707,7 +721,20 @@ pub unsafe extern "C" fn selection_rects(
         cont_start = new_end.selection.end();
     }
 
-    UITextSelectionRects { size: selection_rects.len() as i32, rects: selection_rects.as_ptr() }
+    UITextSelectionRects {
+        size: selection_rects.len() as i32,
+        rects: Box::into_raw(selection_rects.into_boxed_slice()) as *const CRect,
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn free_selection_rects(rects: UITextSelectionRects) {
+    let _ = Box::from_raw(std::slice::from_raw_parts_mut(
+        rects.rects as *mut CRect,
+        rects.size as usize,
+    ));
 }
 
 /// # Safety
@@ -785,7 +812,7 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
             Some(tab) => match tab {
                 TabContent::Image(_) => 2,
                 TabContent::Markdown(_) => 3,
-                TabContent::PlainText(_) => 4,
+                // TabContent::PlainText(_) => 4,
                 TabContent::Pdf(_) => 5,
                 TabContent::Svg(_) => 6,
             },

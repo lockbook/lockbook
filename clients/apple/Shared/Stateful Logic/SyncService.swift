@@ -23,8 +23,6 @@ class SyncService: ObservableObject {
     
     func postSyncSteps() {
         DI.files.refresh()
-        DI.status.setLastSynced()
-        DI.status.checkForLocalWork()
         DI.share.calculatePendingShares()
         #if os(macOS)
         DI.settings.calculateUsage()

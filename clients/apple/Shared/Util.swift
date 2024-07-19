@@ -1,116 +1,12 @@
+import Foundation
 import SwiftUI
-import SwiftLockbookCore
-#if os(iOS)
-import UIKit
-#endif
 
-struct SearchWrapperView<Content: View>: View {
-    @EnvironmentObject var search: SearchService
-    @EnvironmentObject var fileService: FileService
-    
-    @Environment(\.isSearching) var isSearching
-    @Environment(\.dismissSearch) private var dismissSearch
-
-    @Binding var searchInput: String
-        
-    var mainView: Content
-    var isiOS: Bool
-    
-    var body: some View {
-        VStack {
-            if search.isPathAndContentSearching {
-                if search.isPathAndContentSearchInProgress {
-                    #if os(iOS)
-                    ProgressView()
-                        .frame(width: 20, height: 20)
-                        .padding(.top)
-                    #else
-                    ProgressView()
-                        .scaleEffect(0.5)
-                        .frame(width: 20, height: 20)
-                    #endif
-                }
-                
-                if !search.pathAndContentSearchResults.isEmpty {
-                    List(search.pathAndContentSearchResults) { result in
-                        switch result {
-                        case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                            Button(action: {
-                                DI.workspace.requestOpenDoc(meta.id)
-
-                                if isiOS {
-                                    dismissSearch()
-                                }
-                            }) {
-                                SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
-                            }
-                        case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                            Button(action: {
-                                DI.workspace.requestOpenDoc(meta.id)
-
-                                if isiOS {
-                                    dismissSearch()
-                                }
-                            }) {
-                                SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
-                            }
-                        }
-                            
-                        #if os(macOS)
-                        Divider()
-                        #endif
-                    }
-                    .setSearchListStyle(isiOS: isiOS)
-                } else if !search.isPathAndContentSearchInProgress && !search.pathAndContentSearchQuery.isEmpty {
-                    Text("No results.")
-                       .font(.headline)
-                       .foregroundColor(.gray)
-                       .fontWeight(.bold)
-                       .padding()
-                    
-                    Spacer()
-                } else {
-                    Spacer()
-                }
-            } else {
-                mainView
-            }
-        }
-        .onChange(of: searchInput) { newInput in
-            search.search(query: newInput, isPathAndContentSearch: true)
-        }
-        .onChange(of: isSearching, perform: { newInput in
-            if newInput {
-                search.startSearchThread(isPathAndContentSearch: true)
-            } else {
-                search.endSearch(isPathAndContentSearch: true)
-            }
-        })
-    }
-}
-
-extension List {
-    @ViewBuilder
-    func setSearchListStyle(isiOS: Bool) -> some View {
+struct DisableAutoCapitalization: ViewModifier {
+    func body(content: Content) -> some View {
         #if os(iOS)
-        if(isiOS) {
-            self.listStyle(.insetGrouped)
-        } else {
-            self.listStyle(.inset)
-        }
+        content.textInputAutocapitalization(.never)
         #else
-        self
-            .listStyle(.automatic)
-        #endif
-    }
-}
-
-extension VStack {
-    func setiOSOrMacOSSearchPadding() -> some View {
-        #if os(iOS)
-        self.padding(.vertical, 5)
-        #else
-        self
+        content
         #endif
     }
 }
@@ -155,7 +51,7 @@ struct SearchFilePathCell: View {
                 Spacer()
             }
         }
-            .setiOSOrMacOSSearchPadding()
+            .padding(.vertical, 5)
             .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
     
@@ -248,7 +144,7 @@ struct SearchFileContentCell: View {
                 Spacer()
             }
         }
-        .setiOSOrMacOSSearchPadding()
+        .padding(.vertical, 5)
         .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
     
@@ -287,4 +183,3 @@ struct SearchFileContentCell: View {
         return (formattedPath, formattedParagraph)
     }
 }
-

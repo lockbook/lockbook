@@ -16,22 +16,29 @@ import AppKit
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
     
-    @StateObject var search = DI.search
-    @State private var navPath = NavigationPath()
-        
-    var body: some Scene {
+    var app: some View {
+        AppView()
+            .realDI()
+            .buttonStyle(PlainButtonStyle())
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .registeriOSBackgroundTasks(scenePhase: scenePhase, appDelegate: appDelegate)
+    }
+    
+    var window: some Scene {
+        #if os(macOS)
+        Window("Lockbook", id: "main") {
+            app
+        }
+        #else
         WindowGroup {
-            AppView()
-                .realDI()
-                .buttonStyle(PlainButtonStyle())
-//                .ignoresSafeArea()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .registerBackgroundTasks(scenePhase: scenePhase, appDelegate: appDelegate)
-                .onOpenURL() { url in
-                    onUrlOpen(url: url)
-                }
-                .handlesExternalEvents(preferring: ["lb"], allowing: ["lb"])
-        }.commands {
+            app
+        }
+        #endif
+    }
+    
+    var body: some Scene {
+        window
+        .commands {
             CommandGroup(replacing: .saveItem) {}
             
             CommandGroup(replacing: CommandGroupPlacement.newItem) {
@@ -53,13 +60,6 @@ import AppKit
             CommandMenu("Lockbook") {
                 Button("Sync", action: { DI.workspace.requestSync() }).keyboardShortcut("S", modifiers: .command)
                 Button("Search Paths", action: { DI.search.startSearchThread(isPathAndContentSearch: false) }).keyboardShortcut("O", modifiers: .command)
-                #if os(macOS)
-                Button("Search Paths And Content") {
-                    if let toolbar = NSApp.keyWindow?.toolbar, let search = toolbar.items.first(where: { $0.itemIdentifier.rawValue == "com.apple.SwiftUI.search" }) as? NSSearchToolbarItem {
-                        search.beginSearchInteraction()
-                    }
-                }.keyboardShortcut("f", modifiers: [.command, .shift])
-                #endif
                 
                 Button("Copy file link", action: {
                     if let id = DI.workspace.openDoc {
@@ -82,55 +82,10 @@ import AppKit
         }
         #endif
     }
-
-    func onUrlOpen(url: URL) {
-        if url.scheme == "lb" {
-            if let uuidString = url.host,
-               let id = UUID(uuidString: uuidString) {
-                
-                DispatchQueue.global(qos: .userInitiated).async {
-                    while !DI.files.hasRootLoaded {
-                        if DI.accounts.calculated && DI.accounts.account == nil {
-                            return
-                        }
-                    }
-                    
-                    Thread.sleep(until: .now + 0.1)
-                    
-                    if DI.files.idsAndFiles[id] != nil {
-                        DispatchQueue.main.async {
-                            DI.workspace.requestOpenDoc(id)
-                        }
-                    } else {
-                        DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
-                    }
-                }
-            } else {
-                DI.errors.errorWithTitle("Malformed link", "Cannot open file")
-            }
-        } else {
-            DI.errors.errorWithTitle("Error", "An unexpected error has occurred")
-        }
-    }
 }
 
 extension View {
-    func hideKeyboard() {
-        #if os(iOS)
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        #endif
-    }
-    
-    /// Allows free use of .autocapitalization without having to if else it on macOS
-    #if os(macOS)
-    func autocapitalization(_ bunk: String?) -> some View {
-        self
-    }
-    #endif
-}
-
-extension View {
-    func registerBackgroundTasks(scenePhase: ScenePhase, appDelegate: AppDelegate) -> some View {
+    func registeriOSBackgroundTasks(scenePhase: ScenePhase, appDelegate: AppDelegate) -> some View {
         #if os(iOS)
         self
             .onChange(of: scenePhase, perform: { newValue in
@@ -147,18 +102,6 @@ extension View {
             })
         #else
         self
-            .onReceive(
-                NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification),
-                perform: { _ in
-                    if !DI.onboarding.initialSyncing {
-                        appDelegate.scheduleBackgroundTask(initialRun: true)
-                    }
-                })
-            .onReceive(
-                NotificationCenter.default.publisher(for: NSApplication.willBecomeActiveNotification),
-                perform: { _ in
-                    appDelegate.endBackgroundTasks()
-                })
         #endif
     }
     
@@ -167,33 +110,8 @@ extension View {
 #if os(macOS)
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    let backgroundSyncStartSecs = 60 * 5
-    let backgroundSyncContSecs = 60 * 60
-    
-    var currentSyncTask: DispatchWorkItem? = nil
-    var logoutConfirmationWindow: NSWindow?
-    
-    
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
-    }
-        
-    func scheduleBackgroundTask(initialRun: Bool) {
-        let newSyncTask = DispatchWorkItem {
-            DI.sync.backgroundSync(onSuccess: {
-                self.scheduleBackgroundTask(initialRun: false)
-            }, onFailure: {
-                self.scheduleBackgroundTask(initialRun: false)
-            })
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds((initialRun ? backgroundSyncStartSecs : backgroundSyncContSecs)), execute: newSyncTask)
-        
-        currentSyncTask = newSyncTask
-    }
-    
-    func endBackgroundTasks() {
-        currentSyncTask?.cancel()
     }
 }
 
@@ -218,18 +136,18 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                 task.setTaskCompleted(success: false)
             }
             
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
                 DI.sync.backgroundSync(onSuccess: {
                     task.setTaskCompleted(success: true)
 
-                    self.scheduleBackgroundTask(initialRun: false)
+                    self?.scheduleBackgroundTask(initialRun: false)
                 }, onFailure: {
                     task.setTaskCompleted(success: false)
 
-                    self.scheduleBackgroundTask(initialRun: false)
+                    self?.scheduleBackgroundTask(initialRun: false)
                 })
                 
-                self.scheduleBackgroundTask(initialRun: false)
+                self?.scheduleBackgroundTask(initialRun: false)
             }
         }
     }

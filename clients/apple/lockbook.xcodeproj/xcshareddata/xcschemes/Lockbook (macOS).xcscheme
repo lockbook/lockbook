@@ -60,7 +60,7 @@
          <EnvironmentVariable
             key = "RUST_BACKTRACE"
             value = "1"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "LOCKBOOK_LOCATION"

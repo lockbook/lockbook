@@ -1,14 +1,11 @@
-use minidom::Element;
 use std::collections::HashMap;
-use std::sync::mpsc;
 
-use super::{util, util::pointer_interests_path, Buffer, DeleteElement};
+use super::history::History;
+use super::{util::pointer_intersects_element, Buffer, DeleteElement};
 
 pub struct Eraser {
-    pub rx: mpsc::Receiver<EraseEvent>,
-    pub tx: mpsc::Sender<EraseEvent>,
     pub thickness: f32,
-    paths_to_delete: HashMap<String, Element>,
+    delete_candidates: HashMap<String, bool>,
     last_pos: Option<egui::Pos2>,
 }
 
@@ -25,70 +22,86 @@ impl Default for Eraser {
 
 impl Eraser {
     pub fn new() -> Self {
-        let (tx, rx) = mpsc::channel();
-
-        Eraser { rx, tx, paths_to_delete: HashMap::default(), thickness: 10.0, last_pos: None }
+        Eraser { delete_candidates: HashMap::default(), thickness: 10.0, last_pos: None }
     }
 
-    pub fn handle_events(&mut self, event: EraseEvent, buffer: &mut Buffer) {
+    pub fn handle_input(
+        &mut self, ui: &mut egui::Ui, inner_rect: egui::Rect, buffer: &mut Buffer,
+        history: &mut History,
+    ) {
+        let event = match self.setup_events(ui, inner_rect) {
+            Some(e) => e,
+            None => return,
+        };
+
         match event {
             EraseEvent::Start(pos) => {
-                buffer.paths.iter().for_each(|(id, path)| {
-                    if self.paths_to_delete.contains_key(id) {
+                buffer.elements.iter().for_each(|(id, el)| {
+                    if self.delete_candidates.contains_key(id) {
                         return;
                     }
-
-                    if pointer_interests_path(path, pos, self.last_pos, self.thickness as f64) {
-                        if let Some(n) = buffer
-                            .current
-                            .children()
-                            .find(|e| e.attr("id").unwrap_or_default().eq(&id.to_string()))
-                        {
-                            self.paths_to_delete.insert(id.clone(), n.clone());
-                        }
-
-                        if let Some(n) = util::node_by_id(&mut buffer.current, id.to_string()) {
-                            n.set_attr("opacity", "0.3");
-                        }
+                    if pointer_intersects_element(el, pos, self.last_pos, self.thickness as f64) {
+                        self.delete_candidates.insert(id.clone(), false);
                     }
                 });
+
+                self.delete_candidates
+                    .iter_mut()
+                    .for_each(|(id, has_decreased_opacity)| {
+                        if let Some(el) = buffer.elements.get_mut(id) {
+                            if !*has_decreased_opacity {
+                                match el {
+                                    super::parser::Element::Path(p) => p.opacity *= 0.5,
+                                    super::parser::Element::Image(img) => img.opacity = 0.3,
+                                    super::parser::Element::Text(_) => todo!(),
+                                }
+                            }
+                        };
+                        *has_decreased_opacity = true;
+                    });
 
                 self.last_pos = Some(pos);
             }
             EraseEvent::End => {
-                if self.paths_to_delete.is_empty() {
+                if self.delete_candidates.is_empty() {
                     return;
                 }
 
-                self.paths_to_delete.iter().for_each(|(id, _)| {
-                    if let Some(n) = util::node_by_id(&mut buffer.current, id.to_string()) {
-                        n.set_attr("opacity", "1");
-                    }
+                self.delete_candidates.iter().for_each(|(id, _)| {
+                    if let Some(el) = buffer.elements.get_mut(id) {
+                        match el {
+                            super::parser::Element::Path(p) => {
+                                p.opacity = 1.0;
+                            }
+                            super::parser::Element::Image(img) => {
+                                img.opacity = 1.0;
+                            }
+                            super::parser::Element::Text(_) => todo!(),
+                        }
+                    };
                 });
-
-                buffer.save(super::Event::Delete(
-                    self.paths_to_delete
-                        .iter()
-                        .map(|(id, path_el)| DeleteElement {
-                            id: id.to_owned(),
-                            element: path_el.clone(),
-                        })
+                let event = super::Event::Delete(
+                    self.delete_candidates
+                        .keys()
+                        .map(|id| DeleteElement { id: id.to_owned() })
                         .collect(),
-                ));
+                );
 
-                self.paths_to_delete.iter().for_each(|(id, _)| {
-                    buffer.current.remove_child(id);
-                });
+                // todo: figure out if the history api should automatically apply the event on save
+                history.save(event.clone());
+                history.apply_event(&event, buffer);
 
-                self.paths_to_delete.clear();
+                self.delete_candidates.clear();
             }
         }
     }
 
-    pub fn setup_events(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect) {
+    pub fn setup_events(
+        &mut self, ui: &mut egui::Ui, inner_rect: egui::Rect,
+    ) -> Option<EraseEvent> {
         if let Some(cursor_pos) = ui.ctx().pointer_hover_pos() {
             if !inner_rect.contains(cursor_pos) || !ui.is_enabled() {
-                return;
+                return None;
             }
 
             let stroke = egui::Stroke { width: 1.0, color: ui.visuals().text_color() };
@@ -96,15 +109,17 @@ impl Eraser {
                 .circle_stroke(cursor_pos, self.thickness, stroke);
             ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::None);
             if ui.input(|i| i.pointer.primary_down()) {
-                self.tx.send(EraseEvent::Start(cursor_pos)).unwrap();
+                return Some(EraseEvent::Start(cursor_pos));
             }
             if ui.input(|i| i.pointer.primary_released()) {
                 self.last_pos = None;
-                self.tx.send(EraseEvent::End).unwrap();
+                Some(EraseEvent::End)
+            } else {
+                None
             }
         } else {
             self.last_pos = None;
-            self.tx.send(EraseEvent::End).unwrap();
+            Some(EraseEvent::End)
         }
     }
 }

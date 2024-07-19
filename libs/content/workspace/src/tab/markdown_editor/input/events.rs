@@ -20,7 +20,7 @@ use super::canonical::Region;
 pub fn combine(
     events: &[Event], custom_events: &[crate::Event], click_checker: impl ClickChecker + Copy,
     touch_mode: bool, appearance: &Appearance, pointer_state: &mut PointerState,
-    core: &mut lb_rs::Core, open_file: Uuid,
+    core: &mut lb_rs::Core, file_id: Uuid,
 ) -> Vec<Modification> {
     let canonical_egui_events = events.iter().filter_map(|e| {
         input::canonical::calc(
@@ -36,7 +36,7 @@ pub fn combine(
     custom_events
         .iter()
         .cloned()
-        .flat_map(|event| handle_custom_event(event, core, open_file))
+        .flat_map(|event| handle_custom_event(event, core, file_id))
         .chain(canonical_egui_events)
         .collect()
 }
@@ -76,7 +76,7 @@ pub fn process(
 }
 
 fn handle_custom_event(
-    event: crate::Event, core: &mut lb_rs::Core, open_file: Uuid,
+    event: crate::Event, core: &mut lb_rs::Core, file_id: Uuid,
 ) -> Vec<Modification> {
     match event {
         crate::Event::Markdown(modification) => vec![modification],
@@ -84,16 +84,20 @@ fn handle_custom_event(
             let mut modifications = Vec::new();
             for clip in content {
                 match clip {
-                    ClipContent::Png(data) => {
-                        let file = tab::import_image(core, open_file, &data);
-                        let markdown_image_link = format!("![{}](lb://{})", file.name, file.id);
+                    ClipContent::Image(data) => {
+                        let file = tab::import_image(core, file_id, &data);
+                        let rel_path = tab::core_get_relative_path(core, file_id, file.id);
+                        let markdown_image_link = format!("![{}]({})", file.name, rel_path);
 
                         modifications.push(Modification::Replace {
                             region: Region::Selection, // todo: more thoughtful location
                             text: markdown_image_link,
                         });
                     }
-                    ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
+                    ClipContent::Files(..) => {
+                        // todo: support file drop & paste
+                        println!("unimplemented: editor file drop & paste");
+                    }
                 }
             }
             modifications

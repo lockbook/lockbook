@@ -98,9 +98,6 @@ struct PathSearchActionBar: View {
                             .shadow(radius: 10)
                     )
                     .frame(width: 500)
-                    .onChange(of: text, perform: { newValue in
-                        search.search(query: newValue, isPathAndContentSearch: false)
-                    })
                 }
                 .padding(.top, geometry.size.height / 4.5)
                 .padding(.leading, (geometry.size.width / 2) - 250)
@@ -367,7 +364,7 @@ struct SearchResultCellView: View {
             DI.search.openPathAtIndex(index: index)
         }, label: {
             HStack {
-                Image(systemName: documentExtensionToImage(name: name))
+                Image(systemName: FileService.docExtToSystemImage(name: name))
                     .resizable()
                     .frame(width: 20, height: 25)
                     .padding(.horizontal, 10)

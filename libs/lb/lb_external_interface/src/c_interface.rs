@@ -705,7 +705,11 @@ pub unsafe extern "C" fn end_search(is_path_content_search: bool) -> *const c_ch
         MAYBE_PATH_SEARCH_TX.lock()
     } {
         Ok(mut lock) => *lock = None,
-        Err(_) => return c_string(translate(Err::<(), _>("Cannot get search lock."))),
+        Err(_) => {
+            release_pointer(result as *mut c_char);
+
+            return c_string(translate(Err::<(), _>("Cannot get search lock.")));
+        }
     }
 
     result
@@ -733,6 +737,17 @@ pub unsafe extern "C" fn time_ago(time_stamp: i64) -> *const c_char {
             .to_string()
     } else {
         "never".to_string()
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn debug_info(os_info: *const c_char) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => core.debug_info(str_from_ptr(os_info)),
+        e => translate(e.map(|_| ())),
     })
 }
 

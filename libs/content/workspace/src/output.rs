@@ -14,6 +14,8 @@ pub struct WsOutput {
     pub new_folder_clicked: bool,
     pub tab_title_clicked: bool,
 
+    pub hide_virtual_keyboard: bool,
+
     pub file_created: Option<Result<File, String>>,
 
     pub error: Option<String>,
@@ -25,6 +27,17 @@ pub struct WsOutput {
     // todo see below comment about this anti-patern I've created. Only one place should be updating this, we'll refactor
     // this more thoroughly in 0.8.6
     pub status: PersistentWsStatus,
+
+    // first of all, love the above commitment to refactor something in 0.8.6 (we're now on 0.9.4). it do be like that.
+    // next up, acknowledging the need for a better pattern here, but there are some editor-specific outputs that need
+    // to make their way across FFI and it's cleaner to put them in this transient data structure than to maintain them
+    // as persistent editor state
+    pub markdown_editor_text_updated: bool,
+    pub markdown_editor_selection_updated: bool,
+
+    pub markdown_editor_show_edit_menu: bool,
+    pub markdown_editor_edit_menu_x: f32,
+    pub markdown_editor_edit_menu_y: f32,
 }
 
 // todo: this should probably not be included in output

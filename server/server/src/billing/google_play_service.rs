@@ -57,10 +57,10 @@ where
         subscription: &SubscriptionPurchase, notification_type: &NotificationType,
         public_key: PublicKey,
     ) -> Result<UnixTimeMillis, ServerError<GooglePlayWebhookError>> {
-        subscription
+        UnixTimeMillis::try_from(subscription
         .expiry_time_millis
-        .as_ref()
-        .ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type))?.parse().map_err(|e| internal!("Cannot parse millis into int: {:?}", e))
+        .ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type))?)
+        .map_err(|e| internal!("Cannot parse millis into int: {:?}", e))
     }
 
     pub async fn verify_request_and_get_notification(
