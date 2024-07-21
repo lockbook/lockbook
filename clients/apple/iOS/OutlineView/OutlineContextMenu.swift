@@ -49,10 +49,8 @@ struct OutlineContextMenu: View {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 }
                 
-                Button(action: { DI.files.deleteFile(id: meta.id) }) {
-                    Label("Delete", systemImage: "trash.fill")
-                }
-
+                Divider()
+                
                 Button(action: { DI.sheets.sharingFileInfo = meta}) {
                     Label("Share", systemImage: "person.wave.2.fill")
                 }
@@ -60,13 +58,21 @@ struct OutlineContextMenu: View {
                 Button(action: { exportFileAndShowShareSheet(meta: meta) }) {
                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                 }
-            }
-            
-            if meta.fileType == .Document {
-                Button(action: {
-                    DI.files.copyFileLink(id: meta.id)
+                
+                if meta.fileType == .Document {
+                    Button(action: {
+                        DI.files.copyFileLink(id: meta.id)
+                    }) {
+                        Label("Copy file link", systemImage: "link")
+                    }
+                }
+                
+                Divider()
+                
+                Button(role: .destructive, action: {
+                    DI.sheets.deleteConfirmationInfo = meta
                 }) {
-                    Label("Copy file link", systemImage: "link")
+                    Label("Delete", systemImage: "trash.fill")
                 }
             }
         }

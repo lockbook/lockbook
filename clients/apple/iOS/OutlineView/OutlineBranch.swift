@@ -62,12 +62,11 @@ struct OutlineBranch: View {
             .contextMenu(menuItems: {
                 OutlineContextMenu(meta: file, branchState: state)
             })
-        }
-    }
-    
-    func handleDelete(meta: File) -> () -> Void {
-        {
-            files.deleteFile(id: meta.id)
+            .confirmationDialog("Are you sure? This action cannot be undone.", isPresented: Binding(get: { sheets.deleteConfirmationInfo?.id == file.id }, set: { sheets.deleteConfirmation = $0 }), titleVisibility: .visible, actions: {
+                if let meta = sheets.deleteConfirmationInfo {
+                    DeleteConfirmationButtons(meta: meta)
+                }
+            })
         }
     }
 }
