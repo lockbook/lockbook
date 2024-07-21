@@ -23,6 +23,8 @@ struct FileCell: View {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 })
                 
+                Divider()
+                
                 Button(action: {
                     DI.sheets.sharingFileInfo = meta
                 }, label: {
@@ -42,6 +44,8 @@ struct FileCell: View {
                         Label("Copy file link", systemImage: "link")
                     }
                 }
+                
+                Divider()
                 
                 Button(role: .destructive, action: {
                     DI.sheets.deleteConfirmationInfo = meta

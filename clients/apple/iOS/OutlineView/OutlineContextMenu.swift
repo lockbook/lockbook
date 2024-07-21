@@ -49,6 +49,8 @@ struct OutlineContextMenu: View {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 }
                 
+                Divider()
+                
                 Button(action: { DI.sheets.sharingFileInfo = meta}) {
                     Label("Share", systemImage: "person.wave.2.fill")
                 }
@@ -64,6 +66,8 @@ struct OutlineContextMenu: View {
                         Label("Copy file link", systemImage: "link")
                     }
                 }
+                
+                Divider()
                 
                 Button(role: .destructive, action: {
                     DI.sheets.deleteConfirmationInfo = meta
