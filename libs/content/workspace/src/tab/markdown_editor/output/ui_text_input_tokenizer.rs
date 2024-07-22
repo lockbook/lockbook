@@ -1,5 +1,5 @@
 use crate::tab::markdown_editor::{
-    bounds::{BoundCase, Bounds, Lines},
+    bounds::{BoundCase, Bounds},
     input::canonical::Bound,
     offset_types::{DocCharOffset, RangeExt as _},
 };
@@ -36,15 +36,15 @@ impl UITextInputTokenizer for Bounds {
             Bound::Char => {
                 return true;
             }
-            Bound::Word => self.words.clone(),
-            Bound::Line => adjust_line_boundaries(&self.lines),
-            Bound::Paragraph => self.paragraphs.clone(),
+            Bound::Word => &self.words,
+            Bound::Line => &self.lines,
+            Bound::Paragraph => &self.paragraphs,
             Bound::Doc => {
                 return text_position == DocCharOffset(0)
                     || text_position == self.text.last().copied().unwrap_or_default().end();
             }
         };
-        match text_position.bound_case(&ranges) {
+        match text_position.bound_case(ranges) {
             BoundCase::NoRanges => true,
             BoundCase::AtFirstRangeStart { first_range, .. } => {
                 if !in_backward_direction {
@@ -82,14 +82,14 @@ impl UITextInputTokenizer for Bounds {
             Bound::Char => {
                 return true;
             }
-            Bound::Word => self.words.clone(),
-            Bound::Line => adjust_line_boundaries(&self.lines),
-            Bound::Paragraph => self.paragraphs.clone(),
+            Bound::Word => &self.words,
+            Bound::Line => &self.lines,
+            Bound::Paragraph => &self.paragraphs,
             Bound::Doc => {
                 return true;
             }
         };
-        match text_position.bound_case(&ranges) {
+        match text_position.bound_case(ranges) {
             BoundCase::NoRanges => false,
             BoundCase::AtFirstRangeStart { first_range, .. } => {
                 if !in_backward_direction {
@@ -127,14 +127,26 @@ impl UITextInputTokenizer for Bounds {
             Bound::Char => {
                 unimplemented!()
             }
-            Bound::Word => self.words.clone(),
-            Bound::Line => adjust_line_boundaries(&self.lines),
-            Bound::Paragraph => self.paragraphs.clone(),
+            Bound::Word => &self.words,
+            Bound::Line => {
+                // note: lines handled as words
+                //
+                // I assume there's a mistake in the implementation of Apple's virtual keyboard. Documentation and
+                // examples are sparse - we do not have a single working implementation, even using the built-in
+                // tokenizer or a reference implementation crafted by an Apple engineer for us.
+                //
+                // I inspected the keyboard behavior by logging all fn calls and their results. The keyboard iterates
+                // the returned ranges until it receives a nil value, which is more consistent with a text granularity
+                // that is non-contiguous the way words are and lines are not. This seems to be what it takes to get
+                // the correct undeline behavior after autocorrecting a word.
+                &self.words
+            }
+            Bound::Paragraph => &self.paragraphs,
             Bound::Doc => {
                 unimplemented!()
             }
         };
-        match text_position.bound_case(&ranges) {
+        match text_position.bound_case(ranges) {
             BoundCase::NoRanges => None,
             BoundCase::AtFirstRangeStart { first_range, .. } => {
                 if in_backward_direction {
@@ -172,17 +184,6 @@ impl UITextInputTokenizer for Bounds {
             BoundCase::BetweenRanges { .. } => None,
         }
     }
-}
-
-// "A text position is a line boundary in the forward direction if the text position is one before the end of a line's
-// text range." -A stranger on the internet
-// https://gist.github.com/allending/805570#file-nkttextviewtokenizer-m-L234-L235
-fn adjust_line_boundaries(lines: &Lines) -> Lines {
-    lines.clone()
-    // lines
-    //     .iter()
-    //     .map(|&range| if range.is_empty() { range } else { (range.0 + 1, range.1) })
-    //     .collect()
 }
 
 #[cfg(test)]
