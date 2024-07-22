@@ -138,7 +138,9 @@ class Workspace private constructor() {
 }
 
 @Serializable
-data class JTextRange(val none: Boolean, val start: Int, val end: Int)
+data class JTextRange(val none: Boolean, val start: Int, val end: Int) {
+    fun isEmpty(): Boolean = none || end - start == 0
+}
 @Serializable
 data class JTextPosition(val none: Boolean, val position: Int)
 

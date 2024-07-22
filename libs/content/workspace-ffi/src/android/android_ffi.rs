@@ -67,10 +67,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     let workspace = if old_wgpu != jlong::MAX {
         let mut old_wgpu: Box<WgpuWorkspace> = unsafe { Box::from_raw(old_wgpu as *mut _) };
 
-        old_wgpu
-            .workspace
-            .invalidate_egui_references(&context, core);
-        old_wgpu.workspace
+        panic!("CRASH PLEASE")
     } else {
         Workspace::new(ws_cfg, core, &context)
     };

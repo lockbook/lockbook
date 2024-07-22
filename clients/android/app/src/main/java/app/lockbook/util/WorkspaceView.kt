@@ -7,10 +7,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
@@ -31,8 +34,11 @@ import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import java.lang.Long.max
 import java.math.BigInteger
+import java.util.concurrent.CountDownLatch
+
 
 @SuppressLint("ViewConstructor")
 class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
@@ -41,6 +47,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private var surface: Surface? = null
     var wrapperView: View? = null
     var contextMenu: ActionMode? = null
+
+    var ignoreSelectionUpdate = false
 
     private val frameOutputJsonParser = Json {
         ignoreUnknownKeys = true
@@ -227,7 +235,17 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
 
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+        drawWorkspace()
+    }
+
+    fun drawImmediately() {
+        ignoreSelectionUpdate = true
+        drawWorkspace()
+        ignoreSelectionUpdate = false
+    }
+
+    fun drawWorkspace() {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
             return
         }
 
@@ -279,24 +297,25 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         if (currentTab == WorkspaceTab.Markdown) {
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
+                if(response.workspaceResp.selectionUpdated && !ignoreSelectionUpdate) {
+                    textInputWrapper.wsInputConnection.notifySelectionUpdated()
+                }
+
                 if (response.workspaceResp.showEditMenu && contextMenu == null) {
                     val actionModeCallback =
                         TextEditorContextMenu(textInputWrapper)
 
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        contextMenu = this.startActionMode(FloatingTextEditorContextMenu(actionModeCallback, response.workspaceResp.editMenuX, response.workspaceResp.editMenuY), ActionMode.TYPE_FLOATING)
+                    contextMenu = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        this.startActionMode(
+                            FloatingTextEditorContextMenu(
+                                actionModeCallback,
+                                response.workspaceResp.editMenuX,
+                                response.workspaceResp.editMenuY
+                            ), ActionMode.TYPE_FLOATING
+                        )
                     } else {
-                        contextMenu = this.startActionMode(actionModeCallback)
+                        this.startActionMode(actionModeCallback)
                     }
-                }
-
-                if (response.workspaceResp.selectionUpdated) {
-                    textInputWrapper.wsInputConnection.wsEditable.let {
-                        it.intermediateSelectionStart = -1
-                        it.intermediateSelectionEnd = -1
-                    }
-
-                    textInputWrapper.wsInputConnection.notifySelectionUpdated()
                 }
             }
         }
@@ -357,13 +376,15 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         private fun populateMenuWithItems(menu: Menu) {
-            menu.add(Menu.NONE, android.R.id.cut, 0, "Cut")
-                .setAlphabeticShortcut('x')
-                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            if(!textInputWrapper.wsInputConnection.wsEditable.getSelection().isEmpty()) {
+                menu.add(Menu.NONE, android.R.id.cut, 0, "Cut")
+                    .setAlphabeticShortcut('x')
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
 
-            menu.add(Menu.NONE, android.R.id.copy, 1, "Copy")
-                .setAlphabeticShortcut('c')
-                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+                menu.add(Menu.NONE, android.R.id.copy, 1, "Copy")
+                    .setAlphabeticShortcut('c')
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            }
 
             menu.add(Menu.NONE, android.R.id.paste, 2, "Paste")
                 .setAlphabeticShortcut('v')
