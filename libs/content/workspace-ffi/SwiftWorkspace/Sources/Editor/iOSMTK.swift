@@ -542,18 +542,15 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             res = ComparisonResult.orderedDescending
         }
         
-        print("compare(position=\((position as? LBTextPos)?.c), to=\((other as? LBTextPos)?.c) result=\(res)")
         return res
     }
     
     public func offset(from: UITextPosition, to toPosition: UITextPosition) -> Int {
         
         guard let left = (from as? LBTextPos)?.c.pos, let right = (toPosition as? LBTextPos)?.c.pos else {
-            print("offset(from=\((from as? LBTextPos)?.c), to=\((toPosition as? LBTextPos)?.c) result=\(0)")
             return 0
         }
 
-        print("offset(from=\((from as? LBTextPos)?.c), to=\((toPosition as? LBTextPos)?.c) result=\(Int(right) - Int(left))")
         return Int(right) - Int(left)
     }
     
@@ -616,7 +613,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         let point = CPoint(x: x, y: y + iOSMTK.TAB_BAR_HEIGHT)
         let result = position_at_point(wsHandle, point)
         if result.none {
-            print("\(#function) returned nil (new)")
             return nil
         }
         
@@ -640,12 +636,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func deleteBackward() {
         if !hasText {
-            print("\(#function) early returned (1)")
             return
         }
         
         guard let rangeToReplace = (markedTextRange ?? selectedTextRange) as? LBTextRange else {
-            print("\(#function) early returned (2)")
             return
         }
         
@@ -1243,7 +1237,6 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
         let backwards = direction.rawValue == UITextStorageDirection.backward.rawValue
         let result = bound_from_position(wsHandle, position, granularity, backwards)
         if result.none {
-            print("\(#function) returned nil (new)")
             return nil
         }
         return LBTextPos(c: result)
@@ -1258,7 +1251,6 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
         let result = bound_at_position(wsHandle, position, granularity, backwards)
         
         if result.none {
-            print("\(#function) returned nil (new)")
             return nil
         }
         

@@ -3,9 +3,7 @@ use lb_external_interface::lb_rs::Uuid;
 use std::ffi::c_char;
 use workspace_rs::output::WsOutput;
 use workspace_rs::tab::markdown_editor::input::canonical::{Bound, Location, Region};
-use workspace_rs::tab::markdown_editor::offset_types::{
-    DocCharOffset, RangeExt as _, RelCharOffset,
-};
+use workspace_rs::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -127,7 +125,8 @@ impl From<(DocCharOffset, DocCharOffset)> for CTextRange {
         if value.is_empty() {
             CTextRange { none: true, ..Default::default() }
         } else {
-            CTextRange { none: false, start: value.start().into(), end: value.end().into() }
+            // note: preserve range order, even if it's backwards  (unlike opposite conversion)
+            CTextRange { none: false, start: value.0.into(), end: value.1.into() }
         }
     }
 }
@@ -191,9 +190,9 @@ pub enum CTextGranularity {
     Document = 5,
 }
 
-impl Into<Bound> for CTextGranularity {
-    fn into(self) -> Bound {
-        match self {
+impl From<CTextGranularity> for Bound {
+    fn from(val: CTextGranularity) -> Bound {
+        match val {
             CTextGranularity::Character => Bound::Char,
             CTextGranularity::Word => Bound::Word,
             CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
@@ -213,33 +212,50 @@ pub struct CRect {
     pub max_y: f64,
 }
 
-impl From<CTextRange> for (DocCharOffset, DocCharOffset) {
+impl From<CTextRange> for Option<(DocCharOffset, DocCharOffset)> {
     fn from(value: CTextRange) -> Self {
-        (value.start.pos.into(), value.end.pos.into())
+        if value.none {
+            None
+        } else {
+            // note: re-order values if necessary (unlike opposite conversion)
+            let result = (value.start.pos.into(), value.end.pos.into());
+            Some((result.start(), result.end()))
+        }
     }
 }
 
-impl From<CTextRange> for (RelCharOffset, RelCharOffset) {
+impl From<CTextRange> for Option<Region> {
     fn from(value: CTextRange) -> Self {
-        (value.start.pos.into(), value.end.pos.into())
+        if value.none {
+            None
+        } else {
+            let result: (DocCharOffset, DocCharOffset) =
+                (value.start.pos.into(), value.end.pos.into());
+            Some(Region::BetweenLocations {
+                start: Location::DocCharOffset(result.start()),
+                end: Location::DocCharOffset(result.end()),
+            })
+        }
     }
 }
 
-impl From<CTextRange> for Region {
-    fn from(value: CTextRange) -> Self {
-        Region::BetweenLocations { start: value.start.into(), end: value.end.into() }
-    }
-}
-
-impl From<CTextPosition> for Location {
+impl From<CTextPosition> for Option<Location> {
     fn from(value: CTextPosition) -> Self {
-        Location::DocCharOffset(value.pos.into())
+        if value.none {
+            None
+        } else {
+            Some(Location::DocCharOffset(value.pos.into()))
+        }
     }
 }
 
-impl From<CTextPosition> for DocCharOffset {
+impl From<CTextPosition> for Option<DocCharOffset> {
     fn from(value: CTextPosition) -> Self {
-        DocCharOffset(value.pos.into())
+        if value.none {
+            None
+        } else {
+            Some(value.pos.into())
+        }
     }
 }
 

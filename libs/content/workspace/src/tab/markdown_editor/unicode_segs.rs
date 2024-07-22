@@ -36,8 +36,6 @@ impl UnicodeSegs {
             return DocCharOffset(0);
         }
 
-        println!("grapheme_indexes: {:?}", self.grapheme_indexes);
-
         DocCharOffset(self.grapheme_indexes.binary_search(&i).unwrap())
     }
 
