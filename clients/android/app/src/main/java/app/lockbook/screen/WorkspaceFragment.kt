@@ -7,7 +7,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
@@ -42,7 +41,6 @@ import app.lockbook.workspace.JTextRange
 import com.github.michaelbull.result.unwrap
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import timber.log.Timber
 import kotlin.math.abs
 
 class WorkspaceFragment : Fragment() {
@@ -501,17 +499,14 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun getSpanStart(tag: Any?): Int {
         if (tag == Selection.SELECTION_START) {
-            Timber.e("getting selectionStart=${selectionStart} vs ${getSelection().start}")
             return selectionStart
         }
 
         if (tag == Selection.SELECTION_END) {
-            Timber.e("getting selectionEnd=${selectionEnd}")
             return selectionEnd
         }
 
         if (tag == composingTag || ((tag ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {
-            Timber.e("getting composingStart=${composingStart}")
             return composingStart
         }
 
@@ -524,12 +519,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         }
 
         if (tag == composingTag || ((tag ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {
-//            if (composingEnd > length) {
-//                composingEnd = length
-//            }
-
-            Timber.e("getting composingEnd=${composingEnd}")
-
             return composingEnd
         }
 
@@ -560,21 +549,16 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
         if (what == Selection.SELECTION_START) {
-            Timber.e("setting selectionStart=${start} (and maybe selectionEnd=${end})")
             selectionStartSpanFlag = flags
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
             view.drawImmediately()
-            Timber.e("after immediate draw=${getSelection().start}")
         } else if (what == Selection.SELECTION_END) {
-            Timber.e("setting selectionEnd=${end} (and maybe selectionStart=${start})")
             selectionEndSpanFlag = flags
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
             view.drawImmediately()
-            Timber.e("after immediate draw=${getSelection().end}")
         } else if ((flags and Spanned.SPAN_COMPOSING) != 0) {
             composingFlag = flags
             composingTag = what
-            Timber.e("setting composingStart=${start} composingEnd=${end}")
             composingStart = start
             composingEnd = end
         } else {
@@ -586,20 +570,16 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun removeSpan(what: Any?) {
         if (what == composingTag || ((what ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {
-            Timber.e("removing composingSpan")
             composingStart = -1
             composingEnd = -1
 
             wsInputConnection.notifySelectionUpdated()
-        } else {
-            Timber.e("removing other span? ${(what ?: Unit)::class.simpleName}")
         }
     }
 
     override fun append(text: CharSequence?): Editable {
         text?.let { realText ->
             WorkspaceView.WORKSPACE.append(WorkspaceView.WGPU_OBJ, realText.toString())
-            Timber.e("appending $realText")
 
             view.drawImmediately()
         }
@@ -609,8 +589,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun append(text: CharSequence?, start: Int, end: Int): Editable {
         WorkspaceView.WORKSPACE.append(WorkspaceView.WGPU_OBJ, text?.substring(start, end) ?: "null")
-        Timber.e("appending ${text?.substring(start, end) ?: "null"}")
-
         view.drawImmediately()
 
         return this
@@ -618,8 +596,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun append(text: Char): Editable {
         WorkspaceView.WORKSPACE.append(WorkspaceView.WGPU_OBJ, text.toString())
-        Timber.e("appending $text")
-
         view.drawImmediately()
         wsInputConnection.notifySelectionUpdated()
 
@@ -632,14 +608,11 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
             if (st == selectionStart && en == selectionEnd) {
                 if (realText == "\n") {
-                    Timber.e("replace (inserting) newline at cursor start=${st} end=${en}")
                     WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
                 } else {
-                    Timber.e("replace (inserting) ${sourceString} at cursor start=${st} end=${en}")
                     WorkspaceView.WORKSPACE.insertTextAtCursor(WorkspaceView.WGPU_OBJ, sourceString)
                 }
             } else {
-                Timber.e("replace start=${st} end=${en} with ${sourceString}")
                 WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, sourceString)
             }
 
@@ -661,14 +634,11 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         text?.let { realText ->
             if (st == selectionStart && en == selectionEnd) {
                 if (realText == "\n") {
-                    Timber.e("replace (inserting) newline at cursor start=${st} end=${en}")
                     WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
                 } else {
-                    Timber.e("replace (inserting) ${realText} at cursor start=${st} end=${en}")
                     WorkspaceView.WORKSPACE.insertTextAtCursor(WorkspaceView.WGPU_OBJ, realText.toString())
                 }
             } else {
-                Timber.e("replace start=${st} end=${en} with ${realText}")
                 WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, realText.toString())
             }
 
@@ -691,10 +661,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             val subRealText = realText.substring(start, end)
 
             if (subRealText == "\n" && selectionEnd == where && selectionStart == where) {
-                Timber.e("inserting newline at zero width cursor where=${where}")
                 WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
             } else {
-                Timber.e("inserting where=${where} with $subRealText")
                 WorkspaceView.WORKSPACE.insert(WorkspaceView.WGPU_OBJ, where, subRealText)
             }
 
@@ -713,10 +681,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     override fun insert(where: Int, text: CharSequence?): Editable {
         text?.let { realText ->
             if (realText == "\n" && selectionEnd == where && selectionStart == where) {
-                Timber.e("inserting newline at zero width cursor where=${where}")
                 WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
             } else {
-                Timber.e("inserting where=${where} with $realText")
                 WorkspaceView.WORKSPACE.insert(WorkspaceView.WGPU_OBJ, where, realText.toString())
             }
 
@@ -734,7 +700,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun delete(st: Int, en: Int): Editable {
         WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, "")
-        Timber.e("deleting from start=${st} to end=${en}")
 
         if (en < composingStart) {
             composingStart -= (en - st)
@@ -749,7 +714,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun clear() {
         WorkspaceView.WORKSPACE.clear(WorkspaceView.WGPU_OBJ)
-        Timber.e("clearing all text")
 
         composingStart = -1
         composingEnd = -1

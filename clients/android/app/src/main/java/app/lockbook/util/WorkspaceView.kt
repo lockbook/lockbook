@@ -7,13 +7,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
@@ -34,11 +31,8 @@ import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import timber.log.Timber
 import java.lang.Long.max
 import java.math.BigInteger
-import java.util.concurrent.CountDownLatch
-
 
 @SuppressLint("ViewConstructor")
 class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
@@ -297,7 +291,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         if (currentTab == WorkspaceTab.Markdown) {
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-                if(response.workspaceResp.selectionUpdated && !ignoreSelectionUpdate) {
+                if (response.workspaceResp.selectionUpdated && !ignoreSelectionUpdate) {
                     textInputWrapper.wsInputConnection.notifySelectionUpdated()
                 }
 
@@ -311,7 +305,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                                 actionModeCallback,
                                 response.workspaceResp.editMenuX,
                                 response.workspaceResp.editMenuY
-                            ), ActionMode.TYPE_FLOATING
+                            ),
+                            ActionMode.TYPE_FLOATING
                         )
                     } else {
                         this.startActionMode(actionModeCallback)
@@ -376,7 +371,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         private fun populateMenuWithItems(menu: Menu) {
-            if(!textInputWrapper.wsInputConnection.wsEditable.getSelection().isEmpty()) {
+            if (!textInputWrapper.wsInputConnection.wsEditable.getSelection().isEmpty()) {
                 menu.add(Menu.NONE, android.R.id.cut, 0, "Cut")
                     .setAlphabeticShortcut('x')
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
