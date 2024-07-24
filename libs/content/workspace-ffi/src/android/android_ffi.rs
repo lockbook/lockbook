@@ -23,7 +23,6 @@ use workspace_rs::tab::EventManager;
 use workspace_rs::tab::TabContent;
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::{Workspace, WsConfig};
-use serde::Serialize;
 
 use super::keyboard::AndroidKeys;
 
