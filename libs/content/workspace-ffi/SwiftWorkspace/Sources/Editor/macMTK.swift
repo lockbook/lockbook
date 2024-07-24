@@ -272,8 +272,15 @@ public class MacMTK: MTKView, MTKViewDelegate {
         set_scale(wsHandle, scale)
         let output = draw_workspace(wsHandle)
 
-        workspaceState?.syncing = output.workspace_resp.syncing
-        workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
+        if output.workspace_resp.status_updated {
+            let status = get_status(wsHandle)
+            let msg = String(cString: status.msg)
+            free_text(status.msg)
+            let syncing = status.syncing
+            workspaceState?.syncing = syncing
+            workspaceState?.statusMsg = msg
+        }
+        
         workspaceState?.reloadFiles = output.workspace_resp.refresh_files
 
         let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)
