@@ -8,12 +8,12 @@ use workspace_rs::workspace::Workspace;
 #[cfg(target_vendor = "apple")]
 pub mod apple;
 
-// /// cbindgen:ignore
-// #[cfg(target_os = "android")]
+/// cbindgen:ignore
+#[cfg(target_os = "android")]
 pub mod android;
 
-// /// cbindgen:ignore
-// #[cfg(target_os = "android")]
+/// cbindgen:ignore
+#[cfg(target_os = "android")]
 pub use android::resp::*;
 
 #[cfg(not(target_os = "android"))]

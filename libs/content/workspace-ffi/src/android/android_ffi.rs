@@ -14,6 +14,7 @@ use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jstring};
 use jni::JNIEnv;
 use lb_external_interface::lb_rs::Core;
 use lb_external_interface::lb_rs::Uuid;
+use serde::Serialize;
 use std::panic::catch_unwind;
 use std::time::Instant;
 use workspace_rs::register_fonts;
@@ -22,7 +23,6 @@ use workspace_rs::tab::EventManager;
 use workspace_rs::tab::TabContent;
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::{Workspace, WsConfig};
-use serde::Serialize;
 
 use super::keyboard::AndroidKeys;
 
@@ -289,15 +289,15 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getStatus(
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let status = WsStatus { 
-        syncing: obj.workspace.status.syncing, 
-        msg: obj.workspace.status.message.clone()
+    let status = WsStatus {
+        syncing: obj.workspace.status.syncing,
+        msg: obj.workspace.status.message.clone(),
     };
-    
+
     return env
-            .new_string(serde_json::to_string(&status).unwrap())
-            .expect("Couldn't create JString from rust string!")
-            .into_raw()
+        .new_string(serde_json::to_string(&status).unwrap())
+        .expect("Couldn't create JString from rust string!")
+        .into_raw();
 }
 
 #[no_mangle]

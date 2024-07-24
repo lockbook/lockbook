@@ -252,7 +252,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             startActivity(context, browserIntent, null)
         }
 
-        if(response.workspaceResp.statusUpdated) {
+        if (response.workspaceResp.statusUpdated) {
             val status: WsStatus = frameOutputJsonParser.decodeFromString(Workspace.getInstance().getStatus(WGPU_OBJ))
 
             if (model.isSyncing && !status.syncing) {
