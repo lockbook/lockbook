@@ -122,7 +122,7 @@ impl super::AccountScreen {
             .padding(egui::vec2(10.0, 7.0))
             .frame(true)
             .rounding(egui::Rounding::same(5.0))
-            .is_loading(self.workspace.pers_status.syncing)
+            .is_loading(self.workspace.status.syncing)
             .show(ui);
 
         if sync_btn.clicked() {
@@ -135,9 +135,9 @@ impl super::AccountScreen {
         }
 
         let tooltip_msg = if !self.sync.btn_lost_hover_after_sync {
-            self.workspace.pers_status.sync_message.to_owned()
+            self.workspace.status.sync_message.to_owned()
         } else {
-            Some(format!("Updated {}", &self.workspace.pers_status.dirtyness.last_synced))
+            Some(format!("Updated {}", &self.workspace.status.dirtyness.last_synced))
         };
 
         if let Some(msg) = tooltip_msg {
@@ -152,7 +152,7 @@ impl super::AccountScreen {
         let msg = if let Err(err_msg) = &self.sync.initial_status {
             err_msg.to_owned()
         } else {
-            let dirty_files_count = self.workspace.pers_status.dirtyness.dirty_files.len();
+            let dirty_files_count = self.workspace.status.dirtyness.dirty_files.len();
             if dirty_files_count > 5 {
                 format!(
                     "{} change{} needs to be synced",

@@ -1,10 +1,11 @@
 import SwiftUI
 import SwiftLockbookCore
+import SwiftWorkspace
 
-/// This view handles displaying the contents of each row for its object. Clicking its arrow image also toggles a node's open state./
 struct OutlineRow: View {
     
     @EnvironmentObject var files: FileService
+    @EnvironmentObject var workspace: WorkspaceState
     
     var file: File
     var level: CGFloat
@@ -26,7 +27,7 @@ struct OutlineRow: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 16, height: 16)
-                .foregroundColor(file.fileType == .Folder ? .accentColor : .secondary)
+                .foregroundColor(file.fileType == .Folder ? .accentColor : (workspace.openDoc == file.id ? .white : .secondary ))
             
             Text(file.name)
                 .lineLimit(1) // If lineLimit is not specified, non-leaf names will wrap
