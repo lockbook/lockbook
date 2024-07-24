@@ -427,14 +427,8 @@ impl AccountScreen {
 
                     let incoming_shares_btn = Button::default()
                         .icon(
-                            &Icon::SHARED_FOLDER.badge(
-                                !self
-                                    .workspace
-                                    .status
-                                    .dirtyness
-                                    .pending_shares
-                                    .is_empty(),
-                            ),
+                            &Icon::SHARED_FOLDER
+                                .badge(!self.workspace.status.dirtyness.pending_shares.is_empty()),
                         )
                         .show(ui);
 

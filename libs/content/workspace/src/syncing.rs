@@ -1,4 +1,7 @@
-use crate::{output::DirtynessMsg, workspace::{Workspace, WsMsg}};
+use crate::{
+    output::DirtynessMsg,
+    workspace::{Workspace, WsMsg},
+};
 use lb_rs::{CoreError, LbError, SyncProgress, SyncStatus};
 use std::thread;
 
