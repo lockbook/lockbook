@@ -5,21 +5,34 @@ use crate::tab::markdown_editor::offset_types::DocCharOffset;
 
 use super::canonical::{Location, Modification, Region};
 
-/// Merge merges changes made outside the editor with changes made inside the editor by evaluating the diff between
-/// the base and new content and fuzzy-patching the diff onto the editor's content.
 // implementation note: this works because similar uses the same grapheme definition as we do, so reported indexes can
 // be interpreted as doc char offsets
-pub fn merge(base: &str, new: &str) -> Vec<Modification> {
-    let mut hook = Hook::new(new);
+pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Modification> {
+    let mut hook = Hook::new(remote);
+
+    // remote changes
     similar::algorithms::diff(
         similar::Algorithm::Myers,
         &mut hook,
         &base.as_diffable_str().tokenize_graphemes(),
         0..base.len(),
-        &new.as_diffable_str().tokenize_graphemes(),
-        0..new.len(),
+        &remote.as_diffable_str().tokenize_graphemes(),
+        0..remote.len(),
     )
     .expect("unexpected error (DiffHook does not emit errors)");
+
+    // local changes
+    hook.new = local;
+    similar::algorithms::diff(
+        similar::Algorithm::Myers,
+        &mut hook,
+        &base.as_diffable_str().tokenize_graphemes(),
+        0..base.len(),
+        &local.as_diffable_str().tokenize_graphemes(),
+        0..local.len(),
+    )
+    .expect("unexpected error (DiffHook does not emit errors)");
+
     hook.events()
 }
 
