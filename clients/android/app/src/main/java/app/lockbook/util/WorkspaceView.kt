@@ -238,7 +238,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         ignoreSelectionUpdate = false
     }
 
-    fun drawWorkspace() {
+    private fun drawWorkspace() {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
             return
         }
@@ -293,6 +293,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
                 if (response.workspaceResp.selectionUpdated && !ignoreSelectionUpdate) {
                     textInputWrapper.wsInputConnection.notifySelectionUpdated()
+                }
+
+                if(response.workspaceResp.textUpdated && contextMenu != null) {
+                    contextMenu?.finish()
                 }
 
                 if (response.workspaceResp.showEditMenu && contextMenu == null) {
