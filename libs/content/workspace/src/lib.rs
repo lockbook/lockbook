@@ -5,6 +5,7 @@ pub mod tab;
 pub mod theme;
 pub mod widgets;
 pub mod workspace;
+mod status;
 
 pub use tab::Event;
 

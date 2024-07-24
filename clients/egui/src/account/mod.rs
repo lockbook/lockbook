@@ -430,7 +430,7 @@ impl AccountScreen {
                             &Icon::SHARED_FOLDER.badge(
                                 !self
                                     .workspace
-                                    .pers_status
+                                    .status
                                     .dirtyness
                                     .pending_shares
                                     .is_empty(),

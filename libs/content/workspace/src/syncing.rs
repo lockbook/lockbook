@@ -1,5 +1,4 @@
-use crate::output::{DirtynessMsg, WsOutput};
-use crate::workspace::{Workspace, WsMsg};
+use crate::{output::DirtynessMsg, workspace::{Workspace, WsMsg}};
 use lb_rs::{CoreError, LbError, SyncProgress, SyncStatus};
 use std::thread;
 
@@ -7,11 +6,13 @@ impl Workspace {
     // todo should anyone outside workspace ever call this? Or should they call something more
     // general that would allow workspace to determine if a sync is needed
     pub fn perform_sync(&mut self) {
-        if self.pers_status.syncing {
+        if self.status.syncing {
             return;
         }
 
-        self.pers_status.syncing = true;
+        self.status.error = None;
+        self.out.status_updated = true;
+        self.status.syncing = true;
 
         let core = self.core.clone();
         let update_tx = self.updates_tx.clone();
@@ -38,24 +39,27 @@ impl Workspace {
     }
 
     pub fn sync_message(&mut self, prog: SyncProgress) {
-        self.pers_status.sync_progress = prog.progress as f32 / prog.total as f32;
-        self.pers_status.sync_message = Some(prog.msg);
+        self.out.status_updated = true;
+        self.status.sync_progress = prog.progress as f32 / prog.total as f32;
+        self.status.sync_message = Some(prog.msg);
     }
 
-    pub fn sync_done(&mut self, outcome: Result<SyncStatus, LbError>, out: &mut WsOutput) {
-        self.pers_status.syncing = false;
+    pub fn sync_done(&mut self, outcome: Result<SyncStatus, LbError>) {
+        self.out.status_updated = true;
+        self.status.syncing = false;
         match outcome {
             Ok(done) => {
-                self.pers_status.offline = false;
+                self.status.error = None;
+                self.status.offline = false;
                 self.refresh_sync_status();
                 self.refresh_files(&done);
-                out.sync_done = Some(done)
+                self.out.sync_done = Some(done)
             }
             Err(err) => match err.kind {
-                CoreError::ServerUnreachable => self.pers_status.offline = true,
-                CoreError::ClientUpdateRequired => self.pers_status.update_req = true,
-                CoreError::UsageIsOverDataCap => self.pers_status.out_of_space = true,
-                CoreError::Unexpected(msg) => out.error = Some(msg),
+                CoreError::ServerUnreachable => self.status.offline = true,
+                CoreError::ClientUpdateRequired => self.status.update_req = true,
+                CoreError::UsageIsOverDataCap => self.status.out_of_space = true,
+                CoreError::Unexpected(msg) => self.out.error = Some(msg),
                 _ => {}
             },
         }
@@ -97,6 +101,7 @@ impl Workspace {
     }
 
     pub fn dirty_msg(&mut self, dirt: DirtynessMsg) {
-        self.pers_status.dirtyness = dirt;
+        self.out.status_updated = true;
+        self.status.dirtyness = dirt;
     }
 }

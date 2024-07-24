@@ -2,11 +2,11 @@ use egui::{vec2, Color32, Context, Image};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
-use std::thread;
 use std::time::{Duration, Instant};
+use std::{mem, thread};
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
-use crate::output::{DirtynessMsg, PersistentWsStatus, WsOutput};
+use crate::output::{DirtynessMsg, WsOutput, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -35,7 +35,8 @@ pub struct Workspace {
     pub show_tabs: bool,
     pub last_touch_event: Option<Instant>,
 
-    pub pers_status: PersistentWsStatus,
+    pub status: WsStatus,
+    pub out: WsOutput,
 }
 
 pub enum WsMsg {
@@ -89,7 +90,8 @@ impl Workspace {
         let (updates_tx, updates_rx) = channel();
         let background = BackgroundWorker::new(ctx, &updates_tx);
         let background_tx = background.spawn_worker();
-        let pers_status = Default::default();
+        let status = Default::default();
+        let output = Default::default();
 
         Self {
             cfg,
@@ -101,10 +103,11 @@ impl Workspace {
             updates_rx,
             updates_tx,
             background_tx,
-            pers_status,
+            status,
             show_tabs: true,
             focused_parent: None,
             last_touch_event: None,
+            out: output,
         }
     }
 
@@ -243,18 +246,16 @@ impl Workspace {
     }
 
     pub fn show_workspace(&mut self, ui: &mut egui::Ui) -> WsOutput {
-        let mut output = WsOutput::default();
-
         self.set_tooltip_visibility(ui);
 
-        self.process_updates(&mut output);
-        self.process_keys(&mut output);
-        self.pers_status.populate_message();
+        self.process_updates();
+        self.process_keys();
+        self.status.populate_message();
 
         if self.is_empty() {
-            self.show_empty_workspace(ui, &mut output);
+            self.show_empty_workspace(ui);
         } else {
-            ui.centered_and_justified(|ui| self.show_tabs(&mut output, ui));
+            ui.centered_and_justified(|ui| self.show_tabs(ui));
         }
 
         if self.cfg.zen_mode.load(Ordering::Relaxed) {
@@ -270,14 +271,13 @@ impl Workspace {
                     .show(ui);
                 if zen_mode_btn.clicked() {
                     self.cfg.zen_mode.store(false, Ordering::Relaxed);
-                    output.settings_updated = true;
+                    self.out.settings_updated = true;
                 }
                 zen_mode_btn.on_hover_text("Show side panel");
             });
         }
 
-        output.status = self.pers_status.clone();
-        output
+        mem::take(&mut self.out)
     }
 
     fn set_tooltip_visibility(&mut self, ui: &mut egui::Ui) {
@@ -302,7 +302,7 @@ impl Workspace {
         }
     }
 
-    fn show_empty_workspace(&mut self, ui: &mut egui::Ui, out: &mut WsOutput) {
+    fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
         ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
             ui.add_space(ui.clip_rect().height() / 3.0);
             ui.add(self.backdrop.clone().fit_to_exact_size(vec2(100.0, 100.0)));
@@ -337,20 +337,20 @@ impl Workspace {
             ui.visuals_mut().widgets.hovered.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
             if Button::default().text("New folder").show(ui).clicked() {
-                out.new_folder_clicked = true;
+                self.out.new_folder_clicked = true;
             }
         });
     }
 
-    fn show_tabs(&mut self, output: &mut WsOutput, ui: &mut egui::Ui) {
+    fn show_tabs(&mut self, ui: &mut egui::Ui) {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         ui.vertical(|ui| {
             if !self.tabs.is_empty() {
                 if self.show_tabs {
-                    self.show_tab_strip(ui, output);
+                    self.show_tab_strip(ui);
                 } else {
-                    self.show_mobile_title(ui, output);
+                    self.show_mobile_title(ui);
                 }
             }
 
@@ -393,15 +393,15 @@ impl Workspace {
                                 }
 
                                 if resp.hide_virtual_keyboard {
-                                    output.hide_virtual_keyboard = resp.hide_virtual_keyboard;
+                                    self.out.hide_virtual_keyboard = resp.hide_virtual_keyboard;
                                 }
                                 if resp.text_updated {
-                                    output.markdown_editor_text_updated = true;
+                                    self.out.markdown_editor_text_updated = true;
                                 }
                                 if resp.selection_updated || resp.scroll_updated {
                                     // markdown_editor_selection_updated represents a change to the screen position of
                                     // the cursor, which is also updated when scrolling
-                                    output.markdown_editor_selection_updated = true;
+                                    self.out.markdown_editor_selection_updated = true;
                                 }
                             }
                             TabContent::Image(img) => img.show(ui),
@@ -422,7 +422,7 @@ impl Workspace {
         });
     }
 
-    fn show_mobile_title(&mut self, ui: &mut egui::Ui, output: &mut WsOutput) {
+    fn show_mobile_title(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             let selectable_label = egui::widgets::Button::new(self.tabs[0].name.clone())
                 .frame(false)
@@ -431,14 +431,14 @@ impl Workspace {
             ui.allocate_ui(ui.available_size(), |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
                     if ui.add(selectable_label).clicked() {
-                        output.tab_title_clicked = true
+                        self.out.tab_title_clicked = true
                     }
                 });
             })
         });
     }
 
-    fn show_tab_strip(&mut self, ui: &mut egui::Ui, output: &mut WsOutput) {
+    fn show_tab_strip(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             egui::ScrollArea::horizontal()
                 .max_width(ui.available_width())
@@ -458,7 +458,7 @@ impl Workspace {
                                     if self.active_tab == i {
                                         // we should rename the file.
 
-                                        output.tab_title_clicked = true;
+                                        self.out.tab_title_clicked = true;
                                         let active_name = self.tabs[i].name.clone();
 
                                         let mut rename_edit_state =
@@ -482,18 +482,18 @@ impl Workspace {
                                     } else {
                                         self.tabs[i].rename = None;
                                         self.active_tab = i;
-                                        output.window_title = Some(self.tabs[i].name.clone());
-                                        output.selected_file = Some(self.tabs[i].id);
+                                        self.out.window_title = Some(self.tabs[i].name.clone());
+                                        self.out.selected_file = Some(self.tabs[i].id);
                                     }
                                 }
                                 TabLabelResponse::Closed => {
                                     self.close_tab(i);
-                                    output.window_title = Some(match self.current_tab() {
+                                    self.out.window_title = Some(match self.current_tab() {
                                         Some(tab) => tab.name.clone(),
                                         None => "Lockbook".to_owned(),
                                     });
 
-                                    output.selected_file = self.current_tab().map(|tab| tab.id);
+                                    self.out.selected_file = self.current_tab().map(|tab| tab.id);
                                 }
                                 TabLabelResponse::Renamed(name) => {
                                     self.tabs[i].rename = None;
@@ -640,7 +640,7 @@ impl Workspace {
         }
     }
 
-    fn process_keys(&mut self, output: &mut WsOutput) {
+    fn process_keys(&mut self) {
         const COMMAND: egui::Modifiers = egui::Modifiers::COMMAND;
         // Ctrl-N pressed while new file modal is not open.
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::N)) {
@@ -655,14 +655,14 @@ impl Workspace {
         // Ctrl-W to close current tab.
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::W)) && !self.is_empty() {
             self.close_tab(self.active_tab);
-            output.window_title = Some(
+            self.out.window_title = Some(
                 self.current_tab()
                     .map(|tab| tab.name.as_str())
                     .unwrap_or("Lockbook")
                     .to_owned(),
             );
 
-            output.selected_file = self.current_tab().map(|tab| tab.id);
+            self.out.selected_file = self.current_tab().map(|tab| tab.id);
         }
 
         // Ctrl-{1-9} to easily navigate tabs (9 will always go to the last tab).
@@ -679,24 +679,30 @@ impl Workspace {
                     {
                         input.events.remove(index);
                     }
-                    if let Some(tab) = self.current_tab() {
-                        output.window_title = Some(tab.name.clone());
-                        output.selected_file = Some(tab.id);
-                    }
+                    if let Some((name, id)) =
+                        self.current_tab().map(|tab| (tab.name.clone(), tab.id))
+                    {
+                        self.out.window_title = Some(name);
+                        self.out.selected_file = Some(id);
+                    };
                     break;
                 }
             }
         });
     }
 
-    pub fn process_updates(&mut self, out: &mut WsOutput) {
+    pub fn process_updates(&mut self) {
         while let Ok(update) = self.updates_rx.try_recv() {
             match update {
                 WsMsg::FileLoaded(id, content) => {
-                    if let Some(tab) = self.get_mut_tab_by_id(id) {
-                        out.window_title = Some(tab.name.clone());
-                        out.selected_file = Some(id);
+                    if let Some((name, id)) =
+                        self.current_tab().map(|tab| (tab.name.clone(), tab.id))
+                    {
+                        self.out.window_title = Some(name);
+                        self.out.selected_file = Some(id);
+                    };
 
+                    if let Some(tab) = self.get_mut_tab_by_id(id) {
                         match content {
                             Ok(content) => {
                                 tab.content = Some(content);
@@ -742,7 +748,7 @@ impl Workspace {
                 }
                 WsMsg::SyncMsg(prog) => self.sync_message(prog),
                 WsMsg::FileRenamed { id, new_name } => {
-                    out.file_renamed = Some((id, new_name.clone()));
+                    self.out.file_renamed = Some((id, new_name.clone()));
 
                     let mut different_file_type = false;
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
@@ -756,7 +762,7 @@ impl Workspace {
                     let mut is_tab_active = false;
                     if let Some(tab) = self.current_tab() {
                         if tab.id == id {
-                            out.window_title = Some(tab.name.clone());
+                            self.out.window_title = Some(tab.name.clone());
                             is_tab_active = true;
                         }
                     }
@@ -765,9 +771,9 @@ impl Workspace {
                         self.open_file(id, false, is_tab_active);
                     }
                 }
-                WsMsg::SyncDone(sync_outcome) => self.sync_done(sync_outcome, out),
+                WsMsg::SyncDone(sync_outcome) => self.sync_done(sync_outcome),
                 WsMsg::Dirtyness(dirty_msg) => self.dirty_msg(dirty_msg),
-                WsMsg::FileCreated(result) => out.file_created = Some(result),
+                WsMsg::FileCreated(result) => self.out.file_created = Some(result),
             }
         }
     }

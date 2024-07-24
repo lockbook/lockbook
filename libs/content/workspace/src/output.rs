@@ -23,12 +23,9 @@ pub struct WsOutput {
     pub settings_updated: bool,
 
     pub sync_done: Option<SyncStatus>,
+    pub status_updated: bool,
 
-    // todo see below comment about this anti-patern I've created. Only one place should be updating this, we'll refactor
-    // this more thoroughly in 0.8.6
-    pub status: PersistentWsStatus,
-
-    // first of all, love the above commitment to refactor something in 0.8.6 (we're now on 0.9.4). it do be like that.
+    // ~~first of all, love the above commitment to refactor something in 0.8.6 (we're now on 0.9.4). it do be like that.~~
     // next up, acknowledging the need for a better pattern here, but there are some editor-specific outputs that need
     // to make their way across FFI and it's cleaner to put them in this transient data structure than to maintain them
     // as persistent editor state
@@ -36,13 +33,9 @@ pub struct WsOutput {
     pub markdown_editor_selection_updated: bool,
 }
 
-// todo: this should probably not be included in output
-// these things have ended up here because output is a major way state changes are communicated across FFI
-// this is probably an incorrect way to model this. Output should only contain diffs, and then internal state
-// should be easily communicateable, we can probably do this easily over FFI via fns. Probably would make output stack
-// allocatable
 #[derive(Default, Clone)]
-pub struct PersistentWsStatus {
+pub struct WsStatus {
+    pub error: Option<String>,
     pub syncing: bool,
     pub offline: bool,
     pub update_req: bool,
@@ -56,8 +49,12 @@ pub struct PersistentWsStatus {
     pub message: String,
 }
 
-impl PersistentWsStatus {
+impl WsStatus {
     pub fn populate_message(&mut self) {
+        if let Some(error) = &self.error {
+            self.message = format!("err: {error}");
+            return;
+        }
         if self.offline {
             self.message = "Offline".to_string();
             return;
