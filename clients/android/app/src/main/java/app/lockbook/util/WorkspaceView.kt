@@ -295,7 +295,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     textInputWrapper.wsInputConnection.notifySelectionUpdated()
                 }
 
-                if(response.workspaceResp.textUpdated && contextMenu != null) {
+                if (response.workspaceResp.textUpdated && contextMenu != null) {
                     contextMenu?.finish()
                 }
 
