@@ -20,8 +20,7 @@ pub struct FfiWorkspaceResp {
     selected_file: Uuid,
     doc_created: Uuid,
 
-    pub msg: String,
-    syncing: bool,
+    pub status_updated: bool,
     refresh_files: bool,
 
     new_folder_btn_pressed: bool,
@@ -39,8 +38,7 @@ impl From<WsOutput> for FfiWorkspaceResp {
     fn from(value: WsOutput) -> Self {
         Self {
             selected_file: value.selected_file.unwrap_or_default(),
-            msg: value.status.message,
-            syncing: value.status.syncing,
+            status_updated: value.status_updated,
             refresh_files: value.sync_done.is_some()
                 || value.file_renamed.is_some()
                 || value.file_created.is_some(),

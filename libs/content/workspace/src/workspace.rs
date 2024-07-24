@@ -406,9 +406,9 @@ impl Workspace {
 
                                 if resp.show_edit_menu {
                                     // used just for android
-                                    output.markdown_editor_show_edit_menu = true;
-                                    output.markdown_editor_edit_menu_x = resp.edit_menu_x;
-                                    output.markdown_editor_edit_menu_y = resp.edit_menu_y;
+                                    self.out.markdown_editor_show_edit_menu = true;
+                                    self.out.markdown_editor_edit_menu_x = resp.edit_menu_x;
+                                    self.out.markdown_editor_edit_menu_y = resp.edit_menu_y;
                                 }
                             }
                             TabContent::Image(img) => img.show(ui),

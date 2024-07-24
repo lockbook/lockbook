@@ -28,6 +28,7 @@ import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.IntegrationOutput
 import app.lockbook.workspace.Workspace
+import app.lockbook.workspace.WsStatus
 import app.lockbook.workspace.isNullUUID
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -251,10 +252,16 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             startActivity(context, browserIntent, null)
         }
 
-        if (model.isSyncing && !response.workspaceResp.syncing) {
-            model._syncCompleted.postValue(Unit)
+        if(response.workspaceResp.statusUpdated) {
+            val status: WsStatus = frameOutputJsonParser.decodeFromString(Workspace.getInstance().getStatus(WGPU_OBJ))
+
+            if (model.isSyncing && !status.syncing) {
+                model._syncCompleted.postValue(Unit)
+            }
+
+            model.isSyncing = status.syncing
+            model._msg.value = status.msg
         }
-        model.isSyncing = response.workspaceResp.syncing
 
         if (response.workspaceResp.newFolderBtnPressed) {
             model._newFolderBtnPressed.postValue(Unit)
@@ -281,8 +288,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             (App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
                 .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
         }
-
-        model._msg.value = response.workspaceResp.msg
 
         val currentTab = WorkspaceTab.fromInt(WORKSPACE.currentTab(WGPU_OBJ))
         if (currentTab != model._currentTab.value) {

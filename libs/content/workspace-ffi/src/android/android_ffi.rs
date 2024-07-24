@@ -22,6 +22,7 @@ use workspace_rs::tab::EventManager;
 use workspace_rs::tab::TabContent;
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::{Workspace, WsConfig};
+use serde::Serialize;
 
 use super::keyboard::AndroidKeys;
 
@@ -274,6 +275,29 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesCancelled(
     });
 
     obj.raw_input.events.push(Event::PointerGone);
+}
+
+#[derive(Debug, Serialize)]
+pub struct WsStatus {
+    pub syncing: bool,
+    pub msg: String,
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_getStatus(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let status = WsStatus { 
+        syncing: obj.workspace.status.syncing, 
+        msg: obj.workspace.status.message.clone()
+    };
+    
+    return env
+            .new_string(serde_json::to_string(&status).unwrap())
+            .expect("Couldn't create JString from rust string!")
+            .into_raw()
 }
 
 #[no_mangle]

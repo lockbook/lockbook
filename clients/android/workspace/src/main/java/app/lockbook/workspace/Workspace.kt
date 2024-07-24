@@ -57,8 +57,8 @@ public data class FfiWorkspaceResp(
     val selectedFile: String,
     @SerialName("doc_created")
     val docCreated: String,
-    val msg: String,
-    val syncing: Boolean,
+    @SerialName("status_updated")
+    val statusUpdated: Boolean,
     @SerialName("refresh_files")
     val refreshFiles: Boolean,
     @SerialName("new_folder_btn_pressed")
@@ -113,6 +113,8 @@ class Workspace private constructor() {
     external fun showTabs(rustObj: Long, show: Boolean)
     external fun currentTab(rustObj: Long): Int
 
+    external fun getStatus(rustObj: Long): String
+
     external fun fileRenamed(rustObj: Long, id: String, name: String): Int
 
     // text input
@@ -137,6 +139,8 @@ class Workspace private constructor() {
     external fun insertTextAtCursor(rustObj: Long, text: String)
 }
 
+@Serializable
+data class WsStatus(val syncing: Boolean, val msg: String)
 @Serializable
 data class JTextRange(val none: Boolean, val start: Int, val end: Int) {
     fun isEmpty(): Boolean = none || end - start == 0
