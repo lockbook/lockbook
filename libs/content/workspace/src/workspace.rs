@@ -542,6 +542,7 @@ impl Workspace {
                             .write_document(id, content.as_bytes())
                             .map(|_| Instant::now());
 
+                        // re-read
                         update_tx.send(WsMsg::SaveResult(id, result)).unwrap();
                         ctx.request_repaint();
                     });
@@ -609,9 +610,9 @@ impl Workspace {
             let ext = fname.split('.').last().unwrap_or_default();
 
             let content = core
-                .read_document(id)
+                .read_document_with_hmac(id)
                 .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
-                .map(|bytes| {
+                .map(|(hmac, bytes)| {
                     if is_supported_image_fmt(ext) {
                         TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes))
                     } else if ext == "pdf" {
@@ -630,6 +631,7 @@ impl Workspace {
                             &toolbar_visibility,
                             is_new_file,
                             id,
+                            hmac,
                             ext != "md",
                         ))
                     }

@@ -131,6 +131,9 @@ impl Display for CoreError {
             CoreError::AlreadySyncing => {
                 write!(f, "A sync is already in progress, cannot begin another sync at this time!")
             }
+            CoreError::ReReadRequired => {
+                write!(f, "This document changed since you last read it, please re-read it!")
+            },
         }
     }
 }
@@ -303,6 +306,7 @@ pub enum CoreError {
     UsernameNotFound,
     UsernamePublicKeyMismatch,
     UsernameTaken,
+    ReReadRequired,
     Unexpected(String),
 }
 
