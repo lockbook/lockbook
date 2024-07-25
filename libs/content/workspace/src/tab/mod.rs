@@ -4,7 +4,7 @@ use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use chrono::DateTime;
 use egui::Id;
-use lb_rs::{File, FileType, Uuid};
+use lb_rs::{DocumentHmac, File, FileType, Uuid};
 use markdown_editor::input::canonical::Modification;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -29,18 +29,27 @@ pub struct Tab {
 
 pub struct SaveRequest {
     pub id: lb_rs::Uuid,
+    pub hmac: Option<DocumentHmac>,
     pub content: String,
 }
 
 impl Tab {
     pub fn make_save_request(&self) -> Option<SaveRequest> {
+        let mut hmac = None;
         if let Some(tab_content) = &self.content {
             let maybe_save_content = match tab_content {
-                TabContent::Markdown(md) => Some(md.editor.buffer.current.text.clone()),
+                TabContent::Markdown(md) => {
+                    hmac = md.editor.hmac;
+                    Some(md.editor.buffer.current.text.clone())
+                }
                 TabContent::Svg(svg) => Some(svg.get_minimal_content()),
                 _ => None,
             };
-            maybe_save_content.map(|content| SaveRequest { id: self.id, content })
+            maybe_save_content.map(|content| SaveRequest {
+                id: self.id,
+                content,
+                hmac,
+            })
         } else {
             None
         }
