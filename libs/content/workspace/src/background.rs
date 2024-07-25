@@ -118,6 +118,7 @@ impl BackgroundWorker {
                     return;
                 }
                 BwIncomingMsg::EguiUpdate => {
+                    // todo: is this wrong? 
                     if !self.ctx.input(|inp| inp.raw.events.is_empty()) {
                         self.worker_state.user_last_seen = Instant::now();
                     }
