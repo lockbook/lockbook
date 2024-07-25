@@ -424,7 +424,7 @@ impl Workspace {
 
     fn show_mobile_title(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            let selectable_label = egui::widgets::Button::new(self.tabs[0].name.clone())
+            let selectable_label = egui::widgets::Button::new(egui::RichText::new(self.tabs[0].name.clone()).size(30.0))
                 .frame(false)
                 .fill(egui::Color32::TRANSPARENT);
 
