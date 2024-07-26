@@ -1,5 +1,6 @@
 use crate::{
-    CPoint, CRect, CTextGranularity, CTextLayoutDirection, CTextPosition, CTextRange, CUuid, TabsIds, UITextSelectionRects, WgpuWorkspace
+    CPoint, CRect, CTextGranularity, CTextLayoutDirection, CTextPosition, CTextRange, CUuid,
+    TabsIds, UITextSelectionRects, WgpuWorkspace,
 };
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use egui_editor::input::canonical::{Bound, Increment, Location, Modification, Offset, Region};
@@ -342,8 +343,8 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
 #[no_mangle]
 pub unsafe extern "C" fn tab_count(obj: *mut c_void) -> i64 {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    
-    return obj.workspace.tabs.len() as i64
+
+    return obj.workspace.tabs.len() as i64;
 }
 
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
@@ -750,27 +751,18 @@ pub unsafe extern "C" fn free_selection_rects(rects: UITextSelectionRects) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn get_tabs_ids(
-    obj: *mut c_void,
-) -> TabsIds {
+pub unsafe extern "C" fn get_tabs_ids(obj: *mut c_void) -> TabsIds {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let ids: Vec<CUuid> = obj.workspace.tabs.iter().map(|tab| {
-        tab.id.into()
-    }).collect();
+    let ids: Vec<CUuid> = obj.workspace.tabs.iter().map(|tab| tab.id.into()).collect();
 
-    TabsIds {
-        size: ids.len() as i32,
-        ids: Box::into_raw(ids.into_boxed_slice()) as *const CUuid,
-    }
+    TabsIds { size: ids.len() as i32, ids: Box::into_raw(ids.into_boxed_slice()) as *const CUuid }
 }
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn free_tab_ids(ids: TabsIds) {
-    let _ = Box::from_raw(
-        std::slice::from_raw_parts_mut(ids.ids as *mut CUuid, ids.size as usize)
-    );
+    let _ = Box::from_raw(std::slice::from_raw_parts_mut(ids.ids as *mut CUuid, ids.size as usize));
 }
 
 /// # Safety
@@ -917,7 +909,7 @@ pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn close_all_tabs(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    
+
     while obj.workspace.tabs.len() != 0 {
         obj.workspace.close_tab(obj.workspace.tabs.len() - 1);
     }

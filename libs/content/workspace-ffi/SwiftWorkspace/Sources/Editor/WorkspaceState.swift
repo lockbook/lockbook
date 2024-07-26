@@ -77,8 +77,6 @@ public class WorkspaceState: ObservableObject {
     }
 }
 
-
-
 public enum WSFileOpCompleted {
     case Rename(id: UUID, newName: String)
     case Delete(id: UUID)

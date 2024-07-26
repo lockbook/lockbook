@@ -108,6 +108,7 @@ struct PlatformView: View {
                             Spacer()
                         }
                         .padding(.horizontal)
+                        .padding(.top, 5)
                     })
                     
                     Divider()
