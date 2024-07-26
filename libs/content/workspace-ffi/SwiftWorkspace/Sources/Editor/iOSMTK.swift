@@ -800,6 +800,11 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         setNeedsDisplay(self.frame)
     }
     
+    func closeAllTabs() {
+        close_all_tabs(wsHandle)
+        setNeedsDisplay(self.frame)
+    }
+    
     func requestSync() {
         request_sync(wsHandle)
         setNeedsDisplay(self.frame)

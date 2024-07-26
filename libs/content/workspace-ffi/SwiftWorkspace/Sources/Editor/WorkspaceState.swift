@@ -33,6 +33,7 @@ public class WorkspaceState: ObservableObject {
     
     @Published public var syncRequested: Bool = false
     @Published public var openDocRequested: UUID? = nil
+    @Published public var closeAllTabsRequested: Bool = false
     
     @Published public var newFolderButtonPressed: Bool = false
     
@@ -58,13 +59,21 @@ public class WorkspaceState: ObservableObject {
         self.openDocRequested = id
     }
     
-    public func getTabs() {
-        let result = get_tabs_titles(wsHandle)
-        let buffer = Array(UnsafeBufferPointer(start: result.titles, count: Int(result.size)))
+    public func requestCloseAllTabs() {
+        self.closeAllTabsRequested = true
+    }
+    
+    public func getTabsIds() -> [UUID] {
+        let result = get_tabs_ids(wsHandle)
+        let buffer: [CUuid] = Array(UnsafeBufferPointer(start: result.ids, count: Int(result.size)))
         
-        buffer.forEach({ title in
-            
+        let newBuffer = buffer.map({ id in
+            return UUID(uuid: id._0)
         })
+        
+        free_tab_ids(result)
+        
+        return newBuffer
     }
 }
 

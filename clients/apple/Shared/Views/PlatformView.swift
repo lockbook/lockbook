@@ -90,11 +90,65 @@ struct PlatformView: View {
                 })
             .sheet(isPresented: $sheets.tabsList, content: {
                 VStack {
-                    Text("cookies")
-                    Text("cookies")
-                    Text("cookies")
-                    Text("cookies")
+                    Button(action: {
+                        sheets.tabsList = false
+                        files.path.removeLast()
+                        workspace.requestCloseAllTabs()
+                    }, label: {
+                        HStack {
+                            Image(systemName: "xmark.circle")
+                                .foregroundColor(.primary)
+                                .imageScale(.medium)
+                                .padding(.trailing)
+                                                            
+                            Text("Close all tabs")
+                                .foregroundColor(.primary)
+                                .font(.body)
+                            
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                    })
+                    
+                    Divider()
+                        .padding(.horizontal)
+                        .padding(.vertical, 3)
+                    
+                    ForEach(workspace.getTabsIds(), id: \.self) { id in
+                        Button(action: {
+                            workspace.requestOpenDoc(id)
+                        }, label: {
+                            if let meta = DI.files.idsAndFiles[id] {
+                                HStack {
+                                    Image(systemName: FileService.docExtToSystemImage(name: meta.name))
+                                        .foregroundColor(.primary)
+                                        .imageScale(.medium)
+                                        .padding(.trailing)
+                                    
+                                    Text(meta.name)
+                                        .foregroundColor(.primary)
+                                        .font(.body)
+                                        .bold(false)
+                                    
+                                    Spacer()
+                                    
+                                    if meta.id == workspace.openDoc {
+                                        Image(systemName: "checkmark.circle")
+                                            .foregroundColor(.primary)
+                                            .font(.headline)
+                                    }
+                                }
+                                .padding(.horizontal)
+                                .padding(.vertical, 3)
+                            } else {
+                                Text("Loading...")
+                                    .padding()
+                            }
+                            
+                        })
+                    }
                 }
+                .padding(.vertical)
                 .modifier(ReadHeightModifier())
                 .onPreferenceChange(HeightPreferenceKey.self) { height in
                     if let height {
@@ -102,6 +156,7 @@ struct PlatformView: View {
                     }
                 }
                 .presentationDetents([.height(self.detentHeight)])
+                .presentationDragIndicator(.visible)
             })
     }
         

@@ -34,7 +34,7 @@ struct ConstrainedHomeViewWrapper: View {
             }
             .onChange(of: files.path) { new in
                 if files.path.last?.fileType != .Document && DI.workspace.openDoc != nil {
-                    DI.workspace.closeActiveTab = true
+                    DI.workspace.requestCloseAllTabs()
                 }
             }
             
@@ -63,10 +63,11 @@ struct ConstrainedHomeViewWrapper: View {
                                     DI.sheets.tabsList = true
                                 }, label: {
                                     ZStack {
-                                        Label("Tabs", systemImage: "rectangle")
+                                        Label("Tabs", systemImage: "rectangle.fill")
                                         
                                         Text(workspace.openTabs < 100 ? String(workspace.openTabs) : ":D")
                                             .font(.callout)
+                                            .foregroundColor(.white)
                                     }
                                 })
                                 .foregroundColor(.blue)

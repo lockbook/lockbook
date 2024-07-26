@@ -94,9 +94,9 @@ pub struct UITextSelectionRects {
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct TabsTitles {
+pub struct TabsIds {
     pub size: i32,
-    pub titles: *mut *mut c_char,
+    pub ids: *const CUuid,
 }
 
 #[cfg(target_vendor = "apple")]
