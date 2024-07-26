@@ -4,7 +4,7 @@ use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use chrono::DateTime;
 use egui::Id;
-use lb_rs::{DocumentHmac, File, FileType, Uuid};
+use lb_rs::{DecryptedDocument, DocumentHmac, File, FileType, Uuid};
 use markdown_editor::input::canonical::Modification;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -62,6 +62,10 @@ impl Tab {
 
 pub enum TabContent {
     Image(ImageViewer),
+    MergeMarkdown {
+        hmac: Option<DocumentHmac>,
+        content: DecryptedDocument,
+    },
     Markdown(Markdown),
     Pdf(PdfViewer),
     Svg(SVGEditor),

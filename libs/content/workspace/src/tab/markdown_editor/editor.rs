@@ -48,6 +48,7 @@ pub struct Editor {
 
     // state
     pub buffer: Buffer,
+    pub initial_content: String,
     pub hmac: Option<DocumentHmac>,
     pub pointer_state: PointerState,
     pub debug: DebugInfo,
@@ -83,6 +84,7 @@ impl Editor {
             appearance: Appearance { plaintext_mode, ..Default::default() },
 
             buffer: content.into(),
+            initial_content: content.into(),
             hmac,
             pointer_state: Default::default(),
             debug: Default::default(),
