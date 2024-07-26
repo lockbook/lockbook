@@ -15,7 +15,7 @@ use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{EventManager, Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
-use lb_rs::{File, FileType, LbError, NameComponents, SyncProgress, SyncStatus, Uuid};
+use lb_rs::{DocumentHmac, File, FileType, LbError, NameComponents, SyncProgress, SyncStatus, Uuid};
 
 pub struct Workspace {
     pub cfg: WsConfig,
@@ -44,7 +44,7 @@ pub struct Workspace {
 pub enum WsMsg {
     FileCreated(Result<File, String>),
     FileLoaded(Uuid, Result<TabContent, TabFailure>),
-    SaveResult(Uuid, Result<Instant, LbError>),
+    SaveResult(Uuid, Result<(DocumentHmac, Instant), LbError>),
     FileRenamed { id: Uuid, new_name: String },
 
     BgSignal(Signal),
@@ -548,7 +548,7 @@ impl Workspace {
 
                         let result = core
                             .safe_write(id, hmac, content.into())
-                            .map(|_| Instant::now());
+                            .map(|hmac| (hmac, Instant::now()));
 
                         // re-read
                         update_tx.send(WsMsg::SaveResult(id, result)).unwrap();
@@ -779,7 +779,15 @@ impl Workspace {
                 WsMsg::SaveResult(id, result) => {
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         match result {
-                            Ok(time_saved) => tab.last_saved = time_saved,
+                            Ok((hmac, time_saved)) => {
+                                tab.last_saved = time_saved;
+                                match tab.content.as_mut().unwrap() {
+                                    TabContent::Markdown(md) => {
+                                        md.editor.hmac = Some(hmac);
+                                    },
+                                    _ => unreachable!()
+                                }
+                            },
                             Err(err) => {
                                 tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
                             }
