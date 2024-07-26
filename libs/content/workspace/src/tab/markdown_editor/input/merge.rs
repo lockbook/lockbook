@@ -8,6 +8,11 @@ use super::canonical::{Location, Modification, Region};
 // implementation note: this works because similar uses the same grapheme definition as we do, so reported indexes can
 // be interpreted as doc char offsets
 pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Modification> {
+    println!("\n----- merge -----");
+    println!("base: {}", base);
+    println!("local: {}", local);
+    println!("remote: {}", remote);
+
     let in_editor_mutations = {
         let mut hook = Hook::new(local);
         similar::algorithms::diff(
@@ -34,6 +39,9 @@ pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Modification> {
         .expect("unexpected error (DiffHook does not emit errors)");
         hook.modifications()
     };
+
+    println!("in_editor_mutations: {:?}", in_editor_mutations);
+    println!("out_of_editor_mutations: {:?}", out_of_editor_mutations);
 
     // adjust outside changes based on inside changes
     for in_mutation in in_editor_mutations {
@@ -72,6 +80,8 @@ pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Modification> {
         }
     }
 
+    println!("adjusted out_of_editor_mutations: {:?}", out_of_editor_mutations);
+
     // return out-of-editor changes "rebased" on in-editor changes
     out_of_editor_mutations
 }
@@ -103,7 +113,7 @@ impl DiffHook for Hook<'_> {
         let text = String::new();
         let modification = Modification::Replace { region, text };
 
-        println!("modification: {:?}", modification);
+        // println!("modification: {:?}", modification);
 
         self.modifications.push(modification);
         Ok(())
@@ -120,7 +130,7 @@ impl DiffHook for Hook<'_> {
             .to_string();
         let modification = Modification::Replace { region, text };
 
-        println!("modification: {:?}", modification);
+        // println!("modification: {:?}", modification);
 
         self.modifications.push(modification);
         Ok(())
@@ -138,7 +148,7 @@ impl DiffHook for Hook<'_> {
             .to_string();
         let modification = Modification::Replace { region, text };
 
-        println!("modification: {:?}", modification);
+        // println!("modification: {:?}", modification);
 
         self.modifications.push(modification);
         Ok(())
