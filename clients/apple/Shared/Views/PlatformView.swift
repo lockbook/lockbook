@@ -75,6 +75,8 @@ struct PlatformView: View {
         })
     }
     
+    @State var detentHeight: CGFloat = 0
+    
     var iOS: some View {
         ConstrainedHomeViewWrapper()
             .confirmationDialog(
@@ -86,6 +88,21 @@ struct PlatformView: View {
                         DeleteConfirmationButtons(meta: meta)
                     }
                 })
+            .sheet(isPresented: $sheets.tabsList, content: {
+                VStack {
+                    Text("cookies")
+                    Text("cookies")
+                    Text("cookies")
+                    Text("cookies")
+                }
+                .modifier(ReadHeightModifier())
+                .onPreferenceChange(HeightPreferenceKey.self) { height in
+                    if let height {
+                        self.detentHeight = height
+                    }
+                }
+                .presentationDetents([.height(self.detentHeight)])
+            })
     }
         
     var iPad: some View {

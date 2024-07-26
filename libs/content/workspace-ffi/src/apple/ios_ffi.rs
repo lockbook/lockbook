@@ -1,6 +1,5 @@
 use crate::{
-    CPoint, CRect, CTextGranularity, CTextLayoutDirection, CTextPosition, CTextRange,
-    UITextSelectionRects, WgpuWorkspace,
+    CPoint, CRect, CTextGranularity, CTextLayoutDirection, CTextPosition, CTextRange, TabsTitles, UITextSelectionRects, WgpuWorkspace
 };
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use egui_editor::input::canonical::{Bound, Increment, Location, Modification, Offset, Region};
@@ -334,6 +333,17 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
     });
 
     obj.raw_input.events.push(Event::PointerGone);
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+///
+/// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
+#[no_mangle]
+pub unsafe extern "C" fn tab_count(obj: *mut c_void) -> i64 {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    
+    return obj.workspace.tabs.len() as i64
 }
 
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
@@ -734,6 +744,31 @@ pub unsafe extern "C" fn free_selection_rects(rects: UITextSelectionRects) {
     let _ = Box::from_raw(std::slice::from_raw_parts_mut(
         rects.rects as *mut CRect,
         rects.size as usize,
+    ));
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn get_tabs_titles(
+    obj: *mut c_void,
+) -> TabsTitles {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let titles: Vec<String> = obj.workspace.tabs.iter().map(|tab| tab.name.clone()).collect();
+
+    TabsTitles {
+        size: titles.len() as i32,
+        titles: Box::into_raw(titles.into_boxed_slice()) as *mut *mut c_char,
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn free_tab_titles(titles: TabsTitles) {
+    let _ = Box::from_raw(std::slice::from_raw_parts_mut(
+        titles.titles as *mut *mut c_char,
+        titles.size as usize,
     ));
 }
 

@@ -60,6 +60,19 @@ struct ConstrainedHomeViewWrapper: View {
                         .toolbar {
                             ToolbarItemGroup {
                                 Button(action: {
+                                    DI.sheets.tabsList = true
+                                }, label: {
+                                    ZStack {
+                                        Label("Tabs", systemImage: "rectangle")
+                                        
+                                        Text(workspace.openTabs < 100 ? String(workspace.openTabs) : ":D")
+                                            .font(.callout)
+                                    }
+                                })
+                                .foregroundColor(.blue)
+                                .padding(.trailing, 5)
+                                
+                                Button(action: {
                                     DI.sheets.sharingFileInfo = meta
                                 }, label: {
                                     Label("Share", systemImage: "person.wave.2.fill")

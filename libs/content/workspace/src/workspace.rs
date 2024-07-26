@@ -164,6 +164,8 @@ impl Workspace {
             }
         }
 
+        self.out.tabs_changed = true;
+
         self.tabs.push(new_tab);
         if make_active {
             self.active_tab = self.tabs.len() - 1;
@@ -635,6 +637,7 @@ impl Workspace {
         self.save_tab(i);
         self.tabs.remove(i);
         let n_tabs = self.tabs.len();
+        self.out.tabs_changed = true;
         if self.active_tab >= n_tabs && n_tabs > 0 {
             self.active_tab = n_tabs - 1;
         }
