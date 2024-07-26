@@ -1,3 +1,4 @@
+use egui::{vec2, Color32, Context, Image, Ui};
 use egui::{vec2, Context, Image, ViewportCommand};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -11,7 +12,7 @@ use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
-use crate::tab::{Tab, TabContent, TabFailure};
+use crate::tab::{EventManager, Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
 use lb_rs::{File, FileType, LbError, NameComponents, SyncProgress, SyncStatus, Uuid};
@@ -139,9 +140,23 @@ impl Workspace {
         }
     }
 
+    /// upsert returns true if a tab was created
     pub fn upsert_tab(
         &mut self, id: lb_rs::Uuid, name: &str, path: &str, is_new_file: bool, make_active: bool,
-    ) {
+    ) -> bool {
+        for (i, tab) in self.tabs.iter().enumerate() {
+            if tab.id == id {
+                self.tabs[i].name = name.to_string();
+                self.tabs[i].path = path.to_string();
+                self.tabs[i].failure = None;
+                if make_active {
+                    self.active_tab = i;
+                }
+                // tab exists already
+                return false;
+            }
+        }
+
         let now = Instant::now();
 
         let new_tab = Tab {
@@ -155,25 +170,14 @@ impl Workspace {
             is_new_file,
             last_saved: now,
         };
-
-        for (i, tab) in self.tabs.iter().enumerate() {
-            if tab.id == id {
-                self.tabs[i] = new_tab;
-                if make_active {
-                    self.active_tab = i;
-                    self.active_tab_changed = true;
-                }
-                return;
-            }
-        }
-
-        self.out.tabs_changed = true;
-
         self.tabs.push(new_tab);
         if make_active {
             self.active_tab = self.tabs.len() - 1;
             self.active_tab_changed = true;
         }
+
+        // tab was created
+        return true;
     }
 
     pub fn get_mut_tab_by_id(&mut self, id: lb_rs::Uuid) -> Option<&mut Tab> {
@@ -245,7 +249,7 @@ impl Workspace {
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         self.set_tooltip_visibility(ui);
 
-        self.process_updates();
+        self.process_updates(ui);
         self.process_keys();
         self.status.populate_message();
 
@@ -409,6 +413,9 @@ impl Workspace {
                                     tab.last_changed = Instant::now();
                                 }
                             }
+                            TabContent::MergeMarkdown { hmac, content } => {
+                                unreachable!()
+                            }
                         };
                     } else {
                         ui.spinner();
@@ -537,9 +544,10 @@ impl Workspace {
                     thread::spawn(move || {
                         let content = save_req.content;
                         let id = save_req.id;
+                        let hmac = save_req.hmac;
 
                         let result = core
-                            .write_document(id, content.as_bytes())
+                            .safe_write(id, hmac, content.into())
                             .map(|_| Instant::now());
 
                         // re-read
@@ -593,7 +601,7 @@ impl Workspace {
 
         let fpath = self.core.get_path_by_id(id).unwrap(); // TODO
 
-        self.upsert_tab(id, &fname, &fpath, is_new_file, make_active);
+        let tab_created = self.upsert_tab(id, &fname, &fpath, is_new_file, make_active);
 
         let core = self.core.clone();
         let ctx = self.ctx.clone();
@@ -613,27 +621,31 @@ impl Workspace {
                 .read_document_with_hmac(id)
                 .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
                 .map(|(hmac, bytes)| {
-                    if is_supported_image_fmt(ext) {
-                        TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes))
-                    } else if ext == "pdf" {
-                        TabContent::Pdf(PdfViewer::new(
-                            &bytes,
-                            &ctx,
-                            &cfg.data_dir,
-                            is_mobile_viewport,
-                        ))
-                    } else if ext == "svg" {
-                        TabContent::Svg(SVGEditor::new(&bytes, &ctx, core.clone(), id))
+                    if !tab_created {
+                        TabContent::MergeMarkdown { hmac, content: bytes }
                     } else {
-                        TabContent::Markdown(Markdown::new(
-                            core.clone(),
-                            &bytes,
-                            &toolbar_visibility,
-                            is_new_file,
-                            id,
-                            hmac,
-                            ext != "md",
-                        ))
+                        if is_supported_image_fmt(ext) {
+                            TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes))
+                        } else if ext == "pdf" {
+                            TabContent::Pdf(PdfViewer::new(
+                                &bytes,
+                                &ctx,
+                                &cfg.data_dir,
+                                is_mobile_viewport,
+                            ))
+                        } else if ext == "svg" {
+                            TabContent::Svg(SVGEditor::new(&bytes, core.clone(), id))
+                        } else {
+                            TabContent::Markdown(Markdown::new(
+                                core.clone(),
+                                &bytes,
+                                &toolbar_visibility,
+                                is_new_file,
+                                id,
+                                hmac,
+                                ext != "md",
+                            ))
+                        }
                     }
                 });
             update_tx.send(WsMsg::FileLoaded(id, content)).unwrap();
@@ -707,7 +719,7 @@ impl Workspace {
         }
     }
 
-    pub fn process_updates(&mut self) {
+    pub fn process_updates(&mut self, ui: &mut Ui) {
         while let Ok(update) = self.updates_rx.try_recv() {
             match update {
                 WsMsg::FileLoaded(id, content) => {
@@ -718,11 +730,34 @@ impl Workspace {
                         self.out.selected_file = Some(id);
                     };
 
+                    let ctx = self.ctx.clone();
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         match content {
-                            Ok(content) => {
-                                tab.content = Some(content);
-                            }
+                            Ok(content) => match content {
+                                TabContent::MergeMarkdown { hmac, content } => {
+                                    match tab.content.as_mut().unwrap() {
+                                        TabContent::Markdown(md) => {
+                                            md.editor.scroll_ui(ui);
+                                            let evt = md.editor.merge(
+                                                &md.editor.initial_content,
+                                                &String::from_utf8_lossy(&content),
+                                            );
+
+                                            for e in evt {
+                                                ctx.push_markdown_event(e);
+                                            }
+
+                                            md.editor.initial_content =
+                                                String::from_utf8(content).unwrap();
+                                            md.editor.hmac = hmac;
+                                        }
+                                        _ => unreachable!(),
+                                    };
+                                }
+                                _ => {
+                                    tab.content = Some(content);
+                                }
+                            },
                             Err(fail) => {
                                 println!("failed to load file: {:?}", fail);
                                 tab.failure = Some(fail);
