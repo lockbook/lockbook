@@ -45,11 +45,7 @@ impl Tab {
                 TabContent::Svg(svg) => Some(svg.get_minimal_content()),
                 _ => None,
             };
-            maybe_save_content.map(|content| SaveRequest {
-                id: self.id,
-                content,
-                hmac,
-            })
+            maybe_save_content.map(|content| SaveRequest { id: self.id, content, hmac })
         } else {
             None
         }
@@ -62,10 +58,7 @@ impl Tab {
 
 pub enum TabContent {
     Image(ImageViewer),
-    MergeMarkdown {
-        hmac: Option<DocumentHmac>,
-        content: DecryptedDocument,
-    },
+    MergeMarkdown { hmac: Option<DocumentHmac>, content: DecryptedDocument },
     Markdown(Markdown),
     Pdf(PdfViewer),
     Svg(SVGEditor),
@@ -150,10 +143,12 @@ impl ExtendedInput for egui::Context {
     }
 
     fn push_markdown_event(&self, event: Modification) {
+        println!("push_markdown_event: {:?}", event);
         self.push_event(Event::Markdown(event))
     }
 
     fn pop_events(&self) -> Vec<Event> {
+        println!("pop_events");
         self.memory_mut(|m| {
             let events: Vec<Event> = m
                 .data
