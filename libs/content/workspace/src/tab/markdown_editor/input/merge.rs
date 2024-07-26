@@ -21,18 +21,6 @@ pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Modification> {
     )
     .expect("unexpected error (DiffHook does not emit errors)");
 
-    // local changes
-    hook.new = local;
-    similar::algorithms::diff(
-        similar::Algorithm::Myers,
-        &mut hook,
-        &base.as_diffable_str().tokenize_graphemes(),
-        0..base.len(),
-        &local.as_diffable_str().tokenize_graphemes(),
-        0..local.len(),
-    )
-    .expect("unexpected error (DiffHook does not emit errors)");
-
     hook.events()
 }
 
@@ -106,8 +94,8 @@ impl GraphemeIndex for str {
     type Output = str;
 
     fn grapheme_index(&self, index: (DocCharOffset, DocCharOffset)) -> &Self::Output {
-        let start = self.grapheme_indices(true).nth(index.0 .0).unwrap().0;
-        let end = self.grapheme_indices(true).nth(index.1 .0).unwrap().0;
-        &self[start..end]
+        let mut graphemes: Vec<_> = self.grapheme_indices(true).collect();
+        graphemes.push((self.len(), ""));
+        &self[graphemes[index.0 .0].0..graphemes[index.1 .0].0]
     }
 }
