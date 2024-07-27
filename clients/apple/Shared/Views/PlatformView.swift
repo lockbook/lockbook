@@ -12,10 +12,7 @@ struct PlatformView: View {
     @EnvironmentObject var share: ShareService
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var workspace: WorkspaceState
-    
-    @Environment(\.horizontalSizeClass) var horizontal
-    @Environment(\.verticalSizeClass) var vertical
-    
+        
     var body: some View {
         platform
             .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
@@ -54,6 +51,11 @@ struct PlatformView: View {
     }
     
     #if os(iOS)
+    @Environment(\.horizontalSizeClass) var horizontal
+    @Environment(\.verticalSizeClass) var vertical
+    
+    @State var tabsListSheetHeight: CGFloat = 0
+    
     var platform: some View {
         Group {
             if horizontal == .regular && vertical == .regular {
@@ -74,11 +76,17 @@ struct PlatformView: View {
             }
         })
     }
-    
-    @State var detentHeight: CGFloat = 0
-    
+        
     var iOS: some View {
         ConstrainedHomeViewWrapper()
+            .onAppear {
+                if files.path.last?.fileType != .Document {
+                    if let openDoc = workspace.openDoc,
+                        let meta = files.idsAndFiles[openDoc] {
+                        files.path.append(meta)
+                    }
+                }
+            }
             .confirmationDialog(
                 "Are you sure? This action cannot be undone.",
                 isPresented: $sheets.deleteConfirmation,
@@ -93,14 +101,13 @@ struct PlatformView: View {
                     Button(action: {
                         sheets.tabsList = false
                         files.path.removeLast()
-                        workspace.requestCloseAllTabs()
                     }, label: {
                         HStack {
                             Image(systemName: "xmark.circle")
                                 .foregroundColor(.primary)
                                 .imageScale(.medium)
                                 .padding(.trailing)
-                                                            
+                            
                             Text("Close all tabs")
                                 .foregroundColor(.primary)
                                 .font(.body)
@@ -153,10 +160,10 @@ struct PlatformView: View {
                 .modifier(ReadHeightModifier())
                 .onPreferenceChange(HeightPreferenceKey.self) { height in
                     if let height {
-                        self.detentHeight = height
+                        self.tabsListSheetHeight = height
                     }
                 }
-                .presentationDetents([.height(self.detentHeight)])
+                .presentationDetents([.height(self.tabsListSheetHeight)])
                 .presentationDragIndicator(.visible)
             })
     }

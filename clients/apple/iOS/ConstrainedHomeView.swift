@@ -59,19 +59,21 @@ struct ConstrainedHomeViewWrapper: View {
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItemGroup {
-                                Button(action: {
-                                    DI.sheets.tabsList = true
-                                }, label: {
-                                    ZStack {
-                                        Label("Tabs", systemImage: "rectangle.fill")
-                                        
-                                        Text(workspace.openTabs < 100 ? String(workspace.openTabs) : ":D")
-                                            .font(.callout)
-                                            .foregroundColor(.white)
-                                    }
-                                })
-                                .foregroundColor(.blue)
-                                .padding(.trailing, 5)
+                                if workspace.openTabs > 1 {
+                                    Button(action: {
+                                        DI.sheets.tabsList = true
+                                    }, label: {
+                                        ZStack {
+                                            Label("Tabs", systemImage: "rectangle.fill")
+                                            
+                                            Text(workspace.openTabs < 100 ? String(workspace.openTabs) : ":D")
+                                                .font(.callout)
+                                                .foregroundColor(.white)
+                                        }
+                                    })
+                                    .foregroundColor(.blue)
+                                    .padding(.trailing, 5)
+                                }
                                 
                                 Button(action: {
                                     DI.sheets.sharingFileInfo = meta
