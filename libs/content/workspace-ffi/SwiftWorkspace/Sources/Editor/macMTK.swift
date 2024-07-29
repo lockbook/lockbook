@@ -299,7 +299,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
         let newFile = UUID(uuid: output.workspace_resp.doc_created._0)
         if !newFile.isNil() {
-            self.workspaceState?.openDoc = newFile
+            openFile(id: newFile)
         }
 
         if let openedUrl = output.url_opened {
