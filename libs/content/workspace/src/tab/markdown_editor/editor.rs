@@ -100,6 +100,12 @@ impl Editor {
         }
     }
 
+    /// Merge merges changes made outside the editor with changes made inside the editor by evaluating the diff between
+    /// the base and new content and fuzzy-patching the diff into the editor's content.
+    pub fn merge(&self, base: &str, new: &str) -> Vec<Modification> {
+        super::input::merge::merge(base, &self.buffer.current.text, new)
+    }
+
     pub fn draw(&mut self, ctx: &Context) -> EditorResponse {
         let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
         egui::CentralPanel::default()
@@ -271,8 +277,7 @@ impl Editor {
                 &self.bounds.ast,
                 &self.appearance,
             );
-            self.bounds.paragraphs =
-                bounds::calc_paragraphs(&self.buffer.current, &self.bounds.ast);
+            self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer.current);
         }
         if text_updated || selection_updated || self.capture.mark_changes_processed() {
             self.bounds.text = bounds::calc_text(

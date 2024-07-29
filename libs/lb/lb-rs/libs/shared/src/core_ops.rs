@@ -273,11 +273,7 @@ where
             return Ok(vec![]);
         }
 
-        let maybe_encrypted_document = match d.maybe_get(meta.id(), meta.document_hmac())? {
-            Some(local) => Some(local),
-            None => d.maybe_get(meta.id(), meta.document_hmac())?,
-        };
-        let doc = match maybe_encrypted_document {
+        let doc = match d.maybe_get(meta.id(), meta.document_hmac())? {
             Some(doc) => self.decrypt_document(id, &doc, account)?,
             None => return Err(SharedErrorKind::FileNonexistent.into()),
         };

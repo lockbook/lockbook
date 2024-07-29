@@ -84,6 +84,19 @@ class SheetState: ObservableObject {
         }
     }
     
+    @Published var deleteConfirmation: Bool = false {
+        didSet {
+            if !deleteConfirmation && deleteConfirmationInfo != nil {
+                deleteConfirmationInfo = nil
+            }
+        }
+    }
+    @Published var deleteConfirmationInfo: File? {
+        didSet {
+            deleteConfirmation = deleteConfirmationInfo != nil
+        }
+    }
+    
     private var cancellables: Set<AnyCancellable> = []
     
     init() {

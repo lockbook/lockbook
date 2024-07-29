@@ -10,7 +10,10 @@ mod zoom;
 
 use std::time::Instant;
 
+use self::history::History;
+use self::zoom::handle_zoom_input;
 use crate::tab::svg_editor::toolbar::Toolbar;
+use crate::theme::palette::ThemePalette;
 pub use eraser::Eraser;
 pub use history::DeleteElement;
 pub use history::Event;
@@ -22,9 +25,6 @@ pub use pen::Pen;
 use resvg::usvg::{self, ImageKind};
 pub use toolbar::Tool;
 use usvg_parser::Options;
-
-use self::history::History;
-use self::zoom::handle_zoom_input;
 
 /// A shorthand for [ImageHrefResolver]'s string function.
 pub type ImageHrefStringResolverFn = Box<dyn Fn(&str, &Options) -> Option<ImageKind> + Send + Sync>;
@@ -110,7 +110,17 @@ impl SVGEditor {
 
         handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
 
-        if ui.input(|r| r.multi_touch().is_some()) || self.skip_frame {
+        let start_of_touch = ui.input(|i| {
+            i.events.iter().any(|e| {
+                if let egui::Event::Touch { device_id: _, id: _, phase, pos: _, force: _ } = e {
+                    phase.eq(&egui::TouchPhase::Start)
+                } else {
+                    false
+                }
+            })
+        });
+
+        if ui.input(|r| r.multi_touch().is_some()) || self.skip_frame || start_of_touch {
             self.skip_frame = false;
             return;
         }
@@ -167,7 +177,8 @@ impl SVGEditor {
                 }
 
                 let stroke = path.stroke.unwrap_or_default();
-                let alpha_stroke_color = stroke.color.gamma_multiply(path.opacity);
+                let alpha_stroke_color = ThemePalette::resolve_dynamic_color(stroke.color, ui)
+                    .linear_multiply(path.opacity);
 
                 if path.data.is_point() {
                     let origin = &path.data.manipulator_groups()[0];

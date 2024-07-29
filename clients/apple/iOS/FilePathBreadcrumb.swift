@@ -17,7 +17,7 @@ struct FilePathBreadcrumb: View {
                 .onChange(of: files.path.count) { count in
                     if count > 0 {
                         withAnimation {
-                            scrollHelper.scrollTo(files.path.count - 2, anchor: .trailing)
+                            scrollHelper.scrollTo(files.path.count - 1, anchor: .trailing)
                         }
                     }
                 }

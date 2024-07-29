@@ -2,7 +2,7 @@ use crate::cursor_icon::CCursorIcon;
 use egui_editor::input::canonical::{Location, Region};
 use egui_editor::offset_types::{DocCharOffset, RelCharOffset};
 use lb_external_interface::lb_rs::Uuid;
-use std::ffi::{c_char, CString};
+use std::ffi::c_char;
 use workspace_rs::output::WsOutput;
 
 #[repr(C)]
@@ -27,14 +27,13 @@ impl Default for IntegrationOutput {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[repr(C)]
 pub struct FfiWorkspaceResp {
     selected_file: CUuid,
     doc_created: CUuid,
 
-    msg: *mut c_char,
-    syncing: bool,
+    status_updated: bool,
     refresh_files: bool,
 
     new_folder_btn_pressed: bool,
@@ -53,35 +52,10 @@ pub struct FfiWorkspaceResp {
     pub tab_title_clicked: bool,
 }
 
-impl Default for FfiWorkspaceResp {
-    fn default() -> Self {
-        Self {
-            selected_file: Default::default(),
-            doc_created: Default::default(),
-            msg: std::ptr::null_mut(),
-            syncing: Default::default(),
-            refresh_files: Default::default(),
-            new_folder_btn_pressed: Default::default(),
-            #[cfg(target_os = "ios")]
-            hide_virtual_keyboard: false,
-            #[cfg(target_os = "ios")]
-            text_updated: Default::default(),
-            #[cfg(target_os = "ios")]
-            selection_updated: Default::default(),
-            #[cfg(target_os = "ios")]
-            scroll_updated: Default::default(),
-            #[cfg(target_os = "ios")]
-            tab_title_clicked: false,
-        }
-    }
-}
-
 impl From<WsOutput> for FfiWorkspaceResp {
     fn from(value: WsOutput) -> Self {
         Self {
             selected_file: value.selected_file.unwrap_or_default().into(),
-            msg: CString::new(value.status.message).unwrap().into_raw(),
-            syncing: value.status.syncing,
             refresh_files: value.sync_done.is_some()
                 || value.file_renamed.is_some()
                 || value.file_created.is_some(),
@@ -107,6 +81,7 @@ impl From<WsOutput> for FfiWorkspaceResp {
             scroll_updated: value.markdown_editor_scroll_updated,
             #[cfg(target_os = "ios")]
             tab_title_clicked: value.tab_title_clicked,
+            status_updated: value.status_updated,
         }
     }
 }

@@ -1,11 +1,11 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use super::history::History;
 use super::{util::pointer_intersects_element, Buffer, DeleteElement};
 
 pub struct Eraser {
     pub thickness: f32,
-    delete_candidates: HashSet<String>,
+    delete_candidates: HashMap<String, bool>,
     last_pos: Option<egui::Pos2>,
 }
 
@@ -22,7 +22,7 @@ impl Default for Eraser {
 
 impl Eraser {
     pub fn new() -> Self {
-        Eraser { delete_candidates: HashSet::default(), thickness: 10.0, last_pos: None }
+        Eraser { delete_candidates: HashMap::default(), thickness: 10.0, last_pos: None }
     }
 
     pub fn handle_input(
@@ -37,23 +37,28 @@ impl Eraser {
         match event {
             EraseEvent::Start(pos) => {
                 buffer.elements.iter().for_each(|(id, el)| {
-                    if self.delete_candidates.contains(id) {
+                    if self.delete_candidates.contains_key(id) {
                         return;
                     }
                     if pointer_intersects_element(el, pos, self.last_pos, self.thickness as f64) {
-                        self.delete_candidates.insert(id.clone());
+                        self.delete_candidates.insert(id.clone(), false);
                     }
                 });
 
-                self.delete_candidates.iter().for_each(|id| {
-                    if let Some(el) = buffer.elements.get_mut(id) {
-                        match el {
-                            super::parser::Element::Path(p) => p.opacity = 0.3,
-                            super::parser::Element::Image(img) => img.opacity = 0.3,
-                            super::parser::Element::Text(_) => todo!(),
-                        }
-                    };
-                });
+                self.delete_candidates
+                    .iter_mut()
+                    .for_each(|(id, has_decreased_opacity)| {
+                        if let Some(el) = buffer.elements.get_mut(id) {
+                            if !*has_decreased_opacity {
+                                match el {
+                                    super::parser::Element::Path(p) => p.opacity *= 0.5,
+                                    super::parser::Element::Image(img) => img.opacity = 0.3,
+                                    super::parser::Element::Text(_) => todo!(),
+                                }
+                            }
+                        };
+                        *has_decreased_opacity = true;
+                    });
 
                 self.last_pos = Some(pos);
             }
@@ -62,7 +67,7 @@ impl Eraser {
                     return;
                 }
 
-                self.delete_candidates.iter().for_each(|id| {
+                self.delete_candidates.iter().for_each(|(id, _)| {
                     if let Some(el) = buffer.elements.get_mut(id) {
                         match el {
                             super::parser::Element::Path(p) => {
@@ -77,7 +82,7 @@ impl Eraser {
                 });
                 let event = super::Event::Delete(
                     self.delete_candidates
-                        .iter()
+                        .keys()
                         .map(|id| DeleteElement { id: id.to_owned() })
                         .collect(),
                 );
