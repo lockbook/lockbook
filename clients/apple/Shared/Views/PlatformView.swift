@@ -12,10 +12,7 @@ struct PlatformView: View {
     @EnvironmentObject var share: ShareService
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var workspace: WorkspaceState
-    
-    @Environment(\.horizontalSizeClass) var horizontal
-    @Environment(\.verticalSizeClass) var vertical
-    
+        
     var body: some View {
         platform
             .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
@@ -54,6 +51,11 @@ struct PlatformView: View {
     }
     
     #if os(iOS)
+    @Environment(\.horizontalSizeClass) var horizontal
+    @Environment(\.verticalSizeClass) var vertical
+    
+    @State var tabsListSheetHeight: CGFloat = 0
+    
     var platform: some View {
         Group {
             if horizontal == .regular && vertical == .regular {
@@ -74,9 +76,17 @@ struct PlatformView: View {
             }
         })
     }
-    
+        
     var iOS: some View {
         ConstrainedHomeViewWrapper()
+            .onAppear {
+                if files.path.last?.fileType != .Document {
+                    if let openDoc = workspace.openDoc,
+                        let meta = files.idsAndFiles[openDoc] {
+                        files.path.append(meta)
+                    }
+                }
+            }
             .confirmationDialog(
                 "Are you sure? This action cannot be undone.",
                 isPresented: $sheets.deleteConfirmation,
@@ -86,6 +96,76 @@ struct PlatformView: View {
                         DeleteConfirmationButtons(meta: meta)
                     }
                 })
+            .sheet(isPresented: $sheets.tabsList, content: {
+                VStack {
+                    Button(action: {
+                        sheets.tabsList = false
+                        files.path.removeLast()
+                    }, label: {
+                        HStack {
+                            Image(systemName: "xmark.circle")
+                                .foregroundColor(.primary)
+                                .imageScale(.medium)
+                                .padding(.trailing)
+                            
+                            Text("Close all tabs")
+                                .foregroundColor(.primary)
+                                .font(.body)
+                            
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 5)
+                    })
+                    
+                    Divider()
+                        .padding(.horizontal)
+                        .padding(.vertical, 3)
+                    
+                    ForEach(workspace.getTabsIds(), id: \.self) { id in
+                        Button(action: {
+                            workspace.requestOpenDoc(id)
+                        }, label: {
+                            if let meta = DI.files.idsAndFiles[id] {
+                                HStack {
+                                    Image(systemName: FileService.docExtToSystemImage(name: meta.name))
+                                        .foregroundColor(.primary)
+                                        .imageScale(.medium)
+                                        .padding(.trailing)
+                                    
+                                    Text(meta.name)
+                                        .foregroundColor(.primary)
+                                        .font(.body)
+                                        .bold(false)
+                                    
+                                    Spacer()
+                                    
+                                    if meta.id == workspace.openDoc {
+                                        Image(systemName: "checkmark.circle")
+                                            .foregroundColor(.primary)
+                                            .font(.headline)
+                                    }
+                                }
+                                .padding(.horizontal)
+                                .padding(.vertical, 3)
+                            } else {
+                                Text("Loading...")
+                                    .padding()
+                            }
+                            
+                        })
+                    }
+                }
+                .padding(.vertical)
+                .modifier(ReadHeightModifier())
+                .onPreferenceChange(HeightPreferenceKey.self) { height in
+                    if let height {
+                        self.tabsListSheetHeight = height
+                    }
+                }
+                .presentationDetents([.height(self.tabsListSheetHeight)])
+                .presentationDragIndicator(.visible)
+            })
     }
         
     var iPad: some View {

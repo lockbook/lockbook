@@ -852,6 +852,11 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         setNeedsDisplay(self.frame)
     }
     
+    func closeAllTabs() {
+        close_all_tabs(wsHandle)
+        setNeedsDisplay(self.frame)
+    }
+    
     func requestSync() {
         request_sync(wsHandle)
         setNeedsDisplay(self.frame)
@@ -871,7 +876,8 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode())
-    } 
+        workspaceState?.wsHandle = wsHandle
+    }
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         resize_editor(wsHandle, Float(size.width), Float(size.height), Float(self.contentScaleFactor))
@@ -911,6 +917,10 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let syncing = status.syncing
             workspaceState?.syncing = syncing
             workspaceState?.statusMsg = msg
+        }
+        
+        if output.workspace_resp.tabs_changed {
+            workspaceState?.openTabs = Int(tab_count(wsHandle))
         }
         
         workspaceState?.reloadFiles = output.workspace_resp.refresh_files

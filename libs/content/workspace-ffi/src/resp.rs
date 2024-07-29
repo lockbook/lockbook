@@ -38,6 +38,8 @@ pub struct FfiWorkspaceResp {
 
     new_folder_btn_pressed: bool,
 
+    tabs_changed: bool,
+
     #[cfg(target_os = "ios")]
     pub hide_virtual_keyboard: bool,
 
@@ -70,6 +72,7 @@ impl From<WsOutput> for FfiWorkspaceResp {
                 _ => Uuid::nil().into(),
             },
             new_folder_btn_pressed: value.new_folder_clicked,
+            tabs_changed: value.tabs_changed,
 
             #[cfg(target_os = "ios")]
             hide_virtual_keyboard: value.hide_virtual_keyboard,
@@ -91,6 +94,13 @@ impl From<WsOutput> for FfiWorkspaceResp {
 pub struct UITextSelectionRects {
     pub size: i32,
     pub rects: *const CRect,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct TabsIds {
+    pub size: i32,
+    pub ids: *const CUuid,
 }
 
 #[cfg(target_vendor = "apple")]
