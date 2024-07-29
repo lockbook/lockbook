@@ -31,6 +31,7 @@ pub struct WsOutput {
     // as persistent editor state
     pub markdown_editor_text_updated: bool,
     pub markdown_editor_selection_updated: bool,
+    pub markdown_editor_scroll_updated: bool,
 }
 
 #[derive(Default, Clone)]

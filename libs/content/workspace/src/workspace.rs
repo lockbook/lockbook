@@ -398,10 +398,14 @@ impl Workspace {
                                 if resp.text_updated {
                                     self.out.markdown_editor_text_updated = true;
                                 }
-                                if resp.selection_updated || resp.scroll_updated {
+                                if resp.selection_updated {
                                     // markdown_editor_selection_updated represents a change to the screen position of
                                     // the cursor, which is also updated when scrolling
                                     self.out.markdown_editor_selection_updated = true;
+                                }
+
+                                if resp.scroll_updated {
+                                    self.out.markdown_editor_scroll_updated = true
                                 }
                             }
                             TabContent::Image(img) => img.show(ui),
