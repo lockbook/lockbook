@@ -63,6 +63,11 @@ public struct UIWS: UIViewRepresentable {
             workspaceState.openDocRequested = nil
         }
         
+        if workspaceState.closeAllTabsRequested {
+            workspaceState.closeAllTabsRequested = false
+            uiView.mtkView.closeAllTabs()
+        }
+        
         if workspaceState.currentTab.viewWrapperId() != uiView.currentTab.viewWrapperId() {
             uiView.updateCurrentTab(newCurrentTab: workspaceState.currentTab)
         }
