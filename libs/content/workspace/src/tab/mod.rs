@@ -148,7 +148,6 @@ impl ExtendedInput for egui::Context {
     }
 
     fn pop_events(&self) -> Vec<Event> {
-        println!("pop_events");
         self.memory_mut(|m| {
             let events: Vec<Event> = m
                 .data
@@ -156,6 +155,7 @@ impl ExtendedInput for egui::Context {
                 .unwrap_or_default();
             m.data
                 .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
+            println!("pop_events ({:?})", events.len());
             events
         })
     }
