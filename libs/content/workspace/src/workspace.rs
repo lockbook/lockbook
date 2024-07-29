@@ -400,10 +400,14 @@ impl Workspace {
                                 if resp.text_updated {
                                     self.out.markdown_editor_text_updated = true;
                                 }
-                                if resp.selection_updated || resp.scroll_updated {
+                                if resp.selection_updated {
                                     // markdown_editor_selection_updated represents a change to the screen position of
                                     // the cursor, which is also updated when scrolling
                                     self.out.markdown_editor_selection_updated = true;
+                                }
+
+                                if resp.scroll_updated {
+                                    self.out.markdown_editor_scroll_updated = true
                                 }
                             }
                             TabContent::Image(img) => img.show(ui),
@@ -426,9 +430,11 @@ impl Workspace {
 
     fn show_mobile_title(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            let selectable_label = egui::widgets::Button::new(self.tabs[0].name.clone())
-                .frame(false)
-                .fill(egui::Color32::TRANSPARENT);
+            let selectable_label = egui::widgets::Button::new(
+                egui::RichText::new(self.tabs[0].name.clone()).size(30.0),
+            )
+            .frame(false)
+            .fill(egui::Color32::TRANSPARENT);
 
             ui.allocate_ui(ui.available_size(), |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {

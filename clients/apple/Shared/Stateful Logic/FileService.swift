@@ -19,7 +19,7 @@ class FileService: ObservableObject {
     var hasRootLoaded = false
 
     // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
-#if os(iOS)
+    #if os(iOS)
     @Published var path: [File] = []
 
     var parent: File? {
@@ -45,7 +45,9 @@ class FileService: ObservableObject {
             self.path.removeSubrange(firstIndex + 1...self.path.count - 1)
         }
     }
-#endif
+    #else
+    var expandedFolders: [UUID] = []
+    #endif
 
     func childrenOf(_ meta: File?) -> [File] {
         var file: File
