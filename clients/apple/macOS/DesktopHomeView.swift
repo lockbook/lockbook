@@ -4,12 +4,9 @@ import DSFQuickActionBar
 import SwiftWorkspace
 
 struct DesktopHomeView: View {
-    @State var expandedFolders: [File] = []
-    @State var lastOpenDoc: File? = nil
-
     var body: some View {
         NavigationView {
-            SidebarView(expandedFolders: $expandedFolders, lastOpenDoc: $lastOpenDoc)
+            SidebarView()
             
             DetailView()
         }
@@ -94,10 +91,7 @@ struct SidebarView: View {
     
     @State var searchInput: String = ""
     @State var treeBranchState: Bool = true
-    
-    @Binding var expandedFolders: [File]
-    @Binding var lastOpenDoc: File?
-        
+            
     var body: some View {
         VStack {
             SearchBar(searchInput: $searchInput)
@@ -205,7 +199,8 @@ struct SidebarView: View {
             }
             
             if treeBranchState {
-                FileTreeView(expandedFolders: $expandedFolders, lastOpenDoc: $lastOpenDoc)
+                FileTreeView()
+                    .equatable()
                     .padding(.leading, 4)
                 Spacer()
             } else {
