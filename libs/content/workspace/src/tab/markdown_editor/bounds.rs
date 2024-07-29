@@ -14,6 +14,7 @@ use crate::tab::markdown_editor::Editor;
 use egui::epaint::text::cursor::RCursor;
 use linkify::LinkFinder;
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use tldextract::{TldExtractor, TldOption};
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -165,17 +166,6 @@ pub fn calc_lines(galleys: &Galleys, ast: &AstTextRanges, text: &Text) -> Lines 
             result.push(range)
         }
     }
-
-    // ios testing hack: break lines every 5 characters
-    // let mut new_result = vec![];
-    // for (start, end) in result {
-    //     let mut start = start;
-    //     while end - start > 5 {
-    //         new_result.push((start, start + 5));
-    //         start += 5;
-    //     }
-    //     new_result.push((start, end));
-    // }
 
     result
 }

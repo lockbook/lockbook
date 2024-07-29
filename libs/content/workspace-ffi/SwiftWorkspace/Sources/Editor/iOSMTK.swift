@@ -66,7 +66,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
             let gestureName = gestureRecognizer.name?.lowercased()
-                        
+            
             if gestureName?.contains("tap") ?? false {
                 gestureRecognizer.cancelsTouchesInView = false
             }
@@ -373,7 +373,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public func insertText(_ text: String) {
         guard let _ = (markedTextRange ?? selectedTextRange) as? LBTextRange,
             !text.isEmpty else {
-            print("\(#function) early returned")
             return
         }
          
@@ -386,7 +385,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public func text(in range: UITextRange) -> String? {
         let range = (range as! LBTextRange).c
         guard let result = text_in_range(wsHandle, range) else {
-            print("\(#function) early returned")
             return nil
         }
         let str = String(cString: result)
@@ -397,7 +395,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func replace(_ range: UITextRange, withText text: String) {
         guard let range = range as? LBTextRange else {
-            print("\(#function) early returned")
             return
         }
         
@@ -410,12 +407,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public var selectedTextRange: UITextRange? {
         set {
             guard let range = (newValue as? LBTextRange)?.c else {
-                print("setting \(#function) early returned (1)")
                 return
             }
 
             if !floatingCursor.isHidden || isLongPressCursorDrag {
-                print("setting \(#function) early returned (2)")
                 set_selected(wsHandle, range)
                 return
             }
@@ -458,7 +453,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
         guard let _ = (markedTextRange ?? selectedTextRange) as? LBTextRange else {
-            print("\(#function) early returned")
             return
         }
         
@@ -470,7 +464,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func unmarkText() {
         guard let _ = markedTextRange as? LBTextRange else {
-            print("\(#function) early returned")
             return
         }
         
@@ -492,7 +485,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func textRange(from fromPosition: UITextPosition, to toPosition: UITextPosition) -> UITextRange? {
         guard let start = (fromPosition as? LBTextPos)?.c else {
-            print("\(#function) early returned")
             return nil
         }
         let end = (toPosition as! LBTextPos).c
@@ -507,7 +499,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func position(from position: UITextPosition, offset: Int) -> UITextPosition? {
         guard let start = (position as? LBTextPos)?.c else {
-            print("\(#function) early returned")
             return nil
         }
         let new = position_offset(wsHandle, start, Int32(offset))
@@ -529,7 +520,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func compare(_ position: UITextPosition, to other: UITextPosition) -> ComparisonResult {
         guard let left = (position as? LBTextPos)?.c.pos, let right = (other as? LBTextPos)?.c.pos else {
-            print("compare(position=\((position as? LBTextPos)?.c), to=\((other as? LBTextPos)?.c) result=\(ComparisonResult.orderedAscending)")
             return ComparisonResult.orderedAscending
         }
         
@@ -541,7 +531,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         } else {
             res = ComparisonResult.orderedDescending
         }
-        
         return res
     }
     
@@ -612,9 +601,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         let point = CPoint(x: x, y: y + iOSMTK.TAB_BAR_HEIGHT)
         let result = position_at_point(wsHandle, point)
-        if result.none {
-            return nil
-        }
         
         return LBTextPos(c: result)
     }
@@ -1236,9 +1222,6 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
         let backwards = direction.rawValue == UITextStorageDirection.backward.rawValue
         let result = bound_from_position(wsHandle, position, granularity, backwards)
-        if result.none {
-            return nil
-        }
         return LBTextPos(c: result)
     }
     
@@ -1250,7 +1233,7 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
         let backwards = direction.rawValue == UITextStorageDirection.backward.rawValue
         let result = bound_at_position(wsHandle, position, granularity, backwards)
         
-        if result.none {
+        if result.start.pos == result.end.pos {
             return nil
         }
         
