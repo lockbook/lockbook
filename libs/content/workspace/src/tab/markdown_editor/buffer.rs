@@ -442,6 +442,7 @@ impl SubBuffer {
     }
 
     fn replace_range(&mut self, range: Range<DocCharOffset>, replacement: &str) {
+        let old_text = self.text.clone();
         self.text.replace_range(
             Range {
                 start: self.segs.offset_to_byte(range.start).0,
@@ -449,6 +450,7 @@ impl SubBuffer {
             },
             replacement,
         );
+        println!("replace_range: {:?} -> {:?}", old_text, self.text);
     }
 }
 
