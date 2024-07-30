@@ -36,8 +36,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     var floatingCursorNewStartY = 0.0
     var floatingCursorNewEndY = 0.0
-    
         
+    var isLongPressCursorDrag = false
+    
     init(mtkView: iOSMTK) {
         self.mtkView = mtkView
         
@@ -71,15 +72,23 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             }
         }
         
+        for gesture in gestureRecognizers ?? [] {
+            let gestureName = gesture.name?.lowercased()
+            
+            if gestureName?.contains("interactiverefinement") ?? false {
+                gesture.addTarget(self, action: #selector(longPressGestureStateChanged(_:)))
+            }
+        }
+        
         // drop support
         let dropInteraction = UIDropInteraction(delegate: self)
         self.addInteraction(dropInteraction)
         
         // undo redo support
+        self.textUndoManager.textWrapper = self
         self.textUndoManager.wsHandle = self.wsHandle
-        self.textUndoManager.onUndoRedo = { [weak self] in
-            self?.mtkView.setNeedsDisplay(mtkView.frame)
-        }
+        self.textUndoManager.mtkView = mtkView
+        self.textUndoManager.inputDelegate = inputDelegate
         
         // floating cursor support
         if #available(iOS 17.4, *) {
@@ -101,6 +110,21 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         addSubview(floatingCursor)
     }
     
+    @objc private func longPressGestureStateChanged(_ recognizer: UIGestureRecognizer) {
+        switch recognizer.state {
+        case .began:
+            isLongPressCursorDrag = true
+        case .cancelled, .ended:
+            isLongPressCursorDrag = false
+            
+            inputDelegate?.selectionWillChange(self)
+            mtkView.drawImmediately()
+            inputDelegate?.selectionDidChange(self)
+        default:
+            break
+        }
+    }
+            
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -165,7 +189,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 if let textWrapper = self {
                     textWrapper.floatingCursor.isHidden = true
                     textWrapper.tintColor = .systemBlue
-                    textWrapper.inputDelegate?.selectionDidChange(self)
+                    textWrapper.inputDelegate?.selectionWillChange(textWrapper)
+                    textWrapper.mtkView.drawImmediately()
+                    textWrapper.inputDelegate?.selectionDidChange(textWrapper)
                     
                     textWrapper.floatingCursorNewStartX = 0
                     textWrapper.floatingCursorNewEndX = textWrapper.bounds.size.width
@@ -201,7 +227,37 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             floatingCursor.frame = CGRect(x: x, y: y - (cursorRect.height / 2), width: floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
         }
     }
-
+    
+    public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if action == #selector(cut(_:)) || action == #selector(copy(_:)) {
+            return selectedTextRange?.isEmpty == false
+        }
+        
+        if action == #selector(paste(_:)) {
+            return UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages || UIPasteboard.general.hasURLs
+        }
+        
+        if action == #selector(replace(_:withText:)) {
+            return false
+        }
+        
+        if action == NSSelectorFromString("replace:") {
+            return true
+        }
+        
+        return super.canPerformAction(action, withSender: sender)
+    }
+    
+    @objc func replace(_ sender: Any?) {
+        guard let replacement = sender as? NSObject,
+              let range = replacement.value(forKey: "range") as? UITextRange,
+              let replacementText = replacement.value(forKey: "replacementText") as? NSString else {
+            return
+        }
+        
+        replace(range, withText: replacementText as String)
+    }
+    
     public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
         guard session.items.count == 1 else { return false }
         
@@ -253,7 +309,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
         if let event = sender {
-            
             if event.state == .ended || event.state == .cancelled || event.state == .failed {
                 // todo: evaluate fling when desired
                 lastKnownTapLocation = nil
@@ -284,6 +339,8 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
 
     func importContent(_ importFormat: SupportedImportFormat, isPaste: Bool) {
+        inputDelegate?.textWillChange(self)
+        inputDelegate?.selectionWillChange(self)
         switch importFormat {
         case .url(let url):
             if url.pathExtension.lowercased() == "png" {
@@ -300,24 +357,29 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 sendImage(img: img, isPaste: isPaste)
             }
         case .text(let text):
-            pasteText(text: text)
+            paste_text(wsHandle, text)
+            workspaceState?.pasted = true
         }
+        mtkView.drawImmediately()
+        inputDelegate?.selectionDidChange(self)
+        inputDelegate?.textDidChange(self)
     }
     
     func setClipboard() {
         pasteboardString = UIPasteboard.general.string
         self.pasteBoardEventId = UIPasteboard.general.changeCount
     }
-
-    func pasteText(text: String) {
-        paste_text(wsHandle, text)
-        workspaceState?.pasted = true
-    }
     
     public func insertText(_ text: String) {
+        guard let _ = (markedTextRange ?? selectedTextRange) as? LBTextRange,
+            !text.isEmpty else {
+            return
+        }
+         
         inputDelegate?.textWillChange(self)
         insert_text(wsHandle, text)
-        self.mtkView.setNeedsDisplay(mtkView.frame)
+        mtkView.drawImmediately()
+        inputDelegate?.textDidChange(self)
     }
     
     public func text(in range: UITextRange) -> String? {
@@ -332,10 +394,14 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     
     public func replace(_ range: UITextRange, withText text: String) {
-        let range = range as! LBTextRange
+        guard let range = range as? LBTextRange else {
+            return
+        }
+        
         inputDelegate?.textWillChange(self)
         replace_text(wsHandle, range.c, text)
-        self.mtkView.setNeedsDisplay(mtkView.frame)
+        mtkView.drawImmediately()
+        inputDelegate?.textDidChange(self)
     }
     
     public var selectedTextRange: UITextRange? {
@@ -343,10 +409,16 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             guard let range = (newValue as? LBTextRange)?.c else {
                 return
             }
+
+            if !floatingCursor.isHidden || isLongPressCursorDrag {
+                set_selected(wsHandle, range)
+                return
+            }
             
             inputDelegate?.selectionWillChange(self)
             set_selected(wsHandle, range)
-            self.mtkView.setNeedsDisplay()
+            mtkView.drawImmediately()
+            inputDelegate?.selectionDidChange(self)
         }
         
         get {
@@ -380,15 +452,25 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
+        guard let _ = (markedTextRange ?? selectedTextRange) as? LBTextRange else {
+            return
+        }
+        
         inputDelegate?.textWillChange(self)
         set_marked(wsHandle, CTextRange(none: false, start: CTextPosition(none: false, pos: UInt(selectedRange.lowerBound)), end: CTextPosition(none: false, pos: UInt(selectedRange.upperBound))), markedText)
-        self.mtkView.setNeedsDisplay()
+        mtkView.drawImmediately()
+        inputDelegate?.textDidChange(self)
     }
     
     public func unmarkText() {
+        guard let _ = markedTextRange as? LBTextRange else {
+            return
+        }
+        
         inputDelegate?.textWillChange(self)
         unmark_text(wsHandle)
-        self.mtkView.setNeedsDisplay()
+        mtkView.drawImmediately()
+        inputDelegate?.textDidChange(self)
     }
     
     public var beginningOfDocument: UITextPosition {
@@ -407,6 +489,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         }
         let end = (toPosition as! LBTextPos).c
         let range = text_range(start, end)
+
         if range.none {
             return nil
         } else {
@@ -452,6 +535,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func offset(from: UITextPosition, to toPosition: UITextPosition) -> Int {
+        
         guard let left = (from as? LBTextPos)?.c.pos, let right = (toPosition as? LBTextPos)?.c.pos else {
             return 0
         }
@@ -503,11 +587,13 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         free_selection_rects(result)
         
-        return buffer.enumerated().map { (index, rect) in
+        let selectionRects: [UITextSelectionRect] = buffer.enumerated().map { (index, rect) in
             let new_rect = CRect(min_x: rect.min_x, min_y: rect.min_y - iOSMTK.TAB_BAR_HEIGHT, max_x: rect.max_x, max_y: rect.max_y - iOSMTK.TAB_BAR_HEIGHT)
             
             return LBTextSelectionRect(cRect: new_rect, loc: index, size: buffer.count)
         }
+        
+        return selectionRects
     }
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
@@ -535,69 +621,40 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func deleteBackward() {
+        if !hasText {
+            return
+        }
+        
+        guard let rangeToReplace = (markedTextRange ?? selectedTextRange) as? LBTextRange else {
+            return
+        }
+        
         inputDelegate?.textWillChange(self)
         backspace(wsHandle)
-        self.mtkView.setNeedsDisplay(mtkView.frame)
+        mtkView.drawImmediately()
+        inputDelegate?.textDidChange(self)
     }
     
-    public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
-        let customMenu = self.selectedTextRange?.isEmpty == false ? UIMenu(title: "", options: .displayInline, children: [
-            UIAction(title: "Cut") { [weak self] _ in
-                self?.inputDelegate?.selectionWillChange(self)
-                self?.clipboardCut()
-            },
-            UIAction(title: "Copy") { [weak self] _ in
-                self?.clipboardCopy()
-            },
-            UIAction(title: "Paste") { [weak self] _ in
-                self?.inputDelegate?.textWillChange(self)
-                self?.clipboardPaste()
-            },
-            UIAction(title: "Select All") { [weak self] _ in
-                if let inputWrapper = self {
-                    inputWrapper.inputDelegate?.selectionWillChange(inputWrapper)
-                    select_all(inputWrapper.wsHandle)
-                    inputWrapper.mtkView.setNeedsDisplay(inputWrapper.mtkView.frame)
-                }
-            },
-        ]) : UIMenu(title: "", options: .displayInline, children: [
-            UIAction(title: "Select") { [weak self] _ in
-                if let inputWrapper = self {
-                    inputWrapper.inputDelegate?.selectionWillChange(inputWrapper)
-                    select_current_word(inputWrapper.wsHandle)
-                    inputWrapper.mtkView.setNeedsDisplay(inputWrapper.mtkView.frame)
-                }
-            },
-            UIAction(title: "Select All") { [weak self] _ in
-                if let inputWrapper = self {
-                    inputWrapper.inputDelegate?.selectionWillChange(inputWrapper)
-                    select_all(inputWrapper.wsHandle)
-                    inputWrapper.mtkView.setNeedsDisplay(inputWrapper.mtkView.frame)
-                }
-            },
-            UIAction(title: "Paste") { [weak self] _ in
-                self?.inputDelegate?.textWillChange(self)
-                self?.clipboardPaste()
-            },
-        ])
+    public override func cut(_ sender: Any?) {
+        guard let range = (markedTextRange ?? selectedTextRange) as? LBTextRange,
+            !range.isEmpty else {
+            return
+        }
         
-        var actions = suggestedActions
-        actions.append(customMenu)
-        return UIMenu(children: actions)
-    }
-    
-    @objc func clipboardCopy() {
-        clipboard_copy(self.wsHandle)
-        self.mtkView.setNeedsDisplay(mtkView.frame)
-    }
-    
-    @objc func clipboardCut() {
         inputDelegate?.textWillChange(self)
+        inputDelegate?.selectionWillChange(self)
         clipboard_cut(self.wsHandle)
-        self.mtkView.setNeedsDisplay(mtkView.frame)
+        mtkView.drawImmediately()
+        inputDelegate?.selectionDidChange(self)
+        inputDelegate?.textDidChange(self)
     }
     
-    @objc func clipboardPaste() {
+    public override func copy(_ sender: Any?) {
+        clipboard_copy(self.wsHandle)
+        setNeedsDisplay(self.frame)
+    }
+    
+    public override func paste(_ sender: Any?) {
         self.setClipboard()
         
         if let image = UIPasteboard.general.image {
@@ -605,20 +662,17 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         } else if let pastedString = pasteboardString {
             importContent(.text(pastedString), isPaste: true)
         }
-
-        self.mtkView.setNeedsDisplay()
     }
     
-    @objc func keyboardSelectAll() {
+    public override func selectAll(_ sender: Any?) {
+        if !hasText {
+            return
+        }
+        
         inputDelegate?.selectionWillChange(self)
         select_all(self.wsHandle)
-        self.mtkView.setNeedsDisplay()
-    }
-        
-    func undoRedo(redo: Bool) {
-        inputDelegate?.textWillChange(self)
-        undo_redo(self.wsHandle, redo)
-        self.mtkView.setNeedsDisplay(mtkView.frame)
+        mtkView.drawImmediately()
+        inputDelegate?.selectionDidChange(self)
     }
     
     func getText() -> String {
@@ -638,17 +692,12 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         deleteWord.wantsPriorityOverSystemBehavior = true
 
         return [
-            UIKeyCommand(input: "c", modifierFlags: .command, action: #selector(clipboardCopy)),
-            UIKeyCommand(input: "x", modifierFlags: .command, action: #selector(clipboardCut)),
-            UIKeyCommand(input: "v", modifierFlags: .command, action: #selector(clipboardPaste)),
-            UIKeyCommand(input: "a", modifierFlags: .command, action: #selector(keyboardSelectAll)),
             deleteWord,
         ]
     }
     
     @objc func deleteWord() {
         delete_word(wsHandle)
-        mtkView.setNeedsDisplay(mtkView.frame)
     }
     
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -768,11 +817,14 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     var showTabs = true
     var overrideDefaultKeyboardBehavior = false
     
+    var ignoreSelectionUpdate = false
+    var ignoreTextUpdate = false
+    
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         
-        self.isPaused = true
-        self.enableSetNeedsDisplay = true
+        self.isPaused = false
+        self.enableSetNeedsDisplay = false
         self.delegate = self
         self.preferredFramesPerSecond = 120
         self.isUserInteractionEnabled = true
@@ -800,6 +852,11 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         setNeedsDisplay(self.frame)
     }
     
+    func closeAllTabs() {
+        close_all_tabs(wsHandle)
+        setNeedsDisplay(self.frame)
+    }
+    
     func requestSync() {
         request_sync(wsHandle)
         setNeedsDisplay(self.frame)
@@ -819,11 +876,28 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode())
-    } 
+        workspaceState?.wsHandle = wsHandle
+    }
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         resize_editor(wsHandle, Float(size.width), Float(size.height), Float(self.contentScaleFactor))
         self.setNeedsDisplay()
+    }
+    
+    public func drawImmediately() {
+        redrawTask?.cancel()
+        redrawTask = nil
+        
+        ignoreSelectionUpdate = true
+        ignoreTextUpdate = true
+        
+        self.isPaused = true
+        self.enableSetNeedsDisplay = false
+        
+        self.draw(in: self)
+        
+        ignoreSelectionUpdate = false
+        ignoreTextUpdate = false
     }
     
     public func draw(in view: MTKView) {
@@ -843,6 +917,10 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let syncing = status.syncing
             workspaceState?.syncing = syncing
             workspaceState?.statusMsg = msg
+        }
+        
+        if output.workspace_resp.tabs_changed {
+            workspaceState?.openTabs = Int(tab_count(wsHandle))
         }
         
         workspaceState?.reloadFiles = output.workspace_resp.refresh_files
@@ -877,17 +955,21 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             self.workspaceState?.openDoc = nil
         }
         
-        if(currentTab == .Markdown) {
+        if currentTab == .Markdown && currentWrapper is iOSMTKTextInputWrapper {
             if(output.workspace_resp.hide_virtual_keyboard) {
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
             
-            if output.workspace_resp.selection_updated {
+            if output.workspace_resp.scroll_updated {
                 onSelectionChanged?()
             }
             
-            if output.workspace_resp.text_updated {
+            if output.workspace_resp.text_updated && !ignoreTextUpdate {
                 onTextChanged?()
+            }
+            
+            if output.workspace_resp.selection_updated && !ignoreSelectionUpdate {
+                onSelectionChanged?()
             }
 
             let keyboard_shown = currentWrapper?.isFirstResponder ?? false && GCKeyboard.coalesced == nil;
@@ -936,6 +1018,8 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
             redrawTask = newRedrawTask
         }
+        
+        self.enableSetNeedsDisplay = self.isPaused
     }
     
     override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -1118,7 +1202,7 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
             return false
         }
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
-        let backwards = direction.rawValue == 1
+        let backwards = direction.rawValue == UITextStorageDirection.backward.rawValue
         return is_position_at_bound(wsHandle, position, granularity, backwards)
     }
     
@@ -1127,7 +1211,7 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
             return false
         }
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
-        let backwards = direction.rawValue == 1
+        let backwards = direction.rawValue == UITextStorageDirection.backward.rawValue
         return is_position_within_bound(wsHandle, position, granularity, backwards)
     }
     
@@ -1136,7 +1220,7 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
             return nil
         }
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
-        let backwards = direction.rawValue == 1
+        let backwards = direction.rawValue == UITextStorageDirection.backward.rawValue
         let result = bound_from_position(wsHandle, position, granularity, backwards)
         return LBTextPos(c: result)
     }
@@ -1146,8 +1230,13 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
             return nil
         }
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
-        let backwards = direction.rawValue == 1
+        let backwards = direction.rawValue == UITextStorageDirection.backward.rawValue
         let result = bound_at_position(wsHandle, position, granularity, backwards)
+        
+        if result.start.pos == result.end.pos {
+            return nil
+        }
+        
         return LBTextRange(c: result)
     }
 }
@@ -1155,7 +1244,10 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
 class iOSUndoManager: UndoManager {
     
     public var wsHandle: UnsafeMutableRawPointer? = nil
-    var onUndoRedo: (() -> Void)? = nil
+    
+    weak var textWrapper: iOSMTKTextInputWrapper? = nil
+    weak var mtkView: iOSMTK? = nil
+    weak var inputDelegate: UITextInputDelegate? = nil
     
     override var canUndo: Bool {
         get {
@@ -1170,13 +1262,21 @@ class iOSUndoManager: UndoManager {
     }
     
     override func undo() {
+        inputDelegate?.textWillChange(textWrapper)
+        inputDelegate?.selectionWillChange(textWrapper)
         undo_redo(wsHandle, false)
-        onUndoRedo?()
+        mtkView?.drawImmediately()
+        inputDelegate?.selectionDidChange(textWrapper)
+        inputDelegate?.textDidChange(textWrapper)
     }
     
     override func redo() {
+        inputDelegate?.textWillChange(textWrapper)
+        inputDelegate?.selectionWillChange(textWrapper)
         undo_redo(wsHandle, true)
-        onUndoRedo?()
+        mtkView?.drawImmediately()
+        inputDelegate?.selectionDidChange(textWrapper)
+        inputDelegate?.textDidChange(textWrapper)
     }
 }
 

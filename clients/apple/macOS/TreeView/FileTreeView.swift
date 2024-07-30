@@ -2,120 +2,94 @@ import SwiftUI
 import SwiftWorkspace
 import SwiftLockbookCore
 
-struct FileTreeView: NSViewRepresentable {
-
+struct FileTreeView: NSViewRepresentable, Equatable {
     let scrollView = NSScrollView()
     let treeView = MenuOutlineView()
     let delegate = TreeDelegate()
-    var dataSource = DataSource()
-    
-    @Binding var expandedFolders: [File]
-    @Binding var lastOpenDoc: File?
+    let dataSource = DataSource()
 
     @EnvironmentObject var files: FileService
     @EnvironmentObject var workspace: WorkspaceState
-    
-    let previousFilesHash: Reference<Int?> = Reference(nil)
-    let previousOpenDocumentHash: Reference<Int?> = Reference(nil)
-    
+        
     func makeNSView(context: Context) -> NSScrollView {
-        if treeView.numberOfColumns != 1 {
-            delegate.documentSelected = { meta in
-                if meta.fileType == .Document {
-                    print("opening \(meta.name)")
-                    DI.workspace.requestOpenDoc(meta.id)
-                } else if meta.fileType == .Folder {
-                    DI.workspace.selectedFolder = meta.id
-                }
-            }
-            
-            delegate.folderExpandedCollapsed = { meta, expanded in
-                if(expanded) {
-                    expandedFolders.append(meta)
-                } else {
-                    if let index = expandedFolders.firstIndex(of: meta) {
-                        expandedFolders.remove(at: index)
-                    }
-                }
-            }
+        scrollView.documentView = treeView
+        scrollView.hasVerticalScroller = true
+        scrollView.horizontalScrollElasticity = .none
+        scrollView.hasHorizontalScroller = false
+        scrollView.hasHorizontalRuler = false
+        scrollView.drawsBackground = false
+        
+        treeView.autoresizesOutlineColumn = true
+        treeView.headerView = nil
+        treeView.usesAutomaticRowHeights = true
+        
+        treeView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
+        
+        treeView.setDraggingSourceOperationMask(.copy, forLocal: false)
+        treeView.setDraggingSourceOperationMask(.move, forLocal: true)
+        
+        treeView.registerForDraggedTypes([NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE), .fileURL])
+        
+        let onlyColumn = NSTableColumn()
+        onlyColumn.resizingMask = .autoresizingMask
+        onlyColumn.minWidth = 100
+        treeView.addTableColumn(onlyColumn)
+        
+        treeView.dataSource = dataSource
+        treeView.delegate = delegate
+        treeView.stronglyReferencesItems = true
                         
-            scrollView.documentView = treeView
-            scrollView.hasVerticalScroller = true
-            scrollView.horizontalScrollElasticity = .none
-            scrollView.hasHorizontalScroller = false
-            scrollView.hasHorizontalRuler = false
-            scrollView.drawsBackground = false
-            
-            treeView.autoresizesOutlineColumn = true
-            treeView.headerView = nil
-            treeView.usesAutomaticRowHeights = true
-            
-            treeView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
-            
-            treeView.setDraggingSourceOperationMask(.copy, forLocal: false)
-            treeView.setDraggingSourceOperationMask(.move, forLocal: true)
-            
-            treeView.registerForDraggedTypes([NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE), .fileURL])
-            
-            let onlyColumn = NSTableColumn()
-            onlyColumn.resizingMask = .autoresizingMask
-            onlyColumn.minWidth = 100
-            treeView.addTableColumn(onlyColumn)
-            
-            treeView.dataSource = dataSource
-            treeView.delegate = delegate
-            treeView.stronglyReferencesItems = true
-            
-            for item in expandedFolders {
-                treeView.expandItem(item)
+        for id in DI.files.expandedFolders {
+            if let meta = DI.files.idsAndFiles[id] {
+                expandToFile(meta: meta)
             }
-            
-            scrollAndSelectDoc(maybeOpenDocId: workspace.openDoc)
         }
+        
+        selectOpenDoc()
 
         return scrollView
     }
-    
+        
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        if previousFilesHash.value != files.idsAndFiles.hashValue {
-            previousFilesHash.value = files.idsAndFiles.hashValue
+        if dataSource.lastFilesHash != files.idsAndFiles.hashValue {
+            dataSource.lastFilesHash = files.idsAndFiles.hashValue
+            
             treeView.reloadData()
         }
-        
-        let maybeOpenDocId = workspace.openDoc
                 
-        if lastOpenDoc?.id != maybeOpenDocId {
-            scrollAndSelectDoc(maybeOpenDocId: maybeOpenDocId)
-            
-            if let openDocId = maybeOpenDocId {
-                lastOpenDoc = DI.files.idsAndFiles[openDocId]
-            } else {
-                lastOpenDoc = nil
-            }
-        }
+        selectOpenDoc()
     }
-    
-    func scrollAndSelectDoc(maybeOpenDocId: UUID?) {
-        if let openDocId = maybeOpenDocId {
-            if let openDoc = DI.files.idsAndFiles[openDocId] {
-                scrollAndExpandAncestorsOfDocument(file: openDoc)
-                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: openDoc)), byExtendingSelection: false)
-            }
-        } else {
+        
+    func selectOpenDoc() {
+        if workspace.openDoc == nil && dataSource.selectedDoc != nil {
+            dataSource.selectedDoc = nil
             treeView.selectRowIndexes(IndexSet(), byExtendingSelection: false)
+        } else if let openDoc = workspace.openDoc,
+            let meta = files.idsAndFiles[openDoc] {
+                        
+            if workspace.openDoc != nil && dataSource.selectedDoc != workspace.openDoc {
+                expandToFile(meta: meta)
+                dataSource.selectedDoc = workspace.openDoc
+                
+                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: false)
+                treeView.animator().scrollRowToVisible(treeView.row(forItem: meta))
+            } else {
+                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: false)
+            }
         }
     }
     
-    func scrollAndExpandAncestorsOfDocument(file: File) {
-        if(treeView.row(forItem: file) == -1) {
-            let pathToRoot = DI.files.filesToExpand(pathToRoot: [], currentFile: file)
-                    
-            for parent in pathToRoot {
-                treeView.animator().expandItem(parent)
-            }
+    func expandToFile(meta: File) {
+        if let parentMeta = DI.files.idsAndFiles[meta.parent],
+           treeView.row(forItem: meta) == -1 {
+            expandToFile(meta: parentMeta)
         }
         
-        treeView.animator().scrollRowToVisible(treeView.row(forItem: file))
+        treeView.animator().expandItem(meta)
+    }
+    
+    static func == (lhs: FileTreeView, rhs: FileTreeView) -> Bool {
+        true
     }
 }
 
@@ -132,12 +106,22 @@ class MenuOutlineView: NSOutlineView {
     }
 
     @objc private func outlineViewClicked(_ outlineView: NSOutlineView) {
-        if let clickedItem = item(atRow: clickedRow) {
-            if isItemExpanded(clickedItem) {
-                animator().collapseItem(clickedItem)
-            } else {
-                animator().expandItem(clickedItem)
+        if let meta = item(atRow: clickedRow) as? File {
+            if meta.fileType == .Document {
+                DI.workspace.requestOpenDoc(meta.id)
+                
+                return
             }
+            
+            if isItemExpanded(meta) {
+                DI.files.expandedFolders.removeAll(where: { $0 == meta.id })
+                animator().collapseItem(meta)
+            } else {
+                DI.files.expandedFolders.append(meta.id)
+                animator().expandItem(meta)
+            }
+            
+            DI.workspace.selectedFolder = meta.id
         }
     }
 
@@ -157,9 +141,4 @@ class MenuOutlineView: NSOutlineView {
         fatalError("init(coder:) has not been implemented")
     }
 
-}
-
-class Reference<T> {
-    var value: T
-    init(_ value: T) { self.value = value }
 }

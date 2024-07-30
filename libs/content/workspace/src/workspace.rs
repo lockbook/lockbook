@@ -164,6 +164,8 @@ impl Workspace {
             }
         }
 
+        self.out.tabs_changed = true;
+
         self.tabs.push(new_tab);
         if make_active {
             self.active_tab = self.tabs.len() - 1;
@@ -398,17 +400,21 @@ impl Workspace {
                                 if resp.text_updated {
                                     self.out.markdown_editor_text_updated = true;
                                 }
-                                if resp.selection_updated || resp.scroll_updated {
+                                if resp.selection_updated {
                                     // markdown_editor_selection_updated represents a change to the screen position of
                                     // the cursor, which is also updated when scrolling
                                     self.out.markdown_editor_selection_updated = true;
                                 }
 
+                                // used just for android
                                 if resp.show_edit_menu {
-                                    // used just for android
                                     self.out.markdown_editor_show_edit_menu = true;
                                     self.out.markdown_editor_edit_menu_x = resp.edit_menu_x;
                                     self.out.markdown_editor_edit_menu_y = resp.edit_menu_y;
+                                }
+
+                                if resp.scroll_updated {
+                                    self.out.markdown_editor_scroll_updated = true
                                 }
                             }
                             TabContent::Image(img) => img.show(ui),
@@ -431,9 +437,11 @@ impl Workspace {
 
     fn show_mobile_title(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            let selectable_label = egui::widgets::Button::new(self.tabs[0].name.clone())
-                .frame(false)
-                .fill(egui::Color32::TRANSPARENT);
+            let selectable_label = egui::widgets::Button::new(
+                egui::RichText::new(self.tabs[0].name.clone()).size(30.0),
+            )
+            .frame(false)
+            .fill(egui::Color32::TRANSPARENT);
 
             ui.allocate_ui(ui.available_size(), |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
@@ -642,6 +650,7 @@ impl Workspace {
         self.save_tab(i);
         self.tabs.remove(i);
         let n_tabs = self.tabs.len();
+        self.out.tabs_changed = true;
         if self.active_tab >= n_tabs && n_tabs > 0 {
             self.active_tab = n_tabs - 1;
         }

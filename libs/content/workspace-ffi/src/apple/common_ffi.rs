@@ -131,7 +131,11 @@ pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
 #[no_mangle]
 pub unsafe extern "C" fn clipboard_paste(obj: *mut c_void, content: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let content = CStr::from_ptr(content).to_str().unwrap().into();
+    let content: String = CStr::from_ptr(content).to_str().unwrap().into();
+
+    let bytes: Vec<_> = content.bytes().collect();
+    println!("Pasting: {:?} ({:?})", content, bytes);
+
     obj.raw_input.events.push(Event::Paste(content));
 }
 
