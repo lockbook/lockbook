@@ -78,13 +78,21 @@ impl Pen {
                         return None;
                     }
                 }
+
                 if self.detect_snap(pos, buffer.master_transform) {
                     let curr_id = self.current_id; // needed because end path will advance to the next id
                     self.end_path(buffer, history, true);
+
                     return Some(PenResponse::ToggleSelection(curr_id));
                 } else if let Some(parser::Element::Path(p)) =
                     buffer.elements.get_mut(&id.to_string())
                 {
+                    // a transform occured causing a mismatch between buffer and path builder finish path early
+                    if p.data != self.path_builder.path {
+                        self.path_builder.clear();
+                        self.current_id += 1;
+                        return None;
+                    }
                     self.path_builder.cubic_to(pos);
                     p.data = self.path_builder.path.clone();
                 } else {
@@ -119,7 +127,11 @@ impl Pen {
         None
     }
 
-    fn end_path(&mut self, buffer: &mut Buffer, history: &mut History, is_snapped: bool) {
+    pub fn end_path(&mut self, buffer: &mut Buffer, history: &mut History, is_snapped: bool) {
+        if self.path_builder.path.is_empty() {
+            return;
+        }
+
         if self.path_builder.path.len() > 2 && is_snapped {
             self.path_builder
                 .finish(is_snapped, buffer, self.simplification_tolerance);
@@ -205,6 +217,7 @@ impl Pen {
     }
 }
 
+#[derive(Debug)]
 pub enum PathEvent {
     Draw(egui::Pos2, usize),
     End,
