@@ -42,6 +42,7 @@ pub enum Element {
     Text(Text),
 }
 
+#[derive(Clone)]
 pub struct Path {
     pub data: Subpath<ManipulatorGroupId>,
     pub visibility: Visibility,

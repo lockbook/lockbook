@@ -3,6 +3,7 @@ mod eraser;
 mod history;
 mod parser;
 mod pen;
+mod renderer;
 mod selection;
 mod toolbar;
 mod util;
@@ -157,93 +158,5 @@ impl SVGEditor {
 
     pub fn get_minimal_content(&self) -> String {
         self.buffer.to_string()
-    }
-
-    fn render_svg(&mut self, ui: &mut egui::Ui) {
-        let painter = ui
-            .allocate_painter(self.inner_rect.size(), egui::Sense::click_and_drag())
-            .1;
-
-        self.buffer.elements.iter_mut().for_each(|(id, el)| {
-            if let parser::Element::Image(img) = el {
-                render_image(img, ui, id, &painter);
-            }
-        });
-
-        for (_, el) in self.buffer.elements.iter_mut() {
-            if let parser::Element::Path(path) = el {
-                if path.data.is_empty() || path.visibility.eq(&usvg::Visibility::Hidden) {
-                    continue;
-                }
-
-                let stroke = path.stroke.unwrap_or_default();
-                let alpha_stroke_color = ThemePalette::resolve_dynamic_color(stroke.color, ui)
-                    .linear_multiply(path.opacity);
-
-                if path.data.is_point() {
-                    let origin = &path.data.manipulator_groups()[0];
-                    let origin = egui::pos2(origin.anchor.x as f32, origin.anchor.y as f32);
-                    let circle = epaint::CircleShape::filled(
-                        origin,
-                        stroke.width * self.buffer.master_transform.sx / 2.0,
-                        alpha_stroke_color,
-                    );
-                    painter.add(circle);
-                } else {
-                    let points = path
-                        .data
-                        .manipulator_groups()
-                        .iter()
-                        .map(|m| egui::pos2(m.anchor.x as f32, m.anchor.y as f32))
-                        .collect();
-
-                    let epath = egui::epaint::PathShape::line(
-                        points,
-                        egui::Stroke {
-                            width: stroke.width * self.buffer.master_transform.sx,
-                            color: alpha_stroke_color,
-                        },
-                    );
-                    painter.add(epath);
-                };
-            }
-        }
-    }
-}
-
-fn render_image(img: &mut parser::Image, ui: &mut egui::Ui, id: &String, painter: &egui::Painter) {
-    match &img.data {
-        ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
-            let image = image::load_from_memory(bytes).unwrap();
-
-            let egui_image = egui::ColorImage::from_rgba_unmultiplied(
-                [image.width() as usize, image.height() as usize],
-                &image.to_rgba8(),
-            );
-            if img.texture.is_none() {
-                img.texture = Some(ui.ctx().load_texture(
-                    format!("canvas_img_{}", id),
-                    egui_image,
-                    egui::TextureOptions::LINEAR,
-                ));
-            }
-
-            if let Some(texture) = &img.texture {
-                let rect = egui::Rect {
-                    min: egui::pos2(img.view_box.rect.left(), img.view_box.rect.top()),
-                    max: egui::pos2(img.view_box.rect.right(), img.view_box.rect.bottom()),
-                };
-                let uv = egui::Rect {
-                    min: egui::Pos2 { x: 0.0, y: 0.0 },
-                    max: egui::Pos2 { x: 1.0, y: 1.0 },
-                };
-
-                let mut mesh = egui::Mesh::with_texture(texture.id());
-                mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE.gamma_multiply(img.opacity));
-                painter.add(egui::Shape::mesh(mesh));
-            }
-        }
-        ImageKind::GIF(_) => todo!(),
-        ImageKind::SVG(_) => todo!(),
     }
 }
