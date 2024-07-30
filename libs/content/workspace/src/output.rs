@@ -33,6 +33,10 @@ pub struct WsOutput {
     pub markdown_editor_selection_updated: bool,
     pub markdown_editor_scroll_updated: bool,
 
+    pub markdown_editor_show_edit_menu: bool,
+    pub markdown_editor_edit_menu_x: f32,
+    pub markdown_editor_edit_menu_y: f32,
+
     pub tabs_changed: bool,
 }
 

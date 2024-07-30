@@ -1,23 +1,34 @@
 package app.lockbook.util
 
 import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.net.Uri
+import android.os.Build
+import android.view.ActionMode
+import android.view.Menu
+import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat.startActivity
+import app.lockbook.App
 import app.lockbook.model.CoreModel
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
+import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.IntegrationOutput
 import app.lockbook.workspace.Workspace
+import app.lockbook.workspace.WsStatus
 import app.lockbook.workspace.isNullUUID
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -30,6 +41,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     private var surface: Surface? = null
     var wrapperView: View? = null
+    var contextMenu: ActionMode? = null
+
+    var ignoreSelectionUpdate = false
 
     private val frameOutputJsonParser = Json {
         ignoreUnknownKeys = true
@@ -53,7 +67,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         if (event != null) {
             requestFocus()
 
-            forwardedTouchEvent(event, 0)
+            forwardedTouchEvent(event, 0f)
 
             // if they tap outside the toolbar, we want to refocus the text editor to regain text input
             if (model.currentTab.value == WorkspaceTab.Markdown || model.currentTab.value == WorkspaceTab.PlainText) {
@@ -69,7 +83,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
-        WORKSPACE.resizeEditor(WGPU_OBJ, holder.surface, context.resources.displayMetrics.scaledDensity)
+        WORKSPACE.resizeWS(
+            WGPU_OBJ,
+            holder.surface,
+            context.resources.displayMetrics.scaledDensity
+        )
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
@@ -93,7 +111,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         requestFocus()
     }
 
-    fun forwardedTouchEvent(event: MotionEvent, touchOffsetY: Int) {
+    fun forwardedTouchEvent(event: MotionEvent, touchOffsetY: Float) {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
@@ -105,6 +123,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
             when (action) {
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN, SPEN_ACTION_DOWN -> {
+                    if (contextMenu != null) {
+                        contextMenu!!.finish()
+                    }
+
                     if (action == SPEN_ACTION_DOWN) {
                         eraserToggledOnByPen = true
                         WORKSPACE.toggleEraserSVG(WGPU_OBJ, true)
@@ -121,6 +143,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         0.0f
                     )
                 }
+
                 MotionEvent.ACTION_MOVE, SPEN_ACTION_MOVE -> {
                     WORKSPACE.touchesMoved(
                         WGPU_OBJ,
@@ -130,6 +153,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         0.0f
                     )
                 }
+
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, SPEN_ACTION_UP -> {
                     WORKSPACE.touchesEnded(
                         WGPU_OBJ,
@@ -139,6 +163,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         0.0f
                     )
                 }
+
                 MotionEvent.ACTION_CANCEL -> {
                     WORKSPACE.touchesCancelled(
                         WGPU_OBJ,
@@ -205,7 +230,17 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
 
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+        drawWorkspace()
+    }
+
+    fun drawImmediately() {
+        ignoreSelectionUpdate = true
+        drawWorkspace()
+        ignoreSelectionUpdate = false
+    }
+
+    private fun drawWorkspace() {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
             return
         }
 
@@ -217,10 +252,16 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             startActivity(context, browserIntent, null)
         }
 
-        if (model.isSyncing && !response.workspaceResp.syncing) {
-            model._syncCompleted.postValue(Unit)
+        if (response.workspaceResp.statusUpdated) {
+            val status: WsStatus = frameOutputJsonParser.decodeFromString(Workspace.getInstance().getStatus(WGPU_OBJ))
+
+            if (model.isSyncing && !status.syncing) {
+                model._syncCompleted.postValue(Unit)
+            }
+
+            model.isSyncing = status.syncing
+            model._msg.value = status.msg
         }
-        model.isSyncing = response.workspaceResp.syncing
 
         if (response.workspaceResp.newFolderBtnPressed) {
             model._newFolderBtnPressed.postValue(Unit)
@@ -243,11 +284,44 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             WORKSPACE.unfocusTitle(WGPU_OBJ)
         }
 
-        model._msg.value = response.workspaceResp.msg
+        if (response.hasCopiedText) {
+            (App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
+        }
 
         val currentTab = WorkspaceTab.fromInt(WORKSPACE.currentTab(WGPU_OBJ))
         if (currentTab != model._currentTab.value) {
             model._currentTab.value = currentTab
+        }
+
+        if (currentTab == WorkspaceTab.Markdown) {
+            (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
+                if (response.workspaceResp.selectionUpdated && !ignoreSelectionUpdate) {
+                    textInputWrapper.wsInputConnection.notifySelectionUpdated()
+                }
+
+                if (response.workspaceResp.textUpdated && contextMenu != null) {
+                    contextMenu?.finish()
+                }
+
+                if (response.workspaceResp.showEditMenu && contextMenu == null) {
+                    val actionModeCallback =
+                        TextEditorContextMenu(textInputWrapper)
+
+                    contextMenu = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        this.startActionMode(
+                            FloatingTextEditorContextMenu(
+                                actionModeCallback,
+                                response.workspaceResp.editMenuX,
+                                response.workspaceResp.editMenuY
+                            ),
+                            ActionMode.TYPE_FLOATING
+                        )
+                    } else {
+                        this.startActionMode(actionModeCallback)
+                    }
+                }
+            }
         }
 
         if (response.redrawIn < BigInteger("100")) {
@@ -265,5 +339,81 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         const val SPEN_ACTION_UP = 212
 
         val WORKSPACE = Workspace.getInstance()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.M)
+    inner class FloatingTextEditorContextMenu(private val textEditorContextMenu: TextEditorContextMenu, val editMenuX: Float, val editMenuY: Float) : ActionMode.Callback2() {
+        override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
+            return textEditorContextMenu.onCreateActionMode(mode, menu)
+        }
+
+        override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean {
+            return textEditorContextMenu.onPrepareActionMode(mode, menu)
+        }
+
+        override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
+            return textEditorContextMenu.onActionItemClicked(mode, item)
+        }
+
+        override fun onDestroyActionMode(mode: ActionMode?) {
+            return textEditorContextMenu.onDestroyActionMode(mode)
+        }
+
+        override fun onGetContentRect(mode: ActionMode?, view: View?, outRect: Rect?) {
+            outRect!!.set(Rect((editMenuX * context.resources.displayMetrics.scaledDensity).toInt(), (editMenuY * context.resources.displayMetrics.scaledDensity).toInt(), (editMenuX * context.resources.displayMetrics.scaledDensity).toInt(), (editMenuY * context.resources.displayMetrics.scaledDensity).toInt()))
+        }
+    }
+
+    inner class TextEditorContextMenu(private val textInputWrapper: WorkspaceTextInputWrapper) : ActionMode.Callback {
+        override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
+            if (mode != null) {
+                mode.title = null
+                mode.subtitle = null
+                mode.titleOptionalHint = true
+            }
+
+            if (menu != null) {
+                populateMenuWithItems(menu)
+            }
+
+            return true
+        }
+
+        private fun populateMenuWithItems(menu: Menu) {
+            if (!textInputWrapper.wsInputConnection.wsEditable.getSelection().isEmpty()) {
+                menu.add(Menu.NONE, android.R.id.cut, 0, "Cut")
+                    .setAlphabeticShortcut('x')
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+
+                menu.add(Menu.NONE, android.R.id.copy, 1, "Copy")
+                    .setAlphabeticShortcut('c')
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            }
+
+            menu.add(Menu.NONE, android.R.id.paste, 2, "Paste")
+                .setAlphabeticShortcut('v')
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+
+            menu.add(Menu.NONE, android.R.id.selectAll, 3, "Select all")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+        }
+
+        override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean {
+            return true
+        }
+
+        override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
+            if (item != null) {
+                textInputWrapper.wsInputConnection.performContextMenuAction(item.itemId)
+            }
+
+            contextMenu!!.finish()
+
+            return true
+        }
+
+        override fun onDestroyActionMode(mode: ActionMode?) {
+            contextMenu = null
+        }
     }
 }

@@ -132,12 +132,14 @@ impl<'window> WgpuWorkspace<'window> {
 
         #[cfg(target_os = "android")]
         {
-            if !full_output.platform_output.copied_text.is_empty() {
-                out.copied_text = full_output.platform_output.copied_text;
-            }
-
             if let Some(url) = full_output.platform_output.open_url {
                 out.url_opened = url.url;
+            }
+
+            out.has_copied_text = !full_output.platform_output.copied_text.is_empty();
+
+            if out.has_copied_text {
+                out.copied_text = full_output.platform_output.copied_text;
             }
         }
 
