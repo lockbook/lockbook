@@ -8513,7 +8513,6 @@ name = "workspace-ffi"
 version = "0.9.5"
 dependencies = [
  "egui",
- "egui_editor",
  "egui_wgpu_backend",
  "jni 0.21.1",
  "lb_external_interface",

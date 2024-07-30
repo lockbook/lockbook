@@ -3,13 +3,16 @@ use crate::{
     TabsIds, UITextSelectionRects, WgpuWorkspace,
 };
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
-use egui_editor::input::canonical::{Bound, Increment, Location, Modification, Offset, Region};
-use egui_editor::input::cursor::Cursor;
-use egui_editor::input::mutation;
-use egui_editor::offset_types::{DocCharOffset, RangeExt};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::ptr::null;
+use workspace_rs::tab::markdown_editor::input::canonical::{
+    Bound, Increment, Modification, Offset, Region,
+};
+use workspace_rs::tab::markdown_editor::input::cursor::Cursor;
+use workspace_rs::tab::markdown_editor::input::mutation;
+use workspace_rs::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
+use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::EventManager as _;
 use workspace_rs::tab::TabContent;
@@ -75,10 +78,12 @@ pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
 #[no_mangle]
 pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let text = CStr::from_ptr(text).to_str().unwrap().into();
-    if !range.none {
+    let text: String = CStr::from_ptr(text).to_str().unwrap().into();
+
+    let region: Option<Region> = range.into();
+    if let Some(region) = region {
         obj.context
-            .push_markdown_event(Modification::Replace { region: range.into(), text });
+            .push_markdown_event(Modification::Replace { region, text });
     }
 }
 
@@ -110,15 +115,21 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
         None => return null(),
     };
 
-    let (start, end): (DocCharOffset, DocCharOffset) =
-        (range.start.pos.into(), range.end.pos.into());
-    let cursor: Cursor = (start, end).into();
-    let buffer = &markdown.editor.buffer.current;
-    let text = cursor.selection_text(buffer);
+    let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
+    if let Some((start, end)) = range {
+        let cursor: Cursor = (start, end).into();
+        let buffer = &markdown.editor.buffer.current;
+        let text = cursor.selection_text(buffer);
 
-    CString::new(text)
-        .expect("Could not Rust String -> C String")
-        .into_raw()
+        CString::new(text)
+            .expect("Could not Rust String -> C String")
+            .into_raw()
+    } else {
+        println!("warning: text_in_range() called with nil range");
+        CString::new("")
+            .expect("Could not Rust String -> C String")
+            .into_raw()
+    }
 }
 
 /// # Safety
@@ -149,9 +160,9 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 #[no_mangle]
 pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    if !range.none {
+    if let Some(region) = range.into() {
         obj.context
-            .push_markdown_event(Modification::Select { region: range.into() });
+            .push_markdown_event(Modification::Select { region });
     }
 }
 
@@ -207,10 +218,13 @@ pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *
     let text =
         if text.is_null() { None } else { Some(CStr::from_ptr(text).to_str().unwrap().into()) };
 
-    obj.context.push_markdown_event(Modification::StageMarked {
-        highlighted: range.into(),
-        text: text.unwrap_or_default(),
-    });
+    let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
+    if let Some(range) = range {
+        obj.context.push_markdown_event(Modification::StageMarked {
+            highlighted: (range.start().0.into(), range.end().0.into()),
+            text: text.unwrap_or_default(),
+        });
+    }
 }
 
 /// # Safety
@@ -247,10 +261,8 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
         None => return CTextPosition::default(),
     };
 
-    CTextPosition {
-        pos: markdown.editor.buffer.current.segs.last_cursor_position().0,
-        ..Default::default()
-    }
+    let result = markdown.editor.buffer.current.segs.last_cursor_position().0;
+    CTextPosition { pos: result, ..Default::default() }
 }
 
 /// # Safety
@@ -363,7 +375,7 @@ pub extern "C" fn text_range(start: CTextPosition, end: CTextPosition) -> CTextR
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
 pub unsafe extern "C" fn position_offset(
-    obj: *mut c_void, mut start: CTextPosition, offset: i32,
+    obj: *mut c_void, start: CTextPosition, offset: i32,
 ) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
@@ -371,19 +383,23 @@ pub unsafe extern "C" fn position_offset(
         None => return CTextPosition::default(),
     };
 
-    let buffer = &markdown.editor.buffer.current;
+    let start: Option<DocCharOffset> = start.into();
+    if let Some(start) = start {
+        let last_cursor_position = markdown.editor.buffer.current.segs.last_cursor_position();
 
-    if (offset < 0 && -offset > start.pos as i32)
-        || (offset > 0
-            && (start.pos).saturating_add(offset as usize) > buffer.segs.last_cursor_position().0)
-    {
-        CTextPosition {
-            pos: markdown.editor.buffer.current.segs.last_cursor_position().0,
-            ..Default::default()
-        }
+        let result = if offset < 0 && -offset > start.0 as i32 {
+            DocCharOffset::default()
+        } else if offset > 0 && (start.0).saturating_add(offset as usize) > last_cursor_position.0 {
+            last_cursor_position
+        } else {
+            start + RelCharOffset(offset as _)
+        };
+
+        result.into()
     } else {
-        start.pos += offset as usize;
-        start
+        println!("warning: position_offset() called with nil start position");
+
+        CTextPosition::default()
     }
 }
 
@@ -416,6 +432,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
     for _ in 0..offset {
         cursor.advance(offset_type, backwards, buffer, galleys, &markdown.editor.bounds);
     }
+
     CTextPosition { none: start.none, pos: cursor.selection.1 .0 }
 }
 
@@ -433,24 +450,13 @@ pub unsafe extern "C" fn is_position_at_bound(
         None => return false,
     };
 
-    let bound: Bound = match granularity {
-        CTextGranularity::Character => Bound::Char,
-        CTextGranularity::Word => Bound::Word,
-        CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
-        CTextGranularity::Paragraph => Bound::Paragraph,
-        CTextGranularity::Line => Bound::Line,
-        CTextGranularity::Document => Bound::Doc,
-    };
-    if let Some(range) =
-        DocCharOffset(pos.pos).range_bound(bound, backwards, false, &markdown.editor.bounds)
-    {
-        // forwards: the provided position is at the end of the enclosing range
-        // backwards: the provided position is at the start of the enclosing range
-        if !backwards && pos.pos == range.end() || backwards && pos.pos == range.start() {
-            return true;
-        }
-    }
-    false
+    let text_position = pos.pos.into();
+    let at_boundary = granularity.into();
+
+    markdown
+        .editor
+        .bounds
+        .is_position_at_boundary(text_position, at_boundary, backwards)
 }
 
 /// # Safety
@@ -467,23 +473,13 @@ pub unsafe extern "C" fn is_position_within_bound(
         None => return false,
     };
 
-    let pos: DocCharOffset = pos.pos.into();
+    let text_position = pos.pos.into();
+    let at_boundary = granularity.into();
 
-    let bound = match granularity {
-        CTextGranularity::Character => Bound::Char,
-        CTextGranularity::Word => Bound::Word,
-        CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
-        CTextGranularity::Paragraph => Bound::Paragraph,
-        CTextGranularity::Line => Bound::Line,
-        CTextGranularity::Document => Bound::Doc,
-    };
-    if let Some(range) = pos.range_bound(bound, backwards, false, &markdown.editor.bounds) {
-        // this implementation doesn't meet the specification in apple's docs, but the implementation that does creates word jumping bugs
-        if range.contains_inclusive(pos) {
-            return true;
-        }
-    }
-    false
+    markdown
+        .editor
+        .bounds
+        .is_position_within_text_unit(text_position, at_boundary, backwards)
 }
 
 /// # Safety
@@ -500,21 +496,14 @@ pub unsafe extern "C" fn bound_from_position(
         None => return CTextPosition::default(),
     };
 
-    let buffer = &markdown.editor.buffer.current;
-    let galleys = &markdown.editor.galleys;
+    let text_position = pos.pos.into();
+    let to_boundary = granularity.into();
 
-    let mut cursor: Cursor = pos.pos.into();
-    let bound = match granularity {
-        CTextGranularity::Character => Bound::Char,
-        CTextGranularity::Word => Bound::Word,
-        CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
-        CTextGranularity::Paragraph => Bound::Paragraph,
-        CTextGranularity::Line => Bound::Line,
-        CTextGranularity::Document => Bound::Doc,
-    };
-    cursor.advance(Offset::Next(bound), backwards, buffer, galleys, &markdown.editor.bounds);
-
-    CTextPosition { none: false, pos: cursor.selection.1 .0 }
+    markdown
+        .editor
+        .bounds
+        .position_from(text_position, to_boundary, backwards)
+        .into()
 }
 
 /// # Safety
@@ -531,30 +520,16 @@ pub unsafe extern "C" fn bound_at_position(
         None => return CTextRange::default(),
     };
 
-    let buffer = &markdown.editor.buffer.current;
-    let galleys = &markdown.editor.galleys;
+    let text_position = pos.pos.into();
+    let with_granularity = granularity.into();
 
-    let bound = match granularity {
-        CTextGranularity::Character => Bound::Char,
-        CTextGranularity::Word => Bound::Word,
-        CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
-        CTextGranularity::Paragraph => Bound::Paragraph,
-        CTextGranularity::Line => Bound::Line,
-        CTextGranularity::Document => Bound::Doc,
-    };
-    let cursor = mutation::region_to_cursor(
-        Region::BoundAt { bound, location: Location::DocCharOffset(pos.pos.into()), backwards },
-        buffer.cursor,
-        buffer,
-        galleys,
-        &markdown.editor.bounds,
-    );
+    let result =
+        markdown
+            .editor
+            .bounds
+            .range_enclosing_position(text_position, with_granularity, backwards);
 
-    CTextRange {
-        none: false,
-        start: CTextPosition { none: false, pos: cursor.selection.start().0 },
-        end: CTextPosition { none: false, pos: cursor.selection.end().0 },
-    }
+    result.into()
 }
 
 /// # Safety
@@ -575,7 +550,14 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
     let appearance = &markdown.editor.appearance;
 
     let cursor_representing_rect: Cursor = {
-        let range: (DocCharOffset, DocCharOffset) = range.into();
+        let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
+        let range = match range {
+            Some(range) => range,
+            None => {
+                println!("warning: first_rect() called with nil range");
+                return CRect::default();
+            }
+        };
         let selection_start = range.start();
         let selection_end = range.end();
         let mut cursor: Cursor = selection_start.into();
@@ -587,6 +569,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
 
     let start_line = cursor_representing_rect.start_line(galleys, text, appearance);
     let end_line = cursor_representing_rect.end_line(galleys, text, appearance);
+
     CRect {
         min_x: (start_line[1].x + 1.0) as f64,
         min_y: start_line[0].y as f64,
@@ -631,6 +614,7 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
         segs,
         text,
     );
+
     CTextPosition { none: false, pos: offset.0 }
 }
 
@@ -704,7 +688,14 @@ pub unsafe extern "C" fn selection_rects(
     let galleys = &markdown.editor.galleys;
     let text = &markdown.editor.bounds.text;
 
-    let range: (DocCharOffset, DocCharOffset) = range.into();
+    let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
+    let range = match range {
+        Some(range) => range,
+        None => {
+            println!("warning: selection_rects() called with nil range");
+            return UITextSelectionRects::default();
+        }
+    };
     let mut cont_start = range.start();
 
     let mut selection_rects = vec![];
