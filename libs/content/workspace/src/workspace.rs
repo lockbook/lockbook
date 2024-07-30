@@ -405,6 +405,14 @@ impl Workspace {
                                     // the cursor, which is also updated when scrolling
                                     self.out.markdown_editor_selection_updated = true;
                                 }
+
+                                // used just for android
+                                if resp.show_edit_menu {
+                                    self.out.markdown_editor_show_edit_menu = true;
+                                    self.out.markdown_editor_edit_menu_x = resp.edit_menu_x;
+                                    self.out.markdown_editor_edit_menu_y = resp.edit_menu_y;
+                                }
+
                                 if resp.scroll_updated {
                                     self.out.markdown_editor_scroll_updated = true
                                 }

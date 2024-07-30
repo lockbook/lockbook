@@ -356,7 +356,7 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
 pub unsafe extern "C" fn tab_count(obj: *mut c_void) -> i64 {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    return obj.workspace.tabs.len() as i64;
+    obj.workspace.tabs.len() as i64
 }
 
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
@@ -901,7 +901,7 @@ pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
 pub unsafe extern "C" fn close_all_tabs(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    while obj.workspace.tabs.len() != 0 {
+    while !obj.workspace.tabs.is_empty() {
         obj.workspace.close_tab(obj.workspace.tabs.len() - 1);
     }
 }
