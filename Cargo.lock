@@ -4134,7 +4134,6 @@ dependencies = [
  "egui-notify",
  "egui-winit",
  "egui_editor",
- "egui_extras",
  "egui_wgpu_backend",
  "env_logger",
  "image 0.24.9",
@@ -8512,6 +8511,7 @@ name = "workspace-ffi"
 version = "0.9.5"
 dependencies = [
  "egui",
+ "egui_extras",
  "egui_wgpu_backend",
  "jni 0.21.1",
  "lb_external_interface",

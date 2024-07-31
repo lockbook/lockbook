@@ -1,17 +1,24 @@
+use std::ffi::{c_char, CString};
+
+use lb_external_interface::lb_rs::Uuid;
+
+use super::super::response::*;
+use super::cursor_icon::CCursorIcon;
+
 #[repr(C)]
 pub struct Response {
+    // platform response
+    pub redraw_in: u64,
+    pub copied_text: *mut c_char,
+    pub url_opened: *mut c_char,
+    pub cursor: CCursorIcon,
+
     // widget response
     pub selected_file: CUuid,
     pub refresh_files: bool,
     pub doc_created: CUuid,
     pub new_folder_btn_pressed: bool,
     pub tabs_changed: bool,
-
-    // platform response
-    pub redraw_in: u64,
-    pub copied_text: *mut c_char,
-    pub url_opened: *mut c_char,
-    pub cursor: CCursorIcon,
 }
 
 impl From<crate::Response> for Response {
@@ -22,43 +29,43 @@ impl From<crate::Response> for Response {
                     selected_file,
                     file_renamed,
                     new_folder_clicked,
-                    tab_title_clicked,
+                    tab_title_clicked: _,
                     file_created,
-                    error,
-                    settings_updated,
+                    error: _,
+                    settings_updated: _,
                     sync_done,
-                    status_updated,
-                    markdown_editor_text_updated,
-                    markdown_editor_selection_updated,
-                    markdown_editor_scroll_updated,
+                    status_updated: _,
+                    markdown_editor_text_updated: _,
+                    markdown_editor_selection_updated: _,
+                    markdown_editor_scroll_updated: _,
                     tabs_changed,
                 },
             redraw_in,
             copied_text,
             url_opened,
             cursor,
-            virtual_keyboard_shown,
+            virtual_keyboard_shown: _,
+            window_title: _,
+            context_menu: _,
         } = value;
 
+        let doc_created = match file_created {
+            Some(Ok(ref f)) if f.is_document() => f.id.into(),
+            _ => Uuid::nil().into(),
+        };
+        let url_opened = url_opened
+            .map(|u| CString::new(u).unwrap().into_raw())
+            .unwrap_or(std::ptr::null_mut());
         Self {
             selected_file: selected_file.unwrap_or_default().into(),
             refresh_files: sync_done.is_some() || file_renamed.is_some() || file_created.is_some(),
-            doc_created: match file_created {
-                Some(Ok(f)) => {
-                    if f.is_document() {
-                        f.id.into()
-                    } else {
-                        Uuid::nil().into()
-                    }
-                }
-                _ => Uuid::nil().into(),
-            },
+            doc_created,
             new_folder_btn_pressed: new_folder_clicked,
             tabs_changed,
-            redraw_in,
-            copied_text,
+            redraw_in: redraw_in.unwrap_or(u64::MAX),
+            copied_text: CString::new(copied_text).unwrap().into_raw(),
             url_opened,
-            cursor,
+            cursor: cursor.into(),
         }
     }
 }

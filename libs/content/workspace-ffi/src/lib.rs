@@ -5,6 +5,7 @@ use workspace_rs::workspace::Workspace;
 
 /// cbindgen:ignore
 pub mod android;
+#[cfg(not(target_os = "android"))]
 pub mod apple;
 pub mod response;
 
@@ -107,7 +108,12 @@ impl<'window> WgpuWorkspace<'window> {
             .remove_textures(tdelta)
             .expect("remove texture ok");
 
-        Response::new(&self.context, full_output, workspace_response)
+        Response::new(
+            &self.context,
+            full_output.platform_output,
+            full_output.viewport_output,
+            workspace_response,
+        )
     }
 
     pub fn set_egui_screen(&mut self) {

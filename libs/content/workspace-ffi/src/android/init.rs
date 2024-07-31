@@ -1,3 +1,79 @@
+use egui::Context;
+use egui::FontDefinitions;
+use egui_wgpu_backend::wgpu;
+use egui_wgpu_backend::wgpu::CompositeAlphaMode;
+use egui_wgpu_backend::ScreenDescriptor;
+use jni::objects::JClass;
+use jni::sys::*;
+use jni::JNIEnv;
+use lb_external_interface::Core;
+use ndk_sys::{
+    ANativeWindow, ANativeWindow_fromSurface, ANativeWindow_getHeight, ANativeWindow_getWidth,
+    ANativeWindow_release,
+};
+use raw_window_handle::{
+    AndroidDisplayHandle, AndroidNdkWindowHandle, DisplayHandle, HandleError, HasDisplayHandle,
+    HasWindowHandle, RawDisplayHandle, RawWindowHandle, WindowHandle,
+};
+use std::ptr::NonNull;
+use std::time::Instant;
+use workspace_rs::theme::visuals;
+use workspace_rs::workspace::Workspace;
+use workspace_rs::workspace::WsConfig;
+
+use crate::WgpuWorkspace;
+
+pub struct NativeWindow {
+    a_native_window: *mut ANativeWindow,
+    display_handle: RawDisplayHandle,
+}
+
+impl NativeWindow {
+    pub fn new(env: &JNIEnv, surface: jobject) -> Self {
+        let a_native_window =
+            unsafe { ANativeWindow_fromSurface(env.get_raw() as *mut _, surface as *mut _) };
+        let display_handle = RawDisplayHandle::Android(AndroidDisplayHandle::new());
+
+        Self { a_native_window, display_handle }
+    }
+
+    pub fn get_raw_window(&self) -> *mut ANativeWindow {
+        self.a_native_window
+    }
+
+    pub fn get_width(&self) -> u32 {
+        unsafe { ANativeWindow_getWidth(self.a_native_window) as u32 }
+    }
+
+    pub fn get_height(&self) -> u32 {
+        unsafe { ANativeWindow_getHeight(self.a_native_window) as u32 }
+    }
+}
+
+impl Drop for NativeWindow {
+    fn drop(&mut self) {
+        unsafe {
+            ANativeWindow_release(self.a_native_window);
+        }
+    }
+}
+
+impl HasDisplayHandle for NativeWindow {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        unsafe { Ok(DisplayHandle::borrow_raw(self.display_handle)) }
+    }
+}
+
+impl HasWindowHandle for NativeWindow {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        unsafe {
+            let ptr: NonNull<ANativeWindow> = NonNull::from(&*self.a_native_window);
+            let handle = AndroidNdkWindowHandle::new(ptr.cast());
+            return Ok(WindowHandle::borrow_raw(RawWindowHandle::AndroidNdk(handle)));
+        }
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     env: JNIEnv, _: JClass, surface: jobject, core: jlong, scale_factor: jfloat, dark_mode: bool,
@@ -13,7 +89,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     let surface = instance
         .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(&mut native_window).unwrap())
         .unwrap();
-    let (adapter, device, queue) = pollster::block_on(window::request_device(&instance, &surface));
+    let (adapter, device, queue) = pollster::block_on(request_device(&instance, &surface));
     let format = surface.get_capabilities(&adapter).formats[0];
     let screen = ScreenDescriptor {
         physical_width: native_window.get_width(),
@@ -49,7 +125,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     };
 
     let mut fonts = FontDefinitions::default();
-    register_fonts(&mut fonts);
+    workspace_rs::register_fonts(&mut fonts);
     context.set_fonts(fonts);
     egui_extras::install_image_loaders(&context);
 
@@ -72,7 +148,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     Box::into_raw(Box::new(obj)) as jlong
 }
 
-pub async fn request_device(
+async fn request_device(
     instance: &wgpu::Instance, surface: &wgpu::Surface<'_>,
 ) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue) {
     let adapter = wgpu::util::initialize_adapter_from_env_or_default(instance, Some(surface))

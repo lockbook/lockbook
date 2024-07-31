@@ -7,6 +7,12 @@ use workspace_rs::tab::markdown_editor::{
 
 #[derive(Serialize)]
 pub struct Response {
+    // platform response
+    redraw_in: u64,
+    copied_text: String,
+    has_url_opened: bool,
+    url_opened: String,
+
     // widget response
     selected_file: Uuid,
     doc_created: Uuid,
@@ -17,19 +23,12 @@ pub struct Response {
     new_folder_btn_pressed: bool,
     tab_title_clicked: bool,
 
-    show_edit_menu: bool,
+    has_edit_menu: bool,
     edit_menu_x: f32,
     edit_menu_y: f32,
 
     selection_updated: bool,
     text_updated: bool,
-
-    // platform response
-    redraw_in: u64,
-    has_copied_text: bool,
-    copied_text: String,
-    has_url_opened: bool,
-    url_opened: String,
 }
 
 impl From<crate::Response> for Response {
@@ -42,26 +41,26 @@ impl From<crate::Response> for Response {
                     new_folder_clicked,
                     tab_title_clicked,
                     file_created,
-                    error,
-                    settings_updated,
+                    error: _,
+                    settings_updated: _,
                     sync_done,
                     status_updated,
                     markdown_editor_text_updated,
                     markdown_editor_selection_updated,
-                    markdown_editor_scroll_updated,
-                    tabs_changed,
+                    markdown_editor_scroll_updated: _,
+                    tabs_changed: _,
                 },
             redraw_in,
             copied_text,
             url_opened,
-            cursor,
-            virtual_keyboard_shown,
-            window_title,
+            cursor: _,
+            virtual_keyboard_shown: _,
+            window_title: _,
             context_menu,
         } = value;
 
         let doc_created = match file_created {
-            Some(Ok(f)) if f.is_document() => f.id.into(),
+            Some(Ok(ref f)) if f.is_document() => f.id.into(),
             _ => Uuid::nil().into(),
         };
         Self {
@@ -71,16 +70,15 @@ impl From<crate::Response> for Response {
             refresh_files: sync_done.is_some() || file_renamed.is_some() || file_created.is_some(),
             new_folder_btn_pressed: new_folder_clicked,
             tab_title_clicked,
-            redraw_in,
+            redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text,
-            url_opened,
+            has_url_opened: url_opened.is_some(),
+            url_opened: url_opened.unwrap_or_default(),
             text_updated: markdown_editor_text_updated,
             selection_updated: markdown_editor_selection_updated,
-            show_edit_menu: context_menu.is_some(),
+            has_edit_menu: context_menu.is_some(),
             edit_menu_x: context_menu.unwrap_or_default().x,
             edit_menu_y: context_menu.unwrap_or_default().y,
-            has_copied_text: todo!(),
-            has_url_opened: todo!(),
         }
     }
 }

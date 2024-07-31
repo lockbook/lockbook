@@ -1,6 +1,6 @@
 use egui::{Event, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use jni::objects::{JClass, JString};
-use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jstring};
+use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
 use jni::JNIEnv;
 use lb_external_interface::lb_rs::Uuid;
 use serde::Serialize;
@@ -12,15 +12,9 @@ use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::ExtendedInput;
 use workspace_rs::tab::TabContent;
 
-#[cfg(target_os = "android")]
-mod init;
-#[cfg(target_os = "android")]
-use init::*;
-
-use crate::WgpuWorkspace;
-
 use super::keyboard::AndroidKeys;
-use super::response::JTextRange;
+use super::response::*;
+use crate::WgpuWorkspace;
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
@@ -28,8 +22,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
 ) -> jstring {
     let maybe_err = catch_unwind(|| {
         let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-        serde_json::to_string(&obj.frame()).unwrap()
+        let response: Response = obj.frame().into();
+        serde_json::to_string(&response).unwrap()
     });
 
     match maybe_err {

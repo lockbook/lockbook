@@ -504,7 +504,7 @@ impl Editor {
             ctx.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
         }
         if let Some(pos) = maybe_context_menu_pos {
-            ctx.set_context_menu_pos(pos);
+            ctx.set_context_menu(pos);
         }
 
         (text_updated, self.buffer.current.cursor.selection != prior_selection)

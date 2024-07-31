@@ -1,5 +1,21 @@
+use lb_external_interface::lb_rs::Uuid;
+use std::ffi::{c_char, CString};
+use workspace_rs::tab::markdown_editor::{
+    input::canonical::{Bound, Location, Region},
+    offset_types::{DocCharOffset, RangeExt as _},
+};
+
+use super::super::response::*;
+
 #[repr(C)]
 pub struct Response {
+    // platform response
+    pub redraw_in: u64,
+    pub copied_text: *mut c_char,
+    pub url_opened: *mut c_char,
+    pub has_virtual_keyboard_shown: bool,
+    pub virtual_keyboard_shown: bool,
+
     // widget response
     pub selected_file: CUuid,
     pub refresh_files: bool,
@@ -11,14 +27,6 @@ pub struct Response {
     pub selection_updated: bool,
     pub scroll_updated: bool,
     pub tab_title_clicked: bool,
-
-    // platform response
-    pub redraw_in: u64,
-    pub copied_text: *mut c_char,
-    pub url_opened: *mut c_char,
-    pub cursor: CCursorIcon,
-    pub virtual_keyboard_shown_set: bool,
-    pub virtual_keyboard_shown_val: bool,
 }
 
 impl From<crate::Response> for Response {
@@ -31,10 +39,10 @@ impl From<crate::Response> for Response {
                     new_folder_clicked,
                     tab_title_clicked,
                     file_created,
-                    error,
-                    settings_updated,
+                    error: _,
+                    settings_updated: _,
                     sync_done,
-                    status_updated,
+                    status_updated: _,
                     markdown_editor_text_updated,
                     markdown_editor_selection_updated,
                     markdown_editor_scroll_updated,
@@ -43,35 +51,34 @@ impl From<crate::Response> for Response {
             redraw_in,
             copied_text,
             url_opened,
-            cursor,
+            cursor: _,
             virtual_keyboard_shown,
+            window_title: _,
+            context_menu: _,
         } = value;
 
+        let doc_created = match file_created {
+            Some(Ok(ref f)) if f.is_document() => f.id.into(),
+            _ => Uuid::nil().into(),
+        };
+        let url_opened = url_opened
+            .map(|u| CString::new(u).unwrap().into_raw())
+            .unwrap_or(std::ptr::null_mut());
         Self {
             selected_file: selected_file.unwrap_or_default().into(),
             refresh_files: sync_done.is_some() || file_renamed.is_some() || file_created.is_some(),
-            doc_created: match file_created {
-                Some(Ok(f)) => {
-                    if f.is_document() {
-                        f.id.into()
-                    } else {
-                        Uuid::nil().into()
-                    }
-                }
-                _ => Uuid::nil().into(),
-            },
+            doc_created,
             new_folder_btn_pressed: new_folder_clicked,
             tabs_changed,
-            redraw_in,
-            copied_text,
+            redraw_in: redraw_in.unwrap_or(u64::MAX),
+            copied_text: CString::new(copied_text).unwrap().into_raw(),
             url_opened,
-            cursor,
             text_updated: markdown_editor_text_updated,
             selection_updated: markdown_editor_selection_updated,
             scroll_updated: markdown_editor_scroll_updated,
             tab_title_clicked,
-            virtual_keyboard_shown_set,
-            virtual_keyboard_shown_val,
+            has_virtual_keyboard_shown: virtual_keyboard_shown.is_some(),
+            virtual_keyboard_shown: virtual_keyboard_shown.unwrap_or_default(),
         }
     }
 }

@@ -11,6 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 egui = "0.26.2"
 egui_wgpu_backend = "0.28"
+egui_extras = { version = "0.26.2", features = ["image"] }
 libc = "0.2"
 workspace = { path = "../workspace/" }
 lb_external_interface = { path = "../../lb/lb_external_interface" }

@@ -1,4 +1,5 @@
-// Supporting data structures for apple response types
+use lb_external_interface::lb_rs::Uuid;
+
 #[repr(C)]
 #[derive(Debug, Default, Clone)]
 pub struct CUuid([u8; 16]);

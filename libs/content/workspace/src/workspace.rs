@@ -111,7 +111,6 @@ impl Workspace {
         }
     }
 
-    #[cfg(target_os = "android")]
     pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &lb_rs::Core) {
         self.ctx = ctx.clone();
         self.core = core.clone();

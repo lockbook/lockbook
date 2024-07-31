@@ -1,12 +1,14 @@
-use crate::apple::keyboard::NSKeys;
-use crate::WgpuWorkspace;
 use egui::PointerButton::{Primary, Secondary};
 use egui::{Event, Pos2};
 use std::ffi::{c_char, c_void, CStr};
 
-pub unsafe extern "C" fn macos_frame(obj: *mut c_void) -> super::response::Response {
+use super::response::*;
+use crate::apple::keyboard::NSKeys;
+use crate::WgpuWorkspace;
+
+pub unsafe extern "C" fn macos_frame(obj: *mut c_void) -> Response {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.frame();
+    obj.frame().into()
 }
 
 /// # Safety
