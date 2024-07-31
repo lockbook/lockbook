@@ -6,7 +6,7 @@ use super::super::response::*;
 use super::cursor_icon::CCursorIcon;
 
 #[repr(C)]
-pub struct Response {
+pub struct MacOSResponse {
     // platform response
     pub redraw_in: u64,
     pub copied_text: *mut c_char,
@@ -18,10 +18,11 @@ pub struct Response {
     pub refresh_files: bool,
     pub doc_created: CUuid,
     pub new_folder_btn_pressed: bool,
+    pub status_updated: bool,
     pub tabs_changed: bool,
 }
 
-impl From<crate::Response> for Response {
+impl From<crate::Response> for MacOSResponse {
     fn from(value: crate::Response) -> Self {
         let crate::Response {
             workspace:
@@ -34,7 +35,7 @@ impl From<crate::Response> for Response {
                     error: _,
                     settings_updated: _,
                     sync_done,
-                    status_updated: _,
+                    status_updated,
                     markdown_editor_text_updated: _,
                     markdown_editor_selection_updated: _,
                     markdown_editor_scroll_updated: _,
@@ -61,6 +62,7 @@ impl From<crate::Response> for Response {
             refresh_files: sync_done.is_some() || file_renamed.is_some() || file_created.is_some(),
             doc_created,
             new_folder_btn_pressed: new_folder_clicked,
+            status_updated,
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text: CString::new(copied_text).unwrap().into_raw(),

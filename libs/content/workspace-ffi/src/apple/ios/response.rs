@@ -8,7 +8,7 @@ use workspace_rs::tab::markdown_editor::{
 use super::super::response::*;
 
 #[repr(C)]
-pub struct Response {
+pub struct IOSResponse {
     // platform response
     pub redraw_in: u64,
     pub copied_text: *mut c_char,
@@ -29,7 +29,7 @@ pub struct Response {
     pub tab_title_clicked: bool,
 }
 
-impl From<crate::Response> for Response {
+impl From<crate::Response> for IOSResponse {
     fn from(value: crate::Response) -> Self {
         let crate::Response {
             workspace:

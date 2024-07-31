@@ -10,6 +10,7 @@ eframe = "0.26.2"
 egui-notify = "0.13.0"
 egui-winit = "0.26.2"
 egui_wgpu_backend = "0.28"
+egui_extras = { version = "0.26.2", features = ["image"] }
 env_logger = "0.10"
 image = { version = "0.24", default-features = false, features = [
     "png",

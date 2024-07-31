@@ -19,7 +19,7 @@ use crate::apple::keyboard::UIKeys;
 use crate::WgpuWorkspace;
 
 #[no_mangle]
-pub extern "C" fn ios_frame(obj: *mut c_void) -> Response {
+pub extern "C" fn ios_frame(obj: *mut c_void) -> IOSResponse {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.frame().into()
 }

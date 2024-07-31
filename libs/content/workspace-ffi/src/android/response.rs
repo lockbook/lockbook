@@ -6,7 +6,7 @@ use workspace_rs::tab::markdown_editor::{
 };
 
 #[derive(Serialize)]
-pub struct Response {
+pub struct AndroidResponse {
     // platform response
     redraw_in: u64,
     copied_text: String,
@@ -31,7 +31,7 @@ pub struct Response {
     text_updated: bool,
 }
 
-impl From<crate::Response> for Response {
+impl From<crate::Response> for AndroidResponse {
     fn from(value: crate::Response) -> Self {
         let crate::Response {
             workspace:

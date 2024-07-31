@@ -22,7 +22,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
 ) -> jstring {
     let maybe_err = catch_unwind(|| {
         let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-        let response: Response = obj.frame().into();
+        let response: AndroidResponse = obj.frame().into();
         serde_json::to_string(&response).unwrap()
     });
 

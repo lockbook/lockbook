@@ -7,4 +7,4 @@ pub mod response;
 pub use api::*;
 #[cfg(target_os = "android")]
 pub use init::*;
-pub use response::Response;
+pub use response::AndroidResponse;

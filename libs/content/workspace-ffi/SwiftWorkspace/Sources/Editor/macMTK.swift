@@ -272,7 +272,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         set_scale(wsHandle, scale)
         let output = macos_frame(wsHandle)
 
-        if output.workspace_resp.status_updated {
+        if output.status_updated {
             let status = get_status(wsHandle)
             let msg = String(cString: status.msg)
             free_text(status.msg)
@@ -281,9 +281,9 @@ public class MacMTK: MTKView, MTKViewDelegate {
             workspaceState?.statusMsg = msg
         }
         
-        workspaceState?.reloadFiles = output.workspace_resp.refresh_files
+        workspaceState?.reloadFiles = output.refresh_files
 
-        let selectedFile = UUID(uuid: output.workspace.selected_file._0)
+        let selectedFile = UUID(uuid: output.selected_file._0)
         if !selectedFile.isNil() {
             currentOpenDoc = selectedFile
             if selectedFile != self.workspaceState?.openDoc {
@@ -297,7 +297,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
             self.workspaceState?.openDoc = nil
         }
 
-        let newFile = UUID(uuid: output.workspace.doc_created._0)
+        let newFile = UUID(uuid: output.doc_created._0)
         if !newFile.isNil() {
             openFile(id: newFile)
         }
@@ -310,7 +310,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
             }
         }
 
-        if output.workspace.new_folder_btn_pressed {
+        if output.new_folder_btn_pressed {
             workspaceState?.newFolderButtonPressed = true
         }
 
@@ -330,8 +330,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
         if let text = output.copied_text {
             let text = textFromPtr(s: text)
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
+            if !text.isEmpty {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            }
         }
 
         let cursor = NSCursor.fromCCursor(c: output.cursor)
@@ -345,7 +347,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
                 NSCursor.hide()
                 cursorHidden = true
             }
-        } else {
+        } else if output.cursor != Default {
             if cursorHidden {
                 NSCursor.unhide()
                 cursorHidden = false
