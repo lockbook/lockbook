@@ -5,7 +5,6 @@ use workspace_rs::workspace::Workspace;
 
 /// cbindgen:ignore
 pub mod android;
-#[cfg(not(target_os = "android"))]
 pub mod apple;
 pub mod response;
 
