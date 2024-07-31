@@ -60,11 +60,11 @@ impl From<crate::Response> for Response {
         } = value;
 
         let doc_created = match file_created {
-            Some(Ok(ref f)) if f.is_document() => f.id.into(),
-            _ => Uuid::nil().into(),
+            Some(Ok(ref f)) if f.is_document() => f.id,
+            _ => Uuid::nil(),
         };
         Self {
-            selected_file: selected_file.unwrap_or_default().into(),
+            selected_file: selected_file.unwrap_or_default(),
             doc_created,
             status_updated,
             refresh_files: sync_done.is_some() || file_renamed.is_some() || file_created.is_some(),

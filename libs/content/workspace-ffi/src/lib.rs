@@ -68,8 +68,7 @@ impl<'window> WgpuWorkspace<'window> {
                 .frame(egui::Frame::default().fill(fill))
                 .show(&self.context, |ui| self.workspace.show(ui))
                 .inner
-        }
-        .into();
+        };
 
         let full_output = self.context.end_frame();
 

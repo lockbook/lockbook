@@ -6,6 +6,8 @@ use super::response::*;
 use crate::apple::keyboard::NSKeys;
 use crate::WgpuWorkspace;
 
+/// # Safety
+#[no_mangle]
 pub unsafe extern "C" fn macos_frame(obj: *mut c_void) -> Response {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.frame().into()

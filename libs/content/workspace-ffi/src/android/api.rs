@@ -85,7 +85,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
             repeat: false,
             modifiers,
         });
-    } else {
     }
 }
 
@@ -361,7 +360,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextLength(
         None => return -1,
     };
 
-    return markdown.editor.buffer.current.segs.last_cursor_position().0 as jint;
+    markdown.editor.buffer.current.segs.last_cursor_position().0 as jint
 }
 
 #[no_mangle]
