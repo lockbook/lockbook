@@ -357,7 +357,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 sendImage(img: img, isPaste: isPaste)
             }
         case .text(let text):
-            paste_text(wsHandle, text)
+            clipboard_paste(wsHandle, text)
             workspaceState?.pasted = true
         }
         mtkView.drawImmediately()
@@ -908,9 +908,9 @@ public class iOSMTK: MTKView, MTKViewDelegate {
 
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, Float(self.contentScaleFactor))
-        let output = draw_workspace(wsHandle)
+        let output = ios_frame(wsHandle)
         
-        if output.workspace_resp.status_updated {
+        if output.status_updated {
             let status = get_status(wsHandle)
             let msg = String(cString: status.msg)
             free_text(status.msg)
@@ -919,13 +919,13 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             workspaceState?.statusMsg = msg
         }
         
-        if output.workspace_resp.tabs_changed {
+        if output.tabs_changed {
             workspaceState?.openTabs = Int(tab_count(wsHandle))
         }
         
-        workspaceState?.reloadFiles = output.workspace_resp.refresh_files
+        workspaceState?.reloadFiles = output.refresh_files
 
-        let selectedFile = UUID(uuid: output.workspace.selected_file._0)
+        let selectedFile = UUID(uuid: output.selected_file._0)
 
         if !selectedFile.isNil() {
             if currentOpenDoc != selectedFile {
@@ -956,19 +956,19 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         }
         
         if currentTab == .Markdown && currentWrapper is iOSMTKTextInputWrapper {
-            if(output.workspace_resp.hide_virtual_keyboard) {
+            if(output.has_virtual_keyboard_shown && !output.virtual_keyboard_shown) {
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
             
-            if output.workspace_resp.scroll_updated {
+            if output.scroll_updated {
                 onSelectionChanged?()
             }
             
-            if output.workspace_resp.text_updated && !ignoreTextUpdate {
+            if output.text_updated && !ignoreTextUpdate {
                 onTextChanged?()
             }
             
-            if output.workspace_resp.selection_updated && !ignoreSelectionUpdate {
+            if output.selection_updated && !ignoreSelectionUpdate {
                 onSelectionChanged?()
             }
 
@@ -976,7 +976,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             update_virtual_keyboard(wsHandle, keyboard_shown)
         }
 
-        if output.workspace.tab_title_clicked {
+        if output.tab_title_clicked {
             workspaceState!.renameOpenDoc = true
 
             if showTabs {
@@ -984,12 +984,12 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             }
         }
 
-        let newFile = UUID(uuid: output.workspace.doc_created._0)
+        let newFile = UUID(uuid: output.doc_created._0)
         if !newFile.isNil() {
             self.workspaceState?.openDoc = newFile
         }
 
-        if output.workspace.new_folder_btn_pressed {
+        if output.new_folder_btn_pressed {
             workspaceState?.newFolderButtonPressed = true
         }
 
@@ -1003,7 +1003,10 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         }
 
         if let text = output.copied_text {
-            UIPasteboard.general.string = textFromPtr(s: text)
+            let text = textFromPtr(s: text)
+            if !text.isEmpty {
+                UIPasteboard.general.string = text
+            }
         }
 
         redrawTask?.cancel()
