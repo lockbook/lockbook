@@ -332,8 +332,6 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         return true
     }
 
-    var batchEditCount = 0
-
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
@@ -427,12 +425,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     private var composingFlag = 0
     private var composingTag: Any? = null
 
-    var composingStart = -1
-    var composingEnd = -1
-
-    private var composingFlag = 0
-    private var composingTag: Any? = null
-
     val selectionStart: Int get() {
         return getSelection().start
     }
@@ -493,16 +485,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             if (type.isAssignableFrom(Selection.SELECTION_END.javaClass) && spanRange.contains(getSelection().end)) {
                 spans.add(Selection.SELECTION_END)
             }
-
-            if (type.isAssignableFrom(Selection.SELECTION_START.javaClass) && spanRange.contains(getSelection().start)) {
-                spans.add(Selection.SELECTION_START)
-            }
-
-            if (type.isAssignableFrom(Selection.SELECTION_END.javaClass) && spanRange.contains(getSelection().end)) {
-                spans.add(Selection.SELECTION_END)
-            }
-        } else {
-            Timber.w("getSpans null type...")
         }
 
         @Suppress("UNCHECKED_CAST")
@@ -528,12 +510,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             return composingStart
         }
 
-        if (tag == Selection.SELECTION_END) {
-            return getSelection().end
-        }
-
-
-
         return -1
     }
 
@@ -543,16 +519,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         }
 
         if (tag == composingTag || ((tag ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {
-            return composingEnd
-        }
-
-        if (tag == composingTag || ((tag ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {
-//            if (composingEnd > length) {
-//                composingEnd = length
-//            }
-
-            Timber.e("getting composingEnd=${composingEnd}")
-
             return composingEnd
         }
 
