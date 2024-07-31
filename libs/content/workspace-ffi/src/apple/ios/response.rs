@@ -1,15 +1,16 @@
-use crate::cursor_icon::CCursorIcon;
-use lb_external_interface::lb_rs::Uuid;
-use std::ffi::c_char;
-use workspace_rs::output::WsOutput;
-use workspace_rs::tab::markdown_editor::input::canonical::{Bound, Location, Region};
-use workspace_rs::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
-
 #[repr(C)]
-#[derive(Debug)]
-pub struct Output {
+pub struct Response {
     // widget response
-    pub workspace: Response,
+    pub selected_file: CUuid,
+    pub refresh_files: bool,
+    pub doc_created: CUuid,
+    pub new_folder_btn_pressed: bool,
+    pub tabs_changed: bool,
+
+    pub text_updated: bool,
+    pub selection_updated: bool,
+    pub scroll_updated: bool,
+    pub tab_title_clicked: bool,
 
     // platform response
     pub redraw_in: u64,
@@ -20,52 +21,36 @@ pub struct Output {
     pub virtual_keyboard_shown_val: bool,
 }
 
-impl Default for Output {
-    fn default() -> Self {
+impl From<crate::Response> for Response {
+    fn from(value: crate::Response) -> Self {
+        let crate::Response {
+            workspace:
+                workspace_rs::Response {
+                    selected_file,
+                    file_renamed,
+                    new_folder_clicked,
+                    tab_title_clicked,
+                    file_created,
+                    error,
+                    settings_updated,
+                    sync_done,
+                    status_updated,
+                    markdown_editor_text_updated,
+                    markdown_editor_selection_updated,
+                    markdown_editor_scroll_updated,
+                    tabs_changed,
+                },
+            redraw_in,
+            copied_text,
+            url_opened,
+            cursor,
+            virtual_keyboard_shown,
+        } = value;
+
         Self {
-            redraw_in: Default::default(),
-            workspace: Default::default(),
-            copied_text: std::ptr::null_mut(),
-            url_opened: std::ptr::null_mut(),
-            cursor: Default::default(),
-            virtual_keyboard_shown_set: Default::default(),
-            virtual_keyboard_shown_val: Default::default(),
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-#[repr(C)]
-pub struct Response {
-    selected_file: CUuid,
-    doc_created: CUuid,
-
-    status_updated: bool,
-    refresh_files: bool,
-
-    new_folder_btn_pressed: bool,
-
-    tabs_changed: bool,
-
-    #[cfg(target_os = "ios")]
-    pub text_updated: bool,
-    #[cfg(target_os = "ios")]
-    pub selection_updated: bool,
-    #[cfg(target_os = "ios")]
-    pub scroll_updated: bool,
-
-    #[cfg(target_os = "ios")]
-    pub tab_title_clicked: bool,
-}
-
-impl From<WsOutput> for FfiWorkspaceResp {
-    fn from(value: WsOutput) -> Self {
-        Self {
-            selected_file: value.selected_file.unwrap_or_default().into(),
-            refresh_files: value.sync_done.is_some()
-                || value.file_renamed.is_some()
-                || value.file_created.is_some(),
-            doc_created: match value.file_created {
+            selected_file: selected_file.unwrap_or_default().into(),
+            refresh_files: sync_done.is_some() || file_renamed.is_some() || file_created.is_some(),
+            doc_created: match file_created {
                 Some(Ok(f)) => {
                     if f.is_document() {
                         f.id.into()
@@ -75,18 +60,18 @@ impl From<WsOutput> for FfiWorkspaceResp {
                 }
                 _ => Uuid::nil().into(),
             },
-            new_folder_btn_pressed: value.new_folder_clicked,
-            tabs_changed: value.tabs_changed,
-
-            #[cfg(target_os = "ios")]
-            text_updated: value.markdown_editor_text_updated,
-            #[cfg(target_os = "ios")]
-            selection_updated: value.markdown_editor_selection_updated,
-            #[cfg(target_os = "ios")]
-            scroll_updated: value.markdown_editor_scroll_updated,
-            #[cfg(target_os = "ios")]
-            tab_title_clicked: value.tab_title_clicked,
-            status_updated: value.status_updated,
+            new_folder_btn_pressed: new_folder_clicked,
+            tabs_changed,
+            redraw_in,
+            copied_text,
+            url_opened,
+            cursor,
+            text_updated: markdown_editor_text_updated,
+            selection_updated: markdown_editor_selection_updated,
+            scroll_updated: markdown_editor_scroll_updated,
+            tab_title_clicked,
+            virtual_keyboard_shown_set,
+            virtual_keyboard_shown_val,
         }
     }
 }
@@ -105,7 +90,6 @@ pub struct TabsIds {
     pub ids: *const CUuid,
 }
 
-#[cfg(target_vendor = "apple")]
 impl Default for UITextSelectionRects {
     fn default() -> Self {
         UITextSelectionRects { size: 0, rects: std::ptr::null() }
@@ -258,21 +242,5 @@ impl From<CTextPosition> for Option<DocCharOffset> {
         } else {
             Some(value.pos.into())
         }
-    }
-}
-
-#[repr(C)]
-#[derive(Debug, Default, Clone)]
-pub struct CUuid([u8; 16]);
-
-impl From<Uuid> for CUuid {
-    fn from(value: Uuid) -> Self {
-        Self(value.into_bytes())
-    }
-}
-
-impl From<CUuid> for Uuid {
-    fn from(value: CUuid) -> Self {
-        Uuid::from_bytes(value.0)
     }
 }

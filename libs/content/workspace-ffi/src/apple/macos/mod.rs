@@ -1,9 +1,7 @@
 pub mod api;
-mod keyboard;
+pub mod cursor_icon;
 pub mod response;
 
-#[cfg(target_os = "android")]
-mod window;
-
+pub use super::api::*;
 pub use api::*;
 pub use response::Response;

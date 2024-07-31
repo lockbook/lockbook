@@ -102,16 +102,7 @@ impl Editor {
         super::input::merge::merge(base, &self.buffer.current.text, new)
     }
 
-    pub fn draw(&mut self, ctx: &Context) -> EditorResponse {
-        let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
-        egui::CentralPanel::default()
-            .frame(egui::Frame::default().fill(fill))
-            .show(ctx, |ui| self.scroll_ui(ui))
-            .inner
-    }
-
-    // workspace invokes this
-    pub fn scroll_ui(&mut self, ui: &mut Ui) -> Response {
+    pub fn show(&mut self, ui: &mut Ui) -> Response {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
         let events = ui.ctx().input(|i| i.events.clone());

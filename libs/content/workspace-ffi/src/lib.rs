@@ -1,29 +1,14 @@
 use egui_wgpu_backend::wgpu;
+use std::iter;
 use std::time::Instant;
-
-mod cursor_icon;
-
 use workspace_rs::workspace::Workspace;
 
-#[cfg(any(target_vendor = "apple", target_os = "android"))]
-use workspace_rs::tab::ExtendedOutput as _;
-
-#[cfg(target_vendor = "apple")]
-pub mod apple;
-
 /// cbindgen:ignore
-#[cfg(target_os = "android")]
 pub mod android;
+pub mod apple;
+pub mod response;
 
-/// cbindgen:ignore
-#[cfg(target_os = "android")]
-pub use android::resp::*;
-
-#[cfg(not(target_os = "android"))]
-pub mod resp;
-
-#[cfg(not(target_os = "android"))]
-pub use resp::*;
+pub use response::Response;
 
 #[repr(C)]
 pub struct WgpuWorkspace<'window> {
@@ -47,13 +32,8 @@ pub struct WgpuWorkspace<'window> {
     pub workspace: Workspace,
 }
 
-#[cfg(any(target_vendor = "apple", target_os = "android"))]
 impl<'window> WgpuWorkspace<'window> {
-    pub fn frame(&mut self) -> Output {
-        #[cfg(not(target_os = "android"))]
-        use std::ffi::CString;
-        use std::iter;
-
+    pub fn frame(&mut self) -> Response {
         self.configure_surface();
         let output_frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -127,95 +107,7 @@ impl<'window> WgpuWorkspace<'window> {
             .remove_textures(tdelta)
             .expect("remove texture ok");
 
-        #[cfg(not(target_os = "android"))]
-        {
-            if !full_output.platform_output.copied_text.is_empty() {
-                // todo: can this go in output?
-                out.copied_text = CString::new(full_output.platform_output.copied_text)
-                    .unwrap()
-                    .into_raw();
-            }
-
-            if let Some(url) = full_output.platform_output.open_url {
-                out.url_opened = CString::new(url.url).unwrap().into_raw();
-            }
-
-            out.cursor = full_output.platform_output.cursor_icon.into();
-        }
-
-        #[cfg(target_os = "android")]
-        {
-            if let Some(url) = full_output.platform_output.open_url {
-                out.url_opened = url.url;
-            }
-
-            out.has_copied_text = !full_output.platform_output.copied_text.is_empty();
-
-            if out.has_copied_text {
-                out.copied_text = full_output.platform_output.copied_text;
-            }
-        }
-
-        out.redraw_in = match full_output
-            .viewport_output
-            .values()
-            .next()
-            .map(|v| v.repaint_delay)
-        {
-            Some(d) => d.as_millis() as u64,
-            None => {
-                eprintln!("VIEWPORT Missing, not requesting redraw");
-                u64::max_value()
-            }
-        };
-
-        #[cfg(not(target_os = "android"))]
-        let copied_text = {
-            let ct = full_output.platform_output.copied_text;
-            if ct.is_empty() {
-                std::ptr::null_mut()
-            } else {
-                CString::new(ct).unwrap().into_raw()
-            }
-        };
-
-        #[cfg(target_os = "android")]
-        let copied_text = full_output.platform_output.copied_text;
-
-        #[cfg(not(target_os = "android"))]
-        let url_opened = {
-            let url = full_output.platform_output.open_url;
-            if let Some(url) = url {
-                CString::new(url.url).unwrap().into_raw()
-            } else {
-                std::ptr::null_mut()
-            }
-        };
-
-        #[cfg(target_os = "android")]
-        let url_opened = full_output
-            .platform_output
-            .open_url
-            .map(|url| url.url)
-            .unwrap_or_default();
-
-        let cursor = full_output.platform_output.cursor_icon.into();
-
-        let virtual_keyboard_shown = self.context.pop_virtual_keyboard_shown();
-        let virtual_keyboard_shown_set = virtual_keyboard_shown.is_some();
-        let virtual_keyboard_shown_val = virtual_keyboard_shown.unwrap_or_default();
-
-        // todo: export context_menu_pos via self.context.pop_context_menu_pos()
-
-        Output {
-            workspace: workspace_response,
-            redraw_in,
-            copied_text,
-            url_opened,
-            cursor,
-            virtual_keyboard_shown_set,
-            virtual_keyboard_shown_val,
-        }
+        Response::new(&self.context, full_output, workspace_response)
     }
 
     pub fn set_egui_screen(&mut self) {
