@@ -29,7 +29,7 @@ pub struct Response {
     pub scroll_updated: bool,
 
     // actions taken
-    pub suggested_rename: Option<String>,
+    pub suggest_rename: Option<String>,
 }
 
 pub struct Editor {
@@ -338,7 +338,7 @@ impl Editor {
         }
 
         let suggested_title = self.get_suggested_title();
-        let suggested_rename =
+        let suggest_rename =
             if suggested_title != prior_suggested_title { suggested_title } else { None };
 
         // set cursor style
@@ -369,9 +369,9 @@ impl Editor {
 
         Response {
             text_updated,
-            suggested_rename,
             selection_updated,
             scroll_updated: false, // set by scroll_ui
+            suggest_rename,
         }
     }
 

@@ -20,17 +20,12 @@ pub struct Response {
     pub sync_done: Option<SyncStatus>,
     pub status_updated: bool,
 
-    // ~~first of all, love the above commitment to refactor something in 0.8.6 (we're now on 0.9.4). it do be like that.~~
-    // next up, acknowledging the need for a better pattern here, but there are some editor-specific outputs that need
+    // acknowledging the need for a better pattern here, but there are some editor-specific outputs that need
     // to make their way across FFI and it's cleaner to put them in this transient data structure than to maintain them
     // as persistent editor state
     pub markdown_editor_text_updated: bool,
     pub markdown_editor_selection_updated: bool,
     pub markdown_editor_scroll_updated: bool,
-
-    pub markdown_editor_show_edit_menu: bool,
-    pub markdown_editor_edit_menu_x: f32,
-    pub markdown_editor_edit_menu_y: f32,
 
     pub tabs_changed: bool,
 }
