@@ -26,14 +26,13 @@ import app.lockbook.model.CoreModel
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
-import app.lockbook.workspace.IntegrationOutput
+import app.lockbook.workspace.AndroidResponse
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.WsStatus
 import app.lockbook.workspace.isNullUUID
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import java.lang.Long.max
-import java.math.BigInteger
+import kotlin.math.min
 
 @SuppressLint("ViewConstructor")
 class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
@@ -245,14 +244,14 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         val responseJson = WORKSPACE.enterFrame(WGPU_OBJ)
-        val response: IntegrationOutput = frameOutputJsonParser.decodeFromString(responseJson)
+        val response: AndroidResponse = frameOutputJsonParser.decodeFromString(responseJson)
 
         if (response.urlOpened.isNotEmpty()) {
             val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(response.urlOpened))
             startActivity(context, browserIntent, null)
         }
 
-        if (response.workspaceResp.statusUpdated) {
+        if (response.statusUpdated) {
             val status: WsStatus = frameOutputJsonParser.decodeFromString(Workspace.getInstance().getStatus(WGPU_OBJ))
 
             if (model.isSyncing && !status.syncing) {
@@ -263,28 +262,28 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             model._msg.value = status.msg
         }
 
-        if (response.workspaceResp.newFolderBtnPressed) {
+        if (response.newFolderBtnPressed) {
             model._newFolderBtnPressed.postValue(Unit)
         }
 
-        if (response.workspaceResp.refreshFiles) {
+        if (response.refreshFiles) {
             model._refreshFiles.postValue(Unit)
         }
 
-        if (!response.workspaceResp.docCreated.isNullUUID()) {
-            model._docCreated.postValue(response.workspaceResp.docCreated)
+        if (!response.docCreated.isNullUUID()) {
+            model._docCreated.postValue(response.docCreated)
         }
 
-        if (!response.workspaceResp.selectedFile.isNullUUID()) {
-            model._selectedFile.value = response.workspaceResp.selectedFile
+        if (!response.selectedFile.isNullUUID()) {
+            model._selectedFile.value = response.selectedFile
         }
 
-        if (response.workspaceResp.tabTitleClicked) {
+        if (response.tabTitleClicked) {
             model._tabTitleClicked.postValue(Unit)
             WORKSPACE.unfocusTitle(WGPU_OBJ)
         }
 
-        if (response.hasCopiedText) {
+        if (response.copiedText.isNotEmpty()) {
             (App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
                 .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
         }
@@ -296,15 +295,15 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         if (currentTab == WorkspaceTab.Markdown) {
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-                if (response.workspaceResp.selectionUpdated && !ignoreSelectionUpdate) {
+                if (response.selectionUpdated && !ignoreSelectionUpdate) {
                     textInputWrapper.wsInputConnection.notifySelectionUpdated()
                 }
 
-                if (response.workspaceResp.textUpdated && contextMenu != null) {
+                if (response.textUpdated && contextMenu != null) {
                     contextMenu?.finish()
                 }
 
-                if (response.workspaceResp.showEditMenu && contextMenu == null) {
+                if (response.hasEditMenu && contextMenu == null) {
                     val actionModeCallback =
                         TextEditorContextMenu(textInputWrapper)
 
@@ -312,8 +311,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         this.startActionMode(
                             FloatingTextEditorContextMenu(
                                 actionModeCallback,
-                                response.workspaceResp.editMenuX,
-                                response.workspaceResp.editMenuY
+                                response.editMenuX,
+                                response.editMenuY
                             ),
                             ActionMode.TYPE_FLOATING
                         )
@@ -324,10 +323,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             }
         }
 
-        if (response.redrawIn < BigInteger("100")) {
+        if (response.redrawIn < 100u) {
             invalidate()
         } else {
-            handler.postDelayed(redrawTask, max(response.redrawIn.toLong(), 500L))
+            handler.postDelayed(redrawTask, min(response.redrawIn, 500u).toLong())
         }
     }
 

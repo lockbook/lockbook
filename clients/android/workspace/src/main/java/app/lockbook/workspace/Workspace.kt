@@ -37,37 +37,35 @@ object BigIntegerSerializer: KSerializer<BigInteger> {
 }
 
 @Serializable
-public data class IntegrationOutput(
-    @SerialName("workspace_resp")
-    val workspaceResp: FfiWorkspaceResp,
-    @Serializable(with = BigIntegerSerializer::class)
+public data class AndroidResponse(
+    // platform response
     @SerialName("redraw_in")
-    val redrawIn: BigInteger,
-    @SerialName("has_copied_text")
-    val hasCopiedText: Boolean,
+    val redrawIn: ULong,
     @SerialName("copied_text")
     val copiedText: String,
+    @SerialName("has_url_opened")
+    val hasURLOpened: Boolean,
     @SerialName("url_opened")
-    val urlOpened: String
-)
+    val urlOpened: String,
 
-@Serializable
-public data class FfiWorkspaceResp(
+    // widget response
     @SerialName("selected_file")
     val selectedFile: String,
     @SerialName("doc_created")
     val docCreated: String,
+
     @SerialName("status_updated")
     val statusUpdated: Boolean,
     @SerialName("refresh_files")
     val refreshFiles: Boolean,
+
     @SerialName("new_folder_btn_pressed")
     val newFolderBtnPressed: Boolean,
     @SerialName("tab_title_clicked")
     val tabTitleClicked: Boolean,
 
-    @SerialName("show_edit_menu")
-    val showEditMenu: Boolean,
+    @SerialName("has_edit_menu")
+    val hasEditMenu: Boolean,
     @SerialName("edit_menu_x")
     val editMenuX: Float,
     @SerialName("edit_menu_y")
