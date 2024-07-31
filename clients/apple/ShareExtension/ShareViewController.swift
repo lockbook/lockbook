@@ -50,7 +50,6 @@ class ShareViewController: UIViewController {
     func processAttachment(attachment: NSItemProvider) {
         let fileId = UTType.fileURL.identifier
         let imageId = UTType.image.identifier
-        let movieId = UTType.movie.identifier
         
         if attachment.hasItemConformingToTypeIdentifier(fileId) {
             attachment.loadObject(ofClass: URL.self) { (url, error) in
@@ -59,11 +58,6 @@ class ShareViewController: UIViewController {
         } else if attachment.hasItemConformingToTypeIdentifier(imageId) {
             attachment.loadObject(ofClass: UIImage.self) { (image, error) in
                 print("got image: \(image)")
-            }
-
-        } else if attachment.hasItemConformingToTypeIdentifier(movieId) {
-            attachment.loadObject(ofClass: URL.self) { (movie, error) in
-                print("got movie: \(movie)")
             }
         }
     }

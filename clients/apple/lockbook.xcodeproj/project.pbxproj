@@ -54,6 +54,9 @@
 		47FF74F52C5AC8E0004F90EC /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FF74F42C5AC8E0004F90EC /* ShareViewController.swift */; };
 		47FF74FC2C5AC8E0004F90EC /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 47FF74F22C5AC8E0004F90EC /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		47FF75032C5ACFC4004F90EC /* ShareExtensionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FF75022C5ACFC4004F90EC /* ShareExtensionView.swift */; };
+		47FF75052C5AE65F004F90EC /* MoveFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FF75042C5AE65F004F90EC /* MoveFileView.swift */; };
+		47FF75062C5AE65F004F90EC /* MoveFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FF75042C5AE65F004F90EC /* MoveFileView.swift */; };
+		47FF75072C5AE65F004F90EC /* MoveFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FF75042C5AE65F004F90EC /* MoveFileView.swift */; };
 		6581A7EF74307EAE69426206 /* SheetState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581AB54147C2201F8F95500 /* SheetState.swift */; };
 		6581ABD3CA16395327F765E8 /* SheetState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581AB54147C2201F8F95500 /* SheetState.swift */; };
 		6581AC0512EDB9FBB7106020 /* MenuItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581A11CE95C74B01ED30AEB /* MenuItems.swift */; };
@@ -189,6 +192,7 @@
 		47FF74F42C5AC8E0004F90EC /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		47FF74F92C5AC8E0004F90EC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		47FF75022C5ACFC4004F90EC /* ShareExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareExtensionView.swift; sourceTree = "<group>"; };
+		47FF75042C5AE65F004F90EC /* MoveFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveFileView.swift; sourceTree = "<group>"; };
 		6581A11CE95C74B01ED30AEB /* MenuItems.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuItems.swift; sourceTree = "<group>"; };
 		6581AB54147C2201F8F95500 /* SheetState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = SheetState.swift; path = iOS/OutlineView/SheetState.swift; sourceTree = SOURCE_ROOT; };
 		870DC09E26BDE6F4002E9A92 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -449,6 +453,7 @@
 				DFE4E3702B847F6000AC8A15 /* LogoutConfirmation.swift */,
 				47FC8F5E2C24B6580023069E /* PlatformView.swift */,
 				4782F83A2C49B4E700D55923 /* DeleteConfirmationButtons.swift */,
+				47FF75042C5AE65F004F90EC /* MoveFileView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -616,6 +621,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				47FF75032C5ACFC4004F90EC /* ShareExtensionView.swift in Sources */,
+				47FF75072C5AE65F004F90EC /* MoveFileView.swift in Sources */,
 				47FF74F52C5AC8E0004F90EC /* ShareViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -645,6 +651,7 @@
 				47E208562C387A60002A356B /* Util.swift in Sources */,
 				EA9079C32569960A00E04F5D /* ListFileCell.swift in Sources */,
 				87F78F7A27094A040001E159 /* BeforeYouStart.swift in Sources */,
+				47FF75052C5AE65F004F90EC /* MoveFileView.swift in Sources */,
 				4782F83B2C49B4E700D55923 /* DeleteConfirmationButtons.swift in Sources */,
 				8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */,
 				B249B9E8282AF6B1004F5300 /* OutlineBranch.swift in Sources */,
@@ -715,6 +722,7 @@
 				47FB55EE2AF19AD400B74C09 /* RenameFileSheet.swift in Sources */,
 				B2386A4F2C2DFB8300B12415 /* DebugView.swift in Sources */,
 				870DC0A426BF37C0002E9A92 /* UsageSettingsView.swift in Sources */,
+				47FF75062C5AE65F004F90EC /* MoveFileView.swift in Sources */,
 				47E208572C387A62002A356B /* Util.swift in Sources */,
 				B2459BEE28DBB43100756D71 /* ColorProgressBar.swift in Sources */,
 				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,

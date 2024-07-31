@@ -13,8 +13,7 @@ use time::Duration;
 
 use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchType};
 use lb_rs::{
-    clock, Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress,
-    UnexpectedError, Uuid,
+    clock, Config, FileType, Filter, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress, UnexpectedError, Uuid
 };
 
 use crate::{get_all_error_variants, json_interface::translate, static_state, RankingWeights};
@@ -339,6 +338,17 @@ pub unsafe extern "C" fn rename_file(id: *const c_char, new_name: *const c_char)
 pub unsafe extern "C" fn list_metadatas() -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.list_metadatas()),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn list_folder_paths() -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.list_paths(Some(Filter::FoldersOnly))),
         e => translate(e.map(|_| ())),
     })
 }
