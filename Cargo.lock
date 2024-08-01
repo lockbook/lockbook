@@ -4140,7 +4140,6 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
- "smaa",
  "workspace",
 ]
 

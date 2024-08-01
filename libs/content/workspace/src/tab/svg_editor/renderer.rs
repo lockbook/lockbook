@@ -1,15 +1,18 @@
+use std::f64::consts::PI;
+
 use bezier_rs::{Bezier, Subpath};
+use chrono::Utc;
 use epaint::WHITE_UV;
 use glam::f64::DVec2;
+use lyon::path::traits::{Build, PathBuilder, PathIterator};
+use lyon::path::{AttributeIndex, LineCap, LineJoin, PathEvent};
+use lyon::tessellation::geometry_builder::simple_builder;
 use lyon::tessellation::{
     self, BuffersBuilder, FillOptions, FillVertexConstructor, StrokeOptions, StrokeTessellator,
-    StrokeVertexConstructor, VertexBuffers,
+    StrokeVertexConstructor, TessellationError, VertexBuffers,
 };
-use resvg::usvg::{self, tiny_skia_path, ImageKind, Transform};
-
-use crate::theme::palette::ThemePalette;
-use lyon::path::PathEvent;
 use lyon::{math::Point, tessellation::FillTessellator};
+use resvg::usvg::{self, tiny_skia_path, ImageKind, Transform};
 
 use super::parser::{ManipulatorGroupId, Stroke};
 use super::{
@@ -43,6 +46,7 @@ pub struct GpuPrimitive {
     pub color: u32,
     pub _pad: [u32; 2],
 }
+const STROKE_WIDTH: AttributeIndex = 0;
 
 impl GpuPrimitive {
     pub fn new(transform_idx: u32, color: egui::Color32, alpha: f32) -> Self {
@@ -69,16 +73,46 @@ impl StrokeVertexConstructor<GpuVertex> for VertexCtor {
     }
 }
 
+struct VertexConstructor {
+    color: epaint::Color32,
+}
+impl FillVertexConstructor<epaint::Vertex> for VertexConstructor {
+    fn new_vertex(&mut self, vertex: tessellation::FillVertex) -> epaint::Vertex {
+        let pos = egui::pos2(vertex.position().x, vertex.position().y);
+        epaint::Vertex { pos, uv: epaint::WHITE_UV, color: self.color }
+    }
+}
+
+impl StrokeVertexConstructor<epaint::Vertex> for VertexConstructor {
+    fn new_vertex(&mut self, vertex: tessellation::StrokeVertex) -> epaint::Vertex {
+        let pos = egui::pos2(vertex.position().x, vertex.position().y);
+        epaint::Vertex { pos, uv: epaint::WHITE_UV, color: self.color }
+    }
+}
+fn get_oscillating_factor() -> f64 {
+    // Get the current time in seconds since the Unix epoch
+    let now = Utc::now().timestamp() as f64;
+
+    // Calculate the sine of the time, scaled to oscillate
+    // Here we use a period of 2*PI seconds for a smooth oscillation
+    let sine_value = (now).sin();
+
+    // Scale and shift the sine value to oscillate between 0.5 and 1.5
+    // (sine_value oscillates between -1 and 1)
+    // We want the result to oscillate between 0.5 and 1.5
+    let factor = 0.5 + (sine_value + 1.0) / 2.0;
+
+    factor
+}
+
 impl SVGEditor {
     pub fn render_svg(&mut self, ui: &mut egui::Ui) {
         let painter = ui
             .allocate_painter(self.inner_rect.size(), egui::Sense::click_and_drag())
             .1;
-        let mut fill_tess = FillTessellator::new();
+        // let mut fill_tess = FillTessellator::new();
         let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
-        let mut primitives: Vec<GpuPrimitive> = Vec::new();
         let mut stroke_tess = StrokeTessellator::new();
-        let transforms: Vec<GpuTransform> = Vec::new();
 
         let mut shapes = vec![];
         for (_, el) in self.buffer.elements.iter_mut() {
@@ -87,42 +121,62 @@ impl SVGEditor {
                     if p.data.len() < 3 {
                         continue;
                     }
-                    let path_convertor = PathConvIter::new(p.data.clone());
+                    // let path_convertor = PathConvIter::new(p.data.clone());
                     if let Some(stroke) = p.stroke {
-                        let (stroke_color, stroke_opts) =
-                            convert_stroke(stroke, ui, self.buffer.master_transform);
-                        primitives.push(GpuPrimitive::new(0, stroke_color, p.opacity));
-                        let _ = stroke_tess.tessellate(
-                            path_convertor,
-                            &stroke_opts.with_tolerance(0.01),
+                        let stroke_color =
+                            if ui.visuals().dark_mode { stroke.color.1 } else { stroke.color.0 }
+                                .gamma_multiply(p.opacity);
+
+                        let mut builder = lyon::path::BuilderWithAttributes::new(1);
+
+                        let mut first = None;
+                        let mut i = 0;
+                        while let Some(seg) = p.data.get_segment(i) {
+                            let thickness = stroke.width
+                                * self.buffer.master_transform.sx
+                                * (((i as f32) % 40.0 + 1.0).ln() * 2.0);
+
+                            let start = devc_to_point(seg.start());
+                            let end = devc_to_point(seg.end());
+                            if first.is_none() {
+                                first = Some(start);
+                                builder.begin(start, &[thickness]);
+                            } else if seg.handle_end().is_some() && seg.handle_start().is_some() {
+                                let handle_start = devc_to_point(seg.handle_start().unwrap());
+                                let handle_end = devc_to_point(seg.handle_end().unwrap());
+
+                                builder.cubic_bezier_to(
+                                    handle_start,
+                                    handle_end,
+                                    end,
+                                    &[thickness],
+                                );
+                            } else if seg.handle_end().is_none() && seg.handle_start().is_none() {
+                                builder.line_to(end, &[thickness]);
+                            }
+                            i = i + 1;
+                        }
+                        if first.is_some() {
+                            builder.end(false);
+                        }
+                        let path = builder.build();
+
+                        let _ = stroke_tess.tessellate_path(
+                            &path,
+                            &StrokeOptions::default()
+                                .with_line_cap(LineCap::Round)
+                                .with_line_join(LineJoin::Round)
+                                .with_tolerance(0.01)
+                                .with_variable_line_width(STROKE_WIDTH),
                             &mut BuffersBuilder::new(
                                 &mut mesh,
-                                VertexCtor { prim_id: primitives.len() as u32 - 1 },
+                                VertexConstructor { color: stroke_color },
                             ),
                         );
 
-                        // fill_tess
-                        //     .tessellate(
-                        //         path_convertor,
-                        //         &FillOptions::tolerance(0.01),
-                        //         &mut BuffersBuilder::new(
-                        //             &mut mesh,
-                        //             VertexCtor { prim_id: primitives.len() as u32 - 1 },
-                        //         ),
-                        //     )
-                        //     .expect("Error during tessellation!");
-
                         shapes.push(egui::Shape::Mesh(egui::epaint::Mesh {
                             indices: mesh.indices.clone(),
-                            vertices: mesh
-                                .vertices
-                                .iter()
-                                .map(|v| egui::epaint::Vertex {
-                                    pos: egui::pos2(v.position[0], v.position[1]),
-                                    uv: WHITE_UV,
-                                    color: stroke_color,
-                                })
-                                .collect(),
+                            vertices: mesh.vertices.clone(),
                             texture_id: Default::default(),
                         }));
                     }
@@ -270,19 +324,3 @@ impl Iterator for PathConvIter {
 //         ImageKind::SVG(_) => todo!(),
 //     }
 // }
-
-pub fn convert_stroke(
-    s: Stroke, ui: &mut egui::Ui, master_transform: Transform,
-) -> (egui::Color32, StrokeOptions) {
-    let color = if ui.visuals().dark_mode { s.color.1 } else { s.color.0 };
-
-    let linecap = tessellation::LineCap::Round;
-    let linejoin = tessellation::LineJoin::Round;
-
-    let opt = StrokeOptions::tolerance(0.01)
-        .with_line_width(s.width * master_transform.sx)
-        .with_line_cap(linecap)
-        .with_line_join(linejoin);
-
-    (color, opt)
-}

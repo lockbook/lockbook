@@ -378,7 +378,6 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
         queued_events: Default::default(),
         double_queued_events: Default::default(),
         app,
-        format,
         surface_width: 0,
         surface_height: 0,
     };
