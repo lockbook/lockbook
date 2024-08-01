@@ -7,12 +7,15 @@
 
 import Foundation
 import SwiftUI
+import SwiftLockbookCore
 
 // If I want to reuse move from iOS, make sure the target membership (the right side panel, includes the shareextension target
 
 struct ShareExtensionView: View {
     var body: some View {
-        Text("this is something?")
+        VStack {
+            SelectFolderView()
+        }.environmentObject(CoreService(CoreApi(ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location, logs: true)))
     }
 }
 
