@@ -9,7 +9,7 @@ use egui_wgpu_backend::{
     wgpu::{self, CompositeAlphaMode},
     ScreenDescriptor,
 };
-use lbeguiapp::{Output, UpdateOutput, WgpuLockbook};
+use lbeguiapp::{Output, Response, WgpuLockbook};
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
     RawWindowHandle, Win32WindowHandle, WindowHandle, WindowsDisplayHandle,
@@ -347,7 +347,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                             let Output {
                                 egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
                                 window_title,
-                                update_output: UpdateOutput { close },
+                                app: Response { close },
                             } = app.frame();
 
                             if let Err(_) = output::clipboard_copy::handle(copied_text.clone()) {
