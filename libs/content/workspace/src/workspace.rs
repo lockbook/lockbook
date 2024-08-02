@@ -390,6 +390,9 @@ impl Workspace {
                                     // the cursor, which is also updated when scrolling
                                     self.out.markdown_editor_selection_updated = true;
                                 }
+                                if resp.scroll_updated {
+                                    self.out.markdown_editor_scroll_updated = true;
+                                }
                             }
                             TabContent::Image(img) => img.show(ui),
                             TabContent::Pdf(pdf) => pdf.show(ui),
