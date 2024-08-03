@@ -39,7 +39,6 @@
 		47B53839290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B67289295F977C00DB0D8E /* ManageSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */; };
 		47C009172C5C00A900F4B7ED /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = 47C009162C5C00A900F4B7ED /* SwiftLockbookCore */; };
-		47C009182C5C03F500F4B7ED /* SelectFolderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FF75042C5AE65F004F90EC /* SelectFolderView.swift */; };
 		47C009192C5C043000F4B7ED /* CoreService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB54926D1788D0008AB3F /* CoreService.swift */; };
 		47C0091A2C5C046700F4B7ED /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
 		47CEC69D2A182F2A0018FA5C /* UpgradeToPremium.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CEC69C2A182F2A0018FA5C /* UpgradeToPremium.swift */; };
@@ -177,6 +176,7 @@
 		4779C62C2AB8C09E007C0100 /* PathSearchActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathSearchActionBar.swift; sourceTree = "<group>"; };
 		477CC48F2967A53C00714456 /* ShareFileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFileSheet.swift; sourceTree = "<group>"; };
 		4782F83A2C49B4E700D55923 /* DeleteConfirmationButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteConfirmationButtons.swift; sourceTree = "<group>"; };
+		4788D3842C5D71A900507DCE /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 		47A45FBA2969047B00573044 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
 		47B53837290EFE150012E542 /* BillingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingService.swift; sourceTree = "<group>"; };
 		47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageSubscriptionView.swift; sourceTree = "<group>"; };
@@ -291,6 +291,7 @@
 		47FF74F32C5AC8E0004F90EC /* ShareExtension */ = {
 			isa = PBXGroup;
 			children = (
+				4788D3842C5D71A900507DCE /* ShareExtension.entitlements */,
 				47FF74F42C5AC8E0004F90EC /* ShareViewController.swift */,
 				47FF74F92C5AC8E0004F90EC /* Info.plist */,
 				47FF75022C5ACFC4004F90EC /* ShareExtensionView.swift */,
@@ -628,7 +629,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				47FF75032C5ACFC4004F90EC /* ShareExtensionView.swift in Sources */,
-				47C009182C5C03F500F4B7ED /* SelectFolderView.swift in Sources */,
 				47C009192C5C043000F4B7ED /* CoreService.swift in Sources */,
 				47C0091A2C5C046700F4B7ED /* ConfigHelper.swift in Sources */,
 				47FF74F52C5AC8E0004F90EC /* ShareViewController.swift in Sources */,
@@ -761,6 +761,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
@@ -799,6 +800,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
@@ -838,6 +840,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 39ZS78S25U;

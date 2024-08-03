@@ -14,7 +14,7 @@ import SwiftLockbookCore
 struct ShareExtensionView: View {
     var body: some View {
         VStack {
-            SelectFolderView()
+//            SelectFolderView(action: .Import([]))
         }.environmentObject(CoreService(CoreApi(ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location, logs: true)))
     }
 }

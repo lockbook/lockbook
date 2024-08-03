@@ -72,7 +72,7 @@ struct PlatformView: View {
         }
         .sheet(isPresented: $sheets.moving, content: {
             if let meta = sheets.movingInfo {
-                MoveSheet(meta: meta)
+                SelectFolderView(action: .Move([meta.id]))
             }
         })
     }
