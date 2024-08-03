@@ -69,7 +69,9 @@ struct SuggestedDocs: View {
                             HStack {
                                 Button(action: {
                                     DI.workspace.requestOpenDoc(meta.id)
-                                    DI.files.intoChildDirectory(meta)
+                                    if isiOS {
+                                        DI.files.intoChildDirectory(meta)
+                                    }
                                 }) {
                                     SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
                                 }

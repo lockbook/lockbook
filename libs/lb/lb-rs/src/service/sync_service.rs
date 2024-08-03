@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 
 use lockbook_shared::access_info::UserAccessMode;
@@ -147,7 +147,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         let mut new_entries = HashMap::new();
 
         for owner in all_owners {
-            if let std::collections::hash_map::Entry::Vacant(e) = self.pk_cache.entry(owner) {
+            if let hash_map::Entry::Vacant(e) = self.pk_cache.entry(owner) {
                 let username_result = self
                     .client
                     .request(&self.account, GetUsernameRequest { key: owner.0 });
@@ -345,6 +345,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             Ok(())
         })
     }
+
     fn must_cleanup(&self) -> LbResult<()> {
         self.core.in_tx(|tx| {
             tx.syncing = false;
@@ -767,28 +768,21 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                                 let merge_name = merge.name(&id, self.get_account()?)?;
                                 let document_type =
                                     DocumentType::from_file_name_using_extension(&merge_name);
-                                let base_document = if base_hmac.is_some() {
-                                    base.read_document(&self.docs, &id, self.get_account()?)?
-                                } else {
-                                    Vec::new()
-                                };
-                                let remote_document = if remote_hmac.is_some() {
-                                    remote.read_document(&self.docs, &id, self.get_account()?)?
-                                } else {
-                                    Vec::new()
-                                };
-                                let local_document = if local_hmac.is_some() {
-                                    local.read_document(&self.docs, &id, self.get_account()?)?
-                                } else {
-                                    Vec::new()
-                                };
+
+                                let base_document =
+                                    base.read_document(&self.docs, &id, self.get_account()?)?;
+                                let remote_document =
+                                    remote.read_document(&self.docs, &id, self.get_account()?)?;
+                                let local_document =
+                                    local.read_document(&self.docs, &id, self.get_account()?)?;
+
                                 match document_type {
                                     DocumentType::Text => {
                                         // 3-way merge
                                         let merged_document = match diffy::merge_bytes(
                                             &base_document,
-                                            &remote_document,
                                             &local_document,
+                                            &remote_document,
                                         ) {
                                             Ok(without_conflicts) => without_conflicts,
                                             Err(with_conflicts) => with_conflicts,

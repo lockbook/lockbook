@@ -43,6 +43,8 @@ public data class IntegrationOutput(
     @Serializable(with = BigIntegerSerializer::class)
     @SerialName("redraw_in")
     val redrawIn: BigInteger,
+    @SerialName("has_copied_text")
+    val hasCopiedText: Boolean,
     @SerialName("copied_text")
     val copiedText: String,
     @SerialName("url_opened")
@@ -55,14 +57,26 @@ public data class FfiWorkspaceResp(
     val selectedFile: String,
     @SerialName("doc_created")
     val docCreated: String,
-    val msg: String,
-    val syncing: Boolean,
+    @SerialName("status_updated")
+    val statusUpdated: Boolean,
     @SerialName("refresh_files")
     val refreshFiles: Boolean,
     @SerialName("new_folder_btn_pressed")
     val newFolderBtnPressed: Boolean,
     @SerialName("tab_title_clicked")
-    val tabTitleClicked: Boolean
+    val tabTitleClicked: Boolean,
+
+    @SerialName("show_edit_menu")
+    val showEditMenu: Boolean,
+    @SerialName("edit_menu_x")
+    val editMenuX: Float,
+    @SerialName("edit_menu_y")
+    val editMenuY: Float,
+
+    @SerialName("selection_updated")
+    val selectionUpdated: Boolean,
+    @SerialName("text_updated")
+    val textUpdated: Boolean
 )
 
 class Workspace private constructor() {
@@ -85,7 +99,7 @@ class Workspace private constructor() {
 
     external fun initWS(surface: Surface, core: Long, scaleFactor: Float, darkMode: Boolean, oldWGPU: Long): Long
     external fun enterFrame(rustObj: Long): String
-    external fun resizeEditor(rustObj: Long, surface: Surface, scaleFactor: Float)
+    external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
 
     external fun unfocusTitle(rustObj: Long)
     external fun touchesBegin(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
@@ -99,6 +113,8 @@ class Workspace private constructor() {
     external fun showTabs(rustObj: Long, show: Boolean)
     external fun currentTab(rustObj: Long): Int
 
+    external fun getStatus(rustObj: Long): String
+
     external fun fileRenamed(rustObj: Long, id: String, name: String): Int
 
     // text input
@@ -110,6 +126,8 @@ class Workspace private constructor() {
     external fun insert(rustObj: Long, index: Int, text: String)
     external fun append(rustObj: Long, text: String)
     external fun getTextInRange(rustObj: Long, start: Int, end: Int): String
+    external fun getAllText(rustObj: Long): String
+
 
     external fun selectAll(rustObj: Long)
     external fun clipboardCut(rustObj: Long)
@@ -117,7 +135,30 @@ class Workspace private constructor() {
     external fun clipboardPaste(rustObj: Long, content: String)
 
     external fun toggleEraserSVG(rustObj: Long, select: Boolean)
+
+    external fun insertTextAtCursor(rustObj: Long, text: String)
 }
+
+@Serializable
+data class WsStatus(val syncing: Boolean, val msg: String)
+@Serializable
+data class JTextRange(val none: Boolean, val start: Int, val end: Int) {
+    fun isEmpty(): Boolean = none || end - start == 0
+}
+@Serializable
+data class JTextPosition(val none: Boolean, val position: Int)
+
+@Serializable
+data class JRect(
+    @SerialName("min_x")
+    val minX: Float,
+    @SerialName("min_y")
+    val minY: Float,
+    @SerialName("max_x")
+    val maxX: Float,
+    @SerialName("max_y")
+    val maxY: Float
+)
 
 fun String.isNullUUID(): Boolean {
     return this == "00000000-0000-0000-0000-000000000000"

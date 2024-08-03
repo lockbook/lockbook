@@ -97,6 +97,8 @@ class SheetState: ObservableObject {
         }
     }
     
+    @Published var tabsList: Bool = false
+    
     private var cancellables: Set<AnyCancellable> = []
     
     init() {

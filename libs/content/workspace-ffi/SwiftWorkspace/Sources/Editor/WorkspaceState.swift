@@ -4,6 +4,8 @@ import Bridge
 
 // todo can this go away enirely?
 public class WorkspaceState: ObservableObject {
+    
+    var wsHandle: UnsafeMutableRawPointer? = nil
 
     @Published public var pasted: Bool = false
     @Published public var shouldFocus: Bool = false
@@ -31,6 +33,7 @@ public class WorkspaceState: ObservableObject {
     
     @Published public var syncRequested: Bool = false
     @Published public var openDocRequested: UUID? = nil
+    @Published public var closeAllTabsRequested: Bool = false
     
     @Published public var newFolderButtonPressed: Bool = false
     
@@ -39,6 +42,8 @@ public class WorkspaceState: ObservableObject {
     @Published public var renameOpenDoc: Bool = false
     @Published public var fileOpCompleted: WSFileOpCompleted? = nil
     @Published public var closeActiveTab: Bool = false
+    
+    @Published public var openTabs: Int = 0
     
     #if os(iOS)
     @Published public var dragOffset: CGFloat = 0.0
@@ -52,6 +57,23 @@ public class WorkspaceState: ObservableObject {
     
     public func requestOpenDoc(_ id: UUID) {
         self.openDocRequested = id
+    }
+    
+    public func requestCloseAllTabs() {
+        self.closeAllTabsRequested = true
+    }
+    
+    public func getTabsIds() -> [UUID] {
+        let result = get_tabs_ids(wsHandle)
+        let buffer: [CUuid] = Array(UnsafeBufferPointer(start: result.ids, count: Int(result.size)))
+        
+        let newBuffer = buffer.map({ id in
+            return UUID(uuid: id._0)
+        })
+        
+        free_tab_ids(result)
+        
+        return newBuffer
     }
 }
 
