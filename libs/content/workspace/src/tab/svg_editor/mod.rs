@@ -14,7 +14,6 @@ use std::time::Instant;
 use self::history::History;
 use self::zoom::handle_zoom_input;
 use crate::tab::svg_editor::toolbar::Toolbar;
-use crate::theme::palette::ThemePalette;
 pub use eraser::Eraser;
 pub use history::DeleteElement;
 pub use history::Event;
@@ -23,6 +22,7 @@ use lb_rs::Uuid;
 pub use parser::Buffer;
 pub use pen::CubicBezBuilder;
 pub use pen::Pen;
+use renderer::Renderer;
 use resvg::usvg::{self, ImageKind};
 pub use toolbar::Tool;
 use usvg_parser::Options;
@@ -39,6 +39,7 @@ pub struct SVGEditor {
     open_file: Uuid,
     skip_frame: bool,
     last_render: Instant,
+    renderer: Renderer,
 }
 
 impl SVGEditor {
@@ -65,6 +66,7 @@ impl SVGEditor {
             open_file,
             skip_frame: false,
             last_render: Instant::now(),
+            renderer: Renderer::new(),
         }
     }
 
@@ -105,7 +107,8 @@ impl SVGEditor {
                     );
 
                     self.inner_rect = ui.available_rect_before_wrap();
-                    self.render_svg(ui);
+                    self.renderer
+                        .render_svg(ui, &mut self.buffer, self.inner_rect);
                 });
         });
 

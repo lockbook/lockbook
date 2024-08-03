@@ -36,6 +36,7 @@ pub struct Buffer {
     pub needs_path_map_update: bool,
 }
 
+#[derive(Clone)]
 pub enum Element {
     Path(Path),
     Image(Image),
@@ -50,6 +51,7 @@ pub struct Path {
     pub stroke: Option<Stroke>,
     pub transform: Transform,
     pub opacity: f32,
+    pub pressure: Option<Vec<f32>>,
 }
 
 #[derive(Clone, Copy)]
@@ -64,6 +66,7 @@ impl Default for Stroke {
     }
 }
 
+#[derive(Clone)]
 pub struct Image {
     pub data: ImageKind,
     pub visibility: Visibility,
@@ -159,6 +162,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     stroke: Some(stroke),
                     transform: path.abs_transform(),
                     opacity,
+                    pressure: None,
                 }),
             );
         }
