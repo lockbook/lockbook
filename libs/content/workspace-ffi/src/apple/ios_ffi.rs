@@ -258,12 +258,17 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
 #[no_mangle]
 pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+    let force = if force == 0.0 {
+        None
+    }else{
+        Some(force)
+    };
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
         phase: TouchPhase::Start,
         pos: Pos2 { x, y },
-        force: Some(force),
+        force: force,
     });
 
     obj.raw_input.events.push(Event::PointerButton {
@@ -279,13 +284,17 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
 #[no_mangle]
 pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-
+    let force = if force == 0.0 {
+        None
+    }else{
+        Some(force)
+    };
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
         phase: TouchPhase::Move,
         pos: Pos2 { x, y },
-        force: Some(force),
+        force,
     });
 
     obj.raw_input
@@ -300,12 +309,17 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
 #[no_mangle]
 pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+    let force = if force == 0.0 {
+        None
+    }else{
+        Some(force)
+    };
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
         phase: TouchPhase::End,
         pos: Pos2 { x, y },
-        force: Some(force),
+        force: force,
     });
 
     obj.raw_input.events.push(Event::PointerButton {
@@ -325,12 +339,17 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
 #[no_mangle]
 pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+    let force = if force == 0.0 {
+        None
+    }else{
+        Some(force)
+    };
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
         phase: TouchPhase::Cancel,
         pos: Pos2 { x, y },
-        force: Some(force),
+        force: force,
     });
 
     obj.raw_input.events.push(Event::PointerGone);

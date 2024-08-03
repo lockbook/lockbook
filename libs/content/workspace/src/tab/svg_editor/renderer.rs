@@ -1,6 +1,7 @@
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
+use egui::Mesh;
 use glam::f64::DVec2;
 use lyon::math::Point;
 use lyon::path::{AttributeIndex, LineCap, LineJoin};
@@ -119,6 +120,7 @@ impl Renderer {
                                     VertexConstructor { color: stroke_color },
                                 ),
                             );
+
 
                             let _ = mesh_tx.send(egui::epaint::Mesh {
                                 indices: mesh.indices.clone(),

@@ -83,9 +83,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         // floating cursor support
         if #available(iOS 17.4, *) {
-            let concreteFloatingCursor = UIStandardTextCursorView()
-            concreteFloatingCursor.tintColor = .systemBlue
-            floatingCursor = concreteFloatingCursor
+//            let concreteFloatingCursor = UIStandardTextCursorView()
+//            concreteFloatingCursor.tintColor = .systemBlue
+//            floatingCursor = concreteFloatingCursor
         } else {
             floatingCursor.backgroundColor = .systemBlue
             floatingCursor.layer.cornerRadius = 1
@@ -941,8 +941,9 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
             let location = touch.location(in: self)
-            
-            touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(touch.force))
+            let force = touch.force == 0 ? touch.force / touch.maximumPossibleForce : 0
+
+            touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(force))
         }
         
         self.setNeedsDisplay(self.frame)
@@ -953,8 +954,9 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
             let location = touch.location(in: self)
-            
-            touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(touch.force))
+            let force = touch.force == 0 ? touch.force / touch.maximumPossibleForce : 0
+
+            touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
         }
         
         self.setNeedsDisplay(self.frame)
@@ -965,8 +967,9 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
             let location = touch.location(in: self)
+            let force = touch.force == 0 ? touch.force / touch.maximumPossibleForce : 0
             
-            touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(touch.force))
+            touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
         }
         
         self.setNeedsDisplay(self.frame)
@@ -977,8 +980,9 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
             let location = touch.location(in: self)
-            
-            touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(touch.force))
+            let force = touch.force == 0 ? touch.force / touch.maximumPossibleForce : 0
+
+            touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(force))
         }
         
         self.setNeedsDisplay(self.frame)
