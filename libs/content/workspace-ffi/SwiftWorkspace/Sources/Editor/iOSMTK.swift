@@ -1013,7 +1013,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)));
 
             let newRedrawTask = DispatchWorkItem {
-                self.setNeedsDisplay(self.frame)
+                self.drawImmediately()
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
             redrawTask = newRedrawTask
