@@ -56,7 +56,7 @@ impl SVGEditor {
             + 1;
 
         let toolbar = Toolbar::new(max_id);
-
+        let elements_count = buffer.elements.len();
         Self {
             buffer,
             history: History::default(),
@@ -66,7 +66,7 @@ impl SVGEditor {
             open_file,
             skip_frame: false,
             last_render: Instant::now(),
-            renderer: Renderer::new(),
+            renderer: Renderer::new(elements_count),
         }
     }
 
@@ -138,6 +138,7 @@ impl SVGEditor {
                     self.inner_rect,
                     &mut self.buffer,
                     &mut self.history,
+                    &mut self.renderer.painted_elements
                 );
             }
             Tool::Eraser => {

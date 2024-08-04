@@ -1,7 +1,7 @@
+use std::collections::HashSet;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-use egui::Mesh;
 use glam::f64::DVec2;
 use lyon::math::Point;
 use lyon::path::{AttributeIndex, LineCap, LineJoin};
@@ -33,38 +33,42 @@ impl StrokeVertexConstructor<epaint::Vertex> for VertexConstructor {
 }
 
 pub struct Renderer {
-    mesh_tx: Sender<egui::Mesh>,
-    mesh_rx: Receiver<egui::Mesh>,
+    mesh_tx: Sender<(String, egui::Mesh)>,
+    mesh_rx: Receiver<(String, egui::Mesh)>,
+    pub painted_elements: HashSet<String>,
+    mesh_cache: egui::Mesh,
 }
 
 impl Renderer {
-    pub fn new() -> Self {
+    pub fn new(elements_count: usize) -> Self {
         let (mesh_tx, mesh_rx) = mpsc::channel();
 
-        Self { mesh_rx, mesh_tx }
+        Self { mesh_rx, mesh_tx, painted_elements: HashSet::with_capacity(elements_count), mesh_cache: egui::Mesh::default() }
     }
-    pub fn render_svg(&self, ui: &mut egui::Ui, buffer: &mut Buffer, inner_rect: egui::Rect) {
+    pub fn render_svg(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer, inner_rect: egui::Rect) {
         let painter = ui
             .allocate_painter(inner_rect.size(), egui::Sense::click_and_drag())
             .1;
 
         let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
-
         let mut stroke_tess = StrokeTessellator::new();
         let elements = buffer.elements.clone();
         let mesh_tx = self.mesh_tx.clone();
         let dark_mode = ui.visuals().dark_mode;
         let master_transform = buffer.master_transform;
-
+        let painted_elements = self.painted_elements.clone();
         thread::spawn(move || {
-            for (_, el) in elements {
+            for (id, el) in elements {
+                if painted_elements.contains(&id){
+                    continue;
+                }
                 match el {
                     parser::Element::Path(p) => {
                         // todo see if i can remove this so i can draw points
                         if p.data.len() < 3 {
                             continue;
                         }
-
+                        
                         if let Some(stroke) = p.stroke {
                             let stroke_color =
                                 if dark_mode { stroke.color.1 } else { stroke.color.0 }
@@ -113,7 +117,7 @@ impl Renderer {
                                 &StrokeOptions::default()
                                     .with_line_cap(LineCap::Round)
                                     .with_line_join(LineJoin::Round)
-                                    .with_tolerance(0.01)
+                                    .with_tolerance(0.1)
                                     .with_variable_line_width(STROKE_WIDTH),
                                 &mut BuffersBuilder::new(
                                     &mut mesh,
@@ -121,12 +125,11 @@ impl Renderer {
                                 ),
                             );
 
-
-                            let _ = mesh_tx.send(egui::epaint::Mesh {
+                            let _ = mesh_tx.send((id, egui::epaint::Mesh {
                                 indices: mesh.indices.clone(),
                                 vertices: mesh.vertices.clone(),
                                 texture_id: Default::default(),
-                            });
+                            }));
                         }
                     }
                     parser::Element::Image(_) => todo!(),
@@ -134,9 +137,13 @@ impl Renderer {
                 }
             }
         });
-        while let Ok(mesh) = self.mesh_rx.try_recv() {
-            painter.add(egui::Shape::Mesh(mesh));
+        while let Ok((id, mesh)) = self.mesh_rx.try_recv() {
+            if !self.painted_elements.contains(&id){
+                self.mesh_cache.append(mesh);
+                self.painted_elements.insert(id);
+            }
         }
+        painter.add(self.mesh_cache.to_owned());
     }
 }
 
