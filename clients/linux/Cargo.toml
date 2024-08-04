@@ -20,7 +20,6 @@ x11rb = { version = "0.13.0", features = [
     "allow-unsafe-code",
     "cursor",
 ] }
-smaa = "0.13.0"
 open = "5.0.1"
 percent-encoding = "2.3.1"
 workspace = { path = "../../libs/content/workspace" }

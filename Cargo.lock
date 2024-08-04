@@ -4169,7 +4169,6 @@ dependencies = [
  "percent-encoding 2.3.1",
  "pollster",
  "raw-window-handle 0.6.2",
- "smaa",
  "workspace",
  "x11rb",
 ]
@@ -4503,7 +4502,6 @@ dependencies = [
  "indexmap 2.2.6",
  "log",
  "num-traits",
- "pp-rs",
  "rustc-hash",
  "spirv",
  "termcolor",
@@ -5443,15 +5441,6 @@ name = "powerfmt"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
-
-[[package]]
-name = "pp-rs"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb458bb7f6e250e6eb79d5026badc10a3ebb8f9a15d1fff0f13d17c71f4d6dee"
-dependencies = [
- "unicode-xid",
-]
 
 [[package]]
 name = "ppv-lite86"
@@ -6543,15 +6532,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dbff4acf519f630b3a3ddcfaea6c06b42174d9a44bc70c620e9ed1649d58b82a"
 dependencies = [
  "version_check",
-]
-
-[[package]]
-name = "smaa"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "698a1c989ef1b7daffa714620feae4ecb0b717fc5e4367f9d554809ecd428b1e"
-dependencies = [
- "wgpu",
 ]
 
 [[package]]

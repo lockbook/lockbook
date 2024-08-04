@@ -43,9 +43,17 @@ impl Renderer {
     pub fn new(elements_count: usize) -> Self {
         let (mesh_tx, mesh_rx) = mpsc::channel();
 
-        Self { mesh_rx, mesh_tx, painted_elements: HashSet::with_capacity(elements_count), mesh_cache: egui::Mesh::default() }
+        Self {
+            mesh_rx,
+            mesh_tx,
+            painted_elements: HashSet::with_capacity(elements_count),
+            mesh_cache: egui::Mesh::default(),
+        }
     }
-    pub fn render_svg(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer, inner_rect: egui::Rect) {
+    pub fn render_svg(
+        &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, inner_rect: egui::Rect,
+        current_drawn_path: usize,
+    ) {
         let painter = ui
             .allocate_painter(inner_rect.size(), egui::Sense::click_and_drag())
             .1;
@@ -59,7 +67,7 @@ impl Renderer {
         let painted_elements = self.painted_elements.clone();
         thread::spawn(move || {
             for (id, el) in elements {
-                if painted_elements.contains(&id){
+                if painted_elements.contains(&id) && !id.eq(&current_drawn_path.to_string()) {
                     continue;
                 }
                 match el {
@@ -68,7 +76,7 @@ impl Renderer {
                         if p.data.len() < 3 {
                             continue;
                         }
-                        
+
                         if let Some(stroke) = p.stroke {
                             let stroke_color =
                                 if dark_mode { stroke.color.1 } else { stroke.color.0 }
@@ -117,7 +125,7 @@ impl Renderer {
                                 &StrokeOptions::default()
                                     .with_line_cap(LineCap::Round)
                                     .with_line_join(LineJoin::Round)
-                                    .with_tolerance(0.1)
+                                    .with_tolerance(0.01)
                                     .with_variable_line_width(STROKE_WIDTH),
                                 &mut BuffersBuilder::new(
                                     &mut mesh,
@@ -125,11 +133,14 @@ impl Renderer {
                                 ),
                             );
 
-                            let _ = mesh_tx.send((id, egui::epaint::Mesh {
-                                indices: mesh.indices.clone(),
-                                vertices: mesh.vertices.clone(),
-                                texture_id: Default::default(),
-                            }));
+                            let _ = mesh_tx.send((
+                                id,
+                                egui::epaint::Mesh {
+                                    indices: mesh.indices.clone(),
+                                    vertices: mesh.vertices.clone(),
+                                    texture_id: Default::default(),
+                                },
+                            ));
                         }
                     }
                     parser::Element::Image(_) => todo!(),
@@ -138,12 +149,16 @@ impl Renderer {
             }
         });
         while let Ok((id, mesh)) = self.mesh_rx.try_recv() {
-            if !self.painted_elements.contains(&id){
+            if id.eq(&current_drawn_path.to_string()) {
+                painter.add(mesh);
+            } else if !self.painted_elements.contains(&id) {
                 self.mesh_cache.append(mesh);
                 self.painted_elements.insert(id);
             }
         }
-        painter.add(self.mesh_cache.to_owned());
+        if !self.mesh_cache.is_empty() {
+            painter.add(self.mesh_cache.to_owned());
+        }
     }
 }
 

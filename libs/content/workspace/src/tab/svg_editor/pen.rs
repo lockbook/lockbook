@@ -1,7 +1,7 @@
 use bezier_rs::{Bezier, Subpath};
 use resvg::usvg::Transform;
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -48,7 +48,7 @@ impl Pen {
 
     pub fn handle_input(
         &mut self, ui: &mut egui::Ui, inner_rect: egui::Rect, buffer: &mut parser::Buffer,
-        history: &mut History, painted_elements: &mut HashSet<String>
+        history: &mut History,
     ) -> Option<PenResponse> {
         if self.active_color.is_none() {
             self.active_color = Some(ThemePalette::get_fg_color());
@@ -103,7 +103,6 @@ impl Pen {
                         None
                     }
                 });
-                painted_elements.remove(&id.to_string());
 
                 if self.detect_snap(pos, buffer.master_transform) {
                     let curr_id = self.current_id; // needed because end path will advance to the next id

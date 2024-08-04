@@ -310,3 +310,5 @@ impl Image {
         }
     }
 }
+
+impl Path {}
