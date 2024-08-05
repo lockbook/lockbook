@@ -12,6 +12,7 @@ import UniformTypeIdentifiers
 class ShareViewController: UIViewController {
 
     var sharedItems: [Any] = []
+    var processed: [String] = []
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -29,16 +30,34 @@ class ShareViewController: UIViewController {
             }
         }
         
-        let contentView = UIHostingController(rootView: ShareExtensionView())
-        self.addChild(contentView)
-        self.view.addSubview(contentView.view)
-        
-        // set up constraints
-        contentView.view.translatesAutoresizingMaskIntoConstraints = false
-        contentView.view.topAnchor.constraint(equalTo: self.view.topAnchor).isActive = true
-        contentView.view.bottomAnchor.constraint (equalTo: self.view.bottomAnchor).isActive = true
-        contentView.view.leftAnchor.constraint(equalTo: self.view.leftAnchor).isActive = true
-        contentView.view.rightAnchor.constraint (equalTo: self.view.rightAnchor).isActive = true
+        if !processed.isEmpty {
+            let filePathsQuery = processed.joined(separator: ",")
+            guard let url = URL(string: "lb://sharedFiles?\(filePathsQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") else {
+                print("early return")
+                return
+            }
+
+            print("sending over...")
+            
+            self.extensionContext?.completeRequest(returningItems: nil) { _ in
+                self.openURL(url)
+            }
+        } else {
+            print("no PROCESSED")
+        }
+    }
+    
+    @objc
+    @discardableResult
+    func openURL(_ url: URL) -> Bool {
+        var responder: UIResponder? = self
+        while responder != nil {
+            if let application = responder as? UIApplication {
+                return application.perform(#selector(openURL(_:)), with: url) != nil
+            }
+            responder = responder?.next
+        }
+        return false
     }
     
     func processInputItem(inputItem: NSExtensionItem) {
@@ -50,16 +69,48 @@ class ShareViewController: UIViewController {
     func processAttachment(attachment: NSItemProvider) {
         let fileId = UTType.fileURL.identifier
         let imageId = UTType.image.identifier
+        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook")?.appendingPathComponent("shared").appendingPathComponent(UUID().uuidString) else {
+            return
+        }
+        
+        do {
+            try FileManager.default.createDirectory(at: containerURL, withIntermediateDirectories: true)
+        } catch {
+            print("early return 1")
+            return
+        }
         
         if attachment.hasItemConformingToTypeIdentifier(fileId) {
+            let semaphore = DispatchSemaphore(value: 0)
+
             attachment.loadObject(ofClass: URL.self) { (url, error) in
-                print("got URL: \(url?.absoluteString)")
+                guard let url = url else {
+                    semaphore.signal()
+
+                    return
+                }
+                let newHome = containerURL.appendingPathComponent(url.lastPathComponent)
+                                
+                do {
+                    print("copying \(url.absoluteString) to \(newHome)")
+                    try FileManager.default.copyItem(at: url as! URL, to: newHome)
+                    
+                    self.processed.append(newHome.absoluteString)
+                } catch {
+                    print("Error saving file: \(error)")
+                }
+                
+                semaphore.signal()
             }
-        } else if attachment.hasItemConformingToTypeIdentifier(imageId) {
-            attachment.loadObject(ofClass: UIImage.self) { (image, error) in
-                print("got image: \(image)")
-            }
+            
+            semaphore.wait()
+
         }
+//        else if attachment.hasItemConformingToTypeIdentifier(imageId) {
+//            attachment.loadObject(ofClass: UIImage.self) { (image, error) in
+//                print("got image: \(image)")
+//            }
+//        }
     }
 
     func close() {

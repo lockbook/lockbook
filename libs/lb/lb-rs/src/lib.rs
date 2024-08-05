@@ -354,7 +354,7 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
                 CoreError::FileNameTooLong,
                 CoreError::PathTaken,
                 CoreError::RootNonexistent,
-            ])
+            ]
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]

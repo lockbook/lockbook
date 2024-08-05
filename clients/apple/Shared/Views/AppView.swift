@@ -7,6 +7,8 @@ struct AppView: View {
     @EnvironmentObject var files: FileService
     @EnvironmentObject var errors: UnexpectedErrorService
     
+    @State var tmp: String = ""
+    
     @ViewBuilder
     var body: some View {
         VStack {
@@ -16,6 +18,10 @@ struct AppView: View {
                 } else {
                     PlatformView()
                         .onOpenURL() { url in
+                            if url.scheme == "lb", url.host == "sharedFiles" {
+                                tmp = "got here..."
+                            }
+                            
                             guard let uuidString = url.host, let id = UUID(uuidString: uuidString), url.scheme == "lb" else {
                                 DI.errors.errorWithTitle("Malformed link", "Cannot open file")
                                 return
