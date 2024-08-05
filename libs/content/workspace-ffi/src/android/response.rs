@@ -22,7 +22,7 @@ pub struct AndroidResponse {
 
     new_folder_btn_pressed: bool,
     tab_title_clicked: bool,
-    
+
     has_edit_menu: bool,
     edit_menu_x: f32,
     edit_menu_y: f32,
