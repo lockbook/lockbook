@@ -72,26 +72,9 @@ impl SVGEditor {
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
         // if ui.input(|r| r.key_down(egui::Key::F12)) {
-        let frame_cost = Instant::now() - self.last_render;
-        self.last_render = Instant::now();
-        let mut anchor_count = 0;
-        self.buffer.elements.iter().for_each(|(_, el)| {
-            if let parser::Element::Path(p) = el {
-                anchor_count += p.data.len()
-            }
-        });
-
-        let mut top = self.inner_rect.right_top();
-        top.x -= 150.0;
-        if frame_cost.as_millis() != 0 {
-            ui.painter().debug_text(
-                top,
-                egui::Align2::LEFT_TOP,
-                egui::Color32::RED,
-                format!("{} anchor | {}fps", anchor_count, 1000 / frame_cost.as_millis()),
-            );
-        }
+        self.show_debug_info(ui);
         // }
+
         ui.vertical(|ui| {
             egui::Frame::default()
                 .fill(if ui.visuals().dark_mode {
@@ -163,6 +146,28 @@ impl SVGEditor {
         }
 
         self.handle_clip_input(ui);
+    }
+
+    fn show_debug_info(&mut self, ui: &mut egui::Ui) {
+        let frame_cost = Instant::now() - self.last_render;
+        self.last_render = Instant::now();
+        let mut anchor_count = 0;
+        self.buffer.elements.iter().for_each(|(_, el)| {
+            if let parser::Element::Path(p) = el {
+                anchor_count += p.data.len()
+            }
+        });
+
+        let mut top = self.inner_rect.right_top();
+        top.x -= 150.0;
+        if frame_cost.as_millis() != 0 {
+            ui.painter().debug_text(
+                top,
+                egui::Align2::LEFT_TOP,
+                egui::Color32::RED,
+                format!("{} anchor | {}fps", anchor_count, 1000 / frame_cost.as_millis()),
+            );
+        }
     }
 
     pub fn get_minimal_content(&self) -> String {

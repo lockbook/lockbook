@@ -112,6 +112,7 @@ impl Pen {
                 } else if let Some(parser::Element::Path(p)) =
                     buffer.elements.get_mut(&id.to_string())
                 {
+                    p.dirty = true;
                     // a transform occured causing a mismatch between buffer and path builder finish path early
                     if p.data != self.path_builder.path {
                         self.path_builder.clear();
@@ -146,6 +147,7 @@ impl Pen {
                                 .post_scale(buffer.master_transform.sx, buffer.master_transform.sy),
                             opacity: self.active_opacity,
                             pressure: None,
+                            dirty: true,
                         }),
                     );
                 }
@@ -175,6 +177,7 @@ impl Pen {
         if let Some(parser::Element::Path(p)) =
             buffer.elements.get_mut(&self.current_id.to_string())
         {
+            p.dirty = false;
             p.data = self.path_builder.path.clone();
         }
 

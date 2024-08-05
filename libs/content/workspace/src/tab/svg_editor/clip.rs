@@ -44,6 +44,7 @@ impl SVGEditor {
                                             texture: None,
                                             href: Some(href),
                                             opacity: 1.0,
+                                            dirty: true,
                                         },
                                     ),
                                 );

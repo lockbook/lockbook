@@ -1,4 +1,10 @@
-use std::{collections::HashMap, fmt::Write, path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Write,
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
 
 use bezier_rs::{Bezier, Identifier, Subpath};
 use egui::TextureHandle;
@@ -43,6 +49,16 @@ pub enum Element {
     Text(Text),
 }
 
+impl Element {
+    pub fn is_dirty(&self) -> bool {
+        match self {
+            Element::Path(p) => p.dirty,
+            Element::Image(i) => i.dirty,
+            Element::Text(_) => todo!(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Path {
     pub data: Subpath<ManipulatorGroupId>,
@@ -52,6 +68,7 @@ pub struct Path {
     pub transform: Transform,
     pub opacity: f32,
     pub pressure: Option<Vec<f32>>,
+    pub dirty: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -75,6 +92,7 @@ pub struct Image {
     pub texture: Option<TextureHandle>,
     pub opacity: f32,
     pub href: Option<String>,
+    pub dirty: bool,
 }
 
 impl Buffer {
@@ -130,6 +148,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     texture: None,
                     opacity: 1.0,
                     href: Some(img.id().to_string()),
+                    dirty: true,
                 }),
             );
         }
@@ -163,6 +182,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     transform: path.abs_transform(),
                     opacity,
                     pressure: None,
+                    dirty: true,
                 }),
             );
         }
