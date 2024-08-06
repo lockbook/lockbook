@@ -30,14 +30,12 @@ impl Response {
         }
 
         let redraw_in = maybe_viewport_output.map(|v| v.repaint_delay.as_millis() as u64);
-        let window_title = maybe_viewport_output
-            .map(|v| {
-                v.commands.iter().find_map(|c| match c {
-                    ViewportCommand::Title(title) => Some(title.clone()),
-                    _ => None,
-                })
+        let window_title = maybe_viewport_output.and_then(|v| {
+            v.commands.iter().find_map(|c| match c {
+                ViewportCommand::Title(title) => Some(title.clone()),
+                _ => None,
             })
-            .flatten();
+        });
 
         Self {
             workspace,
