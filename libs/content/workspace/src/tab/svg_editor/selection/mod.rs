@@ -114,7 +114,7 @@ impl Selection {
                     ui.painter().rect_filled(
                         rect,
                         egui::Rounding::ZERO,
-                        ui.visuals().hyperlink_color.gamma_multiply(0.1),
+                        ui.visuals().hyperlink_color.linear_multiply(0.1),
                     );
                     // if the path bounding box intersects with the laso rect then it's a match
                     buffer.elements.iter().for_each(|(id, el)| {

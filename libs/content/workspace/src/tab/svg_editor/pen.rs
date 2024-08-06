@@ -1,15 +1,15 @@
 use bezier_rs::{Bezier, Subpath};
 use resvg::usvg::Transform;
 use std::{
-    collections::VecDeque,
-    time::{Duration, Instant},
+    collections::{HashMap, HashSet, VecDeque},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use crate::theme::palette::ThemePalette;
 
 use super::{
     history::History,
-    parser::{self, ManipulatorGroupId, Path, Stroke},
+    parser::{self, Element, ManipulatorGroupId, Path, Stroke},
     Buffer, InsertElement,
 };
 
@@ -79,6 +79,31 @@ impl Pen {
                     }
                 }
 
+                let force = ui.input(|r| {
+                    let forces = r.events.iter().filter_map(move |e| {
+                        if let egui::Event::Touch { device_id: _, id: _, phase: _, pos: _, force } =
+                            e
+                        {
+                            force.to_owned()
+                        } else {
+                            None
+                        }
+                    });
+
+                    let mut sum = 0.0;
+                    let mut count = 0;
+                    for force in forces {
+                        sum += force;
+                        count += 1;
+                    }
+
+                    if count > 0 {
+                        Some(sum / count as f32)
+                    } else {
+                        None
+                    }
+                });
+
                 if self.detect_snap(pos, buffer.master_transform) {
                     let curr_id = self.current_id; // needed because end path will advance to the next id
                     self.end_path(buffer, history, true);
@@ -87,6 +112,7 @@ impl Pen {
                 } else if let Some(parser::Element::Path(p)) =
                     buffer.elements.get_mut(&id.to_string())
                 {
+                    p.changed = true;
                     // a transform occured causing a mismatch between buffer and path builder finish path early
                     if p.data != self.path_builder.path {
                         self.path_builder.clear();
@@ -95,6 +121,13 @@ impl Pen {
                     }
                     self.path_builder.cubic_to(pos);
                     p.data = self.path_builder.path.clone();
+                    if let Some(f) = force {
+                        if let Some(pressure) = &mut p.pressure {
+                            pressure.push(f)
+                        } else {
+                            p.pressure = Some(vec![f]);
+                        }
+                    }
                 } else {
                     self.path_builder.cubic_to(pos);
                     let mut stroke = Stroke::default();
@@ -113,6 +146,9 @@ impl Pen {
                             transform: Transform::identity()
                                 .post_scale(buffer.master_transform.sx, buffer.master_transform.sy),
                             opacity: self.active_opacity,
+                            pressure: None,
+                            changed: true,
+                            deleted: false,
                         }),
                     );
                 }
@@ -142,6 +178,7 @@ impl Pen {
         if let Some(parser::Element::Path(p)) =
             buffer.elements.get_mut(&self.current_id.to_string())
         {
+            p.changed = false;
             p.data = self.path_builder.path.clone();
         }
 

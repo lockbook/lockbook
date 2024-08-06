@@ -122,7 +122,7 @@ impl SelectionRectContainer {
                 ui.painter().circle_filled(
                     rect.center(),
                     (rect.left() - rect.center().x).abs(),
-                    ui.style().visuals.hyperlink_color.gamma_multiply(0.1),
+                    ui.style().visuals.hyperlink_color.linear_multiply(0.1),
                 );
 
                 rect.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default()))
@@ -259,7 +259,7 @@ impl SelectionRect {
                 color: ui
                     .visuals()
                     .hyperlink_color
-                    .gamma_multiply(if is_child_rect { 0.4 } else { 1.0 }),
+                    .linear_multiply(if is_child_rect { 0.4 } else { 1.0 }),
             },
         );
     }

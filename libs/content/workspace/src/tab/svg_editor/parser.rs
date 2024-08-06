@@ -1,4 +1,10 @@
-use std::{collections::HashMap, fmt::Write, path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Write,
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
 
 use bezier_rs::{Bezier, Identifier, Subpath};
 use egui::TextureHandle;
@@ -31,17 +37,35 @@ pub struct ManipulatorGroupId;
 #[derive(Default)]
 pub struct Buffer {
     pub elements: HashMap<String, Element>,
-    pub deleted_elements: HashMap<String, Element>,
     pub master_transform: Transform,
     pub needs_path_map_update: bool,
 }
 
+#[derive(Clone)]
 pub enum Element {
     Path(Path),
     Image(Image),
     Text(Text),
 }
 
+impl Element {
+    pub fn changed(&self) -> bool {
+        match self {
+            Element::Path(p) => p.changed,
+            Element::Image(i) => i.changed,
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn deleted(&self) -> bool {
+        match self {
+            Element::Path(p) => p.deleted,
+            Element::Image(i) => i.deleted,
+            Element::Text(_) => todo!(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct Path {
     pub data: Subpath<ManipulatorGroupId>,
     pub visibility: Visibility,
@@ -49,6 +73,18 @@ pub struct Path {
     pub stroke: Option<Stroke>,
     pub transform: Transform,
     pub opacity: f32,
+    pub pressure: Option<Vec<f32>>,
+    pub changed: bool,
+    pub deleted: bool,
+}
+
+impl Path {
+    pub fn on_change(&self, callback: impl FnOnce() -> ()) {
+        callback();
+    }
+    pub fn on_create(&self, callback: impl FnOnce() -> ()) {
+        callback();
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -63,6 +99,7 @@ impl Default for Stroke {
     }
 }
 
+#[derive(Clone)]
 pub struct Image {
     pub data: ImageKind,
     pub visibility: Visibility,
@@ -71,6 +108,8 @@ pub struct Image {
     pub texture: Option<TextureHandle>,
     pub opacity: f32,
     pub href: Option<String>,
+    pub changed: bool,
+    pub deleted: bool,
 }
 
 impl Buffer {
@@ -126,6 +165,8 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     texture: None,
                     opacity: 1.0,
                     href: Some(img.id().to_string()),
+                    changed: true,
+                    deleted: false,
                 }),
             );
         }
@@ -158,6 +199,9 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     stroke: Some(stroke),
                     transform: path.abs_transform(),
                     opacity,
+                    pressure: None,
+                    changed: true,
+                    deleted: false,
                 }),
             );
         }
@@ -305,3 +349,5 @@ impl Image {
         }
     }
 }
+
+impl Path {}

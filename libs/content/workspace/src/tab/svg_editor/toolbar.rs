@@ -9,6 +9,7 @@ use crate::{
 };
 
 use super::{
+    eraser::DEFAULT_ERASER_THICKNESS,
     history::History,
     parser,
     selection::{u_transform_to_bezier, Selection},
@@ -144,7 +145,7 @@ impl Toolbar {
             .noninteractive
             .bg_stroke
             .color
-            .gamma_multiply(0.4);
+            .linear_multiply(0.4);
         ui.separator();
     }
 
@@ -195,7 +196,7 @@ impl Toolbar {
         ui.painter().rect_filled(
             active_rect,
             egui::Rounding::same(8.0),
-            egui::Color32::GRAY.gamma_multiply(0.1),
+            egui::Color32::GRAY.linear_multiply(0.1),
         );
 
         ui.add_space(4.0);
@@ -233,9 +234,11 @@ impl Toolbar {
                 self.show_default_color_swatches(ui);
             }
             Tool::Eraser => {
-                if let Some(thickness) =
-                    self.show_thickness_pickers(ui, self.eraser.thickness, vec![10.0, 30.0, 90.0])
-                {
+                if let Some(thickness) = self.show_thickness_pickers(
+                    ui,
+                    self.eraser.thickness,
+                    vec![DEFAULT_ERASER_THICKNESS, 30.0, 90.0],
+                ) {
                     self.eraser.thickness = thickness;
                 }
             }
@@ -275,13 +278,13 @@ impl Toolbar {
                 painter.rect_filled(
                     response.rect,
                     egui::Rounding::same(8.0),
-                    color.gamma_multiply(0.2),
+                    color.linear_multiply(0.2),
                 );
             }
             painter.circle_filled(
                 response.rect.center(),
                 COLOR_SWATCH_BTN_RADIUS,
-                color.gamma_multiply(opacity),
+                color.linear_multiply(opacity),
             );
         };
         response
@@ -313,14 +316,14 @@ impl Toolbar {
                 painter.rect_filled(
                     response.rect,
                     egui::Rounding::same(8.0),
-                    egui::Color32::GRAY.gamma_multiply(0.1),
+                    egui::Color32::GRAY.linear_multiply(0.1),
                 );
             }
 
             painter.rect_filled(
                 rect,
                 egui::Rounding::same(2.0),
-                ui.visuals().text_color().gamma_multiply(0.8),
+                ui.visuals().text_color().linear_multiply(0.8),
             );
 
             ui.add_space(THICKNESS_BTN_X_MARGIN);

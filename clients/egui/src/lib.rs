@@ -182,9 +182,7 @@ impl<'window> WgpuLockbook<'window> {
                 return out;
             }
         };
-        let output_view = output_frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        let output_view = output_frame.texture.create_view(&Default::default());
 
         // can probably use run
         self.set_egui_screen();
@@ -206,6 +204,7 @@ impl<'window> WgpuLockbook<'window> {
 
         self.rpass
             .update_buffers(&self.device, &self.queue, &paint_jobs, &self.screen);
+
         // Record all render passes.
         self.rpass
             .execute(
