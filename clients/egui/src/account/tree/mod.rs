@@ -85,7 +85,7 @@ impl FileTree {
         r.inner
     }
 
-    fn draw_drag_info_by_cursor(&mut self, ui: &mut egui::Ui) {
+    fn draw_drag_info_by_cursor(&self, ui: &mut egui::Ui) {
         ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
 
         // Paint a caption under the cursor in a layer above.

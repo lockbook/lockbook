@@ -9,6 +9,7 @@ mod theme;
 mod util;
 
 pub use crate::settings::Settings;
+use egui::{ViewportIdMap, ViewportOutput};
 pub use workspace_rs::Event;
 
 use crate::account::AccountScreen;
@@ -35,9 +36,8 @@ pub enum Lockbook {
 }
 
 #[derive(Debug, Default)]
-pub struct UpdateOutput {
+pub struct Response {
     pub close: bool,
-    pub set_window_title: Option<String>,
 }
 
 impl Lockbook {
@@ -50,6 +50,7 @@ impl Lockbook {
         workspace_rs::register_fonts(&mut fonts);
         theme::register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
+        egui_extras::install_image_loaders(ctx);
 
         theme::init(&settings, ctx);
 
@@ -58,10 +59,8 @@ impl Lockbook {
         Lockbook::Splash(splash)
     }
 
-    pub fn update(&mut self, ctx: &egui::Context) -> UpdateOutput {
-        egui_extras::install_image_loaders(ctx);
-
-        let mut output = Default::default();
+    pub fn update(&mut self, ctx: &egui::Context) -> Response {
+        let mut output = Response::default();
         match self {
             // If we're on the Splash screen, we're waiting for the handoff to transition to the
             // Account or Onboard screen. Once we get it, we adjust the application state and
@@ -98,7 +97,7 @@ impl Lockbook {
             }
             // On the account screen, we're just waiting for it to gracefully shutdown.
             Self::Account(screen) => {
-                screen.update(ctx, &mut output);
+                screen.update(ctx);
                 if screen.is_shutdown() {
                     output.close = true;
                 }
@@ -113,9 +112,6 @@ impl eframe::App for Lockbook {
         let output = Lockbook::update(self, ctx);
         if output.close {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
-        }
-        if let Some(set_window_title) = output.set_window_title {
-            ctx.send_viewport_cmd(ViewportCommand::Title(set_window_title))
         }
 
         // We process `close_requested` in order to give the Account screen a chance to:
@@ -160,14 +156,17 @@ pub struct WgpuLockbook<'window> {
 }
 
 #[derive(Default)]
-pub struct IntegrationOutput {
-    pub egui: PlatformOutput,
-    pub update_output: UpdateOutput,
+pub struct Output {
+    // platform response
+    pub platform: PlatformOutput,
+    pub viewport: ViewportIdMap<ViewportOutput>,
+
+    // widget response
+    pub app: Response,
 }
 
 impl<'window> WgpuLockbook<'window> {
-    pub fn frame(&mut self) -> IntegrationOutput {
-        let mut out = IntegrationOutput::default();
+    pub fn frame(&mut self) -> Output {
         self.configure_surface();
         let output_frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -175,11 +174,11 @@ impl<'window> WgpuLockbook<'window> {
                 // This error occurs when the app is minimized on Windows.
                 // Silently return here to prevent spamming the console with:
                 // "The underlying surface has changed, and therefore the swap chain must be updated"
-                return out;
+                return Default::default();
             }
             Err(e) => {
                 eprintln!("Dropped frame with error: {}", e);
-                return out;
+                return Default::default();
             }
         };
         let output_view = output_frame
@@ -190,7 +189,7 @@ impl<'window> WgpuLockbook<'window> {
         self.set_egui_screen();
         self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
         self.context.begin_frame(self.raw_input.take());
-        out.update_output = self.app.update(&self.context);
+        let app_response = self.app.update(&self.context);
         let full_output = self.context.end_frame();
         let paint_jobs = self
             .context
@@ -233,8 +232,11 @@ impl<'window> WgpuLockbook<'window> {
             self.context.request_repaint();
         }
 
-        out.egui = full_output.platform_output;
-        out
+        Output {
+            platform: full_output.platform_output,
+            viewport: full_output.viewport_output,
+            app: app_response,
+        }
     }
 
     pub fn set_egui_screen(&mut self) {

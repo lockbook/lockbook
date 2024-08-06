@@ -1,10 +1,18 @@
-use crate::apple::keyboard::NSKeys;
-use crate::WgpuWorkspace;
 use egui::PointerButton::{Primary, Secondary};
 use egui::{Event, Pos2};
 use std::ffi::{c_char, c_void, CStr};
 
-/// (macos only)
+use super::response::*;
+use crate::apple::keyboard::NSKeys;
+use crate::WgpuWorkspace;
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn macos_frame(obj: *mut c_void) -> MacOSResponse {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.frame().into()
+}
+
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn key_event(
@@ -38,7 +46,6 @@ pub unsafe extern "C" fn key_event(
     }
 }
 
-/// (macos only)
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn modifier_event(
@@ -49,7 +56,6 @@ pub unsafe extern "C" fn modifier_event(
     obj.raw_input.modifiers = modifiers;
 }
 
-/// (macos only)
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
@@ -59,7 +65,6 @@ pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
         .push(Event::PointerMoved(Pos2 { x, y }))
 }
 
-/// (macos only)
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn mouse_button(
@@ -77,7 +82,6 @@ pub unsafe extern "C" fn mouse_button(
     })
 }
 
-/// (macos only)
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn magnify_gesture(obj: *mut c_void, factor: f32) {

@@ -8483,7 +8483,6 @@ dependencies = [
  "bezier-rs",
  "chrono",
  "egui",
- "egui_extras",
  "epaint",
  "glam",
  "image 0.24.9",
@@ -8513,6 +8512,7 @@ name = "workspace-ffi"
 version = "0.9.5"
 dependencies = [
  "egui",
+ "egui_extras",
  "egui_wgpu_backend",
  "jni 0.21.1",
  "lb_external_interface",

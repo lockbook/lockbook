@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use egui::os::OperatingSystem;
-use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Color32, Event, Frame, Rect, Sense, Ui, Vec2};
 use lb_rs::Uuid;
 use serde::Serialize;
 
@@ -18,22 +18,18 @@ use crate::tab::markdown_editor::input::click_checker::{ClickChecker, EditorClic
 use crate::tab::markdown_editor::input::cursor::PointerState;
 use crate::tab::markdown_editor::input::events;
 use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
-use crate::tab::markdown_editor::{ast, bounds, galleys, images, register_fonts};
-use crate::tab::EventManager as _;
+use crate::tab::markdown_editor::{ast, bounds, galleys, images};
+use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 
 #[derive(Debug, Serialize, Default)]
-pub struct EditorResponse {
+pub struct Response {
     // state changes
     pub text_updated: bool,
     pub selection_updated: bool,
     pub scroll_updated: bool,
 
     // actions taken
-    pub suggested_rename: Option<String>,
-    pub hide_virtual_keyboard: bool,
-    pub show_edit_menu: bool,
-    pub edit_menu_x: f32,
-    pub edit_menu_y: f32,
+    pub suggest_rename: Option<String>,
 }
 
 pub struct Editor {
@@ -106,16 +102,7 @@ impl Editor {
         super::input::merge::merge(base, &self.buffer.current.text, new)
     }
 
-    pub fn draw(&mut self, ctx: &Context) -> EditorResponse {
-        let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
-        egui::CentralPanel::default()
-            .frame(egui::Frame::default().fill(fill))
-            .show(ctx, |ui| self.scroll_ui(ui))
-            .inner
-    }
-
-    // workspace invokes this
-    pub fn scroll_ui(&mut self, ui: &mut Ui) -> EditorResponse {
+    pub fn show(&mut self, ui: &mut Ui) -> Response {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
         let events = ui.ctx().input(|i| i.events.clone());
@@ -174,7 +161,7 @@ impl Editor {
                     .fill(fill)
                     .inner_margin(egui::Margin::symmetric(0.0, 15.0))
                     .show(ui, |ui| {
-                        ui.vertical_centered(|ui| self.ui(ui, self.id, touch_mode, &events))
+                        ui.vertical_centered(|ui| self.show_inner(ui, self.id, touch_mode, &events))
                     })
             });
         self.ui_rect = sao.inner_rect;
@@ -207,9 +194,9 @@ impl Editor {
         resp
     }
 
-    fn ui(
+    fn show_inner(
         &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: &[Event],
-    ) -> EditorResponse {
+    ) -> Response {
         self.debug.frame_start();
 
         // update theme
@@ -227,30 +214,17 @@ impl Editor {
         let prior_suggested_title = self.get_suggested_title();
 
         // process events
-        let (text_updated, selection_updated, maybe_menu_location) = if self.initialized {
+        let (text_updated, selection_updated) = if self.initialized {
             if ui.memory(|m| m.has_focus(id))
                 || cfg!(target_os = "ios")
                 || cfg!(target_os = "android")
             {
                 let custom_events = ui.ctx().pop_events();
-                let (
-                    maybe_to_clipboard,
-                    maybe_opened_url,
-                    maybe_menu_location,
-                    text_updated,
-                    selection_updated,
-                ) = self.process_events(events, &custom_events, touch_mode);
-                if let Some(to_clipboard) = maybe_to_clipboard {
-                    ui.output_mut(|o| o.copied_text = to_clipboard);
-                }
-                if let Some(opened_url) = maybe_opened_url {
-                    ui.output_mut(|o| {
-                        o.open_url = Some(egui::output::OpenUrl::new_tab(opened_url))
-                    });
-                }
-                (text_updated, selection_updated, maybe_menu_location)
+                let (text_updated, selection_updated) =
+                    self.process_events(ui.ctx(), events, &custom_events, touch_mode);
+                (text_updated, selection_updated)
             } else {
-                (false, false, None)
+                (false, false)
             }
         } else {
             ui.memory_mut(|m| m.request_focus(id));
@@ -264,7 +238,7 @@ impl Editor {
                 },
             });
 
-            (true, true, None)
+            (true, true)
         };
 
         // recalculate dependent state
@@ -355,7 +329,7 @@ impl Editor {
         }
 
         let suggested_title = self.get_suggested_title();
-        let suggested_rename =
+        let suggest_rename =
             if suggested_title != prior_suggested_title { suggested_title } else { None };
 
         // set cursor style
@@ -384,21 +358,18 @@ impl Editor {
             }
         }
 
-        EditorResponse {
+        Response {
             text_updated,
-            suggested_rename,
-            hide_virtual_keyboard: false, // set by toolbar callback (todo: cleanup)
             selection_updated,
             scroll_updated: false, // set by scroll_ui
-            show_edit_menu: maybe_menu_location.is_some(),
-            edit_menu_x: maybe_menu_location.map(|p| p.x).unwrap_or_default(),
-            edit_menu_y: maybe_menu_location.map(|p| p.y).unwrap_or_default(),
+            suggest_rename,
         }
     }
 
-    pub fn process_events(
-        &mut self, events: &[Event], custom_events: &[crate::Event], touch_mode: bool,
-    ) -> (Option<String>, Option<String>, Option<Pos2>, bool, bool) {
+    fn process_events(
+        &mut self, ctx: &egui::Context, events: &[Event], custom_events: &[crate::Event],
+        touch_mode: bool,
+    ) -> (bool, bool) {
         // if the cursor is in an invalid location, move it to the next valid location
         if let BoundCase::BetweenRanges { range_after, .. } = self
             .buffer
@@ -459,7 +430,7 @@ impl Editor {
             appearance: &self.appearance,
             bounds: &self.bounds,
         };
-        let maybe_menu_location = if touch_mode {
+        let maybe_context_menu_pos = if touch_mode {
             let current_cursor = self.buffer.current.cursor;
             let current_selection = current_cursor.selection;
 
@@ -494,7 +465,7 @@ impl Editor {
                     )
                 });
 
-            let maybe_menu_location =
+            let maybe_context_menu_pos =
                 if touched_cursor || touched_selection || double_touched_for_selection {
                     // set menu location
                     Some(
@@ -512,7 +483,7 @@ impl Editor {
                 self.buffer.current.cursor.selection = prior_selection;
             }
 
-            maybe_menu_location
+            maybe_context_menu_pos
         } else {
             None
         };
@@ -526,22 +497,20 @@ impl Editor {
             }
         });
 
-        (
-            maybe_to_clipboard,
-            maybe_opened_url,
-            maybe_menu_location,
-            text_updated,
-            self.buffer.current.cursor.selection != prior_selection,
-        )
+        if let Some(clip) = maybe_to_clipboard {
+            ctx.output_mut(|o| o.copied_text = clip);
+        }
+        if let Some(url) = maybe_opened_url {
+            ctx.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
+        }
+        if let Some(pos) = maybe_context_menu_pos {
+            ctx.set_context_menu(pos);
+        }
+
+        (text_updated, self.buffer.current.cursor.selection != prior_selection)
     }
 
-    pub fn set_font(&self, ctx: &Context) {
-        let mut fonts = FontDefinitions::default();
-        register_fonts(&mut fonts);
-        ctx.set_fonts(fonts);
-    }
-
-    pub fn get_suggested_title(&self) -> Option<String> {
+    fn get_suggested_title(&self) -> Option<String> {
         if !self.needs_name {
             return None;
         }

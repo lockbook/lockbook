@@ -22,7 +22,7 @@ let package = Package(
         .target(
             name: "SwiftWorkspace",
             dependencies: ["Bridge"],
-            path: "Sources/Editor"
+            path: "Sources/Workspace"
         ),
         .target(
             name: "Bridge",

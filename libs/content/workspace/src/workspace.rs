@@ -1,4 +1,4 @@
-use egui::{vec2, Color32, Context, Image};
+use egui::{vec2, Context, Image, ViewportCommand};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use std::{mem, thread};
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
-use crate::output::{DirtynessMsg, WsOutput, WsStatus};
+use crate::output::{DirtynessMsg, Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -36,7 +36,7 @@ pub struct Workspace {
     pub last_touch_event: Option<Instant>,
 
     pub status: WsStatus,
-    pub out: WsOutput,
+    pub out: Response,
 }
 
 pub enum WsMsg {
@@ -111,7 +111,6 @@ impl Workspace {
         }
     }
 
-    #[cfg(target_os = "android")]
     pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &lb_rs::Core) {
         self.ctx = ctx.clone();
         self.core = core.clone();
@@ -236,18 +235,7 @@ impl Workspace {
         self.active_tab = if i == 9 || i >= n_tabs { n_tabs - 1 } else { i - 1 };
     }
 
-    /// called by custom integrations
-    pub fn draw(&mut self, ctx: &Context) -> WsOutput {
-        egui_extras::install_image_loaders(ctx);
-
-        let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
-        egui::CentralPanel::default()
-            .frame(egui::Frame::default().fill(fill))
-            .show(ctx, |ui| self.show_workspace(ui))
-            .inner
-    }
-
-    pub fn show_workspace(&mut self, ui: &mut egui::Ui) -> WsOutput {
+    pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         self.set_tooltip_visibility(ui);
 
         self.process_updates();
@@ -390,13 +378,10 @@ impl Workspace {
                                     tab.last_changed = Instant::now();
                                 }
 
-                                if let Some(new_name) = resp.suggested_rename {
+                                if let Some(new_name) = resp.suggest_rename {
                                     rename_req = Some((tab.id, new_name))
                                 }
 
-                                if resp.hide_virtual_keyboard {
-                                    self.out.hide_virtual_keyboard = resp.hide_virtual_keyboard;
-                                }
                                 if resp.text_updated {
                                     self.out.markdown_editor_text_updated = true;
                                 }
@@ -405,16 +390,8 @@ impl Workspace {
                                     // the cursor, which is also updated when scrolling
                                     self.out.markdown_editor_selection_updated = true;
                                 }
-
-                                // used just for android
-                                if resp.show_edit_menu {
-                                    self.out.markdown_editor_show_edit_menu = true;
-                                    self.out.markdown_editor_edit_menu_x = resp.edit_menu_x;
-                                    self.out.markdown_editor_edit_menu_y = resp.edit_menu_y;
-                                }
-
                                 if resp.scroll_updated {
-                                    self.out.markdown_editor_scroll_updated = true
+                                    self.out.markdown_editor_scroll_updated = true;
                                 }
                             }
                             TabContent::Image(img) => img.show(ui),
@@ -497,16 +474,20 @@ impl Workspace {
                                     } else {
                                         self.tabs[i].rename = None;
                                         self.active_tab = i;
-                                        self.out.window_title = Some(self.tabs[i].name.clone());
+                                        self.ctx.send_viewport_cmd(ViewportCommand::Title(
+                                            self.tabs[i].name.clone(),
+                                        ));
                                         self.out.selected_file = Some(self.tabs[i].id);
                                     }
                                 }
                                 TabLabelResponse::Closed => {
                                     self.close_tab(i);
-                                    self.out.window_title = Some(match self.current_tab() {
+
+                                    let title = match self.current_tab() {
                                         Some(tab) => tab.name.clone(),
                                         None => "Lockbook".to_owned(),
-                                    });
+                                    };
+                                    self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
 
                                     self.out.selected_file = self.current_tab().map(|tab| tab.id);
                                 }
@@ -671,12 +652,12 @@ impl Workspace {
         // Ctrl-W to close current tab.
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::W)) && !self.is_empty() {
             self.close_tab(self.active_tab);
-            self.out.window_title = Some(
+            self.ctx.send_viewport_cmd(ViewportCommand::Title(
                 self.current_tab()
                     .map(|tab| tab.name.as_str())
                     .unwrap_or("Lockbook")
                     .to_owned(),
-            );
+            ));
 
             self.out.selected_file = self.current_tab().map(|tab| tab.id);
         }
@@ -698,7 +679,7 @@ impl Workspace {
                     if let Some((name, id)) =
                         self.current_tab().map(|tab| (tab.name.clone(), tab.id))
                     {
-                        self.out.window_title = Some(name);
+                        self.ctx.send_viewport_cmd(ViewportCommand::Title(name));
                         self.out.selected_file = Some(id);
                     };
                     break;
@@ -714,7 +695,7 @@ impl Workspace {
                     if let Some((name, id)) =
                         self.current_tab().map(|tab| (tab.name.clone(), tab.id))
                     {
-                        self.out.window_title = Some(name);
+                        self.ctx.send_viewport_cmd(ViewportCommand::Title(name));
                         self.out.selected_file = Some(id);
                     };
 
@@ -728,9 +709,13 @@ impl Workspace {
                                 tab.failure = Some(fail);
                             }
                         }
+
+                        Some(tab.name.clone())
                     } else {
                         println!("failed to load file: tab not found");
-                    }
+
+                        None
+                    };
                 }
                 WsMsg::BgSignal(Signal::SaveAll) => {
                     if self.cfg.auto_save.load(Ordering::Relaxed) {
@@ -778,7 +763,8 @@ impl Workspace {
                     let mut is_tab_active = false;
                     if let Some(tab) = self.current_tab() {
                         if tab.id == id {
-                            self.out.window_title = Some(tab.name.clone());
+                            self.ctx
+                                .send_viewport_cmd(ViewportCommand::Title(tab.name.clone()));
                             is_tab_active = true;
                         }
                     }

@@ -1,103 +1,20 @@
-use crate::android::window;
-use crate::android::window::NativeWindow;
-use crate::{wgpu, JTextRange, WgpuWorkspace};
-use egui::{
-    Context, Event, FontDefinitions, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase,
-};
-use egui_editor::input::canonical::{Location, Modification, Region};
-use egui_editor::input::cursor::Cursor;
-use egui_editor::offset_types::DocCharOffset;
-use egui_wgpu_backend::wgpu::CompositeAlphaMode;
-use egui_wgpu_backend::ScreenDescriptor;
+use egui::{Event, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use jni::objects::{JClass, JString};
-use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jstring};
+use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
 use jni::JNIEnv;
-use lb_external_interface::lb_rs::Core;
 use lb_external_interface::lb_rs::Uuid;
 use serde::Serialize;
 use std::panic::catch_unwind;
-use std::time::Instant;
-use workspace_rs::register_fonts;
+use workspace_rs::tab::markdown_editor::input::canonical::{Location, Modification, Region};
+use workspace_rs::tab::markdown_editor::input::cursor::Cursor;
+use workspace_rs::tab::markdown_editor::offset_types::DocCharOffset;
 use workspace_rs::tab::svg_editor::Tool;
-use workspace_rs::tab::EventManager;
+use workspace_rs::tab::ExtendedInput;
 use workspace_rs::tab::TabContent;
-use workspace_rs::theme::visuals;
-use workspace_rs::workspace::{Workspace, WsConfig};
 
 use super::keyboard::AndroidKeys;
-
-#[no_mangle]
-pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
-    env: JNIEnv, _: JClass, surface: jobject, core: jlong, scale_factor: jfloat, dark_mode: bool,
-    old_wgpu: jlong,
-) -> jlong {
-    let core = unsafe { &mut *(core as *mut Core) };
-    let writable_dir = core.get_config().unwrap().writeable_path;
-
-    let mut native_window = NativeWindow::new(&env, surface);
-    let backends = wgpu::Backends::VULKAN;
-    let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
-    let instance = wgpu::Instance::new(instance_desc);
-    let surface = instance
-        .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(&mut native_window).unwrap())
-        .unwrap();
-    let (adapter, device, queue) = pollster::block_on(window::request_device(&instance, &surface));
-    let format = surface.get_capabilities(&adapter).formats[0];
-    let screen = ScreenDescriptor {
-        physical_width: native_window.get_width(),
-        physical_height: native_window.get_height(),
-        scale_factor,
-    };
-    let config = wgpu::SurfaceConfiguration {
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        format,
-        width: screen.physical_width,
-        height: screen.physical_height,
-        present_mode: wgpu::PresentMode::Fifo,
-        alpha_mode: CompositeAlphaMode::Auto,
-        view_formats: vec![],
-        desired_maximum_frame_latency: 2,
-    };
-    surface.configure(&device, &config);
-    let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
-
-    let context = Context::default();
-    visuals::init(&context, dark_mode);
-    let ws_cfg = WsConfig { data_dir: writable_dir, ..Default::default() };
-
-    let workspace = if old_wgpu != jlong::MAX {
-        let mut old_wgpu: Box<WgpuWorkspace> = unsafe { Box::from_raw(old_wgpu as *mut _) };
-
-        old_wgpu
-            .workspace
-            .invalidate_egui_references(&context, core);
-        old_wgpu.workspace
-    } else {
-        Workspace::new(ws_cfg, core, &context)
-    };
-
-    let mut fonts = FontDefinitions::default();
-    register_fonts(&mut fonts);
-    context.set_fonts(fonts);
-
-    let start_time = Instant::now();
-    let obj = WgpuWorkspace {
-        start_time,
-        device,
-        queue,
-        surface,
-        adapter,
-        rpass,
-        screen,
-        context: context.clone(),
-        raw_input: Default::default(),
-        workspace,
-        surface_width: 0,
-        surface_height: 0,
-    };
-
-    Box::into_raw(Box::new(obj)) as jlong
-}
+use super::response::*;
+use crate::WgpuWorkspace;
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
@@ -105,8 +22,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
 ) -> jstring {
     let maybe_err = catch_unwind(|| {
         let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-        serde_json::to_string(&obj.frame()).unwrap()
+        let response: AndroidResponse = obj.frame().into();
+        serde_json::to_string(&response).unwrap()
     });
 
     match maybe_err {
@@ -130,18 +47,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
             }
         }
     }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeWS(
-    env: JNIEnv, _: JClass, obj: jlong, surface: jobject, scale_factor: jfloat,
-) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    let native_window = NativeWindow::new(&env, surface);
-
-    obj.screen.physical_width = native_window.get_width();
-    obj.screen.physical_height = native_window.get_height();
-    obj.screen.scale_factor = scale_factor;
 }
 
 #[no_mangle]
@@ -180,7 +85,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
             repeat: false,
             modifiers,
         });
-    } else {
     }
 }
 
@@ -456,7 +360,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextLength(
         None => return -1,
     };
 
-    return markdown.editor.buffer.current.segs.last_cursor_position().0 as jint;
+    markdown.editor.buffer.current.segs.last_cursor_position().0 as jint
 }
 
 #[no_mangle]
