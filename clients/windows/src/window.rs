@@ -4,7 +4,7 @@ use crate::input::{
     message::{Message, MessageAppDep, MessageNoDeps, MessageWindowDep},
 };
 use crate::output;
-use egui::{Context, PlatformOutput, Visuals};
+use egui::{Context, PlatformOutput, ViewportCommand, Visuals};
 use egui_wgpu_backend::{
     wgpu::{self, CompositeAlphaMode},
     ScreenDescriptor,
@@ -345,10 +345,28 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                             unsafe { BeginPaint(hwnd, std::ptr::null_mut()) };
 
                             let Output {
-                                egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
-                                window_title,
+                                platform: PlatformOutput { cursor_icon, open_url, copied_text, .. },
+                                viewport,
                                 app: Response { close },
                             } = app.frame();
+                            let window_title = {
+                                let maybe_viewport_output = viewport.values().next();
+                                if maybe_viewport_output.is_none() {
+                                    eprintln!(
+                                        "viewport missing: not redrawing or setting window title"
+                                    );
+                                }
+
+                                let window_title = maybe_viewport_output
+                                    .map(|v| {
+                                        v.commands.iter().find_map(|c| match c {
+                                            ViewportCommand::Title(title) => Some(title.clone()),
+                                            _ => None,
+                                        })
+                                    })
+                                    .flatten();
+                                window_title
+                            };
 
                             if let Err(_) = output::clipboard_copy::handle(copied_text.clone()) {
                                 // windows clipboard sometimes has transient errors
