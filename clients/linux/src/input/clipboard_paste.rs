@@ -1,6 +1,6 @@
 use lbeguiapp::WgpuLockbook;
 use std::mem;
-use workspace_rs::tab::{ClipContent, EventManager as _};
+use workspace_rs::tab::{ClipContent, ExtendedInput as _};
 use x11rb::protocol::xproto::{Atom, ConnectionExt as _};
 use x11rb::reexports::x11rb_protocol::protocol::xproto;
 use x11rb::xcb_ffi::XCBConnection;

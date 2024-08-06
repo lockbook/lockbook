@@ -1,7 +1,3 @@
-use crate::{
-    CPoint, CRect, CTextGranularity, CTextLayoutDirection, CTextPosition, CTextRange, CUuid,
-    TabsIds, UITextSelectionRects, WgpuWorkspace,
-};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
@@ -14,10 +10,19 @@ use workspace_rs::tab::markdown_editor::input::mutation;
 use workspace_rs::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;
-use workspace_rs::tab::EventManager as _;
+use workspace_rs::tab::ExtendedInput as _;
 use workspace_rs::tab::TabContent;
 
-use super::keyboard::UIKeys;
+use super::super::response::*;
+use super::response::*;
+use crate::apple::keyboard::UIKeys;
+use crate::WgpuWorkspace;
+
+#[no_mangle]
+pub extern "C" fn ios_frame(obj: *mut c_void) -> IOSResponse {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.frame().into()
+}
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor

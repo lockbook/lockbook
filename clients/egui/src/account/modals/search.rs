@@ -110,7 +110,7 @@ impl SearchModal {
         }
     }
 
-    fn draw_search_result(
+    fn show_search_result(
         &self, ui: &mut egui::Ui, res: &SearchResultItem, index: usize,
     ) -> egui::Response {
         let padding = egui::vec2(10.0, 20.0);
@@ -274,7 +274,7 @@ impl super::Modal for SearchModal {
                 .max_height(500.0)
                 .show(ui, |ui| {
                     for (index, res) in self.results.iter().enumerate() {
-                        if self.draw_search_result(ui, res, index).clicked() {
+                        if self.show_search_result(ui, res, index).clicked() {
                             let keep_open = {
                                 let m = ui.input(|i| i.modifiers);
                                 m.command && !m.alt && !m.shift

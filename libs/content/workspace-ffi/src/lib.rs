@@ -1,26 +1,14 @@
 use egui_wgpu_backend::wgpu;
+use std::iter;
 use std::time::Instant;
-
-mod cursor_icon;
-
 use workspace_rs::workspace::Workspace;
 
-#[cfg(target_vendor = "apple")]
-pub mod apple;
-
 /// cbindgen:ignore
-#[cfg(target_os = "android")]
 pub mod android;
+pub mod apple;
+pub mod response;
 
-/// cbindgen:ignore
-#[cfg(target_os = "android")]
-pub use android::resp::*;
-
-#[cfg(not(target_os = "android"))]
-pub mod resp;
-
-#[cfg(not(target_os = "android"))]
-pub use resp::*;
+pub use response::Response;
 
 #[repr(C)]
 pub struct WgpuWorkspace<'window> {
@@ -44,14 +32,8 @@ pub struct WgpuWorkspace<'window> {
     pub workspace: Workspace,
 }
 
-#[cfg(any(target_vendor = "apple", target_os = "android"))]
 impl<'window> WgpuWorkspace<'window> {
-    pub fn frame(&mut self) -> IntegrationOutput {
-        #[cfg(not(target_os = "android"))]
-        use std::ffi::CString;
-        use std::iter;
-
-        let mut out = IntegrationOutput::default();
+    pub fn frame(&mut self) -> Response {
         self.configure_surface();
         let output_frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -60,11 +42,11 @@ impl<'window> WgpuWorkspace<'window> {
                 // Silently return here to prevent spamming the console with:
                 // "The underlying surface has changed, and therefore the swap chain must be updated"
                 eprintln!("wgpu::SurfaceError::Outdated");
-                return out;
+                return Default::default();
             }
             Err(e) => {
                 eprintln!("Dropped frame with error: {}", e);
-                return out;
+                return Default::default();
             }
         };
         let output_view = output_frame
@@ -76,7 +58,17 @@ impl<'window> WgpuWorkspace<'window> {
         self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
         self.context.begin_frame(self.raw_input.take());
 
-        out.workspace_resp = self.workspace.draw(&self.context).into();
+        let workspace_response = {
+            let fill = if self.context.style().visuals.dark_mode {
+                egui::Color32::BLACK
+            } else {
+                egui::Color32::WHITE
+            };
+            egui::CentralPanel::default()
+                .frame(egui::Frame::default().fill(fill))
+                .show(&self.context, |ui| self.workspace.show(ui))
+                .inner
+        };
 
         let full_output = self.context.end_frame();
 
@@ -114,49 +106,12 @@ impl<'window> WgpuWorkspace<'window> {
             .remove_textures(tdelta)
             .expect("remove texture ok");
 
-        #[cfg(not(target_os = "android"))]
-        {
-            if !full_output.platform_output.copied_text.is_empty() {
-                // todo: can this go in output?
-                out.copied_text = CString::new(full_output.platform_output.copied_text)
-                    .unwrap()
-                    .into_raw();
-            }
-
-            if let Some(url) = full_output.platform_output.open_url {
-                out.url_opened = CString::new(url.url).unwrap().into_raw();
-            }
-
-            out.cursor = full_output.platform_output.cursor_icon.into();
-        }
-
-        #[cfg(target_os = "android")]
-        {
-            if let Some(url) = full_output.platform_output.open_url {
-                out.url_opened = url.url;
-            }
-
-            out.has_copied_text = !full_output.platform_output.copied_text.is_empty();
-
-            if out.has_copied_text {
-                out.copied_text = full_output.platform_output.copied_text;
-            }
-        }
-
-        out.redraw_in = match full_output
-            .viewport_output
-            .values()
-            .next()
-            .map(|v| v.repaint_delay)
-        {
-            Some(d) => d.as_millis() as u64,
-            None => {
-                eprintln!("VIEWPORT Missing, not requesting redraw");
-                u64::max_value()
-            }
-        };
-
-        out
+        Response::new(
+            &self.context,
+            full_output.platform_output,
+            full_output.viewport_output,
+            workspace_response,
+        )
     }
 
     pub fn set_egui_screen(&mut self) {

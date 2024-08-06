@@ -1,12 +1,13 @@
 use pulldown_cmark::LinkType;
 
+use crate::tab::{markdown_editor, ExtendedOutput};
 use crate::tab::{
     markdown_editor::{
         input::canonical::{Modification, Region},
         style::{BlockNode, InlineNode, ListItem, MarkdownNode},
-        Editor, EditorResponse,
+        Editor,
     },
-    EventManager as _,
+    ExtendedInput as _,
 };
 
 use crate::theme::icons::Icon;
@@ -19,7 +20,7 @@ pub const MOBILE_TOOL_BAR_SIZE: f32 = 45.0;
 pub struct ToolbarButton {
     icon: Icon,
     id: String,
-    callback: fn(&mut egui::Ui, &mut ToolBar, &mut EditorResponse),
+    callback: fn(&mut egui::Ui, &mut ToolBar, &mut markdown_editor::Response),
 }
 
 #[derive(Clone)]
@@ -65,7 +66,9 @@ impl ToolBar {
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, editor: &mut Editor, res: &mut EditorResponse) {
+    pub fn show(
+        &mut self, ui: &mut egui::Ui, editor: &mut Editor, res: &mut markdown_editor::Response,
+    ) {
         if cfg!(target_os = "ios") || cfg!(target_os = "android") {
             ui.allocate_ui(egui::vec2(ui.available_width(), MOBILE_TOOL_BAR_SIZE), |ui| {
                 egui::Frame::default()
@@ -109,8 +112,8 @@ impl ToolBar {
     }
 
     fn map_buttons(
-        &mut self, ui: &mut egui::Ui, editor: &mut Editor, editor_res: &mut EditorResponse,
-        is_mobile: bool,
+        &mut self, ui: &mut egui::Ui, editor: &mut Editor,
+        editor_res: &mut markdown_editor::Response, is_mobile: bool,
     ) {
         egui::ScrollArea::horizontal().show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -160,7 +163,7 @@ impl ToolBar {
 
     fn process_mobile_components(
         &mut self, components: Vec<Component>, ui: &mut egui::Ui, editor: &Editor,
-        editor_res: &mut EditorResponse,
+        editor_res: &mut markdown_editor::Response,
     ) {
         components.iter().for_each(|comp| match comp {
             Component::Button(btn) => {
@@ -324,8 +327,8 @@ fn get_hide_keyboard_components() -> Vec<Component> {
         Component::Button(ToolbarButton {
             icon: Icon::KEYBOARD_HIDE,
             id: "keyboard_hide".to_string(),
-            callback: |_, _, res| {
-                res.hide_virtual_keyboard = true;
+            callback: |ui, _, _| {
+                ui.ctx().set_virtual_keyboard_shown(false);
             },
         }),
         Component::Separator(egui::Margin::symmetric(10.0, 0.0)),

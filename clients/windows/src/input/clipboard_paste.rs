@@ -2,7 +2,7 @@ use egui::Pos2;
 use image::ImageEncoder;
 use lbeguiapp::WgpuLockbook;
 use std::io::Cursor;
-use workspace_rs::tab::{ClipContent, EventManager as _};
+use workspace_rs::tab::{ClipContent, ExtendedInput as _};
 
 pub fn handle(app: &mut WgpuLockbook) {
     if let Ok(unicode) = clipboard_win::get_clipboard(clipboard_win::formats::Unicode) {

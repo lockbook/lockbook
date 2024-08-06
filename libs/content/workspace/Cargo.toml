@@ -9,7 +9,6 @@ name = "workspace_rs"
 [dependencies]
 bezier-rs = "0.2.0"
 egui = "0.26.2"
-egui_extras = { version = "0.26.2", features = ["image"] }
 epaint = "0.26.2"
 glam = "0.22.0"
 image = "0.24"

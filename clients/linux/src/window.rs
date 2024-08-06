@@ -1,9 +1,9 @@
-use egui::{Context, PlatformOutput, Visuals};
+use egui::{Context, PlatformOutput, ViewportCommand, Visuals};
 use egui_wgpu_backend::{
     wgpu::{self, CompositeAlphaMode},
     ScreenDescriptor,
 };
-use lbeguiapp::{IntegrationOutput, UpdateOutput, WgpuLockbook};
+use lbeguiapp::{Output, WgpuLockbook};
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
     RawWindowHandle, WindowHandle, XcbDisplayHandle, XcbWindowHandle,
@@ -182,10 +182,25 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             got_events_atomic.store(false, Ordering::SeqCst);
 
             // only draw frames if we got events (including repaint requests)
-            let IntegrationOutput {
-                egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
-                update_output: UpdateOutput { close, set_window_title },
+            let Output {
+                platform: PlatformOutput { cursor_icon, open_url, copied_text, .. },
+                viewport,
+                app: lbeguiapp::Response { close },
             } = lb.frame();
+            let window_title = {
+                let maybe_viewport_output = viewport.values().next();
+                if maybe_viewport_output.is_none() {
+                    eprintln!("viewport missing: not setting window title");
+                }
+
+                let window_title = maybe_viewport_output.and_then(|v| {
+                    v.commands.iter().find_map(|c| match c {
+                        ViewportCommand::Title(title) => Some(title.clone()),
+                        _ => None,
+                    })
+                });
+                window_title
+            };
 
             // set modifiers
             let pointer_state = conn.query_pointer(window_id)?.reply()?;
@@ -208,7 +223,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             if close {
                 output::close();
             }
-            output::window_title::handle(conn, window_id, &atoms, set_window_title)?;
+            output::window_title::handle(conn, window_id, &atoms, window_title)?;
             cursor_manager.handle(conn, &db, screen_num, window_id, cursor_icon);
             output::open_url::handle(open_url);
             output::clipboard_copy::handle_copy(
