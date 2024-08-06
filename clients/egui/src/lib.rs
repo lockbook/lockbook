@@ -9,7 +9,7 @@ mod theme;
 mod util;
 
 pub use crate::settings::Settings;
-use workspace_rs::tab::ExtendedOutput;
+use egui::{ViewportIdMap, ViewportOutput};
 pub use workspace_rs::Event;
 
 use crate::account::AccountScreen;
@@ -113,9 +113,6 @@ impl eframe::App for Lockbook {
         if output.close {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
         }
-        if let Some(set_window_title) = ctx.pop_window_title() {
-            ctx.send_viewport_cmd(ViewportCommand::Title(set_window_title))
-        }
 
         // We process `close_requested` in order to give the Account screen a chance to:
         // 1) close any open modals or dialogs via a window close event, or
@@ -161,8 +158,8 @@ pub struct WgpuLockbook<'window> {
 #[derive(Default)]
 pub struct Output {
     // platform response
-    pub egui: PlatformOutput,
-    pub window_title: Option<String>,
+    pub platform: PlatformOutput,
+    pub viewport: ViewportIdMap<ViewportOutput>,
 
     // widget response
     pub app: Response,
@@ -236,8 +233,8 @@ impl<'window> WgpuLockbook<'window> {
         }
 
         Output {
-            egui: full_output.platform_output,
-            window_title: self.context.pop_window_title(),
+            platform: full_output.platform_output,
+            viewport: full_output.viewport_output,
             app: app_response,
         }
     }
