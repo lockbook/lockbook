@@ -1,4 +1,4 @@
-use egui::{vec2, Context, Image};
+use egui::{vec2, Context, Image, ViewportCommand};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -11,7 +11,7 @@ use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
-use crate::tab::{ExtendedOutput, Tab, TabContent, TabFailure};
+use crate::tab::{Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
 use lb_rs::{File, FileType, LbError, NameComponents, SyncProgress, SyncStatus, Uuid};
@@ -474,16 +474,20 @@ impl Workspace {
                                     } else {
                                         self.tabs[i].rename = None;
                                         self.active_tab = i;
-                                        self.ctx.set_window_title(self.tabs[i].name.clone());
+                                        self.ctx.send_viewport_cmd(ViewportCommand::Title(
+                                            self.tabs[i].name.clone(),
+                                        ));
                                         self.out.selected_file = Some(self.tabs[i].id);
                                     }
                                 }
                                 TabLabelResponse::Closed => {
                                     self.close_tab(i);
-                                    self.ctx.set_window_title(match self.current_tab() {
+
+                                    let title = match self.current_tab() {
                                         Some(tab) => tab.name.clone(),
                                         None => "Lockbook".to_owned(),
-                                    });
+                                    };
+                                    self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
 
                                     self.out.selected_file = self.current_tab().map(|tab| tab.id);
                                 }
@@ -648,12 +652,12 @@ impl Workspace {
         // Ctrl-W to close current tab.
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::W)) && !self.is_empty() {
             self.close_tab(self.active_tab);
-            self.ctx.set_window_title(
+            self.ctx.send_viewport_cmd(ViewportCommand::Title(
                 self.current_tab()
                     .map(|tab| tab.name.as_str())
                     .unwrap_or("Lockbook")
                     .to_owned(),
-            );
+            ));
 
             self.out.selected_file = self.current_tab().map(|tab| tab.id);
         }
@@ -675,7 +679,7 @@ impl Workspace {
                     if let Some((name, id)) =
                         self.current_tab().map(|tab| (tab.name.clone(), tab.id))
                     {
-                        self.ctx.set_window_title(name);
+                        self.ctx.send_viewport_cmd(ViewportCommand::Title(name));
                         self.out.selected_file = Some(id);
                     };
                     break;
@@ -691,7 +695,7 @@ impl Workspace {
                     if let Some((name, id)) =
                         self.current_tab().map(|tab| (tab.name.clone(), tab.id))
                     {
-                        self.ctx.set_window_title(name);
+                        self.ctx.send_viewport_cmd(ViewportCommand::Title(name));
                         self.out.selected_file = Some(id);
                     };
 
@@ -759,7 +763,8 @@ impl Workspace {
                     let mut is_tab_active = false;
                     if let Some(tab) = self.current_tab() {
                         if tab.id == id {
-                            self.ctx.set_window_title(tab.name.clone());
+                            self.ctx
+                                .send_viewport_cmd(ViewportCommand::Title(tab.name.clone()));
                             is_tab_active = true;
                         }
                     }

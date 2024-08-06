@@ -89,8 +89,6 @@ pub enum ClipContent {
 
 // todo: find a better place for the code that attaches additional things to egui::Context
 pub trait ExtendedOutput {
-    fn set_window_title(&self, title: String);
-    fn pop_window_title(&self) -> Option<String>;
     fn set_virtual_keyboard_shown(&self, enabled: bool);
     fn pop_virtual_keyboard_shown(&self) -> Option<bool>;
     fn set_context_menu(&self, pos: egui::Pos2);
@@ -98,16 +96,6 @@ pub trait ExtendedOutput {
 }
 
 impl ExtendedOutput for egui::Context {
-    fn set_window_title(&self, title: String) {
-        self.memory_mut(|m| {
-            m.data.insert_temp(Id::new("window_title"), title);
-        })
-    }
-
-    fn pop_window_title(&self) -> Option<String> {
-        self.memory_mut(|m| m.data.remove_temp(Id::new("window_title")))
-    }
-
     fn set_virtual_keyboard_shown(&self, enabled: bool) {
         self.memory_mut(|m| {
             m.data
