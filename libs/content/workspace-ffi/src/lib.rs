@@ -1,4 +1,4 @@
-use egui_wgpu_backend::wgpu;
+use egui_wgpu_backend::wgpu::{self, TextureFormat};
 use std::time::Instant;
 
 mod cursor_icon;
@@ -94,6 +94,7 @@ impl<'window> WgpuWorkspace<'window> {
 
         self.rpass
             .update_buffers(&self.device, &self.queue, &paint_jobs, &self.screen);
+
         // Record all render passes.
         self.rpass
             .execute(

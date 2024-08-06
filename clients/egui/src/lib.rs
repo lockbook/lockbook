@@ -9,13 +9,14 @@ mod theme;
 mod util;
 
 pub use crate::settings::Settings;
+use smaa::{SmaaMode, SmaaTarget};
 pub use workspace_rs::Event;
 
 use crate::account::AccountScreen;
 use crate::onboard::{OnboardHandOff, OnboardScreen};
 use crate::splash::{SplashHandOff, SplashScreen};
 use eframe::egui::{self, ViewportCommand};
-use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode};
+use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode, TextureFormat};
 use egui_winit::egui::{PlatformOutput, Pos2, Rect};
 use std::iter;
 use std::sync::{Arc, RwLock};
@@ -156,6 +157,8 @@ pub struct WgpuLockbook<'window> {
     pub queued_events: Vec<egui::Event>,
     pub double_queued_events: Vec<egui::Event>,
 
+    pub format: TextureFormat,
+
     pub app: Lockbook,
 }
 
@@ -184,6 +187,15 @@ impl<'window> WgpuLockbook<'window> {
         };
         let output_view = output_frame.texture.create_view(&Default::default());
 
+        let mut smaa_target = SmaaTarget::new(
+            &self.device,
+            &self.queue,
+            self.surface_width,
+            self.surface_height,
+            self.format,
+            SmaaMode::Smaa1X,
+        );
+
         // can probably use run
         self.set_egui_screen();
         self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
@@ -205,20 +217,17 @@ impl<'window> WgpuLockbook<'window> {
         self.rpass
             .update_buffers(&self.device, &self.queue, &paint_jobs, &self.screen);
 
+        let smaa_frame = smaa_target.start_frame(&self.device, &self.queue, &output_view);
         // Record all render passes.
         self.rpass
-            .execute(
-                &mut encoder,
-                &output_view,
-                &paint_jobs,
-                &self.screen,
-                Some(wgpu::Color::BLACK),
-            )
+            .execute(&mut encoder, &smaa_frame, &paint_jobs, &self.screen, Some(wgpu::Color::BLACK))
             .unwrap();
+
         // Submit the commands.
         self.queue.submit(iter::once(encoder.finish()));
 
         // Redraw egui
+        smaa_frame.resolve();
         output_frame.present();
 
         self.rpass

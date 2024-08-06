@@ -23,7 +23,7 @@ pub use parser::Buffer;
 pub use pen::CubicBezBuilder;
 pub use pen::Pen;
 use renderer::Renderer;
-use resvg::usvg::{self, ImageKind};
+use resvg::usvg::ImageKind;
 pub use toolbar::Tool;
 use usvg_parser::Options;
 
@@ -92,8 +92,10 @@ impl SVGEditor {
                     );
 
                     self.inner_rect = ui.available_rect_before_wrap();
-                    self.renderer
-                        .render_svg_parralel(ui, &mut self.buffer, self.inner_rect);
+                    let painter = ui
+                        .allocate_painter(self.inner_rect.size(), egui::Sense::click_and_drag())
+                        .1;
+                    self.renderer.render_svg(ui, &mut self.buffer, painter);
                 });
         });
 
@@ -148,11 +150,15 @@ impl SVGEditor {
         let frame_cost = Instant::now() - self.last_render;
         self.last_render = Instant::now();
         let mut anchor_count = 0;
-        self.buffer.elements.iter().for_each(|(_, el)| {
-            if let parser::Element::Path(p) = el {
-                anchor_count += p.data.len()
-            }
-        });
+        self.buffer
+            .elements
+            .iter()
+            .filter(|(_, &ref el)| !el.deleted())
+            .for_each(|(_, el)| {
+                if let parser::Element::Path(p) = el {
+                    anchor_count += p.data.len()
+                }
+            });
 
         let mut top = self.inner_rect.right_top();
         top.x -= 150.0;

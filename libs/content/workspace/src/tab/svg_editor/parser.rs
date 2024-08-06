@@ -20,6 +20,8 @@ use resvg::{
 
 use crate::theme::palette::ThemePalette;
 
+use super::selection::u_transform_to_bezier;
+
 const ZOOM_G_ID: &str = "lb_master_transform";
 
 /// A shorthand for [ImageHrefResolver]'s string function.
@@ -41,7 +43,7 @@ pub struct Buffer {
     pub needs_path_map_update: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Element {
     Path(Path),
     Image(Image),
@@ -49,10 +51,24 @@ pub enum Element {
 }
 
 impl Element {
-    pub fn changed(&self) -> bool {
+    pub fn opacity_changed(&self) -> bool {
         match self {
-            Element::Path(p) => p.changed,
-            Element::Image(i) => i.changed,
+            Element::Path(p) => p.diff_state.opacity_changed,
+            Element::Image(i) => i.diff_state.opacity_changed,
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn delete_changed(&self) -> bool {
+        match self {
+            Element::Path(p) => p.diff_state.delete_changed,
+            Element::Image(i) => i.diff_state.delete_changed,
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn data_changed(&self) -> bool {
+        match self {
+            Element::Path(p) => p.diff_state.data_changed,
+            Element::Image(i) => i.diff_state.data_changed,
             Element::Text(_) => todo!(),
         }
     }
@@ -60,6 +76,28 @@ impl Element {
         match self {
             Element::Path(p) => p.deleted,
             Element::Image(i) => i.deleted,
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn transformed(&self) -> Option<Transform> {
+        match self {
+            Element::Path(p) => p.diff_state.transformed,
+            Element::Image(i) => i.diff_state.transformed,
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn transform(&mut self, transform: Transform) {
+        match self {
+            Element::Path(path) => {
+                path.diff_state.transformed = Some(transform);
+                path.transform = path.transform.post_concat(transform);
+                path.data.apply_transform(u_transform_to_bezier(&transform));
+            }
+            Element::Image(img) => {
+                img.diff_state.transformed = Some(transform);
+                img.transform = img.transform.post_concat(transform);
+                img.apply_transform(transform);
+            }
             Element::Text(_) => todo!(),
         }
     }
@@ -74,8 +112,28 @@ pub struct Path {
     pub transform: Transform,
     pub opacity: f32,
     pub pressure: Option<Vec<f32>>,
-    pub changed: bool,
+    pub diff_state: DiffState,
     pub deleted: bool,
+}
+
+impl std::fmt::Debug for Path {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Path")
+            .field("transform", &self.transform)
+            .field("opacity", &self.opacity)
+            .field("pressure", &self.pressure)
+            .field("diff_state", &self.diff_state)
+            .field("deleted", &self.deleted)
+            .finish()
+    }
+}
+
+#[derive(Clone, Default, Debug)]
+pub struct DiffState {
+    pub opacity_changed: bool,
+    pub transformed: Option<Transform>,
+    pub delete_changed: bool,
+    pub data_changed: bool,
 }
 
 impl Path {
@@ -87,7 +145,7 @@ impl Path {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Stroke {
     pub color: (egui::Color32, egui::Color32),
     pub width: f32,
@@ -108,8 +166,22 @@ pub struct Image {
     pub texture: Option<TextureHandle>,
     pub opacity: f32,
     pub href: Option<String>,
-    pub changed: bool,
+    pub diff_state: DiffState,
     pub deleted: bool,
+}
+
+impl std::fmt::Debug for Image {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Image")
+            .field("visibility", &self.visibility)
+            .field("transform", &self.transform)
+            .field("view_box", &self.view_box)
+            .field("opacity", &self.opacity)
+            .field("href", &self.href)
+            .field("diff_state", &self.diff_state)
+            .field("deleted", &self.deleted)
+            .finish()
+    }
 }
 
 impl Buffer {
@@ -154,7 +226,10 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                 .enumerate()
                 .for_each(|(i, u_el)| parse_child(u_el, buffer, i));
         }
+
         usvg::Node::Image(img) => {
+            let mut diff_state = DiffState::default();
+            diff_state.data_changed = true;
             buffer.elements.insert(
                 i.to_string(),
                 Element::Image(Image {
@@ -165,7 +240,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     texture: None,
                     opacity: 1.0,
                     href: Some(img.id().to_string()),
-                    changed: true,
+                    diff_state,
                     deleted: false,
                 }),
             );
@@ -190,6 +265,9 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                 stroke.width = s.width().get();
                 opacity = s.opacity().get();
             }
+            let mut diff_state = DiffState::default();
+            diff_state.data_changed = true;
+
             buffer.elements.insert(
                 i.to_string(),
                 Element::Path(Path {
@@ -197,10 +275,10 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     visibility: path.visibility(),
                     fill: path.fill().cloned(),
                     stroke: Some(stroke),
-                    transform: path.abs_transform(),
+                    transform: Transform::identity(),
                     opacity,
                     pressure: None,
-                    changed: true,
+                    diff_state,
                     deleted: false,
                 }),
             );
@@ -289,6 +367,9 @@ impl ToString for Buffer {
         for el in self.elements.iter() {
             match el.1 {
                 Element::Path(p) => {
+                    if p.deleted {
+                        continue;
+                    }
                     let mut curv_attrs = " ".to_string(); // if it's empty then the curve will not be converted to string via bezier_rs
                     if let Some(stroke) = p.stroke {
                         curv_attrs = format!(

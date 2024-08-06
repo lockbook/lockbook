@@ -13,6 +13,7 @@ use super::{
     history::History,
     parser,
     selection::{u_transform_to_bezier, Selection},
+    zoom::zoom_percentage_to_transform,
     Buffer, Eraser, Pen,
 };
 
@@ -124,15 +125,12 @@ impl Toolbar {
                                 self.show_right_toolbar(ui, buffer, skip_frame, inner_rect)
                             {
                                 buffer.master_transform =
-                                    buffer.master_transform.pre_concat(transform);
+                                    buffer.master_transform.post_concat(transform);
 
-                                buffer.elements.iter_mut().for_each(|(_, el)| match el {
-                                    parser::Element::Path(p) => {
-                                        p.data.apply_transform(u_transform_to_bezier(&transform))
-                                    }
-                                    parser::Element::Image(img) => img.apply_transform(transform),
-                                    parser::Element::Text(_) => todo!(),
-                                });
+                                buffer
+                                    .elements
+                                    .iter_mut()
+                                    .for_each(|(_, el)| el.transform(transform));
                             }
                         });
                     });
@@ -436,16 +434,4 @@ fn calc_elements_bounds(buffer: &mut Buffer) -> egui::Rect {
         elements_bound.max.y = elements_bound.max.y.max(el_rect.max.y);
     }
     elements_bound
-}
-
-fn zoom_percentage_to_transform(
-    zoom_percentage: f32, buffer: &mut Buffer, ui: &mut egui::Ui,
-) -> Transform {
-    let zoom_delta = (zoom_percentage) / (buffer.master_transform.sx * 100.0);
-    return Transform::identity()
-        .post_scale(zoom_delta, zoom_delta)
-        .post_translate(
-            (1.0 - zoom_delta) * ui.ctx().screen_rect().center().x,
-            (1.0 - zoom_delta) * ui.ctx().screen_rect().center().y,
-        );
 }

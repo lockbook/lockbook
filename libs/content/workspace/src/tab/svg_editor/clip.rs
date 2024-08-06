@@ -2,7 +2,7 @@ use resvg::usvg::{AspectRatio, NonZeroRect, Transform, ViewBox};
 
 use crate::tab::{ClipContent, EventManager as _};
 
-use super::SVGEditor;
+use super::{parser::DiffState, SVGEditor};
 
 impl SVGEditor {
     pub fn handle_clip_input(&mut self, ui: &mut egui::Ui) {
@@ -44,7 +44,7 @@ impl SVGEditor {
                                             texture: None,
                                             href: Some(href),
                                             opacity: 1.0,
-                                            changed: true,
+                                            diff_state: DiffState::default(),
                                             deleted: false,
                                         },
                                     ),

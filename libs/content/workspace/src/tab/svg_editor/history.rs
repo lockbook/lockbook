@@ -50,11 +50,11 @@ impl History {
                         match el {
                             parser::Element::Path(p) => {
                                 p.deleted = false;
-                                p.changed = true;
+                                p.diff_state.delete_changed = true;
                             }
                             parser::Element::Image(i) => {
                                 i.deleted = false;
-                                i.changed = true;
+                                i.diff_state.delete_changed = true;
                             }
                             parser::Element::Text(_) => todo!(),
                         }
@@ -65,8 +65,14 @@ impl History {
                 payload.iter().for_each(|delete_payload| {
                     if let Some(el) = buffer.elements.get_mut(&delete_payload.id) {
                         match el {
-                            parser::Element::Path(p) => p.deleted = true,
-                            parser::Element::Image(i) => i.deleted = true,
+                            parser::Element::Path(p) => {
+                                p.deleted = true;
+                                p.diff_state.delete_changed = true;
+                            }
+                            parser::Element::Image(i) => {
+                                i.deleted = true;
+                                i.diff_state.delete_changed = true;
+                            }
                             parser::Element::Text(_) => todo!(),
                         }
                     }
