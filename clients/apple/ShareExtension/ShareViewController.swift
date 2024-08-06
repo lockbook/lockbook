@@ -22,6 +22,14 @@ class ShareViewController: UIViewController {
             return
         }
         
+        guard let t = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook")?.appendingPathComponent("shared") else {
+            return
+        }
+        
+        if FileManager.default.fileExists(atPath: t.path()) {
+            try! FileManager.default.removeItem(at: t)
+        }
+        
         print("the extContext \(extContext.inputItems.count) and then \((extContext.inputItems.first as? NSExtensionItem)?.attachments?.count)")
         
         for input in extContext.inputItems {
@@ -93,9 +101,9 @@ class ShareViewController: UIViewController {
                                 
                 do {
                     print("copying \(url.absoluteString) to \(newHome)")
-                    try FileManager.default.copyItem(at: url as! URL, to: newHome)
+                    try! FileManager.default.copyItem(at: url as! URL, to: newHome)
                     
-                    self.processed.append(newHome.absoluteString)
+                    self.processed.append(newHome.pathComponents.suffix(3).joined(separator: "/"))
                 } catch {
                     print("Error saving file: \(error)")
                 }

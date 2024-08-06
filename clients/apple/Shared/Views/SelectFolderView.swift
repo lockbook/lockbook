@@ -49,6 +49,13 @@ struct SelectFolderView: View {
                             selectFolder(path: selectedFolder.isEmpty ? "/" : selectedFolder)
                         }
                         
+                        switch action {
+                        case .Move(let ids):
+                            Text("Moving \(ids.count) files.")
+                        case .Import(let ids):
+                            Text("Importing \(ids.count) files.")
+                        }
+                        
                         List(filteredFolderPaths, id: \.self) { path in
                             HStack {
                                 Button(action: {
@@ -101,9 +108,16 @@ struct SelectFolderView: View {
                 }
                 
                 presentationMode.wrappedValue.dismiss()
+                DI.files.successfulAction = .move
                 DI.files.refresh()
-            case .Import(_):
-                print("unused")
+            case .Import(let paths):
+                if case .failure(_) = core.core.importFiles(sources: paths, destination: parent.id) {
+                    error = true
+                }
+                
+                presentationMode.wrappedValue.dismiss()
+                DI.files.successfulAction = .importFiles
+                DI.files.refresh()
             }
             
             print("got the folder id selected: \(path) to \(parent.id)")
@@ -132,7 +146,7 @@ struct SelectedItemModifier: ViewModifier {
 
 enum SelectFolderAction {
     case Move([UUID])
-    case Import([URL])
+    case Import([String])
 }
 
 struct SelectFolderViewPreview: PreviewProvider {

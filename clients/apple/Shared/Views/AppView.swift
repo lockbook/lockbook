@@ -7,19 +7,43 @@ struct AppView: View {
     @EnvironmentObject var files: FileService
     @EnvironmentObject var errors: UnexpectedErrorService
     
-    @State var tmp: String = ""
+    @State var tmp = "never changed?"
     
     @ViewBuilder
     var body: some View {
         VStack {
+            Text(tmp)
+            
             if accounts.calculated {
                 if accounts.account == nil {
                     OnboardingView()
                 } else {
                     PlatformView()
                         .onOpenURL() { url in
+                            tmp = url.absoluteString
+                            
                             if url.scheme == "lb", url.host == "sharedFiles" {
-                                tmp = "got here..."
+                                if let filePathsQuery = url.query {
+                                    let filePaths = filePathsQuery.removingPercentEncoding?.components(separatedBy: ",") ?? []
+                                    
+                                    guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") else {
+                                        return
+                                    }
+                                    
+                                    var res: [String] = []
+                                    
+                                    for filePath in filePaths {
+                                        res.append(containerURL.appendingPathComponent(filePath).path()
+                                            .removingPercentEncoding!)
+                                    }
+                                    
+                                    tmp = "got here \(res)"
+                                    
+                                    DI.sheets.movingInfo = .Import(res)
+                                    
+                                } else {
+                                    tmp = "failed"
+                                }
                             }
                             
                             guard let uuidString = url.host, let id = UUID(uuidString: uuidString), url.scheme == "lb" else {

@@ -18,7 +18,7 @@ struct FileCell: View {
                 }
                                 
                 Button(action: {
-                    DI.sheets.movingInfo = meta
+                    DI.sheets.movingInfo = .Move([meta.id])
                 }, label: {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 })

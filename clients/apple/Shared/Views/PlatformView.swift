@@ -71,8 +71,8 @@ struct PlatformView: View {
             }
         }
         .sheet(isPresented: $sheets.moving, content: {
-            if let meta = sheets.movingInfo {
-                SelectFolderView(action: .Move([meta.id]))
+            if let action = sheets.movingInfo {
+                SelectFolderView(action: action)
                     .presentationDetents([.fraction(0.5)])
             }
         })

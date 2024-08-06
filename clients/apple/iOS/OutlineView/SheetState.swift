@@ -52,7 +52,7 @@ class SheetState: ObservableObject {
             }
         }
     }
-    @Published var movingInfo: File? {
+    @Published var movingInfo: SelectFolderAction? {
         didSet {
             moving = movingInfo != nil
         }
