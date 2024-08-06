@@ -8,6 +8,10 @@
 		<dict>
 			<key>NSExtensionActivationRule</key>
 			<dict>
+				<key>NSExtensionActivationSupportsMovieWithMaxCount</key>
+				<integer>10</integer>
+				<key>NSExtensionActivationSupportsImageWithMaxCount</key>
+				<integer>10</integer>
 				<key>NSExtensionActivationSupportsFileWithMaxCount</key>
 				<integer>10</integer>
 			</dict>

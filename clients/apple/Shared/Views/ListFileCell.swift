@@ -74,7 +74,7 @@ struct RealFileCell: View {
 
     var body: some View {
         HStack(spacing: 20) {
-            Image(systemName: meta.fileType == .Folder ? "folder.fill" : FileService.docExtToSystemImage(name: meta.name))
+            Image(systemName: FileService.metaToSystemImage(meta: meta))
                 .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
                 .font(.title3)
                 .frame(width: 20)

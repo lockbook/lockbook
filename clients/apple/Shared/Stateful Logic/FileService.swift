@@ -394,6 +394,19 @@ class FileService: ObservableObject {
         }
     }
     
+    public static func metaToSystemImage(meta: File) -> String {
+        switch meta.fileType {
+        case .Document:
+            return docExtToSystemImage(name: meta.name)
+        case .Folder:
+            if meta.shares.count != 0 {
+                return "folder.fill.badge.person.crop"
+            } else {
+                return "folder.fill"
+            }
+        }
+    }
+    
     public static func docExtToSystemImage(name: String) -> String {
         guard let ext = name.split(separator: ".").last else {
             return "doc"

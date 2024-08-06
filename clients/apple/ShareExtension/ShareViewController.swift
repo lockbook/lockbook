@@ -8,50 +8,66 @@
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
+import MobileCoreServices
+
+class ShareViewModel: ObservableObject {
+    @Published var failed: Bool = false
+    @Published var downloadUbig = false
+    @Published var finished = false
+}
+
+// escape folder names with commas
 
 class ShareViewController: UIViewController {
 
     var sharedItems: [Any] = []
     var processed: [String] = []
-    
+    let shareModel = ShareViewModel()
+        
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        guard let extContext = extensionContext else {
-            close()
-            return
-        }
+        let contentView = UIHostingController(rootView: ShareExtensionView(shareModel: shareModel))
+        self.addChild(contentView)
+        self.view.addSubview(contentView.view)
         
-        guard let t = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook")?.appendingPathComponent("shared") else {
-            return
-        }
+        contentView.view.translatesAutoresizingMaskIntoConstraints = false
+        contentView.view.topAnchor.constraint(equalTo: self.view.topAnchor).isActive = true
+        contentView.view.bottomAnchor.constraint (equalTo: self.view.bottomAnchor).isActive = true
+        contentView.view.leftAnchor.constraint(equalTo: self.view.leftAnchor).isActive = true
+        contentView.view.rightAnchor.constraint (equalTo: self.view.rightAnchor).isActive = true
         
-        if FileManager.default.fileExists(atPath: t.path()) {
-            try! FileManager.default.removeItem(at: t)
-        }
-        
-        print("the extContext \(extContext.inputItems.count) and then \((extContext.inputItems.first as? NSExtensionItem)?.attachments?.count)")
-        
-        for input in extContext.inputItems {
-            if let input = input as? NSExtensionItem {
-                processInputItem(inputItem: input)
-            }
-        }
-        
-        if !processed.isEmpty {
-            let filePathsQuery = processed.joined(separator: ",")
-            guard let url = URL(string: "lb://sharedFiles?\(filePathsQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") else {
-                print("early return")
-                return
-            }
-
-            print("sending over...")
+        DispatchQueue.global(qos: .userInitiated).async {
             
-            self.extensionContext?.completeRequest(returningItems: nil) { _ in
-                self.openURL(url)
+            if let eContext = self.extensionContext,
+               let sharedFolder = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook")?.appendingPathComponent("shared") {
+                if FileManager.default.fileExists(atPath: sharedFolder.path()) {
+                    try! FileManager.default.removeItem(at: sharedFolder)
+                }
+                
+                try! FileManager.default.createDirectory(at: sharedFolder, withIntermediateDirectories: true)
+                
+                self.processEContext(sharedFolder: sharedFolder, eContext: eContext)
+                
+                print("this is what got processed \(self.processed)")
+                if self.processed.isEmpty {
+                    self.shareModel.failed = true
+                }
+                
+                if !self.shareModel.failed {
+                    let filePathsQuery = self.processed.joined(separator: ",")
+                    let shareURL = URL(string: "lb://sharedFiles?\(filePathsQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!)")!
+                    
+                    self.shareModel.finished = true
+                    eContext.completeRequest(returningItems: nil) { _ in
+                        self.openURL(shareURL)
+                    }
+                }
+                
+                if self.shareModel.failed {
+                    eContext.completeRequest(returningItems: [], completionHandler: nil)
+                }
             }
-        } else {
-            print("no PROCESSED")
         }
     }
     
@@ -68,44 +84,30 @@ class ShareViewController: UIViewController {
         return false
     }
     
-    func processInputItem(inputItem: NSExtensionItem) {
-        for attachment in inputItem.attachments ?? [] {
-            processAttachment(attachment: attachment)
+    func processEContext(sharedFolder: URL, eContext: NSExtensionContext) {
+        for input in eContext.inputItems {
+            if let input = input as? NSExtensionItem {
+                for attachment in input.attachments ?? [] {
+                    processAttachment(sharedFolder: sharedFolder, attachment: attachment)
+                }
+            }
+        }
+        
+        if processed.isEmpty {
+            shareModel.failed = true
         }
     }
     
-    func processAttachment(attachment: NSItemProvider) {
-        let fileId = UTType.fileURL.identifier
-        let imageId = UTType.image.identifier
-        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook")?.appendingPathComponent("shared").appendingPathComponent(UUID().uuidString) else {
-            return
-        }
-        
-        do {
-            try FileManager.default.createDirectory(at: containerURL, withIntermediateDirectories: true)
-        } catch {
-            print("early return 1")
-            return
-        }
-        
-        if attachment.hasItemConformingToTypeIdentifier(fileId) {
+    func processAttachment(sharedFolder: URL, attachment: NSItemProvider) {
+        if attachment.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            print("got URL!")
             let semaphore = DispatchSemaphore(value: 0)
 
-            attachment.loadObject(ofClass: URL.self) { (url, error) in
-                guard let url = url else {
-                    semaphore.signal()
-
-                    return
-                }
-                let newHome = containerURL.appendingPathComponent(url.lastPathComponent)
-                                
-                do {
-                    print("copying \(url.absoluteString) to \(newHome)")
-                    try! FileManager.default.copyItem(at: url as! URL, to: newHome)
-                    
-                    self.processed.append(newHome.pathComponents.suffix(3).joined(separator: "/"))
-                } catch {
-                    print("Error saving file: \(error)")
+            let _ = attachment.loadObject(ofClass: URL.self) { (url, error) in
+                if let url = url {
+                    self.importFileIntoAppGroup(sharedFolder: sharedFolder, importing: url)
+                } else {
+                    print("failed?")
                 }
                 
                 semaphore.signal()
@@ -113,15 +115,47 @@ class ShareViewController: UIViewController {
             
             semaphore.wait()
 
-        }
-//        else if attachment.hasItemConformingToTypeIdentifier(imageId) {
-//            attachment.loadObject(ofClass: UIImage.self) { (image, error) in
-//                print("got image: \(image)")
-//            }
-//        }
-    }
+        } else if attachment.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+            let semaphore = DispatchSemaphore(value: 0)
+            
+            let _ = attachment.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { (url, error) in
+                if let url = url {
+                    self.importFileIntoAppGroup(sharedFolder: sharedFolder, importing: url)
+                }
 
-    func close() {
-        self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+                semaphore.signal()
+            }
+
+            semaphore.wait()
+        } else if attachment.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
+            let semaphore = DispatchSemaphore(value: 0)
+
+            let _ = attachment.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { (url, error) in
+                if let url = url {
+                    self.importFileIntoAppGroup(sharedFolder: sharedFolder, importing: url)
+                }
+
+                semaphore.signal()
+            }
+            
+            semaphore.wait()
+        } else {
+            shareModel.failed = true
+        }
+    }
+    
+    func importFileIntoAppGroup(sharedFolder: URL, importing: URL) {
+        let parent = sharedFolder.appendingPathComponent(UUID().uuidString)
+        let newHome = parent.appendingPathComponent(importing.lastPathComponent)
+                        
+        do {
+            try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: false)
+                        
+            try FileManager.default.copyItem(at: importing, to: newHome)
+
+            self.processed.append(newHome.pathComponents.suffix(3).joined(separator: "/"))
+        } catch {
+            shareModel.failed = true
+        }
     }
 }

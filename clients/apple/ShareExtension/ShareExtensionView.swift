@@ -9,12 +9,23 @@ import Foundation
 import SwiftUI
 import SwiftLockbookCore
 
-// If I want to reuse move from iOS, make sure the target membership (the right side panel, includes the shareextension target
-
 struct ShareExtensionView: View {
+    
+    @ObservedObject var shareModel: ShareViewModel
+    
     var body: some View {
         VStack {
-            
+            if shareModel.downloadUbig {
+                Text("iCloud links could not be imported. Please download them and try again.")
+            } else if shareModel.failed {
+                Text("Failed to import.")
+            } else if shareModel.finished {
+                Text("Finished importing.")
+            } else {
+                Text("Importing...")
+                
+                ProgressView()
+            }
         }
     }
 }

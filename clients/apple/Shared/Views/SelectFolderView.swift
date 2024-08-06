@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import CLockbookCore
 import SwiftLockbookCore
+import UIKit
 
 struct SelectFolderView: View {
     @EnvironmentObject var core: CoreService
@@ -33,6 +34,14 @@ struct SelectFolderView: View {
         }
     }
 
+    var actionMsg: String {
+        switch action {
+        case .Move(let ids):
+            "Moving \(ids.count) \(ids.count == 1 ? "file" : "files")."
+        case .Import(let ids):
+            "Importing \(ids.count) \(ids.count == 1 ? "file" : "files")."
+        }
+    }
     
     var body: some View {
         if error {
@@ -49,12 +58,14 @@ struct SelectFolderView: View {
                             selectFolder(path: selectedFolder.isEmpty ? "/" : selectedFolder)
                         }
                         
-                        switch action {
-                        case .Move(let ids):
-                            Text("Moving \(ids.count) files.")
-                        case .Import(let ids):
-                            Text("Importing \(ids.count) files.")
+                        HStack {
+                            Text(actionMsg)
+                                .fontWeight(.bold)
+                            
+                            Spacer()
                         }
+                        .padding(.horizontal)
+                        .padding(.vertical, 5)
                         
                         List(filteredFolderPaths, id: \.self) { path in
                             HStack {
@@ -212,9 +223,6 @@ struct SelectFolderSearchBar: View {
         }
     }
 }
-
-import SwiftUI
-import UIKit
 
 struct SelectFolderTextField: UIViewRepresentable {
     var placeholder: String

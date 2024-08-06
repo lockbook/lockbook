@@ -6,66 +6,29 @@ struct AppView: View {
     @EnvironmentObject var accounts: AccountService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var errors: UnexpectedErrorService
-    
-    @State var tmp = "never changed?"
+        
+    @State var tmp = ""
     
     @ViewBuilder
     var body: some View {
         VStack {
-            Text(tmp)
-            
+//            Text(tmp)
             if accounts.calculated {
                 if accounts.account == nil {
                     OnboardingView()
                 } else {
                     PlatformView()
                         .onOpenURL() { url in
-                            tmp = url.absoluteString
-                            
-                            if url.scheme == "lb", url.host == "sharedFiles" {
-                                if let filePathsQuery = url.query {
-                                    let filePaths = filePathsQuery.removingPercentEncoding?.components(separatedBy: ",") ?? []
-                                    
-                                    guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") else {
-                                        return
-                                    }
-                                    
-                                    var res: [String] = []
-                                    
-                                    for filePath in filePaths {
-                                        res.append(containerURL.appendingPathComponent(filePath).path()
-                                            .removingPercentEncoding!)
-                                    }
-                                    
-                                    tmp = "got here \(res)"
-                                    
-                                    DI.sheets.movingInfo = .Import(res)
-                                    
+                            if url.scheme == "lb" {
+                                tmp = url.absoluteString
+                                if url.host == "sharedFiles" {
+                                    tmp = "got in \(url.absoluteString)"
+                                    handleImportLink(url: url)
                                 } else {
-                                    tmp = "failed"
+                                    handleOpenLink(url: url)
                                 }
                             }
                             
-                            guard let uuidString = url.host, let id = UUID(uuidString: uuidString), url.scheme == "lb" else {
-                                DI.errors.errorWithTitle("Malformed link", "Cannot open file")
-                                return
-                            }
-        
-                            DispatchQueue.global(qos: .userInitiated).async {
-                                while !DI.files.hasRootLoaded {
-                                    Thread.sleep(until: .now + 1)
-                                }
-        
-                                Thread.sleep(until: .now + 0.1)
-        
-                                if DI.files.idsAndFiles[id] == nil {
-                                    DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
-                                }
-        
-                                DispatchQueue.main.async {
-                                    DI.workspace.requestOpenDoc(id)
-                                }
-                            }
                         }
                         .handlesExternalEvents(preferring: ["lb"], allowing: ["lb"])
                 }
@@ -100,6 +63,51 @@ struct AppView: View {
                     )
                 }
             }
+    }
+    
+    func handleImportLink(url: URL) {
+        if let filePathsQuery = url.query {
+            let filePaths = filePathsQuery.removingPercentEncoding?.components(separatedBy: ",") ?? []
+            
+            guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") else {
+                return
+            }
+            
+            var res: [String] = []
+            
+            for filePath in filePaths {
+                res.append(containerURL.appendingPathComponent(filePath).path()
+                    .removingPercentEncoding!)
+            }
+                                                
+            DI.sheets.movingInfo = .Import(res)
+            
+        }
+
+    }
+    
+    func handleOpenLink(url: URL) {
+        guard let uuidString = url.host, let id = UUID(uuidString: uuidString) else {
+            DI.errors.errorWithTitle("Malformed link", "Cannot open file")
+            return
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            while !DI.files.hasRootLoaded {
+                Thread.sleep(until: .now + 1)
+            }
+
+            Thread.sleep(until: .now + 0.1)
+
+            if DI.files.idsAndFiles[id] == nil {
+                DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
+            }
+
+            DispatchQueue.main.async {
+                DI.workspace.requestOpenDoc(id)
+            }
+        }
+
     }
     
     let updateAlert: Alert = Alert(

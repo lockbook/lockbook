@@ -129,7 +129,7 @@ struct PlatformView: View {
                         }, label: {
                             if let meta = DI.files.idsAndFiles[id] {
                                 HStack {
-                                    Image(systemName: FileService.docExtToSystemImage(name: meta.name))
+                                    Image(systemName: FileService.metaToSystemImage(meta: meta))
                                         .foregroundColor(.primary)
                                         .imageScale(.medium)
                                         .padding(.trailing)
