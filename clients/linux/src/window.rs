@@ -1,4 +1,4 @@
-use egui::{Context, PlatformOutput, Visuals};
+use egui::{Context, PlatformOutput, ViewportCommand, Visuals};
 use egui_wgpu_backend::{
     wgpu::{self, CompositeAlphaMode},
     ScreenDescriptor,
@@ -183,10 +183,24 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // only draw frames if we got events (including repaint requests)
             let Output {
-                egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
-                window_title,
+                platform: PlatformOutput { cursor_icon, open_url, copied_text, .. },
+                viewport,
                 app: lbeguiapp::Response { close },
             } = lb.frame();
+            let window_title = {
+                let maybe_viewport_output = viewport.values().next();
+                if maybe_viewport_output.is_none() {
+                    eprintln!("viewport missing: not setting window title");
+                }
+
+                let window_title = maybe_viewport_output.and_then(|v| {
+                    v.commands.iter().find_map(|c| match c {
+                        ViewportCommand::Title(title) => Some(title.clone()),
+                        _ => None,
+                    })
+                });
+                window_title
+            };
 
             // set modifiers
             let pointer_state = conn.query_pointer(window_id)?.reply()?;

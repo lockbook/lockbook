@@ -352,19 +352,15 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                             let window_title = {
                                 let maybe_viewport_output = viewport.values().next();
                                 if maybe_viewport_output.is_none() {
-                                    eprintln!(
-                                        "viewport missing: not redrawing or setting window title"
-                                    );
+                                    eprintln!("viewport missing: not setting window title");
                                 }
 
-                                let window_title = maybe_viewport_output
-                                    .map(|v| {
-                                        v.commands.iter().find_map(|c| match c {
-                                            ViewportCommand::Title(title) => Some(title.clone()),
-                                            _ => None,
-                                        })
+                                let window_title = maybe_viewport_output.and_then(|v| {
+                                    v.commands.iter().find_map(|c| match c {
+                                        ViewportCommand::Title(title) => Some(title.clone()),
+                                        _ => None,
                                     })
-                                    .flatten();
+                                });
                                 window_title
                             };
 
