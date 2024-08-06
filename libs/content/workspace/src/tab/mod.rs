@@ -46,7 +46,7 @@ impl Tab {
         }
     }
 
-    pub fn is_dirty(&self) -> bool {
+    pub fn changed(&self) -> bool {
         self.last_changed > self.last_saved
     }
 }

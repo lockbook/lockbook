@@ -78,7 +78,7 @@ impl SVGEditor {
         ui.vertical(|ui| {
             egui::Frame::default()
                 .fill(if ui.visuals().dark_mode {
-                    egui::Color32::GRAY.gamma_multiply(0.03)
+                    egui::Color32::GRAY.linear_multiply(0.03)
                 } else {
                     ui.visuals().faint_bg_color
                 })
@@ -92,12 +92,8 @@ impl SVGEditor {
                     );
 
                     self.inner_rect = ui.available_rect_before_wrap();
-                    self.renderer.render_svg(
-                        ui,
-                        &mut self.buffer,
-                        self.inner_rect,
-                        self.toolbar.pen.current_id,
-                    );
+                    self.renderer
+                        .render_svg_parralel(ui, &mut self.buffer, self.inner_rect);
                 });
         });
 

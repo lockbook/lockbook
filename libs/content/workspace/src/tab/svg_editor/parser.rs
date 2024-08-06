@@ -37,7 +37,6 @@ pub struct ManipulatorGroupId;
 #[derive(Default)]
 pub struct Buffer {
     pub elements: HashMap<String, Element>,
-    pub deleted_elements: HashMap<String, Element>,
     pub master_transform: Transform,
     pub needs_path_map_update: bool,
 }
@@ -50,10 +49,17 @@ pub enum Element {
 }
 
 impl Element {
-    pub fn is_dirty(&self) -> bool {
+    pub fn changed(&self) -> bool {
         match self {
-            Element::Path(p) => p.dirty,
-            Element::Image(i) => i.dirty,
+            Element::Path(p) => p.changed,
+            Element::Image(i) => i.changed,
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn deleted(&self) -> bool {
+        match self {
+            Element::Path(p) => p.deleted,
+            Element::Image(i) => i.deleted,
             Element::Text(_) => todo!(),
         }
     }
@@ -68,7 +74,17 @@ pub struct Path {
     pub transform: Transform,
     pub opacity: f32,
     pub pressure: Option<Vec<f32>>,
-    pub dirty: bool,
+    pub changed: bool,
+    pub deleted: bool,
+}
+
+impl Path {
+    pub fn on_change(&self, callback: impl FnOnce() -> ()) {
+        callback();
+    }
+    pub fn on_create(&self, callback: impl FnOnce() -> ()) {
+        callback();
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -92,7 +108,8 @@ pub struct Image {
     pub texture: Option<TextureHandle>,
     pub opacity: f32,
     pub href: Option<String>,
-    pub dirty: bool,
+    pub changed: bool,
+    pub deleted: bool,
 }
 
 impl Buffer {
@@ -148,7 +165,8 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     texture: None,
                     opacity: 1.0,
                     href: Some(img.id().to_string()),
-                    dirty: true,
+                    changed: true,
+                    deleted: false,
                 }),
             );
         }
@@ -182,7 +200,8 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     transform: path.abs_transform(),
                     opacity,
                     pressure: None,
-                    dirty: true,
+                    changed: true,
+                    deleted: false,
                 }),
             );
         }

@@ -56,11 +56,11 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
                 parser::Element::Path(path) => {
                     path.transform = path.transform.post_concat(t);
                     path.data.apply_transform(transform);
-                    path.dirty = true;
+                    path.changed = true;
                 }
                 parser::Element::Image(img) => {
                     img.apply_transform(t);
-                    img.dirty = true;
+                    img.changed = true;
                 }
                 parser::Element::Text(_) => todo!(),
             }

@@ -536,7 +536,7 @@ impl Workspace {
 
     pub fn save_tab(&self, i: usize) {
         if let Some(tab) = self.tabs.get(i) {
-            if tab.is_dirty() {
+            if tab.changed() {
                 if let Some(save_req) = tab.make_save_request() {
                     let core = self.core.clone();
                     let update_tx = self.updates_tx.clone();

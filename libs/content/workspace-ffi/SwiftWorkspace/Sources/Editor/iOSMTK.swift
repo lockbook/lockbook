@@ -1032,7 +1032,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
             let location = touch.location(in: self)
-            let force = touch.force == 0 ? touch.force / touch.maximumPossibleForce : 0
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
 
             touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(force))
         }
@@ -1045,7 +1045,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
             let location = touch.location(in: self)
-            let force = touch.force == 0 ? touch.force / touch.maximumPossibleForce : 0
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
 
             touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
         }
@@ -1058,7 +1058,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
             let location = touch.location(in: self)
-            let force = touch.force == 0 ? touch.force / touch.maximumPossibleForce : 0
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
             
             touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
         }
@@ -1071,7 +1071,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
             let location = touch.location(in: self)
-            let force = touch.force == 0 ? touch.force / touch.maximumPossibleForce : 0
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
 
             touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(force))
         }

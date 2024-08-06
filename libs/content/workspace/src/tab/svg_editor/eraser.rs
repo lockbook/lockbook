@@ -19,10 +19,15 @@ impl Default for Eraser {
         Self::new()
     }
 }
+pub const DEFAULT_ERASER_THICKNESS: f32 = 5.0;
 
 impl Eraser {
     pub fn new() -> Self {
-        Eraser { delete_candidates: HashMap::default(), thickness: 10.0, last_pos: None }
+        Eraser {
+            delete_candidates: HashMap::default(),
+            thickness: DEFAULT_ERASER_THICKNESS,
+            last_pos: None,
+        }
     }
 
     pub fn handle_input(
@@ -51,8 +56,14 @@ impl Eraser {
                         if let Some(el) = buffer.elements.get_mut(id) {
                             if !*has_decreased_opacity {
                                 match el {
-                                    super::parser::Element::Path(p) => p.opacity *= 0.5,
-                                    super::parser::Element::Image(img) => img.opacity = 0.3,
+                                    super::parser::Element::Path(p) => {
+                                        p.opacity *= 0.5;
+                                        p.changed = true
+                                    }
+                                    super::parser::Element::Image(img) => {
+                                        img.opacity = 0.3;
+                                        img.changed = true
+                                    }
                                     super::parser::Element::Text(_) => todo!(),
                                 }
                             }
@@ -72,9 +83,11 @@ impl Eraser {
                         match el {
                             super::parser::Element::Path(p) => {
                                 p.opacity = 1.0;
+                                p.deleted = true;
                             }
                             super::parser::Element::Image(img) => {
                                 img.opacity = 1.0;
+                                img.deleted = true;
                             }
                             super::parser::Element::Text(_) => todo!(),
                         }
@@ -87,9 +100,7 @@ impl Eraser {
                         .collect(),
                 );
 
-                // todo: figure out if the history api should automatically apply the event on save
                 history.save(event.clone());
-                history.apply_event(&event, buffer);
 
                 self.delete_candidates.clear();
             }
