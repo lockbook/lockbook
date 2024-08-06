@@ -72,22 +72,24 @@ impl Renderer {
                 }
 
                 if let Some(transform) = el.transformed() {
-                    let maybe_el_rect = match el {
-                        parser::Element::Path(p) => {
-                            if let Some(bb) = p.data.bounding_box() {
-                                Some(bb_to_rect(bb))
-                            } else {
-                                None
-                            }
-                        }
-                        parser::Element::Image(i) => Some(i.bounding_box()),
-                        parser::Element::Text(_) => todo!(),
-                    };
-                    return if let Some(el_rect) = maybe_el_rect {
-                        Some((id.clone(), RenderOp::Transform(transform, el_rect)))
-                    } else {
-                        None
-                    };
+                    return Some((id.clone(), RenderOp::Transform(transform, egui::Rect::NOTHING)));
+
+                    // let maybe_el_rect = match el {
+                    //     parser::Element::Path(p) => {
+                    //         if let Some(bb) = p.data.bounding_box() {
+                    //             Some(bb_to_rect(bb))
+                    //         } else {
+                    //             None
+                    //         }
+                    //     }
+                    //     parser::Element::Image(i) => Some(i.bounding_box()),
+                    //     parser::Element::Text(_) => todo!(),
+                    // };
+                    // return if let Some(el_rect) = maybe_el_rect {
+                    //     Some((id.clone(), RenderOp::Transform(transform, el_rect)))
+                    // } else {
+                    //     None
+                    // };
                 }
 
                 tesselate_element(el, id, &painter, ui.visuals().dark_mode, buffer.master_transform)
@@ -103,42 +105,51 @@ impl Renderer {
                     self.mesh_cache.insert(id.to_owned(), m);
                 }
                 RenderOp::Transform(t, rect) => {
-                    if painter.clip_rect().contains_rect(rect)
-                        || painter.clip_rect().intersects(rect)
-                    {
-                        if let Some(mesh) = self.mesh_cache.get_mut(&id) {
-                            println!("TRANSFORM el : {}", id);
-                            if let egui::Shape::Mesh(m) = mesh {
-                                for v in &mut m.vertices {
-                                    v.pos.x = t.sx * v.pos.x + t.tx;
-                                    v.pos.y = t.sy * v.pos.y + t.ty;
-                                }
+                    if let Some(mesh) = self.mesh_cache.get_mut(&id) {
+                        println!("TRANSFORM el : {}", id);
+                        if let egui::Shape::Mesh(m) = mesh {
+                            for v in &mut m.vertices {
+                                v.pos.x = t.sx * v.pos.x + t.tx;
+                                v.pos.y = t.sy * v.pos.y + t.ty;
                             }
-                        } else {
-                            if let Some(el) = buffer.elements.get_mut(&id) {
-                                let mut out = tesselate_element(
-                                    el,
-                                    &id.clone(),
-                                    &painter,
-                                    ui.visuals().dark_mode,
-                                    buffer.master_transform,
-                                );
-                                if let Some((_, RenderOp::Paint(shape))) = &mut out {
-                                    if let egui::Shape::Mesh(m) = shape {
-                                        for v in &mut m.vertices {
-                                            v.pos.x = t.sx * v.pos.x + t.tx;
-                                            v.pos.y = t.sy * v.pos.y + t.ty;
-                                        }
-                                    }
-                                    self.mesh_cache.insert(id.to_owned(), shape.clone());
-                                }
-                            }
-                        }
-                    } else {
-                        if self.mesh_cache.remove(&id).is_some() {
-                            println!("EVICT el : {}", id);
                         }
                     }
+                    // if painter.clip_rect().contains_rect(rect)
+                    //     || painter.clip_rect().intersects(rect)
+                    // {
+                    //     if let Some(mesh) = self.mesh_cache.get_mut(&id) {
+                    //         println!("TRANSFORM el : {}", id);
+                    //         if let egui::Shape::Mesh(m) = mesh {
+                    //             for v in &mut m.vertices {
+                    //                 v.pos.x = t.sx * v.pos.x + t.tx;
+                    //                 v.pos.y = t.sy * v.pos.y + t.ty;
+                    //             }
+                    //         }
+                    //     } else {
+                    //         if let Some(el) = buffer.elements.get_mut(&id) {
+                    //             let mut out = tesselate_element(
+                    //                 el,
+                    //                 &id.clone(),
+                    //                 &painter,
+                    //                 ui.visuals().dark_mode,
+                    //                 buffer.master_transform,
+                    //             );
+                    //             if let Some((_, RenderOp::Paint(shape))) = &mut out {
+                    //                 if let egui::Shape::Mesh(m) = shape {
+                    //                     for v in &mut m.vertices {
+                    //                         v.pos.x = t.sx * v.pos.x + t.tx;
+                    //                         v.pos.y = t.sy * v.pos.y + t.ty;
+                    //                     }
+                    //                 }
+                    //                 self.mesh_cache.insert(id.to_owned(), shape.clone());
+                    //             }
+                    //         }
+                    //     }
+                    // } else {
+                    //     if self.mesh_cache.remove(&id).is_some() {
+                    //         println!("EVICT el : {}", id);
+                    //     }
+                    // }
                 }
             }
         }
@@ -228,7 +239,7 @@ fn tesselate_element(
                     &StrokeOptions::default()
                         .with_line_cap(LineCap::Round)
                         .with_line_join(LineJoin::Round)
-                        .with_tolerance(1.0)
+                        .with_tolerance(0.1)
                         .with_variable_line_width(STROKE_WIDTH),
                     &mut BuffersBuilder::new(&mut mesh, VertexConstructor { color: stroke_color }),
                 );
