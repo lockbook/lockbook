@@ -43,6 +43,8 @@ struct PlatformView: View {
                         return AlertToast(type: .regular, title: "Folder created")
                     case .importFiles:
                         return AlertToast(type: .regular, title: "Imported successfully")
+                    case .acceptedShare:
+                        return AlertToast(type: .regular, title: "Accepted share")
                     }
                 } else {
                     return AlertToast(type: .regular, title: "ERROR")
@@ -73,7 +75,8 @@ struct PlatformView: View {
         .sheet(isPresented: $sheets.moving, content: {
             if let action = sheets.movingInfo {
                 SelectFolderView(action: action)
-                    .presentationDetents([.fraction(0.5)])
+                    .presentationDragIndicator(.visible)
+                    .presentationDetents([.medium, .large])
             }
         })
     }

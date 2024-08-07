@@ -455,4 +455,5 @@ public enum FileAction {
     case delete
     case createFolder
     case importFiles
+    case acceptedShare
 }

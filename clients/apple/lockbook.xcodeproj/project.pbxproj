@@ -13,8 +13,6 @@
 		4709C77129FDAAE9004449EF /* SuggestedDocs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709C76F29FDAAE9004449EF /* SuggestedDocs.swift */; };
 		4709DC38296609F100426106 /* PendingSharesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC37296609F100426106 /* PendingSharesView.swift */; };
 		4709DC39296609F100426106 /* PendingSharesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC37296609F100426106 /* PendingSharesView.swift */; };
-		4709DC3E2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
-		4709DC3F2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
 		47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */ = {isa = PBXBuildFile; productRef = 47159F4529CFA05B00969DDF /* DSFQuickActionBar */; };
 		471C788D2B4910A80022B3B2 /* SwiftWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 471C788C2B4910A80022B3B2 /* SwiftWorkspace */; };
 		471E363529FD5F5C00A1958A /* DesktopHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8F925ACBCF9005B7B01 /* DesktopHomeView.swift */; };
@@ -165,7 +163,6 @@
 		1F7E4FBE2521297D0045F606 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		4709C76F29FDAAE9004449EF /* SuggestedDocs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestedDocs.swift; sourceTree = "<group>"; };
 		4709DC37296609F100426106 /* PendingSharesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingSharesView.swift; sourceTree = "<group>"; };
-		4709DC3D2966260500426106 /* AcceptShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcceptShareSheet.swift; sourceTree = "<group>"; };
 		472F9EDD2A6C468A005F4785 /* Lockbook (iOS).entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Lockbook (iOS).entitlements"; sourceTree = "<group>"; };
 		473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePathBreadcrumb.swift; sourceTree = "<group>"; };
 		4741C7902939C9220073F24F /* Products.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Products.storekit; sourceTree = "<group>"; };
@@ -444,7 +441,6 @@
 				EA831A542534E3C80048CE26 /* AppView.swift */,
 				8741E8E325AAA524005B7B01 /* BottomBar.swift */,
 				477CC48F2967A53C00714456 /* ShareFileSheet.swift */,
-				4709DC3D2966260500426106 /* AcceptShareSheet.swift */,
 				4756C4DA2A57CE86002C64B1 /* CreateFolderSheet.swift */,
 				EA9079C22569960A00E04F5D /* ListFileCell.swift */,
 				87F78F762709352C0001E159 /* LogoView.swift */,
@@ -682,7 +678,6 @@
 				877FB55026D17FD00008AB3F /* UnexpectedErrorService.swift in Sources */,
 				476436CC29B7DE4E00FBDC59 /* SearchService.swift in Sources */,
 				877FB55626D18AA60008AB3F /* AccountService.swift in Sources */,
-				4709DC3E2966260500426106 /* AcceptShareSheet.swift in Sources */,
 				6581ABD3CA16395327F765E8 /* SheetState.swift in Sources */,
 				47FC8F5F2C24B6580023069E /* PlatformView.swift in Sources */,
 				477CC4902967A53C00714456 /* ShareFileSheet.swift in Sources */,
@@ -708,7 +703,6 @@
 				47DBF1F22A61A51000F86B3F /* ImportExportService.swift in Sources */,
 				874A88F626D3E91900F010C8 /* DI.swift in Sources */,
 				477CC4912967A53C00714456 /* ShareFileSheet.swift in Sources */,
-				4709DC3F2966260500426106 /* AcceptShareSheet.swift in Sources */,
 				8715F92927161CC60051689E /* OnboardingView.swift in Sources */,
 				870DC09F26BDE6F4002E9A92 /* SettingsView.swift in Sources */,
 				4779C62E2AB8C09E007C0100 /* PathSearchActionBar.swift in Sources */,

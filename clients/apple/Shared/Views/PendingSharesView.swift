@@ -36,7 +36,7 @@ struct PendingSharesView: View {
             Spacer()
         }
         .navigationTitle("Pending Shares")
-        .sheet(isPresented: $sheets.acceptingShare, content: AcceptShareSheet.init)
+//        .sheet(isPresented: $sheets.acceptingShare, content: AcceptShareSheet.init)
     }
     
     @ViewBuilder
@@ -72,7 +72,7 @@ struct SharedFileCell: View {
             Spacer()
             
             Button {
-                sheets.acceptingShareInfo = meta
+                sheets.movingInfo = .AcceptShare((meta.name, meta.id))
             } label: {
                 Image(systemName: "plus.circle")
                     .imageScale(.large)
