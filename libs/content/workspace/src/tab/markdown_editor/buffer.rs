@@ -315,7 +315,7 @@ impl SubBuffer {
     /// Adjust a range based on a text replacement. Positions before the replacement generally are not adjusted,
     /// positions after the replacement generally are, and positions within the replacement are adjusted to the end of
     /// the replacement if `prefer_advance` is true or are adjusted to the start of the replacement otherwise.
-    fn adjust_subsequent_range(
+    pub fn adjust_subsequent_range(
         replaced_range: (DocCharOffset, DocCharOffset), replacement_len: RelCharOffset,
         prefer_advance: bool, maybe_range: Option<&mut (DocCharOffset, DocCharOffset)>,
     ) {
@@ -442,6 +442,7 @@ impl SubBuffer {
     }
 
     fn replace_range(&mut self, range: Range<DocCharOffset>, replacement: &str) {
+        let old_text = self.text.clone();
         self.text.replace_range(
             Range {
                 start: self.segs.offset_to_byte(range.start).0,
@@ -449,6 +450,7 @@ impl SubBuffer {
             },
             replacement,
         );
+        println!("replace_range: {:?} -> {:?}", old_text, self.text);
     }
 }
 

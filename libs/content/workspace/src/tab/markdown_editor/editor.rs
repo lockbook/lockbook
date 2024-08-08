@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use egui::os::OperatingSystem;
 use egui::{Color32, Event, Frame, Rect, Sense, Ui, Vec2};
-use lb_rs::Uuid;
+use lb_rs::{DocumentHmac, Uuid};
 use serde::Serialize;
 
 use crate::tab::markdown_editor::appearance::Appearance;
@@ -46,6 +46,8 @@ pub struct Editor {
 
     // state
     pub buffer: Buffer,
+    pub initial_content: String,
+    pub hmac: Option<DocumentHmac>,
     pub pointer_state: PointerState,
     pub debug: DebugInfo,
     pub images: ImageCache,
@@ -66,7 +68,8 @@ pub struct Editor {
 
 impl Editor {
     pub fn new(
-        core: lb_rs::Core, content: &str, file_id: Uuid, needs_name: bool, plaintext_mode: bool,
+        core: lb_rs::Core, content: &str, file_id: Uuid, hmac: Option<DocumentHmac>,
+        needs_name: bool, plaintext_mode: bool,
     ) -> Self {
         Self {
             core,
@@ -79,6 +82,8 @@ impl Editor {
             appearance: Appearance { plaintext_mode, ..Default::default() },
 
             buffer: content.into(),
+            initial_content: content.into(),
+            hmac,
             pointer_state: Default::default(),
             debug: Default::default(),
             images: Default::default(),
