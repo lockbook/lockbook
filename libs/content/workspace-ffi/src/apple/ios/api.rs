@@ -862,7 +862,7 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
                 // TabContent::PlainText(_) => 4,
                 TabContent::Pdf(_) => 5,
                 TabContent::Svg(_) => 6,
-                TabContent::MergeMarkdown { hmac, content } => todo!(),
+                TabContent::MergeMarkdown { .. } => unreachable!(),
             },
             None => 1,
         },
