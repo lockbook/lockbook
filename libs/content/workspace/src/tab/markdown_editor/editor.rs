@@ -1,9 +1,7 @@
 use std::time::{Duration, Instant};
 
 use egui::os::OperatingSystem;
-use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
 use egui::{Color32, Event, Frame, Rect, Sense, Ui, Vec2};
-use lb_rs::Uuid;
 use lb_rs::{DocumentHmac, Uuid};
 use serde::Serialize;
 

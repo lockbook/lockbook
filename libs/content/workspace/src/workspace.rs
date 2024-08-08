@@ -1,5 +1,4 @@
-use egui::{vec2, Color32, Context, Image, Ui};
-use egui::{vec2, Context, Image, ViewportCommand};
+use egui::{vec2, Context, Image, Ui, ViewportCommand};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -12,10 +11,12 @@ use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
-use crate::tab::{EventManager, Tab, TabContent, TabFailure};
+use crate::tab::{ExtendedInput as _, Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
-use lb_rs::{DocumentHmac, File, FileType, LbError, NameComponents, SyncProgress, SyncStatus, Uuid};
+use lb_rs::{
+    DocumentHmac, File, FileType, LbError, NameComponents, SyncProgress, SyncStatus, Uuid,
+};
 
 pub struct Workspace {
     pub cfg: WsConfig,
@@ -411,7 +412,7 @@ impl Workspace {
                                 svg.show(ui);
                                 tab.last_changed = Instant::now();
                             }
-                            TabContent::MergeMarkdown { hmac, content } => {
+                            TabContent::MergeMarkdown { .. } => {
                                 unreachable!()
                             }
                         };
@@ -735,7 +736,7 @@ impl Workspace {
                                 TabContent::MergeMarkdown { hmac, content } => {
                                     match tab.content.as_mut().unwrap() {
                                         TabContent::Markdown(md) => {
-                                            md.editor.scroll_ui(ui);
+                                            md.editor.show(ui);
                                             let evt = md.editor.merge(
                                                 &md.editor.initial_content,
                                                 &String::from_utf8_lossy(&content),
@@ -782,10 +783,10 @@ impl Workspace {
                                 match tab.content.as_mut().unwrap() {
                                     TabContent::Markdown(md) => {
                                         md.editor.hmac = Some(hmac);
-                                    },
-                                    _ => unreachable!()
+                                    }
+                                    _ => unreachable!(),
                                 }
-                            },
+                            }
                             Err(err) => {
                                 tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
                             }
