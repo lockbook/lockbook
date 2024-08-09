@@ -5,40 +5,142 @@ import SwiftLockbookCore
 import UIKit
 
 class SelectFolderViewModel: ObservableObject {
-    @Binding var searchInput: String
-}
-
-struct SelectFolderView: View {
-    @EnvironmentObject var core: CoreService
+    @Published var searchInput: String = ""
+    @Published var error: String? = nil
     
-    @State var searchInput: String = ""
-    @State var error: String? = nil
-    @State var selected = 0
-    var selectedPath: String? {
-        guard filteredFolderPaths.count <= selected else {
-            return nil
-        }
-        return filteredFolderPaths[selected]
-
-    }
-    
-    @Environment(\.presentationMode) var presentationMode
-    
-    @State var folderPaths: [String]? = nil
-    let action: SelectFolderAction
-    @State var mode: SelectFolderMode = .Tree
-    
+    @Published var folderPaths: [String]? = nil
     var filteredFolderPaths: [String] {
         if let folderPaths = folderPaths {
             if searchInput.isEmpty {
                 return folderPaths
             } else {
-                return folderPaths.filter { $0.localizedCaseInsensitiveContains(searchInput) }
+                return folderPaths.filter { path in
+                    path.localizedCaseInsensitiveContains(searchInput) && !ignorePrefixPaths.contains(where: { path.hasPrefix($0) })
+                }
             }
         } else {
             return []
         }
     }
+    
+    @Published var selected = 0 {
+        didSet {
+            recomputeSelectedPath()
+        }
+    }
+    @Published var selectedPath: String = ""
+    
+    @Published var ignorePrefixPaths: [String] = []
+    @Published var ignoreParentIds: [UUID] = []
+    
+    func recomputeSelectedPath() {
+        if filteredFolderPaths.count <= selected {
+            selectedPath = ""
+        } else {
+            selectedPath = filteredFolderPaths[selected]
+        }
+    }
+    
+    func calculateFolderPaths() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            switch DI.files.getFolderPaths() {
+            case .none:
+                DispatchQueue.main.async {
+                    self.error = "Could not get folder paths."
+                }
+            case .some(let folderPaths):
+                DispatchQueue.main.async {
+                    self.folderPaths = folderPaths
+                }
+            }
+        }
+    }
+    
+    func filterFolders(action: SelectFolderAction) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            if case .Move(let ids) = action {
+                DispatchQueue.main.sync {
+                    self.ignoreParentIds = ids
+                }
+                for id in ids {
+                    switch DI.core.getPathById(id: id) {
+                    case .success(let path):
+                        DispatchQueue.main.sync {
+                            self.ignorePrefixPaths.append(path)
+                        }
+                    case .failure(let cError):
+                        DispatchQueue.main.sync {
+                            self.error = cError.description
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    func selectFolder(action: SelectFolderAction, path: String) -> Bool {
+        switch DI.core.getFileByPath(path: path) {
+        case .success(let parent):
+            print("got the folder id selected: \(path) to \(parent.id)")
+            return selectFolder(action: action, newParent: parent.id)
+        case .failure(let cError):
+            error = cError.description
+            
+            return false
+        }
+    }
+    
+    func selectFolder(action: SelectFolderAction, newParent: UUID) -> Bool {
+        switch action {
+        case .Move(let ids):
+            for id in ids {
+                if case .failure(let cError) = DI.core.moveFile(id: id, newParent: newParent) {
+                    error = cError.description
+
+                    return false
+                }
+            }
+            
+            DI.files.successfulAction = .move
+            DI.files.refresh()
+            
+            return true
+        case .Import(let paths):
+            if case .failure(let cError) = DI.core.importFiles(sources: paths, destination: newParent) {
+                error = cError.description
+                
+                return false
+            }
+            
+            DI.files.successfulAction = .importFiles
+            DI.files.refresh()
+            
+            return true
+        case .AcceptShare((let name, let id)):
+            if case .failure(let cError) = DI.core.createLink(name: name, dirId: newParent, target: id) {
+                error = cError.description
+                
+                return false
+            }
+            
+            DI.files.successfulAction = .acceptedShare
+            DI.files.refresh()
+            DI.share.calculatePendingShares()
+            
+            return true
+        }
+    }
+
+}
+
+struct SelectFolderView: View {
+    @EnvironmentObject var core: CoreService
+    @StateObject var viewModel = SelectFolderViewModel()
+
+    let action: SelectFolderAction
+    @State var mode: SelectFolderMode = .Tree
+    
+    @Environment(\.dismiss) private var dismiss
 
     var actionMsg: String {
         switch action {
@@ -52,12 +154,17 @@ struct SelectFolderView: View {
     }
     
     var body: some View {
-        switch mode {
-        case .List:
-            folderListView
-        case .Tree:
-            folderTreeView
+        Group {
+            switch mode {
+            case .List:
+                folderListView
+            case .Tree:
+                folderTreeView
+            }
         }
+        .onAppear(perform: {
+            viewModel.filterFolders(action: action)
+        })
     }
     
     var folderListView: some View {
@@ -65,20 +172,18 @@ struct SelectFolderView: View {
             VStack {
                 HStack {
                     SelectFolderTextFieldWrapper(placeholder: "Search folder", onSubmit: {
-                        guard let selectedFolder = filteredFolderPaths.first else {
-                            return
+                        if viewModel.selectFolder(action: action, path: viewModel.selectedPath.isEmpty ? "/" : viewModel.selectedPath) {
+                            dismiss()
                         }
-                        
-                        selectFolder(path: selectedFolder.isEmpty ? "/" : selectedFolder)
-                    }, text: $searchInput, selected: $selected, totalPaths: Binding(get: { filteredFolderPaths.count }, set: { _ in }))
+                    }, viewModel: viewModel)
                         .frame(height: 19)
-                        .onChange(of: searchInput) { _ in
-                            selected = 0
+                        .onChange(of: viewModel.searchInput) { _ in
+                            viewModel.selected = 0
                         }
                     
-                    if !searchInput.isEmpty {
+                    if !viewModel.searchInput.isEmpty {
                         Button(action: {
-                            searchInput = ""
+                            viewModel.searchInput = ""
                         }, label: {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundStyle(.gray)
@@ -105,7 +210,7 @@ struct SelectFolderView: View {
             }
             
             HStack {
-                if let error = error {
+                if let error = viewModel.error {
                     Text(error)
                         .foregroundStyle(.red)
                         .fontWeight(.bold)
@@ -120,18 +225,20 @@ struct SelectFolderView: View {
             .padding(.horizontal)
             .padding(.vertical, 5)
             
-            if folderPaths != nil {
-                List(filteredFolderPaths, id: \.self) { path in
+            if viewModel.folderPaths != nil {
+                List(viewModel.filteredFolderPaths, id: \.self) { path in
                     HStack {
                         Button(action: {
-                            selectFolder(path: path.isEmpty ? "/" : path)
+                            if viewModel.selectFolder(action: action, path: path.isEmpty ? "/" : path) {
+                                dismiss()
+                            }
                         }, label: {
-                            HighlightedText(text: path.isEmpty ? "/" : path, pattern: searchInput, textSize: 16)
+                            HighlightedText(text: path.isEmpty ? "/" : path, pattern: viewModel.searchInput, textSize: 16)
                         })
                         
                         Spacer()
                     }
-                    .modifier(SelectedItemModifier(item: path, selected: selectedPath ?? ""))
+                    .modifier(SelectedItemModifier(item: path.isEmpty ? "/" : path, selected: viewModel.selectedPath))
                     .listRowSeparator(.hidden)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 1)
@@ -145,27 +252,20 @@ struct SelectFolderView: View {
             Spacer()
         }
         .onAppear {
-            DispatchQueue.global(qos: .userInitiated).async {
-                switch DI.files.getFolderPaths() {
-                case .none:
-                    error = "Could not get folder paths."
-                case .some(let folderPaths):
-                    DispatchQueue.main.async {
-                        self.folderPaths = folderPaths
-                    }
-                }
-            }
+            viewModel.calculateFolderPaths()
         }
     }
     
     var folderTreeView: some View {
         let root = DI.files.files.first(where: { $0.parent == $0.id })!
-        let wc = WithChild(root, DI.files.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
+        let wc = WithChild(root, DI.files.files, { parent, meta in
+            parent.id == meta.parent && parent.id != meta.id && meta.fileType == .Folder && !viewModel.ignoreParentIds.contains(where: { id in meta.id == id })
+        })
         
         
         return VStack {
             HStack {
-                if let error = error {
+                if let error = viewModel.error {
                     Text(error)
                         .foregroundStyle(.red)
                         .fontWeight(.bold)
@@ -196,7 +296,9 @@ struct SelectFolderView: View {
                     node: wc,
                     row: { dest in
                         Button(action: {
-                            selectFolder(newParent: dest.id)
+                            if viewModel.selectFolder(action: action, newParent: dest.id) {
+                                dismiss()
+                            }
                         }, label: {
                             Label(dest.name, systemImage: FileService.metaToSystemImage(meta: dest))
                                 .foregroundStyle(.foreground)
@@ -210,53 +312,6 @@ struct SelectFolderView: View {
         .padding(.top)
     }
     
-    func selectFolder(path: String) {
-        switch core.core.getFileByPath(path: path) {
-        case .success(let parent):
-            selectFolder(newParent: parent.id)
-            print("got the folder id selected: \(path) to \(parent.id)")
-        case .failure(let cError):
-            error = cError.description
-        }
-    }
-    
-    func selectFolder(newParent: UUID) {
-        switch action {
-        case .Move(let ids):
-            for id in ids {
-                if case .failure(let cError) = core.core.moveFile(id: id, newParent: newParent) {
-                    error = cError.description
-
-                    return
-                }
-            }
-            
-            presentationMode.wrappedValue.dismiss()
-            DI.files.successfulAction = .move
-            DI.files.refresh()
-        case .Import(let paths):
-            if case .failure(let cError) = core.core.importFiles(sources: paths, destination: newParent) {
-                error = cError.description
-                
-                return
-            }
-            
-            presentationMode.wrappedValue.dismiss()
-            DI.files.successfulAction = .importFiles
-            DI.files.refresh()
-        case .AcceptShare((let name, let id)):
-            if case .failure(let cError) = core.core.createLink(name: name, dirId: id, target: newParent) {
-                error = cError.description
-                
-                return
-            }
-            
-            DI.files.successfulAction = .acceptedShare
-            DI.files.refresh()
-            DI.share.calculatePendingShares()
-            presentationMode.wrappedValue.dismiss()
-        }
-    }
 }
 
 struct SelectedItemModifier: ViewModifier {
@@ -287,16 +342,16 @@ enum SelectFolderMode {
     case Tree
 }
 
-struct SelectFolderViewPreview: PreviewProvider {
-    
-    static var previews: some View {
-        Color.white
-            .sheet(isPresented: .constant(true), content: {
-                SelectFolderView(folderPaths: ["cookies", "apples", "cookies/android/apple/nice"], action: .Import([]))
-            })
-            .mockDI()
-    }
-}
+//struct SelectFolderViewPreview: PreviewProvider {
+//    
+//    static var previews: some View {
+//        Color.white
+//            .sheet(isPresented: .constant(true), content: {
+//                SelectFolderView(folderPaths: ["cookies", "apples", "cookies/android/apple/nice"], action: .Import([]))
+//            })
+//            .mockDI()
+//    }
+//}
 
 struct HighlightedText: View {
     let text: AttributedString
@@ -320,10 +375,8 @@ struct HighlightedText: View {
 struct SelectFolderTextFieldWrapper: UIViewRepresentable {
     var placeholder: String
     var onSubmit: () -> Void
-    
-    @Binding var text: String
-    @Binding var selected: Int
-    @Binding var totalPaths: Int
+        
+    @StateObject var viewModel: SelectFolderViewModel
     
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -334,6 +387,7 @@ struct SelectFolderTextFieldWrapper: UIViewRepresentable {
         textField.delegate = context.coordinator
         textField.placeholder = placeholder
         textField.returnKeyType = .done
+        textField.viewModel = viewModel
         
         textField.becomeFirstResponder()
         
@@ -343,7 +397,7 @@ struct SelectFolderTextFieldWrapper: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: SelectFolderTextField, context: Context) {
-        uiView.text = text
+        uiView.text = viewModel.searchInput
     }
         
     class Coordinator: NSObject, UITextFieldDelegate {
@@ -351,19 +405,10 @@ struct SelectFolderTextFieldWrapper: UIViewRepresentable {
         
         init(parent: SelectFolderTextFieldWrapper) {
             self.parent = parent
-            parent.
-        }
-        
-        @objc func incrementSelected() {
-            parent.selected = max(parent.selected - 1, 0)
-        }
-        
-        @objc func decrementSelected() {
-            parent.selected = min(parent.selected + 1, parent.totalPaths - 1)
         }
 
         @objc func textFieldDidChange(_ textField: UITextField) {
-            parent.text = textField.text ?? ""
+            parent.viewModel.searchInput = textField.text ?? ""
         }
 
         func textFieldShouldReturn(_ textField: UITextField) -> Bool {
@@ -375,35 +420,32 @@ struct SelectFolderTextFieldWrapper: UIViewRepresentable {
 
 class SelectFolderTextField: UITextField {
     
-    var incrementSelected: Selector?
-    var decrementSelected: Selector?
+    var viewModel: SelectFolderViewModel? = nil
     
     override var keyCommands: [UIKeyCommand]? {
-        let t = #selector(moveSelectedUp)
-        
-        let selectedUp = UIKeyCommand(input: UIKeyCommand.inputUpArrow, modifierFlags: [], action: #selector(moveSelectedUp))
-        let selectedDown = UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [], action: #selector(moveSelectedDown))
+        let selectedUp = UIKeyCommand(input: UIKeyCommand.inputUpArrow, modifierFlags: [], action: #selector(incrementSelected))
+        let selectedDown = UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [], action: #selector(decrementSelected))
         
         selectedUp.wantsPriorityOverSystemBehavior = true
         selectedDown.wantsPriorityOverSystemBehavior = true
-        
-        var shortcuts = [
+                
+        return [
             selectedUp,
             selectedDown,
         ]
-        
-        return shortcuts
     }
     
-    @objc func moveSelectedUp() {
-        if let incrementSelected = incrementSelected {
-            performSelector(onMainThread: incrementSelected, with: nil, waitUntilDone: true)
+    @objc func incrementSelected() {
+        if let viewModel = viewModel {
+            print("decremented!")
+            viewModel.selected = max(viewModel.selected - 1, 0)
         }
     }
     
-    @objc func moveSelectedDown() {
-        if let decrementSelected = decrementSelected {
-            performSelector(onMainThread: decrementSelected, with: nil, waitUntilDone: true)
+    @objc func decrementSelected() {
+        if let viewModel = viewModel {
+            print("incremented!! from \(viewModel.selected) to min(\(viewModel.selected + 1) or \(viewModel.filteredFolderPaths.count - 1))")
+            viewModel.selected = min(viewModel.selected + 1, viewModel.filteredFolderPaths.count - 1)
         }
     }
 }

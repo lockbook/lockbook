@@ -76,7 +76,7 @@ struct SharedFileCell: View {
                 sheets.movingInfo = .AcceptShare((meta.name, meta.id))
             } label: {
                 Image(systemName: "plus.circle")
-                    .imageScale(.medium)
+                    .imageScale(.large)
                     .foregroundColor(.blue)
             }
             
@@ -84,14 +84,14 @@ struct SharedFileCell: View {
                 showRejectConfirmation = true
             } label: {
                 Image(systemName: "minus.circle")
-                    .imageScale(.medium)
+                    .imageScale(.large)
                     .foregroundColor(.red)
             }
         }
         .padding(.vertical, 7)
         .contentShape(Rectangle())
-        .confirmationDialog("Are you sure you want to reject \(meta.name)", isPresented: $showRejectConfirmation) {
-            Button("Reject \(meta.name)", role: .destructive) {
+        .confirmationDialog("Are you sure?", isPresented: $showRejectConfirmation, titleVisibility: .visible) {
+            Button("Reject \"\(meta.name)\"", role: .destructive) {
                 share.rejectShare(id: meta.id)
             }
         }
