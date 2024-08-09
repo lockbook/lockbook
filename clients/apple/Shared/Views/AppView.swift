@@ -7,12 +7,9 @@ struct AppView: View {
     @EnvironmentObject var files: FileService
     @EnvironmentObject var errors: UnexpectedErrorService
         
-    @State var tmp = ""
-    
     @ViewBuilder
     var body: some View {
         VStack {
-//            Text(tmp)
             if accounts.calculated {
                 if accounts.account == nil {
                     OnboardingView()
@@ -20,9 +17,7 @@ struct AppView: View {
                     PlatformView()
                         .onOpenURL() { url in
                             if url.scheme == "lb" {
-                                tmp = url.absoluteString
                                 if url.host == "sharedFiles" {
-                                    tmp = "got in \(url.absoluteString)"
                                     handleImportLink(url: url)
                                 } else {
                                     handleOpenLink(url: url)
@@ -66,20 +61,17 @@ struct AppView: View {
     }
     
     func handleImportLink(url: URL) {
-        if let filePathsQuery = url.query {
-            let filePaths = filePathsQuery.removingPercentEncoding?.components(separatedBy: ",") ?? []
+        if let filePathsQuery = url.query,
+           let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") {
+            let filePaths = filePathsQuery.components(separatedBy: ",")
             
-            guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") else {
-                return
-            }
             
             var res: [String] = []
             
             for filePath in filePaths {
-                res.append(containerURL.appendingPathComponent(filePath).path()
-                    .removingPercentEncoding!)
+                res.append(containerURL.appendingPathComponent(filePath.removingPercentEncoding!).path(percentEncoded: false))
             }
-                                                
+                                                            
             DI.sheets.movingInfo = .Import(res)
             
         }

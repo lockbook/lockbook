@@ -4,11 +4,23 @@ import CLockbookCore
 import SwiftLockbookCore
 import UIKit
 
+class SelectFolderViewModel: ObservableObject {
+    @Binding var searchInput: String
+}
+
 struct SelectFolderView: View {
     @EnvironmentObject var core: CoreService
     
     @State var searchInput: String = ""
-    @State var error: Bool = false
+    @State var error: String? = nil
+    @State var selected = 0
+    var selectedPath: String? {
+        guard filteredFolderPaths.count <= selected else {
+            return nil
+        }
+        return filteredFolderPaths[selected]
+
+    }
     
     @Environment(\.presentationMode) var presentationMode
     
@@ -52,14 +64,17 @@ struct SelectFolderView: View {
         VStack {
             VStack {
                 HStack {
-                    SelectFolderTextField(placeholder: "Search folder", onSubmit: {
+                    SelectFolderTextFieldWrapper(placeholder: "Search folder", onSubmit: {
                         guard let selectedFolder = filteredFolderPaths.first else {
                             return
                         }
                         
                         selectFolder(path: selectedFolder.isEmpty ? "/" : selectedFolder)
-                    }, text: $searchInput)
+                    }, text: $searchInput, selected: $selected, totalPaths: Binding(get: { filteredFolderPaths.count }, set: { _ in }))
                         .frame(height: 19)
+                        .onChange(of: searchInput) { _ in
+                            selected = 0
+                        }
                     
                     if !searchInput.isEmpty {
                         Button(action: {
@@ -89,12 +104,12 @@ struct SelectFolderView: View {
                 Divider()
             }
             
-            
             HStack {
-                if error {
-                    Text("Something went wrong, please exit and try again.")
+                if let error = error {
+                    Text(error)
                         .foregroundStyle(.red)
                         .fontWeight(.bold)
+                        .lineLimit(2, reservesSpace: false)
                 } else {
                     Text(actionMsg)
                         .fontWeight(.bold)
@@ -116,7 +131,7 @@ struct SelectFolderView: View {
                         
                         Spacer()
                     }
-                    .modifier(SelectedItemModifier(item: path, selected: filteredFolderPaths.first ?? ""))
+                    .modifier(SelectedItemModifier(item: path, selected: selectedPath ?? ""))
                     .listRowSeparator(.hidden)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 1)
@@ -133,9 +148,7 @@ struct SelectFolderView: View {
             DispatchQueue.global(qos: .userInitiated).async {
                 switch DI.files.getFolderPaths() {
                 case .none:
-                    DispatchQueue.main.async {
-                        error = true
-                    }
+                    error = "Could not get folder paths."
                 case .some(let folderPaths):
                     DispatchQueue.main.async {
                         self.folderPaths = folderPaths
@@ -152,10 +165,11 @@ struct SelectFolderView: View {
         
         return VStack {
             HStack {
-                if error {
-                    Text("Something went wrong, please exit and try again.")
+                if let error = error {
+                    Text(error)
                         .foregroundStyle(.red)
                         .fontWeight(.bold)
+                        .lineLimit(2, reservesSpace: false)
                 } else {
                     Text(actionMsg)
                         .fontWeight(.bold)
@@ -189,6 +203,7 @@ struct SelectFolderView: View {
                         })
                     }
                 )
+                .padding(.bottom)
             }
             .padding(.leading)
         }
@@ -200,8 +215,8 @@ struct SelectFolderView: View {
         case .success(let parent):
             selectFolder(newParent: parent.id)
             print("got the folder id selected: \(path) to \(parent.id)")
-        case .failure(_):
-            error = true
+        case .failure(let cError):
+            error = cError.description
         }
     }
     
@@ -209,8 +224,9 @@ struct SelectFolderView: View {
         switch action {
         case .Move(let ids):
             for id in ids {
-                if case .failure(_) = core.core.moveFile(id: id, newParent: newParent) {
-                    error = true
+                if case .failure(let cError) = core.core.moveFile(id: id, newParent: newParent) {
+                    error = cError.description
+
                     return
                 }
             }
@@ -219,15 +235,22 @@ struct SelectFolderView: View {
             DI.files.successfulAction = .move
             DI.files.refresh()
         case .Import(let paths):
-            if case .failure(_) = core.core.importFiles(sources: paths, destination: newParent) {
-                error = true
+            if case .failure(let cError) = core.core.importFiles(sources: paths, destination: newParent) {
+                error = cError.description
+                
+                return
             }
             
             presentationMode.wrappedValue.dismiss()
             DI.files.successfulAction = .importFiles
             DI.files.refresh()
         case .AcceptShare((let name, let id)):
-            DI.share.acceptShare(targetName: name, targetId: id, parent: newParent)
+            if case .failure(let cError) = core.core.createLink(name: name, dirId: id, target: newParent) {
+                error = cError.description
+                
+                return
+            }
+            
             DI.files.successfulAction = .acceptedShare
             DI.files.refresh()
             DI.share.calculatePendingShares()
@@ -294,21 +317,24 @@ struct HighlightedText: View {
     }
 }
 
-struct SelectFolderTextField: UIViewRepresentable {
+struct SelectFolderTextFieldWrapper: UIViewRepresentable {
     var placeholder: String
     var onSubmit: () -> Void
     
     @Binding var text: String
+    @Binding var selected: Int
+    @Binding var totalPaths: Int
     
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
     }
     
-    func makeUIView(context: Context) -> UITextField {
-        let textField = UITextField()
+    func makeUIView(context: Context) -> SelectFolderTextField {
+        let textField = SelectFolderTextField()
         textField.delegate = context.coordinator
         textField.placeholder = placeholder
         textField.returnKeyType = .done
+        
         textField.becomeFirstResponder()
         
         textField.addTarget(context.coordinator, action: #selector(Coordinator.textFieldDidChange(_:)), for: .editingChanged)
@@ -316,15 +342,24 @@ struct SelectFolderTextField: UIViewRepresentable {
         return textField
     }
     
-    func updateUIView(_ uiView: UITextField, context: Context) {
+    func updateUIView(_ uiView: SelectFolderTextField, context: Context) {
         uiView.text = text
     }
-    
-    class Coordinator: NSObject, UITextFieldDelegate {
-        var parent: SelectFolderTextField
         
-        init(parent: SelectFolderTextField) {
+    class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: SelectFolderTextFieldWrapper
+        
+        init(parent: SelectFolderTextFieldWrapper) {
             self.parent = parent
+            parent.
+        }
+        
+        @objc func incrementSelected() {
+            parent.selected = max(parent.selected - 1, 0)
+        }
+        
+        @objc func decrementSelected() {
+            parent.selected = min(parent.selected + 1, parent.totalPaths - 1)
         }
 
         @objc func textFieldDidChange(_ textField: UITextField) {
@@ -337,3 +372,39 @@ struct SelectFolderTextField: UIViewRepresentable {
         }
     }
 }
+
+class SelectFolderTextField: UITextField {
+    
+    var incrementSelected: Selector?
+    var decrementSelected: Selector?
+    
+    override var keyCommands: [UIKeyCommand]? {
+        let t = #selector(moveSelectedUp)
+        
+        let selectedUp = UIKeyCommand(input: UIKeyCommand.inputUpArrow, modifierFlags: [], action: #selector(moveSelectedUp))
+        let selectedDown = UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [], action: #selector(moveSelectedDown))
+        
+        selectedUp.wantsPriorityOverSystemBehavior = true
+        selectedDown.wantsPriorityOverSystemBehavior = true
+        
+        var shortcuts = [
+            selectedUp,
+            selectedDown,
+        ]
+        
+        return shortcuts
+    }
+    
+    @objc func moveSelectedUp() {
+        if let incrementSelected = incrementSelected {
+            performSelector(onMainThread: incrementSelected, with: nil, waitUntilDone: true)
+        }
+    }
+    
+    @objc func moveSelectedDown() {
+        if let decrementSelected = decrementSelected {
+            performSelector(onMainThread: decrementSelected, with: nil, waitUntilDone: true)
+        }
+    }
+}
+

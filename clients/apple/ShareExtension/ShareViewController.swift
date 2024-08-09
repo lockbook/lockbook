@@ -16,8 +16,6 @@ class ShareViewModel: ObservableObject {
     @Published var finished = false
 }
 
-// escape folder names with commas
-
 class ShareViewController: UIViewController {
 
     var sharedItems: [Any] = []
@@ -51,17 +49,22 @@ class ShareViewController: UIViewController {
                 
                 print("this is what got processed \(self.processed)")
                 if self.processed.isEmpty {
-                    self.shareModel.failed = true
+                    DispatchQueue.main.sync {
+                        self.shareModel.failed = true
+                    }
                 }
                 
                 if !self.shareModel.failed {
                     let filePathsQuery = self.processed.joined(separator: ",")
-                    let shareURL = URL(string: "lb://sharedFiles?\(filePathsQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!)")!
+                    let shareURL = URL(string: "lb://sharedFiles?\(filePathsQuery)")!
                     
-                    self.shareModel.finished = true
+                    DispatchQueue.main.sync {
+                        self.shareModel.finished = true
+                    }
                     eContext.completeRequest(returningItems: nil) { _ in
                         self.openURL(shareURL)
                     }
+                        
                 }
                 
                 if self.shareModel.failed {
@@ -94,7 +97,9 @@ class ShareViewController: UIViewController {
         }
         
         if processed.isEmpty {
-            shareModel.failed = true
+            DispatchQueue.main.sync {
+                shareModel.failed = true
+            }
         }
     }
     
@@ -105,6 +110,7 @@ class ShareViewController: UIViewController {
 
             let _ = attachment.loadObject(ofClass: URL.self) { (url, error) in
                 if let url = url {
+                    print("got URL that is \(url.absoluteString) \(url.path(percentEncoded: false))")
                     self.importFileIntoAppGroup(sharedFolder: sharedFolder, importing: url)
                 } else {
                     print("failed?")
@@ -140,22 +146,37 @@ class ShareViewController: UIViewController {
             
             semaphore.wait()
         } else {
-            shareModel.failed = true
+            DispatchQueue.main.sync {
+                shareModel.failed = true
+            }
         }
     }
     
     func importFileIntoAppGroup(sharedFolder: URL, importing: URL) {
         let parent = sharedFolder.appendingPathComponent(UUID().uuidString)
-        let newHome = parent.appendingPathComponent(importing.lastPathComponent)
-                        
+        let newHome = parent.appendingPathComponent(importing.lastPathComponent.removingPercentEncoding!)
+        
         do {
             try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: false)
-                        
+            
             try FileManager.default.copyItem(at: importing, to: newHome)
 
-            self.processed.append(newHome.pathComponents.suffix(3).joined(separator: "/"))
+            self.processed.append(newHome.pathComponents.suffix(3).joined(separator: "/").addingPercentEncoding(withAllowedCharacters: .alphanumerics)!)
         } catch {
-            shareModel.failed = true
+            print("got this error! \(error)")
+            DispatchQueue.main.sync {
+                shareModel.failed = true
+            }
+        }
+    }
+    
+    func isUbiqDownloaded(importing: URL) throws -> Bool {
+        if let values = try? importing.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
+           let status = values.ubiquitousItemDownloadingStatus {
+            print("the status! \(status)")
+            return status == .current
+        } else {
+            throw NSError(domain: "app.lockbook", code: 1)
         }
     }
 }

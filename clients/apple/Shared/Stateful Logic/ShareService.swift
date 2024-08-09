@@ -48,12 +48,6 @@ class ShareService: ObservableObject {
         calculatePendingShares()
     }
     
-    func acceptShare(targetName: String, targetId: UUID, parent: UUID) {
-        if case .failure(let err) = core.createLink(name: targetName, dirId: parent, target: targetId) {
-            DI.errors.handleError(err)
-        }
-    }
-    
     func shareFile(id: UUID, username: String, isWrite: Bool) {
         if case .failure(let err) = core.shareFile(id: id, username: username, isWrite: isWrite) {
             DI.errors.handleError(err)

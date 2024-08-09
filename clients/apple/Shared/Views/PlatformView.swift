@@ -76,7 +76,7 @@ struct PlatformView: View {
             if let action = sheets.movingInfo {
                 SelectFolderView(action: action)
                     .presentationDragIndicator(.visible)
-                    .presentationDetents([.medium, .large])
+                    .presentationDetents([.fraction(0.8), .large])
             }
         })
     }

@@ -16,7 +16,10 @@ struct ShareExtensionView: View {
     var body: some View {
         VStack {
             if shareModel.downloadUbig {
-                Text("iCloud links could not be imported. Please download them and try again.")
+                Text("Downloading... pleaase wait.")
+                    .padding(.bottom)
+                
+                ProgressView()
             } else if shareModel.failed {
                 Text("Failed to import.")
             } else if shareModel.finished {
