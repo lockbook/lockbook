@@ -179,6 +179,7 @@ struct SelectFolderView: View {
                                 .foregroundStyle(.gray)
                         })
                         .padding(.leading)
+                        .modifier(PlatformSelectFolderButtonModifier())
                     }
                     
                     Button(action: {
@@ -190,6 +191,7 @@ struct SelectFolderView: View {
                             .foregroundStyle(.foreground)
                     })
                     .padding(.leading)
+                    .modifier(PlatformSelectFolderButtonModifier())
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 4)
@@ -218,6 +220,7 @@ struct SelectFolderView: View {
             if viewModel.folderPaths != nil {
                 ScrollViewReader { scrollHelper in
                     List(viewModel.filteredFolderPaths, id: \.self) { path in
+                        let _ = print("populating \(path)")
                         HStack {
                             Button(action: {
                                 if viewModel.selectFolder(action: action, path: path.isEmpty ? "/" : path) {
@@ -226,6 +229,7 @@ struct SelectFolderView: View {
                             }, label: {
                                 HighlightedText(text: path.isEmpty ? "/" : path, pattern: viewModel.searchInput, textSize: 16)
                             })
+                            .modifier(PlatformSelectFolderButtonModifier())
                             
                             Spacer()
                         }
@@ -238,12 +242,13 @@ struct SelectFolderView: View {
                     .listStyle(.inset)
                     .onChange(of: viewModel.selectedPath) { newValue in
                         withAnimation {
-                            scrollHelper.scrollTo(newValue, anchor: .center)
+                            scrollHelper.scrollTo(viewModel.filteredFolderPaths[viewModel.selected], anchor: .center)
                         }
                     }
                 }
             } else {
                 ProgressView()
+                    .controlSize(.small)
             }
             
             Spacer()
@@ -283,6 +288,7 @@ struct SelectFolderView: View {
                         .foregroundStyle(.foreground)
                 })
                 .padding(.leading)
+                .modifier(PlatformSelectFolderButtonModifier())
             }
             .padding(.bottom, 10)
             .padding(.horizontal)
@@ -300,6 +306,7 @@ struct SelectFolderView: View {
                             Label(dest.name, systemImage: FileService.metaToSystemImage(meta: dest))
                                 .foregroundStyle(.foreground)
                         })
+                        .modifier(PlatformSelectFolderButtonModifier())
                     }
                 )
                 .padding(.bottom)
@@ -325,6 +332,16 @@ struct SelectedItemModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+struct PlatformSelectFolderButtonModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content
+        #else
+        content.buttonStyle(.plain)
+        #endif
     }
 }
 
@@ -462,11 +479,13 @@ struct SelectFolderTextFieldWrapper: NSViewRepresentable {
         textField.onSubmit = onSubmit
         textField.viewModel = viewModel
         
+        textField.becomeFirstResponder()
+        
         return textField
     }
     
     public func updateNSView(_ nsView: SelectFolderTextField, context: NSViewRepresentableContext<SelectFolderTextFieldWrapper>) {
-        
+        nsView.becomeFirstResponder()
     }
     
     public func makeCoordinator() -> SelectFolderTextFieldDelegate {
@@ -503,7 +522,7 @@ class SelectFolderTextField: NSTextField {
             selectedDown()
             return true
         case 36: // return
-            viewModel?.exit = true
+            onSubmit?()
             return true
         default:
             return super.performKeyEquivalent(with: event)
