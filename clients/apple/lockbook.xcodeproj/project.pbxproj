@@ -17,6 +17,7 @@
 		471C788D2B4910A80022B3B2 /* SwiftWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 471C788C2B4910A80022B3B2 /* SwiftWorkspace */; };
 		471E363529FD5F5C00A1958A /* DesktopHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8F925ACBCF9005B7B01 /* DesktopHomeView.swift */; };
 		473A3DCE29AC354B0017BC6A /* FilePathBreadcrumb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */; };
+		473AF8662C66B631000F9AE4 /* SelectFolderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FF75042C5AE65F004F90EC /* SelectFolderView.swift */; };
 		4756C4DB2A57CE86002C64B1 /* CreateFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4756C4DA2A57CE86002C64B1 /* CreateFolderSheet.swift */; };
 		4756C4DC2A57CE86002C64B1 /* CreateFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4756C4DA2A57CE86002C64B1 /* CreateFolderSheet.swift */; };
 		4761F30F2A1832B4002ED338 /* ManageSubscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4761F30E2A1832B4002ED338 /* ManageSubscription.swift */; };
@@ -703,6 +704,7 @@
 				47DBF1F22A61A51000F86B3F /* ImportExportService.swift in Sources */,
 				874A88F626D3E91900F010C8 /* DI.swift in Sources */,
 				477CC4912967A53C00714456 /* ShareFileSheet.swift in Sources */,
+				473AF8662C66B631000F9AE4 /* SelectFolderView.swift in Sources */,
 				8715F92927161CC60051689E /* OnboardingView.swift in Sources */,
 				870DC09F26BDE6F4002E9A92 /* SettingsView.swift in Sources */,
 				4779C62E2AB8C09E007C0100 /* PathSearchActionBar.swift in Sources */,

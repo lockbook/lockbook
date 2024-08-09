@@ -2,7 +2,6 @@ import Foundation
 import SwiftUI
 import CLockbookCore
 import SwiftLockbookCore
-import UIKit
 
 class SelectFolderViewModel: ObservableObject {
     @Published var searchInput: String = ""
@@ -15,7 +14,7 @@ class SelectFolderViewModel: ObservableObject {
                 return folderPaths
             } else {
                 return folderPaths.filter { path in
-                    path.localizedCaseInsensitiveContains(searchInput) && !ignorePrefixPaths.contains(where: { path.hasPrefix($0) })
+                    path.localizedCaseInsensitiveContains(searchInput)
                 }
             }
         } else {
@@ -28,16 +27,15 @@ class SelectFolderViewModel: ObservableObject {
             recomputeSelectedPath()
         }
     }
-    @Published var selectedPath: String = ""
+    @Published var selectedPath: String = "/"
     
-    @Published var ignorePrefixPaths: [String] = []
-    @Published var ignoreParentIds: [UUID] = []
-    
+    var exit: Bool = false
+        
     func recomputeSelectedPath() {
         if filteredFolderPaths.count <= selected {
             selectedPath = ""
         } else {
-            selectedPath = filteredFolderPaths[selected]
+            selectedPath = filteredFolderPaths[selected].isEmpty ? "/" : filteredFolderPaths[selected]
         }
     }
     
@@ -51,28 +49,6 @@ class SelectFolderViewModel: ObservableObject {
             case .some(let folderPaths):
                 DispatchQueue.main.async {
                     self.folderPaths = folderPaths
-                }
-            }
-        }
-    }
-    
-    func filterFolders(action: SelectFolderAction) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            if case .Move(let ids) = action {
-                DispatchQueue.main.sync {
-                    self.ignoreParentIds = ids
-                }
-                for id in ids {
-                    switch DI.core.getPathById(id: id) {
-                    case .success(let path):
-                        DispatchQueue.main.sync {
-                            self.ignorePrefixPaths.append(path)
-                        }
-                    case .failure(let cError):
-                        DispatchQueue.main.sync {
-                            self.error = cError.description
-                        }
-                    }
                 }
             }
         }
@@ -94,8 +70,20 @@ class SelectFolderViewModel: ObservableObject {
         switch action {
         case .Move(let ids):
             for id in ids {
+                
                 if case .failure(let cError) = DI.core.moveFile(id: id, newParent: newParent) {
-                    error = cError.description
+                    switch cError.kind {
+                    case .UiError(.FolderMovedIntoItself):
+                        error = "You cannot move a folder into itself."
+                    case .UiError(.InsufficientPermission):
+                        error = "You do not have the permission to do that."
+                    case .UiError(.LinkInSharedFolder):
+                        error = "You cannot move a link into a shared folder."
+                    case .UiError(.TargetParentHasChildNamedThat):
+                        error = "A child with that name already exists in that folder."
+                    default:
+                        error = cError.description
+                    }
 
                     return false
                 }
@@ -162,9 +150,11 @@ struct SelectFolderView: View {
                 folderTreeView
             }
         }
-        .onAppear(perform: {
-            viewModel.filterFolders(action: action)
-        })
+        .onChange(of: viewModel.exit) { newValue in
+            if newValue {
+                dismiss()
+            }
+        }
     }
     
     var folderListView: some View {
@@ -226,25 +216,32 @@ struct SelectFolderView: View {
             .padding(.vertical, 5)
             
             if viewModel.folderPaths != nil {
-                List(viewModel.filteredFolderPaths, id: \.self) { path in
-                    HStack {
-                        Button(action: {
-                            if viewModel.selectFolder(action: action, path: path.isEmpty ? "/" : path) {
-                                dismiss()
-                            }
-                        }, label: {
-                            HighlightedText(text: path.isEmpty ? "/" : path, pattern: viewModel.searchInput, textSize: 16)
-                        })
+                ScrollViewReader { scrollHelper in
+                    List(viewModel.filteredFolderPaths, id: \.self) { path in
+                        HStack {
+                            Button(action: {
+                                if viewModel.selectFolder(action: action, path: path.isEmpty ? "/" : path) {
+                                    dismiss()
+                                }
+                            }, label: {
+                                HighlightedText(text: path.isEmpty ? "/" : path, pattern: viewModel.searchInput, textSize: 16)
+                            })
+                            
+                            Spacer()
+                        }
+                        .modifier(SelectedItemModifier(item: path.isEmpty ? "/" : path, selected: viewModel.selectedPath))
+                        .listRowSeparator(.hidden)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 1)
                         
-                        Spacer()
                     }
-                    .modifier(SelectedItemModifier(item: path.isEmpty ? "/" : path, selected: viewModel.selectedPath))
-                    .listRowSeparator(.hidden)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 1)
-                    
+                    .listStyle(.inset)
+                    .onChange(of: viewModel.selectedPath) { newValue in
+                        withAnimation {
+                            scrollHelper.scrollTo(newValue, anchor: .center)
+                        }
+                    }
                 }
-                .listStyle(.inset)
             } else {
                 ProgressView()
             }
@@ -259,7 +256,7 @@ struct SelectFolderView: View {
     var folderTreeView: some View {
         let root = DI.files.files.first(where: { $0.parent == $0.id })!
         let wc = WithChild(root, DI.files.files, { parent, meta in
-            parent.id == meta.parent && parent.id != meta.id && meta.fileType == .Folder && !viewModel.ignoreParentIds.contains(where: { id in meta.id == id })
+            parent.id == meta.parent && parent.id != meta.id && meta.fileType == .Folder
         })
         
         
@@ -342,17 +339,6 @@ enum SelectFolderMode {
     case Tree
 }
 
-//struct SelectFolderViewPreview: PreviewProvider {
-//    
-//    static var previews: some View {
-//        Color.white
-//            .sheet(isPresented: .constant(true), content: {
-//                SelectFolderView(folderPaths: ["cookies", "apples", "cookies/android/apple/nice"], action: .Import([]))
-//            })
-//            .mockDI()
-//    }
-//}
-
 struct HighlightedText: View {
     let text: AttributedString
     
@@ -371,6 +357,9 @@ struct HighlightedText: View {
         Text(text)
     }
 }
+
+#if os(iOS)
+import UIKit
 
 struct SelectFolderTextFieldWrapper: UIViewRepresentable {
     var placeholder: String
@@ -423,30 +412,120 @@ class SelectFolderTextField: UITextField {
     var viewModel: SelectFolderViewModel? = nil
     
     override var keyCommands: [UIKeyCommand]? {
-        let selectedUp = UIKeyCommand(input: UIKeyCommand.inputUpArrow, modifierFlags: [], action: #selector(incrementSelected))
-        let selectedDown = UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [], action: #selector(decrementSelected))
+        let selectedUp = UIKeyCommand(input: UIKeyCommand.inputUpArrow, modifierFlags: [], action: #selector(selectedUp))
+        let selectedDown = UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [], action: #selector(selectedDown))
+        let exit = UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(exit))
         
         selectedUp.wantsPriorityOverSystemBehavior = true
         selectedDown.wantsPriorityOverSystemBehavior = true
+        exit.wantsPriorityOverSystemBehavior = true
                 
         return [
             selectedUp,
             selectedDown,
+            exit
         ]
     }
     
-    @objc func incrementSelected() {
+    @objc func selectedUp() {
         if let viewModel = viewModel {
-            print("decremented!")
             viewModel.selected = max(viewModel.selected - 1, 0)
         }
     }
     
-    @objc func decrementSelected() {
+    @objc func selectedDown() {
         if let viewModel = viewModel {
-            print("incremented!! from \(viewModel.selected) to min(\(viewModel.selected + 1) or \(viewModel.filteredFolderPaths.count - 1))")
             viewModel.selected = min(viewModel.selected + 1, viewModel.filteredFolderPaths.count - 1)
         }
     }
+    
+    @objc func exit() {
+        viewModel?.exit = true
+    }
 }
 
+#else
+
+struct SelectFolderTextFieldWrapper: NSViewRepresentable {
+    var placeholder: String
+    var onSubmit: () -> Void
+
+    let viewModel: SelectFolderViewModel
+    
+    public func makeNSView(context: NSViewRepresentableContext<SelectFolderTextFieldWrapper>) -> SelectFolderTextField {
+        let textField = SelectFolderTextField()
+
+        textField.isBordered = false
+        textField.focusRingType = .none
+        textField.delegate = context.coordinator
+        textField.placeholderString = placeholder
+        textField.onSubmit = onSubmit
+        textField.viewModel = viewModel
+        
+        return textField
+    }
+    
+    public func updateNSView(_ nsView: SelectFolderTextField, context: NSViewRepresentableContext<SelectFolderTextFieldWrapper>) {
+        
+    }
+    
+    public func makeCoordinator() -> SelectFolderTextFieldDelegate {
+        SelectFolderTextFieldDelegate(self)
+    }
+    
+    public class SelectFolderTextFieldDelegate: NSObject, NSTextFieldDelegate {
+        var parent: SelectFolderTextFieldWrapper
+
+        public init(_ parent: SelectFolderTextFieldWrapper) {
+            self.parent = parent
+        }
+
+        public func controlTextDidChange(_ obj: Notification) {
+            if let textField = obj.object as? NSTextField {
+                parent.viewModel.searchInput = textField.stringValue
+            }
+        }
+    }
+
+}
+
+class SelectFolderTextField: NSTextField {
+    
+    var viewModel: SelectFolderViewModel? = nil
+    var onSubmit: (() -> Void)? = nil
+    
+    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        switch event.keyCode {
+        case 126: // up arrow
+            selectedUp()
+            return true
+        case 125: // down arrow
+            selectedDown()
+            return true
+        case 36: // return
+            viewModel?.exit = true
+            return true
+        default:
+            return super.performKeyEquivalent(with: event)
+        }
+    }
+    
+    func selectedUp() {
+        if let viewModel = viewModel {
+            viewModel.selected = max(viewModel.selected - 1, 0)
+        }
+    }
+    
+    func selectedDown() {
+        if let viewModel = viewModel {
+            viewModel.selected = min(viewModel.selected + 1, viewModel.filteredFolderPaths.count - 1)
+        }
+    }
+    
+    func exit() {
+        viewModel?.exit = true
+    }
+}
+
+
+#endif
