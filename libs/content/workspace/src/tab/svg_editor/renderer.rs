@@ -183,7 +183,12 @@ fn tesselate_element(
 
     match el {
         parser::Element::Path(p) => {
-            println!("TESS el: {}", id);
+            println!(
+                "TESS el with data len and pressure len: {}, {}, {} ",
+                id,
+                p.data.len_segments(),
+                p.pressure.to_owned().unwrap_or_default().len()
+            );
 
             if let Some(stroke) = p.stroke {
                 if p.data.is_empty() {
@@ -203,9 +208,11 @@ fn tesselate_element(
                         if pressure_at_segment.is_some() {
                             pressure_at_segment
                         } else {
+                            println!("OUT OF PRESSURE");
                             pressure.get(i - 1)
                         }
                     } else {
+                        println!("NO PRESSURE");
                         None
                     };
 

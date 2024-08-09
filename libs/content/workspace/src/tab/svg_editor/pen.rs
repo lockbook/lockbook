@@ -80,28 +80,18 @@ impl Pen {
                 }
 
                 let force = ui.input(|r| {
-                    let forces = r.events.iter().filter_map(move |e| {
-                        if let egui::Event::Touch { device_id: _, id: _, phase: _, pos: _, force } =
-                            e
+                    r.events.iter().find_map(move |e| {
+                        if let egui::Event::Touch { device_id: _, id: _, phase, pos: _, force } = e
                         {
-                            force.to_owned()
+                            if matches!(phase, egui::TouchPhase::Move) {
+                                force.to_owned()
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
-                    });
-
-                    let mut sum = 0.0;
-                    let mut count = 0;
-                    for force in forces {
-                        sum += force;
-                        count += 1;
-                    }
-
-                    if count > 0 {
-                        Some(sum / count as f32)
-                    } else {
-                        None
-                    }
+                    })
                 });
 
                 if self.detect_snap(pos, buffer.master_transform) {
@@ -127,6 +117,9 @@ impl Pen {
                         } else {
                             p.pressure = Some(vec![f]);
                         }
+                    // sometimes the force is missing from the event so just autofill it based on the last force
+                    } else if let Some(pressure) = &mut p.pressure {
+                        pressure.push(*pressure.last().unwrap_or(&1.0))
                     }
                 } else {
                     self.path_builder.cubic_to(pos);
@@ -136,6 +129,7 @@ impl Pen {
                     }
                     stroke.width = self.active_stroke_width as f32;
 
+                    let pressure = if let Some(f) = force { Some(vec![f]) } else { None };
                     buffer.elements.insert(
                         id.to_string(),
                         parser::Element::Path(Path {
@@ -146,7 +140,7 @@ impl Pen {
                             transform: Transform::identity()
                                 .post_scale(buffer.master_transform.sx, buffer.master_transform.sy),
                             opacity: self.active_opacity,
-                            pressure: None,
+                            pressure,
                             diff_state: DiffState::default(),
                             deleted: false,
                         }),

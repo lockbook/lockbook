@@ -1,11 +1,4 @@
-use std::{
-    borrow::Borrow,
-    collections::{HashMap, HashSet},
-    fmt::{format, Write},
-    path::PathBuf,
-    str::FromStr,
-    sync::Arc,
-};
+use std::{collections::HashMap, fmt::Write, path::PathBuf, str::FromStr, sync::Arc};
 
 use bezier_rs::{Bezier, Identifier, Subpath};
 use egui::TextureHandle;
@@ -13,8 +6,8 @@ use glam::{DAffine2, DMat2, DVec2};
 use lb_rs::{base64, Uuid};
 use resvg::tiny_skia::Point;
 use resvg::usvg::{
-    self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, Node, Options, Paint, Text,
-    Transform, Visibility,
+    self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, Options, Paint, Text, Transform,
+    Visibility,
 };
 use serde::{Deserialize, Serialize};
 
@@ -185,14 +178,15 @@ impl std::fmt::Debug for Image {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 struct PersistentStore {
     path_pressures: HashMap<String, Vec<f32>>,
 }
 
 impl Buffer {
     pub fn new(svg: &str, core: &lb_rs::Core, open_file: Uuid) -> Self {
-        let fontdb = usvg::fontdb::Database::default();
+        let mut fontdb = usvg::fontdb::Database::default();
+        fontdb.load_font_data(lb_fonts::ROBOTO_REGULAR.to_vec());
 
         let lb_local_resolver = ImageHrefResolver {
             resolve_data: ImageHrefResolver::default_data_resolver(),
@@ -210,17 +204,24 @@ impl Buffer {
         let utree = maybe_tree.unwrap();
 
         let mut buffer = Buffer::default();
+        let mut store = PersistentStore::default();
         utree
             .root()
             .children()
             .iter()
             .enumerate()
-            .for_each(|(i, u_el)| parse_child(u_el, &mut buffer, i));
+            .for_each(|(_, u_el)| parse_child(u_el, &mut buffer, &mut store));
+
+        store.path_pressures.iter().for_each(|(id, pressure)| {
+            if let Some(Element::Path(p)) = buffer.elements.get_mut(id) {
+                p.pressure = Some(pressure.to_vec());
+            }
+        });
         buffer
     }
 }
 
-fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
+fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PersistentStore) {
     match &u_el {
         usvg::Node::Group(group) => {
             if group.id().eq(ZOOM_G_ID) {
@@ -230,14 +231,16 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                 .children()
                 .iter()
                 .enumerate()
-                .for_each(|(i, u_el)| parse_child(u_el, buffer, i));
+                .for_each(|(i, u_el)| parse_child(u_el, buffer, store));
         }
 
         usvg::Node::Image(img) => {
             let mut diff_state = DiffState::default();
             diff_state.data_changed = true;
+            let id =
+                if img.id().is_empty() { Uuid::new_v4().to_string() } else { img.id().to_owned() };
             buffer.elements.insert(
-                i.to_string(),
+                id,
                 Element::Image(Image {
                     data: img.kind().clone(),
                     visibility: img.visibility(),
@@ -274,8 +277,14 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
             let mut diff_state = DiffState::default();
             diff_state.data_changed = true;
 
+            let id = if path.id().is_empty() {
+                Uuid::new_v4().to_string()
+            } else {
+                path.id().to_owned()
+            };
+
             buffer.elements.insert(
-                i.to_string(),
+                id,
                 Element::Path(Path {
                     data: usvg_d_to_subpath(path),
                     visibility: path.visibility(),
@@ -290,12 +299,10 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
             );
         }
         usvg::Node::Text(t) => {
-            println!("detected text");
             if t.id().eq(LB_STORE_ID) {
                 let raw: String = t.chunks().iter().map(|chunk| chunk.text()).collect();
                 let serialized = base64::decode(&raw).unwrap();
-                let store: PersistentStore = bincode::deserialize(&serialized).unwrap();
-                println!("{:#?}", store);
+                *store = bincode::deserialize(&serialized).unwrap();
             }
         }
     }
@@ -387,12 +394,13 @@ impl ToString for Buffer {
                     let mut curv_attrs = " ".to_string(); // if it's empty then the curve will not be converted to string via bezier_rs
                     if let Some(stroke) = p.stroke {
                         curv_attrs = format!(
-                            "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none'",
+                            "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}'",
                             stroke.width,
                             stroke.color.0.r(),
                             stroke.color.0.g(),
                             stroke.color.0.b(),
-                            p.opacity
+                            p.opacity,
+                            el.0
                         );
                     }
                     if p.data.len() > 1 {
@@ -421,8 +429,12 @@ impl ToString for Buffer {
             .iter()
             .filter_map(|(id, el)| {
                 if let Element::Path(p) = el {
-                    if let Some(pressure) = &p.pressure {
-                        Some((id.to_owned(), pressure.to_owned()))
+                    if !p.deleted {
+                        if let Some(pressure) = &p.pressure {
+                            Some((id.to_owned(), pressure.to_owned()))
+                        } else {
+                            None
+                        }
                     } else {
                         None
                     }
@@ -432,14 +444,14 @@ impl ToString for Buffer {
             })
             .collect();
 
-        let mut store = PersistentStore { path_pressures };
-        store
-            .path_pressures
-            .insert("1".to_owned(), vec![1., 0., 1.]);
+        let store = PersistentStore { path_pressures };
 
         if let Ok(encoded_store) = bincode::serialize(&store) {
             let serialized_string = base64::encode(&encoded_store);
-            let store_node = format!(r#"<text id="{}">{}</text>"#, LB_STORE_ID, serialized_string);
+            let store_node = format!(
+                r#"<text id="{}" font-family="Roboto">{}</text>"#,
+                LB_STORE_ID, serialized_string
+            );
             let _ = write!(&mut root, "{}", store_node);
         }
         let zoom_level = format!(
