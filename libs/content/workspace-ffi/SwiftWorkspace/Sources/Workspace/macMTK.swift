@@ -20,7 +20,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     var lastCursor: NSCursor = NSCursor.arrow
     var cursorHidden: Bool = false
-    
+
     var modifierEventHandle: Any? = nil
 
     override init(frame frameRect: CGRect, device: MTLDevice?) {
@@ -149,7 +149,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         scroll_wheel(wsHandle, Float(event.scrollingDeltaX), Float(event.scrollingDeltaY))
         setNeedsDisplay(self.frame)
     }
-    
+
     public override func magnify(with event: NSEvent) {
         magnify_gesture(wsHandle, Float(event.magnification))
         setNeedsDisplay(self.frame)
@@ -186,7 +186,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     func pasteText(text: String) {
-        paste_text(wsHandle, text)
+        clipboard_paste(wsHandle, text)
         workspaceState?.pasted = true
     }
 
@@ -205,7 +205,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
                         guard let data = try? Data(contentsOf: url) else {
                             return false
                         }
-                        
+
                         sendImage(img: data, isPaste: isPaste)
                     } else {
                         clipboard_send_file(wsHandle, url.path(percentEncoded: false), isPaste)
@@ -214,7 +214,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
             } else if let data = pasteBoard.data(forType: .string) {
                 if let text = String(data: data, encoding: .utf8) {
                     pasteText(text: text)
-                    
+
                     return true
                 }
             }
@@ -222,15 +222,15 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
         return true
     }
-    
+
     func sendImage(img: Data, isPaste: Bool) {
         let imgPtr = img.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) -> UnsafePointer<UInt8> in
             return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
         }
-        
+
         clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
     }
-    
+
     // copy of workspace::tab::image_viewer::is_supported_image_fmt() because ffi seems like overkill
     func isSupportedImageFormat(ext: String) -> Bool {
         // Complete list derived from which features are enabled on image crate according to image-rs default features:
@@ -270,9 +270,9 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let scale = Float(self.window?.backingScaleFactor ?? 1.0)
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, scale)
-        let output = draw_workspace(wsHandle)
+        let output = macos_frame(wsHandle)
 
-        if output.workspace_resp.status_updated {
+        if output.status_updated {
             let status = get_status(wsHandle)
             let msg = String(cString: status.msg)
             free_text(status.msg)
@@ -281,23 +281,23 @@ public class MacMTK: MTKView, MTKViewDelegate {
             workspaceState?.statusMsg = msg
         }
         
-        workspaceState?.reloadFiles = output.workspace_resp.refresh_files
+        workspaceState?.reloadFiles = output.refresh_files
 
-        let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)
+        let selectedFile = UUID(uuid: output.selected_file._0)
         if !selectedFile.isNil() {
             currentOpenDoc = selectedFile
             if selectedFile != self.workspaceState?.openDoc {
                 self.workspaceState?.openDoc = selectedFile
             }
         }
-        
+
         let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
         if currentTab == .Welcome && currentOpenDoc != nil {
             currentOpenDoc = nil
             self.workspaceState?.openDoc = nil
         }
 
-        let newFile = UUID(uuid: output.workspace_resp.doc_created._0)
+        let newFile = UUID(uuid: output.doc_created._0)
         if !newFile.isNil() {
             openFile(id: newFile)
         }
@@ -310,7 +310,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
             }
         }
 
-        if output.workspace_resp.new_folder_btn_pressed {
+        if output.new_folder_btn_pressed {
             workspaceState?.newFolderButtonPressed = true
         }
 
@@ -320,7 +320,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         if self.isPaused {
             let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
             let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)));
-            
+
             let newRedrawTask = DispatchWorkItem {
                 self.setNeedsDisplay(self.frame)
             }
@@ -330,34 +330,36 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
         if let text = output.copied_text {
             let text = textFromPtr(s: text)
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
+            if !text.isEmpty {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            }
         }
-        
+
         let cursor = NSCursor.fromCCursor(c: output.cursor)
         if cursor != lastCursor {
             self.lastCursor = cursor
             self.resetCursorRects()
         }
-        
+
         if output.cursor == None {
             if !cursorHidden {
                 NSCursor.hide()
                 cursorHidden = true
             }
-        } else {
+        } else if output.cursor != Default {
             if cursorHidden {
                 NSCursor.unhide()
                 cursorHidden = false
             }
         }
     }
-    
-    deinit {        
+
+    deinit {
         if let wsHandle = wsHandle {
             deinit_editor(wsHandle)
         }
-        
+
         if let modifierEventHandle = modifierEventHandle {
             NSEvent.removeMonitor(modifierEventHandle)
         }

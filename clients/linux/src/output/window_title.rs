@@ -7,10 +7,9 @@ use x11rb::{
 use crate::window::AtomCollection;
 
 pub fn handle(
-    conn: &XCBConnection, window_id: u32, atoms: &AtomCollection, set_window_title: Option<String>,
+    conn: &XCBConnection, window_id: u32, atoms: &AtomCollection, window_title: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // let title = set_window_title.unwrap_or_else(|| "Lockbook".to_string());
-    let title = match set_window_title {
+    let title = match window_title {
         Some(title) => title,
         None => return Ok(()),
     };

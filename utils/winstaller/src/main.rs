@@ -25,11 +25,13 @@ fn main() {
     }
 
     impl Winstaller {
-        fn new() -> Self {
+        fn new(ctx: &egui::Context) -> Self {
             let (update_tx, update_rx) = mpsc::channel();
 
             let appdata = env::var("appdata").unwrap();
             let local_appdata = env::var("localappdata").unwrap();
+
+            egui_extras::install_image_loaders(ctx);
 
             Self {
                 update_rx,
@@ -119,8 +121,6 @@ fn main() {
 
     impl eframe::App for Winstaller {
         fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-            egui_extras::install_image_loaders(ctx);
-
             while let Ok(result) = self.update_rx.try_recv() {
                 self.stage = Stage::Done(result);
             }
@@ -152,7 +152,7 @@ fn main() {
     eframe::run_native(
         "Lockbook Installer",
         eframe::NativeOptions { ..Default::default() },
-        Box::new(|_cc: &eframe::CreationContext| Box::new(Winstaller::new())),
+        Box::new(|cc: &eframe::CreationContext| Box::new(Winstaller::new(&cc.egui_ctx))),
     )
     .unwrap()
 }

@@ -1,4 +1,10 @@
-pub mod android_ffi;
+pub mod api;
+#[cfg(target_os = "android")]
+pub mod init;
 pub mod keyboard;
-pub mod resp;
-pub mod window;
+pub mod response;
+
+pub use api::*;
+#[cfg(target_os = "android")]
+pub use init::*;
+pub use response::AndroidResponse;

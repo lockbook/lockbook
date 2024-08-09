@@ -590,14 +590,61 @@ impl AndroidKeys {
 
     pub fn valid_text(&self) -> bool {
         use AndroidKeys::*;
-        match self {
-            A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U
-            | V | W | X | Y | Z | Key0 | Key1 | Key2 | Key3 | Key4 | Key5 | Key6 | Key7 | Key8
-            | Key9 | Apostrophe | Backslash | Slash | Grave | Comma | Equals | LeftBracket
-            | Plus | Minus | Period | RightBracket | Semicolon | Space | Back | Pound | Star
-            | At => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            A | B
+                | C
+                | D
+                | E
+                | F
+                | G
+                | H
+                | I
+                | J
+                | K
+                | L
+                | M
+                | N
+                | O
+                | P
+                | Q
+                | R
+                | S
+                | T
+                | U
+                | V
+                | W
+                | X
+                | Y
+                | Z
+                | Key0
+                | Key1
+                | Key2
+                | Key3
+                | Key4
+                | Key5
+                | Key6
+                | Key7
+                | Key8
+                | Key9
+                | Apostrophe
+                | Backslash
+                | Slash
+                | Grave
+                | Comma
+                | Equals
+                | LeftBracket
+                | Plus
+                | Minus
+                | Period
+                | RightBracket
+                | Semicolon
+                | Space
+                | Back
+                | Pound
+                | Star
+                | At
+        )
     }
 
     pub fn egui_key(&self) -> Option<egui::Key> {
