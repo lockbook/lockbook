@@ -1,15 +1,15 @@
 use bezier_rs::{Bezier, Subpath};
 use resvg::usvg::Transform;
 use std::{
-    collections::VecDeque,
-    time::{Duration, Instant},
+    collections::{HashMap, HashSet, VecDeque},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use crate::theme::palette::ThemePalette;
+use crate::{tab::svg_editor::util::get_current_touch_id, theme::palette::ThemePalette};
 
 use super::{
     history::History,
-    parser::{self, ManipulatorGroupId, Path, Stroke},
+    parser::{self, DiffState, Element, ManipulatorGroupId, Path, Stroke},
     Buffer, InsertElement,
 };
 
@@ -79,6 +79,21 @@ impl Pen {
                     }
                 }
 
+                let force = ui.input(|r| {
+                    r.events.iter().find_map(move |e| {
+                        if let egui::Event::Touch { device_id: _, id: _, phase, pos: _, force } = e
+                        {
+                            if matches!(phase, egui::TouchPhase::Move) {
+                                force.to_owned()
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                });
+
                 if self.detect_snap(pos, buffer.master_transform) {
                     let curr_id = self.current_id; // needed because end path will advance to the next id
                     self.end_path(buffer, history, true);
@@ -87,14 +102,35 @@ impl Pen {
                 } else if let Some(parser::Element::Path(p)) =
                     buffer.elements.get_mut(&id.to_string())
                 {
+                    p.diff_state.data_changed = true;
                     // a transform occured causing a mismatch between buffer and path builder finish path early
                     if p.data != self.path_builder.path {
                         self.path_builder.clear();
                         self.current_id += 1;
                         return None;
                     }
+
+                    let current_touch_id = get_current_touch_id(ui);
+                    if !current_touch_id.eq(&self.path_builder.first_point_touch_id)
+                        && self.path_builder.path.len_segments().eq(&0)
+                    {
+                        self.path_builder.clear();
+                        self.path_builder.first_point_touch_id = current_touch_id;
+                    }
+
                     self.path_builder.cubic_to(pos);
                     p.data = self.path_builder.path.clone();
+
+                    if let Some(f) = force {
+                        if let Some(pressure) = &mut p.pressure {
+                            pressure.push(f)
+                        } else {
+                            p.pressure = Some(vec![f]);
+                        }
+                    // sometimes the force is missing from the event so just autofill it based on the last force
+                    } else if let Some(pressure) = &mut p.pressure {
+                        pressure.push(*pressure.last().unwrap_or(&1.0))
+                    }
                 } else {
                     self.path_builder.cubic_to(pos);
                     let mut stroke = Stroke::default();
@@ -102,6 +138,10 @@ impl Pen {
                         stroke.color = c;
                     }
                     stroke.width = self.active_stroke_width as f32;
+
+                    let pressure = if let Some(f) = force { Some(vec![f]) } else { None };
+                    println!("starting path with id: {}", id);
+                    self.path_builder.first_point_touch_id = get_current_touch_id(ui);
 
                     buffer.elements.insert(
                         id.to_string(),
@@ -113,6 +153,9 @@ impl Pen {
                             transform: Transform::identity()
                                 .post_scale(buffer.master_transform.sx, buffer.master_transform.sy),
                             opacity: self.active_opacity,
+                            pressure,
+                            diff_state: DiffState::default(),
+                            deleted: false,
                         }),
                     );
                 }
@@ -224,12 +267,14 @@ pub enum PathEvent {
 }
 
 /// Build a cubic bézier path with Catmull-Rom smoothing and Ramer–Douglas–Peucker compression
+#[derive(Debug)]
 pub struct CubicBezBuilder {
     /// store the 4 past points
     prev_points_window: VecDeque<egui::Pos2>,
     path: Subpath<ManipulatorGroupId>,
     simplified_points: Vec<egui::Pos2>,
     original_points: Vec<egui::Pos2>,
+    first_point_touch_id: Option<egui::TouchId>,
 }
 
 impl Default for CubicBezBuilder {
@@ -242,6 +287,7 @@ impl CubicBezBuilder {
     pub fn new() -> Self {
         CubicBezBuilder {
             prev_points_window: VecDeque::from(vec![]),
+            first_point_touch_id: None,
             path: Subpath::<ManipulatorGroupId>::from_anchors(vec![], false),
             simplified_points: vec![],
             original_points: vec![],
@@ -346,6 +392,7 @@ impl CubicBezBuilder {
 
     pub fn clear(&mut self) {
         self.prev_points_window.clear();
+        self.first_point_touch_id = None;
         self.path = Subpath::<ManipulatorGroupId>::from_anchors(vec![], false);
     }
 

@@ -66,3 +66,15 @@ pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
         max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
     }
 }
+
+pub fn get_current_touch_id(ui: &mut egui::Ui) -> Option<egui::TouchId> {
+    ui.input(|r| {
+        r.events.iter().find_map(move |event| {
+            if let egui::Event::Touch { device_id: _, id, phase: _, pos: _, force: _ } = event {
+                Some(id.clone())
+            } else {
+                None
+            }
+        })
+    })
+}

@@ -3,18 +3,20 @@ use std::{collections::HashMap, fmt::Write, path::PathBuf, str::FromStr, sync::A
 use bezier_rs::{Bezier, Identifier, Subpath};
 use egui::TextureHandle;
 use glam::{DAffine2, DMat2, DVec2};
-use lb_rs::Uuid;
-use resvg::{
-    tiny_skia::Point,
-    usvg::{
-        self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, Options, Paint, Text,
-        Transform, Visibility,
-    },
+use lb_rs::{base64, Uuid};
+use resvg::tiny_skia::Point;
+use resvg::usvg::{
+    self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, Options, Paint, Text, Transform,
+    Visibility,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::theme::palette::ThemePalette;
 
+use super::selection::u_transform_to_bezier;
+
 const ZOOM_G_ID: &str = "lb_master_transform";
+const LB_STORE_ID: &str = "lb_persistent_store";
 
 /// A shorthand for [ImageHrefResolver]'s string function.
 pub type ImageHrefStringResolverFn =
@@ -31,17 +33,18 @@ pub struct ManipulatorGroupId;
 #[derive(Default)]
 pub struct Buffer {
     pub elements: HashMap<String, Element>,
-    pub deleted_elements: HashMap<String, Element>,
     pub master_transform: Transform,
     pub needs_path_map_update: bool,
 }
 
+#[derive(Clone)]
 pub enum Element {
     Path(Path),
     Image(Image),
     Text(Text),
 }
 
+#[derive(Clone)]
 pub struct Path {
     pub data: Subpath<ManipulatorGroupId>,
     pub visibility: Visibility,
@@ -49,9 +52,20 @@ pub struct Path {
     pub stroke: Option<Stroke>,
     pub transform: Transform,
     pub opacity: f32,
+    pub pressure: Option<Vec<f32>>,
+    pub diff_state: DiffState,
+    pub deleted: bool,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Default, Debug)]
+pub struct DiffState {
+    pub opacity_changed: bool,
+    pub transformed: Option<Transform>,
+    pub delete_changed: bool,
+    pub data_changed: bool,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct Stroke {
     pub color: (egui::Color32, egui::Color32),
     pub width: f32,
@@ -63,6 +77,7 @@ impl Default for Stroke {
     }
 }
 
+#[derive(Clone)]
 pub struct Image {
     pub data: ImageKind,
     pub visibility: Visibility,
@@ -71,11 +86,19 @@ pub struct Image {
     pub texture: Option<TextureHandle>,
     pub opacity: f32,
     pub href: Option<String>,
+    pub diff_state: DiffState,
+    pub deleted: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct PersistentStore {
+    path_pressures: HashMap<String, Vec<f32>>,
 }
 
 impl Buffer {
     pub fn new(svg: &str, core: &lb_rs::Core, open_file: Uuid) -> Self {
-        let fontdb = usvg::fontdb::Database::default();
+        let mut fontdb = usvg::fontdb::Database::default();
+        fontdb.load_font_data(lb_fonts::ROBOTO_REGULAR.to_vec());
 
         let lb_local_resolver = ImageHrefResolver {
             resolve_data: ImageHrefResolver::default_data_resolver(),
@@ -93,17 +116,24 @@ impl Buffer {
         let utree = maybe_tree.unwrap();
 
         let mut buffer = Buffer::default();
+        let mut store = PersistentStore::default();
         utree
             .root()
             .children()
             .iter()
             .enumerate()
-            .for_each(|(i, u_el)| parse_child(u_el, &mut buffer, i));
+            .for_each(|(_, u_el)| parse_child(u_el, &mut buffer, &mut store));
+
+        store.path_pressures.iter().for_each(|(id, pressure)| {
+            if let Some(Element::Path(p)) = buffer.elements.get_mut(id) {
+                p.pressure = Some(pressure.to_vec());
+            }
+        });
         buffer
     }
 }
 
-fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
+fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PersistentStore) {
     match &u_el {
         usvg::Node::Group(group) => {
             if group.id().eq(ZOOM_G_ID) {
@@ -113,11 +143,16 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                 .children()
                 .iter()
                 .enumerate()
-                .for_each(|(i, u_el)| parse_child(u_el, buffer, i));
+                .for_each(|(i, u_el)| parse_child(u_el, buffer, store));
         }
+
         usvg::Node::Image(img) => {
+            let mut diff_state = DiffState::default();
+            diff_state.data_changed = true;
+            let id =
+                if img.id().is_empty() { Uuid::new_v4().to_string() } else { img.id().to_owned() };
             buffer.elements.insert(
-                i.to_string(),
+                id,
                 Element::Image(Image {
                     data: img.kind().clone(),
                     visibility: img.visibility(),
@@ -126,6 +161,8 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     texture: None,
                     opacity: 1.0,
                     href: Some(img.id().to_string()),
+                    diff_state,
+                    deleted: false,
                 }),
             );
         }
@@ -149,19 +186,37 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                 stroke.width = s.width().get();
                 opacity = s.opacity().get();
             }
+            let mut diff_state = DiffState::default();
+            diff_state.data_changed = true;
+
+            let id = if path.id().is_empty() {
+                Uuid::new_v4().to_string()
+            } else {
+                path.id().to_owned()
+            };
+
             buffer.elements.insert(
-                i.to_string(),
+                id,
                 Element::Path(Path {
                     data: usvg_d_to_subpath(path),
                     visibility: path.visibility(),
                     fill: path.fill().cloned(),
                     stroke: Some(stroke),
-                    transform: path.abs_transform(),
+                    transform: Transform::identity(),
                     opacity,
+                    pressure: None,
+                    diff_state,
+                    deleted: false,
                 }),
             );
         }
-        usvg::Node::Text(_) => {}
+        usvg::Node::Text(t) => {
+            if t.id().eq(LB_STORE_ID) {
+                let raw: String = t.chunks().iter().map(|chunk| chunk.text()).collect();
+                let serialized = base64::decode(&raw).unwrap();
+                *store = bincode::deserialize(&serialized).unwrap();
+            }
+        }
     }
 }
 
@@ -245,15 +300,19 @@ impl ToString for Buffer {
         for el in self.elements.iter() {
             match el.1 {
                 Element::Path(p) => {
+                    if p.deleted {
+                        continue;
+                    }
                     let mut curv_attrs = " ".to_string(); // if it's empty then the curve will not be converted to string via bezier_rs
                     if let Some(stroke) = p.stroke {
                         curv_attrs = format!(
-                            "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none'",
+                            "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}'",
                             stroke.width,
                             stroke.color.0.r(),
                             stroke.color.0.g(),
                             stroke.color.0.b(),
-                            p.opacity
+                            p.opacity,
+                            el.0
                         );
                     }
                     if p.data.len() > 1 {
@@ -276,6 +335,36 @@ impl ToString for Buffer {
                 }
                 Element::Text(_) => {}
             }
+        }
+        let path_pressures = self
+            .elements
+            .iter()
+            .filter_map(|(id, el)| {
+                if let Element::Path(p) = el {
+                    if !p.deleted {
+                        if let Some(pressure) = &p.pressure {
+                            Some((id.to_owned(), pressure.to_owned()))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let store = PersistentStore { path_pressures };
+
+        if let Ok(encoded_store) = bincode::serialize(&store) {
+            let serialized_string = base64::encode(&encoded_store);
+            let store_node = format!(
+                r#"<text id="{}" font-family="Roboto">{}</text>"#,
+                LB_STORE_ID, serialized_string
+            );
+            let _ = write!(&mut root, "{}", store_node);
         }
         let zoom_level = format!(
             r#"<g id="{}" transform="matrix({} {} {} {} {} {})"></g>"#,
@@ -302,6 +391,59 @@ impl Image {
     pub fn apply_transform(&mut self, transform: Transform) {
         if let Some(new_vb) = self.view_box.rect.transform(transform) {
             self.view_box.rect = new_vb;
+        }
+    }
+}
+
+impl Element {
+    pub fn opacity_changed(&self) -> bool {
+        match self {
+            Element::Path(p) => p.diff_state.opacity_changed,
+            Element::Image(i) => i.diff_state.opacity_changed,
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn delete_changed(&self) -> bool {
+        match self {
+            Element::Path(p) => p.diff_state.delete_changed,
+            Element::Image(i) => i.diff_state.delete_changed,
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn data_changed(&self) -> bool {
+        match self {
+            Element::Path(p) => p.diff_state.data_changed,
+            Element::Image(i) => i.diff_state.data_changed,
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn deleted(&self) -> bool {
+        match self {
+            Element::Path(p) => p.deleted,
+            Element::Image(i) => i.deleted,
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn transformed(&self) -> Option<Transform> {
+        match self {
+            Element::Path(p) => p.diff_state.transformed,
+            Element::Image(i) => i.diff_state.transformed,
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn transform(&mut self, transform: Transform) {
+        match self {
+            Element::Path(path) => {
+                path.diff_state.transformed = Some(transform);
+                path.transform = path.transform.post_concat(transform);
+                path.data.apply_transform(u_transform_to_bezier(&transform));
+            }
+            Element::Image(img) => {
+                img.diff_state.transformed = Some(transform);
+                img.transform = img.transform.post_concat(transform);
+                img.apply_transform(transform);
+            }
+            Element::Text(_) => todo!(),
         }
     }
 }

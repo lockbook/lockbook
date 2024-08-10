@@ -19,10 +19,15 @@ impl Default for Eraser {
         Self::new()
     }
 }
+pub const DEFAULT_ERASER_THICKNESS: f32 = 5.0;
 
 impl Eraser {
     pub fn new() -> Self {
-        Eraser { delete_candidates: HashMap::default(), thickness: 10.0, last_pos: None }
+        Eraser {
+            delete_candidates: HashMap::default(),
+            thickness: DEFAULT_ERASER_THICKNESS,
+            last_pos: None,
+        }
     }
 
     pub fn handle_input(
@@ -36,14 +41,19 @@ impl Eraser {
 
         match event {
             EraseEvent::Start(pos) => {
-                buffer.elements.iter().for_each(|(id, el)| {
-                    if self.delete_candidates.contains_key(id) {
-                        return;
-                    }
-                    if pointer_intersects_element(el, pos, self.last_pos, self.thickness as f64) {
-                        self.delete_candidates.insert(id.clone(), false);
-                    }
-                });
+                buffer
+                    .elements
+                    .iter()
+                    .filter(|(_, el)| !el.deleted())
+                    .for_each(|(id, el)| {
+                        if self.delete_candidates.contains_key(id) {
+                            return;
+                        }
+                        if pointer_intersects_element(el, pos, self.last_pos, self.thickness as f64)
+                        {
+                            self.delete_candidates.insert(id.clone(), false);
+                        }
+                    });
 
                 self.delete_candidates
                     .iter_mut()
@@ -51,8 +61,14 @@ impl Eraser {
                         if let Some(el) = buffer.elements.get_mut(id) {
                             if !*has_decreased_opacity {
                                 match el {
-                                    super::parser::Element::Path(p) => p.opacity *= 0.5,
-                                    super::parser::Element::Image(img) => img.opacity = 0.3,
+                                    super::parser::Element::Path(p) => {
+                                        p.opacity *= 0.3;
+                                        p.diff_state.opacity_changed = true
+                                    }
+                                    super::parser::Element::Image(img) => {
+                                        img.opacity = 0.3;
+                                        img.diff_state.opacity_changed = true
+                                    }
                                     super::parser::Element::Text(_) => todo!(),
                                 }
                             }
@@ -72,9 +88,13 @@ impl Eraser {
                         match el {
                             super::parser::Element::Path(p) => {
                                 p.opacity = 1.0;
+                                p.deleted = true;
+                                p.diff_state.delete_changed = true;
                             }
                             super::parser::Element::Image(img) => {
                                 img.opacity = 1.0;
+                                img.deleted = true;
+                                img.diff_state.delete_changed = true
                             }
                             super::parser::Element::Text(_) => todo!(),
                         }
@@ -87,9 +107,7 @@ impl Eraser {
                         .collect(),
                 );
 
-                // todo: figure out if the history api should automatically apply the event on save
                 history.save(event.clone());
-                history.apply_event(&event, buffer);
 
                 self.delete_candidates.clear();
             }

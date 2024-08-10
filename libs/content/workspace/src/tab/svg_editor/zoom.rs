@@ -1,6 +1,6 @@
 use resvg::usvg::Transform;
 
-use super::{parser, selection::u_transform_to_bezier};
+use super::{parser, selection::u_transform_to_bezier, Buffer};
 
 pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut parser::Buffer) {
     let zoom_delta = ui.input(|r| r.zoom_delta());
@@ -50,18 +50,20 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
     if pan.is_some() || is_zooming {
         buffer.master_transform = buffer.master_transform.post_concat(t);
 
-        let transform = u_transform_to_bezier(&t);
         for el in buffer.elements.values_mut() {
-            match el {
-                parser::Element::Path(path) => {
-                    path.transform = path.transform.post_concat(t);
-                    path.data.apply_transform(transform);
-                }
-                parser::Element::Image(img) => {
-                    img.apply_transform(t);
-                }
-                parser::Element::Text(_) => todo!(),
-            }
+            el.transform(t);
         }
     }
+}
+
+pub fn zoom_percentage_to_transform(
+    zoom_percentage: f32, buffer: &mut Buffer, ui: &mut egui::Ui,
+) -> Transform {
+    let zoom_delta = (zoom_percentage) / (buffer.master_transform.sx * 100.0);
+    return Transform::identity()
+        .post_scale(zoom_delta, zoom_delta)
+        .post_translate(
+            (1.0 - zoom_delta) * ui.ctx().screen_rect().center().x,
+            (1.0 - zoom_delta) * ui.ctx().screen_rect().center().y,
+        );
 }
