@@ -925,7 +925,7 @@ impl Editor {
 #[cfg(test)]
 mod test {
     use super::{join, Bounds, RangesExt};
-    use crate::tab::markdown_editor::{input::canonical::Bound, offset_types::DocCharOffset};
+    use crate::tab::markdown_editor::{input::Bound, offset_types::DocCharOffset};
 
     #[test]
     fn range_before_after_no_ranges() {

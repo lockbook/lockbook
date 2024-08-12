@@ -1,6 +1,7 @@
 use crate::tab::markdown_editor::appearance::Appearance;
 use crate::tab::markdown_editor::debug::DebugInfo;
 use crate::tab::markdown_editor::input::cursor::Cursor;
+use crate::tab::markdown_editor::input::{Mutation, SubMutation};
 use crate::tab::markdown_editor::offset_types::{
     DocByteOffset, DocCharOffset, RangeExt, RelCharOffset,
 };
@@ -16,30 +17,6 @@ static MAX_UNDOS: usize = 100; // todo: make this much larger and measure perfor
 
 /// don't type text for this long, and the text before and after are considered separate undo events
 static UNDO_DEBOUNCE_PERIOD: Duration = Duration::from_millis(300);
-
-/// represents a modification made as a result of event processing
-pub type Mutation = Vec<SubMutation>; // todo: tinyvec candidate
-
-#[derive(Clone, Debug)]
-pub enum EditorMutation {
-    Buffer(Mutation), // todo: tinyvec candidate
-    Undo,
-    Redo,
-    // todo: redefine
-    // SetCursor { cursor: (DocCharOffset, DocCharOffset), marked: bool }, // set the cursor
-    // Replace { text: String }, // replace the current selection
-}
-
-#[derive(Clone, Debug)]
-pub enum SubMutation {
-    Cursor { cursor: Cursor },                     // modify the cursor state
-    Insert { text: String, advance_cursor: bool }, // insert text at cursor location
-    Delete(RelCharOffset),                         // delete selection or characters before cursor
-    DebugToggle,                                   // toggle debug overlay
-    SetBaseFontSize(f32), // set font size for plain text (other sizes scaled)
-    ToClipboard { text: String }, // cut or copy text to clipboard
-    OpenedUrl { url: String }, // open a url
-}
 
 #[derive(Debug)]
 pub struct Buffer {
@@ -442,7 +419,6 @@ impl SubBuffer {
     }
 
     fn replace_range(&mut self, range: Range<DocCharOffset>, replacement: &str) {
-        let old_text = self.text.clone();
         self.text.replace_range(
             Range {
                 start: self.segs.offset_to_byte(range.start).0,
@@ -450,7 +426,6 @@ impl SubBuffer {
             },
             replacement,
         );
-        // println!("replace_range: {:?} -> {:?}", old_text, self.text);
     }
 }
 
