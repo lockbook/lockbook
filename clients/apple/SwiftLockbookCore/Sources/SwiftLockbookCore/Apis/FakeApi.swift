@@ -54,6 +54,10 @@ public struct FakeApi: LockbookApi {
         return .success(FakeApi.fileMetas)
     }
     
+    public func listFolderPaths() -> FfiResult<[String], ListPathsError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
     public func readDocument(id: UUID) -> FfiResult<String, ReadDocumentError> {
         .success("""
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi mattis mattis arcu a commodo.

@@ -385,6 +385,28 @@ class FileService: ObservableObject {
         #endif
     }
     
+    public func getFolderPaths() -> [String]? {
+        switch DI.core.listFolderPaths() {
+        case .success(let paths):
+            return paths.map({ String($0.dropFirst()) }).sorted()
+        case .failure(let e):
+            return nil
+        }
+    }
+    
+    public static func metaToSystemImage(meta: File) -> String {
+        switch meta.fileType {
+        case .Document:
+            return docExtToSystemImage(name: meta.name)
+        case .Folder:
+            if meta.shares.count != 0 {
+                return "folder.fill.badge.person.crop"
+            } else {
+                return "folder.fill"
+            }
+        }
+    }
+    
     public static func docExtToSystemImage(name: String) -> String {
         guard let ext = name.split(separator: ".").last else {
             return "doc"
@@ -433,4 +455,5 @@ public enum FileAction {
     case delete
     case createFolder
     case importFiles
+    case acceptedShare
 }

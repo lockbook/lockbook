@@ -25,6 +25,7 @@ public protocol LockbookApi {
     // Directory
     func getRoot() -> FfiResult<File, GetRootError>
     func listFiles() -> FfiResult<[File], ListMetadatasError>
+    func listFolderPaths() -> FfiResult<[String], ListPathsError>
     
     // Document
     func readDocument(id: UUID) -> FfiResult<String, ReadDocumentError>

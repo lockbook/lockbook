@@ -32,11 +32,11 @@ struct PendingSharesView: View {
             }) { meta in
                 SharedFileCell(meta: meta)
             }
+            .listStyle(InsetListStyle())
             
             Spacer()
         }
         .navigationTitle("Pending Shares")
-        .sheet(isPresented: $sheets.acceptingShare, content: AcceptShareSheet.init)
     }
     
     @ViewBuilder
@@ -63,8 +63,9 @@ struct SharedFileCell: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: meta.fileType == .Folder ? "folder" : "doc")
+            Image(systemName: FileService.metaToSystemImage(meta: meta))
                 .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
+                .imageScale(.large)
                 
             Text(meta.name)
                 .font(.title3)
@@ -72,7 +73,7 @@ struct SharedFileCell: View {
             Spacer()
             
             Button {
-                sheets.acceptingShareInfo = meta
+                sheets.movingInfo = .AcceptShare((meta.name, meta.id))
             } label: {
                 Image(systemName: "plus.circle")
                     .imageScale(.large)
@@ -87,13 +88,13 @@ struct SharedFileCell: View {
                     .foregroundColor(.red)
             }
         }
-                .padding(.vertical, 7)
-                .contentShape(Rectangle())
-                .confirmationDialog("Are you sure you want to reject \(meta.name)", isPresented: $showRejectConfirmation) {
-                    Button("Reject \(meta.name)", role: .destructive) {
-                        share.rejectShare(id: meta.id)
-                    }
-                }
+        .padding(.vertical, 7)
+        .contentShape(Rectangle())
+        .confirmationDialog("Are you sure?", isPresented: $showRejectConfirmation, titleVisibility: .visible) {
+            Button("Reject \"\(meta.name)\"", role: .destructive) {
+                share.rejectShare(id: meta.id)
+            }
+        }
 
     }
 }

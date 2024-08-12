@@ -92,7 +92,7 @@ Windows:
 | Register & Login            | ✅          | ✅      | ✅    | ✅    | ✅      | ✅   |
 | Upgrade To Premium          | ✅          | ✅      | ✅    | ✅    | ✅      | ✅   |
 | Edit & Sync Files           | ✅          | ✅      | ✅    | ✅    | ✅      | ✅   |
-| Import & Export To Device   | 🏗          | 🏗      | ✅    | 🏗    | 🏗      | ✅   |
+| Import & Export To Device   | ✅          | 🏗      | ✅    | 🏗    | 🏗      | ✅   |
 | Search                      | ✅          | ✅      | ✅    | ✅    | ✅      | 🏗   |
 | Share Files                 | ✅          | ✅      | ✅    | ✅    | ✅      | ✅   |
 | Markdown                    | ✅          | ✅      | ✅    | ✅    | ✅      | ✅   |

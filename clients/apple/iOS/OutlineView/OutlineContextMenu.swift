@@ -45,7 +45,7 @@ struct OutlineContextMenu: View {
                     Label("Rename", systemImage: "pencil.circle.fill")
                 }
 
-                Button(action: { sheets.movingInfo = meta }) {
+                Button(action: { sheets.movingInfo = .Move([meta.id]) }) {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 }
                 
