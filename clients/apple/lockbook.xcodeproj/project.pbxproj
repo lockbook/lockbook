@@ -55,7 +55,6 @@
 		47FCC5B12C1A33A9001AB7ED /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 47FCC5B02C1A33A9001AB7ED /* GameController.framework */; };
 		47FF74F52C5AC8E0004F90EC /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FF74F42C5AC8E0004F90EC /* ShareViewController.swift */; };
 		47FF74FC2C5AC8E0004F90EC /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 47FF74F22C5AC8E0004F90EC /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		47FF75032C5ACFC4004F90EC /* ShareExtensionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FF75022C5ACFC4004F90EC /* ShareExtensionView.swift */; };
 		47FF75052C5AE65F004F90EC /* SelectFolderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FF75042C5AE65F004F90EC /* SelectFolderView.swift */; };
 		6581A7EF74307EAE69426206 /* SheetState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581AB54147C2201F8F95500 /* SheetState.swift */; };
 		6581ABD3CA16395327F765E8 /* SheetState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581AB54147C2201F8F95500 /* SheetState.swift */; };
@@ -191,7 +190,6 @@
 		47FF74F22C5AC8E0004F90EC /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		47FF74F42C5AC8E0004F90EC /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		47FF74F92C5AC8E0004F90EC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		47FF75022C5ACFC4004F90EC /* ShareExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareExtensionView.swift; sourceTree = "<group>"; };
 		47FF75042C5AE65F004F90EC /* SelectFolderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectFolderView.swift; sourceTree = "<group>"; };
 		6581A11CE95C74B01ED30AEB /* MenuItems.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuItems.swift; sourceTree = "<group>"; };
 		6581AB54147C2201F8F95500 /* SheetState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = SheetState.swift; path = iOS/OutlineView/SheetState.swift; sourceTree = SOURCE_ROOT; };
@@ -291,7 +289,6 @@
 				4788D3842C5D71A900507DCE /* ShareExtension.entitlements */,
 				47FF74F42C5AC8E0004F90EC /* ShareViewController.swift */,
 				47FF74F92C5AC8E0004F90EC /* Info.plist */,
-				47FF75022C5ACFC4004F90EC /* ShareExtensionView.swift */,
 			);
 			path = ShareExtension;
 			sourceTree = "<group>";
@@ -624,7 +621,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				47FF75032C5ACFC4004F90EC /* ShareExtensionView.swift in Sources */,
 				47C009192C5C043000F4B7ED /* CoreService.swift in Sources */,
 				47C0091A2C5C046700F4B7ED /* ConfigHelper.swift in Sources */,
 				47FF74F52C5AC8E0004F90EC /* ShareViewController.swift in Sources */,

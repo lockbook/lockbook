@@ -22,22 +22,18 @@ class SelectFolderViewModel: ObservableObject {
         }
     }
     
-    @Published var selected = 0 {
-        didSet {
-            recomputeSelectedPath()
+    @Published var selected = 0
+    var selectedPath: String {
+        get {
+            if filteredFolderPaths.count <= selected {
+                return ""
+            }
+            
+            return filteredFolderPaths[selected].isEmpty ? "/" : filteredFolderPaths[selected]
         }
     }
-    @Published var selectedPath: String = "/"
     
     var exit: Bool = false
-        
-    func recomputeSelectedPath() {
-        if filteredFolderPaths.count <= selected {
-            selectedPath = ""
-        } else {
-            selectedPath = filteredFolderPaths[selected].isEmpty ? "/" : filteredFolderPaths[selected]
-        }
-    }
     
     func calculateFolderPaths() {
         DispatchQueue.global(qos: .userInitiated).async {
@@ -219,30 +215,32 @@ struct SelectFolderView: View {
             
             if viewModel.folderPaths != nil {
                 ScrollViewReader { scrollHelper in
-                    List(viewModel.filteredFolderPaths, id: \.self) { path in
-                        let _ = print("populating \(path)")
-                        HStack {
-                            Button(action: {
-                                if viewModel.selectFolder(action: action, path: path.isEmpty ? "/" : path) {
-                                    dismiss()
-                                }
-                            }, label: {
-                                HighlightedText(text: path.isEmpty ? "/" : path, pattern: viewModel.searchInput, textSize: 16)
-                            })
-                            .modifier(PlatformSelectFolderButtonModifier())
-                            
-                            Spacer()
+                    ScrollView {
+                        ForEach(viewModel.filteredFolderPaths, id: \.self) { path in
+                            HStack {
+                                Button(action: {
+                                    if viewModel.selectFolder(action: action, path: path.isEmpty ? "/" : path) {
+                                        dismiss()
+                                    }
+                                }, label: {
+                                    HighlightedText(text: path.isEmpty ? "/" : path, pattern: viewModel.searchInput, textSize: 16)
+                                        .foregroundStyle(.foreground)
+                                        .multilineTextAlignment(.leading)
+                                })
+                                .modifier(PlatformSelectFolderButtonModifier())
+                                
+                                Spacer()
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 5)
+                            .modifier(SelectedItemModifier(item: path.isEmpty ? "/" : path, selected: viewModel.selectedPath))
                         }
-                        .modifier(SelectedItemModifier(item: path.isEmpty ? "/" : path, selected: viewModel.selectedPath))
-                        .listRowSeparator(.hidden)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 1)
-                        
                     }
-                    .listStyle(.inset)
-                    .onChange(of: viewModel.selectedPath) { newValue in
-                        withAnimation {
-                            scrollHelper.scrollTo(viewModel.filteredFolderPaths[viewModel.selected], anchor: .center)
+                    .onChange(of: viewModel.selected) { newValue in
+                        if viewModel.selected < viewModel.filteredFolderPaths.count {
+                            withAnimation {
+                                scrollHelper.scrollTo(viewModel.selectedPath, anchor: .center)
+                            }
                         }
                     }
                 }
@@ -259,11 +257,9 @@ struct SelectFolderView: View {
     }
     
     var folderTreeView: some View {
-        let root = DI.files.files.first(where: { $0.parent == $0.id })!
-        let wc = WithChild(root, DI.files.files, { parent, meta in
+        let wc = WithChild(DI.files.root!, DI.files.files, { parent, meta in
             parent.id == meta.parent && parent.id != meta.id && meta.fileType == .Folder
         })
-        
         
         return VStack {
             HStack {
@@ -328,7 +324,7 @@ struct SelectedItemModifier: ViewModifier {
     
     func body(content: Content) -> some View {
         if isSelected {
-            content.listRowBackground(RoundedRectangle(cornerRadius: 5).fill(Color.gray.opacity(0.2)).padding(.horizontal, 15))
+            content.background(RoundedRectangle(cornerRadius: 5).fill(Color.gray.opacity(0.2)).padding(.horizontal, 5))
         } else {
             content
         }
@@ -485,7 +481,9 @@ struct SelectFolderTextFieldWrapper: NSViewRepresentable {
     }
     
     public func updateNSView(_ nsView: SelectFolderTextField, context: NSViewRepresentableContext<SelectFolderTextFieldWrapper>) {
-        nsView.becomeFirstResponder()
+        if nsView.currentEditor() == nil {
+            nsView.becomeFirstResponder()
+        }
     }
     
     public func makeCoordinator() -> SelectFolderTextFieldDelegate {
