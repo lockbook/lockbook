@@ -68,6 +68,10 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: list_metadatas())
     }
     
+    public func listFolderPaths() -> FfiResult<[String], ListPathsError> {
+        fromPrimitiveResult(result: list_folder_paths())
+    }
+    
     public func readDocument(id: UUID) -> FfiResult<String, ReadDocumentError> {
         fromPrimitiveResult(result: read_document(id.uuidString))
     }

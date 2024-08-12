@@ -32,6 +32,12 @@ struct PlatformView: View {
                     RenameFileSheet(renamingFileInfo: renamingFileInfo)
                 }
             })
+            .sheet(isPresented: $sheets.moving, content: {
+                if let action = sheets.movingInfo {
+                    SelectFolderView(action: action)
+                        .modifier(SelectFolderSheetViewModifer())
+                }
+            })
             .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
                 if let action = files.successfulAction {
                     switch action {
@@ -43,6 +49,8 @@ struct PlatformView: View {
                         return AlertToast(type: .regular, title: "Folder created")
                     case .importFiles:
                         return AlertToast(type: .regular, title: "Imported successfully")
+                    case .acceptedShare:
+                        return AlertToast(type: .regular, title: "Accepted share")
                     }
                 } else {
                     return AlertToast(type: .regular, title: "ERROR")
@@ -70,11 +78,6 @@ struct PlatformView: View {
                 iOS
             }
         }
-        .sheet(isPresented: $sheets.moving, content: {
-            if let meta = sheets.movingInfo {
-                MoveSheet(meta: meta)
-            }
-        })
     }
         
     var iOS: some View {
@@ -128,7 +131,7 @@ struct PlatformView: View {
                         }, label: {
                             if let meta = DI.files.idsAndFiles[id] {
                                 HStack {
-                                    Image(systemName: FileService.docExtToSystemImage(name: meta.name))
+                                    Image(systemName: FileService.metaToSystemImage(meta: meta))
                                         .foregroundColor(.primary)
                                         .imageScale(.medium)
                                         .padding(.trailing)
@@ -259,6 +262,18 @@ func pendingShareToolbarIcon(isPendingSharesEmpty: Bool) -> some View {
             }
         }
     #endif
+}
+
+struct SelectFolderSheetViewModifer: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content
+            .presentationDragIndicator(.visible)
+            .presentationDetents([.fraction(0.8), .large])
+        #else
+        content.frame(width: 500, height: 500)
+        #endif
+    }
 }
 
 enum PlatformViewShown {
