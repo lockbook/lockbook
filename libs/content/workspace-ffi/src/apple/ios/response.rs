@@ -1,7 +1,7 @@
 use lb_external_interface::lb_rs::Uuid;
 use std::ffi::{c_char, CString};
 use workspace_rs::tab::markdown_editor::{
-    input::canonical::{Bound, Location, Region},
+    input::{Bound, Location, Region},
     offset_types::{DocCharOffset, RangeExt as _},
 };
 

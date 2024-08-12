@@ -1,9 +1,11 @@
 use similar::{algorithms::DiffHook, DiffableStr as _, DiffableStrRef as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use crate::tab::markdown_editor::{buffer::SubBuffer, offset_types::DocCharOffset};
-
-use super::canonical::{Location, Modification, Region};
+use crate::tab::markdown_editor::{
+    buffer::SubBuffer,
+    input::{Location, Modification, Region},
+    offset_types::DocCharOffset,
+};
 
 // implementation note: this works because similar uses the same grapheme definition as we do, so reported indexes can
 // be interpreted as doc char offsets
