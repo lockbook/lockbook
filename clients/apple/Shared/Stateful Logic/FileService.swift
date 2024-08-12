@@ -21,6 +21,7 @@ class FileService: ObservableObject {
     // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
     #if os(iOS)
     @Published var path: [File] = []
+    @Published var selectedFiles: [UUID]? = nil
 
     var parent: File? {
         get {

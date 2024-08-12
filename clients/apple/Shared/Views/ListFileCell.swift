@@ -5,6 +5,20 @@ import Introspect
 
 struct FileCell: View {
     let meta: File
+    let isSelected: Bool
+    let isSelectable: Bool
+    
+    init(meta: File, selectedFiles: [UUID]?) {
+        self.meta = meta
+        
+        if let selectedFiles = selectedFiles {
+            self.isSelectable = true
+            self.isSelected = selectedFiles.contains(where: { $0 == meta.id })
+        } else {
+            self.isSelectable = false
+            self.isSelected = false
+        }
+    }
 
     var body: some View {
         cell
@@ -64,41 +78,39 @@ struct FileCell: View {
             
             DI.files.intoChildDirectory(meta)
         }) {
-            RealFileCell(meta: meta)
-        }
-    }
-}
-
-struct RealFileCell: View {
-    let meta: File
-
-    var body: some View {
-        HStack(spacing: 20) {
-            Image(systemName: FileService.metaToSystemImage(meta: meta))
-                .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
-                .font(.title3)
-                .frame(width: 20)
-            
-            if meta.fileType == .Document {
-                VStack(alignment: .leading) {
+            HStack(spacing: 20) {
+                
+                if isSelectable {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "checkmark.circle")
+                        .transition(.opacity)
+                }
+                
+                Image(systemName: FileService.metaToSystemImage(meta: meta))
+                    .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
+                    .font(.title3)
+                    .frame(width: 20)
+                
+                if meta.fileType == .Document {
+                    VStack(alignment: .leading) {
+                        Text(meta.name)
+                            .font(.body)
+                            .lineLimit(1)
+                        
+                        Text(DI.core.timeAgo(timeStamp: Int64(meta.lastModified)))
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                    }
+                } else {
                     Text(meta.name)
                         .font(.body)
-                        .lineLimit(1)
-                    
-                    Text(DI.core.timeAgo(timeStamp: Int64(meta.lastModified)))
-                            .foregroundColor(.secondary)
-                            .font(.caption)
                 }
-            } else {
-                Text(meta.name)
-                    .font(.body)
+                
+                
+                Spacer()
             }
-            
-            
-            Spacer()
+            .padding(.vertical, 10)
+            .padding(.horizontal)
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal)
-        .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
 }

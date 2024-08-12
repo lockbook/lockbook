@@ -255,6 +255,21 @@ struct FileListView: View {
         .toolbar {
             ToolbarItemGroup {
                 Button(action: {
+                    if files.selectedFiles == nil {
+                        withAnimation {
+                            files.selectedFiles = []
+                        }
+                    } else {
+                        withAnimation {
+                            files.selectedFiles = nil
+                        }
+                    }
+                }, label: {
+                    Image(systemName: files.selectedFiles == nil ? "checkmark.circle" : "checkmark.circle.fill").foregroundColor(.blue)
+                })
+                .padding(.trailing, 5)
+                
+                Button(action: {
                     DI.share.showPendingSharesView = true
                 }, label: {
                     pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
@@ -272,7 +287,7 @@ struct FileListView: View {
     
     var childrenView: some View {
         ForEach(files.childrenOf(parent)) { meta in
-            FileCell(meta: meta)
+            FileCell(meta: meta, selectedFiles: files.selectedFiles)
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
