@@ -1,9 +1,11 @@
 use crate::tab::markdown_editor::ast::{Ast, AstTextRangeType};
 use crate::tab::markdown_editor::bounds::{AstTextRanges, Bounds, RangesExt, Text};
-use crate::tab::markdown_editor::buffer::{EditorMutation, SubBuffer, SubMutation};
+use crate::tab::markdown_editor::buffer::SubBuffer;
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::cursor::Cursor;
-use crate::tab::markdown_editor::input::{Location, Modification, Offset, Region};
+use crate::tab::markdown_editor::input::{
+    EditorMutation, Location, Modification, Offset, Region, SubMutation,
+};
 use crate::tab::markdown_editor::layouts::Annotation;
 use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt, RangeIterExt};
 use crate::tab::markdown_editor::style::{

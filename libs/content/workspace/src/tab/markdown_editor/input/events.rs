@@ -1,14 +1,13 @@
 use crate::tab::markdown_editor::appearance::Appearance;
 use crate::tab::markdown_editor::ast::Ast;
 use crate::tab::markdown_editor::bounds::Bounds;
-use crate::tab::markdown_editor::buffer::{Buffer, EditorMutation};
+use crate::tab::markdown_editor::buffer::Buffer;
 use crate::tab::markdown_editor::debug::DebugInfo;
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input;
 use crate::tab::markdown_editor::input::click_checker::ClickChecker;
 use crate::tab::markdown_editor::input::cursor::PointerState;
-use crate::tab::markdown_editor::input::Modification;
-use crate::tab::markdown_editor::input::Region;
+use crate::tab::markdown_editor::input::{EditorMutation, Modification, Region};
 use crate::tab::{self, ClipContent};
 use egui::Event;
 use lb_rs::Uuid;
