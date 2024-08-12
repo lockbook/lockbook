@@ -103,24 +103,23 @@ struct SelectFolderView: View {
                 ScrollViewReader { scrollHelper in
                     ScrollView {
                         ForEach(viewModel.filteredFolderPaths, id: \.self) { path in
-                            HStack {
-                                Button(action: {
-                                    if viewModel.selectFolder(action: action, path: path.isEmpty ? "/" : path) {
-                                        dismiss()
-                                    }
-                                }, label: {
+                            Button(action: {
+                                if viewModel.selectFolder(action: action, path: path.isEmpty ? "/" : path) {
+                                    dismiss()
+                                }
+                            }, label: {
+                                HStack {
                                     HighlightedText(text: path.isEmpty ? "/" : path, pattern: viewModel.searchInput, textSize: 16)
                                         .foregroundStyle(.foreground)
                                         .multilineTextAlignment(.leading)
-                                })
-                                .modifier(PlatformSelectFolderButtonModifier())
-                                .padding(.vertical, 5)
-                                
-                                Spacer()
-                            }
+                                    
+                                    Spacer()
+                                }
+                            })
                             .padding(.horizontal)
-                            .padding(.vertical, 1)
+                            .padding(.vertical, 5)
                             .modifier(SelectedItemModifier(item: path.isEmpty ? "/" : path, selected: viewModel.selectedPath))
+                            .modifier(PlatformSelectFolderButtonModifier())
                         }
                     }
                     .onChange(of: viewModel.selected) { newValue in
