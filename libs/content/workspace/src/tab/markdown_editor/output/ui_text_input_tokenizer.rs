@@ -1,6 +1,6 @@
 use crate::tab::markdown_editor::{
     bounds::{BoundCase, Bounds},
-    input::canonical::Bound,
+    input::Bound,
     offset_types::{DocCharOffset, RangeExt as _},
 };
 

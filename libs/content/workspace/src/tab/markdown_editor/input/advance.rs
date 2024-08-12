@@ -3,7 +3,7 @@ use std::mem;
 use crate::tab::markdown_editor::bounds::{Bounds, Text};
 use crate::tab::markdown_editor::buffer::SubBuffer;
 use crate::tab::markdown_editor::galleys::{GalleyInfo, Galleys};
-use crate::tab::markdown_editor::input::canonical::{Increment, Offset};
+use crate::tab::markdown_editor::input::{Increment, Offset};
 use crate::tab::markdown_editor::offset_types::DocCharOffset;
 use egui::epaint::text::cursor::Cursor as EguiCursor;
 use egui::{Pos2, Vec2};
