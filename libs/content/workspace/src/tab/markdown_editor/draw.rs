@@ -1,7 +1,7 @@
 use crate::tab::markdown_editor::appearance::{GRAY, YELLOW};
 use crate::tab::markdown_editor::bounds::RangesExt;
 use crate::tab::markdown_editor::images::ImageState;
-use crate::tab::markdown_editor::input::canonical::{Location, Modification, Region};
+use crate::tab::markdown_editor::input::{Location, Modification, Region};
 use crate::tab::markdown_editor::layouts::Annotation;
 use crate::tab::markdown_editor::offset_types::RangeExt;
 use crate::tab::markdown_editor::style::{

@@ -8,6 +8,7 @@ use workspace_rs::tab::markdown_editor::input::canonical::{
 };
 use workspace_rs::tab::markdown_editor::input::cursor::Cursor;
 use workspace_rs::tab::markdown_editor::input::mutation;
+use workspace_rs::tab::markdown_editor::input::{Bound, Increment, Modification, Offset, Region};
 use workspace_rs::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;

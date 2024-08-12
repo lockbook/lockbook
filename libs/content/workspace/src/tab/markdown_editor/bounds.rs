@@ -2,9 +2,9 @@ use crate::tab::markdown_editor::appearance::{Appearance, CaptureCondition};
 use crate::tab::markdown_editor::ast::{Ast, AstTextRange, AstTextRangeType};
 use crate::tab::markdown_editor::buffer::SubBuffer;
 use crate::tab::markdown_editor::galleys::Galleys;
-use crate::tab::markdown_editor::input::canonical::Bound;
 use crate::tab::markdown_editor::input::capture::CaptureState;
 use crate::tab::markdown_editor::input::cursor::Cursor;
+use crate::tab::markdown_editor::input::Bound;
 use crate::tab::markdown_editor::offset_types::{
     DocByteOffset, DocCharOffset, RangeExt, RelByteOffset,
 };

@@ -5,15 +5,14 @@ use crate::tab::markdown_editor::buffer::{Buffer, EditorMutation};
 use crate::tab::markdown_editor::debug::DebugInfo;
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input;
-use crate::tab::markdown_editor::input::canonical::Modification;
 use crate::tab::markdown_editor::input::click_checker::ClickChecker;
 use crate::tab::markdown_editor::input::cursor::PointerState;
+use crate::tab::markdown_editor::input::Modification;
+use crate::tab::markdown_editor::input::Region;
 use crate::tab::{self, ClipContent};
 use egui::Event;
 use lb_rs::Uuid;
 use std::time::Instant;
-
-use super::canonical::Region;
 
 /// combines `events` and `custom_events` into a single set of events
 #[allow(clippy::too_many_arguments)]

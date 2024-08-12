@@ -3,7 +3,7 @@ use pulldown_cmark::LinkType;
 use crate::tab::{markdown_editor, ExtendedOutput};
 use crate::tab::{
     markdown_editor::{
-        input::canonical::{Modification, Region},
+        input::{Modification, Region},
         style::{BlockNode, InlineNode, ListItem, MarkdownNode},
         Editor,
     },

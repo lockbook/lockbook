@@ -5,7 +5,7 @@ use crate::tab::svg_editor::SVGEditor;
 use chrono::DateTime;
 use egui::Id;
 use lb_rs::{DecryptedDocument, DocumentHmac, File, FileType, Uuid};
-use markdown_editor::input::canonical::Modification;
+use markdown_editor::input::Modification;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 

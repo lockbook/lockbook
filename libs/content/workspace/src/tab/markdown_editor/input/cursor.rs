@@ -2,7 +2,7 @@ use crate::tab::markdown_editor::appearance::Appearance;
 use crate::tab::markdown_editor::bounds::{Bounds, Text};
 use crate::tab::markdown_editor::buffer::SubBuffer;
 use crate::tab::markdown_editor::galleys::{self, Galleys};
-use crate::tab::markdown_editor::input::canonical::Offset;
+use crate::tab::markdown_editor::input::Offset;
 use crate::tab::markdown_editor::offset_types::*;
 use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
 use egui::{Modifiers, Pos2, Vec2};

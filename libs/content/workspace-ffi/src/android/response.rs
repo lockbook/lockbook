@@ -1,7 +1,7 @@
 use lb_external_interface::lb_rs::Uuid;
 use serde::Serialize;
 use workspace_rs::tab::markdown_editor::{
-    input::canonical::{Location, Region},
+    input::{Location, Region},
     offset_types::{DocCharOffset, RelCharOffset},
 };
 
