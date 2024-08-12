@@ -3,120 +3,6 @@ import SwiftUI
 import CLockbookCore
 import SwiftLockbookCore
 
-class SelectFolderViewModel: ObservableObject {
-    @Published var searchInput: String = ""
-    @Published var error: String? = nil
-    
-    @Published var folderPaths: [String]? = nil
-    var filteredFolderPaths: [String] {
-        if let folderPaths = folderPaths {
-            if searchInput.isEmpty {
-                return folderPaths
-            } else {
-                return folderPaths.filter { path in
-                    path.localizedCaseInsensitiveContains(searchInput)
-                }
-            }
-        } else {
-            return []
-        }
-    }
-    
-    @Published var selected = 0
-    var selectedPath: String {
-        get {
-            if filteredFolderPaths.count <= selected {
-                return ""
-            }
-            
-            return filteredFolderPaths[selected].isEmpty ? "/" : filteredFolderPaths[selected]
-        }
-    }
-    
-    var exit: Bool = false
-    
-    func calculateFolderPaths() {
-        DispatchQueue.global(qos: .userInitiated).async {
-            switch DI.files.getFolderPaths() {
-            case .none:
-                DispatchQueue.main.async {
-                    self.error = "Could not get folder paths."
-                }
-            case .some(let folderPaths):
-                DispatchQueue.main.async {
-                    self.folderPaths = folderPaths
-                }
-            }
-        }
-    }
-    
-    func selectFolder(action: SelectFolderAction, path: String) -> Bool {
-        switch DI.core.getFileByPath(path: path) {
-        case .success(let parent):
-            print("got the folder id selected: \(path) to \(parent.id)")
-            return selectFolder(action: action, newParent: parent.id)
-        case .failure(let cError):
-            error = cError.description
-            
-            return false
-        }
-    }
-    
-    func selectFolder(action: SelectFolderAction, newParent: UUID) -> Bool {
-        switch action {
-        case .Move(let ids):
-            for id in ids {
-                
-                if case .failure(let cError) = DI.core.moveFile(id: id, newParent: newParent) {
-                    switch cError.kind {
-                    case .UiError(.FolderMovedIntoItself):
-                        error = "You cannot move a folder into itself."
-                    case .UiError(.InsufficientPermission):
-                        error = "You do not have the permission to do that."
-                    case .UiError(.LinkInSharedFolder):
-                        error = "You cannot move a link into a shared folder."
-                    case .UiError(.TargetParentHasChildNamedThat):
-                        error = "A child with that name already exists in that folder."
-                    default:
-                        error = cError.description
-                    }
-
-                    return false
-                }
-            }
-            
-            DI.files.successfulAction = .move
-            DI.files.refresh()
-            
-            return true
-        case .Import(let paths):
-            if case .failure(let cError) = DI.core.importFiles(sources: paths, destination: newParent) {
-                error = cError.description
-                
-                return false
-            }
-            
-            DI.files.successfulAction = .importFiles
-            DI.files.refresh()
-            
-            return true
-        case .AcceptShare((let name, let id)):
-            if case .failure(let cError) = DI.core.createLink(name: name, dirId: newParent, target: id) {
-                error = cError.description
-                
-                return false
-            }
-            
-            DI.files.successfulAction = .acceptedShare
-            DI.files.refresh()
-            DI.share.calculatePendingShares()
-            
-            return true
-        }
-    }
-
-}
-
 struct SelectFolderView: View {
     @EnvironmentObject var core: CoreService
     @StateObject var viewModel = SelectFolderViewModel()
@@ -228,11 +114,12 @@ struct SelectFolderView: View {
                                         .multilineTextAlignment(.leading)
                                 })
                                 .modifier(PlatformSelectFolderButtonModifier())
+                                .padding(.vertical, 5)
                                 
                                 Spacer()
                             }
                             .padding(.horizontal)
-                            .padding(.vertical, 5)
+                            .padding(.vertical, 1)
                             .modifier(SelectedItemModifier(item: path.isEmpty ? "/" : path, selected: viewModel.selectedPath))
                         }
                     }
@@ -311,45 +198,6 @@ struct SelectFolderView: View {
         }
         .padding(.top)
     }
-    
-}
-
-struct SelectedItemModifier: ViewModifier {
-    
-    let isSelected: Bool
-    
-    init(item: String, selected: String) {
-        isSelected = item == selected
-    }
-    
-    func body(content: Content) -> some View {
-        if isSelected {
-            content.background(RoundedRectangle(cornerRadius: 5).fill(Color.gray.opacity(0.2)).padding(.horizontal, 5))
-        } else {
-            content
-        }
-    }
-}
-
-struct PlatformSelectFolderButtonModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        #if os(iOS)
-        content
-        #else
-        content.buttonStyle(.plain)
-        #endif
-    }
-}
-
-enum SelectFolderAction {
-    case Move([UUID])
-    case Import([String])
-    case AcceptShare((String, UUID))
-}
-
-enum SelectFolderMode {
-    case List
-    case Tree
 }
 
 struct HighlightedText: View {
@@ -543,6 +391,31 @@ class SelectFolderTextField: NSTextField {
         viewModel?.exit = true
     }
 }
-
-
 #endif
+
+struct SelectedItemModifier: ViewModifier {
+    let isSelected: Bool
+    
+    init(item: String, selected: String) {
+        isSelected = item == selected
+    }
+    
+    func body(content: Content) -> some View {
+        if isSelected {
+            content.background(RoundedRectangle(cornerRadius: 5).fill(Color.gray.opacity(0.2)).padding(.horizontal, 10))
+        } else {
+            content
+        }
+    }
+}
+
+struct PlatformSelectFolderButtonModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content
+        #else
+        content.buttonStyle(.plain)
+        #endif
+    }
+}
+

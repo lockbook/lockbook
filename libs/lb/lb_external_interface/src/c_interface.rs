@@ -13,7 +13,8 @@ use time::Duration;
 
 use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchType};
 use lb_rs::{
-    clock, Config, FileType, Filter, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress, UnexpectedError, Uuid
+    clock, Config, FileType, Filter, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress,
+    UnexpectedError, Uuid,
 };
 
 use crate::{get_all_error_variants, json_interface::translate, static_state, RankingWeights};

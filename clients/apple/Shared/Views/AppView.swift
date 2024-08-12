@@ -6,7 +6,7 @@ struct AppView: View {
     @EnvironmentObject var accounts: AccountService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var errors: UnexpectedErrorService
-        
+    
     @ViewBuilder
     var body: some View {
         VStack {
@@ -23,7 +23,6 @@ struct AppView: View {
                                     handleOpenLink(url: url)
                                 }
                             }
-                            
                         }
                         .handlesExternalEvents(preferring: ["lb"], allowing: ["lb"])
                 }
@@ -65,7 +64,6 @@ struct AppView: View {
            let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") {
             let filePaths = filePathsQuery.components(separatedBy: ",")
             
-            
             var res: [String] = []
             
             for filePath in filePaths {
@@ -73,7 +71,6 @@ struct AppView: View {
             }
                                                             
             DI.sheets.movingInfo = .Import(res)
-            
         }
 
     }
