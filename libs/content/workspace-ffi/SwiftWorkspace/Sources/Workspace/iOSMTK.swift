@@ -1016,7 +1016,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)));
 
             let newRedrawTask = DispatchWorkItem {
-                self.setNeedsDisplay(self.frame)
+                self.drawImmediately()
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
             redrawTask = newRedrawTask
@@ -1035,6 +1035,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
             let location = touch.location(in: self)
+            let force = touch.force == 0 ? touch.force / touch.maximumPossibleForce : 0
 
             touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(touch.force))
         }
@@ -1047,6 +1048,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
             let location = touch.location(in: self)
+            let force = touch.force == 0 ? touch.force / touch.maximumPossibleForce : 0
 
             touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(touch.force))
         }
@@ -1059,6 +1061,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
             let location = touch.location(in: self)
+            let force = touch.force == 0 ? touch.force / touch.maximumPossibleForce : 0
 
             touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(touch.force))
         }
@@ -1071,7 +1074,8 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
             let location = touch.location(in: self)
-
+            let force = touch.force == 0 ? touch.force / touch.maximumPossibleForce : 0
+            
             touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(touch.force))
         }
 
