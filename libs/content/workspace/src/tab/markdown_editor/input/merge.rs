@@ -1,33 +1,16 @@
 use similar::{algorithms::DiffHook, DiffableStr as _, DiffableStrRef as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use crate::tab::markdown_editor::{
-    buffer::{self, Operation},
-    offset_types::DocCharOffset,
-};
+use crate::tab::markdown_editor::{buffer::Operation, offset_types::DocCharOffset};
 
 // implementation note: this works because similar uses the same grapheme definition as we do, so reported indexes can
 // be interpreted as doc char offsets
-pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Operation> {
+pub fn patch_ops(base: &str, remote: &str) -> Vec<Operation> {
     println!("\n----- merge -----");
     println!("base: {}", base);
-    println!("local: {}", local);
     println!("remote: {}", remote);
 
-    let in_editor_mutations = {
-        let mut hook = Hook::new(local);
-        similar::algorithms::diff(
-            similar::Algorithm::Myers,
-            &mut hook,
-            &base.as_diffable_str().tokenize_graphemes(),
-            0..base.len(),
-            &local.as_diffable_str().tokenize_graphemes(),
-            0..local.len(),
-        )
-        .expect("unexpected error (DiffHook does not emit errors)");
-        hook.ops()
-    };
-    let mut out_of_editor_mutations = {
+    let out_of_editor_mutations = {
         let mut hook = Hook::new(remote);
         similar::algorithms::diff(
             similar::Algorithm::Myers,
@@ -41,36 +24,8 @@ pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Operation> {
         hook.ops()
     };
 
-    println!("in_editor_mutations: {:?}", in_editor_mutations);
     println!("out_of_editor_mutations: {:?}", out_of_editor_mutations);
 
-    // adjust outside changes based on inside changes
-    for in_mutation in in_editor_mutations {
-        for out_mutation in &mut out_of_editor_mutations {
-            if let (
-                Operation::Replace { range: (in_start, in_end), text: text_replacement },
-                Operation::Replace { range: (out_start, out_end), text: _ },
-            ) = (&in_mutation, out_mutation)
-            {
-                let text_replacement_len = text_replacement.grapheme_indices(true).count();
-                let mut tmp = (out_start.clone(), out_end.clone());
-                buffer::adjust_subsequent_range(
-                    (*in_start, *in_end),
-                    text_replacement_len.into(),
-                    true,
-                    Some(&mut tmp),
-                );
-                (*out_start, *out_end) = tmp;
-            } else {
-                // merge doesn't produce non-replacement operations
-                unreachable!()
-            }
-        }
-    }
-
-    println!("adjusted out_of_editor_mutations: {:?}", out_of_editor_mutations);
-
-    // return out-of-editor changes "rebased" on in-editor changes
     out_of_editor_mutations
 }
 

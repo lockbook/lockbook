@@ -108,11 +108,6 @@ impl Editor {
         self.buffer.reload(text)
     }
 
-    /// Indicates to the buffer that the current text has been saved. This is necessary to track out-of-editor changes.
-    pub fn saved(&mut self) {
-        self.buffer.saved()
-    }
-
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
