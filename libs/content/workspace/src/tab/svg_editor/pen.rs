@@ -1,15 +1,15 @@
 use bezier_rs::{Bezier, Subpath};
 use resvg::usvg::Transform;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    collections::VecDeque,
+    time::{Duration, Instant},
 };
 
 use crate::{tab::svg_editor::util::get_current_touch_id, theme::palette::ThemePalette};
 
 use super::{
     history::History,
-    parser::{self, DiffState, Element, ManipulatorGroupId, Path, Stroke},
+    parser::{self, DiffState, ManipulatorGroupId, Path, Stroke},
     Buffer, InsertElement,
 };
 

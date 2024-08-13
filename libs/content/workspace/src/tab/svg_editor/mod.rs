@@ -73,40 +73,22 @@ impl SVGEditor {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        if ui.input(|r| r.key_down(egui::Key::F12)) {
+        if ui.input(|r| r.key_down(egui::Key::D)) {
             self.show_debug_info(ui);
         }
 
-        ui.vertical(|ui| {
-            egui::Frame::default()
-                .fill(if ui.visuals().dark_mode {
-                    egui::Color32::BLACK
-                } else {
-                    egui::Color32::WHITE
-                })
-                .show(ui, |ui| {
-                    self.toolbar.show(
-                        ui,
-                        &mut self.buffer,
-                        &mut self.history,
-                        &mut self.skip_frame,
-                        self.inner_rect,
-                    );
+        self.show_canvas(ui);
 
-                    self.inner_rect = ui.available_rect_before_wrap();
-                    let painter = ui
-                        .allocate_painter(self.inner_rect.size(), egui::Sense::click_and_drag())
-                        .1;
-                    self.renderer.render_svg(ui, &mut self.buffer, painter);
-                });
-        });
+        if !ui.is_enabled() {
+            return;
+        }
 
         handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
 
         let unnecessary_touch = ui.input(|i| {
             i.events.iter().any(|e| {
                 if let egui::Event::Touch { device_id: _, id: _, phase, pos: _, force: _ } = e {
-                    !phase.eq(&egui::TouchPhase::Move)
+                    phase.eq(&egui::TouchPhase::Cancel)
                 } else {
                     false
                 }
@@ -136,20 +118,45 @@ impl SVGEditor {
                 );
             }
             Tool::Selection => {
-                self.toolbar.selection.handle_input(
-                    ui,
-                    self.inner_rect,
-                    &mut self.buffer,
-                    &mut self.history,
-                );
+                if let Some(painter) = &self.renderer.painter {
+                    self.toolbar.selection.handle_input(
+                        ui,
+                        painter,
+                        &mut self.buffer,
+                        &mut self.history,
+                    );
+                }
             }
         }
 
         self.handle_clip_input(ui);
     }
 
-    pub fn get_minimal_content(&self) -> String {
-        self.buffer.to_string()
+    fn show_canvas(&mut self, ui: &mut egui::Ui) {
+        ui.vertical(|ui| {
+            egui::Frame::default()
+                .fill(if ui.visuals().dark_mode {
+                    egui::Color32::BLACK
+                } else {
+                    egui::Color32::WHITE
+                })
+                .show(ui, |ui| {
+                    self.toolbar.show(
+                        ui,
+                        &mut self.buffer,
+                        &mut self.history,
+                        &mut self.skip_frame,
+                        self.inner_rect,
+                    );
+
+                    self.inner_rect = ui.available_rect_before_wrap();
+                    let painter = ui
+                        .allocate_painter(self.inner_rect.size(), egui::Sense::click_and_drag())
+                        .1;
+
+                    self.renderer.render_svg(ui, &mut self.buffer, painter);
+                });
+        });
     }
 
     fn show_debug_info(&mut self, ui: &mut egui::Ui) {

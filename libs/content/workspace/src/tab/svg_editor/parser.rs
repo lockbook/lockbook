@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::theme::palette::ThemePalette;
 
 use super::selection::u_transform_to_bezier;
+use super::SVGEditor;
 
 const ZOOM_G_ID: &str = "lb_master_transform";
 const LB_STORE_ID: &str = "lb_persistent_store";
@@ -133,6 +134,12 @@ impl Buffer {
     }
 }
 
+impl SVGEditor {
+    pub fn get_minimal_content(&self) -> String {
+        self.buffer.to_string()
+    }
+}
+
 fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PersistentStore) {
     match &u_el {
         usvg::Node::Group(group) => {
@@ -143,7 +150,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PersistentSto
                 .children()
                 .iter()
                 .enumerate()
-                .for_each(|(i, u_el)| parse_child(u_el, buffer, store));
+                .for_each(|(_, u_el)| parse_child(u_el, buffer, store));
         }
 
         usvg::Node::Image(img) => {

@@ -968,7 +968,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Lockbook (iOS).entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 39ZS78S25U;
+				DEVELOPMENT_TEAM = 82SDU3587V;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = iOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
@@ -984,7 +984,7 @@
 				);
 				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios_sim";
 				MARKETING_VERSION = 0.5.10;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
+				PRODUCT_BUNDLE_IDENTIFIER = app.lbdev;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -1004,7 +1004,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 39ZS78S25U;
+				DEVELOPMENT_TEAM = 82SDU3587V;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = macOS/Info.plist;
@@ -1021,7 +1021,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 0.8.42;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
+				PRODUCT_BUNDLE_IDENTIFIER = app.lbdev;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;

@@ -9,12 +9,8 @@ use crate::{
 };
 
 use super::{
-    eraser::DEFAULT_ERASER_THICKNESS,
-    history::History,
-    parser,
-    selection::{u_transform_to_bezier, Selection},
-    zoom::zoom_percentage_to_transform,
-    Buffer, Eraser, Pen,
+    eraser::DEFAULT_ERASER_THICKNESS, history::History, parser, selection::Selection,
+    zoom::zoom_percentage_to_transform, Buffer, Eraser, Pen,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;

@@ -1,6 +1,6 @@
 use resvg::usvg::Transform;
 
-use super::{parser, selection::u_transform_to_bezier, Buffer};
+use super::{parser, Buffer};
 
 pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut parser::Buffer) {
     let zoom_delta = ui.input(|r| r.zoom_delta());
@@ -24,7 +24,7 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
 
     let pos = match ui.ctx().pointer_hover_pos() {
         Some(cp) => {
-            if ui.is_enabled() && working_rect.contains(cp) {
+            if working_rect.contains(cp) {
                 cp
             } else {
                 return; // todo: check this doesn't break zoom on touch devices

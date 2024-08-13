@@ -9,10 +9,7 @@ use lyon::tessellation::{
 };
 
 use rayon::prelude::*;
-use resvg::usvg::Transform;
-
-use crate::tab::svg_editor::selection::u_transform_to_bezier;
-use crate::tab::svg_editor::util::bb_to_rect;
+use resvg::usvg::{ImageKind, Transform};
 
 use super::parser::{self, DiffState};
 use super::Buffer;
@@ -39,26 +36,34 @@ impl StrokeVertexConstructor<epaint::Vertex> for VertexConstructor {
 enum RenderOp {
     Delete,
     Paint(egui::Shape),
-    Transform(Transform, egui::Rect),
+    Transform(Transform),
 }
 
 pub struct Renderer {
     mesh_cache: HashMap<String, egui::Shape>,
+    pub painter: Option<egui::Painter>,
+    dark_mode: bool,
 }
 
 impl Renderer {
     pub fn new(elements_count: usize) -> Self {
-        Self { mesh_cache: HashMap::with_capacity(elements_count) }
+        Self { mesh_cache: HashMap::with_capacity(elements_count), painter: None, dark_mode: false }
     }
 
     pub fn render_svg(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer, painter: egui::Painter) {
         let mut elements = buffer.elements.clone();
 
+        self.painter = Some(painter.clone());
+        let dark_mode_changed = ui.visuals().dark_mode != self.dark_mode;
+        self.dark_mode = ui.visuals().dark_mode;
+
+        // todo: should avoid runing this on every frame, because the images are allocated once
+        load_image_textures(buffer, ui);
+
         let paint_ops: Vec<(String, RenderOp)> = elements
             .par_iter_mut()
             .filter_map(|(id, el)| {
                 if el.deleted() && el.delete_changed() {
-                    println!("DEL el: {}", id);
                     return Some((id.clone(), RenderOp::Delete));
                 };
 
@@ -66,33 +71,17 @@ impl Renderer {
                     || (!el.opacity_changed()
                         && !el.data_changed()
                         && !el.delete_changed()
-                        && el.transformed().is_none())
+                        && el.transformed().is_none()
+                        && !dark_mode_changed)
                 {
                     return None;
                 }
 
                 if let Some(transform) = el.transformed() {
-                    return Some((id.clone(), RenderOp::Transform(transform, egui::Rect::NOTHING)));
-
-                    // let maybe_el_rect = match el {
-                    //     parser::Element::Path(p) => {
-                    //         if let Some(bb) = p.data.bounding_box() {
-                    //             Some(bb_to_rect(bb))
-                    //         } else {
-                    //             None
-                    //         }
-                    //     }
-                    //     parser::Element::Image(i) => Some(i.bounding_box()),
-                    //     parser::Element::Text(_) => todo!(),
-                    // };
-                    // return if let Some(el_rect) = maybe_el_rect {
-                    //     Some((id.clone(), RenderOp::Transform(transform, el_rect)))
-                    // } else {
-                    //     None
-                    // };
+                    return Some((id.clone(), RenderOp::Transform(transform)));
                 }
 
-                tesselate_element(el, id, &painter, ui.visuals().dark_mode, buffer.master_transform)
+                tesselate_element(el, id, ui.visuals().dark_mode, buffer.master_transform)
             })
             .collect();
 
@@ -104,9 +93,8 @@ impl Renderer {
                 RenderOp::Paint(m) => {
                     self.mesh_cache.insert(id.to_owned(), m);
                 }
-                RenderOp::Transform(t, rect) => {
+                RenderOp::Transform(t) => {
                     if let Some(mesh) = self.mesh_cache.get_mut(&id) {
-                        println!("TRANSFORM el : {}", id);
                         if let egui::Shape::Mesh(m) = mesh {
                             for v in &mut m.vertices {
                                 v.pos.x = t.sx * v.pos.x + t.tx;
@@ -114,42 +102,6 @@ impl Renderer {
                             }
                         }
                     }
-                    // if painter.clip_rect().contains_rect(rect)
-                    //     || painter.clip_rect().intersects(rect)
-                    // {
-                    //     if let Some(mesh) = self.mesh_cache.get_mut(&id) {
-                    //         println!("TRANSFORM el : {}", id);
-                    //         if let egui::Shape::Mesh(m) = mesh {
-                    //             for v in &mut m.vertices {
-                    //                 v.pos.x = t.sx * v.pos.x + t.tx;
-                    //                 v.pos.y = t.sy * v.pos.y + t.ty;
-                    //             }
-                    //         }
-                    //     } else {
-                    //         if let Some(el) = buffer.elements.get_mut(&id) {
-                    //             let mut out = tesselate_element(
-                    //                 el,
-                    //                 &id.clone(),
-                    //                 &painter,
-                    //                 ui.visuals().dark_mode,
-                    //                 buffer.master_transform,
-                    //             );
-                    //             if let Some((_, RenderOp::Paint(shape))) = &mut out {
-                    //                 if let egui::Shape::Mesh(m) = shape {
-                    //                     for v in &mut m.vertices {
-                    //                         v.pos.x = t.sx * v.pos.x + t.tx;
-                    //                         v.pos.y = t.sy * v.pos.y + t.ty;
-                    //                     }
-                    //                 }
-                    //                 self.mesh_cache.insert(id.to_owned(), shape.clone());
-                    //             }
-                    //         }
-                    //     }
-                    // } else {
-                    //     if self.mesh_cache.remove(&id).is_some() {
-                    //         println!("EVICT el : {}", id);
-                    //     }
-                    // }
                 }
             }
         }
@@ -173,23 +125,43 @@ impl Renderer {
             })
     }
 }
+
+fn load_image_textures(buffer: &mut Buffer, ui: &mut egui::Ui) {
+    for (id, el) in buffer.elements.iter_mut() {
+        if let parser::Element::Image(img) = el {
+            match &img.data {
+                ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
+                    let image = image::load_from_memory(bytes).unwrap();
+
+                    let egui_image = egui::ColorImage::from_rgba_unmultiplied(
+                        [image.width() as usize, image.height() as usize],
+                        &image.to_rgba8(),
+                    );
+
+                    if img.texture.is_none() {
+                        img.texture = Some(ui.ctx().load_texture(
+                            format!("canvas_img_{}", id),
+                            egui_image,
+                            egui::TextureOptions::LINEAR,
+                        ));
+                    }
+                }
+                ImageKind::GIF(_) => todo!(),
+                ImageKind::SVG(_) => todo!(),
+            }
+        }
+    }
+}
+
 // todo: maybe impl this on element struct
 fn tesselate_element(
-    el: &mut parser::Element, id: &String, painter: &egui::Painter, dark_mode: bool,
-    master_transform: Transform,
+    el: &mut parser::Element, id: &String, dark_mode: bool, master_transform: Transform,
 ) -> Option<(String, RenderOp)> {
     let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
     let mut stroke_tess = StrokeTessellator::new();
 
     match el {
         parser::Element::Path(p) => {
-            println!(
-                "TESS el with data len and pressure len: {}, {}, {} ",
-                id,
-                p.data.len_segments(),
-                p.pressure.to_owned().unwrap_or_default().len()
-            );
-
             if let Some(stroke) = p.stroke {
                 if p.data.is_empty() {
                     return None;
@@ -208,11 +180,9 @@ fn tesselate_element(
                         if pressure_at_segment.is_some() {
                             pressure_at_segment
                         } else {
-                            println!("OUT OF PRESSURE");
                             pressure.get(i - 1)
                         }
                     } else {
-                        println!("NO PRESSURE");
                         None
                     };
 
@@ -265,7 +235,7 @@ fn tesselate_element(
                 None
             }
         }
-        parser::Element::Image(_) => todo!(),
+        parser::Element::Image(img) => render_image(img, id),
         parser::Element::Text(_) => todo!(),
     }
 }
@@ -274,39 +244,27 @@ fn devc_to_point(dvec: DVec2) -> Point {
     Point::new(dvec.x as f32, dvec.y as f32)
 }
 
-// fn render_image(img: &mut parser::Image, ui: &mut egui::Ui, id: &String, painter: &egui::Painter) {
-//     match &img.data {Iterator
-//         ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
-//             let image = image::load_from_memory(bytes).unwrap();
+fn render_image(img: &mut parser::Image, id: &String) -> Option<(String, RenderOp)> {
+    match &img.data {
+        ImageKind::JPEG(_) | ImageKind::PNG(_) => {
+            if let Some(texture) = &img.texture {
+                let rect = egui::Rect {
+                    min: egui::pos2(img.view_box.rect.left(), img.view_box.rect.top()),
+                    max: egui::pos2(img.view_box.rect.right(), img.view_box.rect.bottom()),
+                };
+                let uv = egui::Rect {
+                    min: egui::Pos2 { x: 0.0, y: 0.0 },
+                    max: egui::Pos2 { x: 1.0, y: 1.0 },
+                };
 
-//             let egui_image = egui::ColorImage::from_rgba_unmultiplied(
-//                 [image.width() as usize, image.height() as usize],
-//                 &image.to_rgba8(),
-//             );
-//             if img.texture.is_none() {
-//                 img.texture = Some(ui.ctx().load_texture(
-//                     format!("canvas_img_{}", id),
-//                     egui_image,
-//                     egui::TextureOptions::LINEAR,
-//                 ));
-//             }
-
-//             if let Some(texture) = &img.texture {
-//                 let rect = egui::Rect {
-//                     min: egui::pos2(img.view_box.rect.left(), img.view_box.rect.top()),
-//                     max: egui::pos2(img.view_box.rect.right(), img.view_box.rect.bottom()),
-//                 };
-//                 let uv = egui::Rect {
-//                     min: egui::Pos2 { x: 0.0, y: 0.0 },
-//                     max: egui::Pos2 { x: 1.0, y: 1.0 },
-//                 };
-
-//                 let mut mesh = egui::Mesh::with_texture(texture.id());
-//                 mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE.linear_multiply(img.opacity));
-//                 painter.add(egui::Shape::mesh(mesh));
-//             }
-//         }
-//         ImageKind::GIF(_) => todo!(),
-//         ImageKind::SVG(_) => todo!(),
-//     }
-// }
+                let mut mesh = egui::Mesh::with_texture(texture.id());
+                mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE.linear_multiply(img.opacity));
+                Some((id.to_string(), RenderOp::Paint(egui::Shape::mesh(mesh))))
+            } else {
+                None
+            }
+        }
+        ImageKind::GIF(_) => todo!(),
+        ImageKind::SVG(_) => todo!(),
+    }
+}
