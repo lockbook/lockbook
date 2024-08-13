@@ -185,7 +185,7 @@ fn tesselate_element(
                     };
 
                     let normalized_pressure =
-                        if let Some(prsr) = pressure { *prsr  + 0.5 } else { 1.0 };
+                        if let Some(prsr) = pressure { *prsr + 0.5 } else { 1.0 };
 
                     let thickness = stroke.width * master_transform.sx * normalized_pressure;
 
