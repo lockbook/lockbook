@@ -58,7 +58,7 @@ import AppKit
             }
                         
             CommandMenu("Lockbook") {
-                Button("Sync", action: { DI.workspace.requestSync() }).keyboardShortcut("S", modifiers: .command)
+                Button("Sync", action: { DI.workspace.requestSync() })
                 Button("Search Paths", action: { DI.search.startSearchThread(isPathAndContentSearch: false) }).keyboardShortcut("O", modifiers: .command)
                 
                 Button("Copy file link", action: {

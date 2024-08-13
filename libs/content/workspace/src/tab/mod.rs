@@ -33,13 +33,12 @@ pub struct SaveRequest {
 }
 
 impl Tab {
-    pub fn make_save_request(&mut self) -> Option<SaveRequest> {
+    pub fn make_save_request(&self) -> Option<SaveRequest> {
         let mut hmac = None;
-        if let Some(tab_content) = &mut self.content {
+        if let Some(tab_content) = &self.content {
             let maybe_save_content = match tab_content {
                 TabContent::Markdown(md) => {
                     hmac = md.editor.hmac;
-                    md.editor.saved();
                     Some(md.editor.buffer.current_text.clone())
                 }
                 TabContent::Svg(svg) => Some(svg.get_minimal_content()),
@@ -155,7 +154,9 @@ impl ExtendedInput for egui::Context {
                 .unwrap_or_default();
             m.data
                 .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
-            println!("pop_events ({:?})", events.len());
+            if !events.is_empty() {
+                println!("pop_events ({:?})", events.len());
+            }
             events
         })
     }
