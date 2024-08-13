@@ -94,12 +94,10 @@ impl Renderer {
                     self.mesh_cache.insert(id.to_owned(), m);
                 }
                 RenderOp::Transform(t) => {
-                    if let Some(mesh) = self.mesh_cache.get_mut(&id) {
-                        if let egui::Shape::Mesh(m) = mesh {
-                            for v in &mut m.vertices {
-                                v.pos.x = t.sx * v.pos.x + t.tx;
-                                v.pos.y = t.sy * v.pos.y + t.ty;
-                            }
+                    if let Some(egui::Shape::Mesh(m)) = self.mesh_cache.get_mut(&id) {
+                        for v in &mut m.vertices {
+                            v.pos.x = t.sx * v.pos.x + t.tx;
+                            v.pos.y = t.sy * v.pos.y + t.ty;
                         }
                     }
                 }
@@ -204,7 +202,7 @@ fn tesselate_element(
                     } else if seg.handle_end().is_none() && seg.handle_start().is_none() {
                         builder.line_to(end, &[thickness]);
                     }
-                    i = i + 1;
+                    i += 1;
                 }
                 if first.is_some() {
                     builder.end(false);

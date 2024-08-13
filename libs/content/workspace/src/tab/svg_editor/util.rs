@@ -71,7 +71,7 @@ pub fn get_current_touch_id(ui: &mut egui::Ui) -> Option<egui::TouchId> {
     ui.input(|r| {
         r.events.iter().find_map(move |event| {
             if let egui::Event::Touch { device_id: _, id, phase: _, pos: _, force: _ } = event {
-                Some(id.clone())
+                Some(*id)
             } else {
                 None
             }

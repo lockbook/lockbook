@@ -139,8 +139,7 @@ impl Pen {
                     }
                     stroke.width = self.active_stroke_width as f32;
 
-                    let pressure = if let Some(f) = force { Some(vec![f]) } else { None };
-                    println!("starting path with id: {}", id);
+                    let pressure = force.map(|f| vec![f]);
                     self.path_builder.first_point_touch_id = get_current_touch_id(ui);
 
                     buffer.elements.insert(

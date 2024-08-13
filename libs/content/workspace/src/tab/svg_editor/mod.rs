@@ -166,7 +166,7 @@ impl SVGEditor {
         self.buffer
             .elements
             .iter()
-            .filter(|(_, &ref el)| !el.deleted())
+            .filter(|(_, el)| !el.deleted())
             .for_each(|(_, el)| {
                 if let parser::Element::Path(p) = el {
                     anchor_count += p.data.len()

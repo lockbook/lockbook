@@ -42,7 +42,7 @@ impl Selection {
         let pos = ui.ctx().pointer_hover_pos().or(ui.input(|r| {
             r.events.iter().find_map(|event| {
                 if let egui::Event::Touch { device_id: _, id: _, phase: _, pos, force: _ } = event {
-                    Some(pos.clone())
+                    Some(*pos)
                 } else {
                     None
                 }
@@ -272,12 +272,13 @@ impl Selection {
             None
         };
 
-        if delta.is_some() && pos.is_some() {
-            self.selected_elements.iter_mut().for_each(|el| {
-                el.transform =
-                    Transform::identity().post_translate(delta.unwrap().x, delta.unwrap().y)
-            });
-            end_translation(buffer, history, &mut self.selected_elements, pos.unwrap(), true);
+        if let Some(d) = delta {
+            self.selected_elements
+                .iter_mut()
+                .for_each(|el| el.transform = Transform::identity().post_translate(d.x, d.y));
+            if let Some(p) = pos {
+                end_translation(buffer, history, &mut self.selected_elements, p, true);
+            }
         }
 
         let is_scaling_up = ui.input(|r| r.key_pressed(egui::Key::Equals));

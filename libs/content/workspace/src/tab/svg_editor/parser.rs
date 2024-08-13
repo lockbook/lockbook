@@ -154,8 +154,8 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PersistentSto
         }
 
         usvg::Node::Image(img) => {
-            let mut diff_state = DiffState::default();
-            diff_state.data_changed = true;
+            let diff_state = DiffState { data_changed: true, ..Default::default() };
+
             let id =
                 if img.id().is_empty() { Uuid::new_v4().to_string() } else { img.id().to_owned() };
             buffer.elements.insert(
@@ -193,8 +193,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PersistentSto
                 stroke.width = s.width().get();
                 opacity = s.opacity().get();
             }
-            let mut diff_state = DiffState::default();
-            diff_state.data_changed = true;
+            let diff_state = DiffState { data_changed: true, ..Default::default() };
 
             let id = if path.id().is_empty() {
                 Uuid::new_v4().to_string()
@@ -220,7 +219,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PersistentSto
         usvg::Node::Text(t) => {
             if t.id().eq(LB_STORE_ID) {
                 let raw: String = t.chunks().iter().map(|chunk| chunk.text()).collect();
-                let serialized = base64::decode(&raw).unwrap();
+                let serialized = base64::decode(raw).unwrap();
                 *store = bincode::deserialize(&serialized).unwrap();
             }
         }
@@ -348,15 +347,9 @@ impl ToString for Buffer {
             .iter()
             .filter_map(|(id, el)| {
                 if let Element::Path(p) = el {
-                    if !p.deleted {
-                        if let Some(pressure) = &p.pressure {
-                            Some((id.to_owned(), pressure.to_owned()))
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
+                    p.pressure
+                        .as_ref()
+                        .map(|pressure| (id.to_owned(), pressure.to_owned()))
                 } else {
                     None
                 }
@@ -366,7 +359,7 @@ impl ToString for Buffer {
         let store = PersistentStore { path_pressures };
 
         if let Ok(encoded_store) = bincode::serialize(&store) {
-            let serialized_string = base64::encode(&encoded_store);
+            let serialized_string = base64::encode(encoded_store);
             let store_node = format!(
                 r#"<text id="{}" font-family="Roboto">{}</text>"#,
                 LB_STORE_ID, serialized_string
