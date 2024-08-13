@@ -1,146 +1,39 @@
-use crate::tab::markdown_editor::appearance::Appearance;
-use crate::tab::markdown_editor::bounds::{Bounds, Text};
-use crate::tab::markdown_editor::buffer::SubBuffer;
-use crate::tab::markdown_editor::galleys::{self, Galleys};
-use crate::tab::markdown_editor::input::Offset;
-use crate::tab::markdown_editor::offset_types::*;
-use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
+use crate::tab::markdown_editor;
 use egui::{Modifiers, Pos2, Vec2};
-use std::ops::Range;
+use markdown_editor::appearance::Appearance;
+use markdown_editor::bounds::Text;
+use markdown_editor::galleys::{self, Galleys};
+use markdown_editor::offset_types::DocCharOffset;
+use markdown_editor::offset_types::RangeExt as _;
 use std::time::{Duration, Instant};
 
 // drag for longer than this amount of time or further than this distance to count as a drag
 const DRAG_DURATION: Duration = Duration::from_millis(300);
 const DRAG_DISTANCE: f32 = 10.0;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct Cursor {
-    /// Selected text. When selection is empty, elements are equal. First element represents start
-    /// of selection and second element represents end of selection, which is the primary cursor
-    /// position - elements are not ordered by value.
-    pub selection: (DocCharOffset, DocCharOffset),
-
+#[derive(Debug, Default)]
+pub struct CursorState {
     /// When navigating using up/down keys, x_target stores the original *absolute* x coordinate of
     /// the cursor, which helps us keep the cursor in a consistent x position even navigating past
     /// lines that are shorter, empty, annotated, etc.
     pub x_target: Option<f32>,
-
-    /// Marked text indicates prospective input by smart keyboards, rendered inline
-    pub mark: Option<(DocCharOffset, DocCharOffset)>,
-
-    /// Highlighted region within marked text to indicate keyboard suggestion target
-    pub mark_highlight: Option<(DocCharOffset, DocCharOffset)>,
 }
 
-impl From<usize> for Cursor {
-    fn from(pos: usize) -> Self {
-        Self { selection: (pos.into(), pos.into()), ..Default::default() }
-    }
-}
+pub fn line(
+    offset: DocCharOffset, galleys: &Galleys, text: &Text, appearance: &Appearance,
+) -> [Pos2; 2] {
+    let (galley_idx, cursor) = galleys.galley_and_cursor_by_char_offset(offset, text);
+    let galley = &galleys[galley_idx];
 
-impl From<DocCharOffset> for Cursor {
-    fn from(pos: DocCharOffset) -> Self {
-        pos.0.into()
-    }
-}
+    let max = DocCharOffset::cursor_to_pos_abs(galley, cursor);
+    let min = max - Vec2 { x: 0.0, y: galley.cursor_height() };
 
-impl From<(usize, usize)> for Cursor {
-    fn from(value: (usize, usize)) -> Self {
-        Self { selection: (value.0.into(), value.1.into()), ..Default::default() }
-    }
-}
-
-impl From<(DocCharOffset, DocCharOffset)> for Cursor {
-    fn from(value: (DocCharOffset, DocCharOffset)) -> Self {
-        Self { selection: value, ..Default::default() }
-    }
-}
-
-impl Cursor {
-    /// returns the sorted range of selected text
-    pub fn selection_or_position(&self) -> Range<DocCharOffset> {
-        Range { start: self.selection.start(), end: self.selection.end() }
-    }
-
-    /// returns the nonempty, sorted range of selected text, if any
-    pub fn selection(&self) -> Option<Range<DocCharOffset>> {
-        if self.empty() {
-            None
-        } else {
-            Some(self.selection_or_position())
-        }
-    }
-
-    /// returns the (nonempty) byte range of selected text, if any
-    fn selection_bytes(&self, segs: &UnicodeSegs) -> Option<Range<DocByteOffset>> {
-        let selection_chars = self.selection();
-        selection_chars.map(|sr| Range {
-            start: segs.offset_to_byte(sr.start),
-            end: segs.offset_to_byte(sr.end),
-        })
-    }
-
-    /// returns the (possibly empty) selected text
-    pub fn selection_text<'b>(&self, buffer: &'b SubBuffer) -> &'b str {
-        if let Some(selection_bytes) = self.selection_bytes(&buffer.segs) {
-            &buffer.text[selection_bytes.start.0..selection_bytes.end.0]
-        } else {
-            ""
-        }
-    }
-
-    /// returns the nonempty, sorted range of selected text, if any
-    pub fn mark_highlight(&self) -> Option<Range<DocCharOffset>> {
-        match self.mark_highlight {
-            Some(mark_highlight) if !mark_highlight.is_empty() => {
-                Some(Range { start: mark_highlight.0, end: mark_highlight.1 })
-            }
-            _ => None,
-        }
-    }
-
-    pub fn advance(
-        &mut self, offset: Offset, backwards: bool, buffer: &SubBuffer, galleys: &Galleys,
-        bounds: &Bounds,
-    ) {
-        self.selection.1 = self.selection.1.advance(
-            &mut self.x_target,
-            offset,
-            backwards,
-            buffer,
-            galleys,
-            bounds,
-        );
-    }
-
-    pub fn start_line(&self, galleys: &Galleys, text: &Text, appearance: &Appearance) -> [Pos2; 2] {
-        self.line(galleys, self.selection.0, text, appearance)
-    }
-
-    pub fn end_line(&self, galleys: &Galleys, text: &Text, appearance: &Appearance) -> [Pos2; 2] {
-        self.line(galleys, self.selection.1, text, appearance)
-    }
-
-    fn line(
-        &self, galleys: &Galleys, offset: DocCharOffset, text: &Text, appearance: &Appearance,
-    ) -> [Pos2; 2] {
-        let (galley_idx, cursor) = galleys.galley_and_cursor_by_char_offset(offset, text);
-        let galley = &galleys[galley_idx];
-
-        let max = DocCharOffset::cursor_to_pos_abs(galley, cursor);
-        let min = max - Vec2 { x: 0.0, y: galley.cursor_height() };
-
-        if offset < galley.text_range().start() {
-            // draw cursor before offset if that's where it is
-            let annotation_offset = galleys::annotation_offset(&galley.annotation, appearance);
-            [min - annotation_offset, max - annotation_offset]
-        } else {
-            [min, max]
-        }
-    }
-
-    fn empty(&self) -> bool {
-        self.selection.0 == self.selection.1
+    if offset < galley.text_range().start() {
+        // draw cursor before offset if that's where it is
+        let annotation_offset = galleys::annotation_offset(&galley.annotation, appearance);
+        [min - annotation_offset, max - annotation_offset]
+    } else {
+        [min, max]
     }
 }
 

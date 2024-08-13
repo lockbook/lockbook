@@ -5,7 +5,6 @@ use crate::tab::svg_editor::SVGEditor;
 use chrono::DateTime;
 use egui::Id;
 use lb_rs::{DecryptedDocument, DocumentHmac, File, FileType, Uuid};
-use markdown_editor::input::Modification;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -34,13 +33,14 @@ pub struct SaveRequest {
 }
 
 impl Tab {
-    pub fn make_save_request(&self) -> Option<SaveRequest> {
+    pub fn make_save_request(&mut self) -> Option<SaveRequest> {
         let mut hmac = None;
-        if let Some(tab_content) = &self.content {
+        if let Some(tab_content) = &mut self.content {
             let maybe_save_content = match tab_content {
                 TabContent::Markdown(md) => {
                     hmac = md.editor.hmac;
-                    Some(md.editor.buffer.current.text.clone())
+                    md.editor.saved();
+                    Some(md.editor.buffer.current_text.clone())
                 }
                 TabContent::Svg(svg) => Some(svg.get_minimal_content()),
                 _ => None,
@@ -82,7 +82,7 @@ impl From<lb_rs::LbError> for TabFailure {
 
 #[derive(Debug, Clone)]
 pub enum Event {
-    Markdown(Modification),
+    Markdown(markdown_editor::Event),
     Drop { content: Vec<ClipContent>, position: egui::Pos2 },
     Paste { content: Vec<ClipContent>, position: egui::Pos2 },
 }
@@ -126,7 +126,7 @@ impl ExtendedOutput for egui::Context {
 
 pub trait ExtendedInput {
     fn push_event(&self, event: Event);
-    fn push_markdown_event(&self, event: Modification);
+    fn push_markdown_event(&self, event: markdown_editor::Event);
     fn pop_events(&self) -> Vec<Event>;
 }
 
@@ -142,7 +142,7 @@ impl ExtendedInput for egui::Context {
         })
     }
 
-    fn push_markdown_event(&self, event: Modification) {
+    fn push_markdown_event(&self, event: markdown_editor::Event) {
         println!("push_markdown_event: {:?}", event);
         self.push_event(Event::Markdown(event))
     }

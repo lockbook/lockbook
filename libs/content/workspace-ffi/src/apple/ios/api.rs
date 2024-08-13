@@ -8,7 +8,7 @@ use workspace_rs::tab::markdown_editor::input::canonical::{
 };
 use workspace_rs::tab::markdown_editor::input::cursor::Cursor;
 use workspace_rs::tab::markdown_editor::input::mutation;
-use workspace_rs::tab::markdown_editor::input::{Bound, Increment, Modification, Offset, Region};
+use workspace_rs::tab::markdown_editor::input::{Bound, Event, Increment, Offset, Region};
 use workspace_rs::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;
@@ -39,10 +39,10 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
 
     if content == "\n" {
         obj.context
-            .push_markdown_event(Modification::Newline { advance_cursor: true });
+            .push_markdown_event(Event::Newline { advance_cursor: true });
     } else if content == "\t" {
         obj.context
-            .push_markdown_event(Modification::Indent { deindent: false });
+            .push_markdown_event(Event::Indent { deindent: false });
     } else {
         obj.raw_input.events.push(Event::Text(content));
     }
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text:
     let region: Option<Region> = range.into();
     if let Some(region) = region {
         obj.context
-            .push_markdown_event(Modification::Replace { region, text });
+            .push_markdown_event(Event::Replace { region, text });
     }
 }
 
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text:
 #[no_mangle]
 pub unsafe extern "C" fn copy_selection(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Modification::Copy);
+    obj.context.push_markdown_event(Event::Copy);
 }
 
 /// # Safety
@@ -109,7 +109,7 @@ pub unsafe extern "C" fn copy_selection(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn cut_selection(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Modification::Cut);
+    obj.context.push_markdown_event(Event::Cut);
 }
 
 /// # Safety
@@ -126,7 +126,7 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
 
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
     if let Some((start, end)) = range {
-        let cursor: Cursor = (start, end).into();
+        let cursor: CursorState = (start, end).into();
         let buffer = &markdown.editor.buffer.current;
         let text = cursor.selection_text(buffer);
 
@@ -170,8 +170,7 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     if let Some(region) = range.into() {
-        obj.context
-            .push_markdown_event(Modification::Select { region });
+        obj.context.push_markdown_event(Event::Select { region });
     }
 }
 
@@ -180,7 +179,7 @@ pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
 #[no_mangle]
 pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Modification::Select {
+    obj.context.push_markdown_event(Event::Select {
         region: Region::Bound { bound: Bound::Word, backwards: true },
     });
 }
@@ -190,7 +189,7 @@ pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn select_all(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Modification::Select {
+    obj.context.push_markdown_event(Event::Select {
         region: Region::Bound { bound: Bound::Doc, backwards: true },
     });
 }
@@ -229,7 +228,7 @@ pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *
 
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
     if let Some(range) = range {
-        obj.context.push_markdown_event(Modification::StageMarked {
+        obj.context.push_markdown_event(Event::StageMarked {
             highlighted: (range.start().0.into(), range.end().0.into()),
             text: text.unwrap_or_default(),
         });
@@ -243,7 +242,7 @@ pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *
 #[no_mangle]
 pub unsafe extern "C" fn unmark_text(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Modification::CommitMarked);
+    obj.context.push_markdown_event(Event::CommitMarked);
 }
 
 /// # Safety
@@ -457,7 +456,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
         };
     let backwards = matches!(direction, CTextLayoutDirection::Left | CTextLayoutDirection::Up);
 
-    let mut cursor: Cursor = start.pos.into();
+    let mut cursor: CursorState = start.pos.into();
     for _ in 0..offset {
         cursor.advance(offset_type, backwards, buffer, galleys, &markdown.editor.bounds);
     }
@@ -578,7 +577,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
     let text = &markdown.editor.bounds.text;
     let appearance = &markdown.editor.appearance;
 
-    let cursor_representing_rect: Cursor = {
+    let cursor_representing_rect: CursorState = {
         let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
         let range = match range {
             Some(range) => range,
@@ -589,7 +588,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         };
         let selection_start = range.start();
         let selection_end = range.end();
-        let mut cursor: Cursor = selection_start.into();
+        let mut cursor: CursorState = selection_start.into();
         cursor.advance(Offset::To(Bound::Line), false, buffer, galleys, &markdown.editor.bounds);
         let end_of_selection_start_line = cursor.selection.1;
         let end_of_rect = cmp::min(selection_end, end_of_selection_start_line);
@@ -612,7 +611,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
 #[no_mangle]
 pub unsafe extern "C" fn clipboard_cut(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Modification::Cut);
+    obj.context.push_markdown_event(Event::Cut);
 }
 
 /// # Safety
@@ -620,7 +619,7 @@ pub unsafe extern "C" fn clipboard_cut(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn clipboard_copy(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Modification::Copy);
+    obj.context.push_markdown_event(Event::Copy);
 }
 
 /// # Safety
@@ -677,7 +676,7 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
     let text = &markdown.editor.bounds.text;
     let appearance = &markdown.editor.appearance;
 
-    let cursor: Cursor = pos.pos.into();
+    let cursor: CursorState = pos.pos.into();
     let line = cursor.start_line(galleys, text, appearance);
 
     CRect {
@@ -730,11 +729,11 @@ pub unsafe extern "C" fn selection_rects(
     let mut selection_rects = vec![];
 
     while cont_start < range.end() {
-        let mut new_end: Cursor = cont_start.into();
+        let mut new_end: CursorState = cont_start.into();
         new_end.advance(Offset::To(Bound::Line), false, buffer, galleys, &markdown.editor.bounds);
         let end_of_rect = cmp::min(new_end.selection.end(), range.end());
 
-        let cursor_representing_rect: Cursor = (cont_start, end_of_rect).into();
+        let cursor_representing_rect: CursorState = (cont_start, end_of_rect).into();
 
         let start_line =
             cursor_representing_rect.start_line(galleys, text, &markdown.editor.appearance);
@@ -790,8 +789,7 @@ pub unsafe extern "C" fn free_tab_ids(ids: TabsIds) {
 #[no_mangle]
 pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context
-        .push_markdown_event(Modification::Indent { deindent });
+    obj.context.push_markdown_event(Event::Indent { deindent });
 }
 
 /// # Safety
@@ -800,9 +798,9 @@ pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
 pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     if redo {
-        obj.context.push_markdown_event(Modification::Redo);
+        obj.context.push_markdown_event(Event::Redo);
     } else {
-        obj.context.push_markdown_event(Modification::Undo);
+        obj.context.push_markdown_event(Event::Undo);
     }
 }
 
@@ -816,7 +814,7 @@ pub unsafe extern "C" fn can_undo(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    !markdown.editor.buffer.undo_queue.is_empty()
+    markdown.editor.buffer.can_undo()
 }
 
 /// # Safety
@@ -829,7 +827,7 @@ pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    !markdown.editor.buffer.redo_stack.is_empty()
+    markdown.editor.buffer.can_redo()
 }
 
 /// # Safety

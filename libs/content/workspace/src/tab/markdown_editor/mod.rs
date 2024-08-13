@@ -1,5 +1,4 @@
 use crate::widgets::{toolbar::MOBILE_TOOL_BAR_SIZE, ToolBar, ToolBarVisibility};
-pub use editor::{Editor, Response};
 use egui::{FontData, FontDefinitions, FontFamily};
 use lb_rs::{DocumentHmac, Uuid};
 use std::sync::Arc;
@@ -20,6 +19,9 @@ pub mod output;
 pub mod style;
 pub mod test_input;
 pub mod unicode_segs;
+
+pub use editor::{Editor, Response};
+pub use input::Event;
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
     let (pt_sans, pt_mono, pt_bold) = if cfg!(target_vendor = "apple") {

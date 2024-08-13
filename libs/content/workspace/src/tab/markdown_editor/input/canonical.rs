@@ -1,12 +1,12 @@
-use crate::tab::markdown_editor::appearance;
-use crate::tab::markdown_editor::input::click_checker::ClickChecker;
-use crate::tab::markdown_editor::input::cursor::{ClickType, PointerState};
-use crate::tab::markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
-use egui::{Event, Key, Modifiers, PointerButton};
+use crate::tab::markdown_editor;
+use egui::{self, Key, Modifiers, PointerButton};
+use markdown_editor::appearance;
+use markdown_editor::input::click_checker::ClickChecker;
+use markdown_editor::input::cursor::{ClickType, PointerState};
+use markdown_editor::input::{Bound, Event, Increment, Location, Offset, Region};
+use markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::time::Instant;
-
-use super::{Bound, Increment, Location, Modification, Offset, Region};
 
 impl From<&Modifiers> for Offset {
     fn from(modifiers: &Modifiers) -> Self {
@@ -27,15 +27,17 @@ impl From<&Modifiers> for Offset {
     }
 }
 
+/// Translates UI events into editor events. Editor events are interpreted based on the state of the buffer when
+/// they're applied, so this translation makes minimal use of the editor's current state.
 pub fn calc(
-    event: &Event, click_checker: impl ClickChecker, pointer_state: &mut PointerState,
+    event: &egui::Event, click_checker: impl ClickChecker, pointer_state: &mut PointerState,
     now: Instant, touch_mode: bool, appearance: &appearance::Appearance,
-) -> Option<Modification> {
+) -> Option<Event> {
     match event {
-        Event::Key { key, pressed: true, modifiers, .. }
+        egui::Event::Key { key, pressed: true, modifiers, .. }
             if matches!(key, Key::ArrowUp | Key::ArrowDown) && !cfg!(target_os = "ios") =>
         {
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: if modifiers.mac_cmd {
                         Offset::To(Bound::Doc)
@@ -47,11 +49,11 @@ pub fn calc(
                 },
             })
         }
-        Event::Key { key, pressed: true, modifiers, .. }
+        egui::Event::Key { key, pressed: true, modifiers, .. }
             if matches!(key, Key::ArrowRight | Key::ArrowLeft | Key::Home | Key::End)
                 && !cfg!(target_os = "ios") =>
         {
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: if matches!(key, Key::Home | Key::End) {
                         if modifiers.command {
@@ -67,93 +69,91 @@ pub fn calc(
                 },
             })
         }
-        Event::Text(text) | Event::Paste(text) => {
-            Some(Modification::Replace { region: Region::Selection, text: text.clone() })
+        egui::Event::Text(text) | egui::Event::Paste(text) => {
+            Some(Event::Replace { region: Region::Selection, text: text.clone() })
         }
-        Event::Key { key, pressed: true, modifiers, .. }
+        egui::Event::Key { key, pressed: true, modifiers, .. }
             if matches!(key, Key::Backspace | Key::Delete) =>
         {
-            Some(Modification::Delete {
+            Some(Event::Delete {
                 region: Region::SelectionOrOffset {
                     offset: Offset::from(modifiers),
                     backwards: key == &Key::Backspace,
                 },
             })
         }
-        Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
             if !cfg!(target_os = "ios") =>
         {
-            Some(Modification::Newline { advance_cursor: !modifiers.shift })
+            Some(Event::Newline { advance_cursor: !modifiers.shift })
         }
-        Event::Key { key: Key::Tab, pressed: true, modifiers, .. } if !modifiers.alt => {
+        egui::Event::Key { key: Key::Tab, pressed: true, modifiers, .. } if !modifiers.alt => {
             if !modifiers.shift && cfg!(target_os = "ios") {
                 return None;
             }
 
-            Some(Modification::Indent { deindent: modifiers.shift })
+            Some(Event::Indent { deindent: modifiers.shift })
         }
-        Event::Key { key: Key::A, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::A, pressed: true, modifiers, .. }
             if modifiers.command && !cfg!(target_os = "ios") =>
         {
-            Some(Modification::Select {
-                region: Region::Bound { bound: Bound::Doc, backwards: true },
-            })
+            Some(Event::Select { region: Region::Bound { bound: Bound::Doc, backwards: true } })
         }
-        Event::Cut => Some(Modification::Cut),
-        Event::Key { key: Key::X, pressed: true, modifiers, .. }
+        egui::Event::Cut => Some(Event::Cut),
+        egui::Event::Key { key: Key::X, pressed: true, modifiers, .. }
             if modifiers.command && !modifiers.shift && !cfg!(target_os = "ios") =>
         {
-            Some(Modification::Cut)
+            Some(Event::Cut)
         }
-        Event::Copy => Some(Modification::Copy),
-        Event::Key { key: Key::C, pressed: true, modifiers, .. }
+        egui::Event::Copy => Some(Event::Copy),
+        egui::Event::Key { key: Key::C, pressed: true, modifiers, .. }
             if modifiers.command && !modifiers.shift && !cfg!(target_os = "ios") =>
         {
-            Some(Modification::Copy)
+            Some(Event::Copy)
         }
-        Event::Key { key: Key::Z, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::Z, pressed: true, modifiers, .. }
             if modifiers.command && !cfg!(target_os = "ios") =>
         {
             if !modifiers.shift {
-                Some(Modification::Undo)
+                Some(Event::Undo)
             } else {
-                Some(Modification::Redo)
+                Some(Event::Redo)
             }
         }
-        Event::Key { key: Key::B, pressed: true, modifiers, .. } if modifiers.command => {
-            Some(Modification::ToggleStyle {
+        egui::Event::Key { key: Key::B, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Event::ToggleStyle {
                 region: Region::Selection,
                 style: MarkdownNode::Inline(InlineNode::Bold),
             })
         }
-        Event::Key { key: Key::I, pressed: true, modifiers, .. } if modifiers.command => {
-            Some(Modification::ToggleStyle {
+        egui::Event::Key { key: Key::I, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Event::ToggleStyle {
                 region: Region::Selection,
                 style: MarkdownNode::Inline(InlineNode::Italic),
             })
         }
-        Event::Key { key: Key::C, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::C, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
             if !modifiers.alt {
-                Some(Modification::ToggleStyle {
+                Some(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Code),
                 })
             } else {
-                Some(Modification::toggle_block_style(BlockNode::Code))
+                Some(Event::toggle_block_style(BlockNode::Code))
             }
         }
-        Event::Key { key: Key::X, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::X, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
-            Some(Modification::ToggleStyle {
+            Some(Event::ToggleStyle {
                 region: Region::Selection,
                 style: MarkdownNode::Inline(InlineNode::Strikethrough),
             })
         }
-        Event::Key { key: Key::K, pressed: true, modifiers, .. } if modifiers.command => {
-            Some(Modification::ToggleStyle {
+        egui::Event::Key { key: Key::K, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Event::ToggleStyle {
                 region: Region::Selection,
                 style: MarkdownNode::Inline(InlineNode::Link(
                     LinkType::Inline,
@@ -162,87 +162,92 @@ pub fn calc(
                 )),
             })
         }
-        Event::Key { key: Key::Num7, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::Num7, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
-            Some(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Numbered(1), 0)))
+            Some(Event::toggle_block_style(BlockNode::ListItem(ListItem::Numbered(1), 0)))
         }
-        Event::Key { key: Key::Num8, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::Num8, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
-            Some(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Bulleted, 0)))
+            Some(Event::toggle_block_style(BlockNode::ListItem(ListItem::Bulleted, 0)))
         }
-        Event::Key { key: Key::Num9, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::Num9, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
-            Some(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Todo(false), 0)))
+            Some(Event::toggle_block_style(BlockNode::ListItem(ListItem::Todo(false), 0)))
         }
-        Event::Key { key: Key::Num1, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::Num1, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.alt =>
         {
-            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H1)))
+            Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H1)))
         }
-        Event::Key { key: Key::Num2, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::Num2, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.alt =>
         {
-            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H2)))
+            Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H2)))
         }
-        Event::Key { key: Key::Num3, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::Num3, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.alt =>
         {
-            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H3)))
+            Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H3)))
         }
-        Event::Key { key: Key::Num4, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::Num4, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.alt =>
         {
-            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H4)))
+            Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H4)))
         }
-        Event::Key { key: Key::Num5, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::Num5, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.alt =>
         {
-            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H5)))
+            Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H5)))
         }
-        Event::Key { key: Key::Num6, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::Num6, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.alt =>
         {
-            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H6)))
+            Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H6)))
         }
-        Event::Key { key: Key::Q, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::Q, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.alt =>
         {
-            Some(Modification::toggle_block_style(BlockNode::Quote))
+            Some(Event::toggle_block_style(BlockNode::Quote))
         }
-        Event::Key { key: Key::R, pressed: true, modifiers, .. }
+        egui::Event::Key { key: Key::R, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.alt =>
         {
-            Some(Modification::toggle_block_style(BlockNode::Rule))
+            Some(Event::toggle_block_style(BlockNode::Rule))
         }
-        Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }
-            if click_checker.ui(*pos) =>
-        {
+        egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers,
+        } if click_checker.ui(*pos) => {
             pointer_state.press(now, *pos, *modifiers);
             None
         }
-        Event::PointerMoved(pos) if click_checker.ui(*pos) => {
+        egui::Event::PointerMoved(pos) if click_checker.ui(*pos) => {
             pointer_state.drag(now, *pos);
             if pointer_state.click_dragged.unwrap_or_default() && !touch_mode {
                 if pointer_state.click_mods.unwrap_or_default().shift {
-                    Some(Modification::Select { region: Region::ToLocation(Location::Pos(*pos)) })
+                    Some(Event::Select { region: Region::ToLocation(Location::Pos(*pos)) })
                 } else if let Some(click_pos) = pointer_state.click_pos {
-                    Some(Modification::Select {
+                    Some(Event::Select {
                         region: Region::BetweenLocations {
                             start: Location::Pos(click_pos),
                             end: Location::Pos(*pos),
                         },
                     })
                 } else {
-                    Some(Modification::Select { region: Region::ToLocation(Location::Pos(*pos)) })
+                    Some(Event::Select { region: Region::ToLocation(Location::Pos(*pos)) })
                 }
             } else {
                 None
             }
         }
-        Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, .. } => {
+        egui::Event::PointerButton {
+            pos, button: PointerButton::Primary, pressed: false, ..
+        } => {
             let click_type = pointer_state.click_type.unwrap_or_default();
             let click_pos = pointer_state.click_pos.unwrap_or_default();
             let click_mods = pointer_state.click_mods.unwrap_or_default();
@@ -251,10 +256,10 @@ pub fn calc(
             let location = Location::Pos(*pos);
 
             if let Some(galley_idx) = click_checker.checkbox(*pos, touch_mode) {
-                Some(Modification::ToggleCheckbox(galley_idx))
+                Some(Event::ToggleCheckbox(galley_idx))
             } else if let Some(url) = click_checker.link(*pos) {
                 if (touch_mode && !click_dragged) || click_mods.command {
-                    Some(Modification::OpenUrl(url))
+                    Some(Event::OpenUrl(url))
                 } else {
                     None
                 }
@@ -263,7 +268,7 @@ pub fn calc(
             }
             .or_else(|| {
                 if click_checker.ui(*pos) && !cfg!(target_os = "ios") {
-                    Some(Modification::Select {
+                    Some(Event::Select {
                         region: if click_mods.shift {
                             Region::ToLocation(location)
                         } else {
@@ -303,20 +308,22 @@ pub fn calc(
                 }
             })
         }
-        Event::Key { key: Key::F2, pressed: true, .. } => Some(Modification::ToggleDebug),
-        Event::Key { key: Key::Equals, pressed: true, modifiers, .. } if modifiers.command => {
-            Some(Modification::SetBaseFontSize(appearance.font_size() + 1.0))
+        egui::Event::Key { key: Key::F2, pressed: true, .. } => Some(Event::ToggleDebug),
+        egui::Event::Key { key: Key::Equals, pressed: true, modifiers, .. }
+            if modifiers.command =>
+        {
+            Some(Event::SetBaseFontSize(appearance.font_size() + 1.0))
         }
-        Event::Key { key: Key::Minus, pressed: true, modifiers, .. } if modifiers.command => {
-            Some(Modification::SetBaseFontSize(appearance.font_size() - 1.0))
+        egui::Event::Key { key: Key::Minus, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Event::SetBaseFontSize(appearance.font_size() - 1.0))
         }
         _ => None,
     }
 }
 
-impl Modification {
+impl Event {
     pub fn toggle_block_style(block: BlockNode) -> Self {
-        Modification::ToggleStyle {
+        Event::ToggleStyle {
             region: Region::Bound { bound: Bound::Paragraph, backwards: false },
             style: MarkdownNode::Block(block),
         }
@@ -332,12 +339,10 @@ impl Modification {
 #[cfg(test)]
 mod test {
     use super::calc;
-    use crate::tab::markdown_editor::input::canonical::{
-        Bound, Increment, Modification, Offset, Region,
-    };
+    use crate::tab::markdown_editor::input::canonical::{Bound, Event, Increment, Offset, Region};
     use crate::tab::markdown_editor::input::click_checker::ClickChecker;
     use crate::tab::markdown_editor::offset_types::DocCharOffset;
-    use egui::{Event, Key, Modifiers, Pos2};
+    use egui::{self, Key, Modifiers, Pos2};
     use std::time::Instant;
 
     #[derive(Default)]
@@ -375,7 +380,7 @@ mod test {
     fn calc_down() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowDown,
                     pressed: true,
@@ -388,7 +393,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::By(Increment::Line),
                     backwards: false,
@@ -402,7 +407,7 @@ mod test {
     fn calc_cmd_down() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowDown,
                     pressed: true,
@@ -415,7 +420,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Doc),
                     backwards: false,
@@ -429,7 +434,7 @@ mod test {
     fn calc_shift_down() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowDown,
                     pressed: true,
@@ -442,7 +447,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::By(Increment::Line),
                     backwards: false,
@@ -456,7 +461,7 @@ mod test {
     fn calc_cmd_shift_down() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowDown,
                     pressed: true,
@@ -469,7 +474,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Doc),
                     backwards: false,
@@ -483,7 +488,7 @@ mod test {
     fn calc_up() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowUp,
                     pressed: true,
@@ -496,7 +501,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::By(Increment::Line),
                     backwards: true,
@@ -510,7 +515,7 @@ mod test {
     fn calc_cmd_up() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowUp,
                     pressed: true,
@@ -523,7 +528,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Doc),
                     backwards: true,
@@ -537,7 +542,7 @@ mod test {
     fn calc_shift_up() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowUp,
                     pressed: true,
@@ -550,7 +555,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::By(Increment::Line),
                     backwards: true,
@@ -564,7 +569,7 @@ mod test {
     fn calc_cmd_shift_up() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowUp,
                     pressed: true,
@@ -577,7 +582,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Doc),
                     backwards: true,
@@ -591,7 +596,7 @@ mod test {
     fn calc_right() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
@@ -604,7 +609,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::Next(Bound::Char),
                     backwards: false,
@@ -615,11 +620,11 @@ mod test {
     }
 
     #[test]
-    #[cfg(target_vendor = "Apple")]
+    #[cfg(target_vendor = "apple")]
     fn calc_alt_right() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
@@ -632,7 +637,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::Next(Bound::Word),
                     backwards: false,
@@ -646,7 +651,7 @@ mod test {
     fn calc_cmd_right() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
@@ -659,7 +664,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Line),
                     backwards: false,
@@ -673,7 +678,7 @@ mod test {
     fn calc_shift_right() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
@@ -686,7 +691,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::Next(Bound::Char),
                     backwards: false,
@@ -697,11 +702,11 @@ mod test {
     }
 
     #[test]
-    #[cfg(target_vendor = "Apple")]
+    #[cfg(target_vendor = "apple")]
     fn calc_alt_shift_right() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
@@ -714,7 +719,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::Next(Bound::Word),
                     backwards: false,
@@ -728,7 +733,7 @@ mod test {
     fn calc_cmd_shift_right() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
@@ -741,7 +746,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Line),
                     backwards: false,
@@ -755,7 +760,7 @@ mod test {
     fn calc_end() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::End,
                     pressed: true,
@@ -768,7 +773,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Line),
                     backwards: false,
@@ -782,7 +787,7 @@ mod test {
     fn calc_shift_end() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::End,
                     pressed: true,
@@ -795,7 +800,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Line),
                     backwards: false,
@@ -809,7 +814,7 @@ mod test {
     fn calc_left() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
@@ -822,7 +827,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::Next(Bound::Char),
                     backwards: true,
@@ -833,11 +838,11 @@ mod test {
     }
 
     #[test]
-    #[cfg(target_vendor = "Apple")]
+    #[cfg(target_vendor = "apple")]
     fn calc_alt_left() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
@@ -850,7 +855,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::Next(Bound::Word),
                     backwards: true,
@@ -864,7 +869,7 @@ mod test {
     fn calc_cmd_left() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
@@ -877,7 +882,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Line),
                     backwards: true,
@@ -891,7 +896,7 @@ mod test {
     fn calc_shift_left() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
@@ -904,7 +909,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::Next(Bound::Char),
                     backwards: true,
@@ -915,11 +920,11 @@ mod test {
     }
 
     #[test]
-    #[cfg(target_vendor = "Apple")]
+    #[cfg(target_vendor = "apple")]
     fn calc_alt_shift_left() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
@@ -932,7 +937,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::Next(Bound::Word),
                     backwards: true,
@@ -946,7 +951,7 @@ mod test {
     fn calc_cmd_shift_left() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
@@ -959,7 +964,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Line),
                     backwards: true,
@@ -973,7 +978,7 @@ mod test {
     fn calc_home() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::Home,
                     pressed: true,
@@ -986,7 +991,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Line),
                     backwards: true,
@@ -1000,7 +1005,7 @@ mod test {
     fn calc_cmd_home() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::Home,
                     pressed: true,
@@ -1013,7 +1018,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Doc),
                     backwards: true,
@@ -1027,7 +1032,7 @@ mod test {
     fn calc_shift_home() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::Home,
                     pressed: true,
@@ -1040,7 +1045,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Line),
                     backwards: true,
@@ -1054,7 +1059,7 @@ mod test {
     fn calc_cmd_shift_home() {
         assert!(matches!(
             calc(
-                &Event::Key {
+                &egui::Event::Key {
                     physical_key: None,
                     key: Key::Home,
                     pressed: true,
@@ -1067,7 +1072,7 @@ mod test {
                 false,
                 &Default::default()
             ),
-            Some(Modification::Select {
+            Some(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Doc),
                     backwards: true,
