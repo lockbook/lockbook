@@ -1,11 +1,10 @@
-use egui::{Event, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
+use egui::{PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
 use jni::JNIEnv;
 use lb_external_interface::lb_rs::Uuid;
 use serde::Serialize;
 use std::panic::catch_unwind;
-use workspace_rs::tab::markdown_editor::input::cursor::CursorState;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
 use workspace_rs::tab::markdown_editor::offset_types::DocCharOffset;
 use workspace_rs::tab::svg_editor::Tool;
@@ -74,11 +73,11 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
             Err(err) => format!("# The error is: {:?}", err),
         };
 
-        obj.raw_input.events.push(Event::Text(text));
+        obj.raw_input.events.push(egui::Event::Text(text));
     }
 
     if let Some(key) = key.egui_key() {
-        obj.raw_input.events.push(Event::Key {
+        obj.raw_input.events.push(egui::Event::Key {
             key,
             physical_key: None,
             pressed: pressed == 1,
@@ -95,7 +94,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTextAtCursor(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     if let Ok(text) = env.get_string(&content) {
-        obj.raw_input.events.push(Event::Text(text.into()));
+        obj.raw_input.events.push(egui::Event::Text(text.into()));
     }
 }
 
@@ -105,7 +104,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
 ) {
     let obj = unsafe { &mut *(ogbj as *mut WgpuWorkspace) };
 
-    obj.raw_input.events.push(Event::Touch {
+    obj.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::Start,
@@ -113,7 +112,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
         force: Some(pressure),
     });
 
-    obj.raw_input.events.push(Event::PointerButton {
+    obj.raw_input.events.push(egui::Event::PointerButton {
         pos: Pos2 { x, y },
         button: PointerButton::Primary,
         pressed: true,
@@ -127,7 +126,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesMoved(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.raw_input.events.push(Event::Touch {
+    obj.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::Move,
@@ -137,7 +136,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesMoved(
 
     obj.raw_input
         .events
-        .push(Event::PointerMoved(Pos2 { x, y }));
+        .push(egui::Event::PointerMoved(Pos2 { x, y }));
 }
 
 #[no_mangle]
@@ -146,7 +145,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.raw_input.events.push(Event::Touch {
+    obj.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::End,
@@ -154,14 +153,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
         force: Some(pressure),
     });
 
-    obj.raw_input.events.push(Event::PointerButton {
+    obj.raw_input.events.push(egui::Event::PointerButton {
         pos: Pos2 { x, y },
         button: PointerButton::Primary,
         pressed: false,
         modifiers: Default::default(),
     });
 
-    obj.raw_input.events.push(Event::PointerGone);
+    obj.raw_input.events.push(egui::Event::PointerGone);
 }
 
 #[no_mangle]
@@ -170,7 +169,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesCancelled(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.raw_input.events.push(Event::Touch {
+    obj.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::Cancel,
@@ -178,7 +177,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesCancelled(
         force: Some(pressure),
     });
 
-    obj.raw_input.events.push(Event::PointerGone);
+    obj.raw_input.events.push(egui::Event::PointerGone);
 }
 
 #[derive(Debug, Serialize)]
@@ -312,7 +311,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getAllText(
         }
     };
 
-    env.new_string(&markdown.editor.buffer.current.text)
+    env.new_string(&markdown.editor.buffer.current_text)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
@@ -325,7 +324,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getSelection(
 
     let resp = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => {
-            let (start, end) = markdown.editor.buffer.current.cursor.selection;
+            let (start, end) = markdown.editor.buffer.current_selection;
             JTextRange { none: false, start: start.0, end: end.0 }
         }
         None => JTextRange { none: true, start: 0, end: 0 },
@@ -361,7 +360,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextLength(
         None => return -1,
     };
 
-    markdown.editor.buffer.current.segs.last_cursor_position().0 as jint
+    markdown.editor.buffer.current_segs.last_cursor_position().0 as jint
 }
 
 #[no_mangle]
@@ -379,7 +378,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(0)),
             end: Location::DocCharOffset(
-                markdown.editor.buffer.current.segs.last_cursor_position(),
+                markdown.editor.buffer.current_segs.last_cursor_position(),
             ),
         },
         text: "".to_string(),
@@ -441,7 +440,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
         Err(err) => format!("error: {:?}", err),
     };
 
-    let loc = Location::DocCharOffset(markdown.editor.buffer.current.segs.last_cursor_position());
+    let loc = Location::DocCharOffset(markdown.editor.buffer.current_segs.last_cursor_position());
 
     obj.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
@@ -465,12 +464,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
         }
     };
 
-    let cursor: CursorState = (start as usize, end as usize).into();
-
-    let buffer = &markdown.editor.buffer.current;
-    let text = cursor.selection_text(buffer);
-
-    env.new_string(text)
+    let selection = (DocCharOffset(start as usize), DocCharOffset(end as usize));
+    env.new_string(&markdown.editor.buffer[selection])
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
@@ -486,12 +481,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectAll(
         None => return,
     };
 
-    let buffer = &markdown.editor.buffer.current;
+    let segs = &markdown.editor.buffer.current_segs;
 
     obj.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(0)),
-            end: Location::DocCharOffset(buffer.segs.last_cursor_position()),
+            end: Location::DocCharOffset(segs.last_cursor_position()),
         },
     });
 }
@@ -523,7 +518,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
         Err(err) => format!("# The error is: {:?}", err),
     };
 
-    obj.raw_input.events.push(Event::Paste(content));
+    obj.raw_input.events.push(egui::Event::Paste(content));
 }
 
 #[no_mangle]
