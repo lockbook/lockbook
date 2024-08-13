@@ -984,7 +984,7 @@
 				);
 				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios_sim";
 				MARKETING_VERSION = 0.5.10;
-				PRODUCT_BUNDLE_IDENTIFIER = lockbook;
+				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
