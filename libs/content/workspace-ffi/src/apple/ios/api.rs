@@ -1,4 +1,4 @@
-use egui::{Event, Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
+use egui::{Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::ptr::null;
@@ -44,7 +44,7 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
         obj.context
             .push_markdown_event(Event::Indent { deindent: false });
     } else {
-        obj.raw_input.events.push(Event::Text(content));
+        obj.raw_input.events.push(egui::Event::Text(content));
     }
 }
 
@@ -56,7 +56,7 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
 pub unsafe extern "C" fn backspace(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    obj.raw_input.events.push(Event::Key {
+    obj.raw_input.events.push(egui::Event::Key {
         key: Key::Backspace,
         physical_key: None,
         pressed: true,
@@ -125,12 +125,8 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
     };
 
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
-    if let Some((start, end)) = range {
-        let cursor: CursorState = (start, end).into();
-        let buffer = &markdown.editor.buffer.current;
-        let text = cursor.selection_text(buffer);
-
-        CString::new(text)
+    if let Some(range) = range {
+        CString::new(&markdown.editor.buffer[range])
             .expect("Could not Rust String -> C String")
             .into_raw()
     } else {
@@ -153,7 +149,7 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
         None => return CTextRange::default(),
     };
 
-    let (start, end) = markdown.editor.buffer.current.cursor.selection;
+    let (start, end) = markdown.editor.buffer.current_selection;
 
     CTextRange {
         none: false,
@@ -199,21 +195,8 @@ pub unsafe extern "C" fn select_all(obj: *mut c_void) {
 ///
 /// https://developer.apple.com/documentation/uikit/uitextinput/1614489-markedtextrange
 #[no_mangle]
-pub unsafe extern "C" fn get_marked(obj: *mut c_void) -> CTextRange {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return CTextRange::default(),
-    };
-
-    match markdown.editor.buffer.current.cursor.mark {
-        None => CTextRange { none: true, ..Default::default() },
-        Some((start, end)) => CTextRange {
-            none: false,
-            start: CTextPosition { pos: start.0, ..Default::default() },
-            end: CTextPosition { pos: end.0, ..Default::default() },
-        },
-    }
+pub unsafe extern "C" fn get_marked(_obj: *mut c_void) -> CTextRange {
+    unimplemented!()
 }
 
 /// # Safety
@@ -221,18 +204,8 @@ pub unsafe extern "C" fn get_marked(obj: *mut c_void) -> CTextRange {
 ///
 /// https://developer.apple.com/documentation/uikit/uitextinput/1614465-setmarkedtext
 #[no_mangle]
-pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *const c_char) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let text =
-        if text.is_null() { None } else { Some(CStr::from_ptr(text).to_str().unwrap().into()) };
-
-    let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
-    if let Some(range) = range {
-        obj.context.push_markdown_event(Event::StageMarked {
-            highlighted: (range.start().0.into(), range.end().0.into()),
-            text: text.unwrap_or_default(),
-        });
-    }
+pub unsafe extern "C" fn set_marked(_obj: *mut c_void, _range: CTextRange, _text: *const c_char) {
+    unimplemented!()
 }
 
 /// # Safety
@@ -240,9 +213,8 @@ pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *
 ///
 /// https://developer.apple.com/documentation/uikit/uitextinput/1614512-unmarktext
 #[no_mangle]
-pub unsafe extern "C" fn unmark_text(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Event::CommitMarked);
+pub unsafe extern "C" fn unmark_text(_obj: *mut c_void) {
+    unimplemented!()
 }
 
 /// # Safety
@@ -269,7 +241,7 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
         None => return CTextPosition::default(),
     };
 
-    let result = markdown.editor.buffer.current.segs.last_cursor_position().0;
+    let result = markdown.editor.buffer.current_segs.last_cursor_position().0;
     CTextPosition { pos: result, ..Default::default() }
 }
 
@@ -289,7 +261,7 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
         force,
     });
 
-    obj.raw_input.events.push(Event::PointerButton {
+    obj.raw_input.events.push(egui::Event::PointerButton {
         pos: Pos2 { x, y },
         button: PointerButton::Primary,
         pressed: true,
@@ -306,7 +278,7 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
 
     let force = if force == 0.0 { None } else { Some(force) };
 
-    obj.raw_input.events.push(Event::Touch {
+    obj.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
         phase: TouchPhase::Move,
@@ -316,7 +288,7 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
 
     obj.raw_input
         .events
-        .push(Event::PointerMoved(Pos2 { x, y }));
+        .push(egui::Event::PointerMoved(Pos2 { x, y }));
 }
 
 /// # Safety
@@ -338,14 +310,14 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
         force,
     });
 
-    obj.raw_input.events.push(Event::PointerButton {
+    obj.raw_input.events.push(egui::Event::PointerButton {
         pos: Pos2 { x, y },
         button: PointerButton::Primary,
         pressed: false,
         modifiers: Default::default(),
     });
 
-    obj.raw_input.events.push(Event::PointerGone);
+    obj.raw_input.events.push(egui::Event::PointerGone);
 }
 
 /// # Safety
@@ -366,7 +338,7 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
         force,
     });
 
-    obj.raw_input.events.push(Event::PointerGone);
+    obj.raw_input.events.push(egui::Event::PointerGone);
 }
 
 /// # Safety
@@ -413,7 +385,7 @@ pub unsafe extern "C" fn position_offset(
 
     let start: Option<DocCharOffset> = start.into();
     if let Some(start) = start {
-        let last_cursor_position = markdown.editor.buffer.current.segs.last_cursor_position();
+        let last_cursor_position = markdown.editor.buffer.current_segs.last_cursor_position();
 
         let result = if offset < 0 && -offset > start.0 as i32 {
             DocCharOffset::default()
@@ -445,7 +417,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
         None => return CTextPosition::default(),
     };
 
-    let buffer = &markdown.editor.buffer.current;
+    let segs = &markdown.editor.buffer.current_segs;
     let galleys = &markdown.editor.galleys;
 
     let offset_type =
@@ -456,12 +428,19 @@ pub unsafe extern "C" fn position_offset_in_direction(
         };
     let backwards = matches!(direction, CTextLayoutDirection::Left | CTextLayoutDirection::Up);
 
-    let mut cursor: CursorState = start.pos.into();
+    let mut result: DocCharOffset = start.pos.into();
     for _ in 0..offset {
-        cursor.advance(offset_type, backwards, buffer, galleys, &markdown.editor.bounds);
+        result = result.advance(
+            &mut None,
+            offset_type,
+            backwards,
+            segs,
+            galleys,
+            &markdown.editor.bounds,
+        );
     }
 
-    CTextPosition { none: start.none, pos: cursor.selection.1 .0 }
+    CTextPosition { none: start.none, pos: result.0 }
 }
 
 /// # Safety
@@ -572,12 +551,12 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         None => return CRect::default(),
     };
 
-    let buffer = &markdown.editor.buffer.current;
+    let segs = &markdown.editor.buffer.current_segs;
     let galleys = &markdown.editor.galleys;
     let text = &markdown.editor.bounds.text;
     let appearance = &markdown.editor.appearance;
 
-    let cursor_representing_rect: CursorState = {
+    let selection_representing_rect = {
         let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
         let range = match range {
             Some(range) => range,
@@ -586,17 +565,23 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
                 return CRect::default();
             }
         };
-        let selection_start = range.start();
+        let mut selection_start = range.start();
         let selection_end = range.end();
-        let mut cursor: CursorState = selection_start.into();
-        cursor.advance(Offset::To(Bound::Line), false, buffer, galleys, &markdown.editor.bounds);
-        let end_of_selection_start_line = cursor.selection.1;
+        selection_start = selection_start.advance(
+            &mut None,
+            Offset::To(Bound::Line),
+            false,
+            segs,
+            galleys,
+            &markdown.editor.bounds,
+        );
+        let end_of_selection_start_line = selection_start;
         let end_of_rect = cmp::min(selection_end, end_of_selection_start_line);
-        (selection_start, end_of_rect).into()
+        (selection_start, end_of_rect)
     };
 
-    let start_line = cursor_representing_rect.start_line(galleys, text, appearance);
-    let end_line = cursor_representing_rect.end_line(galleys, text, appearance);
+    let start_line = cursor::line(selection_representing_rect.start(), galleys, text, appearance);
+    let end_line = cursor::line(selection_representing_rect.end(), galleys, text, appearance);
 
     CRect {
         min_x: (start_line[1].x + 1.0) as f64,
@@ -632,7 +617,7 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
         None => return CTextPosition::default(),
     };
 
-    let segs = &markdown.editor.buffer.current.segs;
+    let segs = &markdown.editor.buffer.current_segs;
     let galleys = &markdown.editor.galleys;
     let text = &markdown.editor.bounds.text;
 
@@ -655,7 +640,7 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
         None => return null(),
     };
 
-    let value = markdown.editor.buffer.current.text.as_str();
+    let value = markdown.editor.buffer.current_text.as_str();
 
     CString::new(value)
         .expect("Could not Rust String -> C String")
@@ -676,8 +661,7 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
     let text = &markdown.editor.bounds.text;
     let appearance = &markdown.editor.appearance;
 
-    let cursor: CursorState = pos.pos.into();
-    let line = cursor.start_line(galleys, text, appearance);
+    let line = cursor::line(pos.pos.into(), galleys, text, appearance);
 
     CRect {
         min_x: line[0].x as f64,
@@ -712,9 +696,10 @@ pub unsafe extern "C" fn selection_rects(
         None => return UITextSelectionRects::default(),
     };
 
-    let buffer = &markdown.editor.buffer.current;
+    let segs = &markdown.editor.buffer.current_segs;
     let galleys = &markdown.editor.galleys;
     let text = &markdown.editor.bounds.text;
+    let appearance = &markdown.editor.appearance;
 
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
     let range = match range {
@@ -729,16 +714,22 @@ pub unsafe extern "C" fn selection_rects(
     let mut selection_rects = vec![];
 
     while cont_start < range.end() {
-        let mut new_end: CursorState = cont_start.into();
-        new_end.advance(Offset::To(Bound::Line), false, buffer, galleys, &markdown.editor.bounds);
-        let end_of_rect = cmp::min(new_end.selection.end(), range.end());
+        let mut new_end = cont_start;
+        new_end = new_end.advance(
+            &mut None,
+            Offset::To(Bound::Line),
+            false,
+            segs,
+            galleys,
+            &markdown.editor.bounds,
+        );
+        let end_of_rect = cmp::min(new_end, range.end());
 
-        let cursor_representing_rect: CursorState = (cont_start, end_of_rect).into();
+        let selection_representing_rect = (cont_start, end_of_rect);
 
         let start_line =
-            cursor_representing_rect.start_line(galleys, text, &markdown.editor.appearance);
-        let end_line =
-            cursor_representing_rect.end_line(galleys, text, &markdown.editor.appearance);
+            cursor::line(selection_representing_rect.start(), galleys, text, appearance);
+        let end_line = cursor::line(selection_representing_rect.end(), galleys, text, appearance);
 
         selection_rects.push(CRect {
             min_x: (start_line[1].x) as f64,
@@ -747,8 +738,15 @@ pub unsafe extern "C" fn selection_rects(
             max_y: end_line[1].y as f64,
         });
 
-        new_end.advance(Offset::Next(Bound::Char), false, buffer, galleys, &markdown.editor.bounds);
-        cont_start = new_end.selection.end();
+        new_end.advance(
+            &mut None,
+            Offset::Next(Bound::Char),
+            false,
+            segs,
+            galleys,
+            &markdown.editor.bounds,
+        );
+        cont_start = new_end;
     }
 
     UITextSelectionRects {
@@ -838,7 +836,7 @@ pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
 pub unsafe extern "C" fn delete_word(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    obj.raw_input.events.push(Event::Key {
+    obj.raw_input.events.push(egui::Event::Key {
         key: Key::Backspace,
         physical_key: None,
         pressed: true,
@@ -951,7 +949,7 @@ pub unsafe extern "C" fn ios_key_event(
 
     // Event::Key
     if let Some(key) = key.egui_key() {
-        obj.raw_input.events.push(Event::Key {
+        obj.raw_input.events.push(egui::Event::Key {
             key,
             physical_key: None,
             pressed,
