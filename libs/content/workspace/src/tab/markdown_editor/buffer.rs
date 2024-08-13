@@ -157,6 +157,15 @@ impl Buffer {
     pub fn can_redo(&self) -> bool {
         !self.redo_stack.is_empty()
     }
+
+    /// Reports whether the buffer's current text is empty.
+    pub fn is_empty(&self) -> bool {
+        self.current_text.is_empty()
+    }
+
+    pub fn selection_text(&self) -> String {
+        self[self.current_selection].to_string()
+    }
 }
 
 // #[derive(Debug)]
