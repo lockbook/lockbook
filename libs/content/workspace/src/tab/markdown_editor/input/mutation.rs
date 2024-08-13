@@ -101,7 +101,7 @@ impl Editor {
                     operations.push(Operation::Select { range: current_selection });
                 }
             }
-            Event::Newline { advance_cursor } => {
+            Event::Newline { advance_cursor: _ } => {
                 let galley_idx = (&self.galleys).galley_at_char(current_selection.1);
                 let galley = &(&self.galleys)[galley_idx];
                 let ast_text_range = (&self.bounds)
@@ -163,7 +163,7 @@ impl Editor {
                                         + ". ";
                                     operations.push(Operation::Replace {
                                         range: current_selection,
-                                        text: "\n".into(),
+                                        text,
                                     });
 
                                     let renumbered_galleys = {

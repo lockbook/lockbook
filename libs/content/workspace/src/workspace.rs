@@ -45,7 +45,7 @@ pub struct Workspace {
 pub enum WsMsg {
     FileCreated(Result<File, String>),
     FileLoaded(Uuid, Result<TabContent, TabFailure>),
-    SaveResult(Uuid, Result<(DocumentHmac, Instant), LbError>),
+    SaveResult(Uuid, Result<(String, DocumentHmac, Instant, usize), LbError>),
     FileRenamed { id: Uuid, new_name: String },
 
     BgSignal(Signal),
@@ -388,6 +388,10 @@ impl Workspace {
                                 // check that this change was not from the initial frame.
                                 if resp.text_updated && md.past_first_frame() {
                                     tab.last_changed = Instant::now();
+                                    println!(
+                                        "workspace: markdown text updated; last_changed = {:?}",
+                                        tab.last_changed
+                                    );
                                 }
 
                                 if let Some(new_name) = resp.suggest_rename {
@@ -535,21 +539,29 @@ impl Workspace {
         }
     }
 
-    pub fn save_tab(&mut self, i: usize) {
-        if let Some(tab) = self.tabs.get_mut(i) {
+    pub fn save_tab(&self, i: usize) {
+        if let Some(tab) = self.tabs.get(i) {
             if tab.is_dirty() {
                 if let Some(save_req) = tab.make_save_request() {
                     let core = self.core.clone();
                     let update_tx = self.updates_tx.clone();
                     let ctx = self.ctx.clone();
+                    let seq = if let Some(TabContent::Markdown(md)) = &tab.content {
+                        md.editor.buffer.current_seq
+                    } else {
+                        0
+                    };
+
                     thread::spawn(move || {
                         let content = save_req.content;
                         let id = save_req.id;
                         let hmac = save_req.hmac;
 
                         let result = core
-                            .safe_write(id, hmac, content.into())
-                            .map(|hmac| (hmac, Instant::now()));
+                            .safe_write(id, hmac, content.clone().into())
+                            .map(|hmac| (content, hmac, Instant::now(), seq));
+
+                        println!("workspace: write complete");
 
                         // re-read
                         update_tx.send(WsMsg::SaveResult(id, result)).unwrap();
@@ -763,18 +775,20 @@ impl Workspace {
                     };
                 }
                 WsMsg::BgSignal(Signal::SaveAll) => {
-                    if self.cfg.auto_save.load(Ordering::Relaxed) {
-                        self.save_all_tabs();
-                    }
+                    // if self.cfg.auto_save.load(Ordering::Relaxed) {
+                    //     println!("save all tabs");
+                    //     self.save_all_tabs();
+                    // }
                 }
                 WsMsg::SaveResult(id, result) => {
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         match result {
-                            Ok((hmac, time_saved)) => {
+                            Ok((content, hmac, time_saved, seq)) => {
                                 tab.last_saved = time_saved;
                                 match tab.content.as_mut().unwrap() {
                                     TabContent::Markdown(md) => {
                                         md.editor.hmac = Some(hmac);
+                                        md.editor.buffer.saved(seq, content);
                                     }
                                     _ => unreachable!(),
                                 }
@@ -795,6 +809,7 @@ impl Workspace {
                 WsMsg::BgSignal(Signal::Sync) => {
                     if self.cfg.auto_sync.load(Ordering::Relaxed) {
                         self.perform_sync();
+                        println!("workspace: auto-sync complete");
                     }
                 }
                 WsMsg::BgSignal(Signal::UpdateStatus) => {
