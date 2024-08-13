@@ -2,14 +2,13 @@ use similar::{algorithms::DiffHook, DiffableStr as _, DiffableStrRef as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::tab::markdown_editor::{
-    buffer::SubBuffer,
-    input::{Location, Modification, Region},
+    buffer::{self, Operation},
     offset_types::DocCharOffset,
 };
 
 // implementation note: this works because similar uses the same grapheme definition as we do, so reported indexes can
 // be interpreted as doc char offsets
-pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Modification> {
+pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Operation> {
     println!("\n----- merge -----");
     println!("base: {}", base);
     println!("local: {}", local);
@@ -26,7 +25,7 @@ pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Modification> {
             0..local.len(),
         )
         .expect("unexpected error (DiffHook does not emit errors)");
-        hook.modifications()
+        hook.ops()
     };
     let mut out_of_editor_mutations = {
         let mut hook = Hook::new(remote);
@@ -39,7 +38,7 @@ pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Modification> {
             0..remote.len(),
         )
         .expect("unexpected error (DiffHook does not emit errors)");
-        hook.modifications()
+        hook.ops()
     };
 
     println!("in_editor_mutations: {:?}", in_editor_mutations);
@@ -49,27 +48,13 @@ pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Modification> {
     for in_mutation in in_editor_mutations {
         for out_mutation in &mut out_of_editor_mutations {
             if let (
-                Modification::Replace {
-                    region:
-                        Region::BetweenLocations {
-                            start: Location::DocCharOffset(in_start),
-                            end: Location::DocCharOffset(in_end),
-                        },
-                    text: text_replacement,
-                },
-                Modification::Replace {
-                    region:
-                        Region::BetweenLocations {
-                            start: Location::DocCharOffset(out_start),
-                            end: Location::DocCharOffset(out_end),
-                        },
-                    text: _,
-                },
+                Operation::Replace { range: (in_start, in_end), text: text_replacement },
+                Operation::Replace { range: (out_start, out_end), text: _ },
             ) = (&in_mutation, out_mutation)
             {
                 let text_replacement_len = text_replacement.grapheme_indices(true).count();
                 let mut tmp = (out_start.clone(), out_end.clone());
-                SubBuffer::adjust_subsequent_range(
+                buffer::adjust_subsequent_range(
                     (*in_start, *in_end),
                     text_replacement_len.into(),
                     true,
@@ -77,6 +62,7 @@ pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Modification> {
                 );
                 (*out_start, *out_end) = tmp;
             } else {
+                // merge doesn't produce non-replacement operations
                 unreachable!()
             }
         }
@@ -88,18 +74,19 @@ pub fn merge(base: &str, local: &str, remote: &str) -> Vec<Modification> {
     out_of_editor_mutations
 }
 
+// todo: cache unicode segmentation for performance
 struct Hook<'a> {
     new: &'a str,
-    modifications: Vec<Modification>,
+    ops: Vec<Operation>,
 }
 
 impl<'a> Hook<'a> {
     fn new(new: &'a str) -> Self {
-        Self { new, modifications: Vec::new() }
+        Self { new, ops: Vec::new() }
     }
 
-    fn modifications(self) -> Vec<Modification> {
-        self.modifications
+    fn ops(self) -> Vec<Operation> {
+        self.ops
     }
 }
 
@@ -109,50 +96,44 @@ impl DiffHook for Hook<'_> {
     fn delete(
         &mut self, old_index: usize, old_len: usize, _new_index: usize,
     ) -> Result<(), Self::Error> {
-        let start = Location::DocCharOffset(old_index.into());
-        let end = Location::DocCharOffset((old_index + old_len).into());
-        let region = Region::BetweenLocations { start, end };
-        let text = String::new();
-        let modification = Modification::Replace { region, text };
+        let op = Operation::Replace {
+            range: (DocCharOffset(old_index), DocCharOffset(old_index + old_len)),
+            text: String::new(),
+        };
 
-        // println!("modification: {:?}", modification);
-
-        self.modifications.push(modification);
+        self.ops.push(op);
         Ok(())
     }
 
     fn insert(
         &mut self, old_index: usize, new_index: usize, new_len: usize,
     ) -> Result<(), Self::Error> {
-        let location = Location::DocCharOffset(old_index.into());
-        let region = Region::BetweenLocations { start: location, end: location };
         let text = self
             .new
             .grapheme_index((DocCharOffset(new_index), DocCharOffset(new_index + new_len)))
             .to_string();
-        let modification = Modification::Replace { region, text };
+        let op = Operation::Replace {
+            range: (DocCharOffset(old_index), DocCharOffset(old_index)),
+            text,
+        };
 
-        // println!("modification: {:?}", modification);
-
-        self.modifications.push(modification);
+        self.ops.push(op);
         Ok(())
     }
 
     fn replace(
         &mut self, old_index: usize, old_len: usize, new_index: usize, new_len: usize,
     ) -> Result<(), Self::Error> {
-        let start = Location::DocCharOffset(old_index.into());
-        let end = Location::DocCharOffset((old_index + old_len).into());
-        let region = Region::BetweenLocations { start, end };
         let text = self
             .new
             .grapheme_index((DocCharOffset(new_index), DocCharOffset(new_index + new_len)))
             .to_string();
-        let modification = Modification::Replace { region, text };
+        let op = Operation::Replace {
+            range: (DocCharOffset(old_index), DocCharOffset(old_index + old_len)),
+            text,
+        };
 
-        // println!("modification: {:?}", modification);
-
-        self.modifications.push(modification);
+        self.ops.push(op);
         Ok(())
     }
 }

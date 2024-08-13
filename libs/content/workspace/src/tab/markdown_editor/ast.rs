@@ -1,6 +1,4 @@
 use crate::tab::markdown_editor::bounds::{AstTextRanges, RangesExt};
-use crate::tab::markdown_editor::buffer::SubBuffer;
-use crate::tab::markdown_editor::input::cursor::Cursor;
 use crate::tab::markdown_editor::layouts::Annotation;
 use crate::tab::markdown_editor::offset_types::{
     DocCharOffset, RangeExt, RangeIterExt, RelCharOffset,
@@ -10,6 +8,8 @@ use crate::tab::markdown_editor::style::{
 };
 use crate::tab::markdown_editor::Editor;
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
+
+use super::buffer::Buffer;
 
 #[derive(Default, Debug, PartialEq)]
 pub struct Ast {
@@ -42,15 +42,15 @@ impl AstNode {
     }
 }
 
-pub fn calc(buffer: &SubBuffer) -> Ast {
+pub fn calc(buffer: &Buffer) -> Ast {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_STRIKETHROUGH);
-    let parser = Parser::new_ext(&buffer.text, options);
+    let parser = Parser::new_ext(&buffer.current_text, options);
     let mut result = Ast {
         nodes: vec![AstNode::new(
             MarkdownNode::Document,
-            (0.into(), buffer.segs.last_cursor_position()),
-            (0.into(), buffer.segs.last_cursor_position()),
+            (0.into(), buffer.current_segs.last_cursor_position()),
+            (0.into(), buffer.current_segs.last_cursor_position()),
         )],
         root: 0,
     };
@@ -83,27 +83,25 @@ impl Ast {
             .map(|(idx, _)| idx)
     }
 
-    fn push_children(&mut self, current_idx: usize, iter: &mut OffsetIter, buffer: &SubBuffer) {
+    fn push_children(&mut self, current_idx: usize, iter: &mut OffsetIter, buffer: &Buffer) {
         let mut skipped = 0;
         while let Some((event, mut range)) = iter.next() {
             // correct for windows-style line endings by keeping \r and \n together
-            if buffer.text[range.clone()].starts_with('\n') {
-                if let Some(prev_char) = buffer.text[..range.start].chars().next_back() {
-                    if prev_char == '\r' {
-                        range.start -= 1;
-                    }
-                }
+            if buffer.current_text[range.clone()].starts_with('\n')
+                && range.start > 0
+                && &buffer.current_text[range.start - 1..range.start] == "\r"
+            {
+                range.start -= 1;
             }
-            if buffer.text[range.clone()].ends_with('\r') {
-                if let Some(next_char) = buffer.text[range.end..].chars().next() {
-                    if next_char == '\n' {
-                        range.end += 1;
-                    }
-                }
+            if buffer.current_text[range.clone()].ends_with('\r')
+                && range.end < buffer.current_text.len()
+                && &buffer.current_text[range.end..range.end + 1] == "\n"
+            {
+                range.end += 1;
             }
 
             let range = buffer
-                .segs
+                .current_segs
                 .range_to_char((range.start.into(), range.end.into()));
             match event {
                 Event::Start(child_tag) => {
@@ -205,7 +203,7 @@ impl Ast {
 
     fn push_child(
         &mut self, parent_idx: usize, mut markdown_node: MarkdownNode,
-        cmark_range: (DocCharOffset, DocCharOffset), buffer: &SubBuffer,
+        cmark_range: (DocCharOffset, DocCharOffset), buffer: &Buffer,
     ) -> Option<usize> {
         // assumption: whitespace-only nodes have no children
         if buffer[cmark_range].trim().is_empty() {
@@ -237,7 +235,7 @@ impl Ast {
                 markdown_node,
                 MarkdownNode::Block(BlockNode::ListItem(..))
                     | MarkdownNode::Block(BlockNode::Heading(..))
-            ) && range.1 < buffer.segs.last_cursor_position()
+            ) && range.1 < buffer.current_segs.last_cursor_position()
                 && buffer[(range.0, range.1 + 1)].ends_with(' ')
             {
                 range.1 += 1;
@@ -253,7 +251,7 @@ impl Ast {
 
             // capture up to one trailing newline for rules
             if markdown_node.node_type() == MarkdownNodeType::Block(BlockNodeType::Rule)
-                && range.1 < buffer.segs.last_cursor_position()
+                && range.1 < buffer.current_segs.last_cursor_position()
                 && buffer[(range.0, range.1 + 1)].ends_with('\n')
             {
                 range.1 += 1;
@@ -472,7 +470,7 @@ impl Ast {
         result
     }
 
-    pub fn print(&self, buffer: &SubBuffer) {
+    pub fn print(&self, buffer: &Buffer) {
         for range in self.iter_text_ranges() {
             println!(
                 "{:?} {:?}: {:?}..{:?}\t{:?}",
@@ -550,18 +548,22 @@ impl AstTextRange {
         }
     }
 
-    pub fn intersects_selection(&self, ast: &Ast, cursor: Cursor) -> bool {
+    pub fn intersects_selection(
+        &self, ast: &Ast, selection: (DocCharOffset, DocCharOffset),
+    ) -> bool {
         if let Some(&ast_node_idx) = self.ancestors.last() {
             ast.nodes[ast_node_idx]
                 .range
-                .intersects_allow_empty(&cursor.selection)
+                .intersects_allow_empty(&selection)
         } else {
             false
         }
     }
 }
 
-impl RangeExt<DocCharOffset> for AstTextRange {
+impl RangeExt for AstTextRange {
+    type Element = DocCharOffset;
+
     /// returns whether the range includes the value
     fn contains(&self, value: DocCharOffset, start_inclusive: bool, end_inclusive: bool) -> bool {
         self.range.contains(value, start_inclusive, end_inclusive)
@@ -726,7 +728,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
 impl Editor {
     pub fn print_ast(&self) {
         println!("ast:");
-        self.ast.print(&self.buffer.current);
+        self.ast.print(&self.buffer);
     }
 }
 

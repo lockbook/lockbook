@@ -1,7 +1,7 @@
 use crate::tab::markdown_editor::appearance::Appearance;
 use crate::tab::markdown_editor::ast::{Ast, AstTextRangeType};
 use crate::tab::markdown_editor::bounds::{self, Bounds, Text};
-use crate::tab::markdown_editor::buffer::SubBuffer;
+use crate::tab::markdown_editor::buffer::Buffer;
 use crate::tab::markdown_editor::images::{ImageCache, ImageState};
 use crate::tab::markdown_editor::layouts::{Annotation, LayoutJobInfo};
 use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
@@ -43,7 +43,7 @@ pub struct ImageInfo {
 }
 
 pub fn calc(
-    ast: &Ast, buffer: &SubBuffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
+    ast: &Ast, buffer: &Buffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
     ui: &mut Ui,
 ) -> Galleys {
     let mut result: Galleys = Default::default();
@@ -65,7 +65,7 @@ pub fn calc(
             &ast_ranges,
             &bounds.paragraphs,
             &bounds.links,
-            &[buffer.cursor.selection],
+            &[buffer.current_selection],
             &bounds.text,
         ])
     {
@@ -80,7 +80,7 @@ pub fn calc(
         if let Some(ast_idx) = ast_idx {
             let text_range = &bounds.ast[ast_idx];
             let maybe_link_range = link_idx.map(|link_idx| bounds.links[link_idx]);
-            let in_selection = selection_idx.is_some() && !buffer.cursor.selection.is_empty();
+            let in_selection = selection_idx.is_some() && !buffer.current_selection.is_empty();
 
             let captured = text_idx.is_none();
 
@@ -393,7 +393,7 @@ impl GalleyInfo {
         self.range.end() - self.range.start()
     }
 
-    pub fn head<'b>(&self, buffer: &'b SubBuffer) -> &'b str {
+    pub fn head<'b>(&self, buffer: &'b Buffer) -> &'b str {
         &buffer[(self.range.start(), self.range.start() + self.head_size)]
     }
 
@@ -408,10 +408,7 @@ impl Editor {
         for galley in &self.galleys.galleys {
             println!(
                 "galley: range: {:?}, annotation: {:?}, head: {:?}, tail: {:?}",
-                &self.buffer.current[galley.range],
-                galley.annotation,
-                galley.head_size,
-                galley.tail_size
+                &self.buffer[galley.range], galley.annotation, galley.head_size, galley.tail_size
             );
         }
     }

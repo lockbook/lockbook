@@ -1,17 +1,17 @@
 use std::mem;
 
 use crate::tab::markdown_editor::bounds::{Bounds, Text};
-use crate::tab::markdown_editor::buffer::SubBuffer;
 use crate::tab::markdown_editor::galleys::{GalleyInfo, Galleys};
 use crate::tab::markdown_editor::input::{Increment, Offset};
 use crate::tab::markdown_editor::offset_types::DocCharOffset;
+use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
 use egui::epaint::text::cursor::Cursor as EguiCursor;
 use egui::{Pos2, Vec2};
 
 impl DocCharOffset {
     pub fn advance(
         self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool,
-        buffer: &SubBuffer, galleys: &Galleys, bounds: &Bounds,
+        segs: &UnicodeSegs, galleys: &Galleys, bounds: &Bounds,
     ) -> Self {
         let maybe_x_target_value = mem::take(maybe_x_target);
         match offset {
@@ -20,7 +20,7 @@ impl DocCharOffset {
             Offset::By(Increment::Line) => {
                 let x_target = maybe_x_target_value.unwrap_or(self.x(galleys, &bounds.text));
                 let result = self.advance_by_line(x_target, backwards, galleys, &bounds.text);
-                if self != 0 && self != buffer.segs.last_cursor_position() {
+                if self != 0 && self != segs.last_cursor_position() {
                     *maybe_x_target = Some(x_target);
                 }
                 result

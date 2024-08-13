@@ -7,13 +7,11 @@ pub mod events;
 pub mod merge;
 pub mod mutation;
 
-use cursor::Cursor;
 use egui::Pos2;
 
-use super::{
-    offset_types::{DocCharOffset, RelCharOffset},
-    style::MarkdownNode,
-};
+use crate::tab::markdown_editor;
+use markdown_editor::offset_types::{DocCharOffset, RelCharOffset};
+use markdown_editor::style::MarkdownNode;
 
 // This module processes input events, with the following major concerns:
 // * Plumbing: combining programmatic and UI input, delegating to appropriate handlers
@@ -89,9 +87,9 @@ pub enum Region {
 }
 
 /// Standardized edits to any editor state e.g. buffer, clipboard, debug state.
-/// May depend on render state e.g. galley positions, line wrap.
+/// Interpretation may depend on render state e.g. galley positions, line wrap.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Modification {
+pub enum Event {
     Select { region: Region },
     StageMarked { highlighted: (RelCharOffset, RelCharOffset), text: String },
     CommitMarked,
@@ -108,28 +106,4 @@ pub enum Modification {
     ToggleCheckbox(usize),
     OpenUrl(String),
     SetBaseFontSize(f32),
-}
-
-/// represents a modification made as a result of event processing
-pub type Mutation = Vec<SubMutation>; // todo: tinyvec candidate
-
-#[derive(Clone, Debug)]
-pub enum EditorMutation {
-    Buffer(Mutation), // todo: tinyvec candidate
-    Undo,
-    Redo,
-    // todo: redefine
-    // SetCursor { cursor: (DocCharOffset, DocCharOffset), marked: bool }, // set the cursor
-    // Replace { text: String }, // replace the current selection
-}
-
-#[derive(Clone, Debug)]
-pub enum SubMutation {
-    Cursor { cursor: Cursor },                     // modify the cursor state
-    Insert { text: String, advance_cursor: bool }, // insert text at cursor location
-    Delete(RelCharOffset),                         // delete selection or characters before cursor
-    DebugToggle,                                   // toggle debug overlay
-    SetBaseFontSize(f32), // set font size for plain text (other sizes scaled)
-    ToClipboard { text: String }, // cut or copy text to clipboard
-    OpenedUrl { url: String }, // open a url
 }

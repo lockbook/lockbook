@@ -5,8 +5,8 @@ use jni::JNIEnv;
 use lb_external_interface::lb_rs::Uuid;
 use serde::Serialize;
 use std::panic::catch_unwind;
-use workspace_rs::tab::markdown_editor::input::cursor::Cursor;
-use workspace_rs::tab::markdown_editor::input::{Location, Modification, Region};
+use workspace_rs::tab::markdown_editor::input::cursor::CursorState;
+use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
 use workspace_rs::tab::markdown_editor::offset_types::DocCharOffset;
 use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::ExtendedInput;
@@ -342,7 +342,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setSelection(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.context.push_markdown_event(Modification::Select {
+    obj.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(start as usize)),
             end: Location::DocCharOffset(DocCharOffset(end as usize)),
@@ -375,7 +375,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
         None => return,
     };
 
-    obj.context.push_markdown_event(Modification::Replace {
+    obj.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(0)),
             end: Location::DocCharOffset(
@@ -397,7 +397,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
         Err(err) => format!("error: {:?}", err),
     };
 
-    obj.context.push_markdown_event(Modification::Replace {
+    obj.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(start as usize)),
             end: Location::DocCharOffset(DocCharOffset(end as usize)),
@@ -419,7 +419,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insert(
 
     let loc = Location::DocCharOffset(DocCharOffset(index as usize));
 
-    obj.context.push_markdown_event(Modification::Replace {
+    obj.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
         text,
     })
@@ -443,7 +443,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
 
     let loc = Location::DocCharOffset(markdown.editor.buffer.current.segs.last_cursor_position());
 
-    obj.context.push_markdown_event(Modification::Replace {
+    obj.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
         text,
     })
@@ -465,7 +465,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
         }
     };
 
-    let cursor: Cursor = (start as usize, end as usize).into();
+    let cursor: CursorState = (start as usize, end as usize).into();
 
     let buffer = &markdown.editor.buffer.current;
     let text = cursor.selection_text(buffer);
@@ -488,7 +488,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectAll(
 
     let buffer = &markdown.editor.buffer.current;
 
-    obj.context.push_markdown_event(Modification::Select {
+    obj.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(0)),
             end: Location::DocCharOffset(buffer.segs.last_cursor_position()),
@@ -501,7 +501,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardCut(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.context.push_markdown_event(Modification::Cut);
+    obj.context.push_markdown_event(Event::Cut);
 }
 
 #[no_mangle]
@@ -509,7 +509,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardCopy(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.context.push_markdown_event(Modification::Copy);
+    obj.context.push_markdown_event(Event::Copy);
 }
 
 #[no_mangle]

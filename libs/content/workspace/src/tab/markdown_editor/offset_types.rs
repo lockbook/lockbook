@@ -414,35 +414,38 @@ impl Debug for RelCharOffset {
     }
 }
 
-pub trait RangeExt<Element: Sub<Element>>: Sized
-where
-    Element: Copy,
-{
-    fn contains(&self, value: Element, start_inclusive: bool, end_inclusive: bool) -> bool;
-    fn intersects(&self, other: &(Element, Element), allow_empty_intersection: bool) -> bool;
-    fn start(&self) -> Element;
-    fn end(&self) -> Element;
-    fn len(&self) -> <Element as Sub>::Output;
+pub trait RangeExt: Sized {
+    type Element: Copy + Sub<Self::Element>;
+
+    fn contains(&self, value: Self::Element, start_inclusive: bool, end_inclusive: bool) -> bool;
+    fn intersects(
+        &self, other: &(Self::Element, Self::Element), allow_empty_intersection: bool,
+    ) -> bool;
+    fn start(&self) -> Self::Element;
+    fn end(&self) -> Self::Element;
+    fn len(&self) -> <Self::Element as Sub>::Output;
     fn is_empty(&self) -> bool;
 
     fn contains_range(
-        &self, value: &(Element, Element), start_inclusive: bool, end_inclusive: bool,
+        &self, value: &(Self::Element, Self::Element), start_inclusive: bool, end_inclusive: bool,
     ) -> bool {
         self.contains(value.0, start_inclusive, end_inclusive)
             && self.contains(value.1, start_inclusive, end_inclusive)
     }
-    fn contains_inclusive(&self, value: Element) -> bool {
+    fn contains_inclusive(&self, value: Self::Element) -> bool {
         self.contains(value, true, true)
     }
-    fn intersects_allow_empty(&self, other: &(Element, Element)) -> bool {
+    fn intersects_allow_empty(&self, other: &(Self::Element, Self::Element)) -> bool {
         self.intersects(other, true)
     }
 }
 
-impl<T> RangeExt<T> for (T, T)
+impl<T> RangeExt for (T, T)
 where
     T: Ord + Sized + Copy + Sub<T>,
 {
+    type Element = T;
+
     /// returns whether the range includes the value
     fn contains(&self, value: T, start_inclusive: bool, end_inclusive: bool) -> bool {
         (self.start() < value || (start_inclusive && self.start() == value))

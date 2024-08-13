@@ -11,7 +11,7 @@ use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
-use crate::tab::{ExtendedInput as _, Tab, TabContent, TabFailure};
+use crate::tab::{Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
 use lb_rs::{
@@ -529,14 +529,14 @@ impl Workspace {
         });
     }
 
-    pub fn save_all_tabs(&self) {
-        for (i, _) in self.tabs.iter().enumerate() {
+    pub fn save_all_tabs(&mut self) {
+        for i in 0..self.tabs.len() {
             self.save_tab(i);
         }
     }
 
-    pub fn save_tab(&self, i: usize) {
-        if let Some(tab) = self.tabs.get(i) {
+    pub fn save_tab(&mut self, i: usize) {
+        if let Some(tab) = self.tabs.get_mut(i) {
             if tab.is_dirty() {
                 if let Some(save_req) = tab.make_save_request() {
                     let core = self.core.clone();
@@ -731,7 +731,6 @@ impl Workspace {
                         self.out.selected_file = Some(id);
                     };
 
-                    let ctx = self.ctx.clone();
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         match content {
                             Ok(content) => match content {
@@ -739,17 +738,8 @@ impl Workspace {
                                     match tab.content.as_mut().unwrap() {
                                         TabContent::Markdown(md) => {
                                             md.editor.show(ui);
-                                            let evt = md.editor.merge(
-                                                &md.editor.initial_content,
-                                                &String::from_utf8_lossy(&content),
-                                            );
-
-                                            for e in evt {
-                                                ctx.push_markdown_event(e);
-                                            }
-
-                                            md.editor.initial_content =
-                                                String::from_utf8(content).unwrap();
+                                            md.editor
+                                                .reload(String::from_utf8_lossy(&content).into());
                                             md.editor.hmac = hmac;
                                         }
                                         _ => unreachable!(),
