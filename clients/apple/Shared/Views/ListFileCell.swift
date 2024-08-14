@@ -8,12 +8,12 @@ struct FileCell: View {
     let isSelected: Bool
     let isSelectable: Bool
     
-    init(meta: File, selectedFiles: [UUID]?) {
+    init(meta: File, selectedFiles: [File]?) {
         self.meta = meta
         
         if let selectedFiles = selectedFiles {
             self.isSelectable = true
-            self.isSelected = selectedFiles.contains(where: { $0 == meta.id })
+            self.isSelected = selectedFiles.contains(where: { $0.id == meta.id })
         } else {
             self.isSelectable = false
             self.isSelected = false
@@ -46,7 +46,7 @@ struct FileCell: View {
                 })
                 
                 Button(action: {
-                    exportFileAndShowShareSheet(meta: meta)
+                    exportFilesAndShowShareSheet(metas: [meta])
                 }, label: {
                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                 })
@@ -62,7 +62,7 @@ struct FileCell: View {
                 Divider()
                 
                 Button(role: .destructive, action: {
-                    DI.sheets.deleteConfirmationInfo = meta
+                    DI.sheets.deleteConfirmationInfo = [meta]
                 }) {
                     Label("Delete", systemImage: "trash.fill")
                 }
@@ -72,19 +72,36 @@ struct FileCell: View {
     @ViewBuilder
     var cell: some View {
         Button(action: {
-            if meta.fileType == .Document {
-                DI.workspace.requestOpenDoc(meta.id)
-            }
-            
-            DI.files.intoChildDirectory(meta)
-        }) {
-            HStack(spacing: 20) {
-                
-                if isSelectable {
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "checkmark.circle")
-                        .transition(.opacity)
+            if isSelectable {
+                if isSelected {
+                    DI.files.selectedFiles?.removeAll(where: { $0 == meta })
+                } else {
+                    DI.files.selectedFiles?.append(meta)
+                }
+            } else {
+                if meta.fileType == .Document {
+                    DI.workspace.requestOpenDoc(meta.id)
                 }
                 
+                DI.files.intoChildDirectory(meta)
+            }
+        }) {
+            HStack(spacing: 20) {
+                if isSelectable {
+                    ZStack {
+                        if isSelected {
+                            Image(systemName: "circle.fill")
+                                .foregroundStyle(.blue)
+                                .font(.system(size: 17))
+                        }
+                        
+                        Image(systemName: isSelected ? "checkmark" : "circle")
+                            .foregroundStyle(isSelected ? .primary : .secondary)
+                            .font(.system(size: (isSelected ? 10 : 17)))
+                    }
+                    
+                }
+
                 Image(systemName: FileService.metaToSystemImage(meta: meta))
                     .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
                     .font(.title3)
@@ -105,12 +122,12 @@ struct FileCell: View {
                         .font(.body)
                 }
                 
-                
                 Spacer()
             }
-            .padding(.vertical, 10)
+            .padding(.vertical, 15)
             .padding(.horizontal)
             .contentShape(Rectangle())
+            .background(isSelected ? .gray.opacity(0.2) : .clear)
         }
     }
 }

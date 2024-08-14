@@ -10,6 +10,7 @@ struct OutlineRow: View {
     var file: File
     var level: CGFloat
     @Binding var open: Bool
+    let isParentSelected: Bool
     
     var children: [File] {
         files.files.filter {
@@ -21,8 +22,31 @@ struct OutlineRow: View {
         children.isEmpty
     }
     
+    var isSelected: Bool {
+        files.selectedFiles?.contains(where: { $0.id == file.id }) == true
+    }
+    
+    var isSelectable: Bool {
+        files.selectedFiles != nil
+    }
+    
     var body: some View {
         HStack {
+            if isSelectable {
+                ZStack {
+                    if isSelected || isParentSelected {
+                        Image(systemName: "circle.fill")
+                            .foregroundStyle(.blue)
+                            .font(.system(size: 17))
+                    }
+                    
+                    Image(systemName: isSelected ? "checkmark" : "circle")
+                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                        .font(.system(size: (isSelected ? 10 : 17)))
+                }
+                
+            }
+            
             Image(systemName: FileService.metaToSystemImage(meta: file))
                 .resizable()
                 .scaledToFit()
@@ -45,9 +69,34 @@ struct OutlineRow: View {
                     .foregroundColor(.accentColor)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 9)
         .contentShape(Rectangle())
         .padding(.leading, level * 20 + 5)
         .padding(.trailing, 10)
+        .modifier(SelectedBranchViewModifier(id: file.id, openDoc: workspace.openDoc, selectedFiles: files.selectedFiles))
     }
 }
+
+struct SelectedBranchViewModifier: ViewModifier {
+    let isOpenDoc: Bool
+    let isSelected: Bool
+    
+    init(id: UUID, openDoc: UUID?, selectedFiles: [File]?) {
+        self.isOpenDoc = id == openDoc
+        self.isSelected = selectedFiles?.contains(where: { $0.id == id }) == true
+    }
+    
+    func body(content: Content) -> some View {
+        if isSelected {
+            content
+                .background(isSelected ? .gray.opacity(0.2) : .clear)
+        } else if isOpenDoc {
+            content
+                .foregroundColor(Color.white)
+                .background(RoundedRectangle(cornerRadius: 5, style: .continuous).foregroundStyle(Color.accentColor))
+        } else {
+            content
+        }
+    }
+}
+

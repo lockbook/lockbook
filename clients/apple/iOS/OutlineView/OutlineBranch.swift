@@ -8,7 +8,6 @@ import UniformTypeIdentifiers
 import SwiftWorkspace
 
 struct OutlineBranch: View {
-//    @EnvironmentObject var current: DocumentService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var errors: UnexpectedErrorService
     @EnvironmentObject var sheets: SheetState
@@ -18,6 +17,7 @@ struct OutlineBranch: View {
     
     let file: File
     let level: CGFloat
+    let isParentSelected: Bool
     
     var children: [File] {
         files.childrenOf(file)
@@ -27,19 +27,28 @@ struct OutlineBranch: View {
         children.isEmpty
     }
     
+    var isSelected: Bool {
+        files.selectedFiles?.contains(where: { $0.id == file.id }) == true
+    }
+    
+    var isSelectable: Bool {
+        files.selectedFiles != nil
+    }
+    
     @ViewBuilder
     var body: some View {
         ScrollViewReader { scrollView in
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 0) {
                 if level != -1 {
-                    if file.id == workspace.openDoc {
-                        OutlineRow(file: file, level: level, open: $state.open)
-                            .background(Color.accentColor)
-                            .foregroundColor(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                    } else {
-                        OutlineRow(file: file, level: level, open: $state.open)
-                            .onTapGesture {
+                    OutlineRow(file: file, level: level, open: $state.open, isParentSelected: isParentSelected)
+                        .onTapGesture {
+                            if isSelectable {
+                                if isSelected {
+                                    files.selectedFiles?.removeAll(where: { $0 == file })
+                                } else {
+                                    files.selectedFiles?.append(file)
+                                }
+                            } else {
                                 if file.fileType == .Folder {
                                     workspace.selectedFolder = file.id
                                     
@@ -50,21 +59,21 @@ struct OutlineBranch: View {
                                     DI.workspace.requestOpenDoc(file.id)
                                 }
                             }
-                    }
+                        }
                 }
                 
                 if isLeaf == false && (state.open == true || level == -1) {
                     ForEach(children) { child in
-                        OutlineBranch(file: child, level: self.level + 1)
+                        OutlineBranch(file: child, level: self.level + 1, isParentSelected: isSelected || isParentSelected)
                     }
                 }
             }
             .contextMenu(menuItems: {
                 OutlineContextMenu(meta: file, branchState: state)
             })
-            .confirmationDialog("Are you sure? This action cannot be undone.", isPresented: Binding(get: { sheets.deleteConfirmationInfo?.id == file.id }, set: { sheets.deleteConfirmation = $0 }), titleVisibility: .visible, actions: {
-                if let meta = sheets.deleteConfirmationInfo {
-                    DeleteConfirmationButtons(meta: meta)
+            .confirmationDialog("Are you sure? This action cannot be undone.", isPresented: Binding(get: { sheets.deleteConfirmationInfo?.count == 1 && sheets.deleteConfirmationInfo?[0].id == file.id }, set: { sheets.deleteConfirmation = $0 }), titleVisibility: .visible, actions: {
+                if let metas = sheets.deleteConfirmationInfo {
+                    DeleteConfirmationButtons(metas: metas)
                 }
             })
         }

@@ -21,7 +21,9 @@ class FileService: ObservableObject {
     // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
     #if os(iOS)
     @Published var path: [File] = []
-    @Published var selectedFiles: [UUID]? = nil
+    
+    // TODO: optimization, use a `Set` instead of a list. Much quicker reads
+    @Published var selectedFiles: [File]? = nil
 
     var parent: File? {
         get {
@@ -152,21 +154,22 @@ class FileService: ObservableObject {
         }
     }
 
-    func deleteFile(id: UUID) {
+    func deleteFiles(ids: [UUID]) {
         DispatchQueue.global(qos: .userInitiated).async {
-            let operation = self.core.deleteFile(id: id)
-            
-            DispatchQueue.main.async {
+            for id in ids {
+                let res = self.core.deleteFile(id: id)
                 
-                switch operation {
-                case .success(_):
-                    self.refresh()
-                    self.successfulAction = .delete
-                    DI.workspace.fileOpCompleted = .Delete(id: id)
-                case .failure(let error):
+                if case .failure(let error) = res {
                     DI.errors.handleError(error)
+                    return
                 }
+                
+                DI.workspace.fileOpCompleted = .Delete(id: id)
+                DI.files.selectedFiles = nil
             }
+            
+            self.refresh()
+            self.successfulAction = .delete
         }
     }
 

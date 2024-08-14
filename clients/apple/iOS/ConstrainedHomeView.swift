@@ -84,7 +84,7 @@ struct ConstrainedHomeViewWrapper: View {
                                 .padding(.trailing, 5)
                                 
                                 Button(action: {
-                                    exportFileAndShowShareSheet(meta: meta)
+                                    exportFilesAndShowShareSheet(metas: [meta])
                                 }, label: {
                                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                                 })
@@ -242,7 +242,7 @@ struct FileListView: View {
     }
     
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
             Group {
                 if children.isEmpty {
                     emptyView
@@ -253,34 +253,56 @@ struct FileListView: View {
             .modifier(FilesListScrollViewModifier(haveScrollView: haveScrollView, isEmptyView: children.isEmpty))
         }
         .toolbar {
-            ToolbarItemGroup {
-                Button(action: {
-                    if files.selectedFiles == nil {
-                        withAnimation {
+            if files.selectedFiles == nil {
+                ToolbarItemGroup {
+                    Button(action: {
+                        withAnimation(.linear(duration: 0.2)) {
                             files.selectedFiles = []
                         }
-                    } else {
+                    }, label: {
+                        Text("Edit")
+                            .foregroundStyle(.blue)
+                    })
+                    .padding(.trailing, 5)
+                    
+                    Button(action: {
+                        DI.share.showPendingSharesView = true
+                    }, label: {
+                        pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
+                    })
+                    .padding(.trailing, 5)
+                    
+                    Button(action: {
+                        DI.settings.showView = true
+                    }, label: {
+                        Image(systemName: "gearshape.fill").foregroundColor(.blue)
+                    })
+                }
+            } else {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: {
+                        if files.selectedFiles?.isEmpty == false {
+                            files.selectedFiles = []
+                        } else {
+                            files.selectedFiles = files.childrenOfParent()
+                        }
+                    }, label: {
+                        Text(files.selectedFiles?.isEmpty == false ? "Deselect All" : "Select All")
+                            .foregroundStyle(.blue)
+                    })
+                    .padding(.trailing, 5)
+                }
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: {
                         withAnimation {
                             files.selectedFiles = nil
                         }
-                    }
-                }, label: {
-                    Image(systemName: files.selectedFiles == nil ? "checkmark.circle" : "checkmark.circle.fill").foregroundColor(.blue)
-                })
-                .padding(.trailing, 5)
-                
-                Button(action: {
-                    DI.share.showPendingSharesView = true
-                }, label: {
-                    pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
-                })
-                .padding(.trailing, 5)
-                
-                Button(action: {
-                    DI.settings.showView = true
-                }, label: {
-                    Image(systemName: "gearshape.fill").foregroundColor(.blue)
-                })
+                    }, label: {
+                        Text("Done")
+                            .foregroundStyle(.blue)
+                    })
+                }
             }
         }
     }

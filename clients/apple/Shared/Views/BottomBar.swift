@@ -7,9 +7,61 @@ import SwiftWorkspace
 struct BottomBar: View {
     var isiOS = false
     
+    @EnvironmentObject var files: FileService
     @EnvironmentObject var workspace: WorkspaceState
 
     var body: some View {
+        if files.selectedFiles != nil {
+            selectionView
+        } else {
+            mainView
+        }
+    }
+    
+    var selectionView: some View {
+        HStack(alignment: .center) {
+            Spacer()
+            
+            Button(role: .destructive, action: {
+                DI.sheets.deleteConfirmationInfo = DI.files.selectedFiles
+            }) {
+                Image(systemName: "trash.fill")
+                    .imageScale(.large)
+            }
+            .disabled(files.selectedFiles?.count == 0)
+            
+            Spacer()
+            
+            Button(action: {
+                if let selectedIds = DI.files.selectedFiles?.map({ $0.id }) {
+                    DI.sheets.movingInfo = .Move(selectedIds)
+                }
+            }, label: {
+                Image(systemName: "folder")
+                    .imageScale(.large)
+            })
+            .disabled(files.selectedFiles?.count == 0)
+            
+            Spacer()
+            
+            Button(action: {
+                if let selectedFiles = DI.files.selectedFiles {
+                    exportFilesAndShowShareSheet(metas: selectedFiles)
+                    DI.files.selectedFiles = nil
+                }
+            }, label: {
+                Image(systemName: "square.and.arrow.up.fill")
+                    .imageScale(.large)
+            })
+            .disabled(files.selectedFiles?.count == 0)
+            
+            Spacer()
+        }
+        .foregroundStyle(files.selectedFiles?.count == 0 ? .gray : .blue)
+        .padding(.horizontal)
+    }
+    
+    var mainView: some View {
         HStack(alignment: .center) {
             statusText
             Spacer()

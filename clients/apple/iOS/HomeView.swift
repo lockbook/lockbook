@@ -42,7 +42,7 @@ struct HomeView: View {
             .toolbar {
                 if let id = workspace.openDoc, let meta = DI.files.idsAndFiles[id] {
                     Button(action: {
-                        exportFileAndShowShareSheet(meta: meta)
+                        exportFilesAndShowShareSheet(metas: [meta])
                     }) {
                         Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                     }
@@ -201,20 +201,57 @@ struct SidebarView: View {
             BottomBar()
         }
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button(action: {
-                    DI.share.showPendingSharesView = true
-                }) {
-                    pendingShareToolbarIcon(isPendingSharesEmpty: DI.share.pendingShares?.isEmpty ?? false)
+            if files.selectedFiles == nil {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button(action: {
+                        withAnimation(.linear(duration: 0.2)) {
+                            files.selectedFiles = []
+                        }
+                    }, label: {
+                        Text("Edit")
+                            .foregroundStyle(.blue)
+                    })
+                    .padding(.trailing, 5)
+                    
+                    Button(action: {
+                        DI.share.showPendingSharesView = true
+                    }) {
+                        pendingShareToolbarIcon(isPendingSharesEmpty: DI.share.pendingShares?.isEmpty ?? false)
+                    }
+                    .padding(.trailing, 5)
+                    
+                    Button(action: {
+                        DI.settings.showView = true
+                        
+                    }) {
+                        Image(systemName: "gearshape.fill")
+                            .foregroundColor(.blue)
+                    }
                 }
-
-                Button(action: {
-                    DI.settings.showView = true
-
-                }) {
-                    Image(systemName: "gearshape.fill")
-                        .foregroundColor(.blue)
-                        .padding(.trailing, 10)
+            } else {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: {
+                        if files.selectedFiles?.isEmpty == false {
+                            files.selectedFiles = []
+                        } else {
+                            files.selectedFiles = files.childrenOfParent()
+                        }
+                    }, label: {
+                        Text(files.selectedFiles?.isEmpty == false ? "Deselect All" : "Select All")
+                            .foregroundStyle(.blue)
+                    })
+                    .padding(.trailing, 5)
+                }
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: {
+                        withAnimation {
+                            files.selectedFiles = nil
+                        }
+                    }, label: {
+                        Text("Done")
+                            .foregroundStyle(.blue)
+                    })
                 }
             }
         }

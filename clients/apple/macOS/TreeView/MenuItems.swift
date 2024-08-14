@@ -82,7 +82,7 @@ class Delete: NSMenuItem {
     }
 
     @objc func delete(_ sender: AnyObject) {
-        DI.sheets.deleteConfirmationInfo = file
+        DI.sheets.deleteConfirmationInfo = [file]
     }
 }
 
