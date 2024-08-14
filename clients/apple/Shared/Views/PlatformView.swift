@@ -173,6 +173,12 @@ struct PlatformView: View {
         
     var iPad: some View {
         HomeView()
+            .alert("Are you sure? This action cannot be undone.",
+                   isPresented: Binding(get: { sheets.deleteConfirmation && sheets.deleteConfirmationInfo != nil && sheets.deleteConfirmationInfo!.count > 1 }, set: { pres in sheets.deleteConfirmation = pres }), actions: {
+                if let metas = sheets.deleteConfirmationInfo {
+                    DeleteConfirmationButtons(metas: metas)
+                }
+            })
     }
     
     #else

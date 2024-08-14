@@ -30,24 +30,6 @@ class FileService: ObservableObject {
         
         selectedFiles?.insert(file)
         
-        var current = idsAndFiles[file.parent]
-        
-        if current?.id != current?.parent {
-            while current != nil {
-                let siblings = childrenOf(idsAndFiles[current!.parent])
-                let isEveryChildSelected = siblings.allSatisfy({ selectedFiles?.contains($0) == true })
-                
-                if isEveryChildSelected {
-                    selectedFiles?.insert(current!)
-                    let newCurrent = idsAndFiles[current!.parent]
-                    
-                    current = newCurrent?.id == newCurrent?.parent ? nil : newCurrent
-                } else {
-                    current = nil
-                }
-            }
-        }
-        
         if file.fileType == .Folder {
             var childrenToAdd = childrenOf(file)
             
@@ -239,8 +221,10 @@ class FileService: ObservableObject {
                 let res = self.core.deleteFile(id: id)
                 
                 if case .failure(let error) = res {
-                    DI.errors.handleError(error)
-                    return
+                    if error.kind != .UiError(.FileDoesNotExist) {
+                        DI.errors.handleError(error)
+                        return
+                    }
                 }
                 
                 DI.workspace.fileOpCompleted = .Delete(id: id)
