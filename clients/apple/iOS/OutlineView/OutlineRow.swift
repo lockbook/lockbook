@@ -10,7 +10,6 @@ struct OutlineRow: View {
     var file: File
     var level: CGFloat
     @Binding var open: Bool
-    let isParentSelected: Bool
     
     var children: [File] {
         files.files.filter {
@@ -23,7 +22,7 @@ struct OutlineRow: View {
     }
     
     var isSelected: Bool {
-        files.selectedFiles?.contains(where: { $0.id == file.id }) == true
+        files.selectedFiles?.contains(file) == true
     }
     
     var isSelectable: Bool {
@@ -34,7 +33,7 @@ struct OutlineRow: View {
         HStack {
             if isSelectable {
                 ZStack {
-                    if isSelected || isParentSelected {
+                    if isSelected {
                         Image(systemName: "circle.fill")
                             .foregroundStyle(.blue)
                             .font(.system(size: 17))
@@ -73,7 +72,7 @@ struct OutlineRow: View {
         .contentShape(Rectangle())
         .padding(.leading, level * 20 + 5)
         .padding(.trailing, 10)
-        .modifier(SelectedBranchViewModifier(id: file.id, openDoc: workspace.openDoc, selectedFiles: files.selectedFiles))
+        .modifier(SelectedBranchViewModifier(file: file, openDoc: workspace.openDoc, selectedFiles: files.selectedFiles))
     }
 }
 
@@ -81,9 +80,9 @@ struct SelectedBranchViewModifier: ViewModifier {
     let isOpenDoc: Bool
     let isSelected: Bool
     
-    init(id: UUID, openDoc: UUID?, selectedFiles: [File]?) {
-        self.isOpenDoc = id == openDoc
-        self.isSelected = selectedFiles?.contains(where: { $0.id == id }) == true
+    init(file: File, openDoc: UUID?, selectedFiles: Set<File>?) {
+        self.isOpenDoc = file.id == openDoc
+        self.isSelected = selectedFiles?.contains(file) == true
     }
     
     func body(content: Content) -> some View {

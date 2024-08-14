@@ -8,12 +8,12 @@ struct FileCell: View {
     let isSelected: Bool
     let isSelectable: Bool
     
-    init(meta: File, selectedFiles: [File]?) {
+    init(meta: File, selectedFiles: Set<File>?) {
         self.meta = meta
         
         if let selectedFiles = selectedFiles {
             self.isSelectable = true
-            self.isSelected = selectedFiles.contains(where: { $0.id == meta.id })
+            self.isSelected = selectedFiles.contains(meta)
         } else {
             self.isSelectable = false
             self.isSelected = false
@@ -74,9 +74,9 @@ struct FileCell: View {
         Button(action: {
             if isSelectable {
                 if isSelected {
-                    DI.files.selectedFiles?.removeAll(where: { $0 == meta })
+                    DI.files.removeFileFromSelection(file: meta)
                 } else {
-                    DI.files.selectedFiles?.append(meta)
+                    DI.files.addFileToSelection(file: meta)
                 }
             } else {
                 if meta.fileType == .Document {

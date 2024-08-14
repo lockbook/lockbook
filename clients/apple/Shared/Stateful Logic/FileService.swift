@@ -21,9 +21,88 @@ class FileService: ObservableObject {
     // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
     #if os(iOS)
     @Published var path: [File] = []
+    @Published var selectedFiles: Set<File>? = nil
     
-    // TODO: optimization, use a `Set` instead of a list. Much quicker reads
-    @Published var selectedFiles: [File]? = nil
+    func addFileToSelection(file: File) {
+        if selectedFiles?.contains(file) == true {
+            return
+        }
+        
+        selectedFiles?.insert(file)
+        
+        var current = idsAndFiles[file.parent]
+        
+        if current?.id != current?.parent {
+            while current != nil {
+                let siblings = childrenOf(idsAndFiles[current!.parent])
+                let isEveryChildSelected = siblings.allSatisfy({ selectedFiles?.contains($0) == true })
+                
+                if isEveryChildSelected {
+                    selectedFiles?.insert(current!)
+                    let newCurrent = idsAndFiles[current!.parent]
+                    
+                    current = newCurrent?.id == newCurrent?.parent ? nil : newCurrent
+                } else {
+                    current = nil
+                }
+            }
+        }
+        
+        if file.fileType == .Folder {
+            var childrenToAdd = childrenOf(file)
+            
+            while !childrenToAdd.isEmpty {
+                var newChildren: [File] = []
+                for child in childrenToAdd {
+                    selectedFiles?.insert(child)
+                    if child.fileType == .Folder {
+                        newChildren.append(contentsOf: childrenOf(child))
+                    }
+                }
+                
+                childrenToAdd = newChildren
+            }
+        }
+    }
+    
+    func removeFileFromSelection(file: File) {
+        if selectedFiles?.contains(file) == false {
+            return
+        }
+        
+        selectedFiles?.remove(file)
+        
+        var current = idsAndFiles[file.parent]
+        
+        if current?.id != current?.parent {
+            while current != nil {
+                if selectedFiles?.contains(current!) == true {
+                    selectedFiles?.remove(current!)
+                    
+                    let newCurrent = idsAndFiles[current!.parent]
+                    current = newCurrent?.id == newCurrent?.parent ? nil : newCurrent
+                } else {
+                    current = nil
+                }
+            }
+        }
+        
+        if file.fileType == .Folder {
+            var childrenToRemove = childrenOf(file)
+            
+            while !childrenToRemove.isEmpty {
+                var newChildren: [File] = []
+                
+                for child in childrenToRemove {
+                    if selectedFiles?.remove(child) == child && child.fileType == .Folder {
+                        newChildren.append(contentsOf: childrenOf(child))
+                    }
+                }
+                
+                childrenToRemove = newChildren
+            }
+        }
+    }
 
     var parent: File? {
         get {

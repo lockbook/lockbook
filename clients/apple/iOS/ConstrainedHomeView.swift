@@ -284,7 +284,9 @@ struct FileListView: View {
                         if files.selectedFiles?.isEmpty == false {
                             files.selectedFiles = []
                         } else {
-                            files.selectedFiles = files.childrenOfParent()
+                            for child in files.childrenOfParent() {
+                                files.addFileToSelection(file: child)
+                            }
                         }
                     }, label: {
                         Text(files.selectedFiles?.isEmpty == false ? "Deselect All" : "Select All")

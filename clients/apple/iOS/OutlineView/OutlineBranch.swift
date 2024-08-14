@@ -17,7 +17,6 @@ struct OutlineBranch: View {
     
     let file: File
     let level: CGFloat
-    let isParentSelected: Bool
     
     var children: [File] {
         files.childrenOf(file)
@@ -28,7 +27,7 @@ struct OutlineBranch: View {
     }
     
     var isSelected: Bool {
-        files.selectedFiles?.contains(where: { $0.id == file.id }) == true
+        files.selectedFiles?.contains(file) == true
     }
     
     var isSelectable: Bool {
@@ -40,13 +39,13 @@ struct OutlineBranch: View {
         ScrollViewReader { scrollView in
             VStack(alignment: .leading, spacing: 0) {
                 if level != -1 {
-                    OutlineRow(file: file, level: level, open: $state.open, isParentSelected: isParentSelected)
+                    OutlineRow(file: file, level: level, open: $state.open)
                         .onTapGesture {
                             if isSelectable {
                                 if isSelected {
-                                    files.selectedFiles?.removeAll(where: { $0 == file })
+                                    files.removeFileFromSelection(file: file)
                                 } else {
-                                    files.selectedFiles?.append(file)
+                                    files.addFileToSelection(file: file)
                                 }
                             } else {
                                 if file.fileType == .Folder {
@@ -64,7 +63,7 @@ struct OutlineBranch: View {
                 
                 if isLeaf == false && (state.open == true || level == -1) {
                     ForEach(children) { child in
-                        OutlineBranch(file: child, level: self.level + 1, isParentSelected: isSelected || isParentSelected)
+                        OutlineBranch(file: child, level: self.level + 1)
                     }
                 }
             }

@@ -23,7 +23,9 @@ struct BottomBar: View {
             Spacer()
             
             Button(role: .destructive, action: {
-                DI.sheets.deleteConfirmationInfo = DI.files.selectedFiles
+                if let selectedFiles = files.selectedFiles {
+                    DI.sheets.deleteConfirmationInfo = Array(selectedFiles)
+                }
             }) {
                 Image(systemName: "trash.fill")
                     .imageScale(.large)
@@ -46,7 +48,7 @@ struct BottomBar: View {
             
             Button(action: {
                 if let selectedFiles = DI.files.selectedFiles {
-                    exportFilesAndShowShareSheet(metas: selectedFiles)
+                    exportFilesAndShowShareSheet(metas: Array(selectedFiles))
                     DI.files.selectedFiles = nil
                 }
             }, label: {

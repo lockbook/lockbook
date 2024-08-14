@@ -10,7 +10,7 @@ struct OutlineSection: View {
     var root: File
 
     var body: some View {
-        let rootOutlineBranch = OutlineBranch(file: root, level: -1, isParentSelected: false)
+        let rootOutlineBranch = OutlineBranch(file: root, level: -1)
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 // The padding in the section header is there to adjust for the inset hack.

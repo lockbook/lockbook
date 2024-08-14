@@ -229,20 +229,6 @@ struct SidebarView: View {
                     }
                 }
             } else {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(action: {
-                        if files.selectedFiles?.isEmpty == false {
-                            files.selectedFiles = []
-                        } else {
-                            files.selectedFiles = files.childrenOfParent()
-                        }
-                    }, label: {
-                        Text(files.selectedFiles?.isEmpty == false ? "Deselect All" : "Select All")
-                            .foregroundStyle(.blue)
-                    })
-                    .padding(.trailing, 5)
-                }
-                
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: {
                         withAnimation {
