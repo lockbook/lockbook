@@ -149,7 +149,6 @@ class FileService: ObservableObject {
         
         DI.workspace.$reloadFiles.sink { reload in
             if reload {
-                print("reload triggered")
                 DI.workspace.reloadFiles = false
                 
                 self.refresh()
