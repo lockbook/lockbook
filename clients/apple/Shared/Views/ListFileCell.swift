@@ -96,10 +96,9 @@ struct FileCell: View {
                         }
                         
                         Image(systemName: isSelected ? "checkmark" : "circle")
-                            .foregroundStyle(isSelected ? .primary : .secondary)
+                            .foregroundStyle(isSelected ? Color.white : .secondary)
                             .font(.system(size: (isSelected ? 10 : 17)))
                     }
-                    
                 }
 
                 Image(systemName: FileService.metaToSystemImage(meta: meta))
@@ -124,7 +123,7 @@ struct FileCell: View {
                 
                 Spacer()
             }
-            .padding(.vertical, 15)
+            .padding(.vertical, 13.5)
             .padding(.horizontal)
             .contentShape(Rectangle())
             .background(isSelected ? .gray.opacity(0.2) : .clear)

@@ -22,7 +22,7 @@ struct OutlineRow: View {
     }
     
     var isSelected: Bool {
-        files.selectedFiles?.contains(file) == true
+        files.totalSelectedFiles?.contains(file) == true
     }
     
     var isSelectable: Bool {
@@ -47,9 +47,8 @@ struct OutlineRow: View {
             }
             
             Image(systemName: FileService.metaToSystemImage(meta: file))
-                .resizable()
-                .scaledToFit()
-                .frame(width: 16, height: 16)
+                .font(.system(size: 16))
+                .frame(width: 16)
                 .foregroundColor(file.fileType == .Folder ? .accentColor : (workspace.openDoc == file.id ? .white : .secondary ))
             
             Text(file.name)
@@ -72,7 +71,7 @@ struct OutlineRow: View {
         .contentShape(Rectangle())
         .padding(.leading, level * 20 + 5)
         .padding(.trailing, 10)
-        .modifier(SelectedBranchViewModifier(file: file, openDoc: workspace.openDoc, selectedFiles: files.selectedFiles))
+        .modifier(SelectedBranchViewModifier(file: file, openDoc: workspace.openDoc, selectedFiles: files.totalSelectedFiles))
     }
 }
 

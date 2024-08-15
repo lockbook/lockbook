@@ -27,7 +27,7 @@ struct BottomBar: View {
                     DI.sheets.deleteConfirmationInfo = Array(selectedFiles)
                 }
             }) {
-                Image(systemName: "trash.fill")
+                Image(systemName: "trash")
                     .imageScale(.large)
             }
             .disabled(files.selectedFiles?.count == 0)
@@ -52,7 +52,7 @@ struct BottomBar: View {
                     DI.files.selectedFiles = nil
                 }
             }, label: {
-                Image(systemName: "square.and.arrow.up.fill")
+                Image(systemName: "square.and.arrow.up")
                     .imageScale(.large)
             })
             .disabled(files.selectedFiles?.count == 0)

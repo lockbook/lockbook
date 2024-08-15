@@ -139,7 +139,7 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
 
     func outlineView(_ outlineView: NSOutlineView,
                      shouldSelectItem item: Any) -> Bool {
-        return true
+        return false
     }
 }
 

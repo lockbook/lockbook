@@ -235,12 +235,18 @@ extension View {
 
 #else
 extension NSView {
-    func exportFileAndShowShareSheet(meta: File) {
+    func exportFilesAndShowShareSheet(metas: [File]) {
         DispatchQueue.global(qos: .userInitiated).async {
-            if let url = DI.importExport.exportFilesToTempDirSync(meta: meta) {
-                DispatchQueue.main.async {
-                    NSSharingServicePicker(items: [url]).show(relativeTo: .zero, of: self, preferredEdge: .minX)
+            var urls = []
+            
+            for meta in metas {
+                if let url = DI.importExport.exportFilesToTempDirSync(meta: meta) {
+                    urls.append(url)
                 }
+            }
+
+            DispatchQueue.main.async {
+                NSSharingServicePicker(items: urls).show(relativeTo: .zero, of: self, preferredEdge: .minX)
             }
         }
     }

@@ -22,6 +22,7 @@ struct FileTreeView: NSViewRepresentable, Equatable {
         treeView.autoresizesOutlineColumn = true
         treeView.headerView = nil
         treeView.usesAutomaticRowHeights = true
+        treeView.allowsMultipleSelection = true
         
         treeView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
         
@@ -57,7 +58,7 @@ struct FileTreeView: NSViewRepresentable, Equatable {
             treeView.reloadData()
         }
                 
-        selectOpenDoc()
+//        selectOpenDoc()
     }
         
     func selectOpenDoc() {
@@ -71,10 +72,10 @@ struct FileTreeView: NSViewRepresentable, Equatable {
                 expandToFile(meta: meta)
                 dataSource.selectedDoc = workspace.openDoc
                 
-                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: false)
+                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: true)
                 treeView.animator().scrollRowToVisible(treeView.row(forItem: meta))
             } else {
-                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: false)
+                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: true)
             }
         }
     }

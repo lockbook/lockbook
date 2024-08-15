@@ -72,7 +72,6 @@ struct ConstrainedHomeViewWrapper: View {
                                         }
                                     })
                                     .foregroundColor(.blue)
-                                    .padding(.trailing, 5)
                                 }
                                 
                                 Button(action: {
@@ -81,7 +80,6 @@ struct ConstrainedHomeViewWrapper: View {
                                     Label("Share", systemImage: "person.wave.2.fill")
                                 })
                                 .foregroundColor(.blue)
-                                .padding(.trailing, 5)
                                 
                                 Button(action: {
                                     exportFilesAndShowShareSheet(metas: [meta])
@@ -243,15 +241,13 @@ struct FileListView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            Group {
-                if children.isEmpty {
-                    emptyView
-                } else {
-                    childrenView
-                }
+            if children.isEmpty {
+                emptyView
+            } else {
+                childrenView
             }
-            .modifier(FilesListScrollViewModifier(haveScrollView: haveScrollView, isEmptyView: children.isEmpty))
         }
+        .modifier(FilesListScrollViewModifier(haveScrollView: haveScrollView, isEmptyView: children.isEmpty))
         .toolbar {
             if files.selectedFiles == nil {
                 ToolbarItemGroup {
@@ -263,14 +259,12 @@ struct FileListView: View {
                         Text("Edit")
                             .foregroundStyle(.blue)
                     })
-                    .padding(.trailing, 5)
                     
                     Button(action: {
                         DI.share.showPendingSharesView = true
                     }, label: {
                         pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
                     })
-                    .padding(.trailing, 5)
                     
                     Button(action: {
                         DI.settings.showView = true
@@ -293,6 +287,7 @@ struct FileListView: View {
                             .foregroundStyle(.blue)
                     })
                     .padding(.trailing, 5)
+                    .navigationBarBackButtonHidden()
                 }
                 
                 ToolbarItem(placement: .topBarTrailing) {
@@ -313,8 +308,6 @@ struct FileListView: View {
         ForEach(files.childrenOf(parent)) { meta in
             FileCell(meta: meta, selectedFiles: files.selectedFiles)
         }
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
     }
     
     var emptyView: some View {

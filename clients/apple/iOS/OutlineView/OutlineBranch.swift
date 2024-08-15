@@ -27,7 +27,7 @@ struct OutlineBranch: View {
     }
     
     var isSelected: Bool {
-        files.selectedFiles?.contains(file) == true
+        files.totalSelectedFiles?.contains(file) == true
     }
     
     var isSelectable: Bool {
