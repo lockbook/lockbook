@@ -110,8 +110,20 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
 class TreeDelegate: NSObject, MenuOutlineViewDelegate {
     func outlineView(_ outlineView: NSOutlineView, menuForItem item: Any?) -> NSMenu? {
         let menu = NSMenu()
-        let parent = item == nil ? DI.files.root! : item as! File
-
+        let file = item as! File
+        let parent = item == nil ? DI.files.root! : file
+        
+        if let selectedFiles = DI.files.selectedFiles,
+           selectedFiles.contains(file),
+           selectedFiles.count > 1 {
+            let selectedFiles = Array(selectedFiles)
+            
+            menu.addItem(Delete(files: selectedFiles))
+            menu.addItem(ShareMultipleTo(files: selectedFiles, fileTree: outlineView))
+            
+            return menu
+        }
+        
         if parent.fileType == .Folder {
             menu.addItem(CreateDocument(file: parent))
             menu.addItem(CreateDrawing(file: parent))
@@ -122,7 +134,7 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
             menu.addItem(RenameFile(file: parent))
             menu.addItem(Share(file: parent))
             menu.addItem(ShareExternallyMenu(file: parent, fileTree: outlineView))
-            menu.addItem(Delete(file: parent))
+            menu.addItem(Delete(files: [parent]))
         }
         
         return menu

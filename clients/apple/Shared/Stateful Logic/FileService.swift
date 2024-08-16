@@ -256,12 +256,17 @@ class FileService: ObservableObject {
                     }
                 }
                 
-                DI.workspace.fileOpCompleted = .Delete(id: id)
-                DI.files.selectedFiles = nil
+                DispatchQueue.main.sync {
+                    DI.workspace.fileOpCompleted = .Delete(id: id)
+                }
             }
             
+            
             self.refresh()
-            self.successfulAction = .delete
+            DispatchQueue.main.sync {
+                self.successfulAction = .delete
+                DI.files.selectedFiles = nil
+            }
         }
     }
 

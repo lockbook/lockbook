@@ -23,6 +23,7 @@ struct FileTreeView: NSViewRepresentable, Equatable {
         treeView.headerView = nil
         treeView.usesAutomaticRowHeights = true
         treeView.allowsMultipleSelection = true
+        treeView.allowsEmptySelection = true
         
         treeView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
         
@@ -57,27 +58,45 @@ struct FileTreeView: NSViewRepresentable, Equatable {
             
             treeView.reloadData()
         }
+        
+        for selected in files.selectedFiles ?? [] {
+            let row = treeView.row(forItem: selected)
+            if row != -1 && !treeView.isRowSelected(row) {
+                treeView.selectRowIndexes([row], byExtendingSelection: true)
+            }
+        }
                 
-//        selectOpenDoc()
+        selectOpenDoc()
     }
         
     func selectOpenDoc() {
-        if workspace.openDoc == nil && dataSource.selectedDoc != nil {
-            dataSource.selectedDoc = nil
-            treeView.selectRowIndexes(IndexSet(), byExtendingSelection: false)
-        } else if let openDoc = workspace.openDoc,
-            let meta = files.idsAndFiles[openDoc] {
-                        
-            if workspace.openDoc != nil && dataSource.selectedDoc != workspace.openDoc {
-                expandToFile(meta: meta)
-                dataSource.selectedDoc = workspace.openDoc
-                
-                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: true)
-                treeView.animator().scrollRowToVisible(treeView.row(forItem: meta))
-            } else {
-                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: true)
-            }
+        if let openDocId = workspace.openDoc,
+           let meta = files.idsAndFiles[openDocId],
+           !treeView.isRowSelected(treeView.row(forItem: meta)),
+           dataSource.selectedDoc != openDocId && workspace.openDocRequested == nil {
+            dataSource.selectedDoc = workspace.openDoc
+            
+            expandToFile(meta: meta)
+            treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: false)
+            treeView.animator().scrollRowToVisible(treeView.row(forItem: meta))
         }
+        
+//        if workspace.openDoc == nil && dataSource.selectedDoc != nil {
+//            dataSource.selectedDoc = nil
+//            treeView.selectRowIndexes(IndexSet(), byExtendingSelection: false)
+//        } else if let openDoc = workspace.openDoc,
+//            let meta = files.idsAndFiles[openDoc] {
+//                        
+//            if workspace.openDoc != nil && dataSource.selectedDoc != workspace.openDoc {
+//                expandToFile(meta: meta)
+//                dataSource.selectedDoc = workspace.openDoc
+//                
+//                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: true)
+//                treeView.animator().scrollRowToVisible(treeView.row(forItem: meta))
+//            } else {
+//                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: true)
+//            }
+//        }
     }
     
     func expandToFile(meta: File) {
@@ -108,11 +127,38 @@ class MenuOutlineView: NSOutlineView {
 
     @objc private func outlineViewClicked(_ outlineView: NSOutlineView) {
         if let meta = item(atRow: clickedRow) as? File {
+            if NSEvent.modifierFlags.contains(.command) {
+                DI.files.addFileToSelection(file: meta)
+                
+                if let openDocId = DI.workspace.openDoc,
+                   let meta = DI.files.idsAndFiles[openDocId],
+                   DI.files.selectedFiles?.contains(meta) == false {
+                    DI.files.addFileToSelection(file: meta)
+                }
+                
+                return
+            } else {
+                DI.files.selectedFiles = []
+                for row in outlineView.selectedRowIndexes {
+                    if row != clickedRow {
+                        outlineView.deselectRow(row)
+                    }
+                }
+            }
+            
             if meta.fileType == .Document {
+                (outlineView.dataSource as! DataSource).selectedDoc = meta.id
+                DI.workspace.openDoc = meta.id
+                
+                outlineView.selectRowIndexes(IndexSet(integer: outlineView.row(forItem: meta)), byExtendingSelection: false)
+
                 DI.workspace.requestOpenDoc(meta.id)
                 
                 return
             }
+            
+            DI.files.selectedFiles = []
+            DI.files.addFileToSelection(file: meta)
             
             if isItemExpanded(meta) {
                 DI.files.expandedFolders.removeAll(where: { $0 == meta.id })

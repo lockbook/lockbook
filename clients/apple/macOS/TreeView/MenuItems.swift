@@ -70,9 +70,9 @@ class RenameFile: NSMenuItem {
 }
 
 class Delete: NSMenuItem {
-    let file: File
-    init(file: File) {
-        self.file = file
+    let files: [File]
+    init(files: [File]) {
+        self.files = files
         super.init(title: "Delete", action: #selector(delete(_:)), keyEquivalent: "")
         target = self
     }
@@ -82,7 +82,7 @@ class Delete: NSMenuItem {
     }
 
     @objc func delete(_ sender: AnyObject) {
-        DI.sheets.deleteConfirmationInfo = [file]
+        DI.sheets.deleteConfirmationInfo = files
     }
 }
 
@@ -167,5 +167,33 @@ class ShareTo: NSMenuItem {
                 NSSharingServicePicker(items: [dest]).show(relativeTo: .zero, of: fileRow, preferredEdge: .maxY)
             }
         }
+    }
+}
+
+class ShareMultipleTo: NSMenuItem {
+    let files: [File]
+    let fileTree: NSOutlineView
+
+    init(files: [File], fileTree: NSOutlineView) {
+        self.files = files
+        self.fileTree = fileTree
+        super.init(title: "Share to...", action: #selector(create(_:)), keyEquivalent: "")
+        target = self
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc func create(_ sender: AnyObject) {
+        var urls: [URL] = []
+        
+        for meta in files {
+            if let url = DI.importExport.exportFilesToTempDirSync(meta: meta) {
+                urls.append(url)
+            }
+        }
+        
+        NSSharingServicePicker(items: urls).show(relativeTo: .zero, of: fileTree, preferredEdge: .maxY)
     }
 }
