@@ -146,7 +146,7 @@ class MenuOutlineView: NSOutlineView {
                 }
             }
             
-            if meta.fileType == .Document {
+            if meta.fileType == .Document && DI.workspace.openDoc != meta.id {
                 (outlineView.dataSource as! DataSource).selectedDoc = meta.id
                 DI.workspace.openDoc = meta.id
                 
