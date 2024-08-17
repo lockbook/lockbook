@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io::BufWriter;
 use std::iter::FromIterator;
 
+use crate::shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 use image::codecs::bmp::BmpEncoder;
 use image::codecs::farbfeld::FarbfeldEncoder;
 use image::codecs::jpeg::JpegEncoder;
@@ -9,7 +10,6 @@ use image::codecs::png::PngEncoder;
 use image::codecs::pnm::PnmEncoder;
 use image::codecs::tga::TgaEncoder;
 use image::{ColorType, ImageEncoder};
-use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 use raqote::{
     DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
 };

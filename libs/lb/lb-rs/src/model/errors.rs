@@ -9,7 +9,7 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use lockbook_shared::{api, SharedError, SharedErrorKind, ValidationFailure};
+use crate::shared::{api, SharedError, SharedErrorKind, ValidationFailure};
 
 use crate::service::api_service::ApiError;
 

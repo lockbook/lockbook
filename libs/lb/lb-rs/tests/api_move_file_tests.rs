@@ -2,10 +2,10 @@ use lb_rs::service::api_service::{ApiError, Requester};
 use test_utils::*;
 use uuid::Uuid;
 
-use lockbook_shared::api::*;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileDiff;
-use lockbook_shared::ValidationFailure;
+use lb_rs::shared::api::*;
+use lb_rs::shared::file_like::FileLike;
+use lb_rs::shared::file_metadata::FileDiff;
+use lb_rs::shared::ValidationFailure;
 
 #[test]
 fn move_document() {

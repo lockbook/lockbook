@@ -1,10 +1,10 @@
-use lockbook_shared::api::{
+use crate::shared::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
     StripeAccountTier, SubscriptionInfo, UpgradeAccountAppStoreError,
     UpgradeAccountAppStoreRequest, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
     UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
-use lockbook_shared::document_repo::DocumentService;
+use crate::shared::document_repo::DocumentService;
 
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;

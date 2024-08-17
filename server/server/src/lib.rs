@@ -6,9 +6,9 @@ use std::env;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
+use lb_rs::shared::api::{ErrorWrapper, Request, RequestWrapper};
+use lb_rs::shared::{clock, pubkey, SharedError};
 use libsecp256k1::PublicKey;
-use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
-use lockbook_shared::{clock, pubkey, SharedError};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
