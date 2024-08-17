@@ -36,7 +36,6 @@ pub use shared::tree_like::{TreeLike, TreeLikeMut};
 pub use shared::usage::bytes_to_human;
 pub use shared::work_unit::WorkUnit;
 
-pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::{
     CoreError, LbError, LbResult, TestRepoError, UnexpectedError, Warning,
 };
@@ -448,52 +447,6 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
         // todo the errors here are wrong this doesn't talk to the server
         self.in_tx(|s| s.get_uncompressed_usage())
             .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, LbError> {
-        self.in_tx(|s| s.get_drawing(id)).expected_errs(&[
-            CoreError::DrawingInvalid,
-            CoreError::FileNotDocument,
-            CoreError::FileNonexistent,
-        ])
-    }
-
-    #[instrument(level = "debug", skip(self, d), err(Debug))]
-    pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), LbError> {
-        self.in_tx(|s| s.save_drawing(id, d)).expected_errs(&[
-            CoreError::DrawingInvalid,
-            CoreError::FileNonexistent,
-            CoreError::FileNotDocument,
-        ])
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn export_drawing(
-        &self, id: Uuid, format: SupportedImageFormats,
-        render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    ) -> Result<Vec<u8>, LbError> {
-        self.in_tx(|s| s.export_drawing(id, format, render_theme))
-            .expected_errs(&[
-                CoreError::DrawingInvalid,
-                CoreError::FileNonexistent,
-                CoreError::FileNotDocument,
-            ])
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn export_drawing_to_disk(
-        &self, id: Uuid, format: SupportedImageFormats,
-        render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
-    ) -> Result<(), LbError> {
-        self.in_tx(|s| s.export_drawing_to_disk(id, format, render_theme, location))
-            .expected_errs(&[
-                CoreError::DrawingInvalid,
-                CoreError::FileNonexistent,
-                CoreError::FileNotDocument,
-                CoreError::DiskPathInvalid,
-                CoreError::DiskPathTaken,
-            ])
     }
 
     #[instrument(level = "debug", skip(self, update_status), err(Debug))]
