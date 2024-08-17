@@ -2,10 +2,10 @@ use std::cmp;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
+use crate::shared::document_repo::DocumentService;
 use crate::CoreState;
 use crate::LbResult;
 use crate::Requester;
-use crate::shared::document_repo::DocumentService;
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;

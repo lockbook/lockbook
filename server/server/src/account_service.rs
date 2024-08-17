@@ -8,7 +8,6 @@ use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use db_rs::Db;
-use libsecp256k1::PublicKey;
 use lb_rs::shared::account::Username;
 use lb_rs::shared::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lb_rs::shared::api::{
@@ -28,6 +27,7 @@ use lb_rs::shared::server_file::IntoServerFile;
 use lb_rs::shared::server_tree::ServerTree;
 use lb_rs::shared::tree_like::TreeLike;
 use lb_rs::shared::usage::bytes_to_human;
+use libsecp256k1::PublicKey;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::ops::DerefMut;

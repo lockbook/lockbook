@@ -10,8 +10,8 @@ mod repo;
 pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
 pub use libsecp256k1::PublicKey;
-pub use shared::document_repo::{DocumentService, OnDiskDocuments};
 use service::search_service::{SearchRequest, SearchResult, SearchType};
+pub use shared::document_repo::{DocumentService, OnDiskDocuments};
 pub use time::Duration;
 pub use uuid::Uuid;
 

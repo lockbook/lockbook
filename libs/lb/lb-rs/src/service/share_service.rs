@@ -1,5 +1,5 @@
-use libsecp256k1::PublicKey;
 use crate::shared::document_repo::DocumentService;
+use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
 use crate::shared::api::GetPublicKeyRequest;

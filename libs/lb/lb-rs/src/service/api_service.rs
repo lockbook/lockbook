@@ -93,6 +93,12 @@ impl Requester for Network {
 pub mod no_network {
 
     use crate::service::api_service::ApiError;
+    use crate::shared::account::Account;
+    use crate::shared::api::*;
+    use crate::shared::core_config::Config;
+    use crate::shared::crypto::EncryptedDocument;
+    use crate::shared::document_repo::DocumentService;
+    use crate::shared::file_metadata::DocumentHmac;
     use crate::{call, CoreLib, CoreState};
     use crate::{CoreDb, Requester};
     use db_rs::Db;
@@ -101,12 +107,6 @@ pub mod no_network {
     use lockbook_server_lib::document_service::InMemDocuments;
     use lockbook_server_lib::schema::ServerV4;
     use lockbook_server_lib::{ServerError, ServerState};
-    use crate::shared::account::Account;
-    use crate::shared::api::*;
-    use crate::shared::core_config::Config;
-    use crate::shared::crypto::EncryptedDocument;
-    use crate::shared::document_repo::DocumentService;
-    use crate::shared::file_metadata::DocumentHmac;
     use std::any::Any;
     use std::collections::{HashMap, HashSet};
     use std::path::PathBuf;

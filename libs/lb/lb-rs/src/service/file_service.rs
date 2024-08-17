@@ -1,4 +1,3 @@
-use crate::{CoreError, CoreState, LbResult, Requester};
 use crate::shared::access_info::UserAccessMode;
 use crate::shared::document_repo::DocumentService;
 use crate::shared::file::File;
@@ -6,6 +5,7 @@ use crate::shared::file_metadata::{FileType, Owner};
 use crate::shared::filename::MAX_FILENAME_LENGTH;
 use crate::shared::symkey;
 use crate::shared::tree_like::TreeLike;
+use crate::{CoreError, CoreState, LbResult, Requester};
 use std::iter;
 use uuid::Uuid;
 

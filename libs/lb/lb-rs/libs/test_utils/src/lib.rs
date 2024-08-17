@@ -2,13 +2,13 @@ pub mod assert;
 
 use itertools::Itertools;
 use lb_rs::service::api_service::Requester;
-use lb_rs::DocumentService;
-use lb_rs::{Core, CoreLib};
 use lb_rs::shared::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::shared::core_config::Config;
 use lb_rs::shared::crypto::EncryptedDocument;
 use lb_rs::shared::document_repo;
 use lb_rs::shared::work_unit::WorkUnit;
+use lb_rs::DocumentService;
+use lb_rs::{Core, CoreLib};
 use std::collections::HashMap;
 use std::env;
 use std::fmt::Debug;

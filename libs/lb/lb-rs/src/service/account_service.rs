@@ -1,12 +1,12 @@
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
-use crate::{CoreError, CoreState, LbResult, Requester};
-use libsecp256k1::PublicKey;
 use crate::shared::account::{Account, MAX_USERNAME_LENGTH};
 use crate::shared::api::{DeleteAccountRequest, GetPublicKeyRequest, NewAccountRequest};
 use crate::shared::document_repo::DocumentService;
 use crate::shared::file_like::FileLike;
 use crate::shared::file_metadata::{FileMetadata, FileType};
+use crate::{CoreError, CoreState, LbResult, Requester};
+use libsecp256k1::PublicKey;
 use qrcode_generator::QrCodeEcc;
 
 impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {

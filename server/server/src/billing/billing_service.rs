@@ -12,7 +12,6 @@ use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use base64::DecodeError;
 use db_rs::Db;
-use libsecp256k1::PublicKey;
 use lb_rs::shared::api::{
     AdminSetUserTierError, AdminSetUserTierInfo, AdminSetUserTierRequest, AdminSetUserTierResponse,
     AppStoreAccountState, CancelSubscriptionError, CancelSubscriptionRequest,
@@ -27,6 +26,7 @@ use lb_rs::shared::clock::get_time;
 use lb_rs::shared::file_metadata::Owner;
 use lb_rs::shared::server_tree::ServerTree;
 use lb_rs::shared::tree_like::TreeLike;
+use libsecp256k1::PublicKey;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::DerefMut;
