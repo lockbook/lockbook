@@ -76,18 +76,7 @@ Quisque feugiat, risus in posuere varius, metus metus cursus lorem, at sollicitu
 Vestibulum ante ipsum primis in vel.
 """)
     }
-    
-    public func readDrawing(id: UUID) -> FfiResult<Drawing, GetDrawingError> {
-        .failure(.init(unexpected: "LAZY"))
-    }
-    public func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError> {
-        .failure(.init(unexpected: "LAZY"))
-    }
-    
-    public func exportDrawing(id: UUID) -> FfiResult<Data, ExportDrawingError> {
-        .failure(.init(unexpected: "LAZY"))
-    }
-    
+  
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<File, CreateFileError> {
         let now = Date().timeIntervalSince1970
         return .success(File(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: dirId, name: "new_file.md", lastModifiedBy: username, lastModified: UInt64(now), shares: []))

@@ -193,12 +193,3 @@ fn test_invalid_utf8_ignores_non_utf_file_extensions() {
     assert_matches!(warnings.as_ref().map(|w| &w[..]), Ok([]));
 }
 
-#[test]
-fn test_invalid_drawing() {
-    let core = test_core_with_account();
-    let doc = core.create_at_path("document.draw").unwrap();
-    core.write_document(doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref())
-        .unwrap();
-    let warnings = core.validate();
-    assert_matches!(warnings.as_ref().map(|w| &w[..]), Ok([UnreadableDrawing(_)]));
-}
