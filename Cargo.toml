@@ -4,7 +4,7 @@ resolver="2"
 
 members = [
 	"libs/lb/lb-rs",
-	"libs/lb/lb-rs/libs/test_utils",
+	"libs/lb/test_utils",
 	"libs/lb/c_interface_v2",
 	"libs/lb/lb_external_interface",
 	"libs/content/editor/egui_editor",

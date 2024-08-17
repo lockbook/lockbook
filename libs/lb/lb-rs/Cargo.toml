@@ -58,7 +58,7 @@ variant_count = "1.1.0"
 num_cpus = "1.13.0"
 rand = "0.8.4"
 tempfile = { version = "3.1.0" }
-test_utils = { path = "libs/test_utils" }
+test_utils = { path = "../test_utils" }
 
 [[bench]]
 name = "bench_main"

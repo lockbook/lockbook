@@ -4,7 +4,7 @@ version = "0.9.6"
 edition = "2021"
 
 [dependencies]
-lb-rs = { path = "../../" }
+lb-rs = { path = "../lb-rs" }
 bincode = "1.3.3"
 itertools = "0.10.1"
 time = "0.3.20"
