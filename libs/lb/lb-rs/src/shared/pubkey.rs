@@ -84,7 +84,7 @@ mod unit_tests {
     use libsecp256k1::PublicKey;
 
     use crate::clock::Timestamp;
-    use crate::pubkey::*;
+    use crate::shared::pubkey::*;
 
     static EARLY_CLOCK: fn() -> Timestamp = || Timestamp(500);
     static LATE_CLOCK: fn() -> Timestamp = || Timestamp(520);

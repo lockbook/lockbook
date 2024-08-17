@@ -46,7 +46,7 @@ pub fn generate_nonce() -> [u8; 12] {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::symkey::{decrypt, encrypt, generate_key};
+    use crate::shared::symkey::{decrypt, encrypt, generate_key};
 
     #[test]
     fn test_generate_encrypt_decrypt() {

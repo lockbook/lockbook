@@ -1,9 +1,9 @@
 use image::EncodableLayout;
 use lb_rs::{Core, CoreError, DocumentService, OnDiskDocuments, ShareMode};
-use lockbook_shared::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileType;
-use lockbook_shared::file_metadata::FileType::Folder;
+use lb_rs::shared::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
+use lb_rs::shared::file_like::FileLike;
+use lb_rs::shared::file_metadata::FileType;
+use lb_rs::shared::file_metadata::FileType::Folder;
 use test_utils::*;
 
 #[test]

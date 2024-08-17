@@ -1,6 +1,6 @@
 use lb_rs::{Core, CoreError};
-use lockbook_shared::file::ShareMode;
-use lockbook_shared::file_metadata::FileType;
+use lb_rs::shared::file::ShareMode;
+use lb_rs::shared::file_metadata::FileType;
 use test_utils::*;
 use uuid::Uuid;
 

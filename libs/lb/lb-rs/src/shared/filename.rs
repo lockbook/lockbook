@@ -129,7 +129,7 @@ impl NameComponents {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::{file::File, filename::NameComponents};
+    use crate::{shared::{file::File, filename::NameComponents}, FileType};
 
     fn from_components(
         name: &str, variant: Option<usize>, extension: Option<&str>,
@@ -234,7 +234,7 @@ mod unit_tests {
                 id: Uuid::default(),
                 parent: Uuid::default(),
                 name: name.to_string(),
-                file_type: crate::file_metadata::FileType::Document,
+                file_type: FileType::Document,
                 last_modified: u64::default(),
                 last_modified_by: String::default(),
                 shares: vec![],

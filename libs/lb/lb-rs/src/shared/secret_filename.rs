@@ -80,7 +80,7 @@ impl Hash for SecretFileName {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::{secret_filename::SecretFileName, symkey::generate_key};
+    use crate::shared::{secret_filename::SecretFileName, symkey::generate_key};
     use uuid::Uuid;
 
     #[test]

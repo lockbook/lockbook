@@ -59,9 +59,9 @@ impl UserAccessInfo {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::access_info::{UserAccessInfo, UserAccessMode};
-    use crate::account::Account;
-    use crate::symkey;
+    use crate::shared::access_info::{UserAccessInfo, UserAccessMode};
+    use crate::shared::account::Account;
+    use crate::shared::symkey;
 
     #[test]
     fn encrypt_decrypt_1() {

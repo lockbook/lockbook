@@ -1,5 +1,5 @@
 use lb_rs::Core;
-use lockbook_shared::file::ShareMode;
+use lb_rs::shared::file::ShareMode;
 use test_utils::*;
 
 /// Tests that setup one device each on two accounts, share a file from one to the other, then sync both
