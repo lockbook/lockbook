@@ -1,6 +1,6 @@
-use lb_rs::CoreError;
 use lb_rs::shared::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::shared::pubkey;
+use lb_rs::CoreError;
 use test_utils::*;
 
 #[test]

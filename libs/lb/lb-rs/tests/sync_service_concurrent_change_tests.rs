@@ -1,6 +1,6 @@
-use lb_rs::Core;
 use lb_rs::shared::file::ShareMode;
 use lb_rs::shared::file_metadata::FileType;
+use lb_rs::Core;
 use test_utils::*;
 
 /// Tests that setup two synced devices, operate on both devices, then sync both twice (work

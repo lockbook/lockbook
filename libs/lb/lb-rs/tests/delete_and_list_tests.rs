@@ -1,6 +1,6 @@
-use lb_rs::CoreError;
 use lb_rs::shared::file_metadata::FileType;
 use lb_rs::shared::path_ops::Filter;
+use lb_rs::CoreError;
 use test_utils::*;
 
 #[test]

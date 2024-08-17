@@ -129,7 +129,10 @@ impl NameComponents {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::{shared::{file::File, filename::NameComponents}, FileType};
+    use crate::{
+        shared::{file::File, filename::NameComponents},
+        FileType,
+    };
 
     fn from_components(
         name: &str, variant: Option<usize>, extension: Option<&str>,
