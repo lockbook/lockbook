@@ -8,7 +8,6 @@ pub mod static_state;
 
 mod errors;
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use serde_json::{json, value::Value};
@@ -221,31 +220,7 @@ impl FfiCore {
         Ok(self.core.get_uncompressed_usage()?)
     }
 
-    pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
-        Ok(self.core.get_drawing(id)?)
-    }
-
-    pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), Error<SaveDrawingError>> {
-        Ok(self.core.save_drawing(id, d)?)
-    }
-
-    pub fn export_drawing(
-        &self, id: Uuid, format: SupportedImageFormats,
-        render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-        Ok(self.core.export_drawing(id, format, render_theme)?)
-    }
-
-    pub fn export_drawing_to_disk(
-        &self, id: Uuid, format: SupportedImageFormats,
-        render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
-    ) -> Result<(), Error<ExportDrawingToDiskError>> {
-        Ok(self
-            .core
-            .export_drawing_to_disk(id, format, render_theme, location)?)
-    }
-
-    pub fn import_files<F: Fn(ImportStatus)>(
+       pub fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> Result<(), Error<ImportFileError>> {
         Ok(self.core.import_files(sources, dest, update_status)?)
