@@ -192,4 +192,3 @@ fn test_invalid_utf8_ignores_non_utf_file_extensions() {
     let warnings = core.validate();
     assert_matches!(warnings.as_ref().map(|w| &w[..]), Ok([]));
 }
-
