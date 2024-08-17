@@ -6,14 +6,14 @@ use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMode};
-use crate::account::Account;
-use crate::clock::get_time;
-use crate::crypto::AESKey;
-use crate::file_like::FileLike;
-use crate::secret_filename::SecretFileName;
-use crate::signed_file::SignedFile;
-use crate::{pubkey, symkey, SharedResult};
+use crate::shared::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMode};
+use crate::shared::account::Account;
+use crate::shared::clock::get_time;
+use crate::shared::crypto::AESKey;
+use crate::shared::file_like::FileLike;
+use crate::shared::secret_filename::SecretFileName;
+use crate::shared::signed_file::SignedFile;
+use crate::shared::{pubkey, symkey, SharedResult};
 
 pub type DocumentHmac = [u8; 32];
 

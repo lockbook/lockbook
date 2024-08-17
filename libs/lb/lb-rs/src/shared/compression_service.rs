@@ -4,7 +4,7 @@ use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 
-use crate::{SharedErrorKind, SharedResult};
+use crate::shared::{SharedErrorKind, SharedResult};
 
 pub fn compress(content: &[u8]) -> SharedResult<Vec<u8>> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());

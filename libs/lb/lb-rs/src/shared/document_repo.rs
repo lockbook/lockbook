@@ -1,7 +1,7 @@
-use crate::core_config::Config;
-use crate::file_metadata::DocumentHmac;
-use crate::SharedResult;
-use crate::{crypto::*, SharedErrorKind};
+use crate::shared::core_config::Config;
+use crate::shared::file_metadata::DocumentHmac;
+use crate::shared::SharedResult;
+use crate::shared::{crypto::*, SharedErrorKind};
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::fs::{self, File, OpenOptions};

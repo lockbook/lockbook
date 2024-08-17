@@ -1,9 +1,9 @@
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
 use crate::{CoreError, CoreState, LbResult, Requester};
-use lockbook_shared::account::Username;
-use lockbook_shared::api::*;
-use lockbook_shared::document_repo::DocumentService;
+use crate::shared::account::Username;
+use crate::shared::api::*;
+use crate::shared::document_repo::DocumentService;
 use uuid::Uuid;
 
 impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {

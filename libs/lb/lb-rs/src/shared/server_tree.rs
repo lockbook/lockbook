@@ -1,8 +1,8 @@
-use crate::file_like::FileLike;
-use crate::file_metadata::Owner;
-use crate::server_file::ServerFile;
-use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::SharedResult;
+use crate::shared::file_like::FileLike;
+use crate::shared::file_metadata::Owner;
+use crate::shared::server_file::ServerFile;
+use crate::shared::tree_like::{TreeLike, TreeLikeMut};
+use crate::shared::SharedResult;
 use db_rs::{LookupSet, LookupTable};
 use std::collections::HashSet;
 use std::iter::FromIterator;

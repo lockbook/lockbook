@@ -1,8 +1,8 @@
-use crate::crypto::ECSigned;
-use crate::file_like::FileLike;
-use crate::file_metadata::FileMetadata;
-use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::SharedResult;
+use crate::shared::crypto::ECSigned;
+use crate::shared::file_like::FileLike;
+use crate::shared::file_metadata::FileMetadata;
+use crate::shared::tree_like::{TreeLike, TreeLikeMut};
+use crate::shared::SharedResult;
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;

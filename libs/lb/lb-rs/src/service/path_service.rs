@@ -1,9 +1,9 @@
 use crate::{CoreError, LbResult};
 use crate::{CoreState, Requester};
-use lockbook_shared::document_repo::DocumentService;
-use lockbook_shared::file::File;
-use lockbook_shared::path_ops::Filter;
-use lockbook_shared::tree_like::TreeLike;
+use crate::shared::document_repo::DocumentService;
+use crate::shared::file::File;
+use crate::shared::path_ops::Filter;
+use crate::shared::tree_like::TreeLike;
 use uuid::Uuid;
 
 impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {

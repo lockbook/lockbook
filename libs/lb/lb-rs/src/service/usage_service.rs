@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use lockbook_shared::document_repo::DocumentService;
+use crate::shared::document_repo::DocumentService;
 use serde::Serialize;
 
-use lockbook_shared::api::{FileUsage, GetUsageResponse};
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::usage::bytes_to_human;
+use crate::shared::api::{FileUsage, GetUsageResponse};
+use crate::shared::file_like::FileLike;
+use crate::shared::tree_like::TreeLike;
+use crate::shared::usage::bytes_to_human;
 use uuid::Uuid;
 
 use crate::{CoreError, Requester};

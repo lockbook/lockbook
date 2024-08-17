@@ -7,7 +7,7 @@ use crate::document_service::DocumentService;
 use crate::{ClientError, ServerError, ServerState};
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use libsecp256k1::PublicKey;
-use lockbook_shared::api::{AppStoreAccountState, UnixTimeMillis, UpgradeAccountAppStoreError};
+use lb_rs::shared::api::{AppStoreAccountState, UnixTimeMillis, UpgradeAccountAppStoreError};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use tracing::debug;

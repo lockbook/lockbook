@@ -9,9 +9,9 @@ use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use db_rs::Db;
 use libsecp256k1::PublicKey;
-use lockbook_shared::account::Username;
-use lockbook_shared::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
-use lockbook_shared::api::{
+use lb_rs::shared::account::Username;
+use lb_rs::shared::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
+use lb_rs::shared::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminDisappearAccountError,
     AdminDisappearAccountRequest, AdminGetAccountInfoError, AdminGetAccountInfoRequest,
     AdminGetAccountInfoResponse, AdminListUsersError, AdminListUsersRequest,
@@ -20,14 +20,14 @@ use lockbook_shared::api::{
     GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountRequest,
     NewAccountResponse, PaymentPlatform, METADATA_FEE,
 };
-use lockbook_shared::clock::get_time;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::lazy::LazyTree;
-use lockbook_shared::server_file::IntoServerFile;
-use lockbook_shared::server_tree::ServerTree;
-use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::usage::bytes_to_human;
+use lb_rs::shared::clock::get_time;
+use lb_rs::shared::file_like::FileLike;
+use lb_rs::shared::file_metadata::Owner;
+use lb_rs::shared::lazy::LazyTree;
+use lb_rs::shared::server_file::IntoServerFile;
+use lb_rs::shared::server_tree::ServerTree;
+use lb_rs::shared::tree_like::TreeLike;
+use lb_rs::shared::usage::bytes_to_human;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::ops::DerefMut;

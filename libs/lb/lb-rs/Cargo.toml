@@ -17,7 +17,6 @@ bench = false
 default = ["rustls-tls"]
 rustls-tls = ["reqwest/rustls-tls"]
 native-tls = ["reqwest/native-tls"]
-no-network = ["lockbook-server", "lockbook-server/no-network", "tokio", "db-rs/clone"]
 
 [dependencies]
 base64 = "0.13.0"
@@ -37,15 +36,19 @@ tracing-subscriber = "0.3.9"
 tracing-appender = "0.2"
 sublime_fuzzy = "0.7.0"
 crossbeam = "0.8.1"
-lockbook-shared = { version = "0.9.1", path = "libs/shared" }
 qrcode-generator = "4.1.6"
 db-rs = "0.3.1"
 db-rs-derive = "0.3.1"
 strip-ansi-escapes = "0.2.0"
 chrono = "0.4"
-
-lockbook-server = { version = "0.9.1", path = "../../../server/server", optional = true }
-tokio = { version = "1.5.0", optional = true }
+rand = "0.8.4"
+http = "0.2.6"
+serde_bytes = "0.11"
+aead = "0.4.2"
+aes-gcm = "0.9.3"
+sha2 = "0.9.9"
+hmac = "0.11.0"
+flate2 = "1.0"
 
 [dev-dependencies]
 criterion = "0.5.1"
@@ -60,6 +63,3 @@ test_utils = { path = "libs/test_utils" }
 [[bench]]
 name = "bench_main"
 harness = false
-
-[profile.release]
-debug = true

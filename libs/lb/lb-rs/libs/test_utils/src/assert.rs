@@ -1,12 +1,12 @@
 use crate::{get_dirty_ids, slices_equal_ignore_order, test_core_from};
 use lb_rs::service::api_service::Requester;
 use lb_rs::Core;
-use lockbook_shared::api::GetUpdatesRequest;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileType;
-use lockbook_shared::path_ops::Filter::DocumentsOnly;
-use lockbook_shared::staged::StagedTreeLikeMut;
-use lockbook_shared::tree_like::TreeLike;
+use lb_rs::shared::api::GetUpdatesRequest;
+use lb_rs::shared::file_like::FileLike;
+use lb_rs::shared::file_metadata::FileType;
+use lb_rs::shared::path_ops::Filter::DocumentsOnly;
+use lb_rs::shared::staged::StagedTreeLikeMut;
+use lb_rs::shared::tree_like::TreeLike;
 use uuid::Uuid;
 
 #[macro_export]

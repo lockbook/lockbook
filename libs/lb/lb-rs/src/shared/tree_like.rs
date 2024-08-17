@@ -1,7 +1,7 @@
-use crate::file_like::FileLike;
-use crate::lazy::LazyTree;
-use crate::staged::StagedTree;
-use crate::{SharedErrorKind, SharedResult};
+use crate::shared::file_like::FileLike;
+use crate::shared::lazy::LazyTree;
+use crate::shared::staged::StagedTree;
+use crate::shared::{SharedErrorKind, SharedResult};
 use std::collections::HashSet;
 use std::fmt::Debug;
 use uuid::Uuid;

@@ -3,37 +3,38 @@ extern crate tracing;
 
 pub mod model;
 pub mod service;
+pub mod shared;
 
 mod repo;
 
 pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
 pub use libsecp256k1::PublicKey;
-pub use lockbook_shared::document_repo::{DocumentService, OnDiskDocuments};
+pub use shared::document_repo::{DocumentService, OnDiskDocuments};
 use service::search_service::{SearchRequest, SearchResult, SearchType};
 pub use time::Duration;
 pub use uuid::Uuid;
 
-pub use lockbook_shared::account::Account;
-pub use lockbook_shared::api::{
+pub use shared::account::Account;
+pub use shared::api::{
     AccountFilter, AccountIdentifier, AdminSetUserTierInfo, AppStoreAccountState,
     GooglePlayAccountState, PaymentMethod, PaymentPlatform, ServerIndex, StripeAccountState,
     StripeAccountTier, SubscriptionInfo, UnixTimeMillis,
 };
-pub use lockbook_shared::clock;
-pub use lockbook_shared::core_config::Config;
-pub use lockbook_shared::crypto::DecryptedDocument;
-pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
-pub use lockbook_shared::file::{File, Share, ShareMode};
-pub use lockbook_shared::file_like::FileLike;
-pub use lockbook_shared::file_metadata::{FileType, Owner};
-pub use lockbook_shared::filename::NameComponents;
-pub use lockbook_shared::lazy::LazyTree;
-pub use lockbook_shared::path_ops::Filter;
-pub use lockbook_shared::server_file::ServerFile;
-pub use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
-pub use lockbook_shared::usage::bytes_to_human;
-pub use lockbook_shared::work_unit::WorkUnit;
+pub use shared::clock;
+pub use shared::core_config::Config;
+pub use shared::crypto::DecryptedDocument;
+pub use shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
+pub use shared::file::{File, Share, ShareMode};
+pub use shared::file_like::FileLike;
+pub use shared::file_metadata::{FileType, Owner};
+pub use shared::filename::NameComponents;
+pub use shared::lazy::LazyTree;
+pub use shared::path_ops::Filter;
+pub use shared::server_file::ServerFile;
+pub use shared::tree_like::{TreeLike, TreeLikeMut};
+pub use shared::usage::bytes_to_human;
+pub use shared::work_unit::WorkUnit;
 
 pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::{
@@ -52,8 +53,8 @@ use std::thread;
 
 use crossbeam::channel::{self};
 use db_rs::Db;
-use lockbook_shared::account::Username;
-use lockbook_shared::api::{
+use shared::account::Username;
+use shared::api::{
     AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer, GetUsageRequest,
 };
 

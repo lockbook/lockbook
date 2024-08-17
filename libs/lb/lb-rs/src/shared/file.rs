@@ -1,5 +1,5 @@
-use crate::account::Username;
-use crate::file_metadata::FileType;
+use crate::shared::account::Username;
+use crate::shared::file_metadata::FileType;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;

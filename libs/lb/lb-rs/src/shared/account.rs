@@ -1,4 +1,4 @@
-use crate::pubkey;
+use crate::shared::pubkey;
 use libsecp256k1::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 

@@ -2,7 +2,7 @@ use super::api_service::Requester;
 use crate::Duration;
 use crate::{get_code_version, service::log_service::LOG_FILE, CoreState, LbResult};
 use basic_human_duration::ChronoHumanDuration;
-use lockbook_shared::{clock, document_repo::DocumentService};
+use crate::shared::{clock, document_repo::DocumentService};
 use serde::Serialize;
 use std::env;
 use std::{

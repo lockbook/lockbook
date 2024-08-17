@@ -3,14 +3,14 @@ use std::collections::HashSet;
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
-use crate::access_info::UserAccessMode;
-use crate::account::Account;
-use crate::file_like::FileLike;
-use crate::file_metadata::{FileType, Owner};
-use crate::lazy::LazyStaged1;
-use crate::signed_file::SignedFile;
-use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::{symkey, validate, SharedErrorKind, SharedResult};
+use crate::shared::access_info::UserAccessMode;
+use crate::shared::account::Account;
+use crate::shared::file_like::FileLike;
+use crate::shared::file_metadata::{FileType, Owner};
+use crate::shared::lazy::LazyStaged1;
+use crate::shared::signed_file::SignedFile;
+use crate::shared::tree_like::{TreeLike, TreeLikeMut};
+use crate::shared::{symkey, validate, SharedErrorKind, SharedResult};
 
 impl<Base, Local> LazyStaged1<Base, Local>
 where

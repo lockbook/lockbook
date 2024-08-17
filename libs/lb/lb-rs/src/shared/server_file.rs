@@ -1,5 +1,5 @@
-use crate::file_like::FileLike;
-use crate::signed_file::SignedFile;
+use crate::shared::file_like::FileLike;
+use crate::shared::signed_file::SignedFile;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 

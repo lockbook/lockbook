@@ -1,6 +1,6 @@
-use crate::account::Account;
-use crate::crypto::{AESEncrypted, AESKey};
-use crate::{pubkey, symkey, SharedResult};
+use crate::shared::account::Account;
+use crate::shared::crypto::{AESEncrypted, AESKey};
+use crate::shared::{pubkey, symkey, SharedResult};
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 

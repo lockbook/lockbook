@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::crypto::Timestamped;
+use crate::shared::crypto::Timestamped;
 
 pub type TimeGetter = fn() -> Timestamp;
 

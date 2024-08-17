@@ -1,10 +1,10 @@
 use reqwest::blocking::Client as RequestClient;
 
 use crate::get_code_version;
-use lockbook_shared::account::Account;
-use lockbook_shared::api::*;
-use lockbook_shared::clock::{get_time, Timestamp};
-use lockbook_shared::pubkey;
+use crate::shared::account::Account;
+use crate::shared::api::*;
+use crate::shared::clock::{get_time, Timestamp};
+use crate::shared::pubkey;
 
 impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     fn from(err: ErrorWrapper<E>) -> Self {
@@ -28,7 +28,7 @@ pub enum ApiError<E> {
     ExpiredAuth,
     InternalError,
     BadRequest,
-    Sign(lockbook_shared::SharedError),
+    Sign(crate::shared::SharedError),
     Serialize(String),
     SendFailed(String),
     ReceiveFailed(String),
@@ -101,12 +101,12 @@ pub mod no_network {
     use lockbook_server_lib::document_service::InMemDocuments;
     use lockbook_server_lib::schema::ServerV4;
     use lockbook_server_lib::{ServerError, ServerState};
-    use lockbook_shared::account::Account;
-    use lockbook_shared::api::*;
-    use lockbook_shared::core_config::Config;
-    use lockbook_shared::crypto::EncryptedDocument;
-    use lockbook_shared::document_repo::DocumentService;
-    use lockbook_shared::file_metadata::DocumentHmac;
+    use crate::shared::account::Account;
+    use crate::shared::api::*;
+    use crate::shared::core_config::Config;
+    use crate::shared::crypto::EncryptedDocument;
+    use crate::shared::document_repo::DocumentService;
+    use crate::shared::file_metadata::DocumentHmac;
     use std::any::Any;
     use std::collections::{HashMap, HashSet};
     use std::path::PathBuf;
@@ -307,9 +307,9 @@ pub mod no_network {
 
     impl DocumentService for CoreInMemDocuments {
         fn insert(
-            &self, id: &uuid::Uuid, hmac: Option<&lockbook_shared::file_metadata::DocumentHmac>,
+            &self, id: &uuid::Uuid, hmac: Option<&crate::shared::file_metadata::DocumentHmac>,
             document: &EncryptedDocument,
-        ) -> lockbook_shared::SharedResult<()> {
+        ) -> crate::shared::SharedResult<()> {
             if let Some(hmac) = hmac {
                 let hmac = base64::encode_config(hmac, base64::URL_SAFE);
                 let key = format!("{id}-{hmac}");
@@ -319,8 +319,8 @@ pub mod no_network {
         }
 
         fn maybe_get(
-            &self, id: &uuid::Uuid, hmac: Option<&lockbook_shared::file_metadata::DocumentHmac>,
-        ) -> lockbook_shared::SharedResult<Option<EncryptedDocument>> {
+            &self, id: &uuid::Uuid, hmac: Option<&crate::shared::file_metadata::DocumentHmac>,
+        ) -> crate::shared::SharedResult<Option<EncryptedDocument>> {
             if let Some(hmac) = hmac {
                 let hmac = base64::encode_config(hmac, base64::URL_SAFE);
                 let key = format!("{id}-{hmac}");
@@ -331,8 +331,8 @@ pub mod no_network {
         }
 
         fn delete(
-            &self, id: &uuid::Uuid, hmac: Option<&lockbook_shared::file_metadata::DocumentHmac>,
-        ) -> lockbook_shared::SharedResult<()> {
+            &self, id: &uuid::Uuid, hmac: Option<&crate::shared::file_metadata::DocumentHmac>,
+        ) -> crate::shared::SharedResult<()> {
             if let Some(hmac) = hmac {
                 let hmac = base64::encode_config(hmac, base64::URL_SAFE);
                 let key = format!("{id}-{hmac}");
@@ -343,7 +343,7 @@ pub mod no_network {
 
         fn retain(
             &self, file_hmacs: HashSet<(&Uuid, &DocumentHmac)>,
-        ) -> lockbook_shared::SharedResult<()> {
+        ) -> crate::shared::SharedResult<()> {
             let mut keep_keys = HashSet::new();
             for (id, hmac) in file_hmacs {
                 let hmac = base64::encode_config(hmac, base64::URL_SAFE);

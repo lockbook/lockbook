@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::CoreState;
 use crate::LbResult;
 use crate::Requester;
-use lockbook_shared::document_repo::DocumentService;
+use crate::shared::document_repo::DocumentService;
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;

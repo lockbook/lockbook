@@ -5,10 +5,10 @@ use crate::{ClientError, ServerError, ServerState};
 use google_androidpublisher3::hyper::body::Bytes;
 use google_androidpublisher3::hyper::header::HeaderValue;
 use libsecp256k1::PublicKey;
-use lockbook_shared::api::{
+use lb_rs::shared::api::{
     PaymentMethod, StripeAccountState, StripeAccountTier, UpgradeAccountStripeError,
 };
-use lockbook_shared::file_metadata::Owner;
+use lb_rs::shared::file_metadata::Owner;
 
 use stripe::{Event, Invoice};
 use tracing::*;

@@ -9,7 +9,7 @@ use image::codecs::png::PngEncoder;
 use image::codecs::pnm::PnmEncoder;
 use image::codecs::tga::TgaEncoder;
 use image::{ColorType, ImageEncoder};
-use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
+use crate::shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 use raqote::{
     DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
 };

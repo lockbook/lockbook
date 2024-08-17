@@ -1,6 +1,6 @@
-use crate::file_like::FileLike;
-use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::SharedResult;
+use crate::shared::file_like::FileLike;
+use crate::shared::tree_like::{TreeLike, TreeLikeMut};
+use crate::shared::SharedResult;
 use serde::Serialize;
 use std::collections::HashSet;
 use uuid::Uuid;

@@ -1,9 +1,9 @@
 use db_rs::{List, LookupTable, Single};
 use db_rs_derive::Schema;
 
-use lockbook_shared::account::Account;
-use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::signed_file::SignedFile;
+use crate::shared::account::Account;
+use crate::shared::file_metadata::Owner;
+use crate::shared::signed_file::SignedFile;
 
 use uuid::Uuid;
 

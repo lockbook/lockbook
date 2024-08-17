@@ -1,12 +1,12 @@
 use libsecp256k1::PublicKey;
-use lockbook_shared::document_repo::DocumentService;
+use crate::shared::document_repo::DocumentService;
 use uuid::Uuid;
 
-use lockbook_shared::api::GetPublicKeyRequest;
-use lockbook_shared::file::{File, ShareMode};
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::tree_like::TreeLike;
+use crate::shared::api::GetPublicKeyRequest;
+use crate::shared::file::{File, ShareMode};
+use crate::shared::file_like::FileLike;
+use crate::shared::file_metadata::Owner;
+use crate::shared::tree_like::TreeLike;
 
 use crate::{CoreError, CoreState, LbError, LbResult, Requester};
 

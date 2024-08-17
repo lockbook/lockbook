@@ -6,10 +6,10 @@ use rand::rngs::OsRng;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::crypto::*;
+use crate::shared::crypto::*;
 
 use crate::clock::{timestamp, TimeGetter};
-use crate::{SharedErrorKind, SharedResult};
+use crate::shared::{SharedErrorKind, SharedResult};
 
 pub fn generate_key() -> SecretKey {
     SecretKey::random(&mut OsRng)

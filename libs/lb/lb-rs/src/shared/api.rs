@@ -7,13 +7,13 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use uuid::Uuid;
 
-use crate::account::Account;
-use crate::account::Username;
-use crate::crypto::*;
-use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
-use crate::server_file::ServerFile;
-use crate::signed_file::SignedFile;
-use crate::ValidationFailure;
+use crate::shared::account::Account;
+use crate::shared::account::Username;
+use crate::shared::crypto::*;
+use crate::shared::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
+use crate::shared::server_file::ServerFile;
+use crate::shared::signed_file::SignedFile;
+use crate::shared::ValidationFailure;
 
 pub const FREE_TIER_USAGE_SIZE: u64 = 1000000;
 pub const PREMIUM_TIER_USAGE_SIZE: u64 = 30000000000;

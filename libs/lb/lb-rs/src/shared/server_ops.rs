@@ -1,13 +1,13 @@
-use crate::clock::get_time;
-use crate::file_like::FileLike;
-use crate::file_metadata::FileDiff;
-use crate::lazy::{LazyStaged1, LazyTree};
-use crate::server_file::{IntoServerFile, ServerFile};
+use crate::shared::clock::get_time;
+use crate::shared::file_like::FileLike;
+use crate::shared::file_metadata::FileDiff;
+use crate::shared::lazy::{LazyStaged1, LazyTree};
+use crate::shared::server_file::{IntoServerFile, ServerFile};
 
-use crate::server_tree::ServerTree;
-use crate::signed_file::SignedFile;
-use crate::tree_like::TreeLike;
-use crate::{SharedErrorKind, SharedResult};
+use crate::shared::server_tree::ServerTree;
+use crate::shared::signed_file::SignedFile;
+use crate::shared::tree_like::TreeLike;
+use crate::shared::{SharedErrorKind, SharedResult};
 
 type LazyServerStaged1<'a> = LazyStaged1<ServerTree<'a>, Vec<ServerFile>>;
 
