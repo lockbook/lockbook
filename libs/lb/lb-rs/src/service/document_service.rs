@@ -1,11 +1,11 @@
+use crate::shared::clock::get_time;
+use crate::shared::crypto::DecryptedDocument;
+use crate::shared::document_repo::DocumentService;
+use crate::shared::file_like::FileLike;
+use crate::shared::file_metadata::FileType;
+use crate::shared::tree_like::TreeLike;
 use crate::LbResult;
 use crate::{CoreError, CoreState, Requester};
-use lockbook_shared::clock::get_time;
-use lockbook_shared::crypto::DecryptedDocument;
-use lockbook_shared::document_repo::DocumentService;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileType;
-use lockbook_shared::tree_like::TreeLike;
 use uuid::Uuid;
 
 use super::activity_service;

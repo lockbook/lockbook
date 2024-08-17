@@ -1,5 +1,5 @@
-use lockbook_shared::api::ServerIndex;
-use lockbook_shared::file::ShareMode;
+use lb_rs::shared::api::ServerIndex;
+use lb_rs::shared::file::ShareMode;
 use test_utils::*;
 
 #[test]

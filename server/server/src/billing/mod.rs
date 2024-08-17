@@ -13,7 +13,7 @@ pub mod stripe_service;
 
 use async_trait::async_trait;
 use google_androidpublisher3::api::SubscriptionPurchase;
-use lockbook_shared::api::UpgradeAccountAppStoreError;
+use lb_rs::shared::api::UpgradeAccountAppStoreError;
 
 use crate::{
     config::{AppleConfig, Config},

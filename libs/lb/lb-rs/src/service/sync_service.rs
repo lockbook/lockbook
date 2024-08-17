@@ -1,22 +1,22 @@
 use std::collections::{hash_map, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 
-use lockbook_shared::access_info::UserAccessMode;
-use lockbook_shared::account::Account;
-use lockbook_shared::api::{
+use crate::shared::access_info::UserAccessMode;
+use crate::shared::account::Account;
+use crate::shared::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
     GetUsernameError, GetUsernameRequest, UpsertRequest,
 };
-use lockbook_shared::document_repo::DocumentService;
-use lockbook_shared::file::ShareMode;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{FileDiff, FileType, Owner};
-use lockbook_shared::filename::{DocumentType, NameComponents};
-use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::staged::StagedTreeLikeMut;
-use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::work_unit::WorkUnit;
-use lockbook_shared::{symkey, SharedErrorKind, ValidationFailure};
+use crate::shared::document_repo::DocumentService;
+use crate::shared::file::ShareMode;
+use crate::shared::file_like::FileLike;
+use crate::shared::file_metadata::{FileDiff, FileType, Owner};
+use crate::shared::filename::{DocumentType, NameComponents};
+use crate::shared::signed_file::SignedFile;
+use crate::shared::staged::StagedTreeLikeMut;
+use crate::shared::tree_like::TreeLike;
+use crate::shared::work_unit::WorkUnit;
+use crate::shared::{symkey, SharedErrorKind, ValidationFailure};
 
 use serde::Serialize;
 use uuid::Uuid;

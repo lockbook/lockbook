@@ -1,11 +1,11 @@
+use crate::shared::access_info::UserAccessMode;
+use crate::shared::document_repo::DocumentService;
+use crate::shared::file::File;
+use crate::shared::file_metadata::{FileType, Owner};
+use crate::shared::filename::MAX_FILENAME_LENGTH;
+use crate::shared::symkey;
+use crate::shared::tree_like::TreeLike;
 use crate::{CoreError, CoreState, LbResult, Requester};
-use lockbook_shared::access_info::UserAccessMode;
-use lockbook_shared::document_repo::DocumentService;
-use lockbook_shared::file::File;
-use lockbook_shared::file_metadata::{FileType, Owner};
-use lockbook_shared::filename::MAX_FILENAME_LENGTH;
-use lockbook_shared::symkey;
-use lockbook_shared::tree_like::TreeLike;
 use std::iter;
 use uuid::Uuid;
 

@@ -3,10 +3,10 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
 
-use lockbook_shared::document_repo::DocumentService;
+use crate::shared::document_repo::DocumentService;
 use uuid::Uuid;
 
-use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing};
+use crate::shared::drawing::{ColorAlias, ColorRGB, Drawing};
 
 use crate::model::drawing;
 use crate::model::drawing::SupportedImageFormats;

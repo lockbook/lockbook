@@ -1,5 +1,5 @@
 use lb_rs::service::import_export_service::{ExportFileInfo, ImportStatus};
-use lockbook_shared::file_metadata::FileType;
+use lb_rs::shared::file_metadata::FileType;
 use rand::Rng;
 
 use std::path::PathBuf;

@@ -1,8 +1,8 @@
 use lb_rs::service::api_service::{ApiError, Network, Requester};
-use lockbook_shared::account::{Account, MAX_USERNAME_LENGTH};
-use lockbook_shared::api::*;
-use lockbook_shared::file_metadata::FileMetadata;
-use lockbook_shared::pubkey;
+use lb_rs::shared::account::{Account, MAX_USERNAME_LENGTH};
+use lb_rs::shared::api::*;
+use lb_rs::shared::file_metadata::FileMetadata;
+use lb_rs::shared::pubkey;
 use test_utils::*;
 
 fn random_account() -> Account {

@@ -9,8 +9,8 @@ use crate::{
 use base64::DecodeError;
 use db_rs::DbError;
 use jsonwebtoken::errors::ErrorKind;
-use lockbook_shared::api::*;
-use lockbook_shared::{SharedError, SharedErrorKind};
+use lb_rs::shared::api::*;
+use lb_rs::shared::{SharedError, SharedErrorKind};
 use std::fmt::Debug;
 use std::io::Error;
 use std::sync::PoisonError;
@@ -322,7 +322,7 @@ impl From<SharedError> for ServerError<AdminDisappearFileError> {
 impl From<SharedError> for ServerError<UpsertError> {
     fn from(err: SharedError) -> Self {
         // panic!("{err}");
-        use lockbook_shared::api::UpsertError::*;
+        use lb_rs::shared::api::UpsertError::*;
         match err.kind {
             SharedErrorKind::OldVersionIncorrect => ClientError(OldVersionIncorrect),
             SharedErrorKind::OldFileNotFound => ClientError(OldFileNotFound),

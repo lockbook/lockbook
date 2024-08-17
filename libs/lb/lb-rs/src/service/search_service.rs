@@ -1,9 +1,9 @@
+use crate::shared::document_repo::DocumentService;
+use crate::shared::file_like::FileLike;
+use crate::shared::filename::DocumentType;
+use crate::shared::tree_like::TreeLike;
 use crate::{CoreError, CoreState, LbResult, RankingWeights, Requester, UnexpectedError};
 use crossbeam::channel::{Receiver, Sender};
-use lockbook_shared::document_repo::DocumentService;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::filename::DocumentType;
-use lockbook_shared::tree_like::TreeLike;
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::collections::HashMap;

@@ -1,9 +1,9 @@
 use std::path::Path;
 
-use lockbook_shared::document_repo::DocumentService;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::tree_like::TreeLike;
+use crate::shared::document_repo::DocumentService;
+use crate::shared::file_like::FileLike;
+use crate::shared::file_metadata::Owner;
+use crate::shared::tree_like::TreeLike;
 
 use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};

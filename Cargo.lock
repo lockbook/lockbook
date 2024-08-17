@@ -3861,6 +3861,8 @@ dependencies = [
 name = "lb-rs"
 version = "0.9.6"
 dependencies = [
+ "aead",
+ "aes-gcm",
  "base64 0.13.1",
  "basic-human-duration",
  "bincode",
@@ -3870,25 +3872,27 @@ dependencies = [
  "db-rs",
  "db-rs-derive",
  "diffy",
+ "flate2",
+ "hmac 0.11.0",
+ "http",
  "image 0.24.9",
  "indicatif",
  "itertools 0.10.5",
  "libsecp256k1",
- "lockbook-server",
- "lockbook-shared",
  "num_cpus",
  "qrcode-generator",
  "rand 0.8.5",
  "raqote",
  "reqwest",
  "serde",
+ "serde_bytes",
  "serde_json",
+ "sha2 0.9.9",
  "strip-ansi-escapes",
  "sublime_fuzzy",
  "tempfile",
  "test_utils",
  "time",
- "tokio",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -4183,8 +4187,8 @@ dependencies = [
  "itertools 0.10.5",
  "jsonwebtoken",
  "lazy_static",
+ "lb-rs",
  "libsecp256k1",
- "lockbook-shared",
  "num_cpus",
  "pagerduty-rs",
  "prometheus",
@@ -4203,28 +4207,6 @@ dependencies = [
  "uuid 1.8.0",
  "warp",
  "x509-parser",
-]
-
-[[package]]
-name = "lockbook-shared"
-version = "0.9.6"
-dependencies = [
- "aead",
- "aes-gcm",
- "base64 0.13.1",
- "bincode",
- "db-rs",
- "flate2",
- "hmac 0.11.0",
- "http",
- "libsecp256k1",
- "rand 0.8.5",
- "serde",
- "serde_bytes",
- "sha2 0.9.9",
- "test_utils",
- "tracing",
- "uuid 1.8.0",
 ]
 
 [[package]]
@@ -6823,7 +6805,6 @@ dependencies = [
  "bincode",
  "itertools 0.10.5",
  "lb-rs",
- "lockbook-shared",
  "time",
  "uuid 1.8.0",
 ]

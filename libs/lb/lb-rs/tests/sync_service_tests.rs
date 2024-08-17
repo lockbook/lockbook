@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use lockbook_shared::file::ShareMode;
+use lb_rs::shared::file::ShareMode;
 use test_utils::*;
 
 /// Uncategorized tests.

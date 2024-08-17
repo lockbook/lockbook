@@ -1,5 +1,5 @@
 use crate::config::Environment::{Local, Prod, Unknown};
-use lockbook_shared::account::Username;
+use lb_rs::shared::account::Username;
 use semver::VersionReq;
 use std::collections::HashSet;
 use std::fmt::Display;
