@@ -1,4 +1,3 @@
-use image::EncodableLayout;
 use lb_rs::service::api_service::{ApiError, Requester};
 
 use lb_rs::shared::api::{
@@ -367,7 +366,7 @@ fn downgrade_denied() {
     let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE))
         .map(|_| rand::random::<u8>())
         .collect();
-    core.write_document(file.id, content.as_bytes()).unwrap();
+    core.write_document(file.id, &content).unwrap();
     core.sync(None).unwrap();
 
     core.in_tx(|s| {
