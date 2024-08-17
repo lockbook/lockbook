@@ -220,7 +220,7 @@ impl FfiCore {
         Ok(self.core.get_uncompressed_usage()?)
     }
 
-       pub fn import_files<F: Fn(ImportStatus)>(
+    pub fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> Result<(), Error<ImportFileError>> {
         Ok(self.core.import_files(sources, dest, update_status)?)
