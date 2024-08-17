@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1F7E4FBF2521297D0045F606 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FBE2521297D0045F606 /* Colors.swift */; };
-		1F7E4FC02521297D0045F606 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FBE2521297D0045F606 /* Colors.swift */; };
 		4709C77029FDAAE9004449EF /* SuggestedDocs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709C76F29FDAAE9004449EF /* SuggestedDocs.swift */; };
 		4709C77129FDAAE9004449EF /* SuggestedDocs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709C76F29FDAAE9004449EF /* SuggestedDocs.swift */; };
 		4709DC38296609F100426106 /* PendingSharesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC37296609F100426106 /* PendingSharesView.swift */; };
@@ -162,7 +160,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		1F7E4FBE2521297D0045F606 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		4709C76F29FDAAE9004449EF /* SuggestedDocs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestedDocs.swift; sourceTree = "<group>"; };
 		4709DC37296609F100426106 /* PendingSharesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingSharesView.swift; sourceTree = "<group>"; };
 		472F9EDD2A6C468A005F4785 /* Lockbook (iOS).entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Lockbook (iOS).entitlements"; sourceTree = "<group>"; };
@@ -466,7 +463,6 @@
 				EADA116125336BA1005F69DB /* Development.xcconfig */,
 				EAF96D12252E8F3000AA1A14 /* Production.xcconfig */,
 				EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */,
-				1F7E4FBE2521297D0045F606 /* Colors.swift */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -644,7 +640,6 @@
 				DF96DCF32B8AF7B500D0039C /* LogoutConfirmation.swift in Sources */,
 				877FB54A26D1788D0008AB3F /* CoreService.swift in Sources */,
 				877FB55926D18EC80008AB3F /* FileService.swift in Sources */,
-				1F7E4FBF2521297D0045F606 /* Colors.swift in Sources */,
 				B2B7E2E225C6411800B9EFAD /* OnboardingState.swift in Sources */,
 				B249B9E5282AC03A004F5300 /* MoveSheet.swift in Sources */,
 				B2386A502C2F37D700B12415 /* DebugView.swift in Sources */,
@@ -715,7 +710,6 @@
 				47A45FBC2969047B00573044 /* ShareService.swift in Sources */,
 				877FB55726D18AA60008AB3F /* AccountService.swift in Sources */,
 				877FB55426D1854E0008AB3F /* SyncService.swift in Sources */,
-				1F7E4FC02521297D0045F606 /* Colors.swift in Sources */,
 				87F78F7B27094A040001E159 /* BeforeYouStart.swift in Sources */,
 				471E363529FD5F5C00A1958A /* DesktopHomeView.swift in Sources */,
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,

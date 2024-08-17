@@ -13,8 +13,8 @@ use time::Duration;
 
 use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchType};
 use lb_rs::{
-    clock, unexpected_only, Config, Drawing, FileType, RankingWeights, ShareMode,
-    SupportedImageFormats, SyncProgress, UnexpectedError, Uuid,
+    clock, unexpected_only, Config, FileType, RankingWeights, ShareMode, SyncProgress,
+    UnexpectedError, Uuid,
 };
 
 use crate::errors::Error;
@@ -377,34 +377,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocumentBytes(
             .byte_array_from_slice(document_bytes.as_slice())
             .unwrap_or(std::ptr::null_mut() as jbyteArray),
     }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawingToDisk(
-    env: JNIEnv, _: JClass, jid: JString, jformat: JString, jlocation: JString,
-) -> jstring {
-    let id = match deserialize_id(&env, jid) {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    let format = match deserialize::<SupportedImageFormats>(&env, jformat, "image format") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    let location = match jstring_to_string(&env, jlocation, "path") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(
-        &env,
-        match static_state::get() {
-            Ok(core) => translate(core.export_drawing_to_disk(id, format, None, &location)),
-            e => translate(e.map(|_| ())),
-        },
-    )
 }
 
 #[no_mangle]
@@ -797,47 +769,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deletePendingShare(
         &env,
         match static_state::get() {
             Ok(core) => translate(core.delete_pending_share(id)),
-            e => translate(e.map(|_| ())),
-        },
-    )
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getDrawing(
-    env: JNIEnv, _: JClass, jid: JString,
-) -> jstring {
-    let id = match deserialize_id(&env, jid) {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(
-        &env,
-        match static_state::get() {
-            Ok(core) => translate(core.get_drawing(id)),
-            e => translate(e.map(|_| ())),
-        },
-    )
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDrawing(
-    env: JNIEnv, _: JClass, jid: JString, jdrawing: JString,
-) -> jstring {
-    let id = match deserialize_id(&env, jid) {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    let drawing = match deserialize::<Drawing>(&env, jdrawing, "drawing") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(
-        &env,
-        match static_state::get() {
-            Ok(core) => translate(core.save_drawing(id, &drawing)),
             e => translate(e.map(|_| ())),
         },
     )

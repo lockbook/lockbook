@@ -1,9 +1,7 @@
-use image::EncodableLayout;
 use lb_rs::shared::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
-use lb_rs::shared::file_like::FileLike;
 use lb_rs::shared::file_metadata::FileType;
 use lb_rs::shared::file_metadata::FileType::Folder;
-use lb_rs::{Core, CoreError, DocumentService, OnDiskDocuments, ShareMode};
+use lb_rs::{Core, CoreError, DocumentService, FileLike, OnDiskDocuments, ShareMode};
 use test_utils::*;
 
 #[test]
@@ -160,8 +158,7 @@ fn change_doc_over_data_cap() {
     let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE - METADATA_FEE * 2))
         .map(|_| rand::random::<u8>())
         .collect();
-    core.write_document(document.id, content.as_bytes())
-        .unwrap();
+    core.write_document(document.id, &content).unwrap();
 
     let result = core.sync(None);
 
@@ -175,14 +172,12 @@ fn old_file_and_new_large_one() {
     let content: Vec<u8> = (0..((FREE_TIER_USAGE_SIZE as f64 * 0.8) as i64))
         .map(|_| rand::random::<u8>())
         .collect();
-    core.write_document(document1.id, content.as_bytes())
-        .unwrap();
+    core.write_document(document1.id, &content).unwrap();
 
     core.sync(None).unwrap();
 
     let document2 = core.create_at_path("document2.md").unwrap();
-    core.write_document(document2.id, content.as_bytes())
-        .unwrap();
+    core.write_document(document2.id, &content).unwrap();
 
     let result = core.sync(None);
 
@@ -199,8 +194,7 @@ fn upsert_meta_over_data_cap() {
         .map(|_| rand::random::<u8>())
         .collect();
 
-    core.write_document(document.id, content.as_bytes())
-        .unwrap();
+    core.write_document(document.id, &content).unwrap();
 
     core.sync(None).unwrap();
 
