@@ -4,10 +4,7 @@ use resvg::usvg::Transform;
 
 use crate::tab::svg_editor::{parser::ManipulatorGroupId, Buffer};
 
-use super::{
-    rect::SelectionRectContainer, u_transform_to_bezier, SelectedElement, SelectionOperation,
-    SelectionResponse,
-};
+use super::{rect::SelectionRectContainer, SelectedElement, SelectionOperation, SelectionResponse};
 
 pub fn scale_group_from_center(
     factor: f32, els: &mut [SelectedElement], selected_rect: &SelectionRectContainer,
@@ -40,23 +37,13 @@ pub fn scale_from_center(
     };
 
     if let Some(node) = buffer.elements.get_mut(&el.id) {
-        let u_transform = Transform::identity()
+        el.transform = Transform::identity()
             .post_scale(factor, factor)
             .post_translate(
                 -(1. - factor) * (element_rect.width() / 2. - element_rect.right()),
                 -(1. - factor) * (element_rect.height() / 2. - element_rect.bottom()),
             );
-        let b_transform = u_transform_to_bezier(&u_transform);
-
-        match node {
-            crate::tab::svg_editor::parser::Element::Path(p) => {
-                el.transform = el.transform.post_concat(u_transform);
-
-                p.data.apply_transform(b_transform);
-            }
-            crate::tab::svg_editor::parser::Element::Image(img) => img.apply_transform(u_transform),
-            crate::tab::svg_editor::parser::Element::Text(_) => todo!(),
-        }
+        node.transform(el.transform)
     }
 }
 

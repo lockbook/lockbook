@@ -19,9 +19,7 @@ pub struct SelectionRectContainer {
     children: Vec<SelectionRect>,
 }
 impl SelectionRectContainer {
-    pub fn new(
-        els: &[SelectedElement], working_rect: egui::Rect, buffer: &mut Buffer,
-    ) -> Option<Self> {
+    pub fn new(els: &[SelectedElement], buffer: &mut Buffer) -> Option<Self> {
         let mut container_bb = [DVec2::new(f64::MAX, f64::MAX), DVec2::new(f64::MIN, f64::MIN)];
         let mut children = vec![];
         for el in els.iter() {
@@ -42,7 +40,7 @@ impl SelectionRectContainer {
                 None => continue,
             };
 
-            if let Some(clipped_rect) = SelectionRect::new(bb, working_rect) {
+            if let Some(clipped_rect) = SelectionRect::new(bb) {
                 children.push(clipped_rect);
             }
 
@@ -53,7 +51,7 @@ impl SelectionRectContainer {
             container_bb[1].y = container_bb[1].y.max(bb[1].y);
         }
 
-        SelectionRect::new(container_bb, working_rect)
+        SelectionRect::new(container_bb)
             .map(|clipped_rect| SelectionRectContainer { container: clipped_rect, children })
     }
 
@@ -62,38 +60,31 @@ impl SelectionRectContainer {
             return Some(SelectionResponse::new(SelectionOperation::Translation));
         }
 
-        if let Some(left_path) = &self.container.left {
-            if pointer_intersects_outline(left_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
-                return Some(SelectionResponse::new(SelectionOperation::WestScale));
-            }
-        };
-        if let Some(right_path) = &self.container.right {
-            if pointer_intersects_outline(right_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
-                return Some(SelectionResponse::new(SelectionOperation::EastScale));
-            }
-        };
+        if pointer_intersects_outline(&self.container.left, cursor_pos, None, SCALE_BRUSH_SIZE) {
+            return Some(SelectionResponse::new(SelectionOperation::WestScale));
+        }
+        if pointer_intersects_outline(&self.container.right, cursor_pos, None, SCALE_BRUSH_SIZE) {
+            return Some(SelectionResponse::new(SelectionOperation::EastScale));
+        }
 
-        if let Some(top_path) = &self.container.top {
-            if pointer_intersects_outline(top_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
-                return Some(SelectionResponse::new(SelectionOperation::NorthScale));
-            }
-        };
-        if let Some(bottom_path) = &self.container.bottom {
-            if pointer_intersects_outline(bottom_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
-                return Some(SelectionResponse::new(SelectionOperation::SouthScale));
-            }
-        };
+        if pointer_intersects_outline(&self.container.top, cursor_pos, None, SCALE_BRUSH_SIZE) {
+            return Some(SelectionResponse::new(SelectionOperation::NorthScale));
+        }
+        if pointer_intersects_outline(&self.container.bottom, cursor_pos, None, SCALE_BRUSH_SIZE) {
+            return Some(SelectionResponse::new(SelectionOperation::SouthScale));
+        }
         None
     }
-    pub fn show(&self, ui: &mut egui::Ui) {
+
+    pub fn show(&self, ui: &mut egui::Ui, painter: &egui::Painter) {
         self.children.iter().for_each(|rect| {
-            rect.show(ui, true);
+            rect.show(ui, painter, true);
         });
 
-        self.container.show(ui, false);
+        self.container.show(ui, painter, false);
     }
 
-    pub fn show_delete_btn(&self, ui: &mut egui::Ui, working_rect: egui::Rect) -> bool {
+    pub fn show_delete_btn(&self, ui: &mut egui::Ui, painter: &egui::Painter) -> bool {
         let delete_toolbar_dim = egui::pos2(20.0, 20.0);
         let gap = 15.0;
         let icon_size = 19.0;
@@ -108,18 +99,14 @@ impl SelectionRectContainer {
                 self.container.raw.min.y - gap,
             ),
         };
-
-        if !working_rect.contains_rect(delete_toolbar_rect) {
-            return false;
-        }
         ui.allocate_ui_at_rect(delete_toolbar_rect, |ui| {
             ui.vertical_centered(|ui| {
                 let res = Icon::DELETE
                     .size(icon_size)
                     .color(ui.style().visuals.hyperlink_color)
-                    .show(ui);
+                    .paint(ui, painter);
                 let rect = res.rect.expand(10.0);
-                ui.painter().circle_filled(
+                painter.circle_filled(
                     rect.center(),
                     (rect.left() - rect.center().x).abs(),
                     ui.style().visuals.hyperlink_color.gamma_multiply(0.1),
@@ -135,124 +122,69 @@ impl SelectionRectContainer {
 }
 
 pub struct SelectionRect {
-    left: Option<Subpath<ManipulatorGroupId>>,
-    right: Option<Subpath<ManipulatorGroupId>>,
-    top: Option<Subpath<ManipulatorGroupId>>,
-    bottom: Option<Subpath<ManipulatorGroupId>>,
+    left: Subpath<ManipulatorGroupId>,
+    right: Subpath<ManipulatorGroupId>,
+    top: Subpath<ManipulatorGroupId>,
+    bottom: Subpath<ManipulatorGroupId>,
     pub raw: egui::Rect,
 }
 
 impl SelectionRect {
-    fn new(bb: [DVec2; 2], working_rect: egui::Rect) -> Option<Self> {
+    fn new(bb: [DVec2; 2]) -> Option<Self> {
         // clip the container bb to not overflow the canvas region
-        let mut clipped_bb = bb;
-        clipped_bb[0].x = clipped_bb[0].x.max(working_rect.left() as f64);
-        clipped_bb[0].y = clipped_bb[0].y.max(working_rect.top() as f64);
-
-        clipped_bb[1].x = clipped_bb[1].x.min(working_rect.right() as f64);
-        clipped_bb[1].y = clipped_bb[1].y.min(working_rect.bottom() as f64);
-
-        let is_clipped_bb_outside_of_working_rect =
-            clipped_bb[0].x > clipped_bb[1].x || clipped_bb[0].y > clipped_bb[1].y;
-
-        if is_clipped_bb_outside_of_working_rect {
-            return None;
-        }
 
         let rect = bb_to_rect(bb);
 
-        let mut selection_rect = SelectionRect {
-            left: Some(Subpath::from_anchors(
-                [
-                    DVec2 { x: clipped_bb[0].x, y: clipped_bb[0].y },
-                    DVec2 { x: clipped_bb[0].x, y: clipped_bb[1].y },
-                ],
+        let selection_rect = SelectionRect {
+            left: Subpath::from_anchors(
+                [DVec2 { x: bb[0].x, y: bb[0].y }, DVec2 { x: bb[0].x, y: bb[1].y }],
                 false,
-            )),
-            right: Some(Subpath::from_anchors(
-                [
-                    DVec2 { x: clipped_bb[1].x, y: clipped_bb[0].y },
-                    DVec2 { x: clipped_bb[1].x, y: clipped_bb[1].y },
-                ],
+            ),
+            right: Subpath::from_anchors(
+                [DVec2 { x: bb[1].x, y: bb[0].y }, DVec2 { x: bb[1].x, y: bb[1].y }],
                 false,
-            )),
-            top: Some(Subpath::from_anchors(
-                [
-                    DVec2 { x: clipped_bb[0].x, y: clipped_bb[0].y },
-                    DVec2 { x: clipped_bb[1].x, y: clipped_bb[0].y },
-                ],
+            ),
+            top: Subpath::from_anchors(
+                [DVec2 { x: bb[0].x, y: bb[0].y }, DVec2 { x: bb[1].x, y: bb[0].y }],
                 false,
-            )),
-            bottom: Some(Subpath::from_anchors(
-                [
-                    DVec2 { x: clipped_bb[0].x, y: clipped_bb[1].y },
-                    DVec2 { x: clipped_bb[1].x, y: clipped_bb[1].y },
-                ],
+            ),
+            bottom: Subpath::from_anchors(
+                [DVec2 { x: bb[0].x, y: bb[1].y }, DVec2 { x: bb[1].x, y: bb[1].y }],
                 false,
-            )),
+            ),
             raw: rect,
         };
-
-        // when a bb is clipped, don't show the edge that's being clipeed
-        if clipped_bb[1].y != bb[1].y {
-            selection_rect.bottom = None;
-        }
-        if clipped_bb[0].y != bb[0].y {
-            selection_rect.top = None;
-        }
-        if clipped_bb[1].x != bb[1].x {
-            selection_rect.right = None;
-        }
-        if clipped_bb[0].x != bb[0].x {
-            selection_rect.left = None;
-        }
 
         Some(selection_rect)
     }
 
-    fn show(&self, ui: &mut egui::Ui, is_child_rect: bool) {
-        if let Some(top_path) = &self.top {
-            self.show_subpath(top_path, ui, is_child_rect);
-        };
-        if let Some(bottom_path) = &self.bottom {
-            self.show_subpath(bottom_path, ui, is_child_rect);
-        };
+    fn show(&self, ui: &mut egui::Ui, painter: &egui::Painter, is_child_rect: bool) {
+        self.show_subpath(&self.top, ui, painter, is_child_rect);
+        self.show_subpath(&self.bottom, ui, painter, is_child_rect);
+        self.show_subpath(&self.right, ui, painter, is_child_rect);
+        self.show_subpath(&self.left, ui, painter, is_child_rect);
 
-        if let Some(left_path) = &self.left {
-            self.show_subpath(left_path, ui, is_child_rect);
+        let corner = self.left.get_segment(0).unwrap().start();
+        self.show_corner(corner, ui, painter, is_child_rect);
+        let corner = self.left.get_segment(0).unwrap().end();
+        self.show_corner(corner, ui, painter, is_child_rect);
 
-            if self.top.is_some() {
-                let corner = left_path.get_segment(0).unwrap().start();
-                self.show_corner(corner, ui, is_child_rect);
-            }
-            if self.bottom.is_some() {
-                let corner = left_path.get_segment(0).unwrap().end();
-                self.show_corner(corner, ui, is_child_rect);
-            }
-        };
-        if let Some(right_path) = &self.right {
-            self.show_subpath(right_path, ui, is_child_rect);
-
-            if self.top.is_some() {
-                let corner = right_path.get_segment(0).unwrap().start();
-                self.show_corner(corner, ui, is_child_rect);
-            }
-            if self.bottom.is_some() {
-                let corner = right_path.get_segment(0).unwrap().end();
-                self.show_corner(corner, ui, is_child_rect);
-            }
-        };
+        let corner = self.right.get_segment(0).unwrap().start();
+        self.show_corner(corner, ui, painter, is_child_rect);
+        let corner = self.right.get_segment(0).unwrap().end();
+        self.show_corner(corner, ui, painter, is_child_rect);
     }
 
     fn show_subpath(
-        &self, path: &Subpath<ManipulatorGroupId>, ui: &mut egui::Ui, is_child_rect: bool,
+        &self, path: &Subpath<ManipulatorGroupId>, ui: &mut egui::Ui, painter: &egui::Painter,
+        is_child_rect: bool,
     ) {
         let line_segment = path.get_segment(0).unwrap();
         let line_segment = [
             egui::pos2(line_segment.start().x as f32, line_segment.start().y as f32),
             egui::pos2(line_segment.end().x as f32, line_segment.end().y as f32),
         ];
-        ui.painter().line_segment(
+        painter.line_segment(
             line_segment,
             egui::Stroke {
                 width: 1.0,
@@ -264,7 +196,9 @@ impl SelectionRect {
         );
     }
 
-    fn show_corner(&self, corner: DVec2, ui: &mut egui::Ui, is_child_rect: bool) {
+    fn show_corner(
+        &self, corner: DVec2, ui: &mut egui::Ui, painter: &egui::Painter, is_child_rect: bool,
+    ) {
         if is_child_rect {
             return;
         }
@@ -280,7 +214,7 @@ impl SelectionRect {
                 corner.y + handle_side_length / 2.0,
             ),
         };
-        ui.painter().rect(
+        painter.rect(
             rect,
             egui::Rounding::ZERO,
             egui::Color32::WHITE,
