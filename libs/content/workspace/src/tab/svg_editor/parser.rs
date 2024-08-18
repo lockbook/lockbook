@@ -3,13 +3,12 @@ use std::{collections::HashMap, fmt::Write, path::PathBuf, str::FromStr, sync::A
 use bezier_rs::{Bezier, Identifier, Subpath};
 use egui::TextureHandle;
 use glam::{DAffine2, DMat2, DVec2};
-use lb_rs::{base64, Uuid};
+use lb_rs::Uuid;
 use resvg::tiny_skia::Point;
 use resvg::usvg::{
     self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, Options, Paint, Text, Transform,
     Visibility,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::theme::palette::ThemePalette;
 
@@ -17,7 +16,6 @@ use super::selection::u_transform_to_bezier;
 use super::SVGEditor;
 
 const ZOOM_G_ID: &str = "lb_master_transform";
-const LB_STORE_ID: &str = "lb_persistent_store";
 
 /// A shorthand for [ImageHrefResolver]'s string function.
 pub type ImageHrefStringResolverFn =
@@ -91,15 +89,9 @@ pub struct Image {
     pub deleted: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
-struct PersistentStore {
-    path_pressures: HashMap<String, Vec<f32>>,
-}
-
 impl Buffer {
     pub fn new(svg: &str, core: &lb_rs::Core, open_file: Uuid) -> Self {
-        let mut fontdb = usvg::fontdb::Database::default();
-        fontdb.load_font_data(lb_fonts::ROBOTO_REGULAR.to_vec());
+        let fontdb = usvg::fontdb::Database::default();
 
         let lb_local_resolver = ImageHrefResolver {
             resolve_data: ImageHrefResolver::default_data_resolver(),
@@ -117,19 +109,13 @@ impl Buffer {
         let utree = maybe_tree.unwrap();
 
         let mut buffer = Buffer::default();
-        let mut store = PersistentStore::default();
         utree
             .root()
             .children()
             .iter()
             .enumerate()
-            .for_each(|(_, u_el)| parse_child(u_el, &mut buffer, &mut store));
+            .for_each(|(_, u_el)| parse_child(u_el, &mut buffer));
 
-        store.path_pressures.iter().for_each(|(id, pressure)| {
-            if let Some(Element::Path(p)) = buffer.elements.get_mut(id) {
-                p.pressure = Some(pressure.to_vec());
-            }
-        });
         buffer
     }
 }
@@ -140,7 +126,7 @@ impl SVGEditor {
     }
 }
 
-fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PersistentStore) {
+fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer) {
     match &u_el {
         usvg::Node::Group(group) => {
             if group.id().eq(ZOOM_G_ID) {
@@ -150,7 +136,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PersistentSto
                 .children()
                 .iter()
                 .enumerate()
-                .for_each(|(_, u_el)| parse_child(u_el, buffer, store));
+                .for_each(|(_, u_el)| parse_child(u_el, buffer));
         }
 
         usvg::Node::Image(img) => {
@@ -216,13 +202,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PersistentSto
                 }),
             );
         }
-        usvg::Node::Text(t) => {
-            if t.id().eq(LB_STORE_ID) {
-                let raw: String = t.chunks().iter().map(|chunk| chunk.text()).collect();
-                let serialized = base64::decode(raw).unwrap();
-                *store = bincode::deserialize(&serialized).unwrap();
-            }
-        }
+        usvg::Node::Text(_) => {}
     }
 }
 
