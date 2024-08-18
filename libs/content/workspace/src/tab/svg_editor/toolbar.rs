@@ -402,6 +402,10 @@ fn calc_elements_bounds(buffer: &mut Buffer) -> egui::Rect {
     let mut elements_bound =
         egui::Rect { min: egui::pos2(f32::MAX, f32::MAX), max: egui::pos2(f32::MIN, f32::MIN) };
     for (_, el) in buffer.elements.iter() {
+        if el.deleted() {
+            continue;
+        }
+
         let el_rect = match el {
             parser::Element::Path(p) => {
                 // without this bezier_rs will panic when calculating bounding box

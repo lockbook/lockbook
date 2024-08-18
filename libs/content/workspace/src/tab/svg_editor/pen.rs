@@ -149,7 +149,7 @@ impl Pen {
             self.current_id += 1;
             return true;
         }
-        return false;
+        false
     }
 
     pub fn end_path(&mut self, buffer: &mut Buffer, history: &mut History, is_snapped: bool) {
@@ -216,13 +216,13 @@ impl Pen {
                         let (should_end_path, should_draw) =
                             self.decide_event(inner_rect, pos, phase == egui::TouchPhase::End, r);
 
-                        return if should_end_path {
+                        if should_end_path {
                             Some(PathEvent::End)
                         } else if should_draw {
                             Some(PathEvent::Draw(DrawPayload { pos, force }, self.current_id))
                         } else {
                             None
-                        };
+                        }
                     } else if let egui::Event::PointerButton {
                         pos,
                         button: _,
@@ -233,15 +233,15 @@ impl Pen {
                         let (should_end_path, should_draw) =
                             self.decide_event(inner_rect, pos, pressed, r);
 
-                        return if should_end_path {
+                        if should_end_path {
                             Some(PathEvent::End)
                         } else if should_draw {
                             Some(PathEvent::Draw(DrawPayload { pos, force: None }, self.current_id))
                         } else {
                             None
-                        };
+                        }
                     } else {
-                        return None;
+                        None
                     }
                 })
                 .collect()
