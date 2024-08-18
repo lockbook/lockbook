@@ -1,11 +1,10 @@
 use std::path::Path;
 
-use lockbook_shared::document_repo::DocumentService;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::tree_like::TreeLike;
+use crate::shared::document_repo::DocumentService;
+use crate::shared::file_like::FileLike;
+use crate::shared::file_metadata::Owner;
+use crate::shared::tree_like::TreeLike;
 
-use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};
 use crate::{CoreState, Requester};
 
@@ -58,10 +57,6 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                 if UTF8_SUFFIXES.contains(&extension) && String::from_utf8(doc.clone()).is_err() {
                     warnings.push(Warning::InvalidUTF8(id));
                     continue;
-                }
-
-                if extension == "draw" && drawing::parse_drawing(&doc).is_err() {
-                    warnings.push(Warning::UnreadableDrawing(id));
                 }
             }
         }

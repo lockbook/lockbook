@@ -11,14 +11,6 @@ fn ffi_api_location_matches() {
 
 #[test]
 fn ffi_enums_match() {
-    use lb_rs::SupportedImageFormats as ImgFmts;
-    assert_eq!(ImgFmts::Png as u8, 0);
-    assert_eq!(ImgFmts::Jpeg as u8, 1);
-    assert_eq!(ImgFmts::Pnm as u8, 2);
-    assert_eq!(ImgFmts::Tga as u8, 3);
-    assert_eq!(ImgFmts::Farbfeld as u8, 4);
-    assert_eq!(ImgFmts::Bmp as u8, 5);
-
     use lb_rs::GooglePlayAccountState as Gp;
     assert_eq!(Gp::Ok as u8, 0);
     assert_eq!(Gp::Canceled as u8, 1);

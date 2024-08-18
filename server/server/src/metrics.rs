@@ -5,7 +5,7 @@ use crate::document_service::DocumentService;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 
-use lockbook_shared::clock::get_time;
+use lb_rs::shared::clock::get_time;
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
 use std::fmt::Debug;
@@ -13,10 +13,10 @@ use tracing::*;
 
 use crate::billing::billing_model::{BillingPlatform, SubscriptionProfile};
 use crate::schema::ServerDb;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::server_tree::ServerTree;
-use lockbook_shared::tree_like::TreeLike;
+use lb_rs::shared::file_like::FileLike;
+use lb_rs::shared::file_metadata::Owner;
+use lb_rs::shared::server_tree::ServerTree;
+use lb_rs::shared::tree_like::TreeLike;
 
 pub struct UserInfo {
     total_documents: i64,

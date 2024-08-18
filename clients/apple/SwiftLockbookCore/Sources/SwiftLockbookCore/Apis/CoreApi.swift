@@ -68,26 +68,12 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: list_metadatas())
     }
     
+    public func listFolderPaths() -> FfiResult<[String], ListPathsError> {
+        fromPrimitiveResult(result: list_folder_paths())
+    }
+    
     public func readDocument(id: UUID) -> FfiResult<String, ReadDocumentError> {
         fromPrimitiveResult(result: read_document(id.uuidString))
-    }
-    
-    public func readDrawing(id: UUID) -> FfiResult<Drawing, GetDrawingError> {
-        fromPrimitiveResult(result: get_drawing(id.uuidString))
-    }
-    
-    public func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError> {
-        switch serialize(obj: content) {
-        case .success(let serializedDrawing):
-            return fromPrimitiveResult(result: write_document(id.uuidString, serializedDrawing))
-        case .failure(let err):
-            return .failure(.init(unexpected: err.localizedDescription))
-        }
-    }
-
-    public func exportDrawing(id: UUID) -> FfiResult<Data, ExportDrawingError> {
-        let res: FfiResult<[UInt8], ExportDrawingError> = fromPrimitiveResult(result: export_drawing(id.uuidString))
-        return res.map(transform: { Data($0) })
     }
     
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<File, CreateFileError> {
@@ -146,10 +132,6 @@ public struct CoreApi: LockbookApi {
 
     public func exportFile(id: UUID, destination: String) ->FfiResult<Empty, ExportFileError> {
         fromPrimitiveResult(result:  export_file(id.uuidString, destination))
-    }
-    
-    public func exportDrawingToDisk(id: UUID, destination: String) ->FfiResult<Empty, ExportDrawingToDiskError> {
-        fromPrimitiveResult(result:  export_drawing_to_disk(id.uuidString, destination))
     }
 
     public func importFiles(sources: [String], destination: UUID) ->FfiResult<Empty, ImportFilesError> {

@@ -1,9 +1,9 @@
+use lb_rs::shared::file_like::FileLike;
+use lb_rs::shared::file_metadata::FileType::Document;
+use lb_rs::shared::secret_filename::SecretFileName;
+use lb_rs::shared::tree_like::TreeLike;
 use lb_rs::TestRepoError::*;
 use lb_rs::Warning::*;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileType::Document;
-use lockbook_shared::secret_filename::SecretFileName;
-use lockbook_shared::tree_like::TreeLike;
 use rand::Rng;
 use test_utils::*;
 
@@ -191,14 +191,4 @@ fn test_invalid_utf8_ignores_non_utf_file_extensions() {
         .unwrap();
     let warnings = core.validate();
     assert_matches!(warnings.as_ref().map(|w| &w[..]), Ok([]));
-}
-
-#[test]
-fn test_invalid_drawing() {
-    let core = test_core_with_account();
-    let doc = core.create_at_path("document.draw").unwrap();
-    core.write_document(doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref())
-        .unwrap();
-    let warnings = core.validate();
-    assert_matches!(warnings.as_ref().map(|w| &w[..]), Ok([UnreadableDrawing(_)]));
 }

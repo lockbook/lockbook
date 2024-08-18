@@ -1,5 +1,5 @@
+use lb_rs::shared::file::ShareMode;
 use lb_rs::{Core, File};
-use lockbook_shared::file::ShareMode;
 use std::collections::HashSet;
 use test_utils::*;
 use uuid::Uuid;

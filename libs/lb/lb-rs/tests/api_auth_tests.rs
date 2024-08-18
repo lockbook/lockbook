@@ -1,8 +1,8 @@
 use lb_rs::service::api_service::{ApiError, Requester};
-use lockbook_shared::api::*;
-use lockbook_shared::crypto::AESEncrypted;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileDiff;
+use lb_rs::shared::api::*;
+use lb_rs::shared::crypto::AESEncrypted;
+use lb_rs::shared::file_like::FileLike;
+use lb_rs::shared::file_metadata::FileDiff;
 use test_utils::*;
 
 #[test]

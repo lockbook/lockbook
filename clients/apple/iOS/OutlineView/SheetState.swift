@@ -52,22 +52,9 @@ class SheetState: ObservableObject {
             }
         }
     }
-    @Published var movingInfo: File? {
+    @Published var movingInfo: SelectFolderAction? {
         didSet {
             moving = movingInfo != nil
-        }
-    }
-    
-    @Published var acceptingShare: Bool = false {
-        didSet {
-            if !acceptingShare && acceptingShareInfo != nil {
-                acceptingShareInfo = nil
-            }
-        }
-    }
-    @Published var acceptingShareInfo: File? {
-        didSet {
-            acceptingShare = acceptingShareInfo != nil
         }
     }
     

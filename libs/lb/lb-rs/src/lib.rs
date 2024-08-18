@@ -3,39 +3,39 @@ extern crate tracing;
 
 pub mod model;
 pub mod service;
+pub mod shared;
 
 mod repo;
 
 pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
 pub use libsecp256k1::PublicKey;
-pub use lockbook_shared::document_repo::{DocumentService, OnDiskDocuments};
 use service::search_service::{SearchRequest, SearchResult, SearchType};
+pub use shared::document_repo::{DocumentService, OnDiskDocuments};
 pub use time::Duration;
 pub use uuid::Uuid;
 
-pub use lockbook_shared::account::Account;
-pub use lockbook_shared::api::{
+pub use shared::account::Account;
+pub use shared::api::{
     AccountFilter, AccountIdentifier, AdminSetUserTierInfo, AppStoreAccountState,
     GooglePlayAccountState, PaymentMethod, PaymentPlatform, ServerIndex, StripeAccountState,
     StripeAccountTier, SubscriptionInfo, UnixTimeMillis,
 };
-pub use lockbook_shared::clock;
-pub use lockbook_shared::core_config::Config;
-pub use lockbook_shared::crypto::DecryptedDocument;
-pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
-pub use lockbook_shared::file::{File, Share, ShareMode};
-pub use lockbook_shared::file_like::FileLike;
-pub use lockbook_shared::file_metadata::{FileType, Owner};
-pub use lockbook_shared::filename::NameComponents;
-pub use lockbook_shared::lazy::LazyTree;
-pub use lockbook_shared::path_ops::Filter;
-pub use lockbook_shared::server_file::ServerFile;
-pub use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
-pub use lockbook_shared::usage::bytes_to_human;
-pub use lockbook_shared::work_unit::WorkUnit;
+pub use shared::clock;
+pub use shared::core_config::Config;
+pub use shared::crypto::DecryptedDocument;
+pub use shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
+pub use shared::file::{File, Share, ShareMode};
+pub use shared::file_like::FileLike;
+pub use shared::file_metadata::{FileType, Owner};
+pub use shared::filename::NameComponents;
+pub use shared::lazy::LazyTree;
+pub use shared::path_ops::Filter;
+pub use shared::server_file::ServerFile;
+pub use shared::tree_like::{TreeLike, TreeLikeMut};
+pub use shared::usage::bytes_to_human;
+pub use shared::work_unit::WorkUnit;
 
-pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::{
     CoreError, LbError, LbResult, TestRepoError, UnexpectedError, Warning,
 };
@@ -52,8 +52,8 @@ use std::thread;
 
 use crossbeam::channel::{self};
 use db_rs::Db;
-use lockbook_shared::account::Username;
-use lockbook_shared::api::{
+use shared::account::Username;
+use shared::api::{
     AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer, GetUsageRequest,
 };
 
@@ -447,52 +447,6 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
         // todo the errors here are wrong this doesn't talk to the server
         self.in_tx(|s| s.get_uncompressed_usage())
             .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, LbError> {
-        self.in_tx(|s| s.get_drawing(id)).expected_errs(&[
-            CoreError::DrawingInvalid,
-            CoreError::FileNotDocument,
-            CoreError::FileNonexistent,
-        ])
-    }
-
-    #[instrument(level = "debug", skip(self, d), err(Debug))]
-    pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), LbError> {
-        self.in_tx(|s| s.save_drawing(id, d)).expected_errs(&[
-            CoreError::DrawingInvalid,
-            CoreError::FileNonexistent,
-            CoreError::FileNotDocument,
-        ])
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn export_drawing(
-        &self, id: Uuid, format: SupportedImageFormats,
-        render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    ) -> Result<Vec<u8>, LbError> {
-        self.in_tx(|s| s.export_drawing(id, format, render_theme))
-            .expected_errs(&[
-                CoreError::DrawingInvalid,
-                CoreError::FileNonexistent,
-                CoreError::FileNotDocument,
-            ])
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn export_drawing_to_disk(
-        &self, id: Uuid, format: SupportedImageFormats,
-        render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
-    ) -> Result<(), LbError> {
-        self.in_tx(|s| s.export_drawing_to_disk(id, format, render_theme, location))
-            .expected_errs(&[
-                CoreError::DrawingInvalid,
-                CoreError::FileNonexistent,
-                CoreError::FileNotDocument,
-                CoreError::DiskPathInvalid,
-                CoreError::DiskPathTaken,
-            ])
     }
 
     #[instrument(level = "debug", skip(self, update_status), err(Debug))]

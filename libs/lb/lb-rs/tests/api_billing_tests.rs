@@ -1,12 +1,11 @@
-use image::EncodableLayout;
 use lb_rs::service::api_service::{ApiError, Requester};
 
-use lockbook_shared::api::{
+use lb_rs::shared::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, PaymentMethod, StripeAccountTier,
     UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest, UpgradeAccountStripeError,
     UpgradeAccountStripeRequest, FREE_TIER_USAGE_SIZE,
 };
-use lockbook_shared::file_metadata::FileType;
+use lb_rs::shared::file_metadata::FileType;
 use rand::RngCore;
 use test_utils::{
     assert_matches, generate_premium_account_tier, test_core_with_account, test_credit_cards,
@@ -367,7 +366,7 @@ fn downgrade_denied() {
     let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE))
         .map(|_| rand::random::<u8>())
         .collect();
-    core.write_document(file.id, content.as_bytes()).unwrap();
+    core.write_document(file.id, &content).unwrap();
     core.sync(None).unwrap();
 
     core.in_tx(|s| {

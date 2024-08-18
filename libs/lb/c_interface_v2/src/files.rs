@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use lb_rs::{File, FileType, ImportStatus, Share, ShareMode, SupportedImageFormats, Uuid};
+use lb_rs::{File, FileType, ImportStatus, Share, ShareMode, Uuid};
 
 use crate::*;
 
@@ -479,71 +479,6 @@ pub unsafe extern "C" fn lb_export_file(
         e = lberr(err);
     }
     e
-}
-
-/// # Safety
-///
-/// The returned value must be passed to `lb_bytes_result_free` to avoid a memory leak.
-/// Alternatively, the `ok` value or `err` value can be passed to `lb_bytes_free` or
-/// `lb_error_free` respectively depending on whether there's an error or not.
-#[no_mangle]
-pub unsafe extern "C" fn lb_export_drawing(
-    core: *mut c_void, id: LbFileId, fmt_code: u8,
-) -> LbBytesResult {
-    let mut r = lb_bytes_result_new();
-    // These values are bound together in a unit test in this crate.
-    let img_fmt = match get_img_fmt_code(fmt_code) {
-        Ok(v) => v,
-        Err(err) => {
-            r.err = err;
-            return r;
-        }
-    };
-    match core!(core).export_drawing(id.into(), img_fmt, None) {
-        Ok(mut data) => {
-            data.shrink_to_fit();
-            let mut data = std::mem::ManuallyDrop::new(data);
-            r.ok.data = data.as_mut_ptr();
-            r.ok.size = data.len();
-        }
-        Err(err) => r.err = lberr(err),
-    }
-    r
-}
-
-/// # Safety
-///
-/// The returned value must be passed to `lb_error_free` to avoid a memory leak.
-#[no_mangle]
-pub unsafe extern "C" fn lb_export_drawing_to_disk(
-    core: *mut c_void, id: LbFileId, fmt_code: u8, dest: *mut c_char,
-) -> LbError {
-    // These values are bound together in a unit test in this crate.
-    let img_fmt = match get_img_fmt_code(fmt_code) {
-        Ok(v) => v,
-        Err(err) => return err,
-    };
-    let location = rstr(dest);
-    match core!(core).export_drawing_to_disk(id.into(), img_fmt, None, location) {
-        Ok(()) => lb_error_none(),
-        Err(err) => lberr(err),
-    }
-}
-
-unsafe fn get_img_fmt_code(n: u8) -> Result<SupportedImageFormats, LbError> {
-    match n {
-        0 => Ok(SupportedImageFormats::Png),
-        1 => Ok(SupportedImageFormats::Jpeg),
-        2 => Ok(SupportedImageFormats::Pnm),
-        3 => Ok(SupportedImageFormats::Tga),
-        4 => Ok(SupportedImageFormats::Farbfeld),
-        5 => Ok(SupportedImageFormats::Bmp),
-        n => Err(LbError {
-            msg: cstr(format!("unknown image format code {}", n)),
-            code: LbErrorCode::Unexpected,
-            trace: null_mut(),
-        }),
-    }
 }
 
 /// # Safety

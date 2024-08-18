@@ -13,8 +13,7 @@ use time::Duration;
 
 use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchType};
 use lb_rs::{
-    clock, Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress,
-    UnexpectedError, Uuid,
+    clock, Config, FileType, Filter, ImportStatus, ShareMode, SyncProgress, UnexpectedError, Uuid,
 };
 
 use crate::{get_all_error_variants, json_interface::translate, static_state, RankingWeights};
@@ -312,19 +311,6 @@ pub unsafe extern "C" fn read_document(id: *const c_char) -> *const c_char {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn export_drawing(id: *const c_char) -> *const c_char {
-    c_string(match static_state::get() {
-        Ok(core) => {
-            translate(core.export_drawing(uuid_from_ptr(id), SupportedImageFormats::Png, None))
-        }
-        e => translate(e.map(|_| ())),
-    })
-}
-
-/// # Safety
-///
-/// Be sure to call `release_pointer` on the result of this function to free the data.
-#[no_mangle]
 pub unsafe extern "C" fn rename_file(id: *const c_char, new_name: *const c_char) -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.rename_file(uuid_from_ptr(id), &str_from_ptr(new_name))),
@@ -339,6 +325,17 @@ pub unsafe extern "C" fn rename_file(id: *const c_char, new_name: *const c_char)
 pub unsafe extern "C" fn list_metadatas() -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.list_metadatas()),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn list_folder_paths() -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.list_paths(Some(Filter::FoldersOnly))),
         e => translate(e.map(|_| ())),
     })
 }
@@ -447,17 +444,6 @@ pub unsafe extern "C" fn get_uncompressed_usage() -> *const c_char {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn get_drawing(id: *const c_char) -> *const c_char {
-    c_string(match static_state::get() {
-        Ok(core) => translate(core.get_drawing(uuid_from_ptr(id))),
-        e => translate(e.map(|_| ())),
-    })
-}
-
-/// # Safety
-///
-/// Be sure to call `release_pointer` on the result of this function to free the data.
-#[no_mangle]
 pub unsafe extern "C" fn get_local_changes() -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.get_local_changes()),
@@ -544,24 +530,6 @@ pub unsafe extern "C" fn export_file(
             PathBuf::from(&str_from_ptr(destination)),
             true,
             None,
-        )),
-        e => translate(e.map(|_| ())),
-    })
-}
-
-/// # Safety
-///
-/// Be sure to call `release_pointer` on the result of this function to free the data.
-#[no_mangle]
-pub unsafe extern "C" fn export_drawing_to_disk(
-    id: *const c_char, destination: *const c_char,
-) -> *const c_char {
-    c_string(match static_state::get() {
-        Ok(core) => translate(core.export_drawing_to_disk(
-            uuid_from_ptr(id),
-            SupportedImageFormats::Jpeg,
-            None,
-            &str_from_ptr(destination),
         )),
         e => translate(e.map(|_| ())),
     })

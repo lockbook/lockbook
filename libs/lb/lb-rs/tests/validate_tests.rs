@@ -1,8 +1,8 @@
-use lockbook_shared::access_info::{UserAccessInfo, UserAccessMode};
-use lockbook_shared::file::ShareMode;
-use lockbook_shared::file_metadata::{FileType, Owner};
-use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::{symkey, SharedErrorKind, ValidationFailure};
+use lb_rs::shared::access_info::{UserAccessInfo, UserAccessMode};
+use lb_rs::shared::file::ShareMode;
+use lb_rs::shared::file_metadata::{FileType, Owner};
+use lb_rs::shared::tree_like::TreeLike;
+use lb_rs::shared::{symkey, SharedErrorKind, ValidationFailure};
 use test_utils::*;
 use uuid::Uuid;
 

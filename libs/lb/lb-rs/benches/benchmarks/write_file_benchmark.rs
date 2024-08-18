@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, BenchmarkId, Criterion, Throughput};
-use lockbook_shared::file_metadata::FileType;
+use lb_rs::shared::file_metadata::FileType;
 use test_utils::test_core_with_account;
 use uuid::Uuid;
 
