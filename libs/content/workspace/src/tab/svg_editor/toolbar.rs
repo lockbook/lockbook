@@ -9,10 +9,8 @@ use crate::{
 };
 
 use super::{
-    history::History,
-    parser,
-    selection::{u_transform_to_bezier, Selection},
-    Buffer, Eraser, Pen,
+    eraser::DEFAULT_ERASER_THICKNESS, history::History, parser, selection::Selection,
+    zoom::zoom_percentage_to_transform, Buffer, Eraser, Pen,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
@@ -123,15 +121,12 @@ impl Toolbar {
                                 self.show_right_toolbar(ui, buffer, skip_frame, inner_rect)
                             {
                                 buffer.master_transform =
-                                    buffer.master_transform.pre_concat(transform);
+                                    buffer.master_transform.post_concat(transform);
 
-                                buffer.elements.iter_mut().for_each(|(_, el)| match el {
-                                    parser::Element::Path(p) => {
-                                        p.data.apply_transform(u_transform_to_bezier(&transform))
-                                    }
-                                    parser::Element::Image(img) => img.apply_transform(transform),
-                                    parser::Element::Text(_) => todo!(),
-                                });
+                                buffer
+                                    .elements
+                                    .iter_mut()
+                                    .for_each(|(_, el)| el.transform(transform));
                             }
                         });
                     });
@@ -144,7 +139,7 @@ impl Toolbar {
             .noninteractive
             .bg_stroke
             .color
-            .gamma_multiply(0.4);
+            .linear_multiply(0.4);
         ui.separator();
     }
 
@@ -195,7 +190,7 @@ impl Toolbar {
         ui.painter().rect_filled(
             active_rect,
             egui::Rounding::same(8.0),
-            egui::Color32::GRAY.gamma_multiply(0.1),
+            egui::Color32::GRAY.linear_multiply(0.1),
         );
 
         ui.add_space(4.0);
@@ -233,9 +228,11 @@ impl Toolbar {
                 self.show_default_color_swatches(ui);
             }
             Tool::Eraser => {
-                if let Some(thickness) =
-                    self.show_thickness_pickers(ui, self.eraser.thickness, vec![10.0, 30.0, 90.0])
-                {
+                if let Some(thickness) = self.show_thickness_pickers(
+                    ui,
+                    self.eraser.thickness,
+                    vec![DEFAULT_ERASER_THICKNESS, 30.0, 90.0],
+                ) {
                     self.eraser.thickness = thickness;
                 }
             }
@@ -275,13 +272,13 @@ impl Toolbar {
                 painter.rect_filled(
                     response.rect,
                     egui::Rounding::same(8.0),
-                    color.gamma_multiply(0.2),
+                    color.linear_multiply(0.2),
                 );
             }
             painter.circle_filled(
                 response.rect.center(),
                 COLOR_SWATCH_BTN_RADIUS,
-                color.gamma_multiply(opacity),
+                color.linear_multiply(opacity),
             );
         };
         response
@@ -313,14 +310,14 @@ impl Toolbar {
                 painter.rect_filled(
                     response.rect,
                     egui::Rounding::same(8.0),
-                    egui::Color32::GRAY.gamma_multiply(0.1),
+                    egui::Color32::GRAY.linear_multiply(0.1),
                 );
             }
 
             painter.rect_filled(
                 rect,
                 egui::Rounding::same(2.0),
-                ui.visuals().text_color().gamma_multiply(0.8),
+                ui.visuals().text_color().linear_multiply(0.8),
             );
 
             ui.add_space(THICKNESS_BTN_X_MARGIN);
@@ -405,6 +402,10 @@ fn calc_elements_bounds(buffer: &mut Buffer) -> egui::Rect {
     let mut elements_bound =
         egui::Rect { min: egui::pos2(f32::MAX, f32::MAX), max: egui::pos2(f32::MIN, f32::MIN) };
     for (_, el) in buffer.elements.iter() {
+        if el.deleted() {
+            continue;
+        }
+
         let el_rect = match el {
             parser::Element::Path(p) => {
                 // without this bezier_rs will panic when calculating bounding box
@@ -433,16 +434,4 @@ fn calc_elements_bounds(buffer: &mut Buffer) -> egui::Rect {
         elements_bound.max.y = elements_bound.max.y.max(el_rect.max.y);
     }
     elements_bound
-}
-
-fn zoom_percentage_to_transform(
-    zoom_percentage: f32, buffer: &mut Buffer, ui: &mut egui::Ui,
-) -> Transform {
-    let zoom_delta = (zoom_percentage) / (buffer.master_transform.sx * 100.0);
-    return Transform::identity()
-        .post_scale(zoom_delta, zoom_delta)
-        .post_translate(
-            (1.0 - zoom_delta) * ui.ctx().screen_rect().center().x,
-            (1.0 - zoom_delta) * ui.ctx().screen_rect().center().y,
-        );
 }

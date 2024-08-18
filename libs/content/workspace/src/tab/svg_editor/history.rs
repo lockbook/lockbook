@@ -1,8 +1,8 @@
 use std::{collections::VecDeque, fmt::Debug};
 
-use glam::DAffine2;
+use resvg::usvg::Transform;
 
-use super::{parser, selection::bezier_transform_to_u};
+use super::parser;
 
 #[derive(Default)]
 pub struct History {
@@ -30,7 +30,7 @@ pub struct InsertElement {
 #[derive(Clone, Debug)]
 pub struct TransformElement {
     pub id: String,
-    pub transform: DAffine2,
+    pub transform: Transform,
 }
 
 impl History {
@@ -46,34 +46,42 @@ impl History {
         match event {
             Event::Insert(payload) => {
                 payload.iter().for_each(|insert_payload| {
-                    if let Some(el) = buffer.deleted_elements.remove(&insert_payload.id) {
-                        buffer.elements.insert(insert_payload.id.to_owned(), el);
+                    if let Some(el) = buffer.elements.get_mut(&insert_payload.id) {
+                        match el {
+                            parser::Element::Path(p) => {
+                                p.deleted = false;
+                                p.diff_state.delete_changed = true;
+                            }
+                            parser::Element::Image(i) => {
+                                i.deleted = false;
+                                i.diff_state.delete_changed = true;
+                            }
+                            parser::Element::Text(_) => todo!(),
+                        }
                     }
                 });
             }
             Event::Delete(payload) => {
                 payload.iter().for_each(|delete_payload| {
-                    if let Some(el) = buffer.elements.remove(&delete_payload.id) {
-                        buffer
-                            .deleted_elements
-                            .insert(delete_payload.id.clone(), el);
+                    if let Some(el) = buffer.elements.get_mut(&delete_payload.id) {
+                        match el {
+                            parser::Element::Path(p) => {
+                                p.deleted = true;
+                                p.diff_state.delete_changed = true;
+                            }
+                            parser::Element::Image(i) => {
+                                i.deleted = true;
+                                i.diff_state.delete_changed = true;
+                            }
+                            parser::Element::Text(_) => todo!(),
+                        }
                     }
                 });
             }
             Event::Transform(payload) => {
                 payload.iter().for_each(|transform_payload| {
                     if let Some(el) = buffer.elements.get_mut(&transform_payload.id) {
-                        match el {
-                            parser::Element::Path(p) => {
-                                p.data.apply_transform(transform_payload.transform);
-                            }
-                            parser::Element::Image(img) => {
-                                img.apply_transform(bezier_transform_to_u(
-                                    &transform_payload.transform,
-                                ));
-                            }
-                            _ => {}
-                        }
+                        el.transform(transform_payload.transform);
                     }
                 });
             }
@@ -132,7 +140,10 @@ impl History {
                         .iter_mut()
                         .map(|transform_payload| TransformElement {
                             id: transform_payload.id.clone(),
-                            transform: transform_payload.transform.inverse(),
+                            transform: transform_payload
+                                .transform
+                                .invert()
+                                .unwrap_or(Transform::identity()),
                         })
                         .collect(),
                 )

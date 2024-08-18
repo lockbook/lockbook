@@ -120,6 +120,13 @@ impl From<&Icon> for egui::WidgetText {
 
 impl Icon {
     pub fn show(&self, ui: &mut egui::Ui) -> egui::Response {
+        self.inner_show(ui, None)
+    }
+    pub fn paint(&self, ui: &mut egui::Ui, painter: &egui::Painter) -> egui::Response {
+        self.inner_show(ui, Some(painter))
+    }
+
+    fn inner_show(&self, ui: &mut egui::Ui, painter: Option<&egui::Painter>) -> egui::Response {
         let padding = egui::vec2(0.0, 0.0);
         let desired_size = egui::vec2(self.size + padding.x, self.size + padding.y);
 
@@ -134,7 +141,9 @@ impl Icon {
             let icon: egui::WidgetText = self.into();
             let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
 
-            ui.painter().galley(icon_pos, icon, text_color);
+            painter
+                .unwrap_or(ui.painter())
+                .galley(icon_pos, icon, text_color);
         }
 
         resp
