@@ -110,12 +110,15 @@ impl SVGEditor {
                 );
             }
             Tool::Eraser => {
-                self.toolbar.eraser.handle_input(
-                    ui,
-                    self.inner_rect,
-                    &mut self.buffer,
-                    &mut self.history,
-                );
+                if let Some(painter) = &self.renderer.painter {
+                    self.toolbar.eraser.handle_input(
+                        ui,
+                        painter,
+                        self.inner_rect,
+                        &mut self.buffer,
+                        &mut self.history,
+                    );
+                }
             }
             Tool::Selection => {
                 if let Some(painter) = &self.renderer.painter {

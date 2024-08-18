@@ -223,20 +223,20 @@ impl Selection {
                     ui.output_mut(|w| w.cursor_icon = r.cursor_icon);
                 }
             }
-            if pos.is_some() {
+            if let Some(p) = pos {
                 match self.current_op {
                     SelectionOperation::Translation => {
                         self.selected_elements.iter_mut().for_each(|selection| {
                             if let Some(el) = buffer.elements.get_mut(&selection.id) {
                                 let transform = Transform::identity().post_translate(
-                                    pos.unwrap().x - selection.prev_pos.x,
-                                    pos.unwrap().y - selection.prev_pos.y,
+                                    p.x - selection.prev_pos.x,
+                                    p.y - selection.prev_pos.y,
                                 );
                                 selection.transform = selection.transform.post_concat(transform);
                                 el.transform(transform);
                             }
 
-                            selection.prev_pos = pos.unwrap();
+                            selection.prev_pos = p;
                             ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::Grabbing);
                         });
                     }
@@ -245,8 +245,7 @@ impl Selection {
                     | SelectionOperation::NorthScale
                     | SelectionOperation::SouthScale => {
                         if let Some(s_r) = self.selection_rect.as_ref() {
-                            let icon =
-                                snap_scale(pos.unwrap(), &mut self.selected_elements, s_r, buffer);
+                            let icon = snap_scale(p, &mut self.selected_elements, s_r, buffer);
                             if let Some(c) = icon {
                                 ui.output_mut(|w| w.cursor_icon = c);
                             }

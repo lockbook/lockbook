@@ -342,30 +342,7 @@ impl ToString for Buffer {
                 Element::Text(_) => {}
             }
         }
-        let path_pressures = self
-            .elements
-            .iter()
-            .filter_map(|(id, el)| {
-                if let Element::Path(p) = el {
-                    p.pressure
-                        .as_ref()
-                        .map(|pressure| (id.to_owned(), pressure.to_owned()))
-                } else {
-                    None
-                }
-            })
-            .collect();
 
-        let store = PersistentStore { path_pressures };
-
-        if let Ok(encoded_store) = bincode::serialize(&store) {
-            let serialized_string = base64::encode(encoded_store);
-            let store_node = format!(
-                r#"<text id="{}" font-family="Roboto">{}</text>"#,
-                LB_STORE_ID, serialized_string
-            );
-            let _ = write!(&mut root, "{}", store_node);
-        }
         let zoom_level = format!(
             r#"<g id="{}" transform="matrix({} {} {} {} {} {})"></g>"#,
             ZOOM_G_ID,
