@@ -14,13 +14,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
-    private val _sendToast = SingleMutableLiveData<String>()
+    private val _sendBreadcrumb = SingleMutableLiveData<String>()
     private val _determineSettingsInfo = MutableLiveData<SettingsInfo>()
     private val _exit = SingleMutableLiveData<Unit>()
     private val _notifyError = SingleMutableLiveData<LbError>()
 
-    val sendToast: LiveData<String>
-        get() = _sendToast
+    val sendBreadcrumb: LiveData<String>
+        get() = _sendBreadcrumb
 
     val determineSettingsInfo: LiveData<SettingsInfo>
         get() = _determineSettingsInfo
@@ -63,7 +63,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             when (val cancelResult = CoreModel.cancelSubscription()) {
                 is Ok -> {
-                    _sendToast.postValue(getString(R.string.settings_cancel_completed))
+                    _sendBreadcrumb.postValue(getString(R.string.settings_cancel_completed))
                     computeUsage()
                 }
                 is Err -> _notifyError.postValue(cancelResult.error.toLbError(getRes()))

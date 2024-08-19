@@ -32,6 +32,7 @@ import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import java.io.File
 import java.lang.ref.WeakReference
+import kotlin.system.exitProcess
 
 class SettingsFragment : PreferenceFragmentCompat() {
 
@@ -79,7 +80,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             onUpgrade.launch(Intent(context, UpgradeAccountActivity::class.java))
         }
 
-        model.sendToast.observe(
+        model.sendBreadcrumb.observe(
             viewLifecycleOwner
         ) { msg ->
             alertModel.notify(msg)
@@ -95,7 +96,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             viewLifecycleOwner
         ) {
             requireActivity().finishAffinity()
-            System.exit(0)
+            exitProcess(0)
         }
 
         model.notifyError.observe(
