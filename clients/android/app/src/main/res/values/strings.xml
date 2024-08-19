@@ -131,6 +131,17 @@
         <item quantity="other">%d files to pull</item>
     </plurals>
 
+    <string name="privacy">Privacy</string>
+
+    <string name="logout">Logout</string>
+    <string name="delete_account">Delete Account</string>
+
+    <string name="logout_confirmation_details">Are you sure you want to logout? If you haven\'t saved your account key, you will not be able to recover your account!</string>
+    <string name="delete_account_confirmation_details">Are you sure you want to delete your account?</string>
+
+    <string name="delete_account_success">Account successfully deleted.</string>
+    <string name="logout_success">Successfully logged out.</string>
+
     <!-- Errors -->
     <string name="no_account">You have no account.</string>
     <string name="could_not_reach_server">Offline.</string>
@@ -213,6 +224,10 @@
     <string name="premium_key">premium</string>
     <string name="show_running_out_of_space_0.9_key">running_out_of_space_0.9_key</string>
     <string name="show_running_out_of_space_0.8_key">running_out_of_space_0.8_key</string>
+
+    <string name="privacy_key">privacy</string>
+    <string name="logout_key">logout</string>
+    <string name="delete_account_key">delete_account</string>
 
     <!--    Billing-->
 

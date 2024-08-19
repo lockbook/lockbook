@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.PopupWindow
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat.finishAffinity
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -78,16 +79,23 @@ class SettingsFragment : PreferenceFragmentCompat() {
             onUpgrade.launch(Intent(context, UpgradeAccountActivity::class.java))
         }
 
-        model.canceledSubscription.observe(
+        model.sendToast.observe(
             viewLifecycleOwner
-        ) {
-            alertModel.notify(getString(R.string.settings_cancel_completed))
+        ) { msg ->
+            alertModel.notify(msg)
         }
 
         model.determineSettingsInfo.observe(
             viewLifecycleOwner
         ) { settingsInfo ->
             addDataToPreferences(settingsInfo)
+        }
+
+        model.exit.observe(
+            viewLifecycleOwner
+        ) {
+            requireActivity().finishAffinity()
+            System.exit(0)
         }
 
         model.notifyError.observe(
@@ -172,6 +180,28 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     .setMessage(R.string.settings_cancel_sub_confirmation_details)
                     .setPositiveButton(R.string.yes) { _, _ ->
                         model.cancelSubscription()
+                    }
+                    .setNegativeButton(R.string.no, null)
+
+                dialog.show()
+            }
+            getString(R.string.logout_key) -> {
+                val dialog = MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.logout)
+                    .setMessage(R.string.logout_confirmation_details)
+                    .setPositiveButton(R.string.yes) { _, _ ->
+                        model.logout()
+                    }
+                    .setNegativeButton(R.string.no, null)
+
+                dialog.show()
+            }
+            getString(R.string.delete_account_key) -> {
+                val dialog = MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.delete_account)
+                    .setMessage(R.string.delete_account_confirmation_details)
+                    .setPositiveButton(R.string.yes) { _, _ ->
+                        model.deleteAccount()
                     }
                     .setNegativeButton(R.string.no, null)
 
