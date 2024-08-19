@@ -139,9 +139,6 @@
     <string name="logout_confirmation_details">Are you sure you want to logout? If you haven\'t saved your account key, you will not be able to recover your account!</string>
     <string name="delete_account_confirmation_details">Are you sure you want to delete your account?</string>
 
-    <string name="delete_account_success">Account successfully deleted.</string>
-    <string name="logout_success">Successfully logged out.</string>
-
     <!-- Errors -->
     <string name="no_account">You have no account.</string>
     <string name="could_not_reach_server">Offline.</string>
@@ -161,8 +158,6 @@
     <string name="file_name_empty">A file\'s name cannot be empty.</string>
     <string name="no_file_with_that_id">No file with that id exists.</string>
     <string name="cannot_delete_root">You cannot delete root.</string>
-    <string name="folder_treated_as_drawing">A folder cannot be treated as a drawing.</string>
-    <string name="invalid_drawing">That drawing is invalid.</string>
     <string name="cannot_rename_root">You cannot rename root.</string>
     <string name="target_parent_has_a_child_named_that">Your target parent already has a child named that.</string>
     <string name="folder_moved_into_itself">A folder cannot be moved into itself.</string>
