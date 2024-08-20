@@ -44,6 +44,7 @@ struct OutlineRow: View {
                         .foregroundStyle(isSelected ? Color.white : Color.secondary)
                         .font(.system(size: (isSelected ? 10 : 17)))
                 }
+                .padding(.trailing, 5)
                 
             }
             
