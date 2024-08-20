@@ -228,6 +228,7 @@ impl Editor {
             Event::Delete { region } => {
                 let range = self.region_to_range(region);
                 operations.push(Operation::Replace { range, text: "".into() });
+                operations.push(Operation::Select { range: range.start().to_range() });
 
                 // check if we deleted a numbered list annotation and renumber subsequent items
                 let ast_text_ranges = (&self.bounds).ast.find_contained(range, true, true);
@@ -851,32 +852,28 @@ impl Editor {
 
     // todo: self by shared reference
     pub fn region_to_range(&mut self, region: Region) -> (DocCharOffset, DocCharOffset) {
-        let current_selection = self.buffer.current_selection;
+        let mut current_selection = self.buffer.current_selection;
         match region {
             Region::Location(location) => self.location_to_char_offset(location).to_range(),
             Region::ToLocation(location) => {
-                (current_selection.0, self.location_to_char_offset(location)).into()
+                (current_selection.0, self.location_to_char_offset(location))
             }
             Region::BetweenLocations { start, end } => {
-                (self.location_to_char_offset(start), self.location_to_char_offset(end)).into()
+                (self.location_to_char_offset(start), self.location_to_char_offset(end))
             }
             Region::Selection => current_selection,
             Region::SelectionOrOffset { offset, backwards } => {
                 if current_selection.is_empty() {
-                    current_selection
-                        .0
-                        .advance(
-                            &mut self.cursor.x_target,
-                            offset,
-                            backwards,
-                            &self.buffer.current_segs,
-                            &self.galleys,
-                            &self.bounds,
-                        )
-                        .to_range()
-                } else {
-                    current_selection
+                    current_selection.0 = current_selection.0.advance(
+                        &mut self.cursor.x_target,
+                        offset,
+                        backwards,
+                        &self.buffer.current_segs,
+                        &self.galleys,
+                        &self.bounds,
+                    );
                 }
+                current_selection
             }
             Region::ToOffset { offset, backwards, extend_selection } => {
                 if extend_selection
