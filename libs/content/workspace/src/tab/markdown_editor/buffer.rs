@@ -217,13 +217,6 @@ impl Buffer {
                         .replace_range(byte_range.start().0..byte_range.end().0, &text);
                     self.current_segs = unicode_segs::calc(&self.current_text);
 
-                    adjust_subsequent_range(
-                        range,
-                        text.graphemes(true).count().into(),
-                        true,
-                        &mut self.current_selection,
-                    );
-
                     text_updated = true;
                     selection_updated = true;
                 }

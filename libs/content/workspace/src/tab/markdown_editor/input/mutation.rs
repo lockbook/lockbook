@@ -37,6 +37,7 @@ impl Editor {
             Event::Replace { region, text } => {
                 let range = self.region_to_range(region);
                 operations.push(Operation::Replace { range, text });
+                operations.push(Operation::Select { range: range.start().to_range() })
             }
             Event::ToggleStyle { region, mut style } => {
                 let range = self.region_to_range(region);
@@ -101,7 +102,7 @@ impl Editor {
                     operations.push(Operation::Select { range: current_selection });
                 }
             }
-            Event::Newline { advance_cursor: _ } => {
+            Event::Newline { advance_cursor } => {
                 let galley_idx = (&self.galleys).galley_at_char(current_selection.1);
                 let galley = &(&self.galleys)[galley_idx];
                 let ast_text_range = (&self.bounds)
@@ -227,6 +228,11 @@ impl Editor {
                     // if it's none of the other things, just insert a newline
                     operations
                         .push(Operation::Replace { range: current_selection, text: "\n".into() });
+                    if advance_cursor {
+                        operations.push(Operation::Select {
+                            range: current_selection.start().to_range(),
+                        });
+                    }
                 }
             }
             Event::Delete { region } => {
@@ -1105,8 +1111,9 @@ fn insert_head(offset: DocCharOffset, style: MarkdownNode, operations: &mut Vec<
 fn insert_tail(offset: DocCharOffset, style: MarkdownNode, operations: &mut Vec<Operation>) {
     let text = style.node_type().tail().to_string();
     if style.node_type() == MarkdownNodeType::Inline(InlineNodeType::Link) {
-        // todo: leave cursor in link tail where you can type the link destination
-        operations.push(Operation::Replace { range: offset.to_range(), text });
+        operations.push(Operation::Replace { range: offset.to_range(), text: text[..2].into() });
+        operations.push(Operation::Select { range: offset.to_range() });
+        operations.push(Operation::Replace { range: offset.to_range(), text: text[2..].into() });
     } else {
         operations.push(Operation::Replace { range: offset.to_range(), text });
     }
