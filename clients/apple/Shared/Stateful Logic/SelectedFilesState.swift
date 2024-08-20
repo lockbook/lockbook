@@ -29,17 +29,13 @@ class SelectedFilesState: ObservableObject {
                 var newChildren: [File] = []
                 for child in childrenToAdd {
                     totalSelectedFiles?.insert(child)
+                    selectedFiles?.remove(child)
                     if child.fileType == .Folder {
                         newChildren.append(contentsOf: DI.files.childrenOf(child))
                     }
                 }
                 
                 childrenToAdd = newChildren
-            }
-            
-            let children = DI.files.childrenOf(file)
-            for child in children {
-                selectedFiles?.remove(child)
             }
         }
     }
@@ -57,7 +53,7 @@ class SelectedFilesState: ObservableObject {
         
         if current?.id != current?.parent {
             while current != nil {
-                if selectedFiles?.contains(current!) == true {
+                if totalSelectedFiles?.contains(current!) == true {
                     selectedFiles?.remove(current!)
                     totalSelectedFiles?.remove(current!)
                     
