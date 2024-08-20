@@ -213,16 +213,6 @@ impl Editor {
                             }
                         }
                         break 'modification;
-                    } else if current_selection.1 == galley.range.start() + galley.head_size
-                        && !matches!(galley.annotation, Some(Annotation::Item(..)))
-                    {
-                        // cursor at start of non-list item -> insert newline before annotation
-                        operations.push(Operation::Replace {
-                            range: galley.range.start().to_range(),
-                            text: "\n".into(),
-                        });
-
-                        break 'modification;
                     }
 
                     // if it's none of the other things, just insert a newline
