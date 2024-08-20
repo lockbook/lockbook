@@ -849,7 +849,8 @@ impl Editor {
         }
     }
 
-    pub fn region_to_range(&self, region: Region) -> (DocCharOffset, DocCharOffset) {
+    // todo: self by shared reference
+    pub fn region_to_range(&mut self, region: Region) -> (DocCharOffset, DocCharOffset) {
         let current_selection = self.buffer.current_selection;
         match region {
             Region::Location(location) => self.location_to_char_offset(location).to_range(),
@@ -865,7 +866,7 @@ impl Editor {
                     current_selection
                         .0
                         .advance(
-                            &mut None,
+                            &mut self.cursor.x_target,
                             offset,
                             backwards,
                             &self.buffer.current_segs,
@@ -884,7 +885,7 @@ impl Editor {
                 {
                     let mut selection = current_selection;
                     selection.1 = selection.1.advance(
-                        &mut None,
+                        &mut self.cursor.x_target,
                         offset,
                         backwards,
                         &self.buffer.current_segs,
