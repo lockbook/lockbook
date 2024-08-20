@@ -216,32 +216,58 @@ class FileService: ObservableObject {
             }
         }
     }
+    
+    func moveFiles(ids: [UUID], newParent: UUID) -> Bool {
+        var ids = Set(ids)
+        
+        for id in ids {
+            var parent = idsAndFiles[id]?.parent
+            
+            while parent != nil && parent != root?.id {
+                if ids.contains(parent!) {
+                    ids.remove(id)
+                    break
+                }
+                
+                parent = idsAndFiles[parent!]?.parent
+            }
+            
+        }
+        
+        var parent = idsAndFiles[newParent]?.parent
+        
+        while parent != nil && parent != root?.id {
+            if ids.contains(parent!) {
+                return false
+            }
+            
+            parent = idsAndFiles[parent!]?.parent
+        }
+        
+        for id in ids {
+            let res = core.moveFile(id: id, newParent: newParent)
 
-    func moveFileSync(id: UUID, newParent: UUID) -> Bool {
-        print("moving file")
-        let operation = core.moveFile(id: id, newParent: newParent)
-
-        switch operation {
-        case .success(_):
-            self.successfulAction = .move
-            refresh()
-            return true
-        case .failure(let error):
-            switch error.kind {
-            case .UiError(let uiError):
-                switch uiError {
-                case .FolderMovedIntoItself:
-                    DI.errors.errorWithTitle("Move Error", "Cannot move a folder into itself or one of it's children")
-                case .TargetParentHasChildNamedThat:
-                    DI.errors.errorWithTitle("Move Error", "Target folder has a child named that")
+            if case .failure(let error) = res {
+                switch error.kind {
+                case .UiError(let uiError):
+                    switch uiError {
+                    case .FolderMovedIntoItself:
+                        DI.errors.errorWithTitle("Move Error", "Cannot move a folder into itself or one of it's children")
+                    case .TargetParentHasChildNamedThat:
+                        DI.errors.errorWithTitle("Move Error", "Target folder has a child named that")
+                    default:
+                        DI.errors.handleError(error)
+                    }
                 default:
                     DI.errors.handleError(error)
                 }
-            default:
-                DI.errors.handleError(error)
+                return false
             }
-            return false
         }
+        
+        self.successfulAction = .move
+        refresh()
+        return true
     }
 
     func deleteFiles(ids: [UUID]) {

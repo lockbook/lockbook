@@ -62,6 +62,7 @@ struct FileTreeView: NSViewRepresentable, Equatable {
         for selected in files.selectedFiles ?? [] {
             let row = treeView.row(forItem: selected)
             if row != -1 && !treeView.isRowSelected(row) {
+                print("selecting \(selected.name)")
                 treeView.selectRowIndexes([row], byExtendingSelection: true)
             }
         }
@@ -75,28 +76,13 @@ struct FileTreeView: NSViewRepresentable, Equatable {
            !treeView.isRowSelected(treeView.row(forItem: meta)),
            dataSource.selectedDoc != openDocId && workspace.openDocRequested == nil {
             dataSource.selectedDoc = workspace.openDoc
+            files.selectedFiles = []
+            print("opening \(meta.name)")
             
             expandToFile(meta: meta)
             treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: false)
             treeView.animator().scrollRowToVisible(treeView.row(forItem: meta))
         }
-        
-//        if workspace.openDoc == nil && dataSource.selectedDoc != nil {
-//            dataSource.selectedDoc = nil
-//            treeView.selectRowIndexes(IndexSet(), byExtendingSelection: false)
-//        } else if let openDoc = workspace.openDoc,
-//            let meta = files.idsAndFiles[openDoc] {
-//                        
-//            if workspace.openDoc != nil && dataSource.selectedDoc != workspace.openDoc {
-//                expandToFile(meta: meta)
-//                dataSource.selectedDoc = workspace.openDoc
-//                
-//                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: true)
-//                treeView.animator().scrollRowToVisible(treeView.row(forItem: meta))
-//            } else {
-//                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: true)
-//            }
-//        }
     }
     
     func expandToFile(meta: File) {
@@ -127,6 +113,8 @@ class MenuOutlineView: NSOutlineView {
 
     @objc private func outlineViewClicked(_ outlineView: NSOutlineView) {
         if let meta = item(atRow: clickedRow) as? File {
+            becomeFirstResponder()
+            
             if NSEvent.modifierFlags.contains(.command) {
                 DI.files.addFileToSelection(file: meta)
                 
