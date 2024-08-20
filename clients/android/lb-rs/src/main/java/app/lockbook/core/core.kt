@@ -8,6 +8,8 @@ external fun createAccount(username: String, apiUrl: String): String
 external fun importAccount(account: String): String
 external fun exportAccount(): String
 external fun getAccount(): String
+external fun logout()
+external fun deleteAccount(): String
 
 // android only
 external fun convertToHumanDuration(timeStamp: Long): String

@@ -154,11 +154,10 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
 
     /// This function is used to log out and delete the user's data from the local filesystem.
     /// Don't call it without warning the user to back up their private key.
-    pub fn logout_and_exit(self) -> ! {
+    pub fn logout(self) {
         let inner = self.inner.lock().unwrap();
         let path = &inner.config.writeable_path;
         std::fs::remove_dir_all(path).unwrap();
-        std::process::exit(0);
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]

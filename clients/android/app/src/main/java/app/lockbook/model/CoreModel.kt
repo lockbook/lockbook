@@ -450,4 +450,17 @@ object CoreModel {
         suggestedDocsParser.tryParse(
             app.lockbook.core.suggestedDocs()
         )
+
+    private val deleteAccountParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(ListSerializer(Unit.serializer()), DeleteAccountError.serializer())
+        }
+    }
+
+    fun deleteAccount(): Result<Unit, CoreError<DeleteAccountError>> =
+        deleteAccountParser.tryParse(
+            app.lockbook.core.deleteAccount()
+        )
+
+    fun logout() = app.lockbook.core.logout()
 }
