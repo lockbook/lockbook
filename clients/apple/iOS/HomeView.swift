@@ -78,9 +78,9 @@ struct HomeView: View {
 
 struct SidebarView: View {
     @EnvironmentObject var files: FileService
+    @EnvironmentObject var selected: SelectedFilesState
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var share: ShareService
-    @EnvironmentObject var billing: BillingService
     @EnvironmentObject var settings: SettingsService
     
     @State private var searchBar: UISearchBar?
@@ -201,11 +201,11 @@ struct SidebarView: View {
             BottomBar()
         }
         .toolbar {
-            if files.selectedFiles == nil {
+            if selected.selectedFiles == nil {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button(action: {
                         withAnimation(.linear(duration: 0.2)) {
-                            files.selectedFiles = []
+                            selected.selectedFiles = []
                         }
                     }, label: {
                         Text("Edit")
@@ -232,7 +232,7 @@ struct SidebarView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: {
                         withAnimation {
-                            files.selectedFiles = nil
+                            selected.selectedFiles = nil
                         }
                     }, label: {
                         Text("Done")

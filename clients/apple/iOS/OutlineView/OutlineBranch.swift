@@ -9,6 +9,7 @@ import SwiftWorkspace
 
 struct OutlineBranch: View {
     @EnvironmentObject var files: FileService
+    @EnvironmentObject var selected: SelectedFilesState
     @EnvironmentObject var errors: UnexpectedErrorService
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var workspace: WorkspaceState
@@ -27,11 +28,11 @@ struct OutlineBranch: View {
     }
     
     var isSelected: Bool {
-        files.totalSelectedFiles?.contains(file) == true
+        selected.totalSelectedFiles?.contains(file) == true
     }
     
     var isSelectable: Bool {
-        files.selectedFiles != nil
+        selected.selectedFiles != nil
     }
     
     @ViewBuilder
@@ -43,9 +44,9 @@ struct OutlineBranch: View {
                         .onTapGesture {
                             if isSelectable {
                                 if isSelected {
-                                    files.removeFileFromSelection(file: file)
+                                    selected.removeFileFromSelection(file: file)
                                 } else {
-                                    files.addFileToSelection(file: file)
+                                    selected.addFileToSelection(file: file)
                                 }
                             } else {
                                 if file.fileType == .Folder {

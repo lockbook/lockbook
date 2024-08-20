@@ -8,10 +8,11 @@ struct BottomBar: View {
     var isiOS = false
     
     @EnvironmentObject var files: FileService
+    @EnvironmentObject var selected: SelectedFilesState
     @EnvironmentObject var workspace: WorkspaceState
 
     var body: some View {
-        if files.selectedFiles != nil {
+        if selected.selectedFiles != nil {
             selectionView
         } else {
             mainView
@@ -23,43 +24,43 @@ struct BottomBar: View {
             Spacer()
             
             Button(role: .destructive, action: {
-                if let selectedFiles = files.selectedFiles {
+                if let selectedFiles = selected.selectedFiles {
                     DI.sheets.deleteConfirmationInfo = Array(selectedFiles)
                 }
             }) {
                 Image(systemName: "trash")
                     .imageScale(.large)
             }
-            .disabled(files.selectedFiles?.count == 0)
+            .disabled(selected.selectedFiles?.count == 0)
             
             Spacer()
             
             Button(action: {
-                if let selectedIds = DI.files.selectedFiles?.map({ $0.id }) {
+                if let selectedIds = selected.selectedFiles?.map({ $0.id }) {
                     DI.sheets.movingInfo = .Move(selectedIds)
                 }
             }, label: {
                 Image(systemName: "folder")
                     .imageScale(.large)
             })
-            .disabled(files.selectedFiles?.count == 0)
+            .disabled(selected.selectedFiles?.count == 0)
             
             Spacer()
             
             Button(action: {
-                if let selectedFiles = DI.files.selectedFiles {
+                if let selectedFiles = selected.selectedFiles {
                     exportFilesAndShowShareSheet(metas: Array(selectedFiles))
-                    DI.files.selectedFiles = nil
+                    selected.selectedFiles = nil
                 }
             }, label: {
                 Image(systemName: "square.and.arrow.up")
                     .imageScale(.large)
             })
-            .disabled(files.selectedFiles?.count == 0)
+            .disabled(selected.selectedFiles?.count == 0)
             
             Spacer()
         }
-        .foregroundStyle(files.selectedFiles?.count == 0 ? .gray : .blue)
+        .foregroundStyle(selected.selectedFiles?.count == 0 ? .gray : .blue)
         .padding(.horizontal)
     }
     

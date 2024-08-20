@@ -74,9 +74,13 @@ struct FileCell: View {
         Button(action: {
             if isSelectable {
                 if isSelected {
-                    DI.files.removeFileFromSelection(file: meta)
+                    withAnimation {
+                        DI.selected.removeFileFromSelection(file: meta)
+                    }
                 } else {
-                    DI.files.addFileToSelection(file: meta)
+                    withAnimation {
+                        DI.selected.addFileToSelection(file: meta)
+                    }
                 }
             } else {
                 if meta.fileType == .Document {

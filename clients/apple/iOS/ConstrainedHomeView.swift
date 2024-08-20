@@ -145,7 +145,7 @@ struct ConstrainedHomeView: View {
                 DI.search.endSearch(isPathAndContentSearch: true)
             }
         })
-        .navigationBarTitle(DI.accounts.account?.username ?? "...")
+        .navigationTitle(DI.accounts.account?.username ?? "...")
     }
     
     var noSearchResultsView: some View {
@@ -225,6 +225,7 @@ struct ConstrainedHomeView: View {
 
 struct FileListView: View {
     @EnvironmentObject var files: FileService
+    @EnvironmentObject var selected: SelectedFilesState
     @EnvironmentObject var share: ShareService
     @EnvironmentObject var workspace: WorkspaceState
 
@@ -249,11 +250,11 @@ struct FileListView: View {
         }
         .modifier(FilesListScrollViewModifier(haveScrollView: haveScrollView, isEmptyView: children.isEmpty))
         .toolbar {
-            if files.selectedFiles == nil {
+            if selected.selectedFiles == nil {
                 ToolbarItemGroup {
                     Button(action: {
                         withAnimation(.linear(duration: 0.2)) {
-                            files.selectedFiles = []
+                            selected.selectedFiles = []
                         }
                     }, label: {
                         Text("Edit")
@@ -275,16 +276,26 @@ struct FileListView: View {
             } else {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: {
-                        if files.selectedFiles?.isEmpty == false {
-                            files.selectedFiles = []
+                        if selected.selectedFiles?.isEmpty == false {
+                            withAnimation(.linear(duration: 0.2)) {
+                                selected.selectedFiles = []
+                            }
                         } else {
                             for child in files.childrenOfParent() {
-                                files.addFileToSelection(file: child)
+                                withAnimation(.linear(duration: 0.2)) {
+                                    selected.addFileToSelection(file: child)
+                                }
                             }
                         }
                     }, label: {
-                        Text(files.selectedFiles?.isEmpty == false ? "Deselect All" : "Select All")
-                            .foregroundStyle(.blue)
+                        if selected.selectedFiles?.isEmpty == false {
+                            Text("Deselect All")
+                                .foregroundStyle(.blue)
+                        } else {
+                            Text("Select All")
+                                .foregroundStyle(.blue)
+                        }
+                        
                     })
                     .padding(.trailing, 5)
                     .navigationBarBackButtonHidden()
@@ -292,8 +303,8 @@ struct FileListView: View {
                 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: {
-                        withAnimation {
-                            files.selectedFiles = nil
+                        withAnimation(.linear(duration: 0.2)) {
+                            selected.selectedFiles = nil
                         }
                     }, label: {
                         Text("Done")
@@ -305,8 +316,8 @@ struct FileListView: View {
     }
     
     var childrenView: some View {
-        ForEach(files.childrenOf(parent)) { meta in
-            FileCell(meta: meta, selectedFiles: files.selectedFiles)
+        ForEach(files.childrenOf(parent), id: \.self) { meta in
+            FileCell(meta: meta, selectedFiles: selected.selectedFiles)
         }
     }
     

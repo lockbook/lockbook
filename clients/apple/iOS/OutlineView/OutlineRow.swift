@@ -5,6 +5,7 @@ import SwiftWorkspace
 struct OutlineRow: View {
     
     @EnvironmentObject var files: FileService
+    @EnvironmentObject var selected: SelectedFilesState
     @EnvironmentObject var workspace: WorkspaceState
     
     var file: File
@@ -22,11 +23,11 @@ struct OutlineRow: View {
     }
     
     var isSelected: Bool {
-        files.totalSelectedFiles?.contains(file) == true
+        selected.totalSelectedFiles?.contains(file) == true
     }
     
     var isSelectable: Bool {
-        files.selectedFiles != nil
+        selected.selectedFiles != nil
     }
     
     var body: some View {
@@ -71,7 +72,7 @@ struct OutlineRow: View {
         .contentShape(Rectangle())
         .padding(.leading, level * 20 + 5)
         .padding(.trailing, 10)
-        .modifier(SelectedBranchViewModifier(file: file, openDoc: workspace.openDoc, selectedFiles: files.totalSelectedFiles))
+        .modifier(SelectedBranchViewModifier(file: file, openDoc: workspace.openDoc, selectedFiles: selected.totalSelectedFiles))
     }
 }
 

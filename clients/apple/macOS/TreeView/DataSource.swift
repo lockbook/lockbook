@@ -123,7 +123,7 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
         let file = item as! File
         let parent = item == nil ? DI.files.root! : file
         
-        if let selectedFiles = DI.files.selectedFiles,
+        if let selectedFiles = DI.selected.selectedFiles,
            selectedFiles.contains(file),
            selectedFiles.count > 1 {
             let selectedFiles = Array(selectedFiles)

@@ -84,7 +84,7 @@ class SelectFolderViewModel: ObservableObject {
             
             DI.files.successfulAction = .move
             DI.files.refresh()
-            DI.files.selectedFiles = nil
+            DI.selected.selectedFiles = nil
             
             return true
         case .Import(let paths):
@@ -96,7 +96,7 @@ class SelectFolderViewModel: ObservableObject {
             
             DI.files.successfulAction = .importFiles
             DI.files.refresh()
-            DI.files.selectedFiles = nil
+            DI.selected.selectedFiles = nil
             
             return true
         case .AcceptShare((let name, let id)):
@@ -109,7 +109,7 @@ class SelectFolderViewModel: ObservableObject {
             DI.files.successfulAction = .acceptedShare
             DI.files.refresh()
             DI.share.calculatePendingShares()
-            DI.files.selectedFiles = nil
+            DI.selected.selectedFiles = nil
             
             return true
         }

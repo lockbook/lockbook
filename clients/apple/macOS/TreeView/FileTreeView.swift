@@ -9,6 +9,7 @@ struct FileTreeView: NSViewRepresentable, Equatable {
     let dataSource = DataSource()
 
     @EnvironmentObject var files: FileService
+    @EnvironmentObject var selected: SelectedFilesState
     @EnvironmentObject var workspace: WorkspaceState
         
     func makeNSView(context: Context) -> NSScrollView {
@@ -59,7 +60,7 @@ struct FileTreeView: NSViewRepresentable, Equatable {
             treeView.reloadData()
         }
         
-        for selected in files.selectedFiles ?? [] {
+        for selected in selected.selectedFiles ?? [] {
             let row = treeView.row(forItem: selected)
             if row != -1 && !treeView.isRowSelected(row) {
                 print("selecting \(selected.name)")
@@ -76,7 +77,7 @@ struct FileTreeView: NSViewRepresentable, Equatable {
            !treeView.isRowSelected(treeView.row(forItem: meta)),
            dataSource.selectedDoc != openDocId && workspace.openDocRequested == nil {
             dataSource.selectedDoc = workspace.openDoc
-            files.selectedFiles = []
+            selected.selectedFiles = []
             print("opening \(meta.name)")
             
             expandToFile(meta: meta)
@@ -116,17 +117,17 @@ class MenuOutlineView: NSOutlineView {
             becomeFirstResponder()
             
             if NSEvent.modifierFlags.contains(.command) {
-                DI.files.addFileToSelection(file: meta)
+                DI.selected.addFileToSelection(file: meta)
                 
                 if let openDocId = DI.workspace.openDoc,
                    let meta = DI.files.idsAndFiles[openDocId],
-                   DI.files.selectedFiles?.contains(meta) == false {
-                    DI.files.addFileToSelection(file: meta)
+                   DI.selected.selectedFiles?.contains(meta) == false {
+                    DI.selected.addFileToSelection(file: meta)
                 }
                 
                 return
             } else {
-                DI.files.selectedFiles = []
+                DI.selected.selectedFiles = []
                 for row in outlineView.selectedRowIndexes {
                     if row != clickedRow {
                         outlineView.deselectRow(row)
@@ -145,8 +146,8 @@ class MenuOutlineView: NSOutlineView {
                 return
             }
             
-            DI.files.selectedFiles = []
-            DI.files.addFileToSelection(file: meta)
+            DI.selected.selectedFiles = []
+            DI.selected.addFileToSelection(file: meta)
             
             if isItemExpanded(meta) {
                 DI.files.expandedFolders.removeAll(where: { $0 == meta.id })
