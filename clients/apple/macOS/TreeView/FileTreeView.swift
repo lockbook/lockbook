@@ -121,7 +121,8 @@ class MenuOutlineView: NSOutlineView {
                 
                 if let openDocId = DI.workspace.openDoc,
                    let meta = DI.files.idsAndFiles[openDocId],
-                   DI.selected.selectedFiles?.contains(meta) == false {
+                   DI.selected.selectedFiles?.contains(meta) == false,
+                   outlineView.isRowSelected(outlineView.row(forItem: meta)) {
                     DI.selected.addFileToSelection(file: meta)
                 }
                 

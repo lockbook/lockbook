@@ -19,9 +19,7 @@ class SelectedFilesState: ObservableObject {
             return
         }
         
-//        let _ = withAnimation(.linear(duration: 0.1)) {
-            selectedFiles?.insert(file)
-//        }
+        selectedFiles?.insert(file)
         totalSelectedFiles?.insert(file)
         
         if file.fileType == .Folder {
@@ -39,7 +37,7 @@ class SelectedFilesState: ObservableObject {
                 childrenToAdd = newChildren
             }
             
-            var children = DI.files.childrenOf(file)
+            let children = DI.files.childrenOf(file)
             for child in children {
                 selectedFiles?.remove(child)
             }

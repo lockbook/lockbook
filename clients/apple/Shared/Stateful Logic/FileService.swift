@@ -432,7 +432,7 @@ class FileService: ObservableObject {
         switch DI.core.listFolderPaths() {
         case .success(let paths):
             return paths.map({ String($0.dropFirst()) }).sorted()
-        case .failure(let e):
+        case .failure(_):
             return nil
         }
     }
