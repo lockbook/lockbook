@@ -415,7 +415,9 @@ where
             AdminSetUserTierInfo::Free => None,
         };
 
-        self.release_subscription_profile::<AdminSetUserTierError>(context.public_key, account)?;
+        account.username = request.username.clone();
+
+        self.release_subscription_profile::<AdminSetUserTierError>(public_key, account)?;
 
         Ok(AdminSetUserTierResponse {})
     }
