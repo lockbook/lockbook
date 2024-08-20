@@ -238,7 +238,6 @@ struct DetailView: View {
                                 .imageScale(.large)
                         })
                         .foregroundColor(.blue)
-                        .padding(.trailing, 10)
                     }
                     
                     Button(action: {
@@ -248,7 +247,6 @@ struct DetailView: View {
                             .imageScale(.large)
                     })
                     .foregroundColor(.blue)
-                    .padding(.trailing, 5)
                 }
                 
                 Button(action: {

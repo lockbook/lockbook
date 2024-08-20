@@ -297,7 +297,6 @@ struct FileListView: View {
                         }
                         
                     })
-                    .padding(.trailing, 5)
                     .navigationBarBackButtonHidden()
                 }
                 

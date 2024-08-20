@@ -47,7 +47,6 @@ struct HomeView: View {
                         Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                     }
                     .foregroundColor(.blue)
-                    .padding(.trailing, 5)
                     
                     Button(action: {
                         DI.sheets.sharingFileInfo = meta
@@ -211,14 +210,12 @@ struct SidebarView: View {
                         Text("Edit")
                             .foregroundStyle(.blue)
                     })
-                    .padding(.trailing, 5)
                     
                     Button(action: {
                         DI.share.showPendingSharesView = true
                     }) {
                         pendingShareToolbarIcon(isPendingSharesEmpty: DI.share.pendingShares?.isEmpty ?? false)
                     }
-                    .padding(.trailing, 5)
                     
                     Button(action: {
                         DI.settings.showView = true
