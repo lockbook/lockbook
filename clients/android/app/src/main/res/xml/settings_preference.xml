@@ -95,6 +95,21 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:key="@string/privacy_key"
+        android:icon="@drawable/baseline_admin_panel_settings_24"
+        android:title="@string/privacy">
+        <Preference
+            android:key="@string/logout_key"
+            app:title="@string/logout"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="@string/delete_account_key"
+            app:title="@string/delete_account"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:icon="@drawable/ic_baseline_bug_report_24"
         android:title="@string/settings_preference_debug">
         <Preference

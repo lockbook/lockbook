@@ -420,28 +420,13 @@ enum class DeletePendingShareError : UiCoreError {
 }
 
 @Serializable
-enum class GetDrawingError : UiCoreError {
-    FolderTreatedAsDrawing,
-    InvalidDrawing,
-    FileDoesNotExist;
+enum class DeleteAccountError : UiCoreError {
+    CouldNotReachServer,
+    ClientUpdateRequired;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        FolderTreatedAsDrawing -> LbError.newUserError(getString(res, R.string.folder_treated_as_drawing))
-        InvalidDrawing -> LbError.newUserError(getString(res, R.string.invalid_drawing))
-        FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
-    }
-}
-
-@Serializable
-enum class SaveDrawingError : UiCoreError {
-    FileDoesNotExist,
-    FolderTreatedAsDrawing,
-    InvalidDrawing;
-
-    override fun toLbError(res: Resources): LbError = when (this) {
-        FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
-        FolderTreatedAsDrawing -> LbError.newUserError(getString(res, R.string.folder_treated_as_drawing))
-        InvalidDrawing -> LbError.newUserError(getString(res, R.string.invalid_drawing))
+        CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
+        ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
     }
 }
 

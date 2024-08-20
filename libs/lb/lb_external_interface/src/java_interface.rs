@@ -788,6 +788,25 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_suggestedDocs(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_logout(_env: JNIEnv, _: JClass) {
+    let core = static_state::get().expect("Could not get core");
+    core.core.logout();
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteAccount(
+    env: JNIEnv, _: JClass,
+) -> jstring {
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.delete_account()),
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getAllErrorVariants(
     env: JNIEnv, _: JClass,
 ) -> jstring {
