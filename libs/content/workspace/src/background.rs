@@ -74,14 +74,12 @@ impl BackgroundWorker {
     }
 
     fn target_sync_frequency(&self, now: &Instant) -> Duration {
-        // todo: fix user_last_seen (see below)
-        return Duration::from_secs(1);
         match now
             .duration_since(self.worker_state.user_last_seen)
             .as_secs()
         {
             // todo: revisit
-            0..=59 => Duration::from_secs(1),
+            0..=59 => Duration::from_secs(10),
             60..=3600 => Duration::from_secs(60),
             _ => Duration::from_secs(3600),
         }
