@@ -11,7 +11,7 @@ use super::click_checker::EditorClickChecker;
 impl Editor {
     /// combines `events` and `custom_events` into a single set of events
     pub fn combine_events(
-        &mut self, events: &[egui::Event], custom_events: &[crate::Event], touch_mode: bool,
+        &mut self, events: Vec<egui::Event>, custom_events: Vec<crate::Event>, touch_mode: bool,
     ) -> Vec<Event> {
         let click_checker = EditorClickChecker {
             ui_rect: self.ui_rect,
@@ -21,7 +21,7 @@ impl Editor {
             appearance: &self.appearance,
             bounds: &self.bounds,
         };
-        let canonical_egui_events = events.iter().filter_map(|e| {
+        let canonical_egui_events = events.into_iter().filter_map(|e| {
             canonical::calc(
                 e,
                 &click_checker,

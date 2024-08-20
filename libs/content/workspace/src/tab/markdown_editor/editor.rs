@@ -167,7 +167,7 @@ impl Editor {
                     .fill(fill)
                     .inner_margin(egui::Margin::symmetric(0.0, 15.0))
                     .show(ui, |ui| {
-                        ui.vertical_centered(|ui| self.show_inner(ui, self.id, touch_mode, &events))
+                        ui.vertical_centered(|ui| self.show_inner(ui, self.id, touch_mode, events))
                     })
             });
         self.ui_rect = sao.inner_rect;
@@ -201,7 +201,7 @@ impl Editor {
     }
 
     fn show_inner(
-        &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: &[egui::Event],
+        &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: Vec<egui::Event>,
     ) -> Response {
         self.debug.frame_start();
 
@@ -227,7 +227,7 @@ impl Editor {
             {
                 let custom_events = ui.ctx().pop_events();
                 let (text_updated, selection_updated) =
-                    self.process_events(ui.ctx(), events, &custom_events, touch_mode);
+                    self.process_events(ui.ctx(), events, custom_events, touch_mode);
                 (text_updated, selection_updated)
             } else {
                 (false, false)
@@ -369,31 +369,31 @@ impl Editor {
     }
 
     fn process_events(
-        &mut self, ctx: &egui::Context, events: &[egui::Event], custom_events: &[crate::Event],
-        touch_mode: bool,
+        &mut self, ctx: &egui::Context, events: Vec<egui::Event>,
+        mut custom_events: Vec<crate::Event>, touch_mode: bool,
     ) -> (bool, bool) {
         // if the cursor is in an invalid location, move it to the next valid location
-        if let BoundCase::BetweenRanges { range_after, .. } = self
-            .buffer
-            .current_selection
-            .0
-            .bound_case(&self.bounds.text)
         {
-            // todo: also not okay
-            self.buffer.current_selection.0 = range_after.start();
-        }
-        if let BoundCase::BetweenRanges { range_after, .. } = self
-            .buffer
-            .current_selection
-            .1
-            .bound_case(&self.bounds.text)
-        {
-            // todo: also not okay
-            self.buffer.current_selection.1 = range_after.start();
+            let mut fixed_selection = self.buffer.current_selection;
+            if let BoundCase::BetweenRanges { range_after, .. } =
+                fixed_selection.0.bound_case(&self.bounds.text)
+            {
+                fixed_selection.0 = range_after.start();
+            }
+            if let BoundCase::BetweenRanges { range_after, .. } =
+                fixed_selection.1.bound_case(&self.bounds.text)
+            {
+                fixed_selection.1 = range_after.start();
+            }
+            if fixed_selection != self.buffer.current_selection {
+                let event =
+                    crate::Event::Markdown(Event::Select { region: fixed_selection.into() });
+                custom_events.splice(0..0, std::iter::once(event));
+            }
         }
 
         let prior_selection = self.buffer.current_selection;
-        let combined_events = self.combine_events(events, custom_events, touch_mode);
+        let combined_events = self.combine_events(events.clone(), custom_events, touch_mode);
         let (text_updated, selection_updated) =
             self.process_combined_events(ctx, combined_events.clone());
 

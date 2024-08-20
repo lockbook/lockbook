@@ -8,8 +8,8 @@ use markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::time::Instant;
 
-impl From<&Modifiers> for Offset {
-    fn from(modifiers: &Modifiers) -> Self {
+impl From<Modifiers> for Offset {
+    fn from(modifiers: Modifiers) -> Self {
         let should_jump_line = modifiers.mac_cmd;
 
         let is_apple = cfg!(target_vendor = "apple");
@@ -30,7 +30,7 @@ impl From<&Modifiers> for Offset {
 /// Translates UI events into editor events. Editor events are interpreted based on the state of the buffer when
 /// they're applied, so this translation makes minimal use of the editor's current state.
 pub fn calc(
-    event: &egui::Event, click_checker: impl ClickChecker, pointer_state: &mut PointerState,
+    event: egui::Event, click_checker: impl ClickChecker, pointer_state: &mut PointerState,
     now: Instant, touch_mode: bool, appearance: &appearance::Appearance,
 ) -> Option<Event> {
     match event {
@@ -44,7 +44,7 @@ pub fn calc(
                     } else {
                         Offset::By(Increment::Line)
                     },
-                    backwards: key == &Key::ArrowUp,
+                    backwards: key == Key::ArrowUp,
                     extend_selection: modifiers.shift,
                 },
             })
@@ -78,7 +78,7 @@ pub fn calc(
             Some(Event::Delete {
                 region: Region::SelectionOrOffset {
                     offset: Offset::from(modifiers),
-                    backwards: key == &Key::Backspace,
+                    backwards: key == Key::Backspace,
                 },
             })
         }
@@ -222,24 +222,24 @@ pub fn calc(
             button: PointerButton::Primary,
             pressed: true,
             modifiers,
-        } if click_checker.ui(*pos) => {
-            pointer_state.press(now, *pos, *modifiers);
+        } if click_checker.ui(pos) => {
+            pointer_state.press(now, pos, modifiers);
             None
         }
-        egui::Event::PointerMoved(pos) if click_checker.ui(*pos) => {
-            pointer_state.drag(now, *pos);
+        egui::Event::PointerMoved(pos) if click_checker.ui(pos) => {
+            pointer_state.drag(now, pos);
             if pointer_state.click_dragged.unwrap_or_default() && !touch_mode {
                 if pointer_state.click_mods.unwrap_or_default().shift {
-                    Some(Event::Select { region: Region::ToLocation(Location::Pos(*pos)) })
+                    Some(Event::Select { region: Region::ToLocation(Location::Pos(pos)) })
                 } else if let Some(click_pos) = pointer_state.click_pos {
                     Some(Event::Select {
                         region: Region::BetweenLocations {
                             start: Location::Pos(click_pos),
-                            end: Location::Pos(*pos),
+                            end: Location::Pos(pos),
                         },
                     })
                 } else {
-                    Some(Event::Select { region: Region::ToLocation(Location::Pos(*pos)) })
+                    Some(Event::Select { region: Region::ToLocation(Location::Pos(pos)) })
                 }
             } else {
                 None
@@ -253,11 +253,11 @@ pub fn calc(
             let click_mods = pointer_state.click_mods.unwrap_or_default();
             let click_dragged = pointer_state.click_dragged.unwrap_or_default();
             pointer_state.release();
-            let location = Location::Pos(*pos);
+            let location = Location::Pos(pos);
 
-            if let Some(galley_idx) = click_checker.checkbox(*pos, touch_mode) {
+            if let Some(galley_idx) = click_checker.checkbox(pos, touch_mode) {
                 Some(Event::ToggleCheckbox(galley_idx))
-            } else if let Some(url) = click_checker.link(*pos) {
+            } else if let Some(url) = click_checker.link(pos) {
                 if (touch_mode && !click_dragged) || click_mods.command {
                     Some(Event::OpenUrl(url))
                 } else {
@@ -267,7 +267,7 @@ pub fn calc(
                 None
             }
             .or_else(|| {
-                if click_checker.ui(*pos) && !cfg!(target_os = "ios") {
+                if click_checker.ui(pos) && !cfg!(target_os = "ios") {
                     Some(Event::Select {
                         region: if click_mods.shift {
                             Region::ToLocation(location)
@@ -380,7 +380,7 @@ mod test {
     fn calc_down() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowDown,
                     pressed: true,
@@ -407,7 +407,7 @@ mod test {
     fn calc_cmd_down() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowDown,
                     pressed: true,
@@ -434,7 +434,7 @@ mod test {
     fn calc_shift_down() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowDown,
                     pressed: true,
@@ -461,7 +461,7 @@ mod test {
     fn calc_cmd_shift_down() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowDown,
                     pressed: true,
@@ -488,7 +488,7 @@ mod test {
     fn calc_up() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowUp,
                     pressed: true,
@@ -515,7 +515,7 @@ mod test {
     fn calc_cmd_up() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowUp,
                     pressed: true,
@@ -542,7 +542,7 @@ mod test {
     fn calc_shift_up() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowUp,
                     pressed: true,
@@ -569,7 +569,7 @@ mod test {
     fn calc_cmd_shift_up() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowUp,
                     pressed: true,
@@ -596,7 +596,7 @@ mod test {
     fn calc_right() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
@@ -624,7 +624,7 @@ mod test {
     fn calc_alt_right() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
@@ -651,7 +651,7 @@ mod test {
     fn calc_cmd_right() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
@@ -678,7 +678,7 @@ mod test {
     fn calc_shift_right() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
@@ -706,7 +706,7 @@ mod test {
     fn calc_alt_shift_right() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
@@ -733,7 +733,7 @@ mod test {
     fn calc_cmd_shift_right() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
@@ -760,7 +760,7 @@ mod test {
     fn calc_end() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::End,
                     pressed: true,
@@ -787,7 +787,7 @@ mod test {
     fn calc_shift_end() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::End,
                     pressed: true,
@@ -814,7 +814,7 @@ mod test {
     fn calc_left() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
@@ -842,7 +842,7 @@ mod test {
     fn calc_alt_left() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
@@ -869,7 +869,7 @@ mod test {
     fn calc_cmd_left() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
@@ -896,7 +896,7 @@ mod test {
     fn calc_shift_left() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
@@ -924,7 +924,7 @@ mod test {
     fn calc_alt_shift_left() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
@@ -951,7 +951,7 @@ mod test {
     fn calc_cmd_shift_left() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
@@ -978,7 +978,7 @@ mod test {
     fn calc_home() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::Home,
                     pressed: true,
@@ -1005,7 +1005,7 @@ mod test {
     fn calc_cmd_home() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::Home,
                     pressed: true,
@@ -1032,7 +1032,7 @@ mod test {
     fn calc_shift_home() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::Home,
                     pressed: true,
@@ -1059,7 +1059,7 @@ mod test {
     fn calc_cmd_shift_home() {
         assert!(matches!(
             calc(
-                &egui::Event::Key {
+                egui::Event::Key {
                     physical_key: None,
                     key: Key::Home,
                     pressed: true,
