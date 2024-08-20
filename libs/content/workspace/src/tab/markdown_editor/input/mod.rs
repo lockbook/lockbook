@@ -107,3 +107,12 @@ pub enum Event {
     OpenUrl(String),
     SetBaseFontSize(f32),
 }
+
+impl From<(DocCharOffset, DocCharOffset)> for Region {
+    fn from((start, end): (DocCharOffset, DocCharOffset)) -> Self {
+        Region::BetweenLocations {
+            start: Location::DocCharOffset(start),
+            end: Location::DocCharOffset(end),
+        }
+    }
+}
