@@ -63,7 +63,6 @@ struct FileTreeView: NSViewRepresentable, Equatable {
         for selected in selected.selectedFiles ?? [] {
             let row = treeView.row(forItem: selected)
             if row != -1 && !treeView.isRowSelected(row) {
-                print("selecting \(selected.name)")
                 treeView.selectRowIndexes([row], byExtendingSelection: true)
             }
         }
@@ -78,7 +77,6 @@ struct FileTreeView: NSViewRepresentable, Equatable {
            dataSource.selectedDoc != openDocId && workspace.openDocRequested == nil {
             dataSource.selectedDoc = workspace.openDoc
             selected.selectedFiles = []
-            print("opening \(meta.name)")
             
             expandToFile(meta: meta)
             treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: false)

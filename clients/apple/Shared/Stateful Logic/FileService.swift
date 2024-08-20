@@ -21,7 +21,6 @@ class FileService: ObservableObject {
     // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
     #if os(iOS)
     @Published var path: [File] = []
-    @Published var children: [UUID: [File]] = [:]
 
     var parent: File? {
         get {
@@ -30,16 +29,7 @@ class FileService: ObservableObject {
     }
 
     func childrenOfParent() -> [File] {
-        guard let parent = parent ?? root else {
-            return []
-        }
-        
-        
-        if children[parent.id] == nil {
-            children[parent.id] = childrenOf(parent)
-        }
-        
-        return children[parent.id]!
+        childrenOf(parent)
     }
 
     func upADirectory() {

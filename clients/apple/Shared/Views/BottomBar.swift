@@ -7,7 +7,6 @@ import SwiftWorkspace
 struct BottomBar: View {
     var isiOS = false
     
-    @EnvironmentObject var files: FileService
     @EnvironmentObject var selected: SelectedFilesState
     @EnvironmentObject var workspace: WorkspaceState
 
