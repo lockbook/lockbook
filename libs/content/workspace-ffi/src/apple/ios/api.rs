@@ -196,7 +196,7 @@ pub unsafe extern "C" fn select_all(obj: *mut c_void) {
 /// https://developer.apple.com/documentation/uikit/uitextinput/1614489-markedtextrange
 #[no_mangle]
 pub unsafe extern "C" fn get_marked(_obj: *mut c_void) -> CTextRange {
-    unimplemented!()
+    CTextRange::default() // todo
 }
 
 /// # Safety

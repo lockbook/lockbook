@@ -107,7 +107,7 @@ impl Default for UITextSelectionRects {
 
 /// https://developer.apple.com/documentation/uikit/uitextrange
 #[repr(C)]
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct CTextRange {
     /// used to represent a non-existent state of this struct
     pub none: bool,
@@ -115,10 +115,16 @@ pub struct CTextRange {
     pub end: CTextPosition,
 }
 
+impl Default for CTextRange {
+    fn default() -> Self {
+        CTextRange { none: true, start: CTextPosition::default(), end: CTextPosition::default() }
+    }
+}
+
 impl From<(DocCharOffset, DocCharOffset)> for CTextRange {
     fn from(value: (DocCharOffset, DocCharOffset)) -> Self {
         if value.is_empty() {
-            CTextRange { none: true, ..Default::default() }
+            CTextRange::default()
         } else {
             // note: preserve range order, even if it's backwards  (unlike opposite conversion)
             CTextRange { none: false, start: value.0.into(), end: value.1.into() }
@@ -136,11 +142,17 @@ impl From<Option<(DocCharOffset, DocCharOffset)>> for CTextRange {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct CTextPosition {
     /// used to represent a non-existent state of this struct
     pub none: bool,
     pub pos: usize, // represents a grapheme index
+}
+
+impl Default for CTextPosition {
+    fn default() -> Self {
+        CTextPosition { none: true, pos: 0 }
+    }
 }
 
 impl From<DocCharOffset> for CTextPosition {
