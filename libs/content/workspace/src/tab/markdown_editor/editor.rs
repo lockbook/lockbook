@@ -1,7 +1,7 @@
 use crate::tab::markdown_editor;
-use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
+use crate::tab::ExtendedInput as _;
 use egui::os::OperatingSystem;
-use egui::{Color32, Frame, Rect, Sense, Ui, Vec2};
+use egui::{Color32, Frame, PointerButton, Rect, Sense, TouchPhase, Ui, Vec2};
 use lb_rs::{DocumentHmac, Uuid};
 use markdown_editor::appearance::Appearance;
 use markdown_editor::ast::{Ast, AstTextRangeType};
@@ -369,7 +369,7 @@ impl Editor {
     }
 
     fn process_events(
-        &mut self, ctx: &egui::Context, events: Vec<egui::Event>,
+        &mut self, ctx: &egui::Context, mut events: Vec<egui::Event>,
         mut custom_events: Vec<crate::Event>, touch_mode: bool,
     ) -> (bool, bool) {
         // if the cursor is in an invalid location, move it to the next valid location
@@ -392,85 +392,77 @@ impl Editor {
             }
         }
 
-        let prior_selection = self.buffer.current_selection;
-        let combined_events = self.combine_events(events.clone(), custom_events, touch_mode);
-        let (text_updated, selection_updated) =
-            self.process_combined_events(ctx, combined_events.clone());
-
-        // in touch mode, check if we should open the menu
-        // todo: move this to normal event processing (then we won't have to clone events)
-        let click_checker = EditorClickChecker {
-            ui_rect: self.ui_rect,
-            galleys: &self.galleys,
-            buffer: &self.buffer,
-            ast: &self.ast,
-            appearance: &self.appearance,
-            bounds: &self.bounds,
-        };
-        let maybe_context_menu_pos = if touch_mode {
-            let current_selection = self.buffer.current_selection;
-
-            let touched_a_galley = events.iter().any(|e| {
-                if let egui::Event::Touch { pos, .. } | egui::Event::PointerButton { pos, .. } = e {
-                    (&click_checker).text(*pos).is_some()
-                } else {
-                    false
-                }
-            });
-
-            let touched_cursor = current_selection.is_empty()
-                && prior_selection == current_selection
-                && touched_a_galley
-                && combined_events
-                    .iter()
-                    .any(|e| matches!(e, Event::Select { region: Region::Location(..) }));
-
-            let touched_selection = current_selection.is_empty()
-                && prior_selection.contains_inclusive(current_selection.1)
-                && touched_a_galley
-                && combined_events
-                    .iter()
-                    .any(|e| matches!(e, Event::Select { region: Region::Location(..) }));
-
-            let double_touched_for_selection = !current_selection.is_empty()
-                && touched_a_galley
-                && combined_events.iter().any(|e| {
-                    matches!(
-                        e,
-                        Event::Select { region: Region::BoundAt { bound: Bound::Word, .. } }
-                    )
-                });
-
-            let maybe_context_menu_pos =
-                if touched_cursor || touched_selection || double_touched_for_selection {
-                    // set menu location
-                    Some(
-                        cursor::line(
-                            current_selection.end(),
-                            &self.galleys,
-                            &self.bounds.text,
-                            &self.appearance,
-                        )[0],
-                    )
-                } else {
-                    None
-                };
-            if touched_cursor || touched_selection {
-                // put the cursor back the way it was
-                // todo: wow! not okay! maybe hide behind accessors?
-                self.buffer.current_selection = prior_selection;
+        // remove clicks that are also touches so we don't click to set selection while touching to open a context menu
+        // todo: O(n), fewer clones
+        let mut i = 1;
+        loop {
+            if i >= events.len() {
+                break;
             }
 
-            maybe_context_menu_pos
-        } else {
-            None
-        };
-
-        if let Some(pos) = maybe_context_menu_pos {
-            ctx.set_context_menu(pos);
+            if matches!((events[i - 1].clone(), events[i].clone()),
+                // touch start / pointer pressed
+                (
+                    egui::Event::Touch { phase: TouchPhase::Start, pos: touch_pos, .. },
+                    egui::Event::PointerButton {
+                        pos: pointer_pos,
+                        button: PointerButton::Primary,
+                        pressed: true,
+                        ..
+                    },
+                )
+                // touch move / pointer move
+                | (
+                    egui::Event::Touch { phase: TouchPhase::Move, pos: touch_pos, .. },
+                    egui::Event::PointerMoved(pointer_pos),
+                )
+                // touch end / pointer release
+                | (
+                    egui::Event::Touch { phase: TouchPhase::End, pos: touch_pos, .. },
+                    egui::Event::PointerButton {
+                        pos: pointer_pos,
+                        button: PointerButton::Primary,
+                        pressed: false,
+                        ..
+                    },
+                ) if touch_pos == pointer_pos)
+            {
+                events.remove(i);
+            } else if matches!((events[i - 1].clone(), events[i].clone()),
+                // pointer pressed / touch start
+                (
+                    egui::Event::PointerButton {
+                        pos: pointer_pos,
+                        button: PointerButton::Primary,
+                        pressed: true,
+                        ..
+                    },
+                    egui::Event::Touch { phase: TouchPhase::Start, pos: touch_pos, .. },
+                )
+                // pointer move / touch move
+                | (
+                    egui::Event::PointerMoved(pointer_pos),
+                    egui::Event::Touch { phase: TouchPhase::Move, pos: touch_pos, .. },
+                )
+                // pointer release / touch end
+                | (
+                    egui::Event::PointerButton {
+                        pos: pointer_pos,
+                        button: PointerButton::Primary,
+                        pressed: false,
+                        ..
+                    },
+                    egui::Event::Touch { phase: TouchPhase::End, pos: touch_pos, .. },
+                ) if touch_pos == pointer_pos)
+            {
+                events.remove(i - 1);
+            } else {
+                i += 1;
+            }
         }
 
-        (text_updated, selection_updated)
+        let combined_events = self.combine_events(ctx, events.clone(), custom_events, touch_mode);
+        self.process_combined_events(ctx, combined_events)
     }
 
     fn get_suggested_title(&self) -> Option<String> {

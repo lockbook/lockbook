@@ -1,36 +1,20 @@
 use crate::tab::{self, markdown_editor, ClipContent};
 use egui::Context;
 use lb_rs::Uuid;
-use markdown_editor::input::canonical;
 use markdown_editor::input::{Event, Region};
 use markdown_editor::Editor;
 use std::time::Instant;
 
-use super::click_checker::EditorClickChecker;
-
 impl Editor {
     /// combines `events` and `custom_events` into a single set of events
     pub fn combine_events(
-        &mut self, events: Vec<egui::Event>, custom_events: Vec<crate::Event>, touch_mode: bool,
+        &mut self, ctx: &egui::Context, events: Vec<egui::Event>, custom_events: Vec<crate::Event>,
+        touch_mode: bool,
     ) -> Vec<Event> {
-        let click_checker = EditorClickChecker {
-            ui_rect: self.ui_rect,
-            galleys: &self.galleys,
-            buffer: &self.buffer,
-            ast: &self.ast,
-            appearance: &self.appearance,
-            bounds: &self.bounds,
-        };
-        let canonical_egui_events = events.into_iter().filter_map(|e| {
-            canonical::calc(
-                e,
-                &click_checker,
-                &mut self.pointer_state,
-                Instant::now(),
-                touch_mode,
-                &self.appearance,
-            )
-        });
+        let canonical_egui_events = events
+            .into_iter()
+            .filter_map(|e| self.calc_events(ctx, e, Instant::now(), touch_mode))
+            .collect::<Vec<_>>();
 
         custom_events
             .iter()
