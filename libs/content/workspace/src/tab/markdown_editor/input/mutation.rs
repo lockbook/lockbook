@@ -48,26 +48,16 @@ impl Editor {
                 let mut removed_conflicting_list_item = false;
                 let mut list_item_indent_level = 0;
                 if !unapply {
-                    for conflict in conflicting_styles(
-                        current_selection,
-                        &style,
-                        &self.ast,
-                        &(&self.bounds).ast,
-                    ) {
+                    for conflict in conflicting_styles(range, &style, &self.ast, &self.bounds.ast) {
                         if let MarkdownNode::Block(BlockNode::ListItem(_, indent_level)) = conflict
                         {
                             if !removed_conflicting_list_item {
                                 list_item_indent_level = indent_level;
                                 removed_conflicting_list_item = true;
-                                self.apply_style(
-                                    current_selection,
-                                    conflict,
-                                    true,
-                                    &mut operations,
-                                );
+                                self.apply_style(range, conflict, true, &mut operations);
                             }
                         } else {
-                            self.apply_style(current_selection, conflict, true, &mut operations);
+                            self.apply_style(range, conflict, true, &mut operations);
                         }
                     }
                 }
@@ -77,18 +67,19 @@ impl Editor {
                 };
 
                 // apply style
-                self.apply_style(current_selection, style.clone(), unapply, &mut operations);
+                self.apply_style(range, style.clone(), unapply, &mut operations);
 
                 // modify cursor
                 if current_selection.is_empty() {
                     // toggling style at end of styled range moves cursor to outside of styled range
-                    if let Some(text_range) = (&self.bounds)
+                    if let Some(text_range) = self
+                        .bounds
                         .ast
                         .find_containing(current_selection.1, true, true)
                         .iter()
                         .last()
                     {
-                        let text_range = &(&self.bounds).ast[text_range];
+                        let text_range = &self.bounds.ast[text_range];
                         if text_range.node(&self.ast).node_type() == style.node_type()
                             && text_range.range_type == AstTextRangeType::Tail
                         {
@@ -103,9 +94,10 @@ impl Editor {
                 }
             }
             Event::Newline { advance_cursor } => {
-                let galley_idx = (&self.galleys).galley_at_char(current_selection.1);
-                let galley = &(&self.galleys)[galley_idx];
-                let ast_text_range = (&self.bounds)
+                let galley_idx = self.galleys.galley_at_char(current_selection.1);
+                let galley = &self.galleys[galley_idx];
+                let ast_text_range = self
+                    .bounds
                     .ast
                     .find_containing(current_selection.1, true, true)
                     .iter()
@@ -114,7 +106,7 @@ impl Editor {
 
                 'modification: {
                     if let Some(ast_text_range) = ast_text_range {
-                        let ast_text_range = &(&self.bounds).ast[ast_text_range];
+                        let ast_text_range = &self.bounds.ast[ast_text_range];
                         if ast_text_range.range_type == AstTextRangeType::Tail
                             && ast_text_range.node(&self.ast).node_type()
                                 == MarkdownNodeType::Inline(InlineNodeType::Link)
@@ -135,7 +127,7 @@ impl Editor {
                         if galley.size() - galley.head_size - galley.tail_size == 0 {
                             // empty list item -> delete current annotation
                             let range =
-                                (galley.range.start(), galley.range.start() + galley.size()).into();
+                                (galley.range.start(), galley.range.start() + galley.size());
                             let text = "".into();
                             operations.push(Operation::Replace { range, text });
                         } else {
@@ -180,7 +172,7 @@ impl Editor {
                                         this
                                     };
                                     for (galley_idx, galley_new_number) in renumbered_galleys {
-                                        let galley = &(&self.galleys)[galley_idx];
+                                        let galley = &self.galleys[galley_idx];
                                         if let Some(Annotation::Item(
                                             ListItem::Numbered(galley_cur_number),
                                             ..,
@@ -192,8 +184,7 @@ impl Editor {
                                                     galley.range.start() + galley.head_size
                                                         - (galley_cur_number).to_string().len()
                                                         - 2,
-                                                )
-                                                    .into(),
+                                                ),
                                                 text: galley_new_number.to_string() + ". ",
                                             });
                                         }
@@ -231,25 +222,26 @@ impl Editor {
                 operations.push(Operation::Select { range: range.start().to_range() });
 
                 // check if we deleted a numbered list annotation and renumber subsequent items
-                let ast_text_ranges = (&self.bounds).ast.find_contained(range, true, true);
+                let ast_text_ranges = self.bounds.ast.find_contained(range, true, true);
                 let mut unnumbered_galleys = HashSet::new();
                 let mut renumbered_galleys = HashMap::new();
                 for ast_text_range in ast_text_ranges.iter() {
                     // skip non-head ranges; remaining ranges are head ranges contained by the selection
-                    if (&self.bounds).ast[ast_text_range].range_type != AstTextRangeType::Head {
+                    if self.bounds.ast[ast_text_range].range_type != AstTextRangeType::Head {
                         continue;
                     }
 
                     // if the range is a list item annotation contained by the deleted region, renumber subsequent items
-                    let ast_node = (&self.bounds).ast[ast_text_range]
+                    let ast_node = self.bounds.ast[ast_text_range]
                         .ancestors
                         .last()
                         .copied()
                         .unwrap(); // ast text ranges always have themselves as the last ancestor
-                    let galley_idx = (&self.galleys)
-                        .galley_at_char((&self.ast).nodes[ast_node].text_range.start());
+                    let galley_idx = self
+                        .galleys
+                        .galley_at_char(self.ast.nodes[ast_node].text_range.start());
                     if let Some(Annotation::Item(ListItem::Numbered(number), indent_level)) =
-                        (&self.galleys)[galley_idx].annotation
+                        self.galleys[galley_idx].annotation
                     {
                         renumbered_galleys = HashMap::new(); // only the last one matters; otherwise they stack
                         increment_numbered_list_items(
@@ -266,17 +258,18 @@ impl Editor {
                 }
 
                 // if we deleted the space between two numbered lists, renumber the second list to extend the first
-                let start_galley_idx = (&self.galleys).galley_at_char(range.start());
-                let end_galley_idx = (&self.galleys).galley_at_char(range.end());
+                let start_galley_idx = self.galleys.galley_at_char(range.start());
+                let end_galley_idx = self.galleys.galley_at_char(range.end());
                 if start_galley_idx < end_galley_idx {
                     // todo: account for indent levels
                     if let Some(Annotation::Item(ListItem::Numbered(prev_number), _)) =
-                        (&self.galleys)[start_galley_idx].annotation
+                        self.galleys[start_galley_idx].annotation
                     {
                         if let Some(Annotation::Item(
                             ListItem::Numbered(next_number),
                             next_indent_level,
-                        )) = (&self.galleys)
+                        )) = self
+                            .galleys
                             .galleys
                             .get(end_galley_idx + 1)
                             .and_then(|g| g.annotation.as_ref())
@@ -307,7 +300,7 @@ impl Editor {
                         continue;
                     }
 
-                    let galley = &(&self.galleys)[galley_idx];
+                    let galley = &self.galleys[galley_idx];
                     if let Some(Annotation::Item(ListItem::Numbered(cur_number), ..)) =
                         galley.annotation
                     {
@@ -317,8 +310,7 @@ impl Editor {
                                 galley.range.start() + galley.head_size
                                     - (cur_number).to_string().len()
                                     - 2,
-                            )
-                                .into(),
+                            ),
                             text: new_number.to_string() + ". ",
                         });
                     }
@@ -333,25 +325,24 @@ impl Editor {
                 let mut renumbered_galleys = HashMap::new();
 
                 // determine galleys to (de)indent
-                let ast_text_ranges = (&self.bounds)
-                    .ast
-                    .find_intersecting(current_selection, true);
+                let ast_text_ranges = self.bounds.ast.find_intersecting(current_selection, true);
                 for ast_text_range in ast_text_ranges.iter() {
-                    let ast_node = (&self.bounds).ast[ast_text_range]
+                    let ast_node = self.bounds.ast[ast_text_range]
                         .ancestors
                         .last()
                         .copied()
                         .unwrap(); // ast text ranges always have themselves as the last ancestor
-                    let galley_idx = (&self.galleys)
-                        .galley_at_char((&self.ast).nodes[ast_node].text_range.start());
+                    let galley_idx = self
+                        .galleys
+                        .galley_at_char(self.ast.nodes[ast_node].text_range.start());
 
-                    if (&self.bounds).ast[ast_text_range].range.start() >= current_selection.end() {
+                    if self.bounds.ast[ast_text_range].range.start() >= current_selection.end() {
                         continue;
                     }
 
                     let cur_indent_level =
                         if let MarkdownNode::Block(BlockNode::ListItem(_, indent_level)) =
-                            (&self.ast).nodes[ast_node].node_type
+                            self.ast.nodes[ast_node].node_type
                         {
                             indent_level
                         } else {
@@ -378,7 +369,7 @@ impl Editor {
                     this
                 };
                 for galley_idx in ordered_galleys {
-                    let galley = &(&self.galleys)[galley_idx];
+                    let galley = &self.galleys[galley_idx];
                     let cur_indent_level = indented_galleys[&galley_idx];
 
                     // todo: this needs more attention e.g. list items doubly indented using 2-space indents
@@ -399,8 +390,8 @@ impl Editor {
                         let mut can_deindent = true;
                         if cur_indent_level == 0 {
                             can_deindent = false; // cannot de-indent un-indented list item
-                        } else if galley_idx != (&self.galleys).len() - 1 {
-                            let next_galley = &(&self.galleys)[galley_idx + 1];
+                        } else if galley_idx != self.galleys.len() - 1 {
+                            let next_galley = &self.galleys[galley_idx + 1];
                             if let Some(Annotation::Item(.., next_indent_level)) =
                                 &next_galley.annotation
                             {
@@ -419,8 +410,7 @@ impl Editor {
                                 range: (
                                     galley.range.start(),
                                     galley.range.start() + indent_seq.len(),
-                                )
-                                    .into(),
+                                ),
                                 text: "".into(),
                             });
 
@@ -433,7 +423,7 @@ impl Editor {
                         if galley_idx == 0 {
                             can_indent = false; // first galley cannot be indented
                         } else {
-                            let prior_galley = &(&self.galleys)[galley_idx - 1];
+                            let prior_galley = &self.galleys[galley_idx - 1];
                             if let Some(Annotation::Item(_, prior_indent_level)) =
                                 &prior_galley.annotation
                             {
@@ -469,18 +459,18 @@ impl Editor {
                 // always iterate forwards when renumbering because numbers are based on prior numbers for both indent
                 // and deindent operations
                 for ast_text_range in ast_text_ranges.iter() {
-                    let ast_node = (&self.bounds).ast[ast_text_range]
+                    let ast_node = self.bounds.ast[ast_text_range]
                         .ancestors
                         .last()
                         .copied()
                         .unwrap(); // ast text ranges always have themselves as the last ancestor
-                    let galley_idx = (&self.galleys)
-                        .galley_at_char((&self.ast).nodes[ast_node].text_range.start());
+                    let galley_idx = self
+                        .galleys
+                        .galley_at_char(self.ast.nodes[ast_node].text_range.start());
 
                     let (cur_number, cur_indent_level) = if let MarkdownNode::Block(
                         BlockNode::ListItem(ListItem::Numbered(cur_number), indent_level),
-                    ) =
-                        (&self.ast).nodes[ast_node].node_type
+                    ) = self.ast.nodes[ast_node].node_type
                     {
                         (cur_number, indent_level)
                     } else {
@@ -509,7 +499,7 @@ impl Editor {
                         let mut prior_galley_idx = galley_idx;
                         while prior_galley_idx > 0 {
                             prior_galley_idx -= 1;
-                            let prior_galley = &(&self.galleys)[prior_galley_idx];
+                            let prior_galley = &self.galleys[prior_galley_idx];
                             if let Some(Annotation::Item(
                                 ListItem::Numbered(prior_number),
                                 prior_indent_level,
@@ -604,8 +594,7 @@ impl Editor {
                                 galley.range.start() + galley.head_size
                                     - (cur_number).to_string().len()
                                     - 2,
-                            )
-                                .into(),
+                            ),
                             text: new_number.to_string() + ". ",
                         });
                     }
@@ -643,8 +632,7 @@ impl Editor {
                         range: (
                             galley.range.start() + galley.head_size - 6,
                             galley.range.start() + galley.head_size,
-                        )
-                            .into(),
+                        ),
                         text: if checked { "* [ ] " } else { "* [x] " }.into(),
                     });
                 }
@@ -903,17 +891,15 @@ impl Editor {
             }
             Region::Bound { bound, backwards } => {
                 let offset = current_selection.1;
-                let range = offset
+                offset
                     .range_bound(bound, backwards, false, &self.bounds)
-                    .unwrap_or((offset, offset));
-                range.into()
+                    .unwrap_or((offset, offset))
             }
             Region::BoundAt { bound, location, backwards } => {
                 let offset = self.location_to_char_offset(location);
-                let range = offset
+                offset
                     .range_bound(bound, backwards, true, &self.bounds)
-                    .unwrap_or((offset, offset));
-                range.into()
+                    .unwrap_or((offset, offset))
             }
         }
     }
@@ -1048,7 +1034,7 @@ fn increment_numbered_list_items(
 fn dehead_ast_node(node_idx: usize, ast: &Ast, operations: &mut Vec<Operation>) {
     let node = &ast.nodes[node_idx];
     operations.push(Operation::Replace {
-        range: (node.range.start(), node.text_range.start()).into(),
+        range: (node.range.start(), node.text_range.start()),
         text: "".into(),
     });
 }
@@ -1056,7 +1042,7 @@ fn dehead_ast_node(node_idx: usize, ast: &Ast, operations: &mut Vec<Operation>) 
 fn detail_ast_node(node_idx: usize, ast: &Ast, operations: &mut Vec<Operation>) {
     let node = &ast.nodes[node_idx];
     operations.push(Operation::Replace {
-        range: (node.text_range.end(), node.range.end()).into(),
+        range: (node.text_range.end(), node.range.end()),
         text: "".into(),
     });
 }
