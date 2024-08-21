@@ -2,7 +2,7 @@ use crate::shared::clock::get_time;
 use crate::shared::crypto::DecryptedDocument;
 use crate::shared::document_repo::DocumentService;
 use crate::shared::file_like::FileLike;
-use crate::shared::file_metadata::FileType;
+use crate::shared::file_metadata::{DocumentHmac, FileType};
 use crate::shared::tree_like::TreeLike;
 use crate::LbResult;
 use crate::{CoreError, CoreState, Requester};
@@ -24,7 +24,9 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(doc)
     }
 
-    pub(crate) fn read_document_with_hmac(&mut self, id: Uuid) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
+    pub(crate) fn read_document_with_hmac(
+        &mut self, id: Uuid,
+    ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
