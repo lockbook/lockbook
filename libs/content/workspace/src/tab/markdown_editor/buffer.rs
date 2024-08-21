@@ -147,11 +147,12 @@ impl Buffer {
         }
 
         println!("buffer: updating");
-        println!(
-            "\tapplied_ops ({:?}): {:?}",
-            self.current_seq,
-            &self.history_ops[0..self.current_seq]
-        );
+        // this print statement causes performance issues once the history reaches a few hundred events
+        // println!(
+        //     "\tapplied_ops ({:?}): {:?}",
+        //     self.current_seq,
+        //     &self.history_ops[0..self.current_seq]
+        // );
         println!(
             "\tqueued_ops ({:?}): {:?}",
             self.history_ops.len() - self.current_seq,
