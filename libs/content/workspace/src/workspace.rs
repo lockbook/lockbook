@@ -178,7 +178,7 @@ impl Workspace {
         }
 
         // tab was created
-        return true;
+        true
     }
 
     pub fn get_mut_tab_by_id(&mut self, id: lb_rs::Uuid) -> Option<&mut Tab> {
@@ -636,29 +636,27 @@ impl Workspace {
                 .map(|(hmac, bytes)| {
                     if !tab_created {
                         TabContent::MergeMarkdown { hmac, content: bytes }
+                    } else if is_supported_image_fmt(ext) {
+                        TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes))
+                    } else if ext == "pdf" {
+                        TabContent::Pdf(PdfViewer::new(
+                            &bytes,
+                            &ctx,
+                            &cfg.data_dir,
+                            is_mobile_viewport,
+                        ))
+                    } else if ext == "svg" {
+                        TabContent::Svg(SVGEditor::new(&bytes, core.clone(), id))
                     } else {
-                        if is_supported_image_fmt(ext) {
-                            TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes))
-                        } else if ext == "pdf" {
-                            TabContent::Pdf(PdfViewer::new(
-                                &bytes,
-                                &ctx,
-                                &cfg.data_dir,
-                                is_mobile_viewport,
-                            ))
-                        } else if ext == "svg" {
-                            TabContent::Svg(SVGEditor::new(&bytes, core.clone(), id))
-                        } else {
-                            TabContent::Markdown(Markdown::new(
-                                core.clone(),
-                                &bytes,
-                                &toolbar_visibility,
-                                is_new_file,
-                                id,
-                                hmac,
-                                ext != "md",
-                            ))
-                        }
+                        TabContent::Markdown(Markdown::new(
+                            core.clone(),
+                            &bytes,
+                            &toolbar_visibility,
+                            is_new_file,
+                            id,
+                            hmac,
+                            ext != "md",
+                        ))
                     }
                 });
             update_tx.send(WsMsg::FileLoaded(id, content)).unwrap();

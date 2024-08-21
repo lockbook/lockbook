@@ -29,7 +29,7 @@ impl Editor {
         &mut self, ctx: &Context, combined_events: Vec<Event>,
     ) -> (bool, bool) {
         for event in combined_events {
-            let ops = self.calc_operations(&ctx, event);
+            let ops = self.calc_operations(ctx, event);
             self.buffer.queue(ops);
         }
         self.buffer.update()
