@@ -12,6 +12,7 @@ pub use basic_human_duration::ChronoHumanDuration;
 pub use libsecp256k1::PublicKey;
 use service::search_service::{SearchRequest, SearchResult, SearchType};
 pub use shared::document_repo::{DocumentService, OnDiskDocuments};
+pub use shared::file_metadata::DocumentHmac;
 pub use time::Duration;
 pub use uuid::Uuid;
 
