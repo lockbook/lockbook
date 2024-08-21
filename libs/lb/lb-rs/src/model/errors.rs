@@ -133,7 +133,7 @@ impl Display for CoreError {
             }
             CoreError::ReReadRequired => {
                 write!(f, "This document changed since you last read it, please re-read it!")
-            },
+            }
         }
     }
 }
