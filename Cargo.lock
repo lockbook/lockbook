@@ -8507,6 +8507,9 @@ dependencies = [
  "svgtypes 0.13.0",
  "tld",
  "tldextract",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
  "unicode-segmentation",
  "usvg-parser",
 ]
@@ -8526,6 +8529,7 @@ dependencies = [
  "raw-window-handle 0.6.2",
  "serde",
  "serde_json",
+ "tracing",
  "workspace",
 ]
 

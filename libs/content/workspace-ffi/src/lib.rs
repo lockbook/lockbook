@@ -1,6 +1,8 @@
+use egui::Id;
 use egui_wgpu_backend::wgpu;
 use std::iter;
 use std::time::Instant;
+use tracing::Span;
 use workspace_rs::workspace::Workspace;
 
 /// cbindgen:ignore
@@ -34,6 +36,8 @@ pub struct WgpuWorkspace<'window> {
 
 impl<'window> WgpuWorkspace<'window> {
     pub fn frame(&mut self) -> Response {
+        self.context.pop_spans();
+
         self.configure_surface();
         let output_frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -154,5 +158,35 @@ impl<'window> WgpuWorkspace<'window> {
             self.surface_width = self.screen.physical_width;
             self.surface_height = self.screen.physical_height;
         }
+    }
+}
+
+pub trait ExtendedInput {
+    fn push_span(&self, event: Span);
+    fn pop_spans(&self) -> Vec<Span>;
+}
+
+impl ExtendedInput for egui::Context {
+    fn push_span(&self, event: Span) {
+        self.memory_mut(|m| {
+            let mut events: Vec<Span> = m
+                .data
+                .get_temp(Id::new("tracing_event"))
+                .unwrap_or_default();
+            events.push(event);
+            m.data.insert_temp(Id::new("tracing_event"), events);
+        })
+    }
+
+    fn pop_spans(&self) -> Vec<Span> {
+        self.memory_mut(|m| {
+            let events: Vec<Span> = m
+                .data
+                .get_temp(Id::new("tracing_event"))
+                .unwrap_or_default();
+            m.data
+                .insert_temp(Id::new("tracing_event"), Vec::<Span>::new());
+            events
+        })
     }
 }

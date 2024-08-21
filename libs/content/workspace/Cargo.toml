@@ -28,6 +28,10 @@ chrono = "0.4"
 similar = { version = "2.6.0", features = ["unicode"] }
 tld = "2.35.0"
 tldextract = "0.6.0"
+tracing = "0.1.5"
+tracing-subscriber = "0.3.9"
+tracing-appender = "0.2"
+
 
 # todo: maybe move this switch into lb itself
 [target.'cfg(not(target_os = "android"))'.dependencies]
