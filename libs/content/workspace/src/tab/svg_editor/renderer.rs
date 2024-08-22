@@ -10,7 +10,7 @@ use lyon::tessellation::{
 
 use rayon::prelude::*;
 use resvg::usvg::{ImageKind, Transform};
-use tracing::{event, span, Level};
+use tracing::{span, Level};
 
 use super::parser::{self, DiffState};
 use super::Buffer;
