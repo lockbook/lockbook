@@ -27,7 +27,7 @@ impl Account {
         PublicKey::from_secret_key(&self.private_key)
     }
 
-    pub fn get_phrase(&self) -> Vec<String> {
+    pub fn get_phrase(&self) -> [String; 24] {
         let key = self.private_key.serialize();
         let key_bits: String = key.iter().map(|byte| format!("{:08b}", byte)).collect();
 
@@ -39,21 +39,24 @@ impl Account {
         let checksum_last_4_bits = &checksum[..4];
         let combined_bits = format!("{}{}", key_bits, checksum_last_4_bits);
 
-        let mut phrase: Vec<String> = Vec::new();
+        let mut phrase: [String; 24] = std::array::from_fn(|_| String::new());
+        let mut i = 0;
+        
         for chunk in combined_bits.chars().collect::<Vec<_>>().chunks(11) {
             let index = u16::from_str_radix(&chunk.iter().collect::<String>(), 2).unwrap();
             let word = bip39_dict::ENGLISH
                 .lookup_word(bip39_dict::MnemonicIndex(index))
                 .to_string();
 
-            phrase.push(word);
+            phrase[i] = word;
+            i += 1;
         }
 
         phrase
     }
 
-    pub fn phrase_to_private_key(phrase: Vec<String>) -> SecretKey {
-        let mut combined_bits: String = phrase
+    pub fn phrase_to_private_key(phrases: [String; 24]) -> SecretKey {
+        let mut combined_bits: String = phrases
             .iter()
             .map(|word| bip39_dict::ENGLISH.lookup_mnemonic(word).unwrap().0)
             .map(|comp| format!("{:011b}", comp))

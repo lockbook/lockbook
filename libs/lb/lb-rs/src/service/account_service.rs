@@ -1,7 +1,7 @@
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
-use crate::shared::account::{Account, MAX_USERNAME_LENGTH};
-use crate::shared::api::{DeleteAccountRequest, GetPublicKeyRequest, NewAccountRequest};
+use crate::shared::account::{self, Account, MAX_USERNAME_LENGTH};
+use crate::shared::api::{DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequest};
 use crate::shared::document_repo::DocumentService;
 use crate::shared::file_like::FileLike;
 use crate::shared::file_metadata::{FileMetadata, FileType};
@@ -84,14 +84,46 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(account)
     }
 
+    pub(crate) fn import_account_v2(&mut self, phrases: [String; 24], api_url: &str) -> LbResult<Account> {
+        if self.db.account.get().is_some() {
+            warn!("tried to import an account, but account exists already.");
+            return Err(CoreError::AccountExists.into());
+        }
+
+        let private_key = Account::phrase_to_private_key(phrases);
+        let mut account = Account { username: "".to_string(), api_url: api_url.to_string(), private_key: private_key };
+        let public_key = account.public_key();
+
+        account.username = self
+            .client
+            .request(&account, GetUsernameRequest { key: public_key })?
+            .username;
+
+        self.public_key = Some(public_key);
+        self.db.account.insert(account.clone())?;
+
+        Ok(account)
+    }
+
     pub(crate) fn export_account(&self) -> LbResult<String> {
         let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
         let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
         Ok(base64::encode(encoded))
     }
 
+    pub(crate) fn export_account_v2(&self) -> LbResult<[String; 24]> {
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
+        Ok(account.get_phrase())
+    }
+
     pub(crate) fn export_account_qr(&self) -> LbResult<Vec<u8>> {
         let acct_secret = self.export_account()?;
+        qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
+            .map_err(|err| core_err_unexpected(err).into())
+    }
+
+    pub(crate) fn export_account_qr_v2(&self) -> LbResult<Vec<u8>> {
+        let acct_secret = self.export_account_v2()?.join(" ");
         qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
             .map_err(|err| core_err_unexpected(err).into())
     }
