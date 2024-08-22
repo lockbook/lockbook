@@ -75,12 +75,18 @@ struct FileTreeView: NSViewRepresentable, Equatable {
            let meta = files.idsAndFiles[openDocId],
            !treeView.isRowSelected(treeView.row(forItem: meta)),
            dataSource.selectedDoc != openDocId && workspace.openDocRequested == nil {
+            
             dataSource.selectedDoc = workspace.openDoc
             selected.selectedFiles = []
             
             expandToFile(meta: meta)
             treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: meta)), byExtendingSelection: false)
             treeView.animator().scrollRowToVisible(treeView.row(forItem: meta))
+        } else if workspace.openDoc == nil && workspace.openDocRequested == nil && dataSource.selectedDoc != nil {
+            dataSource.selectedDoc = nil
+            selected.selectedFiles = []
+            
+            treeView.deselectAll(nil)
         }
     }
     
