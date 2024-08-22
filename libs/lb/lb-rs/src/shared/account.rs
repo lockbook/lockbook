@@ -1,6 +1,8 @@
 use crate::shared::pubkey;
+use bip39_dict::Language;
 use libsecp256k1::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 
 pub const MAX_USERNAME_LENGTH: usize = 32;
 
@@ -23,6 +25,65 @@ impl Account {
 
     pub fn public_key(&self) -> PublicKey {
         PublicKey::from_secret_key(&self.private_key)
+    }
+
+    pub fn get_phrase(&self) -> Vec<String> {
+        let key = self.private_key.serialize();
+        let key_bits: String = key
+            .iter()
+            .map(|byte| format!("{:08b}", byte))
+            .collect();
+
+        let checksum: String = sha2::Sha256::digest(&key)
+        .into_iter()
+        .map(|byte| format!("{:08b}", byte))
+        .collect();
+
+        let checksum_last_4_bits = &checksum[..4];
+        let combined_bits = format!("{}{}", key_bits, checksum_last_4_bits);
+
+        let mut phrase: Vec<String> = Vec::new();
+        for chunk in combined_bits.chars().collect::<Vec<_>>().chunks(11) {
+            let index = u16::from_str_radix(&chunk.iter().collect::<String>(), 2).unwrap();
+            let word = bip39_dict::ENGLISH.lookup_word(bip39_dict::MnemonicIndex(index)).to_string();
+
+            phrase.push(word);
+        }
+
+        phrase
+    }
+
+    pub fn phrase_to_private_key(phrase: Vec<String>) -> SecretKey {
+        let mut combined_bits: String = phrase
+            .iter()
+            .map(|word| bip39_dict::ENGLISH.lookup_mnemonic(word).unwrap().0)
+            .map(|comp| format!("{:011b}", comp))
+            .collect();
+
+            for _ in 256..260 {
+            combined_bits.remove(253);
+        }
+
+        let key_bits = &combined_bits[..256];
+        let checksum_last_4_bits = &combined_bits[256..260];
+
+        let mut key: Vec<u8> = Vec::new();
+        for chunk in key_bits.chars().collect::<Vec<_>>().chunks(8) {
+            let comp = u8::from_str_radix(&chunk.iter().collect::<String>(), 2).unwrap();
+
+            key.push(comp);
+        }
+
+        let gen_checksum: String = sha2::Sha256::digest(&key)
+        .into_iter()
+        .map(|byte| format!("{:08b}", byte))
+        .collect();
+
+        let gen_checksum_last_4 = &gen_checksum[..4];
+
+        assert!(gen_checksum_last_4 == checksum_last_4_bits);
+        
+        SecretKey::parse_slice(&key).unwrap()
     }
 }
 
@@ -68,5 +129,25 @@ mod test_account_serialization {
         let account2: Account = bincode::deserialize(&encoded).unwrap();
 
         assert_eq!(account1, account2);
+    }
+}
+
+#[cfg(test)]
+mod test_account_key_and_phrase {
+    use libsecp256k1::SecretKey;
+    use rand::rngs::OsRng;
+
+    use crate::Account;
+
+    #[test]
+    fn account_key_and_phrase_eq() {
+        let account1 = Account {
+            username: "test".to_string(),
+            api_url: "test.com".to_string(),
+            private_key: SecretKey::random(&mut OsRng),
+        };
+        
+        let phrase = account1.get_phrase();
+        let reverse = Account::phrase_to_private_key(phrase);
     }
 }
