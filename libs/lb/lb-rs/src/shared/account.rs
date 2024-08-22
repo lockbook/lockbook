@@ -29,15 +29,12 @@ impl Account {
 
     pub fn get_phrase(&self) -> Vec<String> {
         let key = self.private_key.serialize();
-        let key_bits: String = key
-            .iter()
-            .map(|byte| format!("{:08b}", byte))
-            .collect();
+        let key_bits: String = key.iter().map(|byte| format!("{:08b}", byte)).collect();
 
         let checksum: String = sha2::Sha256::digest(&key)
-        .into_iter()
-        .map(|byte| format!("{:08b}", byte))
-        .collect();
+            .into_iter()
+            .map(|byte| format!("{:08b}", byte))
+            .collect();
 
         let checksum_last_4_bits = &checksum[..4];
         let combined_bits = format!("{}{}", key_bits, checksum_last_4_bits);
@@ -45,7 +42,9 @@ impl Account {
         let mut phrase: Vec<String> = Vec::new();
         for chunk in combined_bits.chars().collect::<Vec<_>>().chunks(11) {
             let index = u16::from_str_radix(&chunk.iter().collect::<String>(), 2).unwrap();
-            let word = bip39_dict::ENGLISH.lookup_word(bip39_dict::MnemonicIndex(index)).to_string();
+            let word = bip39_dict::ENGLISH
+                .lookup_word(bip39_dict::MnemonicIndex(index))
+                .to_string();
 
             phrase.push(word);
         }
@@ -60,7 +59,7 @@ impl Account {
             .map(|comp| format!("{:011b}", comp))
             .collect();
 
-            for _ in 256..260 {
+        for _ in 0..4 {
             combined_bits.remove(253);
         }
 
@@ -75,14 +74,14 @@ impl Account {
         }
 
         let gen_checksum: String = sha2::Sha256::digest(&key)
-        .into_iter()
-        .map(|byte| format!("{:08b}", byte))
-        .collect();
+            .into_iter()
+            .map(|byte| format!("{:08b}", byte))
+            .collect();
 
         let gen_checksum_last_4 = &gen_checksum[..4];
 
         assert!(gen_checksum_last_4 == checksum_last_4_bits);
-        
+
         SecretKey::parse_slice(&key).unwrap()
     }
 }
@@ -146,8 +145,10 @@ mod test_account_key_and_phrase {
             api_url: "test.com".to_string(),
             private_key: SecretKey::random(&mut OsRng),
         };
-        
+
         let phrase = account1.get_phrase();
         let reverse = Account::phrase_to_private_key(phrase);
+
+        assert!(account1.private_key == reverse);
     }
 }
