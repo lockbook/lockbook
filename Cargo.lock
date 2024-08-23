@@ -8508,8 +8508,6 @@ dependencies = [
  "tld",
  "tldextract",
  "tracing",
- "tracing-appender",
- "tracing-subscriber",
  "unicode-segmentation",
  "usvg-parser",
 ]
