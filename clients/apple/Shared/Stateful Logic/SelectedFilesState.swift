@@ -90,4 +90,28 @@ class SelectedFilesState: ObservableObject {
         }
     }
 
+    
+    func getConsolidatedSelectedFiles() -> [File] {
+        var consSelectedFiles: [File] = []
+        
+        for file in selectedFiles ?? [] {
+            var isUniq = true
+            var parent = DI.files.idsAndFiles[file.parent]
+            
+            while parent != nil && parent?.id != parent?.parent {
+                if selectedFiles?.contains(parent!) == true {
+                    isUniq = false
+                    break
+                }
+                
+                parent = DI.files.idsAndFiles[parent!.parent]
+            }
+            
+            if isUniq {
+                consSelectedFiles.append(file)
+            }
+        }
+        
+        return consSelectedFiles
+    }
 }

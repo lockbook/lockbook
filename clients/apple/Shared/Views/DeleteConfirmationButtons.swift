@@ -9,7 +9,6 @@ struct DeleteConfirmationButtons: View {
     var body: some View {
         Group {
             Button("Delete \(metas.count == 1 ? "\"\(metas[0].name)\"" : "\(metas.count) files").", role: .destructive) {
-                print("deleting \(metas.map({ $0.name }))")
                 DI.files.deleteFiles(ids: metas.map({ $0.id }))
             }
             

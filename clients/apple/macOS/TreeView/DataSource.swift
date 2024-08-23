@@ -126,7 +126,7 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
         if let selectedFiles = DI.selected.selectedFiles,
            selectedFiles.contains(file),
            selectedFiles.count > 1 {
-            let selectedFiles = Array(selectedFiles)
+            let selectedFiles = DI.selected.getConsolidatedSelectedFiles()
             
             menu.addItem(Delete(files: selectedFiles))
             menu.addItem(ShareMultipleTo(files: selectedFiles, fileTree: outlineView))

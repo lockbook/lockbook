@@ -23,9 +23,7 @@ struct BottomBar: View {
             Spacer()
             
             Button(role: .destructive, action: {
-                if let selectedFiles = selected.selectedFiles {
-                    DI.sheets.deleteConfirmationInfo = Array(selectedFiles)
-                }
+                DI.sheets.deleteConfirmationInfo = selected.getConsolidatedSelectedFiles()
             }) {
                 Image(systemName: "trash")
                     .imageScale(.large)
@@ -35,9 +33,7 @@ struct BottomBar: View {
             Spacer()
             
             Button(action: {
-                if let selectedIds = selected.selectedFiles?.map({ $0.id }) {
-                    DI.sheets.movingInfo = .Move(selectedIds)
-                }
+                DI.sheets.movingInfo = .Move(selected.getConsolidatedSelectedFiles().map({ $0.id }))
             }, label: {
                 Image(systemName: "folder")
                     .imageScale(.large)
@@ -47,10 +43,8 @@ struct BottomBar: View {
             Spacer()
             
             Button(action: {
-                if let selectedFiles = selected.selectedFiles {
-                    exportFilesAndShowShareSheet(metas: Array(selectedFiles))
-                    selected.selectedFiles = nil
-                }
+                exportFilesAndShowShareSheet(metas: selected.getConsolidatedSelectedFiles())
+                selected.selectedFiles = nil
             }, label: {
                 Image(systemName: "square.and.arrow.up")
                     .imageScale(.large)
