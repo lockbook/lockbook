@@ -55,7 +55,7 @@ struct OutlineContextMenu: View {
                     Label("Share", systemImage: "person.wave.2.fill")
                 }
 
-                Button(action: { exportFileAndShowShareSheet(meta: meta) }) {
+                Button(action: { exportFilesAndShowShareSheet(metas: [meta]) }) {
                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                 }
                 
@@ -70,7 +70,7 @@ struct OutlineContextMenu: View {
                 Divider()
                 
                 Button(role: .destructive, action: {
-                    DI.sheets.deleteConfirmationInfo = meta
+                    DI.sheets.deleteConfirmationInfo = [meta]
                 }) {
                     Label("Delete", systemImage: "trash.fill")
                 }

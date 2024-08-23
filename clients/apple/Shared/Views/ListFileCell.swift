@@ -5,6 +5,20 @@ import Introspect
 
 struct FileCell: View {
     let meta: File
+    let isSelected: Bool
+    let isSelectable: Bool
+    
+    init(meta: File, selectedFiles: Set<File>?) {
+        self.meta = meta
+        
+        if let selectedFiles = selectedFiles {
+            self.isSelectable = true
+            self.isSelected = selectedFiles.contains(meta)
+        } else {
+            self.isSelectable = false
+            self.isSelected = false
+        }
+    }
 
     var body: some View {
         cell
@@ -32,7 +46,7 @@ struct FileCell: View {
                 })
                 
                 Button(action: {
-                    exportFileAndShowShareSheet(meta: meta)
+                    exportFilesAndShowShareSheet(metas: [meta])
                 }, label: {
                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                 })
@@ -48,7 +62,7 @@ struct FileCell: View {
                 Divider()
                 
                 Button(role: .destructive, action: {
-                    DI.sheets.deleteConfirmationInfo = meta
+                    DI.sheets.deleteConfirmationInfo = [meta]
                 }) {
                     Label("Delete", systemImage: "trash.fill")
                 }
@@ -58,47 +72,65 @@ struct FileCell: View {
     @ViewBuilder
     var cell: some View {
         Button(action: {
-            if meta.fileType == .Document {
-                DI.workspace.requestOpenDoc(meta.id)
-            }
-            
-            DI.files.intoChildDirectory(meta)
-        }) {
-            RealFileCell(meta: meta)
-        }
-    }
-}
-
-struct RealFileCell: View {
-    let meta: File
-
-    var body: some View {
-        HStack(spacing: 20) {
-            Image(systemName: FileService.metaToSystemImage(meta: meta))
-                .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
-                .font(.title3)
-                .frame(width: 20)
-            
-            if meta.fileType == .Document {
-                VStack(alignment: .leading) {
-                    Text(meta.name)
-                        .font(.body)
-                        .lineLimit(1)
-                    
-                    Text(DI.core.timeAgo(timeStamp: Int64(meta.lastModified)))
-                            .foregroundColor(.secondary)
-                            .font(.caption)
+            if isSelectable {
+                if isSelected {
+                    withAnimation {
+                        DI.selected.removeFileFromSelection(file: meta)
+                    }
+                } else {
+                    withAnimation {
+                        DI.selected.addFileToSelection(file: meta)
+                    }
                 }
             } else {
-                Text(meta.name)
-                    .font(.body)
+                if meta.fileType == .Document {
+                    DI.workspace.requestOpenDoc(meta.id)
+                }
+                
+                DI.files.intoChildDirectory(meta)
             }
-            
-            
-            Spacer()
+        }) {
+            HStack(spacing: 20) {
+                if isSelectable {
+                    ZStack {
+                        if isSelected {
+                            Image(systemName: "circle.fill")
+                                .foregroundStyle(.blue)
+                                .font(.system(size: 17))
+                        }
+                        
+                        Image(systemName: isSelected ? "checkmark" : "circle")
+                            .foregroundStyle(isSelected ? Color.white : .secondary)
+                            .font(.system(size: (isSelected ? 10 : 17)))
+                    }
+                }
+
+                Image(systemName: FileService.metaToSystemImage(meta: meta))
+                    .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
+                    .font(.title3)
+                    .frame(width: 20)
+                
+                if meta.fileType == .Document {
+                    VStack(alignment: .leading) {
+                        Text(meta.name)
+                            .font(.body)
+                            .lineLimit(1)
+                        
+                        Text(DI.core.timeAgo(timeStamp: Int64(meta.lastModified)))
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                    }
+                } else {
+                    Text(meta.name)
+                        .font(.body)
+                }
+                
+                Spacer()
+            }
+            .padding(.vertical, 13.5)
+            .padding(.horizontal)
+            .contentShape(Rectangle())
+            .background(isSelected ? .gray.opacity(0.2) : .clear)
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal)
-        .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
 }

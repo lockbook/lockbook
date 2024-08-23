@@ -7,9 +7,58 @@ import SwiftWorkspace
 struct BottomBar: View {
     var isiOS = false
     
+    @EnvironmentObject var selected: SelectedFilesState
     @EnvironmentObject var workspace: WorkspaceState
 
     var body: some View {
+        if selected.selectedFiles != nil {
+            selectionView
+        } else {
+            mainView
+        }
+    }
+    
+    var selectionView: some View {
+        HStack(alignment: .center) {
+            Spacer()
+            
+            Button(role: .destructive, action: {
+                DI.sheets.deleteConfirmationInfo = selected.getConsolidatedSelectedFiles()
+            }) {
+                Image(systemName: "trash")
+                    .imageScale(.large)
+            }
+            .disabled(selected.selectedFiles?.count == 0)
+            
+            Spacer()
+            
+            Button(action: {
+                DI.sheets.movingInfo = .Move(selected.getConsolidatedSelectedFiles().map({ $0.id }))
+            }, label: {
+                Image(systemName: "folder")
+                    .imageScale(.large)
+            })
+            .disabled(selected.selectedFiles?.count == 0)
+            
+            Spacer()
+            
+            Button(action: {
+                exportFilesAndShowShareSheet(metas: selected.getConsolidatedSelectedFiles())
+                selected.selectedFiles = nil
+            }, label: {
+                Image(systemName: "square.and.arrow.up")
+                    .imageScale(.large)
+            })
+            .disabled(selected.selectedFiles?.count == 0)
+            
+            Spacer()
+        }
+        .foregroundStyle(selected.selectedFiles?.count == 0 ? .gray : .blue)
+        .padding(.horizontal)
+        .frame(height: 40)
+    }
+    
+    var mainView: some View {
         HStack(alignment: .center) {
             statusText
             Spacer()
@@ -34,7 +83,7 @@ struct BottomBar: View {
             }
         }
         .padding(.horizontal, 15)
-        .frame(height: 50)
+        .frame(height: 40)
     }
     
     var statusText: some View {

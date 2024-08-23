@@ -232,13 +232,12 @@ struct DetailView: View {
                    !workspace.pendingSharesOpen {
                     ZStack {
                         Button(action: {
-                            NSApp.keyWindow?.toolbar?.items.first?.view?.exportFileAndShowShareSheet(meta: meta)
+                            NSApp.keyWindow?.toolbar?.items.first?.view?.exportFilesAndShowShareSheet(metas: [meta])
                         }, label: {
                             Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                                 .imageScale(.large)
                         })
                         .foregroundColor(.blue)
-                        .padding(.trailing, 10)
                     }
                     
                     Button(action: {
@@ -248,7 +247,6 @@ struct DetailView: View {
                             .imageScale(.large)
                     })
                     .foregroundColor(.blue)
-                    .padding(.trailing, 5)
                 }
                 
                 Button(action: {

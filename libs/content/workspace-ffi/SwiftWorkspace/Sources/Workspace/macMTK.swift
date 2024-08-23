@@ -34,7 +34,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     func openFile(id: UUID) {
         let uuid = CUuid(_0: id.uuid)
         open_file(wsHandle, uuid, false)
-        setNeedsDisplay(self.frame)
+        drawImmediately()
     }
 
     func requestSync() {
@@ -254,6 +254,16 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let scale = self.window?.backingScaleFactor ?? 1.0
         resize_editor(wsHandle, Float(size.width), Float(size.height), Float(scale))
     }
+    
+    public func drawImmediately() {
+        redrawTask?.cancel()
+        redrawTask = nil
+        
+        self.isPaused = true
+        self.enableSetNeedsDisplay = false
+        
+        self.draw(in: self)
+    }
 
     public func draw(in view: MTKView) {
         if NSPasteboard.general.changeCount != self.pasteBoardEventId {
@@ -314,20 +324,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
             workspaceState?.newFolderButtonPressed = true
         }
 
-        redrawTask?.cancel()
-        redrawTask = nil
-        self.isPaused = output.redraw_in > 50
-        if self.isPaused {
-            let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
-            let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)));
-
-            let newRedrawTask = DispatchWorkItem {
-                self.setNeedsDisplay(self.frame)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
-            redrawTask = newRedrawTask
-        }
-
         if let text = output.copied_text {
             let text = textFromPtr(s: text)
             if !text.isEmpty {
@@ -353,6 +349,22 @@ public class MacMTK: MTKView, MTKViewDelegate {
                 cursorHidden = false
             }
         }
+        
+        redrawTask?.cancel()
+        redrawTask = nil
+        self.isPaused = output.redraw_in > 50
+        if self.isPaused {
+            let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
+            let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)));
+
+            let newRedrawTask = DispatchWorkItem {
+                self.setNeedsDisplay(self.frame)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
+            redrawTask = newRedrawTask
+        }
+        
+        self.enableSetNeedsDisplay = self.isPaused
     }
 
     deinit {

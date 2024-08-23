@@ -72,7 +72,6 @@ struct ConstrainedHomeViewWrapper: View {
                                         }
                                     })
                                     .foregroundColor(.blue)
-                                    .padding(.trailing, 5)
                                 }
                                 
                                 Button(action: {
@@ -81,10 +80,9 @@ struct ConstrainedHomeViewWrapper: View {
                                     Label("Share", systemImage: "person.wave.2.fill")
                                 })
                                 .foregroundColor(.blue)
-                                .padding(.trailing, 5)
                                 
                                 Button(action: {
-                                    exportFileAndShowShareSheet(meta: meta)
+                                    exportFilesAndShowShareSheet(metas: [meta])
                                 }, label: {
                                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                                 })
@@ -147,7 +145,7 @@ struct ConstrainedHomeView: View {
                 DI.search.endSearch(isPathAndContentSearch: true)
             }
         })
-        .navigationBarTitle(DI.accounts.account?.username ?? "...")
+        .navigationTitle(DI.accounts.account?.username ?? "...")
     }
     
     var noSearchResultsView: some View {
@@ -207,26 +205,28 @@ struct ConstrainedHomeView: View {
                     .padding(.horizontal, 20)
             }
                 
-            if let root = files.root {
-                Section(header: Text("Files")
-                    .bold()
-                    .foregroundColor(.primary)
-                    .textCase(.none)
-                    .font(.headline)
-                    .padding(.bottom, 3)
-                    .padding(.top, 8)) {
-                        FileListView(parent: root, haveScrollView: false)
-                    }
-                    .padding(.horizontal, 20)
-            } else {
-                ProgressView()
+            Section(header: Text("Files")
+                .bold()
+                .foregroundColor(.primary)
+                .textCase(.none)
+                .font(.headline)
+                .padding(.bottom, 3)
+                .padding(.top, 8)) {
+                if let root = files.root {
+                    FileListView(parent: root, haveScrollView: false)
+                } else {
+                    ProgressView()
+                        .padding(.leading)
+                }
             }
+            .padding(.horizontal, 20)
         }
     }
 }
 
 struct FileListView: View {
     @EnvironmentObject var files: FileService
+    @EnvironmentObject var selected: SelectedFilesState
     @EnvironmentObject var share: ShareService
     @EnvironmentObject var workspace: WorkspaceState
 
@@ -242,40 +242,83 @@ struct FileListView: View {
     }
     
     var body: some View {
-        VStack {
-            Group {
-                if children.isEmpty {
-                    emptyView
-                } else {
-                    childrenView
-                }
+        VStack(spacing: 0) {
+            if children.isEmpty {
+                emptyView
+            } else {
+                childrenView
             }
-            .modifier(FilesListScrollViewModifier(haveScrollView: haveScrollView, isEmptyView: children.isEmpty))
         }
+        .modifier(FilesListScrollViewModifier(haveScrollView: haveScrollView, isEmptyView: children.isEmpty))
         .toolbar {
-            ToolbarItemGroup {
-                Button(action: {
-                    DI.share.showPendingSharesView = true
-                }, label: {
-                    pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
-                })
-                .padding(.trailing, 5)
+            if selected.selectedFiles == nil {
+                ToolbarItemGroup {
+                    Button(action: {
+                        withAnimation(.linear(duration: 0.2)) {
+                            selected.selectedFiles = []
+                        }
+                    }, label: {
+                        Text("Edit")
+                            .foregroundStyle(.blue)
+                    })
+                    
+                    Button(action: {
+                        DI.share.showPendingSharesView = true
+                    }, label: {
+                        pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
+                    })
+                    
+                    Button(action: {
+                        DI.settings.showView = true
+                    }, label: {
+                        Image(systemName: "gearshape.fill").foregroundColor(.blue)
+                    })
+                }
+            } else {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: {
+                        if selected.selectedFiles?.isEmpty == false {
+                            withAnimation(.linear(duration: 0.2)) {
+                                selected.selectedFiles = []
+                            }
+                        } else {
+                            for child in files.childrenOfParent() {
+                                withAnimation(.linear(duration: 0.2)) {
+                                    selected.addFileToSelection(file: child)
+                                }
+                            }
+                        }
+                    }, label: {
+                        if selected.selectedFiles?.isEmpty == false {
+                            Text("Deselect All")
+                                .foregroundStyle(.blue)
+                        } else {
+                            Text("Select All")
+                                .foregroundStyle(.blue)
+                        }
+                        
+                    })
+                    .navigationBarBackButtonHidden()
+                }
                 
-                Button(action: {
-                    DI.settings.showView = true
-                }, label: {
-                    Image(systemName: "gearshape.fill").foregroundColor(.blue)
-                })
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: {
+                        withAnimation(.linear(duration: 0.2)) {
+                            selected.selectedFiles = nil
+                        }
+                    }, label: {
+                        Text("Done")
+                            .foregroundStyle(.blue)
+                    })
+                }
             }
         }
     }
     
     var childrenView: some View {
-        ForEach(files.childrenOf(parent)) { meta in
-            FileCell(meta: meta)
+        ForEach(files.childrenOf(parent), id: \.self) { meta in
+            FileCell(meta: meta, selectedFiles: selected.selectedFiles)
         }
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
     }
     
     var emptyView: some View {
