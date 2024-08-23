@@ -29,7 +29,7 @@ class FileService: ObservableObject {
     }
 
     func childrenOfParent() -> [File] {
-        return childrenOf(path.last)
+        childrenOf(parent)
     }
 
     func upADirectory() {
@@ -85,7 +85,6 @@ class FileService: ObservableObject {
         
         DI.workspace.$reloadFiles.sink { reload in
             if reload {
-                print("reload triggered")
                 DI.workspace.reloadFiles = false
                 
                 self.refresh()
@@ -123,48 +122,82 @@ class FileService: ObservableObject {
             }
         }
     }
+    
+    func moveFiles(ids: [UUID], newParent: UUID) -> Bool {
+        var ids = Set(ids)
+        
+        for id in ids {
+            var parent = idsAndFiles[id]?.parent
+            
+            while parent != nil && parent != root?.id {
+                if ids.contains(parent!) {
+                    ids.remove(id)
+                    break
+                }
+                
+                parent = idsAndFiles[parent!]?.parent
+            }
+            
+        }
+        
+        var parent = idsAndFiles[newParent]?.parent
+        
+        while parent != nil && parent != root?.id {
+            if ids.contains(parent!) {
+                return false
+            }
+            
+            parent = idsAndFiles[parent!]?.parent
+        }
+        
+        for id in ids {
+            let res = core.moveFile(id: id, newParent: newParent)
 
-    func moveFileSync(id: UUID, newParent: UUID) -> Bool {
-        print("moving file")
-        let operation = core.moveFile(id: id, newParent: newParent)
-
-        switch operation {
-        case .success(_):
-            self.successfulAction = .move
-            refresh()
-            return true
-        case .failure(let error):
-            switch error.kind {
-            case .UiError(let uiError):
-                switch uiError {
-                case .FolderMovedIntoItself:
-                    DI.errors.errorWithTitle("Move Error", "Cannot move a folder into itself or one of it's children")
-                case .TargetParentHasChildNamedThat:
-                    DI.errors.errorWithTitle("Move Error", "Target folder has a child named that")
+            if case .failure(let error) = res {
+                switch error.kind {
+                case .UiError(let uiError):
+                    switch uiError {
+                    case .FolderMovedIntoItself:
+                        DI.errors.errorWithTitle("Move Error", "Cannot move a folder into itself or one of it's children")
+                    case .TargetParentHasChildNamedThat:
+                        DI.errors.errorWithTitle("Move Error", "Target folder has a child named that")
+                    default:
+                        DI.errors.handleError(error)
+                    }
                 default:
                     DI.errors.handleError(error)
                 }
-            default:
-                DI.errors.handleError(error)
+                return false
             }
-            return false
         }
+        
+        self.successfulAction = .move
+        refresh()
+        return true
     }
 
-    func deleteFile(id: UUID) {
+    func deleteFiles(ids: [UUID]) {
         DispatchQueue.global(qos: .userInitiated).async {
-            let operation = self.core.deleteFile(id: id)
-            
-            DispatchQueue.main.async {
+            for id in ids {
+                let res = self.core.deleteFile(id: id)
                 
-                switch operation {
-                case .success(_):
-                    self.refresh()
-                    self.successfulAction = .delete
-                    DI.workspace.fileOpCompleted = .Delete(id: id)
-                case .failure(let error):
-                    DI.errors.handleError(error)
+                if case .failure(let error) = res {
+                    if error.kind != .UiError(.FileDoesNotExist) {
+                        DI.errors.handleError(error)
+                        return
+                    }
                 }
+                
+                DispatchQueue.main.sync {
+                    DI.workspace.fileOpCompleted = .Delete(id: id)
+                }
+            }
+            
+            
+            self.refresh()
+            DispatchQueue.main.sync {
+                self.successfulAction = .delete
+                DI.selected.selectedFiles = nil
             }
         }
     }
@@ -389,7 +422,7 @@ class FileService: ObservableObject {
         switch DI.core.listFolderPaths() {
         case .success(let paths):
             return paths.map({ String($0.dropFirst()) }).sorted()
-        case .failure(let e):
+        case .failure(_):
             return nil
         }
     }

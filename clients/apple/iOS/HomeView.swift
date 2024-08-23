@@ -42,12 +42,11 @@ struct HomeView: View {
             .toolbar {
                 if let id = workspace.openDoc, let meta = DI.files.idsAndFiles[id] {
                     Button(action: {
-                        exportFileAndShowShareSheet(meta: meta)
+                        exportFilesAndShowShareSheet(metas: [meta])
                     }) {
                         Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                     }
                     .foregroundColor(.blue)
-                    .padding(.trailing, 5)
                     
                     Button(action: {
                         DI.sheets.sharingFileInfo = meta
@@ -78,9 +77,9 @@ struct HomeView: View {
 
 struct SidebarView: View {
     @EnvironmentObject var files: FileService
+    @EnvironmentObject var selected: SelectedFilesState
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var share: ShareService
-    @EnvironmentObject var billing: BillingService
     @EnvironmentObject var settings: SettingsService
     
     @State private var searchBar: UISearchBar?
@@ -201,20 +200,41 @@ struct SidebarView: View {
             BottomBar()
         }
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button(action: {
-                    DI.share.showPendingSharesView = true
-                }) {
-                    pendingShareToolbarIcon(isPendingSharesEmpty: DI.share.pendingShares?.isEmpty ?? false)
+            if selected.selectedFiles == nil {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button(action: {
+                        withAnimation(.linear(duration: 0.2)) {
+                            selected.selectedFiles = []
+                        }
+                    }, label: {
+                        Text("Edit")
+                            .foregroundStyle(.blue)
+                    })
+                    
+                    Button(action: {
+                        DI.share.showPendingSharesView = true
+                    }) {
+                        pendingShareToolbarIcon(isPendingSharesEmpty: DI.share.pendingShares?.isEmpty ?? false)
+                    }
+                    
+                    Button(action: {
+                        DI.settings.showView = true
+                        
+                    }) {
+                        Image(systemName: "gearshape.fill")
+                            .foregroundColor(.blue)
+                    }
                 }
-
-                Button(action: {
-                    DI.settings.showView = true
-
-                }) {
-                    Image(systemName: "gearshape.fill")
-                        .foregroundColor(.blue)
-                        .padding(.trailing, 10)
+            } else {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: {
+                        withAnimation {
+                            selected.selectedFiles = nil
+                        }
+                    }, label: {
+                        Text("Done")
+                            .foregroundStyle(.blue)
+                    })
                 }
             }
         }

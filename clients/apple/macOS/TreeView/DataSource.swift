@@ -5,7 +5,7 @@ import SwiftLockbookCore
 // https://github.com/KinematicSystems/NSOutlineViewReorder/blob/master/OutlineViewReorder/OutlineDataSource.swift
 class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvider {
 
-    var dragged: File? = nil
+    var dragged: [File]? = nil
     var lastFilesHash: Int? = nil
     var selectedDoc: UUID? = nil
     
@@ -51,7 +51,8 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     }
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
-        dragged = draggedItems[0] as? File
+        dragged = draggedItems as? [File]
+        
         session.draggingPasteboard.setData(try! JSONEncoder().encode(dragged), forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))
     }
 
@@ -72,7 +73,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
         let parent = item == nil ? DI.files.root! : item as! File
         
         if (info.draggingSource as? NSOutlineView) === outlineView {
-            return DI.files.moveFileSync(id: dragged!.id, newParent: parent.id)
+            return DI.files.moveFiles(ids: dragged!.map({ $0.id }), newParent: parent.id)
         } else {
             guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] else {
                 return false
@@ -90,11 +91,20 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     
     func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem, provideDataForType type: NSPasteboard.PasteboardType) {
         if(type == .fileURL) {
-            let file = try! JSONDecoder().decode(File.self, from: item.data(forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))!)
+            let files = try! JSONDecoder().decode([File].self, from: item.data(forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))!)
             
-            if let dest = DI.importExport.exportFilesToTempDirSync(meta: file) {
-                item.setData(dest.dataRepresentation, forType: .fileURL)
+            pasteboard?.clearContents()
+            var pasteboardItems: [NSPasteboardItem] = []
+
+            for file in files {
+                if let dest = DI.importExport.exportFilesToTempDirSync(meta: file) {
+                    let newItem = NSPasteboardItem()
+                    newItem.setData(dest.dataRepresentation, forType: .fileURL)
+                    pasteboardItems.append(newItem)
+                }
             }
+            
+            pasteboard?.writeObjects(pasteboardItems)
         }
     }
     
@@ -110,8 +120,20 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
 class TreeDelegate: NSObject, MenuOutlineViewDelegate {
     func outlineView(_ outlineView: NSOutlineView, menuForItem item: Any?) -> NSMenu? {
         let menu = NSMenu()
-        let parent = item == nil ? DI.files.root! : item as! File
-
+        let file = item as! File
+        let parent = item == nil ? DI.files.root! : file
+        
+        if let selectedFiles = DI.selected.selectedFiles,
+           selectedFiles.contains(file),
+           selectedFiles.count > 1 {
+            let selectedFiles = DI.selected.getConsolidatedSelectedFiles()
+            
+            menu.addItem(Delete(files: selectedFiles))
+            menu.addItem(ShareMultipleTo(files: selectedFiles, fileTree: outlineView))
+            
+            return menu
+        }
+        
         if parent.fileType == .Folder {
             menu.addItem(CreateDocument(file: parent))
             menu.addItem(CreateDrawing(file: parent))
@@ -122,7 +144,7 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
             menu.addItem(RenameFile(file: parent))
             menu.addItem(Share(file: parent))
             menu.addItem(ShareExternallyMenu(file: parent, fileTree: outlineView))
-            menu.addItem(Delete(file: parent))
+            menu.addItem(Delete(files: [parent]))
         }
         
         return menu
@@ -139,7 +161,7 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
 
     func outlineView(_ outlineView: NSOutlineView,
                      shouldSelectItem item: Any) -> Bool {
-        return true
+        return false
     }
 }
 

@@ -78,7 +78,7 @@ class SheetState: ObservableObject {
             }
         }
     }
-    @Published var deleteConfirmationInfo: File? {
+    @Published var deleteConfirmationInfo: [File]? {
         didSet {
             deleteConfirmation = deleteConfirmationInfo != nil
         }

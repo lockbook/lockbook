@@ -4,12 +4,12 @@ import SwiftLockbookCore
 
 struct DeleteConfirmationButtons: View {
     
-    var meta: File
+    var metas: [File]
     
     var body: some View {
         Group {
-            Button("Delete \"\(meta.name)\"", role: .destructive) {
-                DI.files.deleteFile(id: meta.id)
+            Button("Delete \(metas.count == 1 ? "\"\(metas[0].name)\"" : "\(metas.count) files").", role: .destructive) {
+                DI.files.deleteFiles(ids: metas.map({ $0.id }))
             }
             
             Button("Cancel", role: .cancel) {}

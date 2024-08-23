@@ -95,8 +95,8 @@ struct PlatformView: View {
                 isPresented: $sheets.deleteConfirmation,
                 titleVisibility: .visible,
                 actions: {
-                    if let meta = sheets.deleteConfirmationInfo {
-                        DeleteConfirmationButtons(meta: meta)
+                    if let metas = sheets.deleteConfirmationInfo {
+                        DeleteConfirmationButtons(metas: metas)
                     }
                 })
             .sheet(isPresented: $sheets.tabsList, content: {
@@ -173,6 +173,12 @@ struct PlatformView: View {
         
     var iPad: some View {
         HomeView()
+            .alert("Are you sure? This action cannot be undone.",
+                   isPresented: Binding(get: { sheets.deleteConfirmation && sheets.deleteConfirmationInfo != nil && sheets.deleteConfirmationInfo!.count > 1 }, set: { pres in sheets.deleteConfirmation = pres }), actions: {
+                if let metas = sheets.deleteConfirmationInfo {
+                    DeleteConfirmationButtons(metas: metas)
+                }
+            })
     }
     
     #else
@@ -184,8 +190,8 @@ struct PlatformView: View {
                     "Are you sure?",
                     isPresented: $sheets.deleteConfirmation
                 ) {
-                    if let meta = sheets.deleteConfirmationInfo {
-                        DeleteConfirmationButtons(meta: meta)
+                    if let metas = sheets.deleteConfirmationInfo {
+                        DeleteConfirmationButtons(metas: metas)
                     }
                 } message: {
                     Text("This action cannot be undone.")
@@ -203,19 +209,25 @@ struct PlatformView: View {
 
 #if os(iOS)
 extension View {
-    func exportFileAndShowShareSheet(meta: File) {
+    func exportFilesAndShowShareSheet(metas: [File]) {
         DispatchQueue.global(qos: .userInitiated).async {
-            if let url = DI.importExport.exportFilesToTempDirSync(meta: meta) {
-                DispatchQueue.main.async {
-                    let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-                    
-                    if UIDevice.current.userInterfaceIdiom == .pad {
-                        let thisViewVC = UIHostingController(rootView: self)
-                        activityVC.popoverPresentationController?.sourceView = thisViewVC.view
-                    }
-                    
-                    UIApplication.shared.connectedScenes.flatMap {($0 as? UIWindowScene)?.windows ?? []}.first {$0.isKeyWindow}?.rootViewController?.present(activityVC, animated: true, completion: nil)
+            var urls = []
+            
+            for meta in metas {
+                if let url = DI.importExport.exportFilesToTempDirSync(meta: meta) {
+                    urls.append(url)
                 }
+            }
+            
+            DispatchQueue.main.async {
+                let activityVC = UIActivityViewController(activityItems: urls, applicationActivities: nil)
+                
+                if UIDevice.current.userInterfaceIdiom == .pad {
+                    let thisViewVC = UIHostingController(rootView: self)
+                    activityVC.popoverPresentationController?.sourceView = thisViewVC.view
+                }
+                
+                UIApplication.shared.connectedScenes.flatMap {($0 as? UIWindowScene)?.windows ?? []}.first {$0.isKeyWindow}?.rootViewController?.present(activityVC, animated: true, completion: nil)
             }
         }
     }
@@ -223,12 +235,18 @@ extension View {
 
 #else
 extension NSView {
-    func exportFileAndShowShareSheet(meta: File) {
+    func exportFilesAndShowShareSheet(metas: [File]) {
         DispatchQueue.global(qos: .userInitiated).async {
-            if let url = DI.importExport.exportFilesToTempDirSync(meta: meta) {
-                DispatchQueue.main.async {
-                    NSSharingServicePicker(items: [url]).show(relativeTo: .zero, of: self, preferredEdge: .minX)
+            var urls = []
+            
+            for meta in metas {
+                if let url = DI.importExport.exportFilesToTempDirSync(meta: meta) {
+                    urls.append(url)
                 }
+            }
+
+            DispatchQueue.main.async {
+                NSSharingServicePicker(items: urls).show(relativeTo: .zero, of: self, preferredEdge: .minX)
             }
         }
     }

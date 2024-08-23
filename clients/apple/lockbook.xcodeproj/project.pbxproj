@@ -23,6 +23,8 @@
 		4761F30F2A1832B4002ED338 /* ManageSubscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4761F30E2A1832B4002ED338 /* ManageSubscription.swift */; };
 		476436CC29B7DE4E00FBDC59 /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476436CB29B7DE4E00FBDC59 /* SearchService.swift */; };
 		476436CD29B7DE4E00FBDC59 /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476436CB29B7DE4E00FBDC59 /* SearchService.swift */; };
+		477185F12C751E10001EDABB /* SelectedFilesState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477185F02C751E10001EDABB /* SelectedFilesState.swift */; };
+		477185F22C751E10001EDABB /* SelectedFilesState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477185F02C751E10001EDABB /* SelectedFilesState.swift */; };
 		4779C62D2AB8C09E007C0100 /* PathSearchActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4779C62C2AB8C09E007C0100 /* PathSearchActionBar.swift */; };
 		4779C62E2AB8C09E007C0100 /* PathSearchActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4779C62C2AB8C09E007C0100 /* PathSearchActionBar.swift */; };
 		477CC4902967A53C00714456 /* ShareFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CC48F2967A53C00714456 /* ShareFileSheet.swift */; };
@@ -169,6 +171,7 @@
 		4756C4DA2A57CE86002C64B1 /* CreateFolderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFolderSheet.swift; sourceTree = "<group>"; };
 		4761F30E2A1832B4002ED338 /* ManageSubscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageSubscription.swift; sourceTree = "<group>"; };
 		476436CB29B7DE4E00FBDC59 /* SearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SearchService.swift; path = "Shared/Stateful Logic/SearchService.swift"; sourceTree = SOURCE_ROOT; };
+		477185F02C751E10001EDABB /* SelectedFilesState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedFilesState.swift; sourceTree = "<group>"; };
 		4779C62C2AB8C09E007C0100 /* PathSearchActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathSearchActionBar.swift; sourceTree = "<group>"; };
 		477CC48F2967A53C00714456 /* ShareFileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFileSheet.swift; sourceTree = "<group>"; };
 		4782F83A2C49B4E700D55923 /* DeleteConfirmationButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteConfirmationButtons.swift; sourceTree = "<group>"; };
@@ -322,6 +325,7 @@
 				6581AB54147C2201F8F95500 /* SheetState.swift */,
 				47B53837290EFE150012E542 /* BillingService.swift */,
 				4735E4882C6A931C006FFD00 /* SelectFolderViewModel.swift */,
+				477185F02C751E10001EDABB /* SelectedFilesState.swift */,
 			);
 			path = "Stateful Logic";
 			sourceTree = "<group>";
@@ -648,6 +652,7 @@
 				8715F92827161CC60051689E /* OnboardingView.swift in Sources */,
 				47FB55ED2AF19AD400B74C09 /* RenameFileSheet.swift in Sources */,
 				47FAA4C829EC830600DB606E /* BranchState.swift in Sources */,
+				477185F12C751E10001EDABB /* SelectedFilesState.swift in Sources */,
 				4756C4DB2A57CE86002C64B1 /* CreateFolderSheet.swift in Sources */,
 				47E208562C387A60002A356B /* Util.swift in Sources */,
 				EA9079C32569960A00E04F5D /* ListFileCell.swift in Sources */,
@@ -717,6 +722,7 @@
 				4709DC39296609F100426106 /* PendingSharesView.swift in Sources */,
 				870DC0A226BF378F002E9A92 /* AccountSettingsView.swift in Sources */,
 				EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */,
+				477185F22C751E10001EDABB /* SelectedFilesState.swift in Sources */,
 				DFE4E3712B847F6000AC8A15 /* LogoutConfirmation.swift in Sources */,
 				B249B9F5282FE566004F5300 /* DataSource.swift in Sources */,
 				47FB55EE2AF19AD400B74C09 /* RenameFileSheet.swift in Sources */,
