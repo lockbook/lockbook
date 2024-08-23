@@ -55,6 +55,7 @@ struct BottomBar: View {
         }
         .foregroundStyle(selected.selectedFiles?.count == 0 ? .gray : .blue)
         .padding(.horizontal)
+        .frame(height: 40)
     }
     
     var mainView: some View {
@@ -82,7 +83,7 @@ struct BottomBar: View {
             }
         }
         .padding(.horizontal, 15)
-        .frame(height: 50)
+        .frame(height: 40)
     }
     
     var statusText: some View {

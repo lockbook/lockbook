@@ -205,20 +205,21 @@ struct ConstrainedHomeView: View {
                     .padding(.horizontal, 20)
             }
                 
-            if let root = files.root {
-                Section(header: Text("Files")
-                    .bold()
-                    .foregroundColor(.primary)
-                    .textCase(.none)
-                    .font(.headline)
-                    .padding(.bottom, 3)
-                    .padding(.top, 8)) {
-                        FileListView(parent: root, haveScrollView: false)
-                    }
-                    .padding(.horizontal, 20)
-            } else {
-                ProgressView()
+            Section(header: Text("Files")
+                .bold()
+                .foregroundColor(.primary)
+                .textCase(.none)
+                .font(.headline)
+                .padding(.bottom, 3)
+                .padding(.top, 8)) {
+                if let root = files.root {
+                    FileListView(parent: root, haveScrollView: false)
+                } else {
+                    ProgressView()
+                        .padding(.leading)
+                }
             }
+            .padding(.horizontal, 20)
         }
     }
 }
