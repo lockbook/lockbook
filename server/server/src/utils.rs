@@ -1,6 +1,6 @@
 use crate::ServerError;
-use lb_rs::shared::account::MAX_USERNAME_LENGTH;
-use lb_rs::shared::api::{GetBuildInfoError, GetBuildInfoResponse};
+use lb_rs::logic::account::MAX_USERNAME_LENGTH;
+use lb_rs::logic::api::{GetBuildInfoError, GetBuildInfoResponse};
 use shadow_rs::shadow;
 
 shadow!(build_info);

@@ -4,9 +4,9 @@ use std::{
 };
 
 use eframe::egui;
-use lb::service::search_service::{SearchRequest, SearchResult, SearchType};
+use lb::service::search::{SearchRequest, SearchResult, SearchType};
 use lb::{
-    service::search_service::{ContentMatch, SearchResult::*},
+    service::search::{ContentMatch, SearchResult::*},
     StartSearchInfo,
 };
 use workspace_rs::theme::icons::Icon;

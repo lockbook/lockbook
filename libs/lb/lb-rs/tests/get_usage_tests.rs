@@ -1,6 +1,6 @@
-use lb_rs::shared::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
-use lb_rs::shared::file_metadata::FileType;
-use lb_rs::shared::file_metadata::FileType::Folder;
+use lb_rs::logic::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
+use lb_rs::logic::file_metadata::FileType;
+use lb_rs::logic::file_metadata::FileType::Folder;
 use lb_rs::{Core, CoreError, DocumentService, FileLike, OnDiskDocuments, ShareMode};
 use test_utils::*;
 

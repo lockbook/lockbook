@@ -1,5 +1,5 @@
-use lb_rs::shared::file_metadata::FileType;
-use lb_rs::shared::path_ops::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
+use lb_rs::logic::file_metadata::FileType;
+use lb_rs::logic::path_ops::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use lb_rs::CoreError;
 use test_utils::*;
 

@@ -11,7 +11,7 @@ use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use time::Duration;
 
-use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchType};
+use lb_rs::service::search::{SearchRequest, SearchResult, SearchType};
 use lb_rs::{
     clock, unexpected_only, Config, FileType, RankingWeights, ShareMode, SyncProgress,
     UnexpectedError, Uuid,

@@ -1,8 +1,8 @@
 use crate::config::Config;
 use crate::ServerError;
 use async_trait::async_trait;
-use lb_rs::shared::crypto::EncryptedDocument;
-use lb_rs::shared::file_metadata::DocumentHmac;
+use lb_rs::logic::crypto::EncryptedDocument;
+use lb_rs::logic::file_metadata::DocumentHmac;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;

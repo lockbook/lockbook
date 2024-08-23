@@ -1,4 +1,4 @@
-use lb_rs::shared::file::ShareMode;
+use lb_rs::logic::file::ShareMode;
 use lb_rs::{Core, File};
 use std::collections::HashSet;
 use test_utils::*;

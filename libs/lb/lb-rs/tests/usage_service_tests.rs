@@ -1,4 +1,4 @@
-use lb_rs::service::usage_service::UsageItemMetric;
+use lb_rs::service::usage::UsageItemMetric;
 use test_utils::*;
 
 #[test]

@@ -1,9 +1,9 @@
 use libsecp256k1::PublicKey;
 
 use lb_rs::get_code_version;
-use lb_rs::service::api_service::{ApiError, Network, Requester};
-use lb_rs::shared::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
-use lb_rs::shared::clock::{get_time, Timestamp};
+use lb_rs::logic::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
+use lb_rs::logic::clock::{get_time, Timestamp};
+use lb_rs::service::api_service::{ApiError, NetworkOld, Requester};
 use test_utils::assert_matches;
 use test_utils::test_core_with_account;
 
@@ -14,7 +14,8 @@ fn forced_upgrade() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    let client = Network { client: Default::default(), get_code_version: CODE_VERSION, get_time };
+    let client =
+        NetworkOld { client: Default::default(), get_code_version: CODE_VERSION, get_time };
 
     let result: Result<PublicKey, ApiError<GetPublicKeyError>> = client
         .request(&account, GetPublicKeyRequest { username: account.username.clone() })
@@ -30,7 +31,7 @@ fn expired_request() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    let client = Network { client: Default::default(), get_code_version, get_time: EARLY_CLOCK };
+    let client = NetworkOld { client: Default::default(), get_code_version, get_time: EARLY_CLOCK };
 
     let result =
         client.request(&account, GetPublicKeyRequest { username: account.username.clone() });

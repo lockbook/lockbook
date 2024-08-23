@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use lb_rs::shared::file::ShareMode;
+use lb_rs::logic::file::ShareMode;
 use test_utils::*;
 
 /// Uncategorized tests.

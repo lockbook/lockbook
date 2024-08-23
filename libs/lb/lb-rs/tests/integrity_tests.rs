@@ -1,7 +1,7 @@
-use lb_rs::shared::file_like::FileLike;
-use lb_rs::shared::file_metadata::FileType::Document;
-use lb_rs::shared::secret_filename::SecretFileName;
-use lb_rs::shared::tree_like::TreeLike;
+use lb_rs::logic::file_like::FileLike;
+use lb_rs::logic::file_metadata::FileType::Document;
+use lb_rs::logic::secret_filename::SecretFileName;
+use lb_rs::logic::tree_like::TreeLike;
 use lb_rs::TestRepoError::*;
 use lb_rs::Warning::*;
 use rand::Rng;

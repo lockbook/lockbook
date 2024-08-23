@@ -2,8 +2,8 @@ use std::cmp::Ordering;
 
 use crate::Actions::*;
 use indicatif::{ProgressBar, ProgressStyle};
-use lb_rs::shared::file::File;
-use lb_rs::shared::file_metadata::FileType::{Document, Folder};
+use lb_rs::logic::file::File;
+use lb_rs::logic::file_metadata::FileType::{Document, Folder};
 use lb_rs::{Core, CoreError};
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::StdRng;

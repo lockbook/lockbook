@@ -1,4 +1,4 @@
-use lb_rs::shared::file::ShareMode;
+use lb_rs::logic::file::ShareMode;
 use lb_rs::Core;
 use test_utils::*;
 

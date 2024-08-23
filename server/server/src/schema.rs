@@ -1,8 +1,8 @@
 use crate::billing::billing_model::SubscriptionProfile;
 use db_rs::{LookupSet, LookupTable};
 use db_rs_derive::Schema;
-use lb_rs::shared::file_metadata::Owner;
-use lb_rs::shared::server_file::ServerFile;
+use lb_rs::logic::file_metadata::Owner;
+use lb_rs::logic::server_file::ServerFile;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

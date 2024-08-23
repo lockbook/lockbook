@@ -1,8 +1,8 @@
-use lb_rs::service::api_service::{ApiError, Network, Requester};
-use lb_rs::shared::account::{Account, MAX_USERNAME_LENGTH};
-use lb_rs::shared::api::*;
-use lb_rs::shared::file_metadata::FileMetadata;
-use lb_rs::shared::pubkey;
+use lb_rs::logic::account::{Account, MAX_USERNAME_LENGTH};
+use lb_rs::logic::api::*;
+use lb_rs::logic::file_metadata::FileMetadata;
+use lb_rs::logic::pubkey;
+use lb_rs::service::api_service::{ApiError, NetworkOld, Requester};
 use test_utils::*;
 
 fn random_account() -> Account {
@@ -14,7 +14,7 @@ fn test_account(account: &Account) -> Result<NewAccountResponse, ApiError<NewAcc
         .unwrap()
         .sign(account)
         .unwrap();
-    Network::default().request(account, NewAccountRequest::new(account, &root))
+    NetworkOld::default().request(account, NewAccountRequest::new(account, &root))
 }
 #[test]
 fn new_account() {

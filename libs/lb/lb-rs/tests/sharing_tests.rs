@@ -1,5 +1,5 @@
-use lb_rs::shared::file::ShareMode;
-use lb_rs::shared::file_metadata::FileType;
+use lb_rs::logic::file::ShareMode;
+use lb_rs::logic::file_metadata::FileType;
 use lb_rs::{Core, CoreError};
 use test_utils::*;
 use uuid::Uuid;

@@ -1,9 +1,9 @@
-use lb_rs::shared::account::Account;
-use lb_rs::shared::file_like::FileLike;
-use lb_rs::shared::file_metadata::FileMetadata;
-use lb_rs::shared::staged::StagedTreeLikeMut;
-use lb_rs::shared::tree_like::{TreeLike, TreeLikeMut};
-use lb_rs::shared::SharedResult;
+use lb_rs::logic::account::Account;
+use lb_rs::logic::file_like::FileLike;
+use lb_rs::logic::file_metadata::FileMetadata;
+use lb_rs::logic::staged::StagedTreeLikeMut;
+use lb_rs::logic::tree_like::{TreeLike, TreeLikeMut};
+use lb_rs::logic::SharedResult;
 use test_utils::*;
 use uuid::Uuid;
 

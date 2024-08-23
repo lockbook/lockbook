@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::ServerError;
 use google_androidpublisher3::api::SubscriptionPurchase;
-use lb_rs::shared::api::{
+use lb_rs::logic::api::{
     AppStoreAccountState, GooglePlayAccountState, StripeAccountState, UnixTimeMillis,
     UpgradeAccountGooglePlayError, FREE_TIER_USAGE_SIZE, PREMIUM_TIER_USAGE_SIZE,
 };

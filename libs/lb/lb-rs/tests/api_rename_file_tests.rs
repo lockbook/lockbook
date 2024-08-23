@@ -1,7 +1,7 @@
+use lb_rs::logic::api::*;
+use lb_rs::logic::file_like::FileLike;
+use lb_rs::logic::file_metadata::FileDiff;
 use lb_rs::service::api_service::Requester;
-use lb_rs::shared::api::*;
-use lb_rs::shared::file_like::FileLike;
-use lb_rs::shared::file_metadata::FileDiff;
 use test_utils::*;
 
 #[test]

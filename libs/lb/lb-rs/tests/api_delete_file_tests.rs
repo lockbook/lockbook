@@ -1,6 +1,6 @@
+use lb_rs::logic::api::*;
+use lb_rs::logic::file_metadata::FileDiff;
 use lb_rs::service::api_service::{ApiError, Requester};
-use lb_rs::shared::api::*;
-use lb_rs::shared::file_metadata::FileDiff;
 use test_utils::*;
 use uuid::Uuid;
 

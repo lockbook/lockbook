@@ -1,4 +1,4 @@
-use lb_rs::shared::usage::bytes_to_human;
+use lb_rs::logic::usage::bytes_to_human;
 
 #[test]
 fn bytes_to_human_kb() {

@@ -1,5 +1,5 @@
-use lb_rs::shared::api::ServerIndex;
-use lb_rs::shared::file::ShareMode;
+use lb_rs::logic::api::ServerIndex;
+use lb_rs::logic::file::ShareMode;
 use test_utils::*;
 
 #[test]

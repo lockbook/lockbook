@@ -1,11 +1,11 @@
 use lb_rs::service::api_service::{ApiError, Requester};
 
-use lb_rs::shared::api::{
+use lb_rs::logic::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, PaymentMethod, StripeAccountTier,
     UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest, UpgradeAccountStripeError,
     UpgradeAccountStripeRequest, FREE_TIER_USAGE_SIZE,
 };
-use lb_rs::shared::file_metadata::FileType;
+use lb_rs::logic::file_metadata::FileType;
 use rand::RngCore;
 use test_utils::{
     assert_matches, generate_premium_account_tier, test_core_with_account, test_credit_cards,

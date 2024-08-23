@@ -1,7 +1,7 @@
 use crossbeam::channel::{Receiver, Sender};
-use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchResultItem, SearchType};
-use lb_rs::shared::file::ShareMode;
-use lb_rs::shared::file_metadata::FileType;
+use lb_rs::logic::file::ShareMode;
+use lb_rs::logic::file_metadata::FileType;
+use lb_rs::service::search::{SearchRequest, SearchResult, SearchResultItem, SearchType};
 use std::collections::HashSet;
 use test_utils::*;
 

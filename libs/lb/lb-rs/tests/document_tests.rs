@@ -2,8 +2,8 @@ use lb_rs::DocumentService;
 use lb_rs::OnDiskDocuments;
 use uuid::Uuid;
 
-use lb_rs::shared::crypto::AESEncrypted;
-use lb_rs::shared::symkey;
+use lb_rs::logic::crypto::AESEncrypted;
+use lb_rs::logic::symkey;
 use test_utils::{self, test_config};
 
 #[test]

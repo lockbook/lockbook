@@ -9,9 +9,8 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::shared::{api, SharedError, SharedErrorKind, ValidationFailure};
-
-use crate::service::api_service::ApiError;
+use crate::logic::{api, SharedError, SharedErrorKind, ValidationFailure};
+use crate::service::network::ApiError;
 
 pub type LbResult<T> = Result<T, LbError>;
 

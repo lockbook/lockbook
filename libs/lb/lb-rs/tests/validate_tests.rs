@@ -1,8 +1,8 @@
-use lb_rs::shared::access_info::{UserAccessInfo, UserAccessMode};
-use lb_rs::shared::file::ShareMode;
-use lb_rs::shared::file_metadata::{FileType, Owner};
-use lb_rs::shared::tree_like::TreeLike;
-use lb_rs::shared::{symkey, SharedErrorKind, ValidationFailure};
+use lb_rs::logic::access_info::{UserAccessInfo, UserAccessMode};
+use lb_rs::logic::file::ShareMode;
+use lb_rs::logic::file_metadata::{FileType, Owner};
+use lb_rs::logic::tree_like::TreeLike;
+use lb_rs::logic::{symkey, SharedErrorKind, ValidationFailure};
 use test_utils::*;
 use uuid::Uuid;
 

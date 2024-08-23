@@ -3897,6 +3897,7 @@ dependencies = [
  "tempfile",
  "test_utils",
  "time",
+ "tokio",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
