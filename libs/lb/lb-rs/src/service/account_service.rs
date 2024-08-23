@@ -1,7 +1,9 @@
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
 use crate::shared::account::{Account, MAX_USERNAME_LENGTH};
-use crate::shared::api::{DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequest};
+use crate::shared::api::{
+    DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequest,
+};
 use crate::shared::document_repo::DocumentService;
 use crate::shared::file_like::FileLike;
 use crate::shared::file_metadata::{FileMetadata, FileType};
@@ -84,14 +86,17 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(account)
     }
 
-    pub(crate) fn import_account_v2(&mut self, phrases: [String; 24], api_url: &str) -> LbResult<Account> {
+    pub(crate) fn import_account_v2(
+        &mut self, phrases: [String; 24], api_url: &str,
+    ) -> LbResult<Account> {
         if self.db.account.get().is_some() {
             warn!("tried to import an account, but account exists already.");
             return Err(CoreError::AccountExists.into());
         }
 
         let private_key = Account::phrase_to_private_key(phrases)?;
-        let mut account = Account { username: "".to_string(), api_url: api_url.to_string(), private_key };
+        let mut account =
+            Account { username: "".to_string(), api_url: api_url.to_string(), private_key };
         let public_key = account.public_key();
 
         account.username = self

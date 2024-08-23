@@ -37,20 +37,31 @@ impl Account {
             out
         });
 
-        let checksum: String = sha2::Sha256::digest(&key)
-            .into_iter()
-            .fold(String::new(), |mut out, byte| {
-                let _ = write!(out, "{:08b}", byte);
-                out
-            });
+        let checksum: String =
+            sha2::Sha256::digest(&key)
+                .into_iter()
+                .fold(String::new(), |mut out, byte| {
+                    let _ = write!(out, "{:08b}", byte);
+                    out
+                });
 
         let checksum_last_4_bits = &checksum[..4];
         let combined_bits = format!("{}{}", key_bits, checksum_last_4_bits);
 
         let mut phrase: [String; 24] = std::array::from_fn(|_| String::new());
-        
-        for (i, chunk) in combined_bits.chars().collect::<Vec<_>>().chunks(11).enumerate() {
-            let index = u16::from_str_radix(&chunk.iter().collect::<String>(), 2).map_err(|_| SharedErrorKind::Unexpected("could not parse appropriate private key bits into u16"))?;
+
+        for (i, chunk) in combined_bits
+            .chars()
+            .collect::<Vec<_>>()
+            .chunks(11)
+            .enumerate()
+        {
+            let index =
+                u16::from_str_radix(&chunk.iter().collect::<String>(), 2).map_err(|_| {
+                    SharedErrorKind::Unexpected(
+                        "could not parse appropriate private key bits into u16",
+                    )
+                })?;
             let word = bip39_dict::ENGLISH
                 .lookup_word(bip39_dict::MnemonicIndex(index))
                 .to_string();
@@ -68,13 +79,13 @@ impl Account {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| SharedErrorKind::KeyPhrasesMistyped)? // Collects the results and propagates errors
             .iter()
-                .fold(String::new(), |mut out, index| {
+            .fold(String::new(), |mut out, index| {
                 let _ = write!(out, "{:011b}", index.0);
                 out
             });
 
         if combined_bits.len() != 264 {
-            return Err(SharedErrorKind::Unexpected("the number of bits after translating the phrase does not equal the expected amount (264)").into())
+            return Err(SharedErrorKind::Unexpected("the number of bits after translating the phrase does not equal the expected amount (264)").into());
         }
 
         for _ in 0..4 {
@@ -86,25 +97,28 @@ impl Account {
 
         let mut key: Vec<u8> = Vec::new();
         for chunk in key_bits.chars().collect::<Vec<_>>().chunks(8) {
-            let comp = u8::from_str_radix(&chunk.iter().collect::<String>(), 2).map_err(|_| SharedErrorKind::Unexpected("could not parse appropriate phrases bits into u8"))?;
+            let comp = u8::from_str_radix(&chunk.iter().collect::<String>(), 2).map_err(|_| {
+                SharedErrorKind::Unexpected("could not parse appropriate phrases bits into u8")
+            })?;
 
             key.push(comp);
         }
 
-        let gen_checksum: String = sha2::Sha256::digest(&key)
-            .into_iter()
-            .fold(String::new(), |mut out, byte| {
-                let _ = write!(out, "{:08b}", byte);
-                out
-            });
+        let gen_checksum: String =
+            sha2::Sha256::digest(&key)
+                .into_iter()
+                .fold(String::new(), |mut out, byte| {
+                    let _ = write!(out, "{:08b}", byte);
+                    out
+                });
 
         let gen_checksum_last_4 = &gen_checksum[..4];
 
         if gen_checksum_last_4 != checksum_last_4_bits {
-            return Err(SharedErrorKind::KeyPhrasesMistyped.into())
+            return Err(SharedErrorKind::KeyPhrasesMistyped.into());
         }
 
-        Ok(SecretKey::parse_slice(&key).map_err(|err| SharedErrorKind::ParseError(err))?)
+        Ok(SecretKey::parse_slice(&key).map_err(SharedErrorKind::ParseError)?)
     }
 }
 
