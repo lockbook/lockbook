@@ -1,6 +1,6 @@
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
-use crate::shared::account::{self, Account, MAX_USERNAME_LENGTH};
+use crate::shared::account::{Account, MAX_USERNAME_LENGTH};
 use crate::shared::api::{DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequest};
 use crate::shared::document_repo::DocumentService;
 use crate::shared::file_like::FileLike;
@@ -90,8 +90,8 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             return Err(CoreError::AccountExists.into());
         }
 
-        let private_key = Account::phrase_to_private_key(phrases);
-        let mut account = Account { username: "".to_string(), api_url: api_url.to_string(), private_key: private_key };
+        let private_key = Account::phrase_to_private_key(phrases)?;
+        let mut account = Account { username: "".to_string(), api_url: api_url.to_string(), private_key };
         let public_key = account.public_key();
 
         account.username = self
@@ -113,7 +113,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
 
     pub(crate) fn export_account_v2(&self) -> LbResult<[String; 24]> {
         let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
-        Ok(account.get_phrase())
+        Ok(account.get_phrase()?)
     }
 
     pub(crate) fn export_account_qr(&self) -> LbResult<Vec<u8>> {

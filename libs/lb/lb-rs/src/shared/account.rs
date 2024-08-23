@@ -1,8 +1,11 @@
-use crate::shared::pubkey;
+use crate::shared::{pubkey, SharedErrorKind};
 use bip39_dict::Language;
 use libsecp256k1::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
+use std::fmt::Write;
+
+use super::SharedResult;
 
 pub const MAX_USERNAME_LENGTH: usize = 32;
 
@@ -27,40 +30,52 @@ impl Account {
         PublicKey::from_secret_key(&self.private_key)
     }
 
-    pub fn get_phrase(&self) -> [String; 24] {
+    pub fn get_phrase(&self) -> SharedResult<[String; 24]> {
         let key = self.private_key.serialize();
-        let key_bits: String = key.iter().map(|byte| format!("{:08b}", byte)).collect();
+        let key_bits = key.iter().fold(String::new(), |mut out, byte| {
+            let _ = write!(out, "{:08b}", byte);
+            out
+        });
 
         let checksum: String = sha2::Sha256::digest(&key)
             .into_iter()
-            .map(|byte| format!("{:08b}", byte))
-            .collect();
+            .fold(String::new(), |mut out, byte| {
+                let _ = write!(out, "{:08b}", byte);
+                out
+            });
 
         let checksum_last_4_bits = &checksum[..4];
         let combined_bits = format!("{}{}", key_bits, checksum_last_4_bits);
 
         let mut phrase: [String; 24] = std::array::from_fn(|_| String::new());
-        let mut i = 0;
         
-        for chunk in combined_bits.chars().collect::<Vec<_>>().chunks(11) {
-            let index = u16::from_str_radix(&chunk.iter().collect::<String>(), 2).unwrap();
+        for (i, chunk) in combined_bits.chars().collect::<Vec<_>>().chunks(11).enumerate() {
+            let index = u16::from_str_radix(&chunk.iter().collect::<String>(), 2).map_err(|_| SharedErrorKind::Unexpected("could not parse appropriate private key bits into u16"))?;
             let word = bip39_dict::ENGLISH
                 .lookup_word(bip39_dict::MnemonicIndex(index))
                 .to_string();
 
             phrase[i] = word;
-            i += 1;
         }
 
-        phrase
+        Ok(phrase)
     }
 
-    pub fn phrase_to_private_key(phrases: [String; 24]) -> SecretKey {
+    pub fn phrase_to_private_key(phrases: [String; 24]) -> SharedResult<SecretKey> {
         let mut combined_bits: String = phrases
             .iter()
-            .map(|word| bip39_dict::ENGLISH.lookup_mnemonic(word).unwrap().0)
-            .map(|comp| format!("{:011b}", comp))
-            .collect();
+            .map(|word| bip39_dict::ENGLISH.lookup_mnemonic(word))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| SharedErrorKind::KeyPhrasesMistyped)? // Collects the results and propagates errors
+            .iter()
+                .fold(String::new(), |mut out, index| {
+                let _ = write!(out, "{:011b}", index.0);
+                out
+            });
+
+        if combined_bits.len() != 264 {
+            return Err(SharedErrorKind::Unexpected("the number of bits after translating the phrase does not equal the expected amount (264)").into())
+        }
 
         for _ in 0..4 {
             combined_bits.remove(253);
@@ -71,21 +86,25 @@ impl Account {
 
         let mut key: Vec<u8> = Vec::new();
         for chunk in key_bits.chars().collect::<Vec<_>>().chunks(8) {
-            let comp = u8::from_str_radix(&chunk.iter().collect::<String>(), 2).unwrap();
+            let comp = u8::from_str_radix(&chunk.iter().collect::<String>(), 2).map_err(|_| SharedErrorKind::Unexpected("could not parse appropriate phrases bits into u8"))?;
 
             key.push(comp);
         }
 
         let gen_checksum: String = sha2::Sha256::digest(&key)
             .into_iter()
-            .map(|byte| format!("{:08b}", byte))
-            .collect();
+            .fold(String::new(), |mut out, byte| {
+                let _ = write!(out, "{:08b}", byte);
+                out
+            });
 
         let gen_checksum_last_4 = &gen_checksum[..4];
 
-        assert!(gen_checksum_last_4 == checksum_last_4_bits);
+        if gen_checksum_last_4 != checksum_last_4_bits {
+            return Err(SharedErrorKind::KeyPhrasesMistyped.into())
+        }
 
-        SecretKey::parse_slice(&key).unwrap()
+        Ok(SecretKey::parse_slice(&key).map_err(|err| SharedErrorKind::ParseError(err))?)
     }
 }
 
@@ -149,8 +168,8 @@ mod test_account_key_and_phrase {
             private_key: SecretKey::random(&mut OsRng),
         };
 
-        let phrase = account1.get_phrase();
-        let reverse = Account::phrase_to_private_key(phrase);
+        let phrase = account1.get_phrase().unwrap();
+        let reverse = Account::phrase_to_private_key(phrase).unwrap();
 
         assert!(account1.private_key == reverse);
     }

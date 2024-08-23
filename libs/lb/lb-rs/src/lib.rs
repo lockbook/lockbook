@@ -174,6 +174,19 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn import_account_v2(&self, phrases: [String; 24], api_url: &str) -> LbResult<Account> {
+        self.in_tx(|s| s.import_account_v2(phrases, api_url))
+            .expected_errs(&[
+                CoreError::AccountExists,
+                CoreError::AccountNonexistent,
+                CoreError::AccountStringCorrupted,
+                CoreError::UsernamePublicKeyMismatch,
+                CoreError::ServerUnreachable,
+                CoreError::ClientUpdateRequired,
+            ])
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn export_account(&self) -> Result<String, LbError> {
         self.in_tx(|s| s.export_account())
             .expected_errs(&[CoreError::AccountNonexistent])

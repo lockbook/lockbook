@@ -65,6 +65,7 @@ pub enum SharedErrorKind {
     FileNotDocument,
     SignatureInvalid,
     WrongPublicKey,
+    KeyPhrasesMistyped,
     SignatureInTheFuture(u64),
     SignatureExpired(u64),
     BincodeError(String),
