@@ -29,9 +29,7 @@ pub extern "C" fn ios_frame(obj: *mut c_void) -> IOSResponse {
 
     let res = obj.frame().into();
 
-    let span_clone = span.clone();
-    drop(span);
-    obj.context.push_span(span_clone);
+    obj.context.push_span(span);
 
     res
 }
@@ -290,7 +288,7 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
 
     let frame = obj.context.frame_nr();
     let pos = egui::pos2(x, y);
-    let span = span!(target: "svg_editor", Level::TRACE, "NSEevent touch start", ?pos, frame);
+    let span = span!(target: "svg_editor", Level::TRACE, "UIEvent touch start", ?pos, frame);
     let _ = span.enter();
 
     let force = if force == 0.0 { None } else { Some(force) };
@@ -309,9 +307,7 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
         modifiers: Default::default(),
     });
 
-    let span_clone = span.clone();
-    drop(span);
-    obj.context.push_span(span_clone);
+    obj.context.push_span(span);
 }
 
 /// # Safety
@@ -322,7 +318,7 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
 
     let frame = obj.context.frame_nr();
     let pos = egui::pos2(x, y);
-    let span = span!(target: "svg_editor", Level::TRACE, "NSEevent touch move", ?pos, frame);
+    let span = span!(target: "svg_editor", Level::DEBUG, "UIEvent touch move", ?pos, frame);
     let _ = span.enter();
 
     let force = if force == 0.0 { None } else { Some(force) };
@@ -339,9 +335,7 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
         .events
         .push(Event::PointerMoved(Pos2 { x, y }));
 
-    let span_clone = span.clone();
-    drop(span);
-    obj.context.push_span(span_clone);
+    obj.context.push_span(span);
 }
 
 /// # Safety
@@ -354,7 +348,7 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
 
     let pos = egui::pos2(x, y);
     let frame = obj.context.frame_nr();
-    let span = span!(target: "svg_editor", Level::TRACE, "NSEevent touch end", ?pos, frame);
+    let span = span!(target: "svg_editor", Level::TRACE, "UIEvent touch end", ?pos, frame);
     let _ = span.enter();
 
     let force = if force == 0.0 { None } else { Some(force) };
@@ -376,9 +370,7 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
 
     obj.raw_input.events.push(Event::PointerGone);
 
-    let span_clone = span.clone();
-    drop(span);
-    obj.context.push_span(span_clone);
+    obj.context.push_span(span);
 }
 
 /// # Safety
@@ -388,7 +380,7 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
 #[no_mangle]
 pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let pos = egui::pos2(x, y);
-    let span = span!(target: "svg_editor", Level::TRACE, "NSEevent touch canceled", ?pos);
+    let span = span!(target: "svg_editor", Level::TRACE, "UIEvent touch canceled", ?pos);
     let _ = span.enter();
 
     let obj = &mut *(obj as *mut WgpuWorkspace);
@@ -404,9 +396,7 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
 
     obj.raw_input.events.push(Event::PointerGone);
 
-    let span_clone = span.clone();
-    drop(span);
-    obj.context.push_span(span_clone);
+    obj.context.push_span(span);
 }
 
 /// # Safety
