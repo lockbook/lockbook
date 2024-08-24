@@ -179,8 +179,7 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
             .expected_errs(&[
                 CoreError::AccountExists,
                 CoreError::AccountNonexistent,
-                CoreError::AccountStringCorrupted,
-                CoreError::UsernamePublicKeyMismatch,
+                CoreError::KeyPhrasesMistyped,
                 CoreError::ServerUnreachable,
                 CoreError::ClientUpdateRequired,
             ])
@@ -193,8 +192,20 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn export_account_v2(&self) -> Result<[String; 24], LbError> {
+        self.in_tx(|s| s.export_account_v2())
+            .expected_errs(&[CoreError::AccountNonexistent])
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn export_account_qr(&self) -> Result<Vec<u8>, LbError> {
         self.in_tx(|s| s.export_account_qr())
+            .expected_errs(&[CoreError::AccountNonexistent])
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn export_account_qr_v2(&self) -> Result<Vec<u8>, LbError> {
+        self.in_tx(|s| s.export_account_qr_v2())
             .expected_errs(&[CoreError::AccountNonexistent])
     }
 
