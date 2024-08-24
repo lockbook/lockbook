@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import app.lockbook.R
 import app.lockbook.ui.UsageBarPreference
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
@@ -13,15 +14,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
-    private val _canceledSubscription = MutableLiveData<Unit>()
+    private val _sendBreadcrumb = SingleMutableLiveData<String>()
     private val _determineSettingsInfo = MutableLiveData<SettingsInfo>()
+    private val _exit = SingleMutableLiveData<Unit>()
     private val _notifyError = SingleMutableLiveData<LbError>()
 
-    val canceledSubscription: LiveData<Unit>
-        get() = _canceledSubscription
+    val sendBreadcrumb: LiveData<String>
+        get() = _sendBreadcrumb
 
     val determineSettingsInfo: LiveData<SettingsInfo>
         get() = _determineSettingsInfo
+
+    val exit: LiveData<Unit>
+        get() = _exit
 
     val notifyError: LiveData<LbError>
         get() = _notifyError
@@ -58,11 +63,27 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             when (val cancelResult = CoreModel.cancelSubscription()) {
                 is Ok -> {
-                    _canceledSubscription.postValue(Unit)
+                    _sendBreadcrumb.postValue(getString(R.string.settings_cancel_completed))
                     computeUsage()
                 }
                 is Err -> _notifyError.postValue(cancelResult.error.toLbError(getRes()))
             }
+        }
+    }
+
+    fun deleteAccount() {
+        viewModelScope.launch(Dispatchers.IO) {
+            when (val cancelResult = CoreModel.deleteAccount()) {
+                is Ok -> _exit.postValue(Unit)
+                is Err -> _notifyError.postValue(cancelResult.error.toLbError(getRes()))
+            }
+        }
+    }
+
+    fun logout() {
+        viewModelScope.launch(Dispatchers.IO) {
+            CoreModel.logout()
+            _exit.postValue(Unit)
         }
     }
 }

@@ -105,7 +105,8 @@ pub unsafe extern "C" fn create_account(
 #[no_mangle]
 pub extern "C" fn logout_and_exit() -> ! {
     let core = static_state::get().expect("Could not get core");
-    core.core.logout_and_exit();
+    core.core.logout();
+    std::process::exit(0);
 }
 
 /// # Safety
