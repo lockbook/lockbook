@@ -2,7 +2,7 @@ use egui::{Event, Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, T
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::ptr::null;
-use tracing::{span, Level};
+use tracing::instrument;
 use workspace_rs::tab::markdown_editor::input::canonical::{
     Bound, Increment, Modification, Offset, Region,
 };
@@ -17,19 +17,14 @@ use workspace_rs::tab::TabContent;
 use super::super::response::*;
 use super::response::*;
 use crate::apple::keyboard::UIKeys;
-use crate::{ExtendedInput, WgpuWorkspace};
+use crate::WgpuWorkspace;
 
 #[no_mangle]
-pub extern "C" fn ios_frame(obj: *mut c_void) -> IOSResponse {
+#[instrument(level="trace", skip(obj) fields(frame = (&mut *(obj as *mut WgpuWorkspace)).context.frame_nr()))]
+pub unsafe extern "C" fn ios_frame(obj: *mut c_void) -> IOSResponse {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let frame = obj.context.frame_nr();
-    let span = span!(target: "svg_editor", Level::TRACE, "request ios frame", frame);
-    let _ = span.enter();
-
     let res = obj.frame().into();
-
-    obj.context.push_span(span);
 
     res
 }
@@ -283,13 +278,9 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
+#[instrument(level="trace", skip(obj) fields(frame = (&mut *(obj as *mut WgpuWorkspace)).context.frame_nr()))]
 pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    let frame = obj.context.frame_nr();
-    let pos = egui::pos2(x, y);
-    let span = span!(target: "svg_editor", Level::TRACE, "UIEvent touch start", ?pos, frame);
-    let _ = span.enter();
 
     let force = if force == 0.0 { None } else { Some(force) };
     obj.raw_input.events.push(Event::Touch {
@@ -306,20 +297,14 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
         pressed: true,
         modifiers: Default::default(),
     });
-
-    obj.context.push_span(span);
 }
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
+#[instrument(level="trace", skip(obj) fields(frame = (&mut *(obj as *mut WgpuWorkspace)).context.frame_nr()))]
 pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    let frame = obj.context.frame_nr();
-    let pos = egui::pos2(x, y);
-    let span = span!(target: "svg_editor", Level::DEBUG, "UIEvent touch move", ?pos, frame);
-    let _ = span.enter();
 
     let force = if force == 0.0 { None } else { Some(force) };
 
@@ -334,8 +319,6 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
     obj.raw_input
         .events
         .push(Event::PointerMoved(Pos2 { x, y }));
-
-    obj.context.push_span(span);
 }
 
 /// # Safety
@@ -343,13 +326,9 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
 ///
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
+#[instrument(level="trace", skip(obj) fields(frame = (&mut *(obj as *mut WgpuWorkspace)).context.frame_nr()))]
 pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    let pos = egui::pos2(x, y);
-    let frame = obj.context.frame_nr();
-    let span = span!(target: "svg_editor", Level::TRACE, "UIEvent touch end", ?pos, frame);
-    let _ = span.enter();
 
     let force = if force == 0.0 { None } else { Some(force) };
 
@@ -369,8 +348,6 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
     });
 
     obj.raw_input.events.push(Event::PointerGone);
-
-    obj.context.push_span(span);
 }
 
 /// # Safety
@@ -378,11 +355,8 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
 ///
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
+#[instrument(level="trace", skip(obj) fields(frame = (&mut *(obj as *mut WgpuWorkspace)).context.frame_nr()))]
 pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
-    let pos = egui::pos2(x, y);
-    let span = span!(target: "svg_editor", Level::TRACE, "UIEvent touch canceled", ?pos);
-    let _ = span.enter();
-
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let force = if force == 0.0 { None } else { Some(force) };
 
@@ -395,8 +369,6 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
     });
 
     obj.raw_input.events.push(Event::PointerGone);
-
-    obj.context.push_span(span);
 }
 
 /// # Safety
