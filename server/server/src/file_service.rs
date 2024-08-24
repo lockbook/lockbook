@@ -781,6 +781,30 @@ where
             }
         }
         for (id, meta) in db.metas.get().clone() {
+            // check for implicit deletion (can't use server tree which depends on index)
+            let mut deleted = false;
+            let mut ancestor = meta.clone();
+            loop {
+                if ancestor.explicitly_deleted() {
+                    deleted = true;
+                    break;
+                }
+                if ancestor.is_root() {
+                    break;
+                }
+                match db.metas.get().get(ancestor.parent()) {
+                    Some(parent) => ancestor = parent.clone(),
+                    None => {
+                        error!("missing parent for file {:?}", ancestor.parent());
+                        deleted = true;
+                        break;
+                    }
+                }
+            }
+            if deleted {
+                continue;
+            }
+
             for k in meta.user_access_keys() {
                 if k.deleted {
                     continue;
@@ -930,10 +954,35 @@ where
                     db.shared_files.create_key(*owner)?;
                 }
                 for (id, file) in db.metas.get().clone() {
-                    for user_access_key in file.user_access_keys() {
-                        if user_access_key.encrypted_for != user_access_key.encrypted_by {
-                            db.shared_files
-                                .insert(Owner(user_access_key.encrypted_for), id)?;
+                    // check for implicit deletion (can't use server tree which depends on index)
+                    let mut deleted = false;
+                    let mut ancestor = file.clone();
+                    loop {
+                        if ancestor.explicitly_deleted() {
+                            deleted = true;
+                            break;
+                        }
+                        if ancestor.is_root() {
+                            break;
+                        }
+                        match db.metas.get().get(ancestor.parent()) {
+                            Some(parent) => ancestor = parent.clone(),
+                            None => {
+                                error!("missing parent for file {:?}", ancestor.parent());
+                                deleted = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if !deleted {
+                        for user_access_key in file.user_access_keys() {
+                            if !user_access_key.deleted
+                                && user_access_key.encrypted_for != user_access_key.encrypted_by
+                            {
+                                db.shared_files
+                                    .insert(Owner(user_access_key.encrypted_for), id)?;
+                            }
                         }
                     }
                 }
