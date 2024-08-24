@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    eraser::DEFAULT_ERASER_THICKNESS, history::History, parser, selection::Selection,
+    eraser::DEFAULT_ERASER_RADIUS, history::History, parser, selection::Selection,
     zoom::zoom_percentage_to_transform, Buffer, Eraser, Pen,
 };
 
@@ -230,10 +230,10 @@ impl Toolbar {
             Tool::Eraser => {
                 if let Some(thickness) = self.show_thickness_pickers(
                     ui,
-                    self.eraser.thickness,
-                    vec![DEFAULT_ERASER_THICKNESS, 30.0, 90.0],
+                    self.eraser.radius,
+                    vec![DEFAULT_ERASER_RADIUS, 30.0, 90.0],
                 ) {
-                    self.eraser.thickness = thickness;
+                    self.eraser.radius = thickness;
                 }
             }
             Tool::Selection => {}
