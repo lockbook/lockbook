@@ -4,7 +4,7 @@ use super::history::History;
 use super::{util::pointer_intersects_element, Buffer, DeleteElement};
 
 pub struct Eraser {
-    pub thickness: f32,
+    pub radius: f32,
     delete_candidates: HashMap<String, bool>,
     last_pos: Option<egui::Pos2>,
 }
@@ -19,13 +19,13 @@ impl Default for Eraser {
         Self::new()
     }
 }
-pub const DEFAULT_ERASER_THICKNESS: f32 = 5.0;
+pub const DEFAULT_ERASER_RADIUS: f32 = 5.0;
 
 impl Eraser {
     pub fn new() -> Self {
         Eraser {
             delete_candidates: HashMap::default(),
-            thickness: DEFAULT_ERASER_THICKNESS,
+            radius: DEFAULT_ERASER_RADIUS,
             last_pos: None,
         }
     }
@@ -49,7 +49,7 @@ impl Eraser {
                                 el,
                                 pos,
                                 self.last_pos,
-                                self.thickness as f64,
+                                self.radius as f64,
                             ) {
                                 self.delete_candidates.insert(id.clone(), false);
                             }
@@ -124,8 +124,9 @@ impl Eraser {
             }
 
             let stroke = egui::Stroke { width: 1.0, color: ui.visuals().text_color() };
-            painter.circle_stroke(cursor_pos, self.thickness, stroke);
+            painter.circle_stroke(cursor_pos, self.radius, stroke);
             ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::None);
+
             if ui.input(|i| i.pointer.primary_down()) {
                 return Some(EraseEvent::Start(cursor_pos));
             }

@@ -27,17 +27,30 @@ pub fn pointer_intersects_outline(
         return false;
     }
     // first pass: check if the path bounding box contain the cursor.
-    let padding = 50.0;
     let bb = match path.bounding_box() {
         Some(bb) => egui::Rect {
             min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
             max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
-        }
-        .expand(padding),
+        },
         None => return false,
     };
+
     let last_pos = last_pos.unwrap_or(pos.round());
-    if !(bb.contains(pos) || bb.contains(last_pos)) {
+    let last_pos_rect = egui::Rect::from_center_size(
+        last_pos,
+        egui::vec2(error_radius as f32 * 2.0, error_radius as f32 * 2.0),
+    );
+    let pos_rect = egui::Rect::from_center_size(
+        pos,
+        egui::vec2(error_radius as f32 * 2.0, error_radius as f32 * 2.0),
+    );
+
+    let needs_second_pass = bb.intersects(last_pos_rect)
+        || bb.contains_rect(last_pos_rect)
+        || bb.intersects(pos_rect)
+        || bb.contains_rect(pos_rect);
+
+    if !needs_second_pass {
         return false;
     }
 
