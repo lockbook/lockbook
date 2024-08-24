@@ -38,18 +38,19 @@ pub fn pointer_intersects_outline(
     let last_pos = last_pos.unwrap_or(pos.round());
     let last_pos_rect = egui::Rect::from_center_size(
         last_pos,
-        egui::vec2(error_radius as f32, error_radius as f32),
+        egui::vec2(error_radius as f32 * 2.0, error_radius as f32 * 2.0),
     );
     let pos_rect = egui::Rect::from_center_size(
         pos,
         egui::vec2(error_radius as f32 * 2.0, error_radius as f32 * 2.0),
     );
 
-    if !(bb.contains(last_pos_rect.min)
-        || bb.contains(last_pos_rect.max)
-        || bb.contains(pos_rect.min)
-        || bb.contains(pos_rect.max))
-    {
+    let needs_second_pass = bb.intersects(last_pos_rect)
+        || bb.contains_rect(last_pos_rect)
+        || bb.intersects(pos_rect)
+        || bb.contains_rect(pos_rect);
+
+    if !needs_second_pass {
         return false;
     }
 
