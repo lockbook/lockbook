@@ -4,6 +4,7 @@ use std::{
     collections::VecDeque,
     time::{Duration, Instant},
 };
+use tracing::{event, span, Level};
 
 use crate::{tab::svg_editor::util::get_current_touch_id, theme::palette::ThemePalette};
 
@@ -57,11 +58,14 @@ impl Pen {
         }
 
         for event in self.setup_events(ui, inner_rect) {
+            let span = span!(Level::TRACE, "building path", frame = ui.ctx().frame_nr());
+            let _ = span.enter();
             match event {
                 PathEvent::Draw(payload, id) => {
                     // for some reason in ipad there are  two draw events on the same pos which results in a knot.
                     if let Some(last_pos) = self.path_builder.original_points.last() {
                         if last_pos.eq(&payload.pos) && self.path_builder.path.len() > 1 {
+                            event!(Level::DEBUG, ?payload.pos, "draw event canceled because it's pos is equal to the last pos on the path");
                             return;
                         }
                     }
@@ -75,6 +79,7 @@ impl Pen {
                         p.diff_state.data_changed = true;
 
                         if self.handle_dancing_lines(p) {
+                            event!(Level::DEBUG, ?payload.pos, "draw event canceled to prevent dancing lines");
                             return;
                         }
 
@@ -103,6 +108,8 @@ impl Pen {
 
                         let pressure = payload.force.map(|f| vec![f]);
                         self.path_builder.first_point_touch_id = get_current_touch_id(ui);
+
+                        event!(Level::DEBUG, "starting a new path");
 
                         buffer.elements.insert(
                             id.to_string(),
@@ -137,6 +144,7 @@ impl Pen {
         if !current_touch_id.eq(&self.path_builder.first_point_touch_id)
             && self.path_builder.path.len_segments().eq(&0)
         {
+            event!(Level::DEBUG, "phantom path detected");
             self.path_builder.clear();
             self.path_builder.first_point_touch_id = current_touch_id;
         }
@@ -223,15 +231,9 @@ impl Pen {
                         } else {
                             None
                         }
-                    } else if let egui::Event::PointerButton {
-                        pos,
-                        button: _,
-                        pressed,
-                        modifiers: _,
-                    } = *e
-                    {
+                    } else if let egui::Event::PointerMoved(pos) = *e {
                         let (should_end_path, should_draw) =
-                            self.decide_event(inner_rect, pos, pressed, r);
+                            self.decide_event(inner_rect, pos, r.pointer.primary_pressed(), r);
 
                         if should_end_path {
                             Some(PathEvent::End)

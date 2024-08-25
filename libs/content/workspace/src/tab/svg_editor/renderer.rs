@@ -10,6 +10,7 @@ use lyon::tessellation::{
 
 use rayon::prelude::*;
 use resvg::usvg::{ImageKind, Transform};
+use tracing::{span, Level};
 
 use super::parser::{self, DiffState};
 use super::Buffer;
@@ -51,13 +52,17 @@ impl Renderer {
     }
 
     pub fn render_svg(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer, painter: egui::Painter) {
+        let frame = ui.ctx().frame_nr();
+        let span = span!(Level::TRACE, "rendering svg", frame);
+        let _ = span.enter();
+
         let mut elements = buffer.elements.clone();
 
         self.painter = Some(painter.clone());
         let dark_mode_changed = ui.visuals().dark_mode != self.dark_mode;
         self.dark_mode = ui.visuals().dark_mode;
 
-        // todo: should avoid runing this on every frame, because the images are allocated once
+        // todo: should avoid running this on every frame, because the images are allocated once
         load_image_textures(buffer, ui);
 
         let paint_ops: Vec<(String, RenderOp)> = elements
@@ -81,7 +86,7 @@ impl Renderer {
                     return Some((id.clone(), RenderOp::Transform(transform)));
                 }
 
-                tesselate_element(el, id, ui.visuals().dark_mode, buffer.master_transform)
+                tesselate_element(el, id, ui.visuals().dark_mode, frame, buffer.master_transform)
             })
             .collect();
 
@@ -153,13 +158,16 @@ fn load_image_textures(buffer: &mut Buffer, ui: &mut egui::Ui) {
 
 // todo: maybe impl this on element struct
 fn tesselate_element(
-    el: &mut parser::Element, id: &String, dark_mode: bool, master_transform: Transform,
+    el: &mut parser::Element, id: &String, dark_mode: bool, frame: u64, master_transform: Transform,
 ) -> Option<(String, RenderOp)> {
     let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
     let mut stroke_tess = StrokeTessellator::new();
 
     match el {
         parser::Element::Path(p) => {
+            let span = span!(Level::TRACE, "tessellating path", frame = frame);
+            let _ = span.enter();
+
             if let Some(stroke) = p.stroke {
                 if p.data.is_empty() {
                     return None;
