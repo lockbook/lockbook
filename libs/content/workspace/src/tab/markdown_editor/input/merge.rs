@@ -1,7 +1,8 @@
 use similar::{algorithms::DiffHook, DiffableStr as _, DiffableStrRef as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use crate::tab::markdown_editor::{buffer::Operation, offset_types::DocCharOffset};
+use crate::tab::markdown_editor::buffer::{Operation, Replacement};
+use crate::tab::markdown_editor::offset_types::DocCharOffset;
 
 // implementation note: this works because similar uses the same grapheme definition as we do, so reported indexes can
 // be interpreted as doc char offsets
@@ -51,10 +52,10 @@ impl DiffHook for Hook<'_> {
     fn delete(
         &mut self, old_index: usize, old_len: usize, _new_index: usize,
     ) -> Result<(), Self::Error> {
-        let op = Operation::Replace {
+        let op = Operation::Replace(Replacement {
             range: (DocCharOffset(old_index), DocCharOffset(old_index + old_len)),
             text: String::new(),
-        };
+        });
 
         self.ops.push(op);
         Ok(())
@@ -67,10 +68,10 @@ impl DiffHook for Hook<'_> {
             .new
             .grapheme_index((DocCharOffset(new_index), DocCharOffset(new_index + new_len)))
             .to_string();
-        let op = Operation::Replace {
+        let op = Operation::Replace(Replacement {
             range: (DocCharOffset(old_index), DocCharOffset(old_index)),
             text,
-        };
+        });
 
         self.ops.push(op);
         Ok(())
@@ -83,10 +84,10 @@ impl DiffHook for Hook<'_> {
             .new
             .grapheme_index((DocCharOffset(new_index), DocCharOffset(new_index + new_len)))
             .to_string();
-        let op = Operation::Replace {
+        let op = Operation::Replace(Replacement {
             range: (DocCharOffset(old_index), DocCharOffset(old_index + old_len)),
             text,
-        };
+        });
 
         self.ops.push(op);
         Ok(())

@@ -12,73 +12,6 @@ static MAX_UNDOS: usize = 100; // todo: make this much larger and measure perfor
 /// don't type text for this long, and the text before and after are considered separate undo events
 static UNDO_DEBOUNCE_PERIOD: Duration = Duration::from_millis(300);
 
-/// Long-lived state of the editor's text buffer.
-#[derive(Default)]
-pub struct Buffer {
-    // Current contents of the buffer (what should be displayed in the editor)
-    /// Current text content of the buffer
-    pub current_text: String,
-
-    /// Current unicode segments of the buffer - the buffer takes care to keep this up-to-date with `text`. Assists
-    /// with translation between byte offsets and character offsets.
-    pub current_segs: UnicodeSegs,
-
-    /// Selected text. When selection is empty, elements are equal. First element represents start
-    /// of selection and second element represents end of selection, which is the primary cursor
-    /// position - elements are not ordered by value.
-    pub current_selection: (DocCharOffset, DocCharOffset),
-
-    /// Index of the most recent operation in `history_ops` that has been applied to the current buffer contents. Used
-    /// to determine which operations are outstanding. Externally: use this to facilitate external changes.
-    // Subtract `history_seq` for the index in `history_ops` of the next operation.
-    pub current_seq: usize,
-
-    // History of the buffer
-    /// Content of buffer at the earliest undoable state. Operations are compacted into this as they overflow the undo
-    /// limit.
-    history_base_text: String,
-    history_base_segs: UnicodeSegs,
-    history_base_selection: (DocCharOffset, DocCharOffset),
-
-    /// Index of the earliest undoable operation in `history_ops` in the sense that operations have immutable indices.
-    /// This represents the number of operations that have been compacted into the history base and serves as a
-    /// translation factor so that indexes don't need to be updated in all the places they're tracked. If undo history
-    /// was unlimited, this would always be zero.
-    history_seq: usize,
-
-    /// Operations that have been applied to the buffer, in order of application. This plus the history base is
-    /// sufficient information to reproduce the state of the buffer at any point in the undo history (but not enough
-    /// to navigate it effectively).
-    history_ops: Vec<(Operation, OpMeta)>,
-
-    // State for tracking out-of-editor changes
-    /// Text last loaded into the editor. Used as a reference point for merging out-of-editor changes with in-editor
-    /// changes, similar to a base in a 3-way merge. May be a state that never appears in the buffer's history.
-    external_text: String,
-
-    /// Index of the last external operation referenced when merging changes. May be ahead of current_seq if there has
-    /// not been a call to `update()` (updates current_seq) since the last call to `reload()` (assigns new greatest seq
-    /// to `external_seq`).
-    external_seq: usize,
-
-    // Undo/redo metadata
-    /// Inclusive/exclusive ranges of operations in `history_ops` submitted as atomic. We never undo/redo part of one
-    /// of these as a matter of upholding our interface. All operations in history are in exactly one undo atom.
-    undo_atoms: Vec<(usize, usize)>,
-
-    /// Inclusive/exclusive ranges of operations in `history_ops` grouped into units for a more user-friendly undo/redo
-    /// experience. We undo/redo all operations in a unit at once. Undo unit boundaries never split undo atoms. This
-    /// considers the time of events e.g. so that rapidly typing a small amount of text can be undone with one undo.
-    undo_units: Vec<(usize, usize)>,
-
-    /// Operations representing undos that have been prepared for performance.
-    undo_stack: Vec<Operation>,
-
-    /// Operations that have been undone, in order of undo. Operations are moved from `ops` to this when undone. While
-    /// being moved, they are 'inverted' so that to redo them you simply apply them as they appear in this stack.
-    redo_stack: Vec<Operation>,
-}
-
 /// Buffer operation optimized for simplicity. Used in buffer's interface and internals to represent a building block
 /// of text manipulation with support for undo/redo and collaborative editing.
 ///
@@ -128,8 +61,83 @@ pub struct Buffer {
 /// is invalidated.
 #[derive(Clone, Debug)]
 pub enum Operation {
-    Replace { range: (DocCharOffset, DocCharOffset), text: String },
-    Select { range: (DocCharOffset, DocCharOffset) },
+    Replace(Replacement),
+    Select((DocCharOffset, DocCharOffset)),
+}
+
+/// Represents the inverse of an operation in a particular application. Includes selection and optional replacement
+/// because replacing text also affects the selection in ways that are not reversible based on the replacement alone.
+#[derive(Clone, Debug)]
+pub struct InverseOperation {
+    replace: Option<Replacement>,
+    select: (DocCharOffset, DocCharOffset),
+}
+
+#[derive(Clone, Debug)]
+pub struct Replacement {
+    pub range: (DocCharOffset, DocCharOffset),
+    pub text: String,
+}
+
+/// Long-lived state of the editor's text buffer.
+#[derive(Default)]
+pub struct Buffer {
+    // Current contents of the buffer (what should be displayed in the editor)
+    /// Current text content of the buffer
+    pub current_text: String,
+
+    /// Current unicode segments of the buffer - the buffer takes care to keep this up-to-date with `text`. Assists
+    /// with translation between byte offsets and character offsets.
+    pub current_segs: UnicodeSegs,
+
+    /// Selected text. When selection is empty, elements are equal. First element represents start
+    /// of selection and second element represents end of selection, which is the primary cursor
+    /// position - elements are not ordered by value.
+    pub current_selection: (DocCharOffset, DocCharOffset),
+
+    /// Index of the most recent operation in `history_ops` that has been applied to the current buffer contents. Used
+    /// to determine which operations are outstanding. Externally: use this to facilitate external changes.
+    // Subtract `history_seq` for the index in `history_ops` of the next operation.
+    pub current_seq: usize,
+
+    // History of the buffer
+    /// Content of buffer at the earliest undoable state. Operations are compacted into this as they overflow the undo
+    /// limit.
+    history_base_text: String,
+    history_base_segs: UnicodeSegs,
+    history_base_selection: (DocCharOffset, DocCharOffset),
+
+    /// Index of the earliest undoable operation in `history_ops` in the sense that operations have immutable indices.
+    /// This represents the number of operations that have been compacted into the history base and serves as a
+    /// translation factor so that indexes don't need to be updated in all the places they're tracked. If undo history
+    /// was unlimited, this would always be zero.
+    history_seq: usize,
+
+    /// Operations that have been applied to the buffer, in order of application. This plus the history base is
+    /// sufficient information to reproduce the state of the buffer at any point in the undo history (but not enough
+    /// to navigate it effectively).
+    history_ops: Vec<Operation>,
+    history_meta: Vec<OpMeta>,
+
+    // Derived data for undo/redo (invalidated by undo'ing operations from the middle of the chain)
+    /// Operations that have been applied to the buffer and already transformed, in order of application. Each of these
+    /// operations is based on the previous operation in this list, with the first based on the history base.
+    transformed_ops: Vec<Operation>,
+
+    /// Operations representing the inverse of the operations in `transformed_ops`, in order of application. Useful for
+    /// undoing operations. The data model differs because an operation that replaces text containing the cursor needs
+    /// two operations to revert the text and cursor.
+    inverse_transformed_ops: Vec<InverseOperation>,
+
+    // State for tracking out-of-editor changes
+    /// Text last loaded into the editor. Used as a reference point for merging out-of-editor changes with in-editor
+    /// changes, similar to a base in a 3-way merge. May be a state that never appears in the buffer's history.
+    external_text: String,
+
+    /// Index of the last external operation referenced when merging changes. May be ahead of current_seq if there has
+    /// not been a call to `update()` (updates current_seq) since the last call to `reload()` (assigns new greatest seq
+    /// to `external_seq`).
+    external_seq: usize,
 }
 
 /// Additional metadata tracked alongside operations internally.
@@ -150,8 +158,10 @@ impl Buffer {
     pub fn queue(&mut self, ops: Vec<Operation>) {
         let timestamp = Instant::now();
         let base = self.current_seq;
-        self.history_ops
-            .extend(ops.into_iter().map(|op| (op, OpMeta { timestamp, base })));
+
+        self.history_meta
+            .extend(ops.iter().map(|_| OpMeta { timestamp, base }));
+        self.history_ops.extend(ops);
     }
 
     /// Loads a new string into the buffer, merging out-of-editor changes made since last load with in-editor changes
@@ -169,8 +179,9 @@ impl Buffer {
             base
         );
 
-        self.history_ops
-            .extend(ops.into_iter().map(|op| (op, OpMeta { timestamp, base })));
+        self.history_meta
+            .extend(ops.iter().map(|_| OpMeta { timestamp, base }));
+        self.history_ops.extend(ops);
 
         self.external_text = text;
         self.external_seq = self.history_ops.len();
@@ -209,45 +220,42 @@ impl Buffer {
 
         // iterate queue
         let min_queued_idx = self.current_seq - self.history_seq;
-        for queued_idx in min_queued_idx..self.history_ops.len() {
+        for transformed_op_idx in min_queued_idx..self.history_ops.len() {
             // transform based on history
-            let (_, queued_meta) = &self.history_ops[queued_idx];
-            let queued_base_idx = queued_meta
-                .base
-                .checked_sub(self.history_seq)
-                .expect("buffer: operation based on version before retained history"); // todo: do better
+            let mut transformed_op = self.history_ops[transformed_op_idx].clone();
+            let queued_meta = &self.history_meta[transformed_op_idx];
+            let transformed_op_base_idx = queued_meta.base - self.history_seq;
 
             println!(
                 "buffer: op {:?} to be transformed by {:?} (inc/exc)",
-                queued_idx,
-                queued_base_idx..queued_idx
+                transformed_op_idx,
+                transformed_op_base_idx..transformed_op_idx
             );
 
-            for preceding_idx in queued_base_idx..queued_idx {
-                let (preceding_op, _) = self.history_ops[preceding_idx].clone();
-                let (queued_op, _) = &mut self.history_ops[queued_idx];
-                if let Operation::Replace {
+            for preceding_idx in transformed_op_base_idx..transformed_op_idx {
+                let preceding_op = &self.history_ops[preceding_idx];
+                if let Operation::Replace(Replacement {
                     range: preceding_replaced_range,
                     text: preceding_replacement_text,
-                } = preceding_op
+                }) = preceding_op
                 {
                     println!(
                         "buffer: transforming queued op {:?} ({:?}) with preceding op {:?} ({:?} -> {:?})",
-                        queued_idx,
-                        queued_op,
+                        transformed_op_idx,
+                        transformed_op,
                         preceding_idx,
                         preceding_replaced_range,
                         preceding_replacement_text
                     );
 
-                    match queued_op {
-                        Operation::Replace { range: queued_range, .. }
-                        | Operation::Select { range: queued_range } => {
+                    match &mut transformed_op {
+                        Operation::Replace(Replacement { range: transformed_range, .. })
+                        | Operation::Select(transformed_range) => {
                             adjust_subsequent_range(
-                                preceding_replaced_range,
+                                *preceding_replaced_range,
                                 preceding_replacement_text.graphemes(true).count().into(),
                                 true,
-                                queued_range,
+                                transformed_range,
                             );
                         }
                     }
@@ -255,24 +263,44 @@ impl Buffer {
             }
 
             // apply
-            let (queued_op, _) = self.history_ops[queued_idx].clone();
-            match queued_op {
-                Operation::Replace { range, text } => {
+            let mut inverse_transformed_op =
+                InverseOperation { replace: None, select: self.current_selection };
+            match transformed_op {
+                Operation::Replace(Replacement { range, ref text }) => {
                     let byte_range = self.current_segs.range_to_byte(range);
-                    self.current_text
-                        .replace_range(byte_range.start().0..byte_range.end().0, &text);
-                    self.current_segs = unicode_segs::calc(&self.current_text);
 
+                    // record inverse of transformed operation
+                    let replaced_text = self[byte_range].into();
+                    let replacement_range = (range.start(), range.start() + text.len());
+                    inverse_transformed_op.replace =
+                        Some(Replacement { range: replacement_range, text: replaced_text });
+
+                    // update buffer and dependent data
+                    self.current_text
+                        .replace_range(byte_range.start().0..byte_range.end().0, text);
+                    self.current_segs = unicode_segs::calc(&self.current_text);
+                    adjust_subsequent_range(
+                        range,
+                        text.graphemes(true).count().into(),
+                        false,
+                        &mut self.current_selection,
+                    );
+
+                    // change detection
                     text_updated = true;
                     selection_updated = true;
                 }
-                Operation::Select { range } => {
+                Operation::Select(range) => {
                     self.current_selection = range;
                     selection_updated = true;
                 }
             }
 
-            self.current_seq = queued_idx + 1;
+            // bookkeeping
+            self.transformed_ops.push(transformed_op);
+            self.inverse_transformed_ops.push(inverse_transformed_op);
+
+            self.current_seq = transformed_op_idx + 1;
             println!("buffer: current seq = {:?}", self.current_seq);
         }
 
@@ -284,22 +312,31 @@ impl Buffer {
 
     /// Undo the most recent operation. Returns true if there was an operation to undo.
     pub fn undo(&mut self) -> bool {
-        todo!()
+        if self.can_undo() {
+            true
+        } else {
+            false
+        }
     }
 
     /// Reports whether there are any operations to undo.
     pub fn can_undo(&self) -> bool {
-        !self.undo_stack.is_empty()
+        todo!()
     }
 
     /// Redo the most recently undone operation. Returns true if there was an operation to redo.
     pub fn redo(&mut self) -> bool {
-        todo!()
+        if self.can_redo() {
+            todo!();
+            true
+        } else {
+            false
+        }
     }
 
     /// Reports whether there are any operations to redo.
     pub fn can_redo(&self) -> bool {
-        !self.redo_stack.is_empty()
+        todo!()
     }
 
     /// Reports whether the buffer's current text is empty.
