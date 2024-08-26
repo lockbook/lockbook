@@ -39,7 +39,7 @@ impl Tab {
             let maybe_save_content = match tab_content {
                 TabContent::Markdown(md) => {
                     hmac = md.editor.hmac;
-                    Some(md.editor.buffer.current_text.clone())
+                    Some(md.editor.buffer.current.text.clone())
                 }
                 TabContent::Svg(svg) => Some(svg.get_minimal_content()),
                 _ => None,
@@ -142,7 +142,6 @@ impl ExtendedInput for egui::Context {
     }
 
     fn push_markdown_event(&self, event: markdown_editor::Event) {
-        println!("push_markdown_event: {:?}", event);
         self.push_event(Event::Markdown(event))
     }
 
@@ -154,9 +153,6 @@ impl ExtendedInput for egui::Context {
                 .unwrap_or_default();
             m.data
                 .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
-            if !events.is_empty() {
-                println!("pop_events ({:?})", events.len());
-            }
             events
         })
     }

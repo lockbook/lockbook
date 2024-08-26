@@ -40,7 +40,7 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
                 let offset = mutation::pos_to_char_offset(
                     pos,
                     self.galleys,
-                    &self.buffer.current_segs,
+                    &self.buffer.current.segs,
                     &self.bounds.text,
                 );
 
@@ -101,7 +101,7 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
         let offset = mutation::pos_to_char_offset(
             pos,
             self.galleys,
-            &self.buffer.current_segs,
+            &self.buffer.current.segs,
             &self.bounds.text,
         );
 
@@ -126,7 +126,7 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
         mutation::pos_to_char_offset(
             pos,
             self.galleys,
-            &self.buffer.current_segs,
+            &self.buffer.current.segs,
             &self.bounds.text,
         )
     }

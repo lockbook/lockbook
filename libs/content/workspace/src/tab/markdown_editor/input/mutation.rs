@@ -1,6 +1,6 @@
 use crate::tab::markdown_editor;
 use crate::tab::markdown_editor::bounds::Text;
-use crate::tab::markdown_editor::buffer::Replacement;
+use crate::tab::markdown_editor::buffer::Replace;
 use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
 use egui::Pos2;
 use markdown_editor::ast::{Ast, AstTextRangeType};
@@ -23,7 +23,7 @@ impl Editor {
     /// Translates editor events into buffer operations by interpreting them in the context of the current editor state.
     /// Dispatches events that aren't buffer operations.
     pub fn calc_operations(&mut self, ctx: &egui::Context, modification: Event) -> Vec<Operation> {
-        let current_selection = self.buffer.current_selection;
+        let current_selection = self.buffer.current.selection;
         let mut operations = Vec::new();
         match modification {
             Event::Select { region } => {
@@ -37,7 +37,7 @@ impl Editor {
             }
             Event::Replace { region, text } => {
                 let range = self.region_to_range(region);
-                operations.push(Operation::Replace(Replacement { range, text }));
+                operations.push(Operation::Replace(Replace { range, text }));
                 operations.push(Operation::Select(range.start().to_range()))
             }
             Event::ToggleStyle { region, mut style } => {
@@ -127,17 +127,17 @@ impl Editor {
                             let range =
                                 (galley.range.start(), galley.range.start() + galley.size());
                             let text = "".into();
-                            operations.push(Operation::Replace(Replacement { range, text }));
+                            operations.push(Operation::Replace(Replace { range, text }));
                         } else {
                             // nonempty list item -> insert new list item
-                            operations.push(Operation::Replace(Replacement {
+                            operations.push(Operation::Replace(Replace {
                                 range: current_selection,
                                 text: "\n".into(),
                             }));
 
                             match galley.annotation {
                                 Some(Annotation::Item(ListItem::Bulleted, _)) => {
-                                    operations.push(Operation::Replace(Replacement {
+                                    operations.push(Operation::Replace(Replace {
                                         range: current_selection,
                                         text: galley.head(&self.buffer).to_string(),
                                     }));
@@ -152,7 +152,7 @@ impl Editor {
                                         .to_string()
                                         + (&(cur_number + 1).to_string() as &str)
                                         + ". ";
-                                    operations.push(Operation::Replace(Replacement {
+                                    operations.push(Operation::Replace(Replace {
                                         range: current_selection,
                                         text,
                                     }));
@@ -176,7 +176,7 @@ impl Editor {
                                             ..,
                                         )) = galley.annotation
                                         {
-                                            operations.push(Operation::Replace(Replacement {
+                                            operations.push(Operation::Replace(Replace {
                                                 range: (
                                                     galley.range.start() + galley.head_size,
                                                     galley.range.start() + galley.head_size
@@ -190,7 +190,7 @@ impl Editor {
                                 }
                                 Some(Annotation::Item(ListItem::Todo(_), _)) => {
                                     let head = galley.head(&self.buffer);
-                                    operations.push(Operation::Replace(Replacement {
+                                    operations.push(Operation::Replace(Replace {
                                         range: current_selection,
                                         text: head[0..head.len() - 6].to_string() + "* [ ] ",
                                     }));
@@ -205,7 +205,7 @@ impl Editor {
                     }
 
                     // if it's none of the other things, just insert a newline
-                    operations.push(Operation::Replace(Replacement {
+                    operations.push(Operation::Replace(Replace {
                         range: current_selection,
                         text: "\n".into(),
                     }));
@@ -216,7 +216,7 @@ impl Editor {
             }
             Event::Delete { region } => {
                 let range = self.region_to_range(region);
-                operations.push(Operation::Replace(Replacement { range, text: "".into() }));
+                operations.push(Operation::Replace(Replace { range, text: "".into() }));
                 operations.push(Operation::Select(range.start().to_range()));
 
                 // check if we deleted a numbered list annotation and renumber subsequent items
@@ -302,7 +302,7 @@ impl Editor {
                     if let Some(Annotation::Item(ListItem::Numbered(cur_number), ..)) =
                         galley.annotation
                     {
-                        operations.push(Operation::Replace(Replacement {
+                        operations.push(Operation::Replace(Replace {
                             range: (
                                 galley.range.start() + galley.head_size,
                                 galley.range.start() + galley.head_size
@@ -404,7 +404,7 @@ impl Editor {
                         }
 
                         if can_deindent {
-                            operations.push(Operation::Replace(Replacement {
+                            operations.push(Operation::Replace(Replace {
                                 range: (
                                     galley.range.start(),
                                     galley.range.start() + indent_seq.len(),
@@ -438,7 +438,7 @@ impl Editor {
                         }
 
                         if can_indent {
-                            operations.push(Operation::Replace(Replacement {
+                            operations.push(Operation::Replace(Replace {
                                 range: galley.range.start().to_range(),
                                 text: indent_seq.to_string(),
                             }));
@@ -586,7 +586,7 @@ impl Editor {
                     if let Some(Annotation::Item(ListItem::Numbered(cur_number), ..)) =
                         galley.annotation
                     {
-                        operations.push(Operation::Replace(Replacement {
+                        operations.push(Operation::Replace(Replace {
                             range: (
                                 galley.range.start() + galley.head_size,
                                 galley.range.start() + galley.head_size
@@ -599,7 +599,7 @@ impl Editor {
                 }
 
                 if indentation_processed_galleys.is_empty() && !deindent {
-                    operations.push(Operation::Replace(Replacement {
+                    operations.push(Operation::Replace(Replace {
                         range: current_selection,
                         text: "\t".into(),
                     }));
@@ -613,7 +613,7 @@ impl Editor {
             }
             Event::Cut => {
                 ctx.output_mut(|o| o.copied_text = self.buffer[current_selection].into());
-                operations.push(Operation::Replace(Replacement {
+                operations.push(Operation::Replace(Replace {
                     range: current_selection,
                     text: "".into(),
                 }));
@@ -631,7 +631,7 @@ impl Editor {
             Event::ToggleCheckbox(galley_idx) => {
                 let galley = &self.galleys[galley_idx];
                 if let Some(Annotation::Item(ListItem::Todo(checked), ..)) = galley.annotation {
-                    operations.push(Operation::Replace(Replacement {
+                    operations.push(Operation::Replace(Replace {
                         range: (
                             galley.range.start() + galley.head_size - 6,
                             galley.range.start() + galley.head_size,
@@ -647,7 +647,7 @@ impl Editor {
 
     /// Returns true if all text in the current selection has style `style`
     fn should_unapply(&self, style: &MarkdownNode) -> bool {
-        let current_selection = self.buffer.current_selection;
+        let current_selection = self.buffer.current.selection;
         if current_selection.is_empty() {
             return false;
         }
@@ -691,7 +691,7 @@ impl Editor {
         &self, selection: (DocCharOffset, DocCharOffset), style: MarkdownNode, unapply: bool,
         operations: &mut Vec<Operation>,
     ) {
-        if self.buffer.current_text.is_empty() {
+        if self.buffer.current.text.is_empty() {
             insert_head(selection.start(), style.clone(), operations);
             insert_tail(selection.start(), style, operations);
             return;
@@ -843,7 +843,7 @@ impl Editor {
 
     // todo: self by shared reference
     pub fn region_to_range(&mut self, region: Region) -> (DocCharOffset, DocCharOffset) {
-        let mut current_selection = self.buffer.current_selection;
+        let mut current_selection = self.buffer.current.selection;
         match region {
             Region::Location(location) => self.location_to_char_offset(location).to_range(),
             Region::ToLocation(location) => {
@@ -859,7 +859,7 @@ impl Editor {
                         &mut self.cursor.x_target,
                         offset,
                         backwards,
-                        &self.buffer.current_segs,
+                        &self.buffer.current.segs,
                         &self.galleys,
                         &self.bounds,
                     );
@@ -876,7 +876,7 @@ impl Editor {
                         &mut self.cursor.x_target,
                         offset,
                         backwards,
-                        &self.buffer.current_segs,
+                        &self.buffer.current.segs,
                         &self.galleys,
                         &self.bounds,
                     );
@@ -909,10 +909,10 @@ impl Editor {
 
     pub fn location_to_char_offset(&self, location: Location) -> DocCharOffset {
         match location {
-            Location::CurrentCursor => self.buffer.current_selection.1,
+            Location::CurrentCursor => self.buffer.current.selection.1,
             Location::DocCharOffset(o) => o,
             Location::Pos(pos) => {
-                pos_to_char_offset(pos, &self.galleys, &self.buffer.current_segs, &self.bounds.text)
+                pos_to_char_offset(pos, &self.galleys, &self.buffer.current.segs, &self.bounds.text)
             }
         }
     }
@@ -1036,7 +1036,7 @@ fn increment_numbered_list_items(
 
 fn dehead_ast_node(node_idx: usize, ast: &Ast, operations: &mut Vec<Operation>) {
     let node = &ast.nodes[node_idx];
-    operations.push(Operation::Replace(Replacement {
+    operations.push(Operation::Replace(Replace {
         range: (node.range.start(), node.text_range.start()),
         text: "".into(),
     }));
@@ -1044,7 +1044,7 @@ fn dehead_ast_node(node_idx: usize, ast: &Ast, operations: &mut Vec<Operation>) 
 
 fn detail_ast_node(node_idx: usize, ast: &Ast, operations: &mut Vec<Operation>) {
     let node = &ast.nodes[node_idx];
-    operations.push(Operation::Replace(Replacement {
+    operations.push(Operation::Replace(Replace {
         range: (node.text_range.end(), node.range.end()),
         text: "".into(),
     }));
@@ -1061,7 +1061,7 @@ fn adjust_for_whitespace(
                 }
                 &buffer[(offset - 1, offset)]
             } else {
-                if offset == buffer.current_segs.last_cursor_position() {
+                if offset == buffer.current.segs.last_cursor_position() {
                     break;
                 }
                 &buffer[(offset, offset + 1)]
@@ -1082,22 +1082,18 @@ fn adjust_for_whitespace(
 
 fn insert_head(offset: DocCharOffset, style: MarkdownNode, operations: &mut Vec<Operation>) {
     let text = style.head();
-    operations.push(Operation::Replace(Replacement { range: offset.to_range(), text }));
+    operations.push(Operation::Replace(Replace { range: offset.to_range(), text }));
 }
 
 fn insert_tail(offset: DocCharOffset, style: MarkdownNode, operations: &mut Vec<Operation>) {
     let text = style.node_type().tail().to_string();
     if style.node_type() == MarkdownNodeType::Inline(InlineNodeType::Link) {
-        operations.push(Operation::Replace(Replacement {
-            range: offset.to_range(),
-            text: text[..2].into(),
-        }));
+        operations
+            .push(Operation::Replace(Replace { range: offset.to_range(), text: text[..2].into() }));
         operations.push(Operation::Select(offset.to_range()));
-        operations.push(Operation::Replace(Replacement {
-            range: offset.to_range(),
-            text: text[2..].into(),
-        }));
+        operations
+            .push(Operation::Replace(Replace { range: offset.to_range(), text: text[2..].into() }));
     } else {
-        operations.push(Operation::Replace(Replacement { range: offset.to_range(), text }));
+        operations.push(Operation::Replace(Replace { range: offset.to_range(), text }));
     }
 }

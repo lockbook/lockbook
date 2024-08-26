@@ -261,8 +261,8 @@ impl Editor {
                 &self.bounds.ast,
                 &self.bounds.paragraphs,
                 &self.appearance,
-                &self.buffer.current_segs,
-                self.buffer.current_selection,
+                &self.buffer.current.segs,
+                self.buffer.current.selection,
                 &self.capture,
             );
             self.bounds.links = bounds::calc_links(&self.buffer, &self.bounds.text, &self.ast);
@@ -284,7 +284,7 @@ impl Editor {
             Instant::now(),
             &self.pointer_state,
             &self.galleys,
-            &self.buffer.current_segs,
+            &self.buffer.current.segs,
             &self.bounds,
             &self.ast,
         );
@@ -319,9 +319,9 @@ impl Editor {
                 .range_bound(Bound::Doc, false, false, &self.bounds)
                 .unwrap() // there's always a document
         };
-        if selection_updated && self.buffer.current_selection != all_selection {
+        if selection_updated && self.buffer.current.selection != all_selection {
             let cursor_end_line = cursor::line(
-                self.buffer.current_selection.end(),
+                self.buffer.current.selection.end(),
                 &self.galleys,
                 &self.bounds.text,
                 &self.appearance,
@@ -374,7 +374,7 @@ impl Editor {
     ) -> (bool, bool) {
         // if the cursor is in an invalid location, move it to the next valid location
         {
-            let mut fixed_selection = self.buffer.current_selection;
+            let mut fixed_selection = self.buffer.current.selection;
             if let BoundCase::BetweenRanges { range_after, .. } =
                 fixed_selection.0.bound_case(&self.bounds.text)
             {
@@ -385,7 +385,7 @@ impl Editor {
             {
                 fixed_selection.1 = range_after.start();
             }
-            if fixed_selection != self.buffer.current_selection {
+            if fixed_selection != self.buffer.current.selection {
                 let event =
                     crate::Event::Markdown(Event::Select { region: fixed_selection.into() });
                 custom_events.splice(0..0, std::iter::once(event));
