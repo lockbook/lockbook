@@ -100,8 +100,8 @@ pub fn calc_words(
             for (byte_offset, word) in
                 (buffer[text_range.range].to_string() + " ").split_word_bound_indices()
             {
-                let char_offset = buffer.current_segs.offset_to_char(
-                    buffer.current_segs.offset_to_byte(text_range.range.0)
+                let char_offset = buffer.current.segs.offset_to_char(
+                    buffer.current.segs.offset_to_byte(text_range.range.0)
                         + RelByteOffset(byte_offset),
                 );
 
@@ -176,12 +176,14 @@ pub fn calc_paragraphs(buffer: &Buffer) -> Paragraphs {
     let mut result = vec![];
 
     let carriage_return_matches = buffer
-        .current_text
+        .current
+        .text
         .match_indices('\r')
         .map(|(idx, _)| DocByteOffset(idx))
         .collect::<HashSet<_>>();
     let line_feed_matches = buffer
-        .current_text
+        .current
+        .text
         .match_indices('\n')
         .map(|(idx, _)| DocByteOffset(idx))
         .filter(|&byte_offset| !carriage_return_matches.contains(&(byte_offset - 1)));
@@ -193,14 +195,14 @@ pub fn calc_paragraphs(buffer: &Buffer) -> Paragraphs {
 
     let mut prev_char_offset = DocCharOffset(0);
     for byte_offset in newline_matches {
-        let char_offset = buffer.current_segs.offset_to_char(byte_offset);
+        let char_offset = buffer.current.segs.offset_to_char(byte_offset);
 
         // note: paragraphs can be empty
         result.push((prev_char_offset, char_offset));
 
         prev_char_offset = char_offset + 1 // skip the matched newline;
     }
-    result.push((prev_char_offset, buffer.current_segs.last_cursor_position()));
+    result.push((prev_char_offset, buffer.current.segs.last_cursor_position()));
 
     result
 }

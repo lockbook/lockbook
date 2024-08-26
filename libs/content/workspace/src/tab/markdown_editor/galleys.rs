@@ -65,7 +65,7 @@ pub fn calc(
             &ast_ranges,
             &bounds.paragraphs,
             &bounds.links,
-            &[buffer.current_selection],
+            &[buffer.current.selection],
             &bounds.text,
         ])
     {
@@ -80,7 +80,7 @@ pub fn calc(
         if let Some(ast_idx) = ast_idx {
             let text_range = &bounds.ast[ast_idx];
             let maybe_link_range = link_idx.map(|link_idx| bounds.links[link_idx]);
-            let in_selection = selection_idx.is_some() && !buffer.current_selection.is_empty();
+            let in_selection = selection_idx.is_some() && !buffer.current.selection.is_empty();
 
             let captured = text_idx.is_none();
 

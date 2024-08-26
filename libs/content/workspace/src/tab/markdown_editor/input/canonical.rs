@@ -258,12 +258,13 @@ impl Editor {
                 let touch_offest = mutation::pos_to_char_offset(
                     pos,
                     &self.galleys,
-                    &self.buffer.current_segs,
+                    &self.buffer.current.segs,
                     &self.bounds.text,
                 );
                 let touched_selection = self
                     .buffer
-                    .current_selection
+                    .current
+                    .selection
                     .contains_inclusive(touch_offest);
                 let double_touched = pointer_state.click_type == Some(ClickType::Double);
 

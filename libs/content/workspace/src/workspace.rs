@@ -545,7 +545,7 @@ impl Workspace {
                     let update_tx = self.updates_tx.clone();
                     let ctx = self.ctx.clone();
                     let seq = if let Some(TabContent::Markdown(md)) = &tab.content {
-                        md.editor.buffer.current_seq
+                        md.editor.buffer.current.seq
                     } else {
                         0
                     };

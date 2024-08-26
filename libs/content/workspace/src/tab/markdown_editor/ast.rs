@@ -45,12 +45,12 @@ impl AstNode {
 pub fn calc(buffer: &Buffer) -> Ast {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_STRIKETHROUGH);
-    let parser = Parser::new_ext(&buffer.current_text, options);
+    let parser = Parser::new_ext(&buffer.current.text, options);
     let mut result = Ast {
         nodes: vec![AstNode::new(
             MarkdownNode::Document,
-            (0.into(), buffer.current_segs.last_cursor_position()),
-            (0.into(), buffer.current_segs.last_cursor_position()),
+            (0.into(), buffer.current.segs.last_cursor_position()),
+            (0.into(), buffer.current.segs.last_cursor_position()),
         )],
         root: 0,
     };
@@ -87,21 +87,22 @@ impl Ast {
         let mut skipped = 0;
         while let Some((event, mut range)) = iter.next() {
             // correct for windows-style line endings by keeping \r and \n together
-            if buffer.current_text[range.clone()].starts_with('\n')
+            if buffer.current.text[range.clone()].starts_with('\n')
                 && range.start > 0
-                && &buffer.current_text[range.start - 1..range.start] == "\r"
+                && &buffer.current.text[range.start - 1..range.start] == "\r"
             {
                 range.start -= 1;
             }
-            if buffer.current_text[range.clone()].ends_with('\r')
-                && range.end < buffer.current_text.len()
-                && &buffer.current_text[range.end..range.end + 1] == "\n"
+            if buffer.current.text[range.clone()].ends_with('\r')
+                && range.end < buffer.current.text.len()
+                && &buffer.current.text[range.end..range.end + 1] == "\n"
             {
                 range.end += 1;
             }
 
             let range = buffer
-                .current_segs
+                .current
+                .segs
                 .range_to_char((range.start.into(), range.end.into()));
             match event {
                 Event::Start(child_tag) => {
@@ -235,7 +236,7 @@ impl Ast {
                 markdown_node,
                 MarkdownNode::Block(BlockNode::ListItem(..))
                     | MarkdownNode::Block(BlockNode::Heading(..))
-            ) && range.1 < buffer.current_segs.last_cursor_position()
+            ) && range.1 < buffer.current.segs.last_cursor_position()
                 && buffer[(range.0, range.1 + 1)].ends_with(' ')
             {
                 range.1 += 1;
@@ -251,7 +252,7 @@ impl Ast {
 
             // capture up to one trailing newline for rules
             if markdown_node.node_type() == MarkdownNodeType::Block(BlockNodeType::Rule)
-                && range.1 < buffer.current_segs.last_cursor_position()
+                && range.1 < buffer.current.segs.last_cursor_position()
                 && buffer[(range.0, range.1 + 1)].ends_with('\n')
             {
                 range.1 += 1;

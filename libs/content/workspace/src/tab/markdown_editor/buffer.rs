@@ -4,13 +4,8 @@ use markdown_editor::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelC
 use markdown_editor::unicode_segs;
 use markdown_editor::unicode_segs::UnicodeSegs;
 use std::ops::Index;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use unicode_segmentation::UnicodeSegmentation;
-
-static MAX_UNDOS: usize = 100; // todo: make this much larger and measure performance impact
-
-/// don't type text for this long, and the text before and after are considered separate undo events
-static UNDO_DEBOUNCE_PERIOD: Duration = Duration::from_millis(300);
 
 /// Buffer operation optimized for simplicity. Used in buffer's interface and internals to represent a building block
 /// of text manipulation with support for undo/redo and collaborative editing.
@@ -61,83 +56,161 @@ static UNDO_DEBOUNCE_PERIOD: Duration = Duration::from_millis(300);
 /// is invalidated.
 #[derive(Clone, Debug)]
 pub enum Operation {
-    Replace(Replacement),
     Select((DocCharOffset, DocCharOffset)),
+    Replace(Replace),
 }
 
 /// Represents the inverse of an operation in a particular application. Includes selection and optional replacement
 /// because replacing text also affects the selection in ways that are not reversible based on the replacement alone.
 #[derive(Clone, Debug)]
 pub struct InverseOperation {
-    replace: Option<Replacement>,
     select: (DocCharOffset, DocCharOffset),
+    replace: Option<Replace>,
 }
 
 #[derive(Clone, Debug)]
-pub struct Replacement {
+pub struct Replace {
     pub range: (DocCharOffset, DocCharOffset),
     pub text: String,
 }
 
-/// Long-lived state of the editor's text buffer.
+/// Long-lived state of the editor's text buffer. Factored into sub-structs for borrow-checking.
 #[derive(Default)]
 pub struct Buffer {
-    // Current contents of the buffer (what should be displayed in the editor)
-    /// Current text content of the buffer
-    pub current_text: String,
+    /// Current contents of the buffer (what should be displayed in the editor). Todo: hide behind a read-only accessor
+    pub current: Snapshot,
 
-    /// Current unicode segments of the buffer - the buffer takes care to keep this up-to-date with `text`. Assists
-    /// with translation between byte offsets and character offsets.
-    pub current_segs: UnicodeSegs,
+    /// Snapshot of the buffer at the earliest undoable state. Operations are compacted into this as they overflow the
+    /// undo limit.
+    base: Snapshot,
 
-    /// Selected text. When selection is empty, elements are equal. First element represents start
-    /// of selection and second element represents end of selection, which is the primary cursor
-    /// position - elements are not ordered by value.
-    pub current_selection: (DocCharOffset, DocCharOffset),
+    /// Operations received by the buffer. Used for undo/redo and for merging external changes.
+    ops: Ops,
 
-    /// Index of the most recent operation in `history_ops` that has been applied to the current buffer contents. Used
-    /// to determine which operations are outstanding. Externally: use this to facilitate external changes.
-    // Subtract `history_seq` for the index in `history_ops` of the next operation.
-    pub current_seq: usize,
+    /// State for tracking out-of-editor changes
+    external: External,
+}
 
-    // History of the buffer
-    /// Content of buffer at the earliest undoable state. Operations are compacted into this as they overflow the undo
-    /// limit.
-    history_base_text: String,
-    history_base_segs: UnicodeSegs,
-    history_base_selection: (DocCharOffset, DocCharOffset),
+#[derive(Default)]
+pub struct Snapshot {
+    pub text: String,
+    pub segs: UnicodeSegs,
+    pub selection: (DocCharOffset, DocCharOffset),
+    pub seq: usize,
+}
 
-    /// Index of the earliest undoable operation in `history_ops` in the sense that operations have immutable indices.
-    /// This represents the number of operations that have been compacted into the history base and serves as a
-    /// translation factor so that indexes don't need to be updated in all the places they're tracked. If undo history
-    /// was unlimited, this would always be zero.
-    history_seq: usize,
+impl Snapshot {
+    fn apply_select(&mut self, range: (DocCharOffset, DocCharOffset)) -> Response {
+        self.selection = range;
+        Response { text_updated: false, selection_updated: true }
+    }
 
-    /// Operations that have been applied to the buffer, in order of application. This plus the history base is
-    /// sufficient information to reproduce the state of the buffer at any point in the undo history (but not enough
-    /// to navigate it effectively).
-    history_ops: Vec<Operation>,
-    history_meta: Vec<OpMeta>,
+    fn apply_replace(&mut self, replace: &Replace) -> Response {
+        let Replace { range, text } = replace;
+        let byte_range = self.segs.range_to_byte(*range);
 
-    // Derived data for undo/redo (invalidated by undo'ing operations from the middle of the chain)
+        self.text
+            .replace_range(byte_range.start().0..byte_range.end().0, text);
+        self.segs = unicode_segs::calc(&self.text);
+        adjust_subsequent_range(
+            *range,
+            text.graphemes(true).count().into(),
+            false,
+            &mut self.selection,
+        );
+
+        Response { text_updated: true, selection_updated: true }
+    }
+
+    fn invert(&self, op: &Operation) -> InverseOperation {
+        let mut inverse = InverseOperation { replace: None, select: self.selection };
+        if let Operation::Replace(replace) = op {
+            inverse.replace = Some(self.invert_replace(replace));
+        }
+        inverse
+    }
+
+    fn invert_replace(&self, replace: &Replace) -> Replace {
+        let Replace { range, text } = replace;
+        let byte_range = self.segs.range_to_byte(*range);
+        let replaced_text = self[byte_range].into();
+        let replacement_range = (range.start(), range.start() + text.len());
+        Replace { range: replacement_range, text: replaced_text }
+    }
+}
+
+#[derive(Default)]
+struct Ops {
+    /// Operations received by the buffer but not yet applied.
+    queued: Vec<Operation>,
+    queued_meta: Vec<OpMeta>,
+
+    /// Operations that have been applied to the buffer in their original/submitted form.
+    applied: Vec<Operation>,
+    applied_meta: Vec<OpMeta>,
+
     /// Operations that have been applied to the buffer and already transformed, in order of application. Each of these
-    /// operations is based on the previous operation in this list, with the first based on the history base.
-    transformed_ops: Vec<Operation>,
+    /// operations is based on the previous operation in this list, with the first based on the history base. Derived
+    /// from other data and invalidated by some undo/redo flows.
+    transformed: Vec<Operation>,
 
     /// Operations representing the inverse of the operations in `transformed_ops`, in order of application. Useful for
     /// undoing operations. The data model differs because an operation that replaces text containing the cursor needs
-    /// two operations to revert the text and cursor.
-    inverse_transformed_ops: Vec<InverseOperation>,
+    /// two operations to revert the text and cursor. Derived from other data and invalidated by some undo/redo flows.
+    transformed_inverted: Vec<InverseOperation>,
+}
 
-    // State for tracking out-of-editor changes
+impl Ops {
+    fn len(&self) -> usize {
+        self.applied.len()
+    }
+
+    fn truncate(&mut self, len: usize) {
+        self.applied.truncate(len);
+        self.applied_meta.truncate(len);
+        self.transformed.truncate(len);
+        self.transformed_inverted.truncate(len);
+    }
+
+    fn queue_len(&self) -> usize {
+        self.queued.len()
+    }
+
+    fn truncate_queue(&mut self, len: usize) {
+        self.queued.truncate(len);
+        self.queued_meta.truncate(len);
+    }
+}
+
+#[derive(Default)]
+struct External {
     /// Text last loaded into the editor. Used as a reference point for merging out-of-editor changes with in-editor
     /// changes, similar to a base in a 3-way merge. May be a state that never appears in the buffer's history.
-    external_text: String,
+    text: String,
 
-    /// Index of the last external operation referenced when merging changes. May be ahead of current_seq if there has
-    /// not been a call to `update()` (updates current_seq) since the last call to `reload()` (assigns new greatest seq
+    /// Index of the last external operation referenced when merging changes. May be ahead of current.seq if there has
+    /// not been a call to `update()` (updates current.seq) since the last call to `reload()` (assigns new greatest seq
     /// to `external_seq`).
-    external_seq: usize,
+    seq: usize,
+}
+
+#[derive(Default)]
+pub struct Response {
+    text_updated: bool,
+    selection_updated: bool,
+}
+
+impl std::ops::BitOrAssign for Response {
+    fn bitor_assign(&mut self, other: Response) {
+        self.text_updated |= other.text_updated;
+        self.selection_updated |= other.selection_updated;
+    }
+}
+
+impl From<Response> for (bool, bool) {
+    fn from(value: Response) -> Self {
+        (value.text_updated, value.selection_updated)
+    }
 }
 
 /// Additional metadata tracked alongside operations internally.
@@ -157,11 +230,12 @@ impl Buffer {
     /// for batches of internal operations produced from a single input event e.g. multi-line list identation.
     pub fn queue(&mut self, ops: Vec<Operation>) {
         let timestamp = Instant::now();
-        let base = self.current_seq;
+        let base = self.current.seq;
 
-        self.history_meta
+        self.ops
+            .queued_meta
             .extend(ops.iter().map(|_| OpMeta { timestamp, base }));
-        self.history_ops.extend(ops);
+        self.ops.queued.extend(ops);
     }
 
     /// Loads a new string into the buffer, merging out-of-editor changes made since last load with in-editor changes
@@ -170,328 +244,145 @@ impl Buffer {
     /// buffer to the most recently loaded state (undo limit permitting).
     pub fn reload(&mut self, text: String) {
         let timestamp = Instant::now();
-        let base = self.external_seq;
-        let ops = patch_ops(&self.external_text, &text);
+        let base = self.external.seq;
+        let ops = patch_ops(&self.external.text, &text);
 
-        println!(
-            "buffer: reloaded to produce ops {:?} with base {:?}",
-            self.history_ops.len()..(self.history_ops.len() + ops.len()),
-            base
-        );
-
-        self.history_meta
+        self.ops
+            .queued_meta
             .extend(ops.iter().map(|_| OpMeta { timestamp, base }));
-        self.history_ops.extend(ops);
+        self.ops.queued.extend(ops);
 
-        self.external_text = text;
-        self.external_seq = self.history_ops.len();
+        self.external.text = text;
+        self.external.seq = self.ops.applied.len() + self.ops.queued.len();
     }
 
     /// Indicates to the buffer the changes that have been saved outside the editor. This will serve as the new base
-    /// for merging external changes. The sequence number should be taken from `current_seq` of the buffer when the
+    /// for merging external changes. The sequence number should be taken from `current.seq` of the buffer when the
     /// buffer's contents are read for saving.
     pub fn saved(&mut self, external_seq: usize, external_text: String) {
-        println!("buffer: saved {} ({:?})", external_seq, external_text);
-        self.external_text = external_text;
-        self.external_seq = external_seq;
+        self.external.text = external_text;
+        self.external.seq = external_seq;
     }
 
-    /// Apply all operations in the buffer's input queue. Returns a (text_updated, selection_updated) pair.
-    pub fn update(&mut self) -> (bool, bool) {
-        if self.current_seq == self.history_ops.len() {
-            return (false, false);
-        }
+    /// Applies all operations in the buffer's input queue
+    pub fn update(&mut self) -> Response {
+        let mut response = Response::default();
 
-        println!("buffer: updating");
-        // this print statement causes performance issues once the history reaches a few hundred events
-        // println!(
-        //     "\tapplied_ops ({:?}): {:?}",
-        //     self.current_seq,
-        //     &self.history_ops[0..self.current_seq]
-        // );
-        println!(
-            "\tqueued_ops ({:?}): {:?}",
-            self.history_ops.len() - self.current_seq,
-            &self.history_ops[self.current_seq..self.history_ops.len()]
-        );
+        // clear redo stack
+        // todo: are queued ops still valid?
+        // if !self.ops.queued.is_empty() {
+        //     self.ops.truncate(self.current.seq - self.base.seq);
+        // }
 
-        let mut text_updated = false;
-        let mut selection_updated = false;
+        // move queued ops to applied
+        let queue_len = self.ops.queue_len();
+        self.ops
+            .applied_meta
+            .extend(std::mem::take(&mut self.ops.queued_meta));
+        self.ops
+            .applied
+            .extend(std::mem::take(&mut self.ops.queued));
+        for idx in self.current_idx()..self.current_idx() + queue_len {
+            let mut op = self.ops.applied[idx].clone();
+            let meta = &self.ops.applied_meta[idx];
+            self.transform(&mut op, meta);
+            self.ops.transformed_inverted.push(self.current.invert(&op));
+            self.ops.transformed.push(op.clone());
 
-        // iterate queue
-        let min_queued_idx = self.current_seq - self.history_seq;
-        for transformed_op_idx in min_queued_idx..self.history_ops.len() {
-            // transform based on history
-            let mut transformed_op = self.history_ops[transformed_op_idx].clone();
-            let queued_meta = &self.history_meta[transformed_op_idx];
-            let transformed_op_base_idx = queued_meta.base - self.history_seq;
-
-            println!(
-                "buffer: op {:?} to be transformed by {:?} (inc/exc)",
-                transformed_op_idx,
-                transformed_op_base_idx..transformed_op_idx
-            );
-
-            for preceding_idx in transformed_op_base_idx..transformed_op_idx {
-                let preceding_op = &self.history_ops[preceding_idx];
-                if let Operation::Replace(Replacement {
-                    range: preceding_replaced_range,
-                    text: preceding_replacement_text,
-                }) = preceding_op
-                {
-                    println!(
-                        "buffer: transforming queued op {:?} ({:?}) with preceding op {:?} ({:?} -> {:?})",
-                        transformed_op_idx,
-                        transformed_op,
-                        preceding_idx,
-                        preceding_replaced_range,
-                        preceding_replacement_text
-                    );
-
-                    match &mut transformed_op {
-                        Operation::Replace(Replacement { range: transformed_range, .. })
-                        | Operation::Select(transformed_range) => {
-                            adjust_subsequent_range(
-                                *preceding_replaced_range,
-                                preceding_replacement_text.graphemes(true).count().into(),
-                                true,
-                                transformed_range,
-                            );
-                        }
-                    }
-                }
-            }
-
-            // apply
-            let mut inverse_transformed_op =
-                InverseOperation { replace: None, select: self.current_selection };
-            match transformed_op {
-                Operation::Replace(Replacement { range, ref text }) => {
-                    let byte_range = self.current_segs.range_to_byte(range);
-
-                    // record inverse of transformed operation
-                    let replaced_text = self[byte_range].into();
-                    let replacement_range = (range.start(), range.start() + text.len());
-                    inverse_transformed_op.replace =
-                        Some(Replacement { range: replacement_range, text: replaced_text });
-
-                    // update buffer and dependent data
-                    self.current_text
-                        .replace_range(byte_range.start().0..byte_range.end().0, text);
-                    self.current_segs = unicode_segs::calc(&self.current_text);
-                    adjust_subsequent_range(
-                        range,
-                        text.graphemes(true).count().into(),
-                        false,
-                        &mut self.current_selection,
-                    );
-
-                    // change detection
-                    text_updated = true;
-                    selection_updated = true;
-                }
-                Operation::Select(range) => {
-                    self.current_selection = range;
-                    selection_updated = true;
-                }
-            }
-
-            // bookkeeping
-            self.transformed_ops.push(transformed_op);
-            self.inverse_transformed_ops.push(inverse_transformed_op);
-
-            self.current_seq = transformed_op_idx + 1;
-            println!("buffer: current seq = {:?}", self.current_seq);
+            response |= self.redo(); // !
         }
 
         #[cfg(debug_assertions)]
-        assert_eq!(self.current_seq, self.history_seq + self.history_ops.len());
+        assert_eq!(self.current.seq, self.base.seq + self.ops.applied.len());
 
-        (text_updated, selection_updated)
+        response
     }
 
-    /// Undo the most recent operation. Returns true if there was an operation to undo.
-    pub fn undo(&mut self) -> bool {
-        if self.can_undo() {
-            true
-        } else {
-            false
+    fn transform(&self, op: &mut Operation, meta: &OpMeta) {
+        let base_idx = meta.base - self.base.seq;
+        for transforming_idx in base_idx..self.current.seq {
+            let preceding_op = &self.ops.applied[transforming_idx];
+            if let Operation::Replace(Replace {
+                range: preceding_replaced_range,
+                text: preceding_replacement_text,
+            }) = preceding_op
+            {
+                match op {
+                    Operation::Replace(Replace { range: transformed_range, .. })
+                    | Operation::Select(transformed_range) => {
+                        adjust_subsequent_range(
+                            *preceding_replaced_range,
+                            preceding_replacement_text.graphemes(true).count().into(),
+                            true,
+                            transformed_range,
+                        );
+                    }
+                }
+            }
         }
     }
 
-    /// Reports whether there are any operations to undo.
-    pub fn can_undo(&self) -> bool {
-        todo!()
-    }
-
-    /// Redo the most recently undone operation. Returns true if there was an operation to redo.
-    pub fn redo(&mut self) -> bool {
-        if self.can_redo() {
-            todo!();
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Reports whether there are any operations to redo.
     pub fn can_redo(&self) -> bool {
-        todo!()
+        self.current.seq < self.base.seq + self.ops.len()
+    }
+
+    pub fn can_undo(&self) -> bool {
+        self.current.seq > self.base.seq
+    }
+
+    pub fn redo(&mut self) -> Response {
+        if self.can_redo() {
+            let op = &self.ops.transformed[self.current_idx()];
+            self.current.seq += 1;
+
+            match op {
+                Operation::Replace(replace) => self.current.apply_replace(replace),
+                Operation::Select(range) => self.current.apply_select(*range),
+            }
+        } else {
+            Response::default()
+        }
+    }
+
+    pub fn undo(&mut self) -> Response {
+        if self.can_undo() {
+            self.current.seq -= 1;
+            let op = &self.ops.transformed_inverted[self.current_idx()];
+
+            let mut response = Response::default();
+            if let Some(replace) = &op.replace {
+                response |= self.current.apply_replace(replace);
+            }
+            response |= self.current.apply_select(op.select);
+            response
+        } else {
+            Response::default()
+        }
+    }
+
+    fn current_idx(&self) -> usize {
+        self.current.seq - self.base.seq
     }
 
     /// Reports whether the buffer's current text is empty.
     pub fn is_empty(&self) -> bool {
-        self.current_text.is_empty()
+        self.current.text.is_empty()
     }
 
     pub fn selection_text(&self) -> String {
-        self[self.current_selection].to_string()
+        self[self.current.selection].to_string()
     }
 }
-
-// #[derive(Debug)]
-// pub struct OldBuffer {
-//     /// contents of the buffer, as they appear in the editor
-//     pub current: SubBuffer,
-
-//     /// contents of the buffer MAX_UNDOs modifications ago; after exercising all undo's, the buffer would be this
-//     pub undo_base: SubBuffer,
-
-//     /// modifications made between undo_base and raw;
-//     pub undo_queue: VecDeque<Vec<Mutation>>,
-
-//     /// additional, most recent element for queue, contains at most one text update, flushed to queue when another text update is applied
-//     pub current_text_mods: Option<Vec<Mutation>>,
-
-//     /// modifications reverted by undo and available for redo; used as a stack
-//     pub redo_stack: Vec<Vec<Mutation>>,
-
-//     // instant of last modification application
-//     pub last_apply: Instant,
-// }
 
 impl From<&str> for Buffer {
     fn from(value: &str) -> Self {
-        Self {
-            current_text: value.to_string(),
-            current_segs: unicode_segs::calc(value),
-            external_text: value.to_string(),
-            ..Default::default()
-        }
+        let mut result = Self::default();
+        result.current.text = value.to_string();
+        result.current.segs = unicode_segs::calc(value);
+        result.external.text = value.to_string();
+        result
     }
 }
-
-// impl OldBuffer {
-//     pub fn is_empty(&self) -> bool {
-//         self.current.is_empty()
-//     }
-
-//     /// applies `modification` and returns a boolean representing whether text was updated, new contents for clipboard
-//     /// (optional), and a link that was opened (optional)
-//     // todo: less cloning
-//     pub fn apply(
-//         &mut self, modification: Mutation, debug: &mut DebugInfo, appearance: &mut Appearance,
-//     ) -> (bool, Option<String>, Option<String>) {
-//         let now = Instant::now();
-
-//         // accumulate modifications into one modification until a non-cursor update is applied (for purposes of undo)
-//         if modification
-//             .iter()
-//             .any(|m| matches!(m, SubMutation::Insert { .. } | SubMutation::Delete(..)))
-//         {
-//             if let Some(ref mut current_text_mods) = self.current_text_mods {
-//                 // extend current modification until new cursor placement
-//                 if current_text_mods.iter().any(|modification| {
-//                     !modification
-//                         .iter()
-//                         .any(|m| matches!(m, SubMutation::Insert { .. } | SubMutation::Delete(..)))
-//                 }) || now - self.last_apply > UNDO_DEBOUNCE_PERIOD
-//                 {
-//                     self.undo_queue.push_back(current_text_mods.clone());
-//                     if self.undo_queue.len() > MAX_UNDOS {
-//                         // when modifications overflow the queue, apply them to undo_base
-//                         if let Some(undo_mods) = self.undo_queue.pop_front() {
-//                             for m in undo_mods {
-//                                 self.undo_base.apply_modification(m, debug, appearance);
-//                             }
-//                         }
-//                     }
-//                     self.current_text_mods = Some(vec![modification.clone()]);
-//                 } else {
-//                     current_text_mods.push(modification.clone());
-//                 }
-//             } else {
-//                 self.current_text_mods = Some(vec![modification.clone()]);
-//             }
-//         } else if let Some(ref mut current_text_mods) = self.current_text_mods {
-//             current_text_mods.push(modification.clone());
-//         } else {
-//             self.current_text_mods = Some(vec![modification.clone()]);
-//         }
-
-//         self.last_apply = now;
-//         self.redo_stack = Vec::new();
-//         self.current
-//             .apply_modification(modification, debug, appearance)
-//     }
-
-//     /// undoes one modification, if able
-//     pub fn undo(&mut self, debug: &mut DebugInfo, appearance: &mut Appearance) {
-//         if let Some(current_text_mods) = &self.current_text_mods {
-//             // don't undo cursor-only updates
-//             if !current_text_mods.iter().any(|modification| {
-//                 modification
-//                     .iter()
-//                     .any(|m| matches!(m, SubMutation::Insert { .. } | SubMutation::Delete(..)))
-//             }) {
-//                 for m in current_text_mods {
-//                     self.current
-//                         .apply_modification(m.clone(), debug, appearance);
-//                 }
-//                 return;
-//             }
-
-//             // reconstruct the modification queue
-//             let mut mods_to_apply = VecDeque::new();
-//             std::mem::swap(&mut mods_to_apply, &mut self.undo_queue);
-
-//             // current starts over from undo base
-//             self.current = self.undo_base.clone();
-
-//             // move the (undone) current modification to the redo stack
-//             self.redo_stack.push(current_text_mods.clone());
-
-//             // undo the current modification by applying the whole queue but not the current modification
-//             while let Some(mods) = mods_to_apply.pop_front() {
-//                 for m in &mods {
-//                     self.current
-//                         .apply_modification(m.clone(), debug, appearance);
-//                 }
-
-//                 // final element of the queue moved from queue to current
-//                 if mods_to_apply.is_empty() {
-//                     self.current_text_mods = Some(mods);
-//                     break;
-//                 }
-
-//                 self.undo_queue.push_back(mods);
-//             }
-//         }
-//     }
-
-//     /// redoes one modification, if able
-//     pub fn redo(&mut self, debug: &mut DebugInfo, appearance: &mut Appearance) {
-//         if let Some(mods) = self.redo_stack.pop() {
-//             if let Some(current_text_mods) = &self.current_text_mods {
-//                 self.undo_queue.push_back(current_text_mods.clone());
-//             }
-//             self.current_text_mods = Some(mods.clone());
-//             for m in mods {
-//                 self.current.apply_modification(m, debug, appearance);
-//             }
-//         }
-//     }
-// }
 
 /// Adjust a range based on a text replacement. Positions before the replacement generally are not adjusted,
 /// positions after the replacement generally are, and positions within the replacement are adjusted to the end of
@@ -615,39 +506,28 @@ fn adjust_subsequent_position(
     }
 }
 
-// fn replace_range(&mut self, range: Range<DocCharOffset>, replacement: &str) {
-//     self.text.replace_range(
-//         Range {
-//             start: self.segs.offset_to_byte(range.start).0,
-//             end: self.segs.offset_to_byte(range.end).0,
-//         },
-//         replacement,
-//     );
-// }
-// }
+impl Index<(DocByteOffset, DocByteOffset)> for Snapshot {
+    type Output = str;
 
-// impl Index<(DocByteOffset, DocByteOffset)> for SubBuffer {
-//     type Output = str;
+    fn index(&self, index: (DocByteOffset, DocByteOffset)) -> &Self::Output {
+        &self.text[index.start().0..index.end().0]
+    }
+}
 
-//     fn index(&self, index: (DocByteOffset, DocByteOffset)) -> &Self::Output {
-//         &self.text[index.0 .0..index.1 .0]
-//     }
-// }
+impl Index<(DocCharOffset, DocCharOffset)> for Snapshot {
+    type Output = str;
 
-// impl Index<(DocCharOffset, DocCharOffset)> for SubBuffer {
-//     type Output = str;
-
-//     fn index(&self, index: (DocCharOffset, DocCharOffset)) -> &Self::Output {
-//         let index = self.segs.range_to_byte(index);
-//         &self.text[index.0 .0..index.1 .0]
-//     }
-// }
+    fn index(&self, index: (DocCharOffset, DocCharOffset)) -> &Self::Output {
+        let index = self.segs.range_to_byte(index);
+        &self.text[index.start().0..index.end().0]
+    }
+}
 
 impl Index<(DocByteOffset, DocByteOffset)> for Buffer {
     type Output = str;
 
     fn index(&self, index: (DocByteOffset, DocByteOffset)) -> &Self::Output {
-        &self.current_text[index.start().0..index.end().0]
+        &self.current[index]
     }
 }
 
@@ -655,7 +535,6 @@ impl Index<(DocCharOffset, DocCharOffset)> for Buffer {
     type Output = str;
 
     fn index(&self, index: (DocCharOffset, DocCharOffset)) -> &Self::Output {
-        let index = self.current_segs.range_to_byte(index);
-        &self.current_text[index.start().0..index.end().0]
+        &self.current[index]
     }
 }

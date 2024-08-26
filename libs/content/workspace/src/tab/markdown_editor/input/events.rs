@@ -32,7 +32,7 @@ impl Editor {
             let ops = self.calc_operations(ctx, event);
             self.buffer.queue(ops);
         }
-        self.buffer.update()
+        self.buffer.update().into()
     }
 }
 
