@@ -91,7 +91,7 @@ pub struct Buffer {
     external: External,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Snapshot {
     pub text: String,
     pub segs: UnicodeSegs,
@@ -145,9 +145,9 @@ struct Ops {
     queued: Vec<Operation>,
     queued_meta: Vec<OpMeta>,
 
-    /// Operations that have been applied to the buffer in their original/submitted form.
-    applied: Vec<Operation>,
-    applied_meta: Vec<OpMeta>,
+    /// Operations that have been applied to the buffer but may have been undone.
+    processed: Vec<Operation>,
+    processed_meta: Vec<OpMeta>,
 
     /// Operations that have been applied to the buffer and already transformed, in order of application. Each of these
     /// operations is based on the previous operation in this list, with the first based on the history base. Derived
@@ -162,12 +162,12 @@ struct Ops {
 
 impl Ops {
     fn len(&self) -> usize {
-        self.applied.len()
+        self.processed.len()
     }
 
     fn truncate(&mut self, len: usize) {
-        self.applied.truncate(len);
-        self.applied_meta.truncate(len);
+        self.processed.truncate(len);
+        self.processed_meta.truncate(len);
         self.transformed.truncate(len);
         self.transformed_inverted.truncate(len);
     }
@@ -253,7 +253,7 @@ impl Buffer {
         self.ops.queued.extend(ops);
 
         self.external.text = text;
-        self.external.seq = self.ops.applied.len() + self.ops.queued.len();
+        self.external.seq = self.ops.processed.len() + self.ops.queued.len();
     }
 
     /// Indicates to the buffer the changes that have been saved outside the editor. This will serve as the new base
@@ -274,26 +274,27 @@ impl Buffer {
         //     self.ops.truncate(self.current.seq - self.base.seq);
         // }
 
-        // move queued ops to applied
+        // move queued ops to processed
         let queue_len = self.ops.queue_len();
         self.ops
-            .applied_meta
+            .processed_meta
             .extend(std::mem::take(&mut self.ops.queued_meta));
         self.ops
-            .applied
+            .processed
             .extend(std::mem::take(&mut self.ops.queued));
         for idx in self.current_idx()..self.current_idx() + queue_len {
-            let mut op = self.ops.applied[idx].clone();
-            let meta = &self.ops.applied_meta[idx];
+            let mut op = self.ops.processed[idx].clone();
+            let meta = &self.ops.processed_meta[idx];
             self.transform(&mut op, meta);
             self.ops.transformed_inverted.push(self.current.invert(&op));
             self.ops.transformed.push(op.clone());
 
-            response |= self.redo(); // !
+            response |= self.redo();
         }
 
-        #[cfg(debug_assertions)]
-        assert_eq!(self.current.seq, self.base.seq + self.ops.applied.len());
+        if queue_len > 0 {
+            println!("current: {:?}", self.current);
+        }
 
         response
     }
@@ -301,7 +302,7 @@ impl Buffer {
     fn transform(&self, op: &mut Operation, meta: &OpMeta) {
         let base_idx = meta.base - self.base.seq;
         for transforming_idx in base_idx..self.current.seq {
-            let preceding_op = &self.ops.applied[transforming_idx];
+            let preceding_op = &self.ops.processed[transforming_idx];
             if let Operation::Replace(Replace {
                 range: preceding_replaced_range,
                 text: preceding_replacement_text,
@@ -354,6 +355,9 @@ impl Buffer {
                 response |= self.current.apply_replace(replace);
             }
             response |= self.current.apply_select(op.select);
+
+            println!("current: {:?}", self.current);
+
             response
         } else {
             Response::default()
@@ -510,6 +514,7 @@ impl Index<(DocByteOffset, DocByteOffset)> for Snapshot {
     type Output = str;
 
     fn index(&self, index: (DocByteOffset, DocByteOffset)) -> &Self::Output {
+        println!("doc byte index range: {:?}", index);
         &self.text[index.start().0..index.end().0]
     }
 }
