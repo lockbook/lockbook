@@ -226,9 +226,7 @@ impl Editor {
                 || cfg!(target_os = "android")
             {
                 let custom_events = ui.ctx().pop_events();
-                let (text_updated, selection_updated) =
-                    self.process_events(ui.ctx(), events, custom_events, touch_mode);
-                (text_updated, selection_updated)
+                self.process_events(ui.ctx(), events, custom_events, touch_mode)
             } else {
                 (false, false)
             }

@@ -1,3 +1,4 @@
+use crate::tab::markdown_editor::buffer;
 use crate::tab::{self, markdown_editor, ClipContent};
 use egui::Context;
 use lb_rs::Uuid;
@@ -28,11 +29,14 @@ impl Editor {
     pub fn process_combined_events(
         &mut self, ctx: &Context, combined_events: Vec<Event>,
     ) -> (bool, bool) {
+        let mut ops = Vec::new();
+        let mut response = buffer::Response::default();
         for event in combined_events {
-            let ops = self.calc_operations(ctx, event);
-            self.buffer.queue(ops);
+            response |= self.calc_operations(ctx, event, &mut ops);
         }
-        self.buffer.update().into()
+        self.buffer.queue(ops);
+        response |= self.buffer.update();
+        response.into()
     }
 }
 

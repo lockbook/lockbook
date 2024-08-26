@@ -1,7 +1,7 @@
-use crate::tab::markdown_editor;
 use crate::tab::markdown_editor::bounds::Text;
 use crate::tab::markdown_editor::buffer::Replace;
 use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
+use crate::tab::markdown_editor::{self, buffer};
 use egui::Pos2;
 use markdown_editor::ast::{Ast, AstTextRangeType};
 use markdown_editor::bounds::{AstTextRanges, RangesExt};
@@ -21,19 +21,15 @@ use std::collections::{HashMap, HashSet};
 
 impl Editor {
     /// Translates editor events into buffer operations by interpreting them in the context of the current editor state.
-    /// Dispatches events that aren't buffer operations.
-    pub fn calc_operations(&mut self, ctx: &egui::Context, modification: Event) -> Vec<Operation> {
+    /// Dispatches events that aren't buffer operations. Returns a (text_updated, selection_updated) pair.
+    pub fn calc_operations(
+        &mut self, ctx: &egui::Context, modification: Event, operations: &mut Vec<Operation>,
+    ) -> buffer::Response {
         let current_selection = self.buffer.current.selection;
-        let mut operations = Vec::new();
+        let mut response = buffer::Response::default();
         match modification {
             Event::Select { region } => {
                 operations.push(Operation::Select(self.region_to_range(region)))
-            }
-            Event::StageMarked { .. } => {
-                unimplemented!()
-            }
-            Event::CommitMarked => {
-                unimplemented!()
             }
             Event::Replace { region, text } => {
                 let range = self.region_to_range(region);
@@ -55,10 +51,10 @@ impl Editor {
                             if !removed_conflicting_list_item {
                                 list_item_indent_level = indent_level;
                                 removed_conflicting_list_item = true;
-                                self.apply_style(range, conflict, true, &mut operations);
+                                self.apply_style(range, conflict, true, operations);
                             }
                         } else {
-                            self.apply_style(range, conflict, true, &mut operations);
+                            self.apply_style(range, conflict, true, operations);
                         }
                     }
                 }
@@ -68,7 +64,7 @@ impl Editor {
                 };
 
                 // apply style
-                self.apply_style(range, style.clone(), unapply, &mut operations);
+                self.apply_style(range, style.clone(), unapply, operations);
 
                 // modify cursor
                 if current_selection.is_empty() {
@@ -606,10 +602,10 @@ impl Editor {
                 }
             }
             Event::Undo => {
-                self.buffer.undo();
+                response |= self.buffer.undo();
             }
             Event::Redo => {
-                self.buffer.redo();
+                response |= self.buffer.redo();
             }
             Event::Cut => {
                 ctx.output_mut(|o| o.copied_text = self.buffer[current_selection].into());
@@ -642,7 +638,7 @@ impl Editor {
             }
         }
 
-        operations
+        response
     }
 
     /// Returns true if all text in the current selection has style `style`

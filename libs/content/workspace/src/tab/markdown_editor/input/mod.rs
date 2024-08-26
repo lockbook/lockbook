@@ -10,7 +10,7 @@ pub mod mutation;
 use egui::Pos2;
 
 use crate::tab::markdown_editor;
-use markdown_editor::offset_types::{DocCharOffset, RelCharOffset};
+use markdown_editor::offset_types::DocCharOffset;
 use markdown_editor::style::MarkdownNode;
 
 // This module processes input events, with the following major concerns:
@@ -91,8 +91,6 @@ pub enum Region {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     Select { region: Region },
-    StageMarked { highlighted: (RelCharOffset, RelCharOffset), text: String },
-    CommitMarked,
     Replace { region: Region, text: String },
     ToggleStyle { region: Region, style: MarkdownNode },
     Newline { advance_cursor: bool }, // distinct from replace because it triggers auto-bullet, etc
