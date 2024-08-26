@@ -4,7 +4,7 @@ use markdown_editor::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelC
 use markdown_editor::unicode_segs;
 use markdown_editor::unicode_segs::UnicodeSegs;
 use std::ops::Index;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use unicode_segmentation::UnicodeSegmentation;
 
 /// Buffer operation optimized for simplicity. Used in buffer's interface and internals to represent a building block
@@ -158,10 +158,6 @@ struct Ops {
     /// undoing operations. The data model differs because an operation that replaces text containing the cursor needs
     /// two operations to revert the text and cursor. Derived from other data and invalidated by some undo/redo flows.
     transformed_inverted: Vec<InverseOperation>,
-
-    /// Checkpoints in the sequence of operations representing revisions of the buffer's contents that are meaningful
-    /// to the user. Undo/redo will always move the buffer state to one of these points.
-    undo_checkpoints: Vec<usize>,
 }
 
 impl Ops {
@@ -169,8 +165,26 @@ impl Ops {
         self.all.len()
     }
 
-    fn is_undo_checkpoint(&self, seq: usize) -> bool {
-        seq == 0 || seq == self.processed_seq || self.undo_checkpoints.binary_search(&seq).is_ok()
+    fn is_undo_checkpoint(&self, idx: usize) -> bool {
+        if idx == 0 {
+            return true;
+        }
+        if idx == self.len() {
+            return true;
+        }
+
+        let meta = &self.meta[idx];
+        let prev_meta = &self.meta[idx - 1];
+        if meta.timestamp - prev_meta.timestamp > Duration::from_millis(500) {
+            return true;
+        }
+
+        let op = &self.all[idx];
+        if meta.base != prev_meta.base && matches!(op, Operation::Select(..)) {
+            return true;
+        }
+
+        false
     }
 }
 
@@ -264,12 +278,18 @@ impl Buffer {
         // ops after:  |<- applied ->|<- queued ->|
         let queue_len = self.base.seq + self.ops.len() - self.ops.processed_seq;
         if queue_len > 0 {
-            println!("clear undo stack: {}..{}", self.current.seq, self.ops.processed_seq);
             let drain_range = self.current.seq..self.ops.processed_seq;
             self.ops.all.drain(drain_range.clone());
             self.ops.meta.drain(drain_range.clone());
             self.ops.transformed.drain(drain_range.clone());
-            self.ops.transformed_inverted.drain(drain_range);
+            self.ops.transformed_inverted.drain(drain_range.clone());
+            self.ops.processed_seq = self.current.seq;
+
+            println!("\nUPDATE: {} -> {}", self.current.seq, self.ops.len());
+            if !drain_range.is_empty() {
+                println!("clear undo stack: {}..{}", self.current.seq, self.ops.processed_seq);
+            }
+            println!("ops: {:?}", self.ops.all);
         } else {
             return Response::default();
         }
@@ -282,16 +302,9 @@ impl Buffer {
             self.transform(&mut op, meta);
             self.ops.transformed_inverted.push(self.current.invert(&op));
             self.ops.transformed.push(op.clone());
-
             self.ops.processed_seq += 1;
 
             result |= self.redo();
-        }
-
-        self.ops.undo_checkpoints.push(self.ops.processed_seq);
-
-        if queue_len > 0 {
-            println!("current: {:?}", self.current);
         }
 
         result
@@ -299,15 +312,14 @@ impl Buffer {
 
     fn transform(&self, op: &mut Operation, meta: &OpMeta) {
         let base_idx = meta.base - self.base.seq;
-        println!("base_idx: {}", base_idx);
         for transforming_idx in base_idx..self.ops.processed_seq {
+            println!("transform {} with {}", self.ops.processed_seq, transforming_idx);
             let preceding_op = &self.ops.all[transforming_idx];
             if let Operation::Replace(Replace {
                 range: preceding_replaced_range,
                 text: preceding_replacement_text,
             }) = preceding_op
             {
-                println!("preceding replace: {:?}", preceding_replacement_text);
                 match op {
                     Operation::Replace(Replace { range: transformed_range, .. })
                     | Operation::Select(transformed_range) => {
@@ -336,8 +348,7 @@ impl Buffer {
         while self.can_redo() {
             let op = &self.ops.transformed[self.current_idx()];
 
-            println!("redo: {:?}; ops = {:?}", op, self.ops.all);
-
+            println!("redo {} -> {} ({:?})", self.current.seq, self.current.seq + 1, op);
             self.current.seq += 1;
 
             response |= match op {
@@ -345,10 +356,11 @@ impl Buffer {
                 Operation::Select(range) => self.current.apply_select(*range),
             };
 
-            if self.ops.is_undo_checkpoint(self.current.seq) {
+            if self.ops.is_undo_checkpoint(self.current_idx()) {
                 break;
             }
         }
+        println!("current: {:?}", self.current);
         response
     }
 
@@ -358,12 +370,14 @@ impl Buffer {
             self.current.seq -= 1;
             let op = &self.ops.transformed_inverted[self.current_idx()];
 
+            println!("undo {} -> {} ({:?})", self.current.seq + 1, self.current.seq, op);
+
             if let Some(replace) = &op.replace {
                 response |= self.current.apply_replace(replace);
             }
             response |= self.current.apply_select(op.select);
 
-            if self.ops.is_undo_checkpoint(self.current.seq) {
+            if self.ops.is_undo_checkpoint(self.current_idx()) {
                 break;
             }
         }
