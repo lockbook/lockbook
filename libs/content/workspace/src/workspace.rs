@@ -388,10 +388,6 @@ impl Workspace {
                                 // check that this change was not from the initial frame.
                                 if resp.text_updated && md.past_first_frame() {
                                     tab.last_changed = Instant::now();
-                                    println!(
-                                        "workspace: markdown text updated; last_changed = {:?}",
-                                        tab.last_changed
-                                    );
                                 }
 
                                 if let Some(new_name) = resp.suggest_rename {
@@ -560,8 +556,6 @@ impl Workspace {
                         let result = core
                             .safe_write(id, hmac, content.clone().into())
                             .map(|hmac| (content, hmac, Instant::now(), seq));
-
-                        println!("workspace: write complete");
 
                         // re-read
                         update_tx.send(WsMsg::SaveResult(id, result)).unwrap();
@@ -807,7 +801,6 @@ impl Workspace {
                 WsMsg::BgSignal(Signal::Sync) => {
                     if self.cfg.auto_sync.load(Ordering::Relaxed) {
                         self.perform_sync();
-                        println!("workspace: auto-sync complete");
                     }
                 }
                 WsMsg::BgSignal(Signal::UpdateStatus) => {
