@@ -1,5 +1,6 @@
 use crate::tab::markdown_editor;
 use crate::tab::markdown_editor::bounds::Text;
+use crate::tab::markdown_editor::buffer::Replacement;
 use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
 use egui::Pos2;
 use markdown_editor::ast::{Ast, AstTextRangeType};
@@ -26,7 +27,7 @@ impl Editor {
         let mut operations = Vec::new();
         match modification {
             Event::Select { region } => {
-                operations.push(Operation::Select { range: self.region_to_range(region) })
+                operations.push(Operation::Select(self.region_to_range(region)))
             }
             Event::StageMarked { .. } => {
                 unimplemented!()
@@ -36,8 +37,8 @@ impl Editor {
             }
             Event::Replace { region, text } => {
                 let range = self.region_to_range(region);
-                operations.push(Operation::Replace { range, text });
-                operations.push(Operation::Select { range: range.start().to_range() })
+                operations.push(Operation::Replace(Replacement { range, text }));
+                operations.push(Operation::Select(range.start().to_range()))
             }
             Event::ToggleStyle { region, mut style } => {
                 let range = self.region_to_range(region);
@@ -83,14 +84,12 @@ impl Editor {
                         if text_range.node(&self.ast).node_type() == style.node_type()
                             && text_range.range_type == AstTextRangeType::Tail
                         {
-                            operations.push(Operation::Select {
-                                range: text_range.range.end().to_range(),
-                            });
+                            operations.push(Operation::Select(text_range.range.end().to_range()));
                         }
                     }
                 } else if style.node_type() != MarkdownNodeType::Inline(InlineNodeType::Link) {
                     // toggling link style leaves cursor where you can type link destination
-                    operations.push(Operation::Select { range: current_selection });
+                    operations.push(Operation::Select(current_selection));
                 }
             }
             Event::Newline { advance_cursor } => {
@@ -113,9 +112,8 @@ impl Editor {
                             && ast_text_range.range.end() != current_selection.1
                         {
                             // cursor inside link url -> move cursor to end of link
-                            operations.push(Operation::Select {
-                                range: ast_text_range.range.end().to_range(),
-                            });
+                            operations
+                                .push(Operation::Select(ast_text_range.range.end().to_range()));
                             break 'modification;
                         }
                     }
@@ -129,20 +127,20 @@ impl Editor {
                             let range =
                                 (galley.range.start(), galley.range.start() + galley.size());
                             let text = "".into();
-                            operations.push(Operation::Replace { range, text });
+                            operations.push(Operation::Replace(Replacement { range, text }));
                         } else {
                             // nonempty list item -> insert new list item
-                            operations.push(Operation::Replace {
+                            operations.push(Operation::Replace(Replacement {
                                 range: current_selection,
                                 text: "\n".into(),
-                            });
+                            }));
 
                             match galley.annotation {
                                 Some(Annotation::Item(ListItem::Bulleted, _)) => {
-                                    operations.push(Operation::Replace {
+                                    operations.push(Operation::Replace(Replacement {
                                         range: current_selection,
                                         text: galley.head(&self.buffer).to_string(),
-                                    });
+                                    }));
                                 }
                                 Some(Annotation::Item(
                                     ListItem::Numbered(cur_number),
@@ -154,10 +152,10 @@ impl Editor {
                                         .to_string()
                                         + (&(cur_number + 1).to_string() as &str)
                                         + ". ";
-                                    operations.push(Operation::Replace {
+                                    operations.push(Operation::Replace(Replacement {
                                         range: current_selection,
                                         text,
-                                    });
+                                    }));
 
                                     let renumbered_galleys = {
                                         let mut this = HashMap::new();
@@ -178,7 +176,7 @@ impl Editor {
                                             ..,
                                         )) = galley.annotation
                                         {
-                                            operations.push(Operation::Replace {
+                                            operations.push(Operation::Replace(Replacement {
                                                 range: (
                                                     galley.range.start() + galley.head_size,
                                                     galley.range.start() + galley.head_size
@@ -186,16 +184,16 @@ impl Editor {
                                                         - 2,
                                                 ),
                                                 text: galley_new_number.to_string() + ". ",
-                                            });
+                                            }));
                                         }
                                     }
                                 }
                                 Some(Annotation::Item(ListItem::Todo(_), _)) => {
                                     let head = galley.head(&self.buffer);
-                                    operations.push(Operation::Replace {
+                                    operations.push(Operation::Replace(Replacement {
                                         range: current_selection,
                                         text: head[0..head.len() - 6].to_string() + "* [ ] ",
-                                    });
+                                    }));
                                 }
                                 Some(Annotation::Image(_, _, _)) => {}
                                 Some(Annotation::HeadingRule) => {}
@@ -207,19 +205,19 @@ impl Editor {
                     }
 
                     // if it's none of the other things, just insert a newline
-                    operations
-                        .push(Operation::Replace { range: current_selection, text: "\n".into() });
+                    operations.push(Operation::Replace(Replacement {
+                        range: current_selection,
+                        text: "\n".into(),
+                    }));
                     if advance_cursor {
-                        operations.push(Operation::Select {
-                            range: current_selection.start().to_range(),
-                        });
+                        operations.push(Operation::Select(current_selection.start().to_range()));
                     }
                 }
             }
             Event::Delete { region } => {
                 let range = self.region_to_range(region);
-                operations.push(Operation::Replace { range, text: "".into() });
-                operations.push(Operation::Select { range: range.start().to_range() });
+                operations.push(Operation::Replace(Replacement { range, text: "".into() }));
+                operations.push(Operation::Select(range.start().to_range()));
 
                 // check if we deleted a numbered list annotation and renumber subsequent items
                 let ast_text_ranges = self.bounds.ast.find_contained(range, true, true);
@@ -304,7 +302,7 @@ impl Editor {
                     if let Some(Annotation::Item(ListItem::Numbered(cur_number), ..)) =
                         galley.annotation
                     {
-                        operations.push(Operation::Replace {
+                        operations.push(Operation::Replace(Replacement {
                             range: (
                                 galley.range.start() + galley.head_size,
                                 galley.range.start() + galley.head_size
@@ -312,7 +310,7 @@ impl Editor {
                                     - 2,
                             ),
                             text: new_number.to_string() + ". ",
-                        });
+                        }));
                     }
                 }
             }
@@ -406,13 +404,13 @@ impl Editor {
                         }
 
                         if can_deindent {
-                            operations.push(Operation::Replace {
+                            operations.push(Operation::Replace(Replacement {
                                 range: (
                                     galley.range.start(),
                                     galley.range.start() + indent_seq.len(),
                                 ),
                                 text: "".into(),
-                            });
+                            }));
 
                             cur_indent_level - 1
                         } else {
@@ -440,10 +438,10 @@ impl Editor {
                         }
 
                         if can_indent {
-                            operations.push(Operation::Replace {
+                            operations.push(Operation::Replace(Replacement {
                                 range: galley.range.start().to_range(),
                                 text: indent_seq.to_string(),
-                            });
+                            }));
 
                             cur_indent_level + 1
                         } else {
@@ -588,7 +586,7 @@ impl Editor {
                     if let Some(Annotation::Item(ListItem::Numbered(cur_number), ..)) =
                         galley.annotation
                     {
-                        operations.push(Operation::Replace {
+                        operations.push(Operation::Replace(Replacement {
                             range: (
                                 galley.range.start() + galley.head_size,
                                 galley.range.start() + galley.head_size
@@ -596,13 +594,15 @@ impl Editor {
                                     - 2,
                             ),
                             text: new_number.to_string() + ". ",
-                        });
+                        }));
                     }
                 }
 
                 if indentation_processed_galleys.is_empty() && !deindent {
-                    operations
-                        .push(Operation::Replace { range: current_selection, text: "\t".into() });
+                    operations.push(Operation::Replace(Replacement {
+                        range: current_selection,
+                        text: "\t".into(),
+                    }));
                 }
             }
             Event::Undo => {
@@ -613,7 +613,10 @@ impl Editor {
             }
             Event::Cut => {
                 ctx.output_mut(|o| o.copied_text = self.buffer[current_selection].into());
-                operations.push(Operation::Replace { range: current_selection, text: "".into() });
+                operations.push(Operation::Replace(Replacement {
+                    range: current_selection,
+                    text: "".into(),
+                }));
             }
             Event::Copy => {
                 ctx.output_mut(|o| o.copied_text = self.buffer[current_selection].into());
@@ -628,13 +631,13 @@ impl Editor {
             Event::ToggleCheckbox(galley_idx) => {
                 let galley = &self.galleys[galley_idx];
                 if let Some(Annotation::Item(ListItem::Todo(checked), ..)) = galley.annotation {
-                    operations.push(Operation::Replace {
+                    operations.push(Operation::Replace(Replacement {
                         range: (
                             galley.range.start() + galley.head_size - 6,
                             galley.range.start() + galley.head_size,
                         ),
                         text: if checked { "* [ ] " } else { "* [x] " }.into(),
-                    });
+                    }));
                 }
             }
         }
@@ -1033,18 +1036,18 @@ fn increment_numbered_list_items(
 
 fn dehead_ast_node(node_idx: usize, ast: &Ast, operations: &mut Vec<Operation>) {
     let node = &ast.nodes[node_idx];
-    operations.push(Operation::Replace {
+    operations.push(Operation::Replace(Replacement {
         range: (node.range.start(), node.text_range.start()),
         text: "".into(),
-    });
+    }));
 }
 
 fn detail_ast_node(node_idx: usize, ast: &Ast, operations: &mut Vec<Operation>) {
     let node = &ast.nodes[node_idx];
-    operations.push(Operation::Replace {
+    operations.push(Operation::Replace(Replacement {
         range: (node.text_range.end(), node.range.end()),
         text: "".into(),
-    });
+    }));
 }
 
 fn adjust_for_whitespace(
@@ -1079,16 +1082,22 @@ fn adjust_for_whitespace(
 
 fn insert_head(offset: DocCharOffset, style: MarkdownNode, operations: &mut Vec<Operation>) {
     let text = style.head();
-    operations.push(Operation::Replace { range: offset.to_range(), text });
+    operations.push(Operation::Replace(Replacement { range: offset.to_range(), text }));
 }
 
 fn insert_tail(offset: DocCharOffset, style: MarkdownNode, operations: &mut Vec<Operation>) {
     let text = style.node_type().tail().to_string();
     if style.node_type() == MarkdownNodeType::Inline(InlineNodeType::Link) {
-        operations.push(Operation::Replace { range: offset.to_range(), text: text[..2].into() });
-        operations.push(Operation::Select { range: offset.to_range() });
-        operations.push(Operation::Replace { range: offset.to_range(), text: text[2..].into() });
+        operations.push(Operation::Replace(Replacement {
+            range: offset.to_range(),
+            text: text[..2].into(),
+        }));
+        operations.push(Operation::Select(offset.to_range()));
+        operations.push(Operation::Replace(Replacement {
+            range: offset.to_range(),
+            text: text[2..].into(),
+        }));
     } else {
-        operations.push(Operation::Replace { range: offset.to_range(), text });
+        operations.push(Operation::Replace(Replacement { range: offset.to_range(), text }));
     }
 }
