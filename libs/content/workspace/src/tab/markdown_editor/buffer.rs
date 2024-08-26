@@ -131,6 +131,7 @@ impl Snapshot {
     }
 
     fn invert_replace(&self, replace: &Replace) -> Replace {
+        println!("invert_replace: {:?}", replace);
         let Replace { range, text } = replace;
         let byte_range = self.segs.range_to_byte(*range);
         let replaced_text = self[byte_range].into();
@@ -141,13 +142,12 @@ impl Snapshot {
 
 #[derive(Default)]
 struct Ops {
-    /// Operations received by the buffer but not yet applied.
-    queued: Vec<Operation>,
-    queued_meta: Vec<OpMeta>,
+    /// Operations that have been received by the buffer
+    all: Vec<Operation>,
+    meta: Vec<OpMeta>,
 
-    /// Operations that have been applied to the buffer but may have been undone.
-    processed: Vec<Operation>,
-    processed_meta: Vec<OpMeta>,
+    /// Sequence number of the first unapplied operation. Operations starting with this one are queued for processing.
+    processed_seq: usize,
 
     /// Operations that have been applied to the buffer and already transformed, in order of application. Each of these
     /// operations is based on the previous operation in this list, with the first based on the history base. Derived
@@ -158,27 +158,19 @@ struct Ops {
     /// undoing operations. The data model differs because an operation that replaces text containing the cursor needs
     /// two operations to revert the text and cursor. Derived from other data and invalidated by some undo/redo flows.
     transformed_inverted: Vec<InverseOperation>,
+
+    /// Checkpoints in the sequence of operations representing revisions of the buffer's contents that are meaningful
+    /// to the user. Undo/redo will always move the buffer state to one of these points.
+    undo_checkpoints: Vec<usize>,
 }
 
 impl Ops {
     fn len(&self) -> usize {
-        self.processed.len()
+        self.all.len()
     }
 
-    fn truncate(&mut self, len: usize) {
-        self.processed.truncate(len);
-        self.processed_meta.truncate(len);
-        self.transformed.truncate(len);
-        self.transformed_inverted.truncate(len);
-    }
-
-    fn queue_len(&self) -> usize {
-        self.queued.len()
-    }
-
-    fn truncate_queue(&mut self, len: usize) {
-        self.queued.truncate(len);
-        self.queued_meta.truncate(len);
+    fn is_undo_checkpoint(&self, seq: usize) -> bool {
+        seq == 0 || seq == self.processed_seq || self.undo_checkpoints.binary_search(&seq).is_ok()
     }
 }
 
@@ -233,9 +225,9 @@ impl Buffer {
         let base = self.current.seq;
 
         self.ops
-            .queued_meta
+            .meta
             .extend(ops.iter().map(|_| OpMeta { timestamp, base }));
-        self.ops.queued.extend(ops);
+        self.ops.all.extend(ops);
     }
 
     /// Loads a new string into the buffer, merging out-of-editor changes made since last load with in-editor changes
@@ -248,12 +240,12 @@ impl Buffer {
         let ops = patch_ops(&self.external.text, &text);
 
         self.ops
-            .queued_meta
+            .meta
             .extend(ops.iter().map(|_| OpMeta { timestamp, base }));
-        self.ops.queued.extend(ops);
+        self.ops.all.extend(ops);
 
         self.external.text = text;
-        self.external.seq = self.ops.processed.len() + self.ops.queued.len();
+        self.external.seq = self.base.seq + self.ops.all.len();
     }
 
     /// Indicates to the buffer the changes that have been saved outside the editor. This will serve as the new base
@@ -266,47 +258,56 @@ impl Buffer {
 
     /// Applies all operations in the buffer's input queue
     pub fn update(&mut self) -> Response {
-        let mut response = Response::default();
-
         // clear redo stack
-        if !self.ops.queued.is_empty() {
-            self.ops.truncate(self.current.seq - self.base.seq);
+        //             v base        v current    v processed
+        // ops before: |<- applied ->|<- undone ->|<- queued ->|
+        // ops after:  |<- applied ->|<- queued ->|
+        let queue_len = self.base.seq + self.ops.len() - self.ops.processed_seq;
+        if queue_len > 0 {
+            println!("clear undo stack: {}..{}", self.current.seq, self.ops.processed_seq);
+            let drain_range = self.current.seq..self.ops.processed_seq;
+            self.ops.all.drain(drain_range.clone());
+            self.ops.meta.drain(drain_range.clone());
+            self.ops.transformed.drain(drain_range.clone());
+            self.ops.transformed_inverted.drain(drain_range);
+        } else {
+            return Response::default();
         }
 
-        // move queued ops to processed
-        let queue_len = self.ops.queue_len();
-        self.ops
-            .processed_meta
-            .extend(std::mem::take(&mut self.ops.queued_meta));
-        self.ops
-            .processed
-            .extend(std::mem::take(&mut self.ops.queued));
+        // transform & apply
+        let mut result = Response::default();
         for idx in self.current_idx()..self.current_idx() + queue_len {
-            let mut op = self.ops.processed[idx].clone();
-            let meta = &self.ops.processed_meta[idx];
+            let mut op = self.ops.all[idx].clone();
+            let meta = &self.ops.meta[idx];
             self.transform(&mut op, meta);
             self.ops.transformed_inverted.push(self.current.invert(&op));
             self.ops.transformed.push(op.clone());
 
-            response |= self.redo();
+            self.ops.processed_seq += 1;
+
+            result |= self.redo();
         }
+
+        self.ops.undo_checkpoints.push(self.ops.processed_seq);
 
         if queue_len > 0 {
             println!("current: {:?}", self.current);
         }
 
-        response
+        result
     }
 
     fn transform(&self, op: &mut Operation, meta: &OpMeta) {
         let base_idx = meta.base - self.base.seq;
-        for transforming_idx in base_idx..self.current.seq {
-            let preceding_op = &self.ops.processed[transforming_idx];
+        println!("base_idx: {}", base_idx);
+        for transforming_idx in base_idx..self.ops.processed_seq {
+            let preceding_op = &self.ops.all[transforming_idx];
             if let Operation::Replace(Replace {
                 range: preceding_replaced_range,
                 text: preceding_replacement_text,
             }) = preceding_op
             {
+                println!("preceding replace: {:?}", preceding_replacement_text);
                 match op {
                     Operation::Replace(Replace { range: transformed_range, .. })
                     | Operation::Select(transformed_range) => {
@@ -323,7 +324,7 @@ impl Buffer {
     }
 
     pub fn can_redo(&self) -> bool {
-        self.current.seq < self.base.seq + self.ops.len()
+        self.current.seq < self.ops.processed_seq
     }
 
     pub fn can_undo(&self) -> bool {
@@ -331,36 +332,43 @@ impl Buffer {
     }
 
     pub fn redo(&mut self) -> Response {
-        if self.can_redo() {
+        let mut response = Response::default();
+        while self.can_redo() {
             let op = &self.ops.transformed[self.current_idx()];
+
+            println!("redo: {:?}; ops = {:?}", op, self.ops.all);
+
             self.current.seq += 1;
 
-            match op {
+            response |= match op {
                 Operation::Replace(replace) => self.current.apply_replace(replace),
                 Operation::Select(range) => self.current.apply_select(*range),
+            };
+
+            if self.ops.is_undo_checkpoint(self.current.seq) {
+                break;
             }
-        } else {
-            Response::default()
         }
+        response
     }
 
     pub fn undo(&mut self) -> Response {
-        if self.can_undo() {
+        let mut response = Response::default();
+        while self.can_undo() {
             self.current.seq -= 1;
             let op = &self.ops.transformed_inverted[self.current_idx()];
 
-            let mut response = Response::default();
             if let Some(replace) = &op.replace {
                 response |= self.current.apply_replace(replace);
             }
             response |= self.current.apply_select(op.select);
 
-            println!("current: {:?}", self.current);
-
-            response
-        } else {
-            Response::default()
+            if self.ops.is_undo_checkpoint(self.current.seq) {
+                break;
+            }
         }
+        println!("current: {:?}", self.current);
+        response
     }
 
     fn current_idx(&self) -> usize {
@@ -513,7 +521,6 @@ impl Index<(DocByteOffset, DocByteOffset)> for Snapshot {
     type Output = str;
 
     fn index(&self, index: (DocByteOffset, DocByteOffset)) -> &Self::Output {
-        println!("doc byte index range: {:?}", index);
         &self.text[index.start().0..index.end().0]
     }
 }
