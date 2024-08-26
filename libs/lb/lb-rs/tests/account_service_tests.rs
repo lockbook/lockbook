@@ -1,6 +1,6 @@
 use lb_rs::shared::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::shared::pubkey;
-use lb_rs::CoreError;
+use lb_rs::{AccountKey, CoreError};
 use test_utils::*;
 
 #[test]
@@ -108,10 +108,12 @@ fn import_account_account_exists() {
     let core = test_core();
 
     core.create_account(&random_name(), &url(), false).unwrap();
-    let account_string = core.export_account().unwrap();
+    let account_string = core.export_account_string().unwrap();
 
     assert!(matches!(
-        core.import_account(&account_string).unwrap_err().kind,
+        core.import_account(AccountKey::AccountString(&account_string))
+            .unwrap_err()
+            .kind,
         CoreError::AccountExists
     ));
 }
@@ -121,7 +123,7 @@ fn import_account_corrupted() {
     let core = test_core();
 
     assert!(matches!(
-        core.import_account("clearly a bad account string")
+        core.import_account(AccountKey::AccountString("clearly a bad account string"))
             .unwrap_err()
             .kind,
         CoreError::AccountStringCorrupted
@@ -134,7 +136,7 @@ fn import_account_corrupted_base64() {
 
     base64::decode("clearlyabadaccountstring").unwrap();
     assert!(matches!(
-        core.import_account("clearlyabadaccountstring")
+        core.import_account(AccountKey::AccountString("clearlyabadaccountstring"))
             .unwrap_err()
             .kind,
         CoreError::AccountStringCorrupted
@@ -156,11 +158,14 @@ fn import_account_nonexistent() {
             Ok(())
         })
         .unwrap();
-    let account_string = core2.export_account().unwrap();
+    let account_string = core2.export_account_string().unwrap();
 
     let core3 = test_core();
     assert!(matches!(
-        core3.import_account(&account_string).unwrap_err().kind,
+        core3
+            .import_account(AccountKey::AccountString(&account_string))
+            .unwrap_err()
+            .kind,
         CoreError::AccountNonexistent
     ));
 }
@@ -179,13 +184,16 @@ fn import_account_public_key_mismatch() {
                 Ok(())
             })
             .unwrap();
-        core2.export_account().unwrap()
+        core2.export_account_string().unwrap()
     };
 
     let core3 = test_core();
 
     assert!(matches!(
-        core3.import_account(&bad_account_string).unwrap_err().kind,
+        core3
+            .import_account(AccountKey::AccountString(&bad_account_string))
+            .unwrap_err()
+            .kind,
         CoreError::UsernamePublicKeyMismatch
     ));
 }
@@ -194,8 +202,8 @@ fn import_account_public_key_mismatch() {
 fn export_account() {
     let core = test_core();
     core.create_account(&random_name(), &url(), false).unwrap();
-    core.export_account().unwrap();
-    core.export_account_qr().unwrap();
+    core.export_account_string().unwrap();
+    core.export_account_string_qr().unwrap();
 }
 
 #[test]

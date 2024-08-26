@@ -1,4 +1,4 @@
-use lb_rs::Core;
+use lb_rs::{AccountKey, Core};
 use std::thread;
 use std::time::{Duration, SystemTime};
 use test_utils::{random_name, test_config, test_core_with_account, url};
@@ -19,7 +19,7 @@ fn test_sync_concurrently() {
     let core1 = Core::init(&test_config()).unwrap();
     let core2 = core1.clone();
     core1
-        .import_account(&core.export_account().unwrap())
+        .import_account(AccountKey::AccountString(&core.export_account_string().unwrap()))
         .unwrap();
     let th1 = thread::spawn(move || {
         println!("in th1");
