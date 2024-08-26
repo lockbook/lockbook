@@ -157,13 +157,13 @@ impl Editor {
     pub fn draw_cursor(&self, ui: &mut Ui, touch_mode: bool) {
         // determine cursor style
         let selection_start_line = cursor::line(
-            self.buffer.current_selection.start(),
+            self.buffer.current.selection.start(),
             &self.galleys,
             &self.bounds.text,
             &self.appearance,
         );
         let selection_end_line = cursor::line(
-            self.buffer.current_selection.end(),
+            self.buffer.current.selection.end(),
             &self.galleys,
             &self.bounds.text,
             &self.appearance,
@@ -172,13 +172,13 @@ impl Editor {
         let color = if touch_mode { self.appearance.cursor() } else { self.appearance.text() };
         let stroke = Stroke { width: 1.0, color };
 
-        let (selection_end_line, stroke) = if self.buffer.current_selection.is_empty() {
+        let (selection_end_line, stroke) = if self.buffer.current.selection.is_empty() {
             let mut selection_end_line = selection_end_line;
             let mut stroke = stroke;
 
             for style in self
                 .ast
-                .styles_at_offset(self.buffer.current_selection.1, &self.bounds.ast)
+                .styles_at_offset(self.buffer.current.selection.1, &self.bounds.ast)
             {
                 match style {
                     MarkdownNode::Inline(InlineNode::Bold)
@@ -209,7 +209,7 @@ impl Editor {
             if !self
                 .bounds
                 .links
-                .find_containing(self.buffer.current_selection.1, true, true)
+                .find_containing(self.buffer.current.selection.1, true, true)
                 .is_empty()
             {
                 stroke.color = self.appearance.link();
@@ -230,7 +230,7 @@ impl Editor {
             // draw selection handles
             // handles invisible but still draggable when selection is empty
             // we must allocate handles to check if they were dragged last frame
-            if !self.buffer.current_selection.is_empty() {
+            if !self.buffer.current.selection.is_empty() {
                 let selection_start_center =
                     Pos2 { x: selection_start_line[0].x, y: selection_start_line[0].y - 5.0 };
                 ui.painter()
@@ -262,14 +262,14 @@ impl Editor {
                         start: Location::Pos(ui.input(|i| {
                             i.pointer.interact_pos().unwrap_or_default() + Vec2 { x: 0.0, y: 10.0 }
                         })),
-                        end: Location::DocCharOffset(self.buffer.current_selection.1),
+                        end: Location::DocCharOffset(self.buffer.current.selection.1),
                     },
                 });
             }
             if end_response.dragged() {
                 ui.ctx().push_markdown_event(Event::Select {
                     region: Region::BetweenLocations {
-                        start: Location::DocCharOffset(self.buffer.current_selection.0),
+                        start: Location::DocCharOffset(self.buffer.current.selection.0),
                         end: Location::Pos(ui.input(|i| {
                             i.pointer.interact_pos().unwrap_or_default() - Vec2 { x: 0.0, y: 10.0 }
                         })),
@@ -311,15 +311,16 @@ impl Editor {
         );
 
         let doc_info =
-            format!("last_cursor_position: {:?}", self.buffer.current_segs.last_cursor_position());
+            format!("last_cursor_position: {:?}", self.buffer.current.segs.last_cursor_position());
 
         let cursor_info = format!(
             "selection: ({:?}, {:?}), byte: {:?}, x_target: {}",
-            self.buffer.current_selection.0,
-            self.buffer.current_selection.1,
+            self.buffer.current.selection.0,
+            self.buffer.current.selection.1,
             self.buffer
-                .current_segs
-                .offset_to_byte(self.buffer.current_selection.1),
+                .current
+                .segs
+                .offset_to_byte(self.buffer.current.selection.1),
             self.cursor
                 .x_target
                 .map(|x| x.to_string())
