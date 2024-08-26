@@ -269,10 +269,9 @@ impl Buffer {
         let mut response = Response::default();
 
         // clear redo stack
-        // todo: are queued ops still valid?
-        // if !self.ops.queued.is_empty() {
-        //     self.ops.truncate(self.current.seq - self.base.seq);
-        // }
+        if !self.ops.queued.is_empty() {
+            self.ops.truncate(self.current.seq - self.base.seq);
+        }
 
         // move queued ops to processed
         let queue_len = self.ops.queue_len();
