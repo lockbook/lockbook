@@ -1,4 +1,5 @@
 use crate::*;
+use lb_rs::AccountKey;
 
 #[repr(C)]
 pub struct LbAccount {
@@ -67,7 +68,7 @@ pub unsafe extern "C" fn lb_import_account(
     core: *mut c_void, account_string: *const c_char,
 ) -> LbAccountResult {
     let mut r = lb_account_result_new();
-    match core!(core).import_account(rstr(account_string)) {
+    match core!(core).import_account(AccountKey::AccountString(rstr(account_string))) {
         Ok(acct) => {
             r.ok.username = cstr(acct.username);
             r.ok.api_url = cstr(acct.api_url);
@@ -85,7 +86,7 @@ pub unsafe extern "C" fn lb_import_account(
 #[no_mangle]
 pub unsafe extern "C" fn lb_export_account(core: *mut c_void) -> LbStringResult {
     let mut r = lb_string_result_new();
-    match core!(core).export_account() {
+    match core!(core).export_account_string() {
         Ok(acct_str) => r.ok = cstr(acct_str),
         Err(err) => r.err = lberr(err),
     }

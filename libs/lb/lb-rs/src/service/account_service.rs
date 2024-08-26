@@ -49,7 +49,14 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(account)
     }
 
-    pub(crate) fn import_account(&mut self, account_string: &str) -> LbResult<Account> {
+    pub(crate) fn import_account(&mut self, key: AccountKey) -> LbResult<Account> {
+        match key {
+            AccountKey::AccountString(account_string) => self.import_account_string(account_string),
+            AccountKey::Phrase(phrase, api_url) => self.import_account_phrase(*phrase, &api_url),
+        }
+    }
+
+    pub(crate) fn import_account_string(&mut self, account_string: &str) -> LbResult<Account> {
         if self.db.account.get().is_some() {
             warn!("tried to import an account, but account exists already.");
             return Err(CoreError::AccountExists.into());
@@ -86,15 +93,15 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(account)
     }
 
-    pub(crate) fn import_account_v2(
-        &mut self, phrases: [String; 24], api_url: &str,
+    pub(crate) fn import_account_phrase(
+        &mut self, phrase: [String; 24], api_url: &str,
     ) -> LbResult<Account> {
         if self.db.account.get().is_some() {
             warn!("tried to import an account, but account exists already.");
             return Err(CoreError::AccountExists.into());
         }
 
-        let private_key = Account::phrase_to_private_key(phrases)?;
+        let private_key = Account::phrase_to_private_key(phrase)?;
         let mut account =
             Account { username: "".to_string(), api_url: api_url.to_string(), private_key };
         let public_key = account.public_key();
@@ -110,25 +117,19 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(account)
     }
 
-    pub(crate) fn export_account(&self) -> LbResult<String> {
+    pub(crate) fn export_account_string(&self) -> LbResult<String> {
         let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
         let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
         Ok(base64::encode(encoded))
     }
 
-    pub(crate) fn export_account_v2(&self) -> LbResult<[String; 24]> {
+    pub(crate) fn export_account_phrase(&self) -> LbResult<[String; 24]> {
         let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
         Ok(account.get_phrase()?)
     }
 
     pub(crate) fn export_account_qr(&self) -> LbResult<Vec<u8>> {
-        let acct_secret = self.export_account()?;
-        qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
-            .map_err(|err| core_err_unexpected(err).into())
-    }
-
-    pub(crate) fn export_account_qr_v2(&self) -> LbResult<Vec<u8>> {
-        let acct_secret = self.export_account_v2()?.join(" ");
+        let acct_secret = self.export_account_string()?;
         qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
             .map_err(|err| core_err_unexpected(err).into())
     }
@@ -224,4 +225,9 @@ Numbered list items
 
 Happy note taking! You can report any issues to our [Github project](https://github.com/lockbook/lockbook/issues/new) or join our [Discord server](https://discord.gg/qv9fmAZCm6)."#).into()
     }
+}
+
+pub enum AccountKey<'a> {
+    AccountString(&'a str),
+    Phrase(Box<[String; 24]>, String),
 }

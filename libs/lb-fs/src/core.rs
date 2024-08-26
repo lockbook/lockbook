@@ -1,3 +1,4 @@
+use lb_rs::AccountKey;
 use lb_rs::{Core, File, FileType, SyncStatus, Uuid};
 use std::collections::HashMap;
 use tokio::task::spawn_blocking;
@@ -46,9 +47,12 @@ impl AsyncCore {
         let core = self.c();
         let account_string = account_string.to_string();
 
-        spawn_blocking(move || core.import_account(&account_string).unwrap())
-            .await
-            .unwrap();
+        spawn_blocking(move || {
+            core.import_account(AccountKey::AccountString(&account_string))
+                .unwrap()
+        })
+        .await
+        .unwrap();
     }
 
     pub async fn read_document(&self, id: Uuid) -> Vec<u8> {

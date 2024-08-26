@@ -48,7 +48,7 @@ impl Account {
         let checksum_last_4_bits = &checksum[..4];
         let combined_bits = format!("{}{}", key_bits, checksum_last_4_bits);
 
-        let mut phrase: [String; 24] = std::array::from_fn(|_| String::new());
+        let mut phrase: [String; 24] = Default::default();
 
         for (i, chunk) in combined_bits
             .chars()
@@ -73,16 +73,15 @@ impl Account {
     }
 
     pub fn phrase_to_private_key(phrases: [String; 24]) -> SharedResult<SecretKey> {
-        let mut combined_bits: String = phrases
+        let mut combined_bits = phrases
             .iter()
-            .map(|word| bip39_dict::ENGLISH.lookup_mnemonic(word))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| SharedErrorKind::KeyPhrasesMistyped)? // Collects the results and propagates errors
-            .iter()
-            .fold(String::new(), |mut out, index| {
-                let _ = write!(out, "{:011b}", index.0);
-                out
-            });
+            .map(|word| {
+                bip39_dict::ENGLISH
+                    .lookup_mnemonic(word)
+                    .map(|index| format!("{:011b}", index.0))
+            })
+            .collect::<Result<String, _>>()
+            .map_err(|_| SharedErrorKind::KeyPhraseInvalid)?;
 
         if combined_bits.len() != 264 {
             return Err(SharedErrorKind::Unexpected("the number of bits after translating the phrase does not equal the expected amount (264)").into());
@@ -106,16 +105,16 @@ impl Account {
 
         let gen_checksum: String =
             sha2::Sha256::digest(&key)
-                .into_iter()
-                .fold(String::new(), |mut out, byte| {
-                    let _ = write!(out, "{:08b}", byte);
-                    out
+                .iter()
+                .fold(String::new(), |mut acc, byte| {
+                    acc.push_str(&format!("{:08b}", byte));
+                    acc
                 });
 
         let gen_checksum_last_4 = &gen_checksum[..4];
 
         if gen_checksum_last_4 != checksum_last_4_bits {
-            return Err(SharedErrorKind::KeyPhrasesMistyped.into());
+            return Err(SharedErrorKind::KeyPhraseInvalid.into());
         }
 
         Ok(SecretKey::parse_slice(&key).map_err(SharedErrorKind::ParseError)?)

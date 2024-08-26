@@ -1,6 +1,7 @@
 pub mod assert;
 
 use itertools::Itertools;
+use lb_rs::service::account_service::AccountKey;
 use lb_rs::service::api_service::Requester;
 use lb_rs::shared::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::shared::core_config::Config;
@@ -27,9 +28,10 @@ pub fn test_core() -> Core {
 }
 
 pub fn test_core_from(core: &Core) -> Core {
-    let account_string = core.export_account().unwrap();
+    let account_string = core.export_account_string().unwrap();
     let core = test_core();
-    core.import_account(&account_string).unwrap();
+    core.import_account(AccountKey::AccountString(&account_string))
+        .unwrap();
     core.sync(None).unwrap();
     core
 }
@@ -74,9 +76,11 @@ pub fn rename_path(c: &Core, path: &str, new_name: &str) -> Result<(), String> {
 }
 
 pub fn another_client(c: &Core) -> Core {
-    let account_string = c.export_account().unwrap();
+    let account_string = c.export_account_string().unwrap();
     let new_core = test_core();
-    new_core.import_account(&account_string).unwrap();
+    new_core
+        .import_account(AccountKey::AccountString(&account_string))
+        .unwrap();
     new_core
 }
 

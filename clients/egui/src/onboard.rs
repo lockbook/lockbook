@@ -3,6 +3,7 @@ use std::thread;
 
 use eframe::egui;
 use egui::Image;
+use lb::AccountKey;
 use workspace_rs::widgets::ButtonGroup;
 
 use crate::model::AccountScreenInitData;
@@ -249,7 +250,7 @@ impl OnboardScreen {
 
         thread::spawn(move || {
             if let Err(err) = core
-                .import_account(&key)
+                .import_account(AccountKey::AccountString(&key))
                 .map_err(|err| format!("{:?}", err))
             {
                 tx.send(Update::AccountImported(Some(err))).unwrap();

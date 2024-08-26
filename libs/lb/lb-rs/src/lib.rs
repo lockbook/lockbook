@@ -10,6 +10,7 @@ mod repo;
 pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
 pub use libsecp256k1::PublicKey;
+pub use service::account_service::AccountKey;
 use service::search_service::{SearchRequest, SearchResult, SearchType};
 pub use shared::document_repo::{DocumentService, OnDiskDocuments};
 pub use time::Duration;
@@ -161,51 +162,33 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn import_account(&self, account_string: &str) -> LbResult<Account> {
-        self.in_tx(|s| s.import_account(account_string))
-            .expected_errs(&[
-                CoreError::AccountExists,
-                CoreError::AccountNonexistent,
-                CoreError::AccountStringCorrupted,
-                CoreError::UsernamePublicKeyMismatch,
-                CoreError::ServerUnreachable,
-                CoreError::ClientUpdateRequired,
-            ])
+    pub fn import_account(&self, key: AccountKey) -> LbResult<Account> {
+        self.in_tx(|s| s.import_account(key)).expected_errs(&[
+            CoreError::AccountExists,
+            CoreError::AccountNonexistent,
+            CoreError::AccountStringCorrupted,
+            CoreError::KeyPhraseInvalid,
+            CoreError::UsernamePublicKeyMismatch,
+            CoreError::ServerUnreachable,
+            CoreError::ClientUpdateRequired,
+        ])
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn import_account_v2(&self, phrases: [String; 24], api_url: &str) -> LbResult<Account> {
-        self.in_tx(|s| s.import_account_v2(phrases, api_url))
-            .expected_errs(&[
-                CoreError::AccountExists,
-                CoreError::AccountNonexistent,
-                CoreError::KeyPhrasesMistyped,
-                CoreError::ServerUnreachable,
-                CoreError::ClientUpdateRequired,
-            ])
-    }
-
-    #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn export_account(&self) -> Result<String, LbError> {
-        self.in_tx(|s| s.export_account())
+    pub fn export_account_string(&self) -> Result<String, LbError> {
+        self.in_tx(|s| s.export_account_string())
             .expected_errs(&[CoreError::AccountNonexistent])
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn export_account_v2(&self) -> Result<[String; 24], LbError> {
-        self.in_tx(|s| s.export_account_v2())
+    pub fn export_account_phrase(&self) -> Result<[String; 24], LbError> {
+        self.in_tx(|s| s.export_account_phrase())
             .expected_errs(&[CoreError::AccountNonexistent])
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn export_account_qr(&self) -> Result<Vec<u8>, LbError> {
+    pub fn export_account_string_qr(&self) -> Result<Vec<u8>, LbError> {
         self.in_tx(|s| s.export_account_qr())
-            .expected_errs(&[CoreError::AccountNonexistent])
-    }
-
-    #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn export_account_qr_v2(&self) -> Result<Vec<u8>, LbError> {
-        self.in_tx(|s| s.export_account_qr_v2())
             .expected_errs(&[CoreError::AccountNonexistent])
     }
 
