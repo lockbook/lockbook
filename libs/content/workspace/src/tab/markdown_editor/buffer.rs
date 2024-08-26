@@ -81,6 +81,51 @@ pub struct Buffer {
 
 /// Buffer operation optimized for simplicity. Used in buffer's interface and internals to represent a building block
 /// of text manipulation with support for undo/redo and collaborative editing.
+///
+/// # Operation algebra
+/// Operations are created based on a version of the buffer. This version is called the operation's base and is
+/// identified with a sequence number. When the base of an operation is equal to the buffer's current sequence number,
+/// the operation can be applied and increments the buffer's sequence number.
+///
+/// When multiple operations are created based on the same version of the buffer, such as when a user types a few
+/// keystrokes in one frame or issues a command like indenting multiple list items, the operations all have the same
+/// base. Once the first operation is applied and the buffer's sequence number is incremented, the base of the
+/// remaining operations must be incremented by using the first operation to transform them before they can be applied.
+/// This corresponds to the reality that the buffer state has changed since the operation was created and the operation
+/// must be re-interpreted. For example, if text is typed at the beginning then end of a buffer in one frame, the
+/// position of the text typed at the end of the buffer is greater when it is applied than it was when it was typed.
+///
+/// External changes are merged into the buffer by creating a set of operations that would transform the buffer from
+/// the last external state to the current state. These operations, based on the version of the buffer at the last
+/// successful save or load, must be transformed by all operations that have been applied since (this means we must
+/// preserve the undo history for at least that long; if this presents performance issues, we can always save). Each
+/// operation that is transforming the new operations will match the base of the new operations at the time of
+/// transformation. Finally, the operations will need to transform each other just like any other set of operations
+/// made in a single frame/made based on the same version of the buffer.
+///
+/// # Undo
+/// Undo should revert local changes only, leaving external changes in-tact, so that when all local changes are undone,
+/// the buffer is in a state reflecting external changes only. This is complicated by the fact that external changes
+/// may have been based on local changes that were synced to another client. To undo an operation that had an external
+/// change based on it, we have to interpret the external change in the absence of local changes that were present when
+/// it was created. This is the opposite of interpreting the external change in the presence of local changes that were
+/// not present when it was created i.e. the normal flow of merging external changes. Here, we are removing a local
+/// operation from the middle of the chain of operations that led to the current state of the buffer.
+///
+/// To do this, we perform the dance of transforming operations in reverse, taking a chain of operations each based on
+/// the prior and transforming them into a set of operations based on the same base as the operation to be undone. Then
+/// we remove the operation to be undone and apply the remaining operations with the forward transformation flow.
+///
+/// Operations are not invertible i.e. you cannot construct an inverse operation that will perfectly cancel out the
+/// effect of another operation regardless of the time of interpretation. For example, with a text replacement, you can
+/// construct an inverse text replacement that replaces the new range with the original text, but when operations are
+/// undone from the middle of the chain, it may affect the original text. The operation will be re-interpreted based on
+/// a new state of the buffer at its time of application. The replaced text has no fixed value by design.
+///
+/// However, it is possible to undo the specific application of an operation in the context of the state of the buffer
+/// when it was applied. We store information necessary to undo applied operations alongside the operations themselves
+/// i.e. the text replaced in the application. When the operation is transformed for any reason, this undo information
+/// is invalidated.
 #[derive(Clone, Debug)]
 pub enum Operation {
     Replace { range: (DocCharOffset, DocCharOffset), text: String },
