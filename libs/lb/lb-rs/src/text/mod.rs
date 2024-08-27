@@ -1,40 +1,43 @@
+pub mod offset_types;
+pub mod operation_types;
+
+use operation_types::Replace;
+
 use similar::{algorithms::DiffHook, DiffableStrRef as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use crate::tab::markdown_editor::buffer::Replace;
-
 // implementation note: this works because similar uses the same grapheme definition as we do, so reported indexes can
 // be interpreted as doc char offsets
-pub fn patch_ops(old: &str, new: &str) -> Vec<Replace> {
+pub fn diff(from: &str, to: &str) -> Vec<Replace> {
     let out_of_editor_mutations = {
-        let mut hook = Hook::new(new);
+        let mut hook = Hook::new(to);
 
-        let old_words: Vec<_> = old.unicode_word_indices().collect();
-        let new_words: Vec<_> = new.unicode_word_indices().collect();
+        let from_words: Vec<_> = from.unicode_word_indices().collect();
+        let to_words: Vec<_> = to.unicode_word_indices().collect();
         let diff = similar::TextDiff::configure()
             .algorithm(similar::Algorithm::Myers)
-            .diff_unicode_words(old.as_diffable_str(), new.as_diffable_str());
+            .diff_unicode_words(from.as_diffable_str(), to.as_diffable_str());
 
         for diff_op in diff.ops().iter().cloned() {
             match diff_op {
                 similar::DiffOp::Equal { .. } => {}
                 similar::DiffOp::Delete { old_index, old_len, new_index } => {
-                    let old_index = old_words[old_index].0;
-                    let old_len = old_words[old_index + old_len].0 - old_index;
-                    let new_index = new_words[new_index].0;
+                    let old_index = from_words[old_index].0;
+                    let old_len = from_words[old_index + old_len].0 - old_index;
+                    let new_index = to_words[new_index].0;
                     hook.delete(old_index, old_len, new_index).unwrap();
                 }
                 similar::DiffOp::Insert { old_index, new_index, new_len } => {
-                    let old_index = old_words[old_index].0;
-                    let new_index = new_words[new_index].0;
-                    let new_len = new_words[new_index + new_len].0 - new_index;
+                    let old_index = from_words[old_index].0;
+                    let new_index = to_words[new_index].0;
+                    let new_len = to_words[new_index + new_len].0 - new_index;
                     hook.insert(old_index, new_index, new_len).unwrap()
                 }
                 similar::DiffOp::Replace { old_index, old_len, new_index, new_len } => {
-                    let old_index = old_words[old_index].0;
-                    let old_len = old_words[old_index + old_len].0 - old_index;
-                    let new_index = new_words[new_index].0;
-                    let new_len = new_words[new_index + new_len].0 - new_index;
+                    let old_index = from_words[old_index].0;
+                    let old_len = from_words[old_index + old_len].0 - old_index;
+                    let new_index = to_words[new_index].0;
+                    let new_len = to_words[new_index + new_len].0 - new_index;
                     hook.replace(old_index, old_len, new_index, new_len)
                         .unwrap()
                 }

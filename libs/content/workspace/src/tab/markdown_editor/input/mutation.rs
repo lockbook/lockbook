@@ -1,23 +1,23 @@
-use crate::tab::markdown_editor::bounds::Text;
-use crate::tab::markdown_editor::buffer::Replace;
+use crate::tab::markdown_editor::bounds::{BoundExt as _, Text};
 use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
 use crate::tab::markdown_editor::{self, buffer};
 use egui::Pos2;
+use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _, ToRangeExt as _};
+use lb_rs::text::operation_types::{Operation, Replace};
 use markdown_editor::ast::{Ast, AstTextRangeType};
 use markdown_editor::bounds::{AstTextRanges, RangesExt};
-use markdown_editor::buffer::{Buffer, Operation};
+use markdown_editor::buffer::Buffer;
 use markdown_editor::editor::Editor;
 use markdown_editor::galleys::Galleys;
 use markdown_editor::input::{Event, Location, Offset, Region};
 use markdown_editor::layouts::Annotation;
-use markdown_editor::offset_types::{
-    DocCharOffset, RangeExt as _, RangeIterExt as _, ToRangeExt as _,
-};
 use markdown_editor::style::{
     BlockNode, BlockNodeType, InlineNodeType, ListItem, MarkdownNode, MarkdownNodeType,
 };
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+
+use super::advance::AdvanceExt as _;
 
 impl Editor {
     /// Translates editor events into buffer operations by interpreting them in the context of the current editor state.

@@ -1,8 +1,8 @@
 use crate::tab::markdown_editor::{
-    bounds::{BoundCase, Bounds},
+    bounds::{BoundCase, BoundExt as _, Bounds},
     input::Bound,
-    offset_types::{DocCharOffset, RangeExt as _},
 };
+use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
 
 /// Swift protocol for tokenizing text input:
 /// https://developer.apple.com/documentation/uikit/uitextinputtokenizer

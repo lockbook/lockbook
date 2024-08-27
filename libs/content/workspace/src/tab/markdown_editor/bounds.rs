@@ -3,13 +3,11 @@ use crate::tab::markdown_editor::ast::{Ast, AstTextRange, AstTextRangeType};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::capture::CaptureState;
 use crate::tab::markdown_editor::input::Bound;
-use crate::tab::markdown_editor::offset_types::{
-    DocByteOffset, DocCharOffset, RangeExt, RelByteOffset,
-};
 use crate::tab::markdown_editor::style::{BlockNodeType, InlineNodeType, MarkdownNodeType};
 use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
 use crate::tab::markdown_editor::Editor;
 use egui::epaint::text::cursor::RCursor;
+use lb_rs::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
 use linkify::LinkFinder;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -403,7 +401,22 @@ pub enum BoundCase {
     },
 }
 
-impl DocCharOffset {
+pub trait BoundExt {
+    fn range_bound(
+        self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds,
+    ) -> Option<(Self, Self)>
+    where
+        Self: Sized;
+    fn char_bound(self, backwards: bool, jump: bool, text: &Text) -> Option<(Self, Self)>
+    where
+        Self: Sized;
+    fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase;
+    fn advance_bound(self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds) -> Self;
+    fn advance_to_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self;
+    fn advance_to_next_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self;
+}
+
+impl BoundExt for DocCharOffset {
     /// Returns the range in the direction of `backwards` from offset `self`. `jump` is used to control behavior when
     /// `self` is at a boundary in the direction of `backwards`. When `backwards` and `jump` are false and `self` is at
     /// the end of a range, returns that range. When `backwards` is `false` but `jump` is true and `self` is at the end
@@ -413,7 +426,7 @@ impl DocCharOffset {
     /// For example, `jump` would be set to `true` when implementing alt+left/right behavior, which should always move
     /// the cursor to the next word, but set to `false` when implementing cmd+left/right behavior, which should not
     /// move the cursor if it is already at the line bound in the same direction.
-    pub fn range_bound(
+    fn range_bound(
         self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds,
     ) -> Option<(Self, Self)> {
         let ranges = match bound {
@@ -564,7 +577,7 @@ impl DocCharOffset {
     }
 
     // todo: broken when first/last range are empty (did those ranges need to be differentiated anyway?)
-    pub fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase {
+    fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase {
         let range_before = Bounds::range_before(ranges, self);
         let range_after = Bounds::range_after(ranges, self);
         match (range_before, range_after) {
@@ -635,13 +648,13 @@ impl DocCharOffset {
     /// Advances to a bound in a direction, stopping at the bound (e.g. cmd+left/right). If you're beyond the furthest
     /// bound, this snaps you into it, even if that moves you in the opposite direction. If you're not in a bound e.g.
     /// jumping to end of word while not in a word, this does nothing.
-    pub fn advance_to_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self {
+    fn advance_to_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self {
         self.advance_bound(bound, backwards, false, bounds)
     }
 
     /// Advances to a bound in a direction, jumping to the next bound if already at one (e.g. alt+left/right). If
     /// you're beyond the furthest bound, this snaps you into it, even if that moves you in the opposite direction.
-    pub fn advance_to_next_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self {
+    fn advance_to_next_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self {
         self.advance_bound(bound, backwards, true, bounds)
     }
 }
@@ -935,8 +948,10 @@ impl Editor {
 
 #[cfg(test)]
 mod test {
+    use lb_rs::text::offset_types::DocCharOffset;
+
     use super::{join, Bounds, RangesExt};
-    use crate::tab::markdown_editor::{input::Bound, offset_types::DocCharOffset};
+    use crate::tab::markdown_editor::{bounds::BoundExt as _, input::Bound};
 
     #[test]
     fn range_before_after_no_ranges() {

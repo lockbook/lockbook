@@ -1,6 +1,6 @@
-use crate::tab::markdown_editor::offset_types::RangeExt;
 use crate::tab::{markdown_editor, ExtendedOutput as _};
 use egui::{self, Key, Modifiers, PointerButton, TouchPhase};
+use lb_rs::text::offset_types::RangeExt;
 use markdown_editor::input::click_checker::ClickChecker;
 use markdown_editor::input::cursor::{ClickType, PointerState};
 use markdown_editor::input::mutation;

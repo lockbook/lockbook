@@ -1,11 +1,13 @@
 use crate::tab::markdown_editor;
 use egui::{Modifiers, Pos2, Vec2};
+use lb_rs::text::offset_types::DocCharOffset;
+use lb_rs::text::offset_types::RangeExt as _;
 use markdown_editor::appearance::Appearance;
 use markdown_editor::bounds::Text;
 use markdown_editor::galleys::{self, Galleys};
-use markdown_editor::offset_types::DocCharOffset;
-use markdown_editor::offset_types::RangeExt as _;
 use std::time::{Duration, Instant};
+
+use super::advance::AdvanceExt as _;
 
 // drag for longer than this amount of time or further than this distance to count as a drag
 const DRAG_DURATION: Duration = Duration::from_millis(300);
