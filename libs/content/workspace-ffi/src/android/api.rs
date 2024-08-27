@@ -311,7 +311,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getAllText(
         }
     };
 
-    env.new_string(&markdown.editor.buffer.current_text)
+    env.new_string(&markdown.editor.buffer.current.text)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
@@ -324,7 +324,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getSelection(
 
     let resp = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => {
-            let (start, end) = markdown.editor.buffer.current_selection;
+            let (start, end) = markdown.editor.buffer.current.selection;
             JTextRange { none: false, start: start.0, end: end.0 }
         }
         None => JTextRange { none: true, start: 0, end: 0 },
@@ -360,7 +360,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextLength(
         None => return -1,
     };
 
-    markdown.editor.buffer.current_segs.last_cursor_position().0 as jint
+    markdown.editor.buffer.current.segs.last_cursor_position().0 as jint
 }
 
 #[no_mangle]
@@ -378,7 +378,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(0)),
             end: Location::DocCharOffset(
-                markdown.editor.buffer.current_segs.last_cursor_position(),
+                markdown.editor.buffer.current.segs.last_cursor_position(),
             ),
         },
         text: "".to_string(),
@@ -440,7 +440,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
         Err(err) => format!("error: {:?}", err),
     };
 
-    let loc = Location::DocCharOffset(markdown.editor.buffer.current_segs.last_cursor_position());
+    let loc = Location::DocCharOffset(markdown.editor.buffer.current.segs.last_cursor_position());
 
     obj.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
@@ -481,7 +481,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectAll(
         None => return,
     };
 
-    let segs = &markdown.editor.buffer.current_segs;
+    let segs = &markdown.editor.buffer.current.segs;
 
     obj.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
