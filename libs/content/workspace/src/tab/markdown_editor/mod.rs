@@ -14,7 +14,6 @@ pub mod galleys;
 pub mod images;
 pub mod input;
 pub mod layouts;
-pub mod offset_types;
 pub mod output;
 pub mod style;
 pub mod test_input;

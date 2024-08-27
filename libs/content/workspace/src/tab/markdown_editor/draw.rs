@@ -3,7 +3,6 @@ use crate::tab::markdown_editor::bounds::RangesExt;
 use crate::tab::markdown_editor::images::ImageState;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::layouts::Annotation;
-use crate::tab::markdown_editor::offset_types::RangeExt;
 use crate::tab::markdown_editor::style::{
     BlockNode, InlineNode, ListItem, MarkdownNode, RenderStyle,
 };
@@ -11,6 +10,7 @@ use crate::tab::markdown_editor::Editor;
 use crate::tab::ExtendedInput;
 use egui::text::LayoutJob;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2};
+use lb_rs::text::offset_types::RangeExt;
 use pulldown_cmark::HeadingLevel;
 
 use super::input::cursor;

@@ -26,7 +26,6 @@ svgtypes = "0.13.0"
 unicode-segmentation = "1.10.0"
 usvg-parser = "0.36.0"
 chrono = "0.4"
-similar = { version = "2.6.0", features = ["unicode"] }
 tld = "2.35.0"
 tldextract = "0.6.0"
 tracing = "0.1.5"

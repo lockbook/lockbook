@@ -9,9 +9,9 @@ use crate::tab::markdown_editor::{
     bounds::{AstTextRanges, Bounds, Paragraphs, RangesExt as _},
     galleys::Galleys,
     input::{cursor::PointerState, mutation},
-    offset_types::{DocCharOffset, RangeExt as _, RangeIterExt},
     unicode_segs::UnicodeSegs,
 };
+use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt};
 
 pub const HOVER_REVEAL_DEBOUNCE: Duration = Duration::from_millis(300);
 
