@@ -1,4 +1,4 @@
-use lb_rs::text::offset_types::{DocByteOffset, DocCharOffset};
+use super::offset_types::{DocByteOffset, DocCharOffset};
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Clone, Default, Debug)]
