@@ -131,7 +131,6 @@ impl Snapshot {
     }
 
     fn invert_replace(&self, replace: &Replace) -> Replace {
-        println!("invert_replace: {:?}", replace);
         let Replace { range, text } = replace;
         let byte_range = self.segs.range_to_byte(*range);
         let replaced_text = self[byte_range].into();
@@ -268,6 +267,26 @@ impl Buffer {
     pub fn saved(&mut self, external_seq: usize, external_text: String) {
         self.external.text = external_text;
         self.external.seq = external_seq;
+    }
+
+    pub fn merge(mut self, external_text_a: String, external_text_b: String) -> String {
+        let ops_a = patch_ops(&self.external.text, &external_text_a);
+        let ops_b = patch_ops(&self.external.text, &external_text_b);
+
+        let timestamp = Instant::now();
+        let base = self.external.seq;
+        self.ops
+            .meta
+            .extend(ops_a.iter().map(|_| OpMeta { timestamp, base }));
+        self.ops
+            .meta
+            .extend(ops_b.iter().map(|_| OpMeta { timestamp, base }));
+
+        self.ops.all.extend(ops_a);
+        self.ops.all.extend(ops_b);
+
+        self.update();
+        self.current.text
     }
 
     /// Applies all operations in the buffer's input queue
@@ -561,5 +580,22 @@ impl Index<(DocCharOffset, DocCharOffset)> for Buffer {
 
     fn index(&self, index: (DocCharOffset, DocCharOffset)) -> &Self::Output {
         &self.current[index]
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::Buffer;
+
+    #[test]
+    fn buffer_merge() {
+        let base_content = "base content";
+        let local_content = "local content";
+        let remote_content = "remote content";
+
+        assert_eq!(
+            Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
+            "local remote content"
+        );
     }
 }
