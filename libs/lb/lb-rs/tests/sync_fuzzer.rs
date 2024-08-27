@@ -4,7 +4,7 @@ use crate::Actions::*;
 use indicatif::{ProgressBar, ProgressStyle};
 use lb_rs::shared::file::File;
 use lb_rs::shared::file_metadata::FileType::{Document, Folder};
-use lb_rs::{AccountKey, Core, CoreError};
+use lb_rs::{Core, CoreError};
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -249,9 +249,7 @@ fn create_clients() -> Vec<Core> {
     let account_string = cores[0].export_account_string().unwrap();
 
     for client in &cores[1..] {
-        client
-            .import_account(AccountKey::AccountString(&account_string))
-            .unwrap();
+        client.import_account(&account_string).unwrap();
         client.sync(None).unwrap();
     }
     cores

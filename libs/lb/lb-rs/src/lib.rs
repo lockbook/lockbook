@@ -10,7 +10,6 @@ mod repo;
 pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
 pub use libsecp256k1::PublicKey;
-pub use service::account_service::AccountKey;
 use service::search_service::{SearchRequest, SearchResult, SearchType};
 pub use shared::document_repo::{DocumentService, OnDiskDocuments};
 pub use time::Duration;
@@ -162,7 +161,7 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn import_account(&self, key: AccountKey) -> LbResult<Account> {
+    pub fn import_account(&self, key: &str) -> LbResult<Account> {
         self.in_tx(|s| s.import_account(key)).expected_errs(&[
             CoreError::AccountExists,
             CoreError::AccountNonexistent,
@@ -187,7 +186,7 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn export_account_string_qr(&self) -> Result<Vec<u8>, LbError> {
+    pub fn export_account_qr(&self) -> Result<Vec<u8>, LbError> {
         self.in_tx(|s| s.export_account_qr())
             .expected_errs(&[CoreError::AccountNonexistent])
     }

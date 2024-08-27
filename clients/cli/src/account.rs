@@ -4,7 +4,6 @@ use cli_rs::cli_error::{CliError, CliResult};
 use lb::{Core, WorkUnit};
 
 use is_terminal::IsTerminal;
-use lb::AccountKey;
 
 use crate::{ensure_account, input};
 
@@ -28,7 +27,7 @@ pub fn import(core: &Core) -> CliResult<()> {
     account_string.retain(|c| !c.is_whitespace());
 
     println!("importing account...");
-    core.import_account(AccountKey::AccountString(&account_string))?;
+    core.import_account(&account_string)?;
 
     println!("account imported! next, try to sync by running: lockbook sync");
 

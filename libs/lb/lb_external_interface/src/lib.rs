@@ -76,9 +76,7 @@ impl FfiCore {
     }
 
     pub fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportError>> {
-        Ok(self
-            .core
-            .import_account(AccountKey::AccountString(account_string))?)
+        Ok(self.core.import_account(account_string)?)
     }
 
     pub fn export_account(&self) -> Result<String, Error<AccountExportError>> {
@@ -86,7 +84,7 @@ impl FfiCore {
     }
 
     pub fn export_account_qr(&self) -> Result<Vec<u8>, Error<AccountExportError>> {
-        Ok(self.core.export_account_string_qr()?)
+        Ok(self.core.export_account_qr()?)
     }
 
     pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {

@@ -49,33 +49,34 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(account)
     }
 
-    pub(crate) fn import_account(&mut self, key: AccountKey) -> LbResult<Account> {
-        match key {
-            AccountKey::AccountString(account_string) => self.import_account_string(account_string),
-            AccountKey::Phrase(phrase, api_url) => self.import_account_phrase(*phrase, &api_url),
-        }
-    }
-
-    pub(crate) fn import_account_string(&mut self, account_string: &str) -> LbResult<Account> {
+    pub(crate) fn import_account(&mut self, key: &str) -> LbResult<Account> {
         if self.db.account.get().is_some() {
             warn!("tried to import an account, but account exists already.");
             return Err(CoreError::AccountExists.into());
         }
 
-        let decoded = match base64::decode(account_string) {
-            Ok(d) => d,
-            Err(_) => {
-                return Err(CoreError::AccountStringCorrupted.into());
-            }
-        };
+        if let Some(account) = base64::decode(key)
+            .ok()
+            .and_then(|decoded| bincode::deserialize(&decoded[..]).ok())
+        {
+            return self.import_account_string(account);
+        }
 
-        let account: Account = match bincode::deserialize(&decoded[..]) {
-            Ok(a) => a,
-            Err(_) => {
-                return Err(CoreError::AccountStringCorrupted.into());
-            }
-        };
+        let mut phrase: Vec<String> = key
+            .split(|c| c == ' ' || c == ',')
+            .filter(|maybe_word| !maybe_word.is_empty())
+            .map(|word| word.to_string())
+            .collect::<Vec<_>>();
 
+        let api_url = phrase.pop().ok_or(CoreError::AccountStringCorrupted)?;
+        let phrase = phrase
+            .try_into()
+            .map_err(|_| CoreError::AccountStringCorrupted)?;
+
+        self.import_account_phrase(phrase, &api_url)
+    }
+
+    pub fn import_account_string(&mut self, account: Account) -> LbResult<Account> {
         let server_public_key = self
             .client
             .request(&account, GetPublicKeyRequest { username: account.username.clone() })?
@@ -93,7 +94,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(account)
     }
 
-    pub(crate) fn import_account_phrase(
+    pub fn import_account_phrase(
         &mut self, phrase: [String; 24], api_url: &str,
     ) -> LbResult<Account> {
         if self.db.account.get().is_some() {
@@ -225,9 +226,4 @@ Numbered list items
 
 Happy note taking! You can report any issues to our [Github project](https://github.com/lockbook/lockbook/issues/new) or join our [Discord server](https://discord.gg/qv9fmAZCm6)."#).into()
     }
-}
-
-pub enum AccountKey<'a> {
-    AccountString(&'a str),
-    Phrase(Box<[String; 24]>, String),
 }

@@ -1,6 +1,5 @@
 use lb_rs::shared::api::ServerIndex;
 use lb_rs::shared::file::ShareMode;
-use lb_rs::AccountKey;
 use test_utils::*;
 
 #[test]
@@ -16,18 +15,14 @@ fn admin_disappear_test() {
 
     let account_string = customer_core.export_account_string().unwrap();
     let customer_core_2 = test_core();
-    customer_core_2
-        .import_account(AccountKey::AccountString(&account_string))
-        .unwrap();
+    customer_core_2.import_account(&account_string).unwrap();
     assert_eq!(customer_core_2.calculate_work().unwrap().work_units.len(), 3);
 
     admin_core.admin_disappear_file(test2.id).unwrap();
 
     let account_string = customer_core.export_account_string().unwrap();
     let customer_core_2 = test_core();
-    customer_core_2
-        .import_account(AccountKey::AccountString(&account_string))
-        .unwrap();
+    customer_core_2.import_account(&account_string).unwrap();
     assert_eq!(customer_core_2.calculate_work().unwrap().work_units.len(), 2);
     customer_core_2.sync(None).unwrap();
 

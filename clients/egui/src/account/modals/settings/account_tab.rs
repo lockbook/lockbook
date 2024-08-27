@@ -103,7 +103,7 @@ impl super::SettingsModal {
 
         std::thread::spawn(move || {
             let result = core
-                .export_account_string_qr()
+                .export_account_qr()
                 .map(|png| Image::from_bytes("bytes://qr.png", png))
                 .map_err(|err| format!("{:?}", err));
             update_tx.send(Update::OpenQrCode(result)).unwrap();
