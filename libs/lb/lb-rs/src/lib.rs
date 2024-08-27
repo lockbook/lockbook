@@ -180,7 +180,7 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn export_account_phrase(&self) -> Result<[String; 24], LbError> {
+    pub fn export_account_phrase(&self) -> Result<String, LbError> {
         self.in_tx(|s| s.export_account_phrase())
             .expected_errs(&[CoreError::AccountNonexistent])
     }

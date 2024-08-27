@@ -119,9 +119,9 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(base64::encode(encoded))
     }
 
-    pub(crate) fn export_account_phrase(&self) -> LbResult<[String; 24]> {
+    pub(crate) fn export_account_phrase(&self) -> LbResult<String> {
         let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
-        Ok(account.get_phrase()?)
+        Ok(format!("{} {}", account.get_phrase()?.join(" "), account.api_url))
     }
 
     pub(crate) fn export_account_qr(&self) -> LbResult<Vec<u8>> {
