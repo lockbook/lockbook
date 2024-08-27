@@ -1,17 +1,11 @@
 use similar::{algorithms::DiffHook, DiffableStrRef as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use crate::tab::markdown_editor;
-use markdown_editor::buffer::Replace;
-use markdown_editor::offset_types::DocCharOffset;
+use crate::tab::markdown_editor::buffer::Replace;
 
 // implementation note: this works because similar uses the same grapheme definition as we do, so reported indexes can
 // be interpreted as doc char offsets
 pub fn patch_ops(old: &str, new: &str) -> Vec<Replace> {
-    println!("\n----- merge -----");
-    println!("old: {}", old);
-    println!("new: {}", new);
-
     let out_of_editor_mutations = {
         let mut hook = Hook::new(new);
 
@@ -49,23 +43,29 @@ pub fn patch_ops(old: &str, new: &str) -> Vec<Replace> {
         hook.ops()
     };
 
-    println!("out_of_editor_mutations (words): {:?}", out_of_editor_mutations);
-
     out_of_editor_mutations
 }
 
 struct Hook<'a> {
     new: &'a str,
+    segs: Vec<usize>,
     ops: Vec<Replace>,
 }
 
 impl<'a> Hook<'a> {
     fn new(new: &'a str) -> Self {
-        Self { new, ops: Vec::new() }
+        let mut segs: Vec<_> = new.grapheme_indices(true).map(|(idx, _)| idx).collect();
+        segs.push(new.len());
+        Self { new, ops: Vec::new(), segs }
     }
 
     fn ops(self) -> Vec<Replace> {
         self.ops
+    }
+
+    fn grapheme_index(&self, index: (usize, usize)) -> &str {
+        let (start, end) = index;
+        &self.new[self.segs[start]..self.segs[end]]
     }
 }
 
@@ -77,14 +77,14 @@ impl DiffHook for Hook<'_> {
     ) -> Result<(), Self::Error> {
         if let Some(op) = self.ops.last_mut() {
             let Replace { range, .. } = op;
-            if range.1 == DocCharOffset(old_index) {
-                range.1 = DocCharOffset(old_index + old_len);
+            if range.1 == old_index {
+                range.1 = (old_index + old_len).into();
                 return Ok(());
             }
         }
 
         let op = Replace {
-            range: (DocCharOffset(old_index), DocCharOffset(old_index + old_len)),
+            range: (old_index.into(), (old_index + old_len).into()),
             text: String::new(),
         };
 
@@ -96,21 +96,18 @@ impl DiffHook for Hook<'_> {
         &mut self, old_index: usize, new_index: usize, new_len: usize,
     ) -> Result<(), Self::Error> {
         let new_text = self
-            .new
-            .grapheme_index((DocCharOffset(new_index), DocCharOffset(new_index + new_len)));
+            .grapheme_index((new_index, new_index + new_len))
+            .to_string();
 
         if let Some(op) = self.ops.last_mut() {
             let Replace { range, text } = op;
-            if range.1 == DocCharOffset(old_index) {
-                text.push_str(new_text);
+            if range.1 == old_index {
+                text.push_str(&new_text);
                 return Ok(());
             }
         }
 
-        let op = Replace {
-            range: (DocCharOffset(old_index), DocCharOffset(old_index)),
-            text: new_text.into(),
-        };
+        let op = Replace { range: (old_index.into(), old_index.into()), text: new_text };
 
         self.ops.push(op);
         Ok(())
@@ -120,40 +117,22 @@ impl DiffHook for Hook<'_> {
         &mut self, old_index: usize, old_len: usize, new_index: usize, new_len: usize,
     ) -> Result<(), Self::Error> {
         let new_text = self
-            .new
-            .grapheme_index((DocCharOffset(new_index), DocCharOffset(new_index + new_len)));
+            .grapheme_index((new_index, new_index + new_len))
+            .to_string();
 
         if let Some(op) = self.ops.last_mut() {
             let Replace { range, text } = op;
-            if range.1 == DocCharOffset(old_index) {
-                range.1 = DocCharOffset(old_index + old_len);
-                text.push_str(new_text);
+            if range.1 == old_index {
+                range.1 = (old_index + old_len).into();
+                text.push_str(&new_text);
                 return Ok(());
             }
         }
 
-        let op = Replace {
-            range: (DocCharOffset(old_index), DocCharOffset(old_index + old_len)),
-            text: new_text.into(),
-        };
+        let op =
+            Replace { range: (old_index.into(), (old_index + old_len).into()), text: new_text };
 
         self.ops.push(op);
         Ok(())
-    }
-}
-
-trait GraphemeIndex {
-    type Output: ?Sized;
-
-    fn grapheme_index(&self, index: (DocCharOffset, DocCharOffset)) -> &Self::Output;
-}
-
-impl GraphemeIndex for str {
-    type Output = str;
-
-    fn grapheme_index(&self, index: (DocCharOffset, DocCharOffset)) -> &Self::Output {
-        let mut graphemes: Vec<_> = self.grapheme_indices(true).collect();
-        graphemes.push((self.len(), ""));
-        &self[graphemes[index.0 .0].0..graphemes[index.1 .0].0]
     }
 }
