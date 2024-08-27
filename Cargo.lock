@@ -995,12 +995,12 @@ dependencies = [
 
 [[package]]
 name = "bstr"
-version = "1.6.0"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6798148dccfbff0fae41c7574d2fa8f1ef3492fba0face179de5d8d447d67b05"
+checksum = "40723b8fb387abc38f4f4a37c09073622e41dd12327033091ef8950659e6dc0c"
 dependencies = [
  "memchr",
- "regex-automata 0.3.9",
+ "regex-automata",
  "serde",
 ]
 
@@ -3908,6 +3908,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "sha2 0.9.9",
+ "similar",
  "strip-ansi-escapes",
  "sublime_fuzzy",
  "tempfile",
@@ -3916,6 +3917,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "unicode-segmentation",
  "uuid 1.8.0",
  "variant_count",
 ]
@@ -5812,15 +5814,9 @@ checksum = "c117dbdfde9c8308975b6a18d71f3f385c89461f7b3fb054288ecf2a2058ba4c"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-automata 0.4.6",
+ "regex-automata",
  "regex-syntax",
 ]
-
-[[package]]
-name = "regex-automata"
-version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59b23e92ee4318893fa3fe3e6fb365258efbfe6ac6ab30f090cdcbb7aa37efa9"
 
 [[package]]
 name = "regex-automata"
@@ -8519,7 +8515,6 @@ dependencies = [
  "reqwest",
  "resvg",
  "serde",
- "similar",
  "svgtypes 0.13.0",
  "tld",
  "tldextract",

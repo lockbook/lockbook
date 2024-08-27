@@ -4,13 +4,12 @@ pub mod capture;
 pub mod click_checker;
 pub mod cursor;
 pub mod events;
-pub mod merge;
 pub mod mutation;
 
 use egui::Pos2;
 
 use crate::tab::markdown_editor;
-use markdown_editor::offset_types::DocCharOffset;
+use lb_rs::text::offset_types::DocCharOffset;
 use markdown_editor::style::MarkdownNode;
 
 // This module processes input events, with the following major concerns:

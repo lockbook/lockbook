@@ -1,7 +1,9 @@
 use crate::tab::markdown_editor;
+use crate::tab::markdown_editor::bounds::BoundExt as _;
 use crate::tab::ExtendedInput as _;
 use egui::os::OperatingSystem;
 use egui::{Color32, Frame, PointerButton, Rect, Sense, TouchPhase, Ui, Vec2};
+use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
 use lb_rs::{DocumentHmac, Uuid};
 use markdown_editor::appearance::Appearance;
 use markdown_editor::ast::{Ast, AstTextRangeType};
@@ -15,7 +17,6 @@ use markdown_editor::input::click_checker::{ClickChecker, EditorClickChecker};
 use markdown_editor::input::cursor;
 use markdown_editor::input::cursor::{CursorState, PointerState};
 use markdown_editor::input::{Bound, Event, Offset, Region};
-use markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
 use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
 use std::time::{Duration, Instant};

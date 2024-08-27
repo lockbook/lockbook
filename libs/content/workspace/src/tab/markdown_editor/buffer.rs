@@ -1,15 +1,13 @@
 use crate::tab::markdown_editor;
-use markdown_editor::input::merge::patch_ops;
-use markdown_editor::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelCharOffset};
+use lb_rs::text::diff;
+use lb_rs::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelCharOffset};
+use lb_rs::text::operation_types::{InverseOperation, Operation, Replace};
 use markdown_editor::unicode_segs;
 use markdown_editor::unicode_segs::UnicodeSegs;
 use std::ops::Index;
 use std::time::{Duration, Instant};
 use unicode_segmentation::UnicodeSegmentation;
 
-/// Buffer operation optimized for simplicity. Used in buffer's interface and internals to represent a building block
-/// of text manipulation with support for undo/redo and collaborative editing.
-///
 /// # Operation algebra
 /// Operations are created based on a version of the buffer. This version is called the operation's base and is
 /// identified with a sequence number. When the base of an operation is equal to the buffer's current sequence number,
@@ -54,25 +52,6 @@ use unicode_segmentation::UnicodeSegmentation;
 /// when it was applied. We store information necessary to undo applied operations alongside the operations themselves
 /// i.e. the text replaced in the application. When the operation is transformed for any reason, this undo information
 /// is invalidated.
-#[derive(Clone, Debug)]
-pub enum Operation {
-    Select((DocCharOffset, DocCharOffset)),
-    Replace(Replace),
-}
-
-/// Represents the inverse of an operation in a particular application. Includes selection and optional replacement
-/// because replacing text also affects the selection in ways that are not reversible based on the replacement alone.
-#[derive(Clone, Debug)]
-pub struct InverseOperation {
-    select: (DocCharOffset, DocCharOffset),
-    replace: Option<Replace>,
-}
-
-#[derive(Clone, Debug)]
-pub struct Replace {
-    pub range: (DocCharOffset, DocCharOffset),
-    pub text: String,
-}
 
 /// Long-lived state of the editor's text buffer. Factored into sub-structs for borrow-checking.
 #[derive(Default)]
@@ -250,7 +229,7 @@ impl Buffer {
     pub fn reload(&mut self, text: String) {
         let timestamp = Instant::now();
         let base = self.external.seq;
-        let ops = patch_ops(&self.external.text, &text);
+        let ops = diff(&self.external.text, &text);
 
         self.ops
             .meta
@@ -270,8 +249,8 @@ impl Buffer {
     }
 
     pub fn merge(mut self, external_text_a: String, external_text_b: String) -> String {
-        let ops_a = patch_ops(&self.external.text, &external_text_a);
-        let ops_b = patch_ops(&self.external.text, &external_text_b);
+        let ops_a = diff(&self.external.text, &external_text_a);
+        let ops_b = diff(&self.external.text, &external_text_b);
 
         let timestamp = Instant::now();
         let base = self.external.seq;

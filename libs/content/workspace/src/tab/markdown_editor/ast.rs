@@ -1,12 +1,10 @@
 use crate::tab::markdown_editor::bounds::{AstTextRanges, RangesExt};
 use crate::tab::markdown_editor::layouts::Annotation;
-use crate::tab::markdown_editor::offset_types::{
-    DocCharOffset, RangeExt, RangeIterExt, RelCharOffset,
-};
 use crate::tab::markdown_editor::style::{
     BlockNode, BlockNodeType, InlineNode, ListItem, MarkdownNode, MarkdownNodeType,
 };
 use crate::tab::markdown_editor::Editor;
+use lb_rs::text::offset_types::{DocCharOffset, RangeExt, RangeIterExt, RelCharOffset};
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
 
 use super::buffer::Buffer;
