@@ -246,10 +246,10 @@ fn create_clients() -> Vec<Core> {
     cores[0]
         .create_account(&random_name(), &url(), false)
         .unwrap();
-    let account_string = cores[0].export_account_string().unwrap();
+    let account_string = cores[0].export_account_private_key().unwrap();
 
     for client in &cores[1..] {
-        client.import_account(&account_string).unwrap();
+        client.import_account(&account_string, None).unwrap();
         client.sync(None).unwrap();
     }
     cores

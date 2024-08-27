@@ -67,7 +67,7 @@ pub unsafe extern "C" fn lb_import_account(
     core: *mut c_void, account_string: *const c_char,
 ) -> LbAccountResult {
     let mut r = lb_account_result_new();
-    match core!(core).import_account(rstr(account_string)) {
+    match core!(core).import_account(rstr(account_string), None) {
         Ok(acct) => {
             r.ok.username = cstr(acct.username);
             r.ok.api_url = cstr(acct.api_url);
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn lb_import_account(
 #[no_mangle]
 pub unsafe extern "C" fn lb_export_account(core: *mut c_void) -> LbStringResult {
     let mut r = lb_string_result_new();
-    match core!(core).export_account_string() {
+    match core!(core).export_account_private_key() {
         Ok(acct_str) => r.ok = cstr(acct_str),
         Err(err) => r.err = lberr(err),
     }

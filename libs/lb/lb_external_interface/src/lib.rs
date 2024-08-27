@@ -75,12 +75,14 @@ impl FfiCore {
         Ok(self.core.create_account(username, api_url, welcome_doc)?)
     }
 
-    pub fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportError>> {
-        Ok(self.core.import_account(account_string)?)
+    pub fn import_account(
+        &self, account_string: &str, api_url: Option<&str>,
+    ) -> Result<Account, Error<ImportError>> {
+        Ok(self.core.import_account(account_string, api_url)?)
     }
 
     pub fn export_account(&self) -> Result<String, Error<AccountExportError>> {
-        Ok(self.core.export_account_string()?)
+        Ok(self.core.export_account_private_key()?)
     }
 
     pub fn export_account_qr(&self) -> Result<Vec<u8>, Error<AccountExportError>> {

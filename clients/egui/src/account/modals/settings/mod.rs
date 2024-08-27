@@ -40,7 +40,7 @@ pub enum SettingsResponse {
 impl SettingsModal {
     pub fn new(core: &lb::Core, s: &Arc<RwLock<Settings>>) -> Self {
         let export_result = core
-            .export_account_string()
+            .export_account_private_key()
             .map_err(|err| format!("{:?}", err)); // TODO
 
         let (info_tx, info_rx) = mpsc::channel();

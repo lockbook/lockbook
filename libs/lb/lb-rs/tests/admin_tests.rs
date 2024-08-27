@@ -13,16 +13,20 @@ fn admin_disappear_test() {
     let test2 = customer_core.create_at_path("test2.md").unwrap();
     customer_core.sync(None).unwrap();
 
-    let account_string = customer_core.export_account_string().unwrap();
+    let account_string = customer_core.export_account_private_key().unwrap();
     let customer_core_2 = test_core();
-    customer_core_2.import_account(&account_string).unwrap();
+    customer_core_2
+        .import_account(&account_string, None)
+        .unwrap();
     assert_eq!(customer_core_2.calculate_work().unwrap().work_units.len(), 3);
 
     admin_core.admin_disappear_file(test2.id).unwrap();
 
-    let account_string = customer_core.export_account_string().unwrap();
+    let account_string = customer_core.export_account_private_key().unwrap();
     let customer_core_2 = test_core();
-    customer_core_2.import_account(&account_string).unwrap();
+    customer_core_2
+        .import_account(&account_string, None)
+        .unwrap();
     assert_eq!(customer_core_2.calculate_work().unwrap().work_units.len(), 2);
     customer_core_2.sync(None).unwrap();
 

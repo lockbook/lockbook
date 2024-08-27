@@ -106,12 +106,13 @@ fn create_account_account_exists_case() {
 #[test]
 fn import_account_account_exists() {
     let core = test_core();
-
-    core.create_account(&random_name(), &url(), false).unwrap();
-    let account_string = core.export_account_string().unwrap();
+    let account = core.create_account(&random_name(), &url(), false).unwrap();
+    let account_string = core.export_account_private_key().unwrap();
 
     assert!(matches!(
-        core.import_account(&account_string).unwrap_err().kind,
+        core.import_account(&account_string, Some(&account.api_url))
+            .unwrap_err()
+            .kind,
         CoreError::AccountExists
     ));
 }
@@ -121,7 +122,7 @@ fn import_account_corrupted() {
     let core = test_core();
 
     assert!(matches!(
-        core.import_account("clearly a bad account string")
+        core.import_account("clearly a bad account string", None)
             .unwrap_err()
             .kind,
         CoreError::AccountStringCorrupted
@@ -134,7 +135,7 @@ fn import_account_corrupted_base64() {
 
     base64::decode("clearlyabadaccountstring").unwrap();
     assert!(matches!(
-        core.import_account("clearlyabadaccountstring")
+        core.import_account("clearlyabadaccountstring", None)
             .unwrap_err()
             .kind,
         CoreError::AccountStringCorrupted
@@ -156,11 +157,14 @@ fn import_account_nonexistent() {
             Ok(())
         })
         .unwrap();
-    let account_string = core2.export_account_string().unwrap();
+    let account_string = core2.export_account_private_key().unwrap();
 
     let core3 = test_core();
     assert!(matches!(
-        core3.import_account(&account_string).unwrap_err().kind,
+        core3
+            .import_account(&account_string, None)
+            .unwrap_err()
+            .kind,
         CoreError::AccountNonexistent
     ));
 }
@@ -179,13 +183,16 @@ fn import_account_public_key_mismatch() {
                 Ok(())
             })
             .unwrap();
-        core2.export_account_string().unwrap()
+        core2.export_account_private_key().unwrap()
     };
 
     let core3 = test_core();
 
     assert!(matches!(
-        core3.import_account(&bad_account_string).unwrap_err().kind,
+        core3
+            .import_account(&bad_account_string, None)
+            .unwrap_err()
+            .kind,
         CoreError::UsernamePublicKeyMismatch
     ));
 }
@@ -197,7 +204,9 @@ fn import_account_phrases() {
     let account_phrase = core1.export_account_phrase().unwrap();
 
     let core2 = test_core();
-    let account2 = core2.import_account(&account_phrase).unwrap();
+    let account2 = core2
+        .import_account(&account_phrase, Some(&account1.api_url))
+        .unwrap();
 
     assert_eq!(account1.private_key.serialize(), account2.private_key.serialize());
 }
@@ -214,7 +223,7 @@ fn import_account_phrases_no_api_url() {
     let core2 = test_core();
     assert!(matches!(
         core2
-            .import_account(&corrupted_account_phrase)
+            .import_account(&corrupted_account_phrase, Some(&account1.api_url))
             .unwrap_err()
             .kind,
         CoreError::AccountStringCorrupted
@@ -225,7 +234,7 @@ fn import_account_phrases_no_api_url() {
 fn export_account() {
     let core = test_core();
     core.create_account(&random_name(), &url(), false).unwrap();
-    core.export_account_string().unwrap();
+    core.export_account_private_key().unwrap();
     core.export_account_qr().unwrap();
 }
 

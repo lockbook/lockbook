@@ -32,7 +32,7 @@ mod ip_tests {
             .create_account(&random_name(), "unused af", false)
             .unwrap();
         core2
-            .import_account(&core1.export_account().unwrap())
+            .import_account(&core1.export_account().unwrap(), None)
             .unwrap();
         core2.sync(None).unwrap();
 
@@ -58,7 +58,7 @@ mod ip_tests {
                 .create_account(&random_name(), "unused af", false)
                 .unwrap();
             core2
-                .import_account(&core1.export_account().unwrap())
+                .import_account(&core1.export_account().unwrap(), None)
                 .unwrap();
             core2.sync(None).unwrap();
 

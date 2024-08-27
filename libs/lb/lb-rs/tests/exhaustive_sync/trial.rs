@@ -95,7 +95,7 @@ impl Trial {
                 let device = CoreIP::init_in_process(&test_config(), server.clone());
                 if let Some(ref account_string) = maybe_account_string {
                     device
-                        .import_account(account_string)
+                        .import_account(account_string, None)
                         .map_err(|err| Failed(format!("{:#?}", err)))?;
                     device
                         .sync(None)
