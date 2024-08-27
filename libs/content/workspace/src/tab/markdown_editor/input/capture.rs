@@ -1,17 +1,14 @@
-use std::{
-    collections::{HashMap, HashSet},
-    time::{Duration, Instant},
-};
+use std::collections::{HashMap, HashSet};
+use std::time::{Duration, Instant};
 
-use crate::tab::markdown_editor::{
-    appearance::{Appearance, CaptureCondition},
-    ast::{Ast, AstTextRangeType},
-    bounds::{AstTextRanges, Bounds, Paragraphs, RangesExt as _},
-    galleys::Galleys,
-    input::{cursor::PointerState, mutation},
-    unicode_segs::UnicodeSegs,
-};
+use crate::tab::markdown_editor;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt};
+use lb_rs::text::unicode_segs::UnicodeSegs;
+use markdown_editor::appearance::{Appearance, CaptureCondition};
+use markdown_editor::ast::{Ast, AstTextRangeType};
+use markdown_editor::bounds::{AstTextRanges, Bounds, Paragraphs, RangesExt as _};
+use markdown_editor::galleys::Galleys;
+use markdown_editor::input::{cursor::PointerState, mutation};
 
 pub const HOVER_REVEAL_DEBOUNCE: Duration = Duration::from_millis(300);
 

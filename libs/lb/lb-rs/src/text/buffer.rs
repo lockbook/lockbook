@@ -1,9 +1,7 @@
-use crate::tab::markdown_editor;
-use lb_rs::text::diff;
-use lb_rs::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelCharOffset};
-use lb_rs::text::operation_types::{InverseOperation, Operation, Replace};
-use markdown_editor::unicode_segs;
-use markdown_editor::unicode_segs::UnicodeSegs;
+use super::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelCharOffset};
+use super::operation_types::{InverseOperation, Operation, Replace};
+use super::unicode_segs::UnicodeSegs;
+use super::{diff, unicode_segs};
 use std::ops::Index;
 use std::time::{Duration, Instant};
 use unicode_segmentation::UnicodeSegmentation;

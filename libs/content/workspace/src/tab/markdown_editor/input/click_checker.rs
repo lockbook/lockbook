@@ -2,13 +2,13 @@ use crate::tab::markdown_editor::appearance::Appearance;
 use crate::tab::markdown_editor::ast::Ast;
 use crate::tab::markdown_editor::bounds::BoundExt as _;
 use crate::tab::markdown_editor::bounds::Bounds;
-use crate::tab::markdown_editor::buffer::Buffer;
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::mutation;
 use crate::tab::markdown_editor::input::Bound;
 use crate::tab::markdown_editor::layouts::Annotation;
 use crate::tab::markdown_editor::style::{InlineNode, ListItem, MarkdownNode};
 use egui::{Pos2, Rect};
+use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt};
 
 pub trait ClickChecker {

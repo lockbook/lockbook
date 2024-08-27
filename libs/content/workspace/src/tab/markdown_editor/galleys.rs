@@ -1,7 +1,6 @@
 use crate::tab::markdown_editor::appearance::Appearance;
 use crate::tab::markdown_editor::ast::{Ast, AstTextRangeType};
 use crate::tab::markdown_editor::bounds::{self, Bounds, Text};
-use crate::tab::markdown_editor::buffer::Buffer;
 use crate::tab::markdown_editor::images::{ImageCache, ImageState};
 use crate::tab::markdown_editor::layouts::{Annotation, LayoutJobInfo};
 use crate::tab::markdown_editor::style::{MarkdownNode, RenderStyle};
@@ -9,6 +8,7 @@ use crate::tab::markdown_editor::Editor;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::{CCursor, LayoutJob};
 use egui::{Galley, Pos2, Rect, Sense, TextFormat, Ui, Vec2};
+use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 use std::mem;
 use std::ops::{Deref, Index};
