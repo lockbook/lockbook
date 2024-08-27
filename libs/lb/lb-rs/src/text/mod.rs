@@ -1,5 +1,7 @@
+pub mod buffer;
 pub mod offset_types;
 pub mod operation_types;
+pub mod unicode_segs;
 
 use operation_types::Replace;
 

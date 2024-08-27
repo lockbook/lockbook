@@ -1,6 +1,6 @@
-use crate::tab::markdown_editor::buffer;
 use crate::tab::{self, markdown_editor, ClipContent};
 use egui::Context;
+use lb_rs::text::buffer;
 use lb_rs::Uuid;
 use markdown_editor::input::{Event, Region};
 use markdown_editor::Editor;

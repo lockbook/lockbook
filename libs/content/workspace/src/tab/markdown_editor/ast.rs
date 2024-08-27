@@ -4,10 +4,9 @@ use crate::tab::markdown_editor::style::{
     BlockNode, BlockNodeType, InlineNode, ListItem, MarkdownNode, MarkdownNodeType,
 };
 use crate::tab::markdown_editor::Editor;
+use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt, RangeIterExt, RelCharOffset};
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
-
-use super::buffer::Buffer;
 
 #[derive(Default, Debug, PartialEq)]
 pub struct Ast {

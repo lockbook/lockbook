@@ -1,9 +1,7 @@
+use lb_external_interface::lb_rs::text::offset_types::{DocCharOffset, RelCharOffset};
 use lb_external_interface::lb_rs::Uuid;
 use serde::Serialize;
-use workspace_rs::tab::markdown_editor::{
-    input::{Location, Region},
-    offset_types::{DocCharOffset, RelCharOffset},
-};
+use workspace_rs::tab::markdown_editor::input::{Location, Region};
 
 #[derive(Serialize)]
 pub struct AndroidResponse {

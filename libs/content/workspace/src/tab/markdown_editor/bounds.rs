@@ -4,18 +4,17 @@ use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::capture::CaptureState;
 use crate::tab::markdown_editor::input::Bound;
 use crate::tab::markdown_editor::style::{BlockNodeType, InlineNodeType, MarkdownNodeType};
-use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
 use crate::tab::markdown_editor::Editor;
 use egui::epaint::text::cursor::RCursor;
+use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
+use lb_rs::text::unicode_segs::UnicodeSegs;
 use linkify::LinkFinder;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::ops::Sub;
 use tldextract::{TldExtractor, TldOption};
-use unicode_segmentation::UnicodeSegmentation;
-
-use super::buffer::Buffer;
+use unicode_segmentation::UnicodeSegmentation as _;
 
 pub type AstTextRanges = Vec<AstTextRange>;
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
