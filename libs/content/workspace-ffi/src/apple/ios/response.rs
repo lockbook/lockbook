@@ -1,9 +1,9 @@
-use lb_external_interface::lb_rs::Uuid;
-use std::ffi::{c_char, CString};
-use workspace_rs::tab::markdown_editor::{
-    input::{Bound, Location, Region},
-    offset_types::{DocCharOffset, RangeExt as _},
+use lb_external_interface::lb_rs::{
+    text::offset_types::{DocCharOffset, RangeExt as _},
+    Uuid,
 };
+use std::ffi::{c_char, CString};
+use workspace_rs::tab::markdown_editor::input::{Bound, Location, Region};
 
 use super::super::response::*;
 
