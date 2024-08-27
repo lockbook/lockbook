@@ -1,12 +1,13 @@
-use similar::{algorithms::DiffHook, DiffableStr as _, DiffableStrRef as _};
+use similar::{algorithms::DiffHook, DiffableStrRef as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use crate::tab::markdown_editor::buffer::{Operation, Replace};
-use crate::tab::markdown_editor::offset_types::DocCharOffset;
+use crate::tab::markdown_editor;
+use markdown_editor::buffer::Replace;
+use markdown_editor::offset_types::DocCharOffset;
 
 // implementation note: this works because similar uses the same grapheme definition as we do, so reported indexes can
 // be interpreted as doc char offsets
-pub fn patch_ops(old: &str, new: &str) -> Vec<Operation> {
+pub fn patch_ops(old: &str, new: &str) -> Vec<Replace> {
     println!("\n----- merge -----");
     println!("old: {}", old);
     println!("new: {}", new);
@@ -53,10 +54,9 @@ pub fn patch_ops(old: &str, new: &str) -> Vec<Operation> {
     out_of_editor_mutations
 }
 
-// todo: cache unicode segmentation for performance
 struct Hook<'a> {
     new: &'a str,
-    ops: Vec<Operation>,
+    ops: Vec<Replace>,
 }
 
 impl<'a> Hook<'a> {
@@ -64,7 +64,7 @@ impl<'a> Hook<'a> {
         Self { new, ops: Vec::new() }
     }
 
-    fn ops(self) -> Vec<Operation> {
+    fn ops(self) -> Vec<Replace> {
         self.ops
     }
 }
@@ -76,20 +76,17 @@ impl DiffHook for Hook<'_> {
         &mut self, old_index: usize, old_len: usize, _new_index: usize,
     ) -> Result<(), Self::Error> {
         if let Some(op) = self.ops.last_mut() {
-            if let Operation::Replace(Replace { range, .. }) = op {
-                if range.1 == DocCharOffset(old_index) {
-                    range.1 = DocCharOffset(old_index + old_len);
-                    return Ok(());
-                }
-            } else {
-                unreachable!();
+            let Replace { range, .. } = op;
+            if range.1 == DocCharOffset(old_index) {
+                range.1 = DocCharOffset(old_index + old_len);
+                return Ok(());
             }
         }
 
-        let op = Operation::Replace(Replace {
+        let op = Replace {
             range: (DocCharOffset(old_index), DocCharOffset(old_index + old_len)),
             text: String::new(),
-        });
+        };
 
         self.ops.push(op);
         Ok(())
@@ -103,20 +100,17 @@ impl DiffHook for Hook<'_> {
             .grapheme_index((DocCharOffset(new_index), DocCharOffset(new_index + new_len)));
 
         if let Some(op) = self.ops.last_mut() {
-            if let Operation::Replace(Replace { range, text }) = op {
-                if range.1 == DocCharOffset(old_index) {
-                    text.push_str(new_text);
-                    return Ok(());
-                }
-            } else {
-                unreachable!();
+            let Replace { range, text } = op;
+            if range.1 == DocCharOffset(old_index) {
+                text.push_str(new_text);
+                return Ok(());
             }
         }
 
-        let op = Operation::Replace(Replace {
+        let op = Replace {
             range: (DocCharOffset(old_index), DocCharOffset(old_index)),
             text: new_text.into(),
-        });
+        };
 
         self.ops.push(op);
         Ok(())
@@ -130,21 +124,18 @@ impl DiffHook for Hook<'_> {
             .grapheme_index((DocCharOffset(new_index), DocCharOffset(new_index + new_len)));
 
         if let Some(op) = self.ops.last_mut() {
-            if let Operation::Replace(Replace { range, text }) = op {
-                if range.1 == DocCharOffset(old_index) {
-                    range.1 = DocCharOffset(old_index + old_len);
-                    text.push_str(new_text);
-                    return Ok(());
-                }
-            } else {
-                unreachable!();
+            let Replace { range, text } = op;
+            if range.1 == DocCharOffset(old_index) {
+                range.1 = DocCharOffset(old_index + old_len);
+                text.push_str(new_text);
+                return Ok(());
             }
         }
 
-        let op = Operation::Replace(Replace {
+        let op = Replace {
             range: (DocCharOffset(old_index), DocCharOffset(old_index + old_len)),
             text: new_text.into(),
-        });
+        };
 
         self.ops.push(op);
         Ok(())
