@@ -97,11 +97,6 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     pub fn import_account_phrase(
         &mut self, phrase: [String; 24], api_url: &str,
     ) -> LbResult<Account> {
-        if self.db.account.get().is_some() {
-            warn!("tried to import an account, but account exists already.");
-            return Err(CoreError::AccountExists.into());
-        }
-
         let private_key = Account::phrase_to_private_key(phrase)?;
         let mut account =
             Account { username: "".to_string(), api_url: api_url.to_string(), private_key };
