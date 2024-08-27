@@ -255,7 +255,7 @@ impl Buffer {
         self.ops
             .meta
             .extend(ops.iter().map(|_| OpMeta { timestamp, base }));
-        self.ops.all.extend(ops);
+        self.ops.all.extend(ops.into_iter().map(Operation::Replace));
 
         self.external.text = text;
         self.external.seq = self.base.seq + self.ops.all.len();
@@ -282,8 +282,12 @@ impl Buffer {
             .meta
             .extend(ops_b.iter().map(|_| OpMeta { timestamp, base }));
 
-        self.ops.all.extend(ops_a);
-        self.ops.all.extend(ops_b);
+        self.ops
+            .all
+            .extend(ops_a.into_iter().map(Operation::Replace));
+        self.ops
+            .all
+            .extend(ops_b.into_iter().map(Operation::Replace));
 
         self.update();
         self.current.text
