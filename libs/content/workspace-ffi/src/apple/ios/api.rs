@@ -1,15 +1,14 @@
 use egui::{Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
+use lb_external_interface::lb_rs::text::offset_types::{
+    DocCharOffset, RangeExt as _, RelCharOffset,
+};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::ptr::null;
 use tracing::instrument;
-use workspace_rs::tab::markdown_editor::input::canonical::{
-    Bound, Increment, Modification, Offset, Region,
-};
-use workspace_rs::tab::markdown_editor::input::cursor::Cursor;
-use workspace_rs::tab::markdown_editor::input::mutation;
+use workspace_rs::tab::markdown_editor::input::advance::AdvanceExt as _;
+use workspace_rs::tab::markdown_editor::input::{cursor, mutation};
 use workspace_rs::tab::markdown_editor::input::{Bound, Event, Increment, Offset, Region};
-use workspace_rs::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::ExtendedInput as _;
@@ -149,7 +148,7 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
         None => return CTextRange::default(),
     };
 
-    let (start, end) = markdown.editor.buffer.current_selection;
+    let (start, end) = markdown.editor.buffer.current.selection;
 
     CTextRange {
         none: false,
@@ -241,7 +240,7 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
         None => return CTextPosition::default(),
     };
 
-    let result = markdown.editor.buffer.current_segs.last_cursor_position().0;
+    let result = markdown.editor.buffer.current.segs.last_cursor_position().0;
     CTextPosition { pos: result, ..Default::default() }
 }
 
@@ -385,7 +384,7 @@ pub unsafe extern "C" fn position_offset(
 
     let start: Option<DocCharOffset> = start.into();
     if let Some(start) = start {
-        let last_cursor_position = markdown.editor.buffer.current_segs.last_cursor_position();
+        let last_cursor_position = markdown.editor.buffer.current.segs.last_cursor_position();
 
         let result = if offset < 0 && -offset > start.0 as i32 {
             DocCharOffset::default()
@@ -417,7 +416,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
         None => return CTextPosition::default(),
     };
 
-    let segs = &markdown.editor.buffer.current_segs;
+    let segs = &markdown.editor.buffer.current.segs;
     let galleys = &markdown.editor.galleys;
 
     let offset_type =
@@ -551,7 +550,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         None => return CRect::default(),
     };
 
-    let segs = &markdown.editor.buffer.current_segs;
+    let segs = &markdown.editor.buffer.current.segs;
     let galleys = &markdown.editor.galleys;
     let text = &markdown.editor.bounds.text;
     let appearance = &markdown.editor.appearance;
@@ -617,7 +616,7 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
         None => return CTextPosition::default(),
     };
 
-    let segs = &markdown.editor.buffer.current_segs;
+    let segs = &markdown.editor.buffer.current.segs;
     let galleys = &markdown.editor.galleys;
     let text = &markdown.editor.bounds.text;
 
@@ -640,7 +639,7 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
         None => return null(),
     };
 
-    let value = markdown.editor.buffer.current_text.as_str();
+    let value = markdown.editor.buffer.current.text.as_str();
 
     CString::new(value)
         .expect("Could not Rust String -> C String")
@@ -696,7 +695,7 @@ pub unsafe extern "C" fn selection_rects(
         None => return UITextSelectionRects::default(),
     };
 
-    let segs = &markdown.editor.buffer.current_segs;
+    let segs = &markdown.editor.buffer.current.segs;
     let galleys = &markdown.editor.galleys;
     let text = &markdown.editor.bounds.text;
     let appearance = &markdown.editor.appearance;
