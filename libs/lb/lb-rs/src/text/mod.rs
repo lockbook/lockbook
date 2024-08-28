@@ -24,7 +24,6 @@ pub fn diff(from: &str, to: &str) -> Vec<Replace> {
         .diff_unicode_words(from.as_diffable_str(), to.as_diffable_str());
 
     for diff_op in diff.ops().iter().cloned() {
-        println!("processing diff op: {:?}", diff_op);
         match diff_op {
             similar::DiffOp::Equal { .. } => {}
             similar::DiffOp::Delete { old_index, old_len, new_index } => {

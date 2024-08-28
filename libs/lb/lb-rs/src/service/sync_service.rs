@@ -256,8 +256,6 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             self.client
                 .request(&self.account, UpsertRequest { updates: updates.clone() })?;
             self.pushed_metas = updates;
-
-            println!("sync: pushed {} metadata updates.", self.pushed_metas.len());
         }
 
         self.core.in_tx(|tx| {
