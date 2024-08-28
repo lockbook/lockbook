@@ -6,7 +6,8 @@ buildscript {
         gradle_version = '7.4.2'
         core_ktx_version = '1.7.0'
         navigation_version = '2.4.1'
-        kotlin_version = '1.8.0'
+        kotlin_gradle_version = '1.7.1'
+        kotlin_version = '1.9.10'
         kotlin_reflect = '1.8.0'
         appcompat_version = '1.4.1'
         junit_version = '4.13.2'
@@ -44,7 +45,7 @@ buildscript {
 
     dependencies {
         classpath "com.android.tools.build:gradle:$gradle_version"
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_gradle_version"
         classpath "androidx.navigation:navigation-safe-args-gradle-plugin:$safe_args_gradle_plugin"
         classpath "org.jmailen.gradle:kotlinter-gradle:$kotlinter_version"
         classpath "org.jetbrains.kotlin:kotlin-serialization:$kotlin_version"
