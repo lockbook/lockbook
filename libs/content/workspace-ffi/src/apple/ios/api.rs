@@ -195,7 +195,10 @@ pub unsafe extern "C" fn select_all(obj: *mut c_void) {
 /// https://developer.apple.com/documentation/uikit/uitextinput/1614489-markedtextrange
 #[no_mangle]
 pub unsafe extern "C" fn get_marked(_obj: *mut c_void) -> CTextRange {
-    CTextRange::default() // todo
+    // I wanted to put `unimplemented!()` but this function is occasionally called. If I return a `CTextRange` for
+    // (0, 0), iOS opens a context menu on every tap toward the top of the screen. This value, which was a lucky guess,
+    // prevents that from happening.
+    CTextRange::default()
 }
 
 /// # Safety
