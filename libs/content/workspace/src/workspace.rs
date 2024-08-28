@@ -767,10 +767,9 @@ impl Workspace {
                     };
                 }
                 WsMsg::BgSignal(Signal::SaveAll) => {
-                    // if self.cfg.auto_save.load(Ordering::Relaxed) {
-                    //     println!("save all tabs");
-                    //     self.save_all_tabs();
-                    // }
+                    if self.cfg.auto_save.load(Ordering::Relaxed) {
+                        self.save_all_tabs();
+                    }
                 }
                 WsMsg::SaveResult(id, result) => {
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
