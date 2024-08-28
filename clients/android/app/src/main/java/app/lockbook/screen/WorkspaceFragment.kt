@@ -3,7 +3,6 @@ package app.lockbook.screen
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -272,8 +271,8 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             MotionEvent.ACTION_UP -> {
                 val duration = event.eventTime - event.downTime
                 val keyboardShown = WindowInsetsCompat
-                        .toWindowInsetsCompat(rootWindowInsets)
-                        .isVisible(WindowInsetsCompat.Type.ime())
+                    .toWindowInsetsCompat(rootWindowInsets)
+                    .isVisible(WindowInsetsCompat.Type.ime())
 
                 if (!keyboardShown && duration < 300 && abs(event.x - touchStartX).toInt() < ViewConfiguration.get(
                         context
