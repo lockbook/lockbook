@@ -739,10 +739,10 @@ impl Workspace {
                                 TabContent::MergeMarkdown { hmac, content } => {
                                     match tab.content.as_mut().unwrap() {
                                         TabContent::Markdown(md) => {
-                                            md.editor.show(ui);
                                             md.editor
                                                 .reload(String::from_utf8_lossy(&content).into());
                                             md.editor.hmac = hmac;
+                                            md.editor.show(ui);
                                         }
                                         _ => unreachable!(),
                                     };
