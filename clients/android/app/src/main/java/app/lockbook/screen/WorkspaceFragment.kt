@@ -210,9 +210,7 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
 
                 currentWrapper?.clearFocus()
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    (currentWrapper as WorkspaceTextInputWrapper).wsInputConnection.closeConnection()
-                }
+                (currentWrapper as WorkspaceTextInputWrapper).wsInputConnection.closeConnection()
 
                 val instanceWrapper = currentWrapper
                 Handler(Looper.getMainLooper()).postDelayed(
@@ -273,13 +271,9 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             }
             MotionEvent.ACTION_UP -> {
                 val duration = event.eventTime - event.downTime
-                val keyboardShown = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    WindowInsetsCompat
+                val keyboardShown = WindowInsetsCompat
                         .toWindowInsetsCompat(rootWindowInsets)
                         .isVisible(WindowInsetsCompat.Type.ime())
-                } else {
-                    false
-                }
 
                 if (!keyboardShown && duration < 300 && abs(event.x - touchStartX).toInt() < ViewConfiguration.get(
                         context

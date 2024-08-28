@@ -307,8 +307,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     val actionModeCallback =
                         TextEditorContextMenu(textInputWrapper)
 
-                    contextMenu = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        this.startActionMode(
+                    contextMenu = this.startActionMode(
                             FloatingTextEditorContextMenu(
                                 actionModeCallback,
                                 response.editMenuX,
@@ -316,9 +315,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                             ),
                             ActionMode.TYPE_FLOATING
                         )
-                    } else {
-                        this.startActionMode(actionModeCallback)
-                    }
                 }
             }
         }
@@ -339,8 +335,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         val WORKSPACE = Workspace.getInstance()
     }
-
-    @RequiresApi(Build.VERSION_CODES.M)
     inner class FloatingTextEditorContextMenu(private val textEditorContextMenu: TextEditorContextMenu, val editMenuX: Float, val editMenuY: Float) : ActionMode.Callback2() {
         override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
             return textEditorContextMenu.onCreateActionMode(mode, menu)
