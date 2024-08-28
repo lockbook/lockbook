@@ -197,6 +197,8 @@ impl Editor {
                                 Some(Annotation::Rule) => {}
                                 None => {}
                             }
+
+                            operations.push(Operation::Select(current_selection));
                         }
                         break 'modification;
                     }
