@@ -8,47 +8,48 @@ use operation_types::Replace;
 use similar::{algorithms::DiffHook, DiffableStrRef as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-// implementation note: this works because similar uses the same grapheme definition as we do, so reported indexes can
-// be interpreted as doc char offsets
 pub fn diff(from: &str, to: &str) -> Vec<Replace> {
-    let out_of_editor_mutations = {
-        let mut hook = Hook::new(to);
+    let mut hook = Hook::new(to);
 
-        let from_words: Vec<_> = from.unicode_word_indices().collect();
-        let to_words: Vec<_> = to.unicode_word_indices().collect();
-        let diff = similar::TextDiff::configure()
-            .algorithm(similar::Algorithm::Myers)
-            .diff_unicode_words(from.as_diffable_str(), to.as_diffable_str());
+    let mut from_words: Vec<_> = from
+        .split_word_bound_indices()
+        .map(|(idx, _)| idx)
+        .collect();
+    from_words.push(from.len());
+    let mut to_words: Vec<_> = to.split_word_bound_indices().map(|(idx, _)| idx).collect();
+    to_words.push(to.len());
 
-        for diff_op in diff.ops().iter().cloned() {
-            match diff_op {
-                similar::DiffOp::Equal { .. } => {}
-                similar::DiffOp::Delete { old_index, old_len, new_index } => {
-                    let old_index = from_words[old_index].0;
-                    let old_len = from_words[old_index + old_len].0 - old_index;
-                    let new_index = to_words[new_index].0;
-                    hook.delete(old_index, old_len, new_index).unwrap();
-                }
-                similar::DiffOp::Insert { old_index, new_index, new_len } => {
-                    let old_index = from_words[old_index].0;
-                    let new_index = to_words[new_index].0;
-                    let new_len = to_words[new_index + new_len].0 - new_index;
-                    hook.insert(old_index, new_index, new_len).unwrap()
-                }
-                similar::DiffOp::Replace { old_index, old_len, new_index, new_len } => {
-                    let old_index = from_words[old_index].0;
-                    let old_len = from_words[old_index + old_len].0 - old_index;
-                    let new_index = to_words[new_index].0;
-                    let new_len = to_words[new_index + new_len].0 - new_index;
-                    hook.replace(old_index, old_len, new_index, new_len)
-                        .unwrap()
-                }
+    let diff = similar::TextDiff::configure()
+        .algorithm(similar::Algorithm::Myers)
+        .diff_unicode_words(from.as_diffable_str(), to.as_diffable_str());
+
+    for diff_op in diff.ops().iter().cloned() {
+        println!("processing diff op: {:?}", diff_op);
+        match diff_op {
+            similar::DiffOp::Equal { .. } => {}
+            similar::DiffOp::Delete { old_index, old_len, new_index } => {
+                let old_len = from_words[old_index + old_len] - from_words[old_index];
+                let old_index = from_words[old_index];
+                let new_index = to_words[new_index];
+                hook.delete(old_index, old_len, new_index).unwrap();
+            }
+            similar::DiffOp::Insert { old_index, new_index, new_len } => {
+                let old_index = from_words[old_index];
+                let new_len = to_words[new_index + new_len] - to_words[new_index];
+                let new_index = to_words[new_index];
+                hook.insert(old_index, new_index, new_len).unwrap()
+            }
+            similar::DiffOp::Replace { old_index, old_len, new_index, new_len } => {
+                let old_len = from_words[old_index + old_len] - from_words[old_index];
+                let old_index = from_words[old_index];
+                let new_len = to_words[new_index + new_len] - to_words[new_index];
+                let new_index = to_words[new_index];
+                hook.replace(old_index, old_len, new_index, new_len)
+                    .unwrap()
             }
         }
-        hook.ops()
-    };
-
-    out_of_editor_mutations
+    }
+    hook.ops()
 }
 
 struct Hook<'a> {
