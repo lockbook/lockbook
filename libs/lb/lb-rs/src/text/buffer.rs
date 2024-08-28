@@ -224,6 +224,7 @@ impl Buffer {
     /// made since last load. The buffer's undo history is preserved; undo'ing will revert in-editor changes only.
     /// Exercising undo's may put the buffer in never-before-seen states and exercising all undo's will revert the
     /// buffer to the most recently loaded state (undo limit permitting).
+    /// Note: undo behavior described here is aspirational and not yet implemented.
     pub fn reload(&mut self, text: String) {
         let timestamp = Instant::now();
         let base = self.external.seq;

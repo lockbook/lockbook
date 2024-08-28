@@ -460,8 +460,6 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             .ids;
         self.prune(server_ids)?;
 
-        println!("sync: pulled {} remote changes", remote_dirty.len());
-
         let locally_dirty = self
             .db
             .local_metadata
