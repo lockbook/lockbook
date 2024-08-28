@@ -101,10 +101,6 @@ impl Editor {
         }
     }
 
-    /// Loads a new string into the buffer, merging out-of-editor changes made since last load with in-editor changes
-    /// made since last load. The buffer's undo history is preserved; undo'ing will revert in-editor changes only.
-    /// Exercising undo's may put the buffer in never-before-seen states and exercising all undo's will revert the
-    /// buffer to the most recently loaded state (undo limit permitting).
     pub fn reload(&mut self, text: String) {
         self.buffer.reload(text)
     }

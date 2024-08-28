@@ -63,8 +63,8 @@ impl Drive {
         let syncer = self.clone();
         tokio::spawn(async move {
             loop {
-                info!("will sync in 1 second");
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                info!("will sync in 5 minutes");
+                tokio::time::sleep(Duration::from_secs(300)).await;
                 info!("syncing");
                 syncer.sync().await;
             }
