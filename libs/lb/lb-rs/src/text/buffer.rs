@@ -284,12 +284,6 @@ impl Buffer {
             self.ops.transformed.drain(drain_range.clone());
             self.ops.transformed_inverted.drain(drain_range.clone());
             self.ops.processed_seq = self.current.seq;
-
-            println!("\nUPDATE: {} -> {}", self.current.seq, self.ops.len());
-            if !drain_range.is_empty() {
-                println!("clear undo stack: {}..{}", self.current.seq, self.ops.processed_seq);
-            }
-            println!("ops: {:?}", self.ops.all);
         } else {
             return Response::default();
         }
@@ -313,7 +307,6 @@ impl Buffer {
     fn transform(&self, op: &mut Operation, meta: &OpMeta) {
         let base_idx = meta.base - self.base.seq;
         for transforming_idx in base_idx..self.ops.processed_seq {
-            println!("transform {} with {}", self.ops.processed_seq, transforming_idx);
             let preceding_op = &self.ops.all[transforming_idx];
             if let Operation::Replace(Replace {
                 range: preceding_replaced_range,
@@ -348,7 +341,6 @@ impl Buffer {
         while self.can_redo() {
             let op = &self.ops.transformed[self.current_idx()];
 
-            println!("redo {} -> {} ({:?})", self.current.seq, self.current.seq + 1, op);
             self.current.seq += 1;
 
             response |= match op {
@@ -360,7 +352,6 @@ impl Buffer {
                 break;
             }
         }
-        println!("current: {:?}", self.current);
         response
     }
 
@@ -369,8 +360,6 @@ impl Buffer {
         while self.can_undo() {
             self.current.seq -= 1;
             let op = &self.ops.transformed_inverted[self.current_idx()];
-
-            println!("undo {} -> {} ({:?})", self.current.seq + 1, self.current.seq, op);
 
             if let Some(replace) = &op.replace {
                 response |= self.current.apply_replace(replace);
@@ -381,7 +370,6 @@ impl Buffer {
                 break;
             }
         }
-        println!("current: {:?}", self.current);
         response
     }
 
