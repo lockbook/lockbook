@@ -4,8 +4,8 @@
         <issue id="GradleDependency" severity="ignore" />
         <issue id="PluralsCandidate" severity="ignore" />
         <issue id="VectorPath" severity="ignore" />
-        <issue id="OldTargetApi" severity="ignore" />
         <issue id="InflateParams" severity="ignore" />
         <issue id="MonochromeLauncherIcon" severity="ignore" />
         <issue id="ObsoleteLintCustomCheck" severity="ignore" />
+        <issue id="StringFormatMatches" severity="ignore" />
 </lint>

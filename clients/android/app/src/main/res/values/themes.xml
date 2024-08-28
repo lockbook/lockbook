@@ -28,8 +28,8 @@
         <item name="colorPrimaryInverse">@color/md_theme_inversePrimary</item>
 
         <item name="windowActionModeOverlay">true</item>
-        <item name="android:statusBarColor" tools:targetApi="23">?attr/colorSurface</item>
-        <item name="android:windowLightStatusBar" tools:targetApi="23">?isLightTheme</item>
+        <item name="android:statusBarColor">?attr/colorSurface</item>
+        <item name="android:windowLightStatusBar">?isLightTheme</item>
         <item name="android:windowTranslucentNavigation">true</item>
 
         <item name="materialAlertDialogTheme">@style/AppTheme.AlertDialog</item>

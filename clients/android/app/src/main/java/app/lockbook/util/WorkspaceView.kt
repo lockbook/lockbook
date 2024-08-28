@@ -10,7 +10,6 @@ import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.net.Uri
-import android.os.Build
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
@@ -19,7 +18,6 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
-import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat.startActivity
 import app.lockbook.App
 import app.lockbook.model.CoreModel
@@ -307,18 +305,14 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     val actionModeCallback =
                         TextEditorContextMenu(textInputWrapper)
 
-                    contextMenu = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        this.startActionMode(
-                            FloatingTextEditorContextMenu(
-                                actionModeCallback,
-                                response.editMenuX,
-                                response.editMenuY
-                            ),
-                            ActionMode.TYPE_FLOATING
-                        )
-                    } else {
-                        this.startActionMode(actionModeCallback)
-                    }
+                    contextMenu = this.startActionMode(
+                        FloatingTextEditorContextMenu(
+                            actionModeCallback,
+                            response.editMenuX,
+                            response.editMenuY
+                        ),
+                        ActionMode.TYPE_FLOATING
+                    )
                 }
             }
         }
@@ -339,8 +333,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         val WORKSPACE = Workspace.getInstance()
     }
-
-    @RequiresApi(Build.VERSION_CODES.M)
     inner class FloatingTextEditorContextMenu(private val textEditorContextMenu: TextEditorContextMenu, val editMenuX: Float, val editMenuY: Float) : ActionMode.Callback2() {
         override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
             return textEditorContextMenu.onCreateActionMode(mode, menu)
