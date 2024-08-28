@@ -73,7 +73,7 @@ class FileService: ObservableObject {
         let root = root!
         return childrenOf(root)
     }
-
+    
     private var cancellables: Set<AnyCancellable> = []
 
     init(_ core: LockbookApi) {
@@ -82,18 +82,18 @@ class FileService: ObservableObject {
         if DI.accounts.account != nil {
             refresh()
         }
-
+        
         DI.workspace.$reloadFiles.sink { reload in
             if reload {
                 DI.workspace.reloadFiles = false
-
+                
                 self.refresh()
                 DI.share.calculatePendingShares()
             }
         }
         .store(in: &cancellables)
     }
-
+    
     func moveFile(id: UUID, newParent: UUID) {
         print("moving file")
         DispatchQueue.global(qos: .userInteractive).async {
@@ -245,13 +245,13 @@ class FileService: ObservableObject {
 
         return pathToRoot
     }
-
+    
     func refreshSuggestedDocs() {
         DispatchQueue.global(qos: .userInitiated).async {
             switch self.core.suggestedDocs() {
             case .success(let ids):
                 var suggestedDocs: [File] = []
-
+                    
                 for id in ids.filter({ self.idsAndFiles[$0] != nil }) {
                     switch self.core.getFileById(id: id) {
                     case .success(let meta):
@@ -262,7 +262,7 @@ class FileService: ObservableObject {
                         }
                     }
                 }
-
+                    
                 DispatchQueue.main.async {
                     self.suggestedDocs = suggestedDocs
                 }
@@ -286,7 +286,7 @@ class FileService: ObservableObject {
             }
         }
     }
-
+    
     private func postRefreshFiles(_ newFiles: [File]) {
         idsAndFiles = Dictionary(uniqueKeysWithValues: newFiles.map { ($0.id, $0) })
         refreshSuggestedDocs()
@@ -302,7 +302,7 @@ class FileService: ObservableObject {
     private func openFileChecks() {
         if let selectedFolder = DI.workspace.selectedFolder {
             let maybeMeta = idsAndFiles[selectedFolder]
-
+            
             if maybeMeta == nil {
                 DI.workspace.selectedFolder = nil
             }
@@ -318,13 +318,13 @@ class FileService: ObservableObject {
                 DI.workspace.selectedFolder ?? self.root!.id
                 #endif
             }()
-
+            
             let fileExt = isDrawing ? ".svg" : ".md"
             var attempt = 0
-
+            
             while(true) {
                 let name: String = attempt != 0 ? "untitled-\(attempt)\(fileExt)" : "untitled\(fileExt)"
-
+                
                 switch self.core.createFile(name: name, dirId: parent, isFolder: false) {
                 case .success(let meta):
                     self.refresh()
@@ -334,7 +334,7 @@ class FileService: ObservableObject {
                         DI.files.intoChildDirectory(meta)
                         #endif
                     }
-
+                    
                     return
                 case .failure(let err):
                     switch err.kind {
@@ -349,7 +349,7 @@ class FileService: ObservableObject {
             }
         }
     }
-
+    
     public func createFolderSync(name: String, maybeParent: UUID? = nil) -> String? {
         let realParent = maybeParent ?? {
             #if os(iOS)
@@ -358,7 +358,7 @@ class FileService: ObservableObject {
             DI.workspace.selectedFolder ?? root!.id
             #endif
         }()
-
+        
         switch core.createFile(name: name, dirId: realParent, isFolder: true) {
         case .success(_):
             refresh()
@@ -378,7 +378,7 @@ class FileService: ObservableObject {
             }
         }
     }
-
+    
     public func getPathByIdOrParent(maybeId: UUID? = nil) -> String? {
         let id = maybeId ?? {
             #if os(iOS)
@@ -387,7 +387,7 @@ class FileService: ObservableObject {
             DI.workspace.selectedFolder ?? root!.id
             #endif
         }()
-
+        
         switch core.getPathById(id: id) {
         case .success(let path):
             return path
@@ -396,7 +396,7 @@ class FileService: ObservableObject {
             return nil
         }
     }
-
+    
     public func getFileByPath(path: String) -> File? {
         switch core.getFileByPath(path: path) {
         case .success(let file):
@@ -406,7 +406,7 @@ class FileService: ObservableObject {
             return nil
         }
     }
-
+    
     public func copyFileLink(id: UUID) {
         #if os(iOS)
         UIPasteboard.general.string = "lb://\(id.uuidString.lowercased())"
@@ -442,32 +442,32 @@ class FileService: ObservableObject {
         guard let ext = name.split(separator: ".").last else {
             return "doc"
         }
-
+        
         return extToSystemImg[String(ext)] ?? "doc"
     }
-
+    
     static let extToSystemImg: [String: String] = [
         "md": "doc.richtext",
         "svg": "doc.text.image",
         "pdf": "doc.on.doc",
-
+        
         "txt": "doc.plaintext",
         "rtf": "doc.plaintext",
         "doc": "doc.plaintext",
         "docx": "doc.plaintext",
-
+        
         "html": "chevron.left.slash.chevron.right",
         "xml": "chevron.left.slash.chevron.right",
         "json": "curlybraces",
         "latex": "sum",
-
+        
         "png": "photo",
         "jpg": "photo",
         "jpeg": "photo",
         "tiff": "photo",
         "heif": "photo",
         "heic": "photo",
-
+        
         "zip": "doc.zipper",
         "tar": "doc.zipper",
         "gz": "doc.zipper",
@@ -475,7 +475,7 @@ class FileService: ObservableObject {
         "bz2": "doc.zipper",
         "xz": "doc.zipper",
         "iso": "doc.zipper",
-
+        
         "log": "scroll",
         "csv": "tablecells"
     ]
