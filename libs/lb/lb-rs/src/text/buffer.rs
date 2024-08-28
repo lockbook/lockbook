@@ -569,14 +569,26 @@ mod test {
     use super::Buffer;
 
     #[test]
-    fn buffer_merge() {
+    fn buffer_merge_prefix() {
         let base_content = "base content";
         let local_content = "local content";
         let remote_content = "remote content";
 
         assert_eq!(
             Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
-            "local remote content"
+            "localremote content"
+        );
+    }
+
+    #[test]
+    fn buffer_merge_postfix() {
+        let base_content = "content base";
+        let local_content = "content local";
+        let remote_content = "content remote";
+
+        assert_eq!(
+            Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
+            "content localremote"
         );
     }
 }
