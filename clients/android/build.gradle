@@ -6,7 +6,7 @@ buildscript {
         gradle_version = '7.4.2'
         core_ktx_version = '1.7.0'
         navigation_version = '2.4.1'
-        kotlin_version = '1.8.0'
+        kotlin_version = '1.9.10'
         kotlin_reflect = '1.8.0'
         appcompat_version = '1.4.1'
         junit_version = '4.13.2'
