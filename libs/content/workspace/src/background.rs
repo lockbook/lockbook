@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use crate::workspace::WsMsg;
 
-const AUTO_SAVE_INTERVAL: Duration = Duration::from_secs(1);
+const AUTO_SAVE_INTERVAL: Duration = Duration::from_secs(2);
 const SYNC_STATUS_INTERVAL: Duration = Duration::from_secs(1);
 
 pub enum BwIncomingMsg {
@@ -78,9 +78,8 @@ impl BackgroundWorker {
             .duration_since(self.worker_state.user_last_seen)
             .as_secs()
         {
-            // todo: revisit
-            0..=59 => Duration::from_secs(10),
-            60..=3600 => Duration::from_secs(60),
+            0..=59 => Duration::from_secs(30),
+            60..=3600 => Duration::from_secs(240),
             _ => Duration::from_secs(3600),
         }
     }
@@ -119,9 +118,6 @@ impl BackgroundWorker {
                     return;
                 }
                 BwIncomingMsg::EguiUpdate => {
-                    // todo: is this wrong?
-                    // todo: yes, as the events are loaded and processed on another thread in pretty fast succession
-                    // unlikely they'll hang around long enough for you to notice them
                     if !self.ctx.input(|inp| inp.raw.events.is_empty()) {
                         self.worker_state.user_last_seen = Instant::now();
                     }
