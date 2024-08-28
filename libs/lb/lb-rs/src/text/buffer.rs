@@ -27,7 +27,7 @@ use unicode_segmentation::UnicodeSegmentation;
 /// transformation. Finally, the operations will need to transform each other just like any other set of operations
 /// made in a single frame/made based on the same version of the buffer.
 ///
-/// # Undo
+/// # Undo (work in progress)
 /// Undo should revert local changes only, leaving external changes in-tact, so that when all local changes are undone,
 /// the buffer is in a state reflecting external changes only. This is complicated by the fact that external changes
 /// may have been based on local changes that were synced to another client. To undo an operation that had an external
