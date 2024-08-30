@@ -3,84 +3,94 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct CreateFolderSheet: View {
+    let info: CreatingFolderInfo
     
-    var creatingFolderInfo: CreatingFolderInfo
-        
-    @State var folderName: String = ""
-    @State var maybeError: String? = nil
+    @State var name: String = ""
+    @State var error: String? = nil
+    @State var sheetHeight: CGFloat = 0
     
-    @Environment(\.presentationMode) var presentationMode
-        
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var isFocused: Bool
+    
     var body: some View {
-        VStack (alignment: .leading, spacing: 15){
-            
-            HStack (alignment: .center) {
-                Text("Create folder")
+        VStack(spacing: 10) {
+            HStack {
+                Text("New folder")
                     .bold()
-                    .font(.title)
                 
                 Spacer()
-                
-                Button(action: { presentationMode.wrappedValue.dismiss() }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.gray)
-                        .imageScale(.large)
+            }
+            
+            LabeledContent {
+                Text(info.parentPath)
+                    .lineLimit(2)
+                    .font(.system(.callout, design: .monospaced))
+            } label: {
+                Text("Parent:")
+                    .font(.callout)
+            }
+            
+            TextField("Folder name", text: $name, onCommit: {
+                createFolder()
+            })
+            .textFieldStyle(.roundedBorder)
+            .focused($isFocused)
+            .onAppear {
+                isFocused = true
+            }
+            
+            if let error = error {
+                HStack {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .fontWeight(.bold)
+                        .lineLimit(2, reservesSpace: false)
+                    
+                    Spacer()
                 }
-                .buttonStyle(.plain)
             }
-            
-            HStack {
-                Text("Inside:")
-                
-                Text(creatingFolderInfo.parentPath)
-                    .font(.system(.body, design: .monospaced))
-            }
-            
-            TextField("Choose a filename", text: $folderName, onCommit: {
-                onCommit()
-            })
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .modifier(DisableAutoCapitalization())
-            
-            if let error = maybeError {
-                Text(error)
-                    .foregroundColor(.red)
-                    .bold()
-            }
-            
-            Button(action: {
-                onCommit()
-            }, label: {
+                        
+            Button {
+                createFolder()
+            } label: {
                 Text("Create")
-            })
-            .buttonStyle(.borderedProminent)
-            
-            #if os(iOS)
-            Spacer()
-            #endif
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
 
-        }.createFolderSheetFrame()
+        }
+        .padding(.horizontal)
+        .padding(.top)
+        .modifier(ReadHeightModifier())
+        .onPreferenceChange(HeightPreferenceKey.self) { height in
+            if let height {
+                self.sheetHeight = height
+            }
+        }
+        .presentationDetents([.height(self.sheetHeight)])
+        .presentationDragIndicator(.visible)
     }
     
-    func onCommit() {
-        if let error = DI.files.createFolderSync(name: folderName, maybeParent: creatingFolderInfo.maybeParent) {
-            maybeError = error
-        } else {
-            maybeError = nil
-            presentationMode.wrappedValue.dismiss()
+    func createFolder() {
+        let res = DI.files.createFolderSync(name: name, maybeParent: info.id)
+        
+        switch res {
+        case .some(let errMsg):
+            error = errMsg
+        case .none:
+            dismiss()
         }
     }
 }
 
-extension View {
-    @ViewBuilder
-    public func createFolderSheetFrame() -> some View {
-        #if os(macOS)
-        self.padding(20).frame(width: 320)
-        #else
-        self.padding(20)
-        #endif
+struct CreateFolderSheet_Previews: PreviewProvider {
+    static var previews: some View {
+        Rectangle()
+            .foregroundStyle(.white)
+            .sheet(isPresented: Binding.constant(true), content: {
+                CreateFolderSheet(info: CreatingFolderInfo(parentPath: "Apple", maybeParent: nil))
+                    .presentationDetents([.height(150)])
+                    .presentationDragIndicator(.visible)
+            })
     }
 }
-
-

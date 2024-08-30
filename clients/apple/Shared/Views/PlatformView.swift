@@ -24,7 +24,7 @@ struct PlatformView: View {
             })
             .sheet(isPresented: $sheets.creatingFolder, content: {
                 if let creatingFolderInfo = sheets.creatingFolderInfo {
-                    CreateFolderSheet(creatingFolderInfo: creatingFolderInfo)
+                    CreateFolderSheet(info: creatingFolderInfo)
                 }
             })
             .sheet(isPresented: $sheets.renamingFile, content: {
@@ -62,7 +62,7 @@ struct PlatformView: View {
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
     
-    @State var tabsListSheetHeight: CGFloat = 0
+    @State var sheetHeight: CGFloat = 0
     
     var platform: some View {
         Group {
@@ -163,10 +163,10 @@ struct PlatformView: View {
                 .modifier(ReadHeightModifier())
                 .onPreferenceChange(HeightPreferenceKey.self) { height in
                     if let height {
-                        self.tabsListSheetHeight = height
+                        self.sheetHeight = height
                     }
                 }
-                .presentationDetents([.height(self.tabsListSheetHeight)])
+                .presentationDetents([.height(self.sheetHeight)])
                 .presentationDragIndicator(.visible)
             })
     }
