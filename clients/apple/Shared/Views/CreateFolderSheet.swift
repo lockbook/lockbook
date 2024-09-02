@@ -72,7 +72,7 @@ struct CreateFolderSheet: View {
     }
     
     func createFolder() {
-        let res = DI.files.createFolderSync(name: name, maybeParent: info.id)
+        let res = DI.files.createFolderSync(name: name, maybeParent: info.maybeParent)
         
         switch res {
         case .some(let errMsg):

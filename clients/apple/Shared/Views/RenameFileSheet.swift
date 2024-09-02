@@ -75,6 +75,18 @@ struct RenameFileSheet: View {
     }
 }
 
+struct RenameFileSheet_Previews: PreviewProvider {
+    static var previews: some View {
+        Rectangle()
+            .foregroundStyle(.white)
+            .sheet(isPresented: Binding.constant(true), content: {
+                RenameFileSheet(info: RenamingFileInfo(name: "Apple", maybeParent: nil))
+                    .presentationDetents([.height(150)])
+                    .presentationDragIndicator(.visible)
+            })
+    }
+}
+
 extension View {
     @ViewBuilder
     public func renameFolderSheetFrame() -> some View {
