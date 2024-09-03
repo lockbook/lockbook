@@ -120,11 +120,10 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
 class TreeDelegate: NSObject, MenuOutlineViewDelegate {
     func outlineView(_ outlineView: NSOutlineView, menuForItem item: Any?) -> NSMenu? {
         let menu = NSMenu()
-        let file = item as! File
-        let parent = item == nil ? DI.files.root! : file
+        let parent = item as? File ?? DI.files.root!
         
         if let selectedFiles = DI.selected.selectedFiles,
-           selectedFiles.contains(file),
+           selectedFiles.contains(parent),
            selectedFiles.count > 1 {
             let selectedFiles = DI.selected.getConsolidatedSelectedFiles()
             
