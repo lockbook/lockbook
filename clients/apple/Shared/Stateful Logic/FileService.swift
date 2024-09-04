@@ -207,9 +207,7 @@ class FileService: ObservableObject {
 
         switch operation {
         case .success(_):
-            #if os(macOS)
             idsAndFiles[id]?.name = name
-            #endif
             return nil
         case .failure(let error):
             switch error.kind {

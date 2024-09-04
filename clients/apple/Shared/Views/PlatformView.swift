@@ -22,16 +22,6 @@ struct PlatformView: View {
                 }
                 
             })
-            .sheet(isPresented: $sheets.creatingFolder, content: {
-                if let creatingFolderInfo = sheets.creatingFolderInfo {
-                    CreateFolderSheet(info: creatingFolderInfo)
-                }
-            })
-            .sheet(isPresented: $sheets.renamingFile, content: {
-                if let renamingFileInfo = sheets.renamingFileInfo {
-                    RenameFileSheet(renamingFileInfo: renamingFileInfo)
-                }
-            })
             .sheet(isPresented: $sheets.moving, content: {
                 if let action = sheets.movingInfo {
                     SelectFolderView(action: action)
@@ -99,6 +89,18 @@ struct PlatformView: View {
                         DeleteConfirmationButtons(metas: metas)
                     }
                 })
+            .sheet(isPresented: $sheets.creatingFolder, content: {
+                if let creatingFolderInfo = sheets.creatingFolderInfo {
+                    CreateFolderSheet(info: creatingFolderInfo)
+                        .modifier(AutoSizeSheetViewModifier(sheetHeight: $sheetHeight))
+                }
+            })
+            .sheet(isPresented: $sheets.renamingFile, content: {
+                if let renamingFileInfo = sheets.renamingFileInfo {
+                    RenameFileSheet(info: renamingFileInfo)
+                        .modifier(AutoSizeSheetViewModifier(sheetHeight: $sheetHeight))
+                }
+            })
             .sheet(isPresented: $sheets.tabsList, content: {
                 VStack {
                     Button(action: {
@@ -179,6 +181,17 @@ struct PlatformView: View {
                     DeleteConfirmationButtons(metas: metas)
                 }
             })
+            .modifier(FormSheetViewModifier(show: $sheets.creatingFolder, sheetContent: {
+                CreateFolderSheet(info: sheets.creatingFolderInfo!)
+                    .padding(.bottom, 3)
+                    .frame(width: 300, height: 160)
+            }))
+            .modifier(FormSheetViewModifier(show: $sheets.renamingFile, sheetContent: {
+                RenameFileSheet(info: sheets.renamingFileInfo!)
+                    .padding(.bottom, 3)
+                    .frame(width: 300, height: 160)
+            }))
+
     }
     
     #else
@@ -196,6 +209,20 @@ struct PlatformView: View {
                 } message: {
                     Text("This action cannot be undone.")
                 }
+                .sheet(isPresented: $sheets.creatingFolder, content: {
+                    if let creatingFolderInfo = sheets.creatingFolderInfo {
+                        CreateFolderSheet(info: creatingFolderInfo)
+                            .padding(.bottom, 3)
+                            .frame(width: 300, height: 140)
+                    }
+                })
+                .sheet(isPresented: $sheets.renamingFile, content: {
+                    if let renamingFileInfo = sheets.renamingFileInfo {
+                        RenameFileSheet(info: renamingFileInfo)
+                            .padding(.bottom, 3)
+                            .frame(width: 300, height: 140)
+                    }
+                })
 
             
             if search.isPathSearching {

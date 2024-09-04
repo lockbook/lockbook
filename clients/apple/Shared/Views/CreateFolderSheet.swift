@@ -7,38 +7,33 @@ struct CreateFolderSheet: View {
     
     @State var name: String = ""
     @State var error: String? = nil
-    @State var sheetHeight: CGFloat = 0
     
     @Environment(\.dismiss) private var dismiss
-    @FocusState private var isFocused: Bool
     
     var body: some View {
         VStack(spacing: 10) {
             HStack {
-                Text("New folder")
+                Text("New Folder")
                     .bold()
                 
                 Spacer()
             }
             
-            LabeledContent {
+            HStack {
+                Text("Parent Folder:")
+                    .font(.callout)
+                
                 Text(info.parentPath)
                     .lineLimit(2)
                     .font(.system(.callout, design: .monospaced))
-            } label: {
-                Text("Parent:")
-                    .font(.callout)
+
+                Spacer()
             }
             
-            TextField("Folder name", text: $name, onCommit: {
+            CreateFolderTextFieldWrapper(placeholder: "Folder name", onSubmit: {
                 createFolder()
-            })
-            .textFieldStyle(.roundedBorder)
-            .focused($isFocused)
-            .onAppear {
-                isFocused = true
-            }
-            
+            }, name: $name)
+                                    
             if let error = error {
                 HStack {
                     Text(error)
@@ -49,7 +44,7 @@ struct CreateFolderSheet: View {
                     Spacer()
                 }
             }
-                        
+                                    
             Button {
                 createFolder()
             } label: {
@@ -57,18 +52,10 @@ struct CreateFolderSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
-
+            .disabled(name.isEmpty)
         }
         .padding(.horizontal)
-        .padding(.top)
-        .modifier(ReadHeightModifier())
-        .onPreferenceChange(HeightPreferenceKey.self) { height in
-            if let height {
-                self.sheetHeight = height
-            }
-        }
-        .presentationDetents([.height(self.sheetHeight)])
-        .presentationDragIndicator(.visible)
+        .padding(.top, 3)
     }
     
     func createFolder() {
@@ -82,6 +69,111 @@ struct CreateFolderSheet: View {
         }
     }
 }
+
+#if os(iOS)
+import UIKit
+
+struct CreateFolderTextFieldWrapper: UIViewRepresentable {
+    var placeholder: String
+    var onSubmit: () -> Void
+        
+    @Binding var name: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+    
+    func makeUIView(context: Context) -> UITextField {
+        let textField = UITextField()
+        textField.delegate = context.coordinator
+        textField.placeholder = placeholder
+        textField.returnKeyType = .done
+        textField.borderStyle = .roundedRect
+        textField.text = name
+        textField.setContentHuggingPriority(.defaultHigh, for: .vertical)
+        
+        textField.becomeFirstResponder()
+        
+        textField.addTarget(context.coordinator, action: #selector(Coordinator.textFieldDidChange(_:)), for: .editingChanged)
+        
+        return textField
+    }
+    
+    func updateUIView(_ uiView: UITextField, context: Context) {
+        uiView.text = name
+    }
+        
+    class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: CreateFolderTextFieldWrapper
+        
+        init(parent: CreateFolderTextFieldWrapper) {
+            self.parent = parent
+        }
+
+        @objc func textFieldDidChange(_ textField: UITextField) {
+            parent.name = textField.text ?? ""
+        }
+
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            parent.onSubmit()
+            return false
+        }
+    }
+}
+#else
+struct CreateFolderTextFieldWrapper: NSViewRepresentable {
+    var placeholder: String
+    var onSubmit: () -> Void
+    
+    @Binding var name: String
+    
+    public func makeNSView(context: NSViewRepresentableContext<CreateFolderTextFieldWrapper>) -> NSTextField {
+        let textField = NSTextField()
+        textField.isBordered = false
+        textField.focusRingType = .none
+        textField.delegate = context.coordinator
+        textField.placeholderString = placeholder
+        
+        textField.becomeFirstResponder()
+        
+        return textField
+    }
+    
+    public func updateNSView(_ nsView: NSTextField, context: NSViewRepresentableContext<CreateFolderTextFieldWrapper>) {
+        if nsView.currentEditor() == nil {
+            nsView.becomeFirstResponder()
+        }
+    }
+    
+    public func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    public class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: CreateFolderTextFieldWrapper
+
+        public init(_ parent: CreateFolderTextFieldWrapper) {
+            self.parent = parent
+        }
+        
+        public func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                parent.onSubmit()
+                
+                return true
+            }
+            
+            return false
+        }
+
+        public func controlTextDidChange(_ obj: Notification) {
+            if let textField = obj.object as? NSTextField {
+                parent.name = textField.stringValue
+            }
+        }
+    }
+}
+#endif
 
 struct CreateFolderSheet_Previews: PreviewProvider {
     static var previews: some View {
