@@ -45,7 +45,7 @@ pub struct Workspace {
 pub enum WsMsg {
     FileCreated(Result<File, String>),
     FileLoaded(Uuid, Result<TabContent, TabFailure>),
-    SaveResult(Uuid, Result<(String, DocumentHmac, Instant, usize), LbError>),
+    SaveResult(Uuid, Result<(String, Option<DocumentHmac>, Instant, usize), LbError>),
     FileRenamed { id: Uuid, new_name: String },
 
     BgSignal(Signal),
@@ -553,9 +553,13 @@ impl Workspace {
                         let id = save_req.id;
                         let hmac = save_req.hmac;
 
-                        let result = core
-                            .safe_write(id, hmac, content.clone().into())
-                            .map(|hmac| (content, hmac, Instant::now(), seq));
+                        let result = if hmac.is_some() {
+                            core.safe_write(id, hmac, content.clone().into())
+                                .map(|hmac| (content, Some(hmac), Instant::now(), seq))
+                        } else {
+                            core.write_document(id, content.as_bytes())
+                                .map(|_| (content, hmac, Instant::now(), seq))
+                        };
 
                         // re-read
                         update_tx.send(WsMsg::SaveResult(id, result)).unwrap();
@@ -627,22 +631,22 @@ impl Workspace {
             let content = core
                 .read_document_with_hmac(id)
                 .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
-                .map(|(hmac, bytes)| {
-                    if !tab_created {
-                        TabContent::MergeMarkdown { hmac, content: bytes }
-                    } else if is_supported_image_fmt(ext) {
-                        TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes))
+                .and_then(|(hmac, bytes)| {
+                    if is_supported_image_fmt(ext) {
+                        Ok(TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes)))
                     } else if ext == "pdf" {
-                        TabContent::Pdf(PdfViewer::new(
+                        Ok(TabContent::Pdf(PdfViewer::new(
                             &bytes,
                             &ctx,
                             &cfg.data_dir,
                             is_mobile_viewport,
-                        ))
+                        )))
                     } else if ext == "svg" {
-                        TabContent::Svg(SVGEditor::new(&bytes, core.clone(), id))
-                    } else {
-                        TabContent::Markdown(Markdown::new(
+                        Ok(TabContent::Svg(SVGEditor::new(&bytes, core.clone(), id)))
+                    } else if (ext == "md" || ext == "txt") && !tab_created {
+                        Ok(TabContent::MergeMarkdown { hmac, content: bytes })
+                    } else if ext == "md" || ext == "txt" {
+                        Ok(TabContent::Markdown(Markdown::new(
                             core.clone(),
                             &bytes,
                             &toolbar_visibility,
@@ -650,7 +654,9 @@ impl Workspace {
                             id,
                             hmac,
                             ext != "md",
-                        ))
+                        )))
+                    } else {
+                        Err(TabFailure::SimpleMisc(format!("Unsupported file extension: {}", ext)))
                     }
                 });
             update_tx.send(WsMsg::FileLoaded(id, content)).unwrap();
@@ -776,12 +782,14 @@ impl Workspace {
                         match result {
                             Ok((content, hmac, time_saved, seq)) => {
                                 tab.last_saved = time_saved;
-                                match tab.content.as_mut().unwrap() {
-                                    TabContent::Markdown(md) => {
-                                        md.editor.hmac = Some(hmac);
-                                        md.editor.buffer.saved(seq, content);
+                                if hmac.is_some() {
+                                    match tab.content.as_mut().unwrap() {
+                                        TabContent::Markdown(md) => {
+                                            md.editor.hmac = hmac;
+                                            md.editor.buffer.saved(seq, content);
+                                        }
+                                        _ => unreachable!(),
                                     }
-                                    _ => unreachable!(),
                                 }
                             }
                             Err(err) => {
