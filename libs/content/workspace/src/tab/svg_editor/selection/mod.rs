@@ -66,7 +66,6 @@ impl Selection {
                 ui.output_mut(|r| r.cursor_icon = egui::CursorIcon::Grab);
             }
         }
-        println!("{:#?}", maybe_selected_el);
 
         // build up selected elements
         let should_rebuild = if cfg!(target_os = "ios") {
