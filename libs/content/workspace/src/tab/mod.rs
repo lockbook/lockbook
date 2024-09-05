@@ -63,6 +63,22 @@ pub enum TabContent {
     Svg(SVGEditor),
 }
 
+impl std::fmt::Debug for TabContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TabContent::Image(_) => write!(f, "TabContent::Image"),
+            TabContent::MergeMarkdown { hmac, content } => write!(
+                f,
+                "TabContent::MergeMarkdown {{ hmac: {:?}, content: {:?} }}",
+                hmac, content
+            ),
+            TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
+            TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
+            TabContent::Svg(_) => write!(f, "TabContent::Svg"),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum TabFailure {
     DeletedFromSync,
