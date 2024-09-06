@@ -32,38 +32,38 @@ const MATCHED_CONTENT_3: (&str, &str) = (
     vel orci eleifend, sed cursus ante porta. Phasellus pellente...",
 );
 
-#[test]
-fn test_matches() {
-    let core = test_core_with_account();
+#[tokio::test]
+async fn test_matches() {
+    let core = test_core_with_account().await;
 
-    FILE_PATHS.iter().for_each(|item| {
-        core.create_at_path(item).unwrap();
-    });
+    for item in FILE_PATHS {
+        core.create_at_path(item).await.unwrap();
+    }
 
-    let search_results = core.search_file_paths("").unwrap();
+    let search_results = core.search_file_paths("").await.unwrap();
     assert!(search_results.is_empty());
 
-    let search_results = core.search_file_paths("abcde.md").unwrap();
-    assert_result_paths(&search_results, &["/abcde.md"]);
+    let search_results = core.search_file_paths("abcde.md").await.unwrap();
+    assert_result_paths(&search_results, &["/abcde.md"]).await;
 
-    let search_results = core.search_file_paths("d/o").unwrap();
-    assert_result_paths(&search_results, &["/dir/doc1", "/dir/doc2", "/dir/doc3"]);
+    let search_results = core.search_file_paths("d/o").await.unwrap();
+    assert_result_paths(&search_results, &["/dir/doc1", "/dir/doc2", "/dir/doc3"]).await;
 
-    let search_results = core.search_file_paths("d/3").unwrap();
-    assert_result_paths(&search_results, &["/dir/doc3"]);
+    let search_results = core.search_file_paths("d/3").await.unwrap();
+    assert_result_paths(&search_results, &["/dir/doc3"]).await;
 
-    let search_results = core.search_file_paths("ad").unwrap();
-    assert_result_paths(&search_results, &["/abc.md", "/abcd.md", "/abcde.md"]);
+    let search_results = core.search_file_paths("ad").await.unwrap();
+    assert_result_paths(&search_results, &["/abc.md", "/abcd.md", "/abcde.md"]).await;
 }
 
-fn assert_result_paths(results: &[SearchResultItem], paths: &[&str]) {
+async fn assert_result_paths(results: &[SearchResultItem], paths: &[&str]) {
     assert_eq!(results.len(), paths.len());
     for i in 0..results.len() {
         assert_eq!(results.get(i).unwrap().path, *paths.get(i).unwrap());
     }
 }
 
-fn assert_async_results_path(results: Vec<SearchResult>, paths: Vec<&str>) {
+async fn assert_async_results_path(results: Vec<SearchResult>, paths: Vec<&str>) {
     assert_eq!(results.len(), paths.len());
 
     let results_set: HashSet<&str> = results
@@ -78,13 +78,13 @@ fn assert_async_results_path(results: Vec<SearchResult>, paths: Vec<&str>) {
     assert_eq!(results_set, paths_set)
 }
 
-#[test]
-fn test_async_name_matches() {
-    let core = test_core_with_account();
+#[tokio::test]
+async fn test_async_name_matches() {
+    let core = test_core_with_account().await;
 
-    FILE_PATHS.iter().for_each(|item| {
-        core.create_at_path(item).unwrap();
-    });
+    for item in FILE_PATHS {
+        core.create_at_path(item).await.unwrap();
+    }
 
     let start_search = core.start_search(SearchType::PathAndContentSearch);
 
@@ -116,7 +116,7 @@ fn test_async_name_matches() {
         start_search.results_rx.recv().unwrap(),
         start_search.results_rx.recv().unwrap(),
     ];
-    assert_async_results_path(results, vec!["/abc.md", "/abcd.md", "/abcde.md"]);
+    assert_async_results_path(results, vec!["/abc.md", "/abcd.md", "/abcde.md"]).await;
 
     let result = start_search.results_rx.recv().unwrap();
     match result {
@@ -140,7 +140,7 @@ fn test_async_name_matches() {
         start_search.results_rx.recv().unwrap(),
         start_search.results_rx.recv().unwrap(),
     ];
-    assert_async_results_path(results, vec!["/dir/doc1", "/dir/doc2", "/dir/doc3"]);
+    assert_async_results_path(results, vec!["/dir/doc1", "/dir/doc2", "/dir/doc3"]).await;
 
     let result = start_search.results_rx.recv().unwrap();
     match result {
@@ -154,7 +154,7 @@ fn test_async_name_matches() {
         .unwrap();
 }
 
-fn assert_async_content_match(
+async fn assert_async_content_match(
     search_tx: &Sender<SearchRequest>, results_rx: &Receiver<SearchResult>, input: &str,
     matched_text: &str,
 ) {
@@ -183,12 +183,14 @@ fn assert_async_content_match(
     }
 }
 
-#[test]
-fn test_async_content_matches() {
-    let core = test_core_with_account();
+#[tokio::test]
+async fn test_async_content_matches() {
+    let core = test_core_with_account().await;
 
-    let file = core.create_at_path("/aaaaaaaaaa.md").unwrap();
-    core.write_document(file.id, CONTENT.as_bytes()).unwrap();
+    let file = core.create_at_path("/aaaaaaaaaa.md").await.unwrap();
+    core.write_document(file.id, CONTENT.as_bytes())
+        .await
+        .unwrap();
 
     let start_search = core.start_search(SearchType::PathAndContentSearch);
 
@@ -197,19 +199,22 @@ fn test_async_content_matches() {
         &start_search.results_rx,
         MATCHED_CONTENT_1.0,
         MATCHED_CONTENT_1.1,
-    );
+    )
+    .await;
     assert_async_content_match(
         &start_search.search_tx,
         &start_search.results_rx,
         MATCHED_CONTENT_2.0,
         MATCHED_CONTENT_2.1,
-    );
+    )
+    .await;
     assert_async_content_match(
         &start_search.search_tx,
         &start_search.results_rx,
         MATCHED_CONTENT_3.0,
         MATCHED_CONTENT_3.1,
-    );
+    )
+    .await;
 
     start_search
         .search_tx
@@ -217,24 +222,33 @@ fn test_async_content_matches() {
         .unwrap();
 }
 
-#[test]
-fn test_pending_share_search() {
-    let core1 = test_core_with_account();
+#[tokio::test]
+async fn test_pending_share_search() {
+    let core1 = test_core_with_account().await;
 
-    let core2 = test_core_with_account();
+    let core2 = test_core_with_account().await;
 
-    let file1 = core1.create_at_path("/aaaaaaa.md").unwrap();
-    core1.write_document(file1.id, CONTENT.as_bytes()).unwrap();
+    let file1 = core1.create_at_path("/aaaaaaa.md").await.unwrap();
+    core1
+        .write_document(file1.id, CONTENT.as_bytes())
+        .await
+        .unwrap();
     core1
         .share_file(file1.id, &core2.get_account().unwrap().username, ShareMode::Read)
+        .await
         .unwrap();
 
-    core1.sync(None).unwrap();
-    core2.sync(None).unwrap();
+    core1.sync(None).await.unwrap();
+    core2.sync(None).await.unwrap();
 
-    core2.create_at_path("/bbbbbbb.md").unwrap();
+    core2.create_at_path("/bbbbbbb.md").await.unwrap();
     core2
-        .create_file(&file1.name, core2.get_root().unwrap().id, FileType::Link { target: file1.id })
+        .create_file(
+            &file1.name,
+            &core2.root().await.unwrap().id,
+            FileType::Link { target: file1.id },
+        )
+        .await
         .unwrap();
 
     let start_search = core2.start_search(SearchType::PathAndContentSearch);
@@ -251,7 +265,7 @@ fn test_pending_share_search() {
     }
 
     let results = vec![start_search.results_rx.recv().unwrap()];
-    assert_async_results_path(results, vec!["/bbbbbbb.md"]);
+    assert_async_results_path(results, vec!["/bbbbbbb.md"]).await;
 
     let result = start_search.results_rx.recv().unwrap();
     match result {
@@ -264,6 +278,6 @@ fn test_pending_share_search() {
         .send(SearchRequest::EndSearch)
         .unwrap();
 
-    let search_results = core2.search_file_paths("bbb").unwrap();
-    assert_result_paths(&search_results, &["/bbbbbbb.md"]);
+    let search_results = core2.search_file_paths("bbb").await.unwrap();
+    assert_result_paths(&search_results, &["/bbbbbbb.md"]).await;
 }

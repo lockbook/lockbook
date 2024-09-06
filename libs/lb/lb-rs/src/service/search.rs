@@ -3,7 +3,7 @@ use crate::logic::filename::DocumentType;
 use crate::logic::tree_like::TreeLike;
 use crate::model::errors::LbResult;
 use crate::{Lb, UnexpectedError};
-use crossbeam::channel::{Receiver, Sender};
+use crossbeam::channel::{self, Receiver, Sender};
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -50,7 +50,7 @@ impl PartialOrd for SearchResultItem {
 }
 
 impl Lb {
-    pub async fn search_file_paths(&mut self, input: &str) -> LbResult<Vec<SearchResultItem>> {
+    pub async fn search_file_paths(&self, input: &str) -> LbResult<Vec<SearchResultItem>> {
         if input.is_empty() {
             return Ok(Vec::new());
         }
@@ -105,7 +105,26 @@ impl Lb {
         Ok(results)
     }
 
-    pub(crate) async fn start_search(
+    pub fn start_search(&self, search_type: SearchType) -> StartSearchInfo {
+        let (search_tx, search_rx) = channel::unbounded::<SearchRequest>();
+        let (results_tx, results_rx) = channel::unbounded::<SearchResult>();
+
+        let mut core = self.clone();
+        let results_tx_c = results_tx.clone();
+
+        tokio::spawn(async move {
+            if let Err(err) = core
+                .start_search_inner(search_type, results_tx, search_rx)
+                .await
+            {
+                let _ = results_tx_c.send(SearchResult::Error(err.into()));
+            }
+        });
+
+        StartSearchInfo { search_tx, results_rx }
+    }
+
+    pub(crate) async fn start_search_inner(
         &mut self, search_type: SearchType, results_tx: Sender<SearchResult>,
         search_rx: Receiver<SearchRequest>,
     ) -> LbResult<()> {
