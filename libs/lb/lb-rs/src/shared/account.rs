@@ -170,7 +170,7 @@ mod test_account_serialization {
         let account1 = Account {
             username: "test1".to_string(),
             api_url: "test1.com".to_string(),
-            private_key: SecretKey::parse_slice(&vec![
+            private_key: SecretKey::parse_slice(&[
                 19, 34, 85, 4, 36, 83, 52, 122, 49, 107, 223, 44, 31, 16, 2, 160, 100, 103, 193, 0,
                 67, 15, 184, 133, 33, 111, 91, 143, 137, 232, 240, 42,
             ])
@@ -191,7 +191,7 @@ mod test_account_serialization {
         let account1 = Account {
             username: "test1".to_string(),
             api_url: "test1.com".to_string(),
-            private_key: SecretKey::parse_slice(&vec![
+            private_key: SecretKey::parse_slice(&[
                 158, 250, 59, 72, 139, 112, 93, 137, 168, 199, 28, 230, 56, 37, 43, 52, 152, 176,
                 243, 149, 124, 11, 2, 126, 73, 118, 252, 112, 225, 207, 34, 90,
             ])
@@ -217,7 +217,7 @@ mod test_account_serialization {
         let account1 = Account {
             username: "test1".to_string(),
             api_url: "test1.com".to_string(),
-            private_key: SecretKey::parse_slice(&vec![
+            private_key: SecretKey::parse_slice(&[
                 234, 169, 139, 200, 30, 42, 176, 229, 16, 101, 229, 85, 125, 47, 182, 24, 154, 8,
                 156, 233, 24, 102, 126, 171, 86, 240, 0, 175, 6, 192, 253, 231,
             ])
