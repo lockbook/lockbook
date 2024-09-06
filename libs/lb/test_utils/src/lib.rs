@@ -29,7 +29,7 @@ pub fn test_core() -> Core {
 pub fn test_core_from(core: &Core) -> Core {
     let account_string = core.export_account_private_key().unwrap();
     let core = test_core();
-    core.import_account(&account_string, None).unwrap();
+    core.import_account(&account_string, Some(&url())).unwrap();
     core.sync(None).unwrap();
     core
 }

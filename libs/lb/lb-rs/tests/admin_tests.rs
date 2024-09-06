@@ -16,7 +16,7 @@ fn admin_disappear_test() {
     let account_string = customer_core.export_account_private_key().unwrap();
     let customer_core_2 = test_core();
     customer_core_2
-        .import_account(&account_string, None)
+        .import_account(&account_string, Some(&url()))
         .unwrap();
     assert_eq!(customer_core_2.calculate_work().unwrap().work_units.len(), 3);
 
@@ -25,7 +25,7 @@ fn admin_disappear_test() {
     let account_string = customer_core.export_account_private_key().unwrap();
     let customer_core_2 = test_core();
     customer_core_2
-        .import_account(&account_string, None)
+        .import_account(&account_string, Some(&url()))
         .unwrap();
     assert_eq!(customer_core_2.calculate_work().unwrap().work_units.len(), 2);
     customer_core_2.sync(None).unwrap();

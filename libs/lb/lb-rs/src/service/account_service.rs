@@ -64,10 +64,9 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             }
         }
 
-        let phrase: [String; 24] = key
+        let phrase: [&str; 24] = key
             .split(|c| c == ' ' || c == ',')
             .filter(|maybe_word| !maybe_word.is_empty())
-            .map(|word| word.to_string())
             .collect::<Vec<_>>()
             .try_into()
             .map_err(|_| CoreError::AccountStringCorrupted)?;
@@ -112,7 +111,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     }
 
     pub fn import_account_phrase(
-        &mut self, phrase: [String; 24], api_url: &str,
+        &mut self, phrase: [&str; 24], api_url: &str,
     ) -> LbResult<Account> {
         let private_key = Account::phrase_to_private_key(phrase)?;
         self.import_account_private_key_v2(private_key, api_url)

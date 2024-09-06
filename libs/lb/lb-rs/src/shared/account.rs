@@ -30,7 +30,7 @@ impl Account {
         PublicKey::from_secret_key(&self.private_key)
     }
 
-    pub fn get_phrase(&self) -> SharedResult<[String; 24]> {
+    pub fn get_phrase(&self) -> SharedResult<[&'static str; 24]> {
         let key = self.private_key.serialize();
         let key_bits = key.iter().fold(String::new(), |mut out, byte| {
             let _ = write!(out, "{:08b}", byte);
@@ -48,7 +48,7 @@ impl Account {
         let checksum_last_4_bits = &checksum[..4];
         let combined_bits = format!("{}{}", key_bits, checksum_last_4_bits);
 
-        let mut phrase: [String; 24] = Default::default();
+        let mut phrase: [&str; 24] = Default::default();
 
         for (i, chunk) in combined_bits
             .chars()
@@ -62,9 +62,7 @@ impl Account {
                         "could not parse appropriate private key bits into u16",
                     )
                 })?;
-            let word = bip39_dict::ENGLISH
-                .lookup_word(bip39_dict::MnemonicIndex(index))
-                .to_string();
+            let word = bip39_dict::ENGLISH.lookup_word(bip39_dict::MnemonicIndex(index));
 
             phrase[i] = word;
         }
@@ -72,7 +70,7 @@ impl Account {
         Ok(phrase)
     }
 
-    pub fn phrase_to_private_key(phrases: [String; 24]) -> SharedResult<SecretKey> {
+    pub fn phrase_to_private_key(phrases: [&str; 24]) -> SharedResult<SecretKey> {
         let mut combined_bits = phrases
             .iter()
             .map(|word| {
@@ -228,30 +226,9 @@ mod test_account_serialization {
             username: "test1".to_string(),
             api_url: "test1.com".to_string(),
             private_key: Account::phrase_to_private_key([
-                "turkey".to_string(),
-                "era".to_string(),
-                "velvet".to_string(),
-                "detail".to_string(),
-                "prison".to_string(),
-                "income".to_string(),
-                "dose".to_string(),
-                "royal".to_string(),
-                "fever".to_string(),
-                "truly".to_string(),
-                "unique".to_string(),
-                "couple".to_string(),
-                "party".to_string(),
-                "example".to_string(),
-                "piece".to_string(),
-                "art".to_string(),
-                "leaf".to_string(),
-                "follow".to_string(),
-                "rose".to_string(),
-                "access".to_string(),
-                "vacant".to_string(),
-                "gather".to_string(),
-                "wasp".to_string(),
-                "audit".to_string(),
+                "turkey", "era", "velvet", "detail", "prison", "income", "dose", "royal", "fever",
+                "truly", "unique", "couple", "party", "example", "piece", "art", "leaf", "follow",
+                "rose", "access", "vacant", "gather", "wasp", "audit",
             ])
             .unwrap(),
         };
@@ -276,6 +253,7 @@ mod test_account_key_and_phrase {
         };
 
         let phrase = account1.get_phrase().unwrap();
+
         let reverse = Account::phrase_to_private_key(phrase).unwrap();
 
         assert!(account1.private_key == reverse);
