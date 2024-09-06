@@ -198,20 +198,6 @@ fn import_account_public_key_mismatch() {
 }
 
 #[test]
-fn import_account_account_key_v2() {
-    let core1 = test_core();
-    let account1 = core1.create_account(&random_name(), &url(), false).unwrap();
-    let account_phrase = core1.export_account_phrase().unwrap();
-
-    let core2 = test_core();
-    let account2 = core2
-        .import_account(&account_phrase, Some(&account1.api_url))
-        .unwrap();
-
-    assert_eq!(account1.private_key.serialize(), account2.private_key.serialize());
-}
-
-#[test]
 fn import_account_phrases() {
     let core1 = test_core();
     let account1 = core1.create_account(&random_name(), &url(), false).unwrap();
@@ -223,22 +209,6 @@ fn import_account_phrases() {
         .unwrap();
 
     assert_eq!(account1.private_key.serialize(), account2.private_key.serialize());
-}
-
-#[test]
-fn import_account_phrases_no_api_url() {
-    let core1 = test_core();
-    core1.create_account(&random_name(), &url(), false).unwrap();
-    let account_phrase = core1.export_account_phrase().unwrap();
-
-    let core2 = test_core();
-    assert!(matches!(
-        core2
-            .import_account(&account_phrase, None)
-            .unwrap_err()
-            .kind,
-        CoreError::AccountStringCorrupted
-    ))
 }
 
 #[test]

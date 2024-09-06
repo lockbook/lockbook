@@ -76,7 +76,9 @@ pub fn rename_path(c: &Core, path: &str, new_name: &str) -> Result<(), String> {
 pub fn another_client(c: &Core) -> Core {
     let account_string = c.export_account_private_key().unwrap();
     let new_core = test_core();
-    new_core.import_account(&account_string, None).unwrap();
+    new_core
+        .import_account(&account_string, Some(&url()))
+        .unwrap();
     new_core
 }
 
