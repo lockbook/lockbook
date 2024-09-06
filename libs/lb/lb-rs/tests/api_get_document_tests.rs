@@ -1,6 +1,6 @@
 use lb_rs::logic::api::*;
 use lb_rs::logic::crypto::AESEncrypted;
-use lb_rs::service::api_service::{ApiError, Requester};
+use lb_rs::service::network::ApiError;
 
 use lb_rs::logic::file_like::FileLike;
 use lb_rs::logic::file_metadata::FileDiff;
