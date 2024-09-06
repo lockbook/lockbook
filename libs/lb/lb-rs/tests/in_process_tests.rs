@@ -1,8 +1,8 @@
 #[cfg(feature = "no-network")]
 #[cfg(test)]
 mod ip_tests {
+    use lb_rs::model::errors::CoreError;
     use lb_rs::service::api_service::no_network::{CoreIP, InProcess};
-    use lb_rs::CoreError;
     use std::default::Default;
     use test_utils::test_config;
     use test_utils::*;

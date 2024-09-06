@@ -2,7 +2,7 @@ use crate::exhaustive_sync::trial::Action::*;
 use crate::exhaustive_sync::trial::Status::{Failed, Ready, Running, Succeeded};
 use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
 use lb_rs::service::api_service::no_network::{CoreIP, InProcess};
-use lb_rs::CoreError;
+use lb_rs::model::errors::CoreError;
 use lockbook_server_lib::config::AdminConfig;
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::FileType::{Document, Folder, Link};

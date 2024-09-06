@@ -1,5 +1,5 @@
 use lb_rs::logic::filename::MAX_FILENAME_LENGTH;
-use lb_rs::CoreError;
+use lb_rs::model::errors::CoreError;
 use test_utils::{assert_matches, test_core_with_account};
 use uuid::Uuid;
 

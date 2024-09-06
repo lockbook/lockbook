@@ -1,6 +1,6 @@
 use lb_rs::logic::file_metadata::FileType;
 use lb_rs::logic::path_ops::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
-use lb_rs::CoreError;
+use lb_rs::model::errors::CoreError;
 use test_utils::*;
 
 #[test]
