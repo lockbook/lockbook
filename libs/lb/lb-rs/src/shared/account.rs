@@ -3,9 +3,9 @@ use bip39_dict::Language;
 use libsecp256k1::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
-use std::{fmt::Write, str::FromStr};
+use std::fmt::Write;
 
-use super::{SharedError, SharedResult};
+use super::SharedResult;
 
 pub const MAX_USERNAME_LENGTH: usize = 32;
 
@@ -170,26 +170,93 @@ mod test_account_serialization {
         let account1 = Account {
             username: "test1".to_string(),
             api_url: "test1.com".to_string(),
-            private_key: SecretKey::parse_slice(base64::decode("Q+42YrvPS/gl5r1YRVhGqrXHaU46rwBqVo6dDUvLRyg=").unwrap().as_slice()).unwrap(),
+            private_key: SecretKey::parse_slice(&vec![
+                19, 34, 85, 4, 36, 83, 52, 122, 49, 107, 223, 44, 31, 16, 2, 160, 100, 103, 193, 0,
+                67, 15, 184, 133, 33, 111, 91, 143, 137, 232, 240, 42,
+            ])
+            .unwrap(),
         };
 
-        let account2 = bincode::deserialize(base64::decode("BQAAAAAAAAB0ZXN0MQkAAAAAAAAAdGVzdDEuY29tIAAAAAAAAABD7jZiu89L+CXmvVhFWEaqtcdpTjqvAGpWjp0NS8tHKA==").unwrap().as_slice()).unwrap();
+        let account2 = bincode::deserialize(
+            base64::decode("BQAAAAAAAAB0ZXN0MQkAAAAAAAAAdGVzdDEuY29tIAAAAAAAAAATIlUEJFM0ejFr3ywfEAKgZGfBAEMPuIUhb1uPiejwKg==")
+                .unwrap()
+                .as_slice()
+        ).unwrap();
 
         assert_eq!(account1, account2);
     }
 
     #[test]
     fn verify_account_v2() {
-        let private_key = SecretKey::parse_slice(base64::decode("8zbhIL6PyetwDmUuRPKF4Nftz0g8uCeMB++9XUQ2mU8=").unwrap().as_slice()).unwrap();
-        
-        assert_eq!(base64::encode(private_key.serialize()), "8zbhIL6PyetwDmUuRPKF4Nftz0g8uCeMB++9XUQ2mU8=");
+        let account1 = Account {
+            username: "test1".to_string(),
+            api_url: "test1.com".to_string(),
+            private_key: SecretKey::parse_slice(&vec![
+                158, 250, 59, 72, 139, 112, 93, 137, 168, 199, 28, 230, 56, 37, 43, 52, 152, 176,
+                243, 149, 124, 11, 2, 126, 73, 118, 252, 112, 225, 207, 34, 90,
+            ])
+            .unwrap(),
+        };
+
+        let account2 = Account {
+            username: "test1".to_string(),
+            api_url: "test1.com".to_string(),
+            private_key: SecretKey::parse_slice(
+                base64::decode("nvo7SItwXYmoxxzmOCUrNJiw85V8CwJ+SXb8cOHPIlo=")
+                    .unwrap()
+                    .as_slice(),
+            )
+            .unwrap(),
+        };
+
+        assert_eq!(account1, account2);
     }
 
     #[test]
     fn verify_account_phrase() {
-        let account = Account::new("test3".to_string(), "test3.com".to_string());
+        let account1 = Account {
+            username: "test1".to_string(),
+            api_url: "test1.com".to_string(),
+            private_key: SecretKey::parse_slice(&vec![
+                234, 169, 139, 200, 30, 42, 176, 229, 16, 101, 229, 85, 125, 47, 182, 24, 154, 8,
+                156, 233, 24, 102, 126, 171, 86, 240, 0, 175, 6, 192, 253, 231,
+            ])
+            .unwrap(),
+        };
 
-        println!("{:?}", a.get_phrase().unwrap());
+        let account2 = Account {
+            username: "test1".to_string(),
+            api_url: "test1.com".to_string(),
+            private_key: Account::phrase_to_private_key([
+                "turkey".to_string(),
+                "era".to_string(),
+                "velvet".to_string(),
+                "detail".to_string(),
+                "prison".to_string(),
+                "income".to_string(),
+                "dose".to_string(),
+                "royal".to_string(),
+                "fever".to_string(),
+                "truly".to_string(),
+                "unique".to_string(),
+                "couple".to_string(),
+                "party".to_string(),
+                "example".to_string(),
+                "piece".to_string(),
+                "art".to_string(),
+                "leaf".to_string(),
+                "follow".to_string(),
+                "rose".to_string(),
+                "access".to_string(),
+                "vacant".to_string(),
+                "gather".to_string(),
+                "wasp".to_string(),
+                "audit".to_string(),
+            ])
+            .unwrap(),
+        };
+
+        assert_eq!(account1, account2)
     }
 }
 

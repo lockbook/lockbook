@@ -59,10 +59,8 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             if let Ok(account) = bincode::deserialize(&key[..]) {
                 return self.import_account_private_key_v1(account);
             } else if let Ok(key) = SecretKey::parse_slice(&key) {
-                return self.import_account_private_key_v2(
-                    key,
-                    api_url.ok_or(CoreError::AccountStringCorrupted)?,
-                );
+                return self
+                    .import_account_private_key_v2(key, api_url.unwrap_or(DEFAULT_API_LOCATION));
             }
         }
 
