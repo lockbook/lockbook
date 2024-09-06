@@ -3,9 +3,9 @@ use bip39_dict::Language;
 use libsecp256k1::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
-use std::fmt::Write;
+use std::{fmt::Write, str::FromStr};
 
-use super::SharedResult;
+use super::{SharedError, SharedResult};
 
 pub const MAX_USERNAME_LENGTH: usize = 32;
 
@@ -163,6 +163,33 @@ mod test_account_serialization {
         let account2: Account = bincode::deserialize(&encoded).unwrap();
 
         assert_eq!(account1, account2);
+    }
+
+    #[test]
+    fn verify_account_v1() {
+        let account1 = Account {
+            username: "test1".to_string(),
+            api_url: "test1.com".to_string(),
+            private_key: SecretKey::parse_slice(base64::decode("Q+42YrvPS/gl5r1YRVhGqrXHaU46rwBqVo6dDUvLRyg=").unwrap().as_slice()).unwrap(),
+        };
+
+        let account2 = bincode::deserialize(base64::decode("BQAAAAAAAAB0ZXN0MQkAAAAAAAAAdGVzdDEuY29tIAAAAAAAAABD7jZiu89L+CXmvVhFWEaqtcdpTjqvAGpWjp0NS8tHKA==").unwrap().as_slice()).unwrap();
+
+        assert_eq!(account1, account2);
+    }
+
+    #[test]
+    fn verify_account_v2() {
+        let private_key = SecretKey::parse_slice(base64::decode("8zbhIL6PyetwDmUuRPKF4Nftz0g8uCeMB++9XUQ2mU8=").unwrap().as_slice()).unwrap();
+        
+        assert_eq!(base64::encode(private_key.serialize()), "8zbhIL6PyetwDmUuRPKF4Nftz0g8uCeMB++9XUQ2mU8=");
+    }
+
+    #[test]
+    fn verify_account_phrase() {
+        let account = Account::new("test3".to_string(), "test3.com".to_string());
+
+        println!("{:?}", a.get_phrase().unwrap());
     }
 }
 

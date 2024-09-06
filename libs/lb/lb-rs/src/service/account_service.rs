@@ -7,7 +7,7 @@ use crate::shared::api::{
 use crate::shared::document_repo::DocumentService;
 use crate::shared::file_like::FileLike;
 use crate::shared::file_metadata::{FileMetadata, FileType};
-use crate::{CoreError, CoreState, LbResult, Requester};
+use crate::{CoreError, CoreState, LbResult, Requester, DEFAULT_API_LOCATION};
 use libsecp256k1::{PublicKey, SecretKey};
 use qrcode_generator::QrCodeEcc;
 
@@ -74,7 +74,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             .try_into()
             .map_err(|_| CoreError::AccountStringCorrupted)?;
 
-        self.import_account_phrase(phrase, api_url.ok_or(CoreError::AccountStringCorrupted)?)
+        self.import_account_phrase(phrase, api_url.unwrap_or(DEFAULT_API_LOCATION))
     }
 
     pub fn import_account_private_key_v1(&mut self, account: Account) -> LbResult<Account> {
