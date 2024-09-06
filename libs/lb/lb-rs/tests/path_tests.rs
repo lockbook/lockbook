@@ -4,8 +4,8 @@ use lb_rs::logic::file_metadata::{FileMetadata, FileType};
 use lb_rs::logic::tree_like::TreeLike;
 use test_utils::*;
 
-#[test]
-fn test_create_path() {
+#[tokio::test]
+async fn test_create_path() {
     let account = &Account::new(random_name(), url());
     let pk = &account.public_key();
     let root = FileMetadata::create_root(account)
@@ -29,8 +29,8 @@ fn test_create_path() {
     assert!(paths.contains(&"/test3".to_string()));
 }
 
-#[test]
-fn test_path2() {
+#[tokio::test]
+async fn test_path2() {
     let account = &Account::new(random_name(), url());
     let pk = &account.public_key();
     let root = FileMetadata::create_root(account)
@@ -51,8 +51,8 @@ fn test_path2() {
     assert!(paths.contains(&"/test1/2/3".to_string()));
 }
 
-#[test]
-fn test_path_to_id() {
+#[tokio::test]
+async fn test_path_to_id() {
     let account = &Account::new(random_name(), url());
     let pk = &account.public_key();
     let root = FileMetadata::create_root(account)
@@ -76,8 +76,8 @@ fn test_path_to_id() {
     assert_eq!(tree.name_using_links(&three_id, account).unwrap(), "3");
 }
 
-#[test]
-fn test_path_file_types() {
+#[tokio::test]
+async fn test_path_file_types() {
     let account = &Account::new(random_name(), url());
     let pk = &account.public_key();
     let root = FileMetadata::create_root(account)
