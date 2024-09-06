@@ -28,7 +28,7 @@ impl Lb {
         Ok(get_usage(usage))
     }
 
-    pub async fn get_uncompressed_usage_breakdown(&mut self) -> LbResult<HashMap<Uuid, usize>> {
+    pub async fn get_uncompressed_usage_breakdown(&self) -> LbResult<HashMap<Uuid, usize>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
@@ -51,7 +51,7 @@ impl Lb {
     }
 
     // big async opportunity
-    pub async fn get_uncompressed_usage(&mut self) -> LbResult<UsageItemMetric> {
+    pub async fn get_uncompressed_usage(&self) -> LbResult<UsageItemMetric> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 

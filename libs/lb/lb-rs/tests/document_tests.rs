@@ -1,13 +1,12 @@
-use lb_rs::DocumentService;
-use lb_rs::OnDiskDocuments;
+use lb_rs::logic::document_repo::{DocumentService, OnDiskDocuments};
 use uuid::Uuid;
 
 use lb_rs::logic::crypto::AESEncrypted;
 use lb_rs::logic::symkey;
 use test_utils::{self, test_config};
 
-#[test]
-fn get() {
+#[tokio::test]
+async fn get() {
     let config = &test_config();
 
     let id = Uuid::new_v4();
@@ -17,8 +16,8 @@ fn get() {
     assert!(result.is_err());
 }
 
-#[test]
-fn maybe_get() {
+#[tokio::test]
+async fn maybe_get() {
     let config = &test_config();
 
     let id = Uuid::new_v4();
@@ -28,8 +27,8 @@ fn maybe_get() {
     assert_eq!(result, None);
 }
 
-#[test]
-fn insert_get() {
+#[tokio::test]
+async fn insert_get() {
     let config = &test_config();
     let key = &symkey::generate_key();
     let docs = OnDiskDocuments::from(config);
@@ -43,8 +42,8 @@ fn insert_get() {
     assert_eq!(result, document);
 }
 
-#[test]
-fn insert_get_different_hmac() {
+#[tokio::test]
+async fn insert_get_different_hmac() {
     let config = &test_config();
     let docs = OnDiskDocuments::from(config);
     let key = &symkey::generate_key();
@@ -73,8 +72,8 @@ fn insert_get_different_hmac() {
     assert_eq!(result, None);
 }
 
-#[test]
-fn insert_get_overwrite_different_source() {
+#[tokio::test]
+async fn insert_get_overwrite_different_source() {
     let config = &test_config();
     let key = &symkey::generate_key();
     let docs = OnDiskDocuments::from(config);
@@ -92,8 +91,8 @@ fn insert_get_overwrite_different_source() {
     assert_eq!(result, document);
 }
 
-#[test]
-fn insert_get_all() {
+#[tokio::test]
+async fn insert_get_all() {
     let config = &test_config();
     let key = &symkey::generate_key();
     let docs = OnDiskDocuments::from(config);
@@ -135,8 +134,8 @@ fn insert_get_all() {
     assert_eq!(result, expectation);
 }
 
-#[test]
-fn insert_delete() {
+#[tokio::test]
+async fn insert_delete() {
     let config = &test_config();
     let key = &symkey::generate_key();
     let docs = OnDiskDocuments::from(config);

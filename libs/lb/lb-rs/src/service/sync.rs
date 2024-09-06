@@ -22,7 +22,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 pub struct SyncContext {
-    progress: Option<Box<dyn Fn(SyncProgress)>>,
+    progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     current: usize,
     total: usize,
 
@@ -69,7 +69,8 @@ impl Lb {
         work_units.extend(locally_dirty.chain(remote_dirty));
         Ok(SyncStatus { work_units, latest_server_ts })
     }
-    pub async fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> LbResult<SyncStatus> {
+
+    pub async fn sync(&self, f: Option<Box<dyn Fn(SyncProgress) + Send>>) -> LbResult<SyncStatus> {
         let mut ctx = self.setup_sync(f).await?;
 
         let mut pipeline: LbResult<()> = async {
@@ -99,7 +100,7 @@ impl Lb {
     }
 
     async fn setup_sync(
-        &self, progress: Option<Box<dyn Fn(SyncProgress)>>,
+        &self, progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     ) -> LbResult<SyncContext> {
         let tx = self.ro_tx().await;
         let db = tx.db();
