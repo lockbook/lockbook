@@ -2,12 +2,12 @@
 #[cfg(test)]
 mod ip_tests {
     use lb_rs::model::errors::CoreError;
-    use lb_rs::service::api_service::no_network::{CoreIP, InProcess};
+    use lb_rs::service::network::no_network::{CoreIP, InProcess};
     use std::default::Default;
     use test_utils::test_config;
     use test_utils::*;
 
-    #[test]
+    #[tokio::test]
     fn with_init_username_taken() {
         let server = InProcess::init(test_config(), Default::default());
         let core1 = CoreIP::init_in_process(&test_config(), server.clone());
@@ -23,7 +23,7 @@ mod ip_tests {
         );
     }
 
-    #[test]
+    #[tokio::test]
     fn create_sync_compare() {
         let server = InProcess::init(test_config(), Default::default());
         let core1 = CoreIP::init_in_process(&test_config(), server.clone());
@@ -47,7 +47,7 @@ mod ip_tests {
         assert!(dbs_equal(&core1, &core2));
     }
 
-    #[test]
+    #[tokio::test]
     fn sync_and_check() {
         loop {
             let server = InProcess::init(test_config(), Default::default());
