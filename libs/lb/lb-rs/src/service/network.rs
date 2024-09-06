@@ -38,9 +38,9 @@ pub enum ApiError<E> {
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct Network {
-    pub(crate) client: Client,
-    pub(crate) get_code_version: fn() -> &'static str,
-    pub(crate) get_time: fn() -> Timestamp,
+    pub client: Client,
+    pub get_code_version: fn() -> &'static str,
+    pub get_time: fn() -> Timestamp,
 }
 
 impl Default for Network {
