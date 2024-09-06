@@ -10,7 +10,7 @@ use uuid::Uuid;
 use super::activity;
 
 impl Lb {
-    pub(crate) async fn read_document(&mut self, id: Uuid) -> LbResult<DecryptedDocument> {
+    pub async fn read_document(&self, id: Uuid) -> LbResult<DecryptedDocument> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 

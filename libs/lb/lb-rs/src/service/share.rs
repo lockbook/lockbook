@@ -83,4 +83,9 @@ impl Lb {
         tree.delete_share(id, maybe_encrypted_for, account)?;
         Ok(())
     }
+
+    pub async fn reject_share(&self, id: &Uuid) -> Result<(), LbError> {
+        let pk = self.get_account()?.public_key();
+        self.delete_share(id, Some(pk)).await
+    }
 }

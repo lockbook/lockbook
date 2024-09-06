@@ -37,7 +37,7 @@ pub struct SyncContext {
 
 impl Lb {
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub async fn calculate_work(&mut self) -> LbResult<SyncStatus> {
+    pub async fn calculate_work(&self) -> LbResult<SyncStatus> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 

@@ -50,7 +50,7 @@ impl Default for Network {
 }
 
 impl Network {
-    pub(crate) async fn request<T: Request>(
+    pub async fn request<T: Request>(
         &self, account: &Account, request: T,
     ) -> Result<T::Response, ApiError<T::Error>> {
         let signed_request =

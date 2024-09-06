@@ -29,14 +29,14 @@ impl Lb {
         let id =
             tree.create(Uuid::new_v4(), symkey::generate_key(), parent, name, file_type, account)?;
 
-        let ui_file = tree.decrypt(account, &id, &mut db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(account, &id, &db.pub_key_lookup)?;
 
         info!("created {:?} with id {id}", file_type);
 
         Ok(ui_file)
     }
 
-    pub async fn rename_file(&mut self, id: &Uuid, new_name: &str) -> LbResult<()> {
+    pub async fn rename_file(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
@@ -55,7 +55,7 @@ impl Lb {
         Ok(())
     }
 
-    pub async fn move_file(&mut self, id: &Uuid, new_parent: &Uuid) -> LbResult<()> {
+    pub async fn move_file(&self, id: &Uuid, new_parent: &Uuid) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
@@ -71,7 +71,7 @@ impl Lb {
         Ok(())
     }
 
-    pub async fn delete(&mut self, id: &Uuid) -> LbResult<()> {
+    pub async fn delete(&self, id: &Uuid) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 

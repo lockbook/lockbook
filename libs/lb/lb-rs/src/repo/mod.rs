@@ -42,7 +42,7 @@ impl<'a> LbRO<'a> {
     }
 }
 
-pub(crate) struct LbTx<'a> {
+pub struct LbTx<'a> {
     guard: RwLockWriteGuard<'a, CoreDb>,
     tx: TxHandle,
 }
@@ -58,13 +58,13 @@ impl<'a> LbTx<'a> {
 }
 
 impl Lb {
-    pub(crate) async fn ro_tx<'a>(&'a self) -> LbRO<'a> {
+    pub(crate) async fn ro_tx(&self) -> LbRO<'_> {
         let guard = self.db.read().await;
 
         LbRO { guard }
     }
 
-    pub(crate) async fn begin_tx<'a>(&'a self) -> LbTx<'a> {
+    pub async fn begin_tx(&self) -> LbTx<'_> {
         let mut guard = self.db.write().await;
         let tx = guard.begin_transaction().unwrap();
 
