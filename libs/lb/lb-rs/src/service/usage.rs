@@ -1,7 +1,7 @@
-use crate::logic::api::{FileUsage, GetUsageResponse};
+use crate::logic::api::{FileUsage, GetUsageRequest};
 use crate::logic::file_like::FileLike;
 use crate::logic::tree_like::TreeLike;
-use crate::logic::usage::bytes_to_human;
+use crate::logic::usage::{bytes_to_human, get_usage};
 use crate::model::errors::LbResult;
 use crate::Lb;
 use serde::Serialize;
@@ -22,18 +22,10 @@ pub struct UsageItemMetric {
 }
 
 impl Lb {
-    pub fn get_usage(&self, server_usage_and_cap: GetUsageResponse) -> LbResult<UsageMetrics> {
-        let server_usage = server_usage_and_cap.sum_server_usage();
-        let cap = server_usage_and_cap.cap;
-
-        let readable_usage = bytes_to_human(server_usage);
-        let readable_cap = bytes_to_human(cap);
-
-        Ok(UsageMetrics {
-            usages: server_usage_and_cap.usages,
-            server_usage: UsageItemMetric { exact: server_usage, readable: readable_usage },
-            data_cap: UsageItemMetric { exact: cap, readable: readable_cap },
-        })
+    pub async fn get_usage(&self) -> LbResult<UsageMetrics> {
+        let acc = self.get_account()?;
+        let usage = self.client.request(&acc, GetUsageRequest {}).await?;
+        Ok(get_usage(usage))
     }
 
     pub async fn get_uncompressed_usage_breakdown(&mut self) -> LbResult<HashMap<Uuid, usize>> {
