@@ -1,12 +1,11 @@
 use crate::{get_dirty_ids, slices_equal_ignore_order, test_core_from};
 use lb_rs::logic::api::GetUpdatesRequest;
 use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::file_metadata::FileType;
+use lb_rs::logic::file_metadata::{FileType, Owner};
 use lb_rs::logic::path_ops::Filter::DocumentsOnly;
 use lb_rs::logic::staged::StagedTreeLikeMut;
 use lb_rs::logic::tree_like::TreeLike;
-use lb_rs::service::api_service::Requester;
-use lb_rs::Core;
+use lb_rs::Lb;
 use uuid::Uuid;
 
 #[macro_export]
@@ -21,37 +20,34 @@ macro_rules! assert_matches (
     }
 );
 
-pub fn cores_equal(left: &Core, right: &Core) {
+pub async fn cores_equal(left: &Lb, right: &Lb) {
     assert_eq!(&left.get_account().unwrap(), &right.get_account().unwrap());
-    assert_eq!(&left.get_root().unwrap(), &right.get_root().unwrap());
-    assert_eq!(
-        &left
-            .in_tx(|s| Ok(s.db.local_metadata.get().clone()))
-            .unwrap(),
-        &right
-            .in_tx(|s| Ok(s.db.local_metadata.get().clone()))
-            .unwrap()
-    );
-    assert_eq!(
-        &left
-            .in_tx(|s| Ok(s.db.base_metadata.get().clone()))
-            .unwrap(),
-        &right
-            .in_tx(|s| Ok(s.db.base_metadata.get().clone()))
-            .unwrap()
-    );
+    assert_eq!(&left.root().await.unwrap(), &right.root().await.unwrap());
+
+    let mut left_tx = left.begin_tx().await;
+    let mut right_tx = right.begin_tx().await;
+
+    assert_eq!(&left_tx.db().local_metadata.get(), &right_tx.db().local_metadata.get());
+    assert_eq!(&left_tx.db().base_metadata.get(), &right_tx.db().base_metadata.get());
 }
 
-pub fn new_synced_client_core_equal(core: &Core) {
-    let new_client = test_core_from(core);
-    new_client.validate().unwrap();
-    cores_equal(core, &new_client);
+pub async fn new_synced_client_core_equal(lb: &Lb) {
+    let new_client = test_core_from(lb).await;
+
+    let mut tx = lb.begin_tx().await;
+    let db = tx.db();
+
+    let account = db.account.get().unwrap().clone();
+    let mut local = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
+    local.validate(Owner(account.public_key())).unwrap();
+    cores_equal(lb, &new_client).await;
 }
 
-pub fn all_ids(core: &Core, expected_ids: &[Uuid]) {
+pub async fn all_ids(core: &Lb, expected_ids: &[Uuid]) {
     let mut expected_ids: Vec<Uuid> = expected_ids.to_vec();
     let mut actual_ids: Vec<Uuid> = core
         .list_metadatas()
+        .await
         .unwrap()
         .iter()
         .map(|f| f.id)
@@ -67,10 +63,11 @@ pub fn all_ids(core: &Core, expected_ids: &[Uuid]) {
     }
 }
 
-pub fn all_children_ids(core: &Core, id: Uuid, expected_ids: &[Uuid]) {
+pub async fn all_children_ids(core: &Lb, id: &Uuid, expected_ids: &[Uuid]) {
     let mut expected_ids: Vec<Uuid> = expected_ids.to_vec();
     let mut actual_ids: Vec<Uuid> = core
         .get_children(id)
+        .await
         .unwrap()
         .iter()
         .map(|f| f.id)
@@ -86,10 +83,11 @@ pub fn all_children_ids(core: &Core, id: Uuid, expected_ids: &[Uuid]) {
     }
 }
 
-pub fn all_recursive_children_ids(core: &Core, id: Uuid, expected_ids: &[Uuid]) {
+pub async fn all_recursive_children_ids(core: &Lb, id: Uuid, expected_ids: &[Uuid]) {
     let mut expected_ids: Vec<Uuid> = expected_ids.to_vec();
     let mut actual_ids: Vec<Uuid> = core
-        .get_and_get_children_recursively(id)
+        .get_and_get_children_recursively(&id)
+        .await
         .unwrap()
         .iter()
         .map(|f| f.id)
@@ -105,12 +103,12 @@ pub fn all_recursive_children_ids(core: &Core, id: Uuid, expected_ids: &[Uuid]) 
     }
 }
 
-pub fn all_paths(core: &Core, expected_paths: &[&str]) {
+pub async fn all_paths(core: &Lb, expected_paths: &[&str]) {
     let mut expected_paths: Vec<String> = expected_paths
         .iter()
         .map(|&path| String::from(path))
         .collect();
-    let mut actual_paths: Vec<String> = core.list_paths(None).unwrap();
+    let mut actual_paths: Vec<String> = core.list_paths(None).await.unwrap();
 
     actual_paths.sort();
     expected_paths.sort();
@@ -122,17 +120,20 @@ pub fn all_paths(core: &Core, expected_paths: &[&str]) {
     }
 }
 
-pub fn all_document_contents(db: &Core, expected_contents_by_path: &[(&str, &[u8])]) {
+pub async fn all_document_contents(db: &Lb, expected_contents_by_path: &[(&str, &[u8])]) {
     let expected_contents_by_path = expected_contents_by_path
         .iter()
         .map(|&(path, contents)| (path.to_string(), contents.to_vec()))
         .collect::<Vec<(String, Vec<u8>)>>();
-    let actual_contents_by_path = db
-        .list_paths(Some(DocumentsOnly))
-        .unwrap()
-        .iter()
-        .map(|path| (path.clone(), db.read_document(db.get_by_path(path).unwrap().id).unwrap()))
-        .collect::<Vec<(String, Vec<u8>)>>();
+    let actual_contents_by_path = {
+        let paths = db.list_paths(Some(DocumentsOnly)).await.unwrap();
+        let mut this = Vec::new();
+        for path in paths {
+            let doc = db.get_by_path(&path).await.unwrap();
+            this.push((path.clone(), db.read_document(doc.id).await.unwrap()));
+        }
+        this
+    };
     if !slices_equal_ignore_order(&actual_contents_by_path, &expected_contents_by_path) {
         panic!(
             "document contents did not match expectation. expected={:?}; actual={:?}",
@@ -148,7 +149,7 @@ pub fn all_document_contents(db: &Core, expected_contents_by_path: &[(&str, &[u8
     }
 }
 
-pub fn all_pending_shares(core: &Core, expected_names: &[&str]) {
+pub async fn all_pending_shares(core: &Lb, expected_names: &[&str]) {
     if expected_names.iter().any(|&path| path.contains('/')) {
         panic!(
             "improper call to assert_all_pending_shares; expected_names must not contain with '/'. expected_names={:?}",
@@ -161,6 +162,7 @@ pub fn all_pending_shares(core: &Core, expected_names: &[&str]) {
         .collect();
     let mut actual_names: Vec<String> = core
         .get_pending_shares()
+        .await
         .unwrap()
         .into_iter()
         .map(|f| f.name)
@@ -175,26 +177,25 @@ pub fn all_pending_shares(core: &Core, expected_names: &[&str]) {
     }
 }
 
-pub fn local_work_paths(db: &Core, expected_paths: &[&'static str]) {
-    let dirty = get_dirty_ids(db, false);
-
+pub async fn local_work_paths(lb: &mut Lb, expected_paths: &[&'static str]) {
+    let dirty = get_dirty_ids(lb, false).await;
     let mut expected_paths = expected_paths.to_vec();
-    let mut actual_paths = db
-        .in_tx(|s| {
-            let account = s.db.account.get().unwrap();
-            let mut local = s.db.base_metadata.stage(&mut s.db.local_metadata).to_lazy();
-            Ok(dirty
-                .iter()
-                .filter(|id| !local.find(id).unwrap().is_link())
-                .collect::<Vec<_>>()
-                .iter()
-                .filter(|id| !local.in_pending_share(id).unwrap())
-                .collect::<Vec<_>>()
-                .iter()
-                .map(|id| local.id_to_path(id, account))
-                .collect::<Result<Vec<String>, _>>()
-                .unwrap())
-        })
+
+    let mut tx = lb.begin_tx().await;
+    let db = tx.db();
+
+    let account = db.account.get().unwrap().clone();
+    let mut local = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
+    let mut actual_paths = dirty
+        .iter()
+        .filter(|id| !local.find(id).unwrap().is_link())
+        .collect::<Vec<_>>()
+        .iter()
+        .filter(|id| !local.in_pending_share(id).unwrap())
+        .collect::<Vec<_>>()
+        .iter()
+        .map(|id| local.id_to_path(id, &account))
+        .collect::<Result<Vec<String>, _>>()
         .unwrap();
     actual_paths.sort_unstable();
     expected_paths.sort_unstable();
@@ -206,43 +207,43 @@ pub fn local_work_paths(db: &Core, expected_paths: &[&'static str]) {
     }
 }
 
-pub fn server_work_paths(core: &Core, expected_paths: &[&'static str]) {
+pub async fn server_work_paths(core: &Lb, expected_paths: &[&'static str]) {
     let mut expected_paths = expected_paths.to_vec();
-    let mut actual_paths = core
-        .in_tx(|s| {
-            let account = s.db.account.get().unwrap();
-            let remote_changes = s
-                .client
-                .request(
-                    account,
-                    GetUpdatesRequest {
-                        since_metadata_version: s.db.last_synced.get().copied().unwrap_or_default()
-                            as u64,
-                    },
-                )
-                .unwrap()
-                .file_metadata;
-            let mut remote =
-                s.db.base_metadata
-                    .stage(remote_changes)
-                    .pruned()
-                    .unwrap()
-                    .to_lazy();
-            Ok(remote
-                .tree
-                .staged
-                .owned_ids()
-                .iter()
-                .filter(|id| !matches!(remote.find(id).unwrap().file_type(), FileType::Link { .. }))
-                .collect::<Vec<_>>()
-                .iter()
-                .filter(|id| !remote.in_pending_share(id).unwrap())
-                .collect::<Vec<_>>()
-                .iter()
-                .map(|id| remote.id_to_path(id, account))
-                .collect::<Result<Vec<String>, _>>()
-                .unwrap())
-        })
+
+    let mut tx = core.begin_tx().await;
+    let db = tx.db();
+
+    let account = db.account.get().unwrap();
+    let remote_changes = core
+        .client
+        .request(
+            account,
+            GetUpdatesRequest {
+                since_metadata_version: db.last_synced.get().copied().unwrap_or_default() as u64,
+            },
+        )
+        .await
+        .unwrap()
+        .file_metadata;
+    let mut remote = db
+        .base_metadata
+        .stage(remote_changes)
+        .pruned()
+        .unwrap()
+        .to_lazy();
+    let mut actual_paths = remote
+        .tree
+        .staged
+        .owned_ids()
+        .iter()
+        .filter(|id| !matches!(remote.find(id).unwrap().file_type(), FileType::Link { .. }))
+        .collect::<Vec<_>>()
+        .iter()
+        .filter(|id| !remote.in_pending_share(id).unwrap())
+        .collect::<Vec<_>>()
+        .iter()
+        .map(|id| remote.id_to_path(id, account))
+        .collect::<Result<Vec<String>, _>>()
         .unwrap();
     actual_paths.sort_unstable();
     expected_paths.sort_unstable();
@@ -254,7 +255,7 @@ pub fn server_work_paths(core: &Core, expected_paths: &[&'static str]) {
     }
 }
 
-pub fn deleted_files_pruned(_: &Core) {
+pub fn deleted_files_pruned(_: &Lb) {
     // todo: unskip
     // core.db
     //     .transaction(|tx| {
