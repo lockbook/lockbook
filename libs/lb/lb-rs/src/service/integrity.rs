@@ -11,7 +11,7 @@ const UTF8_SUFFIXES: [&str; 12] =
     ["md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs"];
 
 impl Lb {
-    pub(crate) async fn test_repo_integrity(&self) -> Result<Vec<Warning>, TestRepoError> {
+    pub async fn test_repo_integrity(&self) -> Result<Vec<Warning>, TestRepoError> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
