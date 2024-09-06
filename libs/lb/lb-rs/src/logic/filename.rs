@@ -129,10 +129,7 @@ impl NameComponents {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::{
-        logic::{file::File, filename::NameComponents},
-        FileType,
-    };
+    use crate::logic::{file::File, file_metadata::FileType, filename::NameComponents};
 
     fn from_components(
         name: &str, variant: Option<usize>, extension: Option<&str>,
