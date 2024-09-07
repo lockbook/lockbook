@@ -861,6 +861,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bip39-dict"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29f1d227703899f704884cb6dfe1dc6a1bd447ea9f91418539989618ebf01685"
+dependencies = [
+ "cryptoxide",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1716,6 +1725,12 @@ dependencies = [
  "generic-array",
  "subtle",
 ]
+
+[[package]]
+name = "cryptoxide"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "382ce8820a5bb815055d3553a610e8cb542b2d767bbacea99038afda96cd760d"
 
 [[package]]
 name = "ctr"
@@ -3872,6 +3887,7 @@ dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
  "bincode",
+ "bip39-dict",
  "chrono",
  "criterion",
  "crossbeam",

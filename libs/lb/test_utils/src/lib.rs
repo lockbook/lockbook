@@ -27,9 +27,9 @@ pub fn test_core() -> Core {
 }
 
 pub fn test_core_from(core: &Core) -> Core {
-    let account_string = core.export_account().unwrap();
+    let account_string = core.export_account_private_key().unwrap();
     let core = test_core();
-    core.import_account(&account_string).unwrap();
+    core.import_account(&account_string, Some(&url())).unwrap();
     core.sync(None).unwrap();
     core
 }
@@ -74,9 +74,11 @@ pub fn rename_path(c: &Core, path: &str, new_name: &str) -> Result<(), String> {
 }
 
 pub fn another_client(c: &Core) -> Core {
-    let account_string = c.export_account().unwrap();
+    let account_string = c.export_account_private_key().unwrap();
     let new_core = test_core();
-    new_core.import_account(&account_string).unwrap();
+    new_core
+        .import_account(&account_string, Some(&url()))
+        .unwrap();
     new_core
 }
 

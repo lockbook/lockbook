@@ -19,7 +19,7 @@ fn test_sync_concurrently() {
     let core1 = Core::init(&test_config()).unwrap();
     let core2 = core1.clone();
     core1
-        .import_account(&core.export_account().unwrap())
+        .import_account(&core.export_account_private_key().unwrap(), None)
         .unwrap();
     let th1 = thread::spawn(move || {
         println!("in th1");

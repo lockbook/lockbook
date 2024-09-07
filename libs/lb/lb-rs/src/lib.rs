@@ -161,12 +161,13 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn import_account(&self, account_string: &str) -> LbResult<Account> {
-        self.in_tx(|s| s.import_account(account_string))
+    pub fn import_account(&self, key: &str, api_url: Option<&str>) -> LbResult<Account> {
+        self.in_tx(|s| s.import_account(key, api_url))
             .expected_errs(&[
                 CoreError::AccountExists,
                 CoreError::AccountNonexistent,
                 CoreError::AccountStringCorrupted,
+                CoreError::KeyPhraseInvalid,
                 CoreError::UsernamePublicKeyMismatch,
                 CoreError::ServerUnreachable,
                 CoreError::ClientUpdateRequired,
@@ -174,8 +175,14 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn export_account(&self) -> Result<String, LbError> {
-        self.in_tx(|s| s.export_account())
+    pub fn export_account_private_key(&self) -> Result<String, LbError> {
+        self.in_tx(|s| s.export_account_private_key_v1())
+            .expected_errs(&[CoreError::AccountNonexistent])
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn export_account_phrase(&self) -> Result<String, LbError> {
+        self.in_tx(|s| s.export_account_phrase())
             .expected_errs(&[CoreError::AccountNonexistent])
     }
 
