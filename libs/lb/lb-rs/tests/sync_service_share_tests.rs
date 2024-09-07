@@ -1,553 +1,648 @@
 use lb_rs::logic::file::ShareMode;
-use lb_rs::{Core, CoreError};
+use lb_rs::model::errors::CoreError;
+use lb_rs::Lb;
 use test_utils::*;
 
 /// Tests that setup one device each on two accounts, share a file from one to the other, sync both, then accept
 
-fn assert_stuff(c1: &Core, c2: &Core) {
+async fn assert_stuff(c1: &Lb, c2: &Lb) {
     for c in [c1, c2] {
-        c.validate().unwrap();
-        assert::local_work_paths(c, &[]);
-        assert::server_work_paths(c, &[]);
+        c.test_repo_integrity().await.unwrap();
+        assert::local_work_paths(c, &[]).await;
+        assert::server_work_paths(c, &[]).await;
         assert::deleted_files_pruned(c);
     }
-    assert::all_pending_shares(c2, &[]);
+    assert::all_pending_shares(c2, &[]).await;
 }
 
-#[test]
-fn new_file() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn new_file() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let document = cores[0].create_at_path("document").unwrap();
+    let document = cores[0].create_at_path("document").await.unwrap();
     cores[0]
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
-    let shares = cores[1].get_pending_shares().unwrap();
-    cores[1].create_link_at_path("link", shares[0].id).unwrap();
+    cores[1].sync(None).await.unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    cores[1]
+        .create_link_at_path("link", shares[0].id)
+        .await
+        .unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
-    assert::all_paths(&cores[1], &["/", "/link"]);
+    assert_stuff(&cores[0], &cores[1]).await;
+    assert::all_paths(&cores[1], &["/", "/link"]).await;
 }
 
-#[test]
-fn new_files() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn new_files() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let a = cores[0].create_at_path("a/").unwrap();
-    cores[0].create_at_path("a/x/x").unwrap();
-    let e = cores[0].create_at_path("e/").unwrap();
-    cores[0].create_at_path("e/x/x").unwrap();
+    let a = cores[0].create_at_path("a/").await.unwrap();
+    cores[0].create_at_path("a/x/x").await.unwrap();
+    let e = cores[0].create_at_path("e/").await.unwrap();
+    cores[0].create_at_path("e/x/x").await.unwrap();
     cores[0]
         .share_file(a.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
     cores[0]
         .share_file(e.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
-    let shares = cores[1].get_pending_shares().unwrap();
-    cores[1].create_link_at_path("link1", shares[0].id).unwrap();
-    cores[1].create_link_at_path("link2", shares[1].id).unwrap();
+    cores[1].sync(None).await.unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    cores[1]
+        .create_link_at_path("link1", shares[0].id)
+        .await
+        .unwrap();
+    cores[1]
+        .create_link_at_path("link2", shares[1].id)
+        .await
+        .unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
+    assert_stuff(&cores[0], &cores[1]).await;
     assert::all_paths(
         &cores[1],
         &["/", "/link1/", "/link1/x/", "/link1/x/x", "/link2/", "/link2/x/", "/link2/x/x"],
-    );
+    )
+    .await;
 }
 
-#[test]
-fn move_file_a() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn move_file_a() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let folder = cores[0].create_at_path("folder/").unwrap();
+    let folder = cores[0].create_at_path("folder/").await.unwrap();
     cores[0]
         .share_file(folder.id, &accounts[1].username, ShareMode::Read)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
-    let shares = cores[1].get_pending_shares().unwrap();
-    cores[1].create_link_at_path("link", shares[0].id).unwrap();
+    cores[1].sync(None).await.unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    cores[1]
+        .create_link_at_path("link", shares[0].id)
+        .await
+        .unwrap();
 
-    let document = cores[0].create_at_path("document").unwrap();
-    cores[0].sync(None).unwrap();
-    cores[0].move_file(document.id, folder.id).unwrap();
-    cores[0].sync(None).unwrap();
+    let document = cores[0].create_at_path("document").await.unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[0].move_file(&document.id, &folder.id).await.unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
-    assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]);
+    assert_stuff(&cores[0], &cores[1]).await;
+    assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]).await;
 }
 
-#[test]
-fn create_file_in_shared_folder() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn create_file_in_shared_folder() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
-    let folder = cores[0].create_at_path("folder/").unwrap();
+    let folder = cores[0].create_at_path("folder/").await.unwrap();
     cores[0]
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
-    let shares = cores[1].get_pending_shares().unwrap();
-    cores[1].create_link_at_path("link", shares[0].id).unwrap();
-    let _document = cores[1].create_at_path("/link/document").unwrap();
-    cores[1].sync(None).unwrap();
-    cores[0].sync(None).unwrap();
-    assert::all_paths(&cores[0], &["/", "/folder/", "/folder/document"]);
-    assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]);
+    cores[1].sync(None).await.unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    cores[1]
+        .create_link_at_path("link", shares[0].id)
+        .await
+        .unwrap();
+    let _document = cores[1].create_at_path("/link/document").await.unwrap();
+    cores[1].sync(None).await.unwrap();
+    cores[0].sync(None).await.unwrap();
+    assert::all_paths(&cores[0], &["/", "/folder/", "/folder/document"]).await;
+    assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]).await;
 }
 
-#[test]
-fn move_file_b() {
-    let cores = [test_core_with_account(), test_core_with_account()];
-    let accounts = cores
-        .iter()
-        .map(|core| core.get_account().unwrap())
-        .collect::<Vec<_>>();
-
-    let folder = cores[0].create_at_path("folder/").unwrap();
-    cores[0]
-        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
-        .unwrap();
-    cores[0].sync(None).unwrap();
-
-    cores[1].sync(None).unwrap();
-    let shares = cores[1].get_pending_shares().unwrap();
-    cores[1].create_link_at_path("link", shares[0].id).unwrap();
-    let document = cores[1].create_at_path("document").unwrap();
-    cores[1].move_file(document.id, folder.id).unwrap();
-    cores[1].sync(None).unwrap();
-
-    cores[0].sync(None).unwrap();
-
-    assert_stuff(&cores[0], &cores[1]);
-    assert::all_paths(&cores[0], &["/", "/folder/", "/folder/document"]);
-    assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]);
-}
-
-#[test]
-fn move_file_with_child() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn move_file_b() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let folder = cores[0].create_at_path("folder/").unwrap();
+    let folder = cores[0].create_at_path("folder/").await.unwrap();
     cores[0]
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
-    let shares = cores[1].get_pending_shares().unwrap();
-    cores[1].create_link_at_path("link", shares[0].id).unwrap();
-    let folder2 = cores[1].create_at_path("folder2/").unwrap();
-    let document = cores[1].create_at_path("folder2/document").unwrap();
+    cores[1].sync(None).await.unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    cores[1]
+        .create_link_at_path("link", shares[0].id)
+        .await
+        .unwrap();
+    let document = cores[1].create_at_path("document").await.unwrap();
+    cores[1].move_file(&document.id, &folder.id).await.unwrap();
+    cores[1].sync(None).await.unwrap();
+
+    cores[0].sync(None).await.unwrap();
+
+    assert_stuff(&cores[0], &cores[1]).await;
+    assert::all_paths(&cores[0], &["/", "/folder/", "/folder/document"]).await;
+    assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]).await;
+}
+
+#[tokio::test]
+async fn move_file_with_child() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("folder/").await.unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .await
+        .unwrap();
+    cores[0].sync(None).await.unwrap();
+
+    cores[1].sync(None).await.unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    cores[1]
+        .create_link_at_path("link", shares[0].id)
+        .await
+        .unwrap();
+    let folder2 = cores[1].create_at_path("folder2/").await.unwrap();
+    let document = cores[1].create_at_path("folder2/document").await.unwrap();
     cores[1]
         .write_document(document.id, b"document content")
+        .await
         .unwrap();
-    cores[1].move_file(folder2.id, folder.id).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[1].move_file(&folder2.id, &folder.id).await.unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
+    assert_stuff(&cores[0], &cores[1]).await;
     assert::all_paths(
         &cores[0],
         &["/", "/folder/", "/folder/folder2/", "/folder/folder2/document"],
-    );
-    assert::all_paths(&cores[1], &["/", "/link/", "/link/folder2/", "/link/folder2/document"]);
-    assert::all_document_contents(&cores[0], &[("/folder/folder2/document", b"document content")]);
-    assert::all_document_contents(&cores[1], &[("/link/folder2/document", b"document content")]);
+    )
+    .await;
+    assert::all_paths(&cores[1], &["/", "/link/", "/link/folder2/", "/link/folder2/document"])
+        .await;
+    assert::all_document_contents(&cores[0], &[("/folder/folder2/document", b"document content")])
+        .await;
+    assert::all_document_contents(&cores[1], &[("/link/folder2/document", b"document content")])
+        .await;
 }
 
-#[test]
-fn delete_accepted_share() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn delete_accepted_share() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let folder = cores[0].create_at_path("folder/").unwrap();
+    let folder = cores[0].create_at_path("folder/").await.unwrap();
     cores[0]
         .share_file(folder.id, &accounts[1].username, ShareMode::Read)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
-    let shares = cores[1].get_pending_shares().unwrap();
-    cores[1].create_link_at_path("link", shares[0].id).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    cores[1]
+        .create_link_at_path("link", shares[0].id)
+        .await
+        .unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    cores[1].delete_pending_share(folder.id).unwrap();
-    cores[1].sync(None).unwrap(); // this succeeds...
-    cores[1].sync(None).unwrap(); // ...and this fails (before being fixed)
-    cores[0].sync(None).unwrap();
+    cores[1].reject_share(&folder.id).await.unwrap();
+    cores[1].sync(None).await.unwrap(); // this succeeds...
+    cores[1].sync(None).await.unwrap(); // ...and this fails (before being fixed)
+    cores[0].sync(None).await.unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
-    assert::all_paths(&cores[1], &["/"]);
+    assert_stuff(&cores[0], &cores[1]).await;
+    assert::all_paths(&cores[1], &["/"]).await;
 }
 
-#[test]
-fn synced_files() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn synced_files() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let a = cores[0].create_at_path("a/").unwrap();
-    let axx = cores[0].create_at_path("a/x/x").unwrap();
-    let e = cores[0].create_at_path("e/").unwrap();
-    cores[0].create_at_path("e/x/x").unwrap();
+    let a = cores[0].create_at_path("a/").await.unwrap();
+    let axx = cores[0].create_at_path("a/x/x").await.unwrap();
+    let e = cores[0].create_at_path("e/").await.unwrap();
+    cores[0].create_at_path("e/x/x").await.unwrap();
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
 
     cores[0]
         .share_file(a.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
     cores[0]
         .share_file(e.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
-    let shares = cores[1].get_pending_shares().unwrap();
-    cores[1].create_link_at_path("link1", shares[0].id).unwrap();
-    cores[1].create_link_at_path("link2", shares[1].id).unwrap();
+    cores[1].sync(None).await.unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    cores[1]
+        .create_link_at_path("link1", shares[0].id)
+        .await
+        .unwrap();
+    cores[1]
+        .create_link_at_path("link2", shares[1].id)
+        .await
+        .unwrap();
 
     cores[0]
         .write_document(axx.id, b"document content")
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
+    assert_stuff(&cores[0], &cores[1]).await;
     assert::all_paths(
         &cores[1],
         &["/", "/link1/", "/link1/x/", "/link1/x/x", "/link2/", "/link2/x/", "/link2/x/x"],
-    );
+    )
+    .await;
 }
 
-#[test]
-fn synced_files_edit_after_share() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn synced_files_edit_after_share() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let a = cores[0].create_at_path("a/").unwrap();
-    let axx = cores[0].create_at_path("a/x/x").unwrap();
-    let e = cores[0].create_at_path("e/").unwrap();
-    cores[0].create_at_path("e/x/x").unwrap();
+    let a = cores[0].create_at_path("a/").await.unwrap();
+    let axx = cores[0].create_at_path("a/x/x").await.unwrap();
+    let e = cores[0].create_at_path("e/").await.unwrap();
+    cores[0].create_at_path("e/x/x").await.unwrap();
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
 
     cores[0]
         .share_file(a.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
     cores[0]
         .share_file(e.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
-    let shares = cores[1].get_pending_shares().unwrap();
-    cores[1].create_link_at_path("link1", shares[0].id).unwrap();
-    cores[1].create_link_at_path("link2", shares[1].id).unwrap();
+    cores[1].sync(None).await.unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    cores[1]
+        .create_link_at_path("link1", shares[0].id)
+        .await
+        .unwrap();
+    cores[1]
+        .create_link_at_path("link2", shares[1].id)
+        .await
+        .unwrap();
 
     cores[0]
         .write_document(axx.id, b"document content")
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
+    assert_stuff(&cores[0], &cores[1]).await;
     assert::all_paths(
         &cores[1],
         &["/", "/link1/", "/link1/x/", "/link1/x/x", "/link2/", "/link2/x/", "/link2/x/x"],
-    );
+    )
+    .await;
 }
 
-#[test]
-fn edited_document() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn edited_document() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let document = cores[0].create_at_path("document").unwrap();
+    let document = cores[0].create_at_path("document").await.unwrap();
     cores[0]
         .write_document(document.id, b"document content")
+        .await
         .unwrap();
     cores[0]
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
-    let shares = cores[1].get_pending_shares().unwrap();
-    cores[1].create_link_at_path("link", shares[0].id).unwrap();
+    cores[1].sync(None).await.unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    cores[1]
+        .create_link_at_path("link", shares[0].id)
+        .await
+        .unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
-    assert::all_paths(&cores[1], &["/", "/link"]);
-    assert::all_document_contents(&cores[1], &[("/link", b"document content")]);
+    assert_stuff(&cores[0], &cores[1]).await;
+    assert::all_paths(&cores[1], &["/", "/link"]).await;
+    assert::all_document_contents(&cores[1], &[("/link", b"document content")]).await;
 }
 
-#[test]
-fn move_existing_edited_document_into_shared_folder() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn move_existing_edited_document_into_shared_folder() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let folder = cores[0].create_at_path("folder/").unwrap();
+    let folder = cores[0].create_at_path("folder/").await.unwrap();
     cores[0]
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    let shares = cores[1].get_pending_shares().unwrap();
-    let _link = cores[1].create_link_at_path("link/", shares[0].id).unwrap();
-    let document = cores[1].create_at_path("document").unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    let _link = cores[1]
+        .create_link_at_path("link/", shares[0].id)
+        .await
+        .unwrap();
+    let document = cores[1].create_at_path("document").await.unwrap();
 
-    cores[1].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    cores[1].move_file(document.id, folder.id).unwrap();
+    cores[1].move_file(&document.id, &folder.id).await.unwrap();
     cores[1]
         .write_document(document.id, b"document content")
+        .await
         .unwrap();
 
-    cores[1].sync(None).unwrap();
-    cores[0].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
-    assert::all_paths(&cores[0], &["/", "/folder/", "/folder/document"]);
-    assert::all_document_contents(&cores[0], &[("/folder/document", b"document content")]);
+    assert_stuff(&cores[0], &cores[1]).await;
+    assert::all_paths(&cores[0], &["/", "/folder/", "/folder/document"]).await;
+    assert::all_document_contents(&cores[0], &[("/folder/document", b"document content")]).await;
 }
 
-#[test]
-fn create_link_in_unshared_folder() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn create_link_in_unshared_folder() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let folder = cores[0].create_at_path("folder/").unwrap();
+    let folder = cores[0].create_at_path("folder/").await.unwrap();
     cores[0]
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    let shares = cores[1].get_pending_shares().unwrap();
-    cores[1].delete_pending_share(shares[0].id).unwrap();
-    let document = cores[1].create_at_path("document").unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    cores[1].reject_share(&shares[0].id).await.unwrap();
+    let document = cores[1].create_at_path("document").await.unwrap();
     cores[1]
         .share_file(document.id, &accounts[0].username, ShareMode::Write)
+        .await
         .unwrap();
 
-    cores[1].sync(None).unwrap();
-    cores[0].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    let shares = cores[0].get_pending_shares().unwrap();
+    let shares = cores[0].get_pending_shares().await.unwrap();
     let _link = cores[0]
         .create_link_at_path("folder/link", shares[0].id)
+        .await
         .unwrap();
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
-    assert::all_paths(&cores[0], &["/", "/folder/", "/folder/link"]);
-    assert::all_paths(&cores[1], &["/", "/document"]); // NOTE: fails here; document has vanished because it's path s resolved using a shared link
+    assert_stuff(&cores[0], &cores[1]).await;
+    assert::all_paths(&cores[0], &["/", "/folder/", "/folder/link"]).await;
+    assert::all_paths(&cores[1], &["/", "/document"]).await; // NOTE: fails here; document has vanished because it's path s resolved using a shared lin.awaitk
 }
 
-#[test]
-fn move_file_out_of_shared_folder_and_delete() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn move_file_out_of_shared_folder_and_delete() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
-    let roots = cores
-        .iter()
-        .map(|core| core.get_root().unwrap())
-        .collect::<Vec<_>>();
+    let roots = [cores[0].root().await.unwrap(), cores[1].root().await.unwrap()];
 
-    let folder = cores[0].create_at_path("folder/").unwrap();
-    let document = cores[0].create_at_path("folder/document").unwrap();
+    let folder = cores[0].create_at_path("folder/").await.unwrap();
+    let document = cores[0].create_at_path("folder/document").await.unwrap();
     cores[0]
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    let shares = cores[1].get_pending_shares().unwrap();
-    let _link = cores[1].create_link_at_path("link/", shares[0].id).unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    let _link = cores[1]
+        .create_link_at_path("link/", shares[0].id)
+        .await
+        .unwrap();
 
-    cores[1].sync(None).unwrap();
-    cores[0].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[0].move_file(document.id, roots[0].id).unwrap();
+    cores[0]
+        .move_file(&document.id, &roots[0].id)
+        .await
+        .unwrap();
 
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[0].delete_file(document.id).unwrap();
+    cores[0].delete(&document.id).await.unwrap();
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
-    assert::all_paths(&cores[1], &["/", "/link/"]); // originally, failed here; deletion wasn't synced because file was no longer in user's tree
+    assert_stuff(&cores[0], &cores[1]).await;
+    assert::all_paths(&cores[1], &["/", "/link/"]).await; // originally, failed here; deletion wasn't synced because file was no longer in user's tre.awaite
 }
 
-#[test]
-fn move_file_out_of_shared_folder_and_create_path_conflict() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn move_file_out_of_shared_folder_and_create_path_conflict() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
-    let roots = cores
-        .iter()
-        .map(|core| core.get_root().unwrap())
-        .collect::<Vec<_>>();
+    let roots = [cores[0].root().await.unwrap(), cores[1].root().await.unwrap()];
 
-    let folder = cores[0].create_at_path("folder/").unwrap();
-    let document = cores[0].create_at_path("folder/document").unwrap();
+    let folder = cores[0].create_at_path("folder/").await.unwrap();
+    let document = cores[0].create_at_path("folder/document").await.unwrap();
     cores[0]
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    let shares = cores[1].get_pending_shares().unwrap();
-    let _link = cores[1].create_link_at_path("link/", shares[0].id).unwrap();
+    let shares = cores[1].get_pending_shares().await.unwrap();
+    let _link = cores[1]
+        .create_link_at_path("link/", shares[0].id)
+        .await
+        .unwrap();
 
-    cores[1].sync(None).unwrap();
-    cores[0].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[0].move_file(document.id, roots[0].id).unwrap();
+    cores[0]
+        .move_file(&document.id, &roots[0].id)
+        .await
+        .unwrap();
 
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[0].delete_file(document.id).unwrap();
-    cores[0].create_at_path("/folder/document").unwrap(); // originally, this would conflict with the now-moved document whose move wasn't synced to the other client
+    cores[0].delete(&document.id).await.unwrap();
+    cores[0].create_at_path("/folder/document").await.unwrap(); // originally, this would conflict with the now-moved document whose move wasn't synced to the other client
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
 
     // this call now returns an error, but the code is preserved for the original reproduction of the bug
-    if cores[1].get_file_by_id(document.id).is_ok() {
+    if cores[1].get_file_by_id(document.id).await.is_ok() {
         cores[1]
             .write_document(document.id, b"document content")
+            .await
             .unwrap(); // originally, this would fail with Unexpected("PathTaken")
 
-        cores[1].sync(None).unwrap();
+        cores[1].sync(None).await.unwrap();
 
-        assert_stuff(&cores[0], &cores[1]); // originally, if the test did make it here, validation would fail with a path conflict
+        assert_stuff(&cores[0], &cores[1]).await; // originally, if the test did make it here, validation would fail with a path conflic.awaitt
     }
 }
 
-#[test]
-fn test_share_link_write() {
-    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn test_share_link_write() {
+    let cores = [
+        test_core_with_account().await,
+        test_core_with_account().await,
+        test_core_with_account().await,
+    ];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
-    cores[2].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
+    cores[2].sync(None).await.unwrap();
 
-    let passalong = cores[0].create_at_path("/passalong.md").unwrap();
+    let passalong = cores[0].create_at_path("/passalong.md").await.unwrap();
     cores[0]
         .share_file(passalong.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
-    assert::all_pending_shares(&cores[1], &["passalong.md"]);
+    cores[1].sync(None).await.unwrap();
+    assert::all_pending_shares(&cores[1], &["passalong.md"]).await;
     let link = cores[1]
         .create_link_at_path("/passalong.md", passalong.id)
+        .await
         .unwrap();
-    assert::all_paths(&cores[1], &["/", "/passalong.md"]);
+    assert::all_paths(&cores[1], &["/", "/passalong.md"]).await;
     assert_matches!(
         cores[1]
             .share_file(link.id, &accounts[2].username, ShareMode::Write)
+            .await
             .unwrap_err()
             .kind, // this succeeded and now correctly fails (was sharing link instead of target)
         CoreError::InsufficientPermission
     );
-    cores[1].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    cores[2].sync(None).unwrap(); // this failed with FileNonexistent
+    cores[2].sync(None).await.unwrap(); // this failed with FileNonexistent
 }
 
-#[test]
-fn test_share_link_read() {
-    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn test_share_link_read() {
+    let cores = [
+        test_core_with_account().await,
+        test_core_with_account().await,
+        test_core_with_account().await,
+    ];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
-    cores[2].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
+    cores[2].sync(None).await.unwrap();
 
-    let passalong = cores[0].create_at_path("/passalong.md").unwrap();
+    let passalong = cores[0].create_at_path("/passalong.md").await.unwrap();
     cores[0]
         .share_file(passalong.id, &accounts[1].username, ShareMode::Read)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
-    assert::all_pending_shares(&cores[1], &["passalong.md"]);
+    cores[1].sync(None).await.unwrap();
+    assert::all_pending_shares(&cores[1], &["passalong.md"]).await;
     let link = cores[1]
         .create_link_at_path("/passalong.md", passalong.id)
+        .await
         .unwrap();
-    assert::all_paths(&cores[1], &["/", "/passalong.md"]);
+    assert::all_paths(&cores[1], &["/", "/passalong.md"]).await;
     cores[1]
         .share_file(link.id, &accounts[2].username, ShareMode::Read)
+        .await
         .unwrap();
-    cores[1].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    cores[2].sync(None).unwrap();
+    cores[2].sync(None).await.unwrap();
 }

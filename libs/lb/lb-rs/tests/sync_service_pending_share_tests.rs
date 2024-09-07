@@ -1,85 +1,90 @@
 use lb_rs::logic::file::ShareMode;
-use lb_rs::Core;
+use lb_rs::Lb;
 use test_utils::*;
 
 /// Tests that setup one device each on two accounts, share a file from one to the other, then sync both
 
-fn assert_stuff(c1: &Core, c2: &Core) {
+async fn assert_stuff(c1: &Lb, c2: &Lb) {
     for c in [c1, c2] {
-        c.validate().unwrap();
-        assert::local_work_paths(c, &[]);
-        assert::server_work_paths(c, &[]);
+        c.test_repo_integrity().await.unwrap();
+        assert::local_work_paths(c, &[]).await;
+        assert::server_work_paths(c, &[]).await;
         assert::deleted_files_pruned(c);
     }
-    assert::all_paths(c2, &["/"]);
-    assert::all_document_contents(c2, &[]);
+    assert::all_paths(c2, &["/"]).await;
+    assert::all_document_contents(c2, &[]).await;
 }
 
-#[test]
-fn new_file() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn new_file() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let folder = cores[0].create_at_path("folder/").unwrap();
+    let folder = cores[0].create_at_path("folder/").await.unwrap();
     cores[0]
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
-    assert::all_pending_shares(&cores[1], &["folder"]);
+    assert_stuff(&cores[0], &cores[1]).await;
+    assert::all_pending_shares(&cores[1], &["folder"]).await;
 }
 
-#[test]
-fn new_files() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn new_files() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let a = cores[0].create_at_path("a/").unwrap();
-    cores[0].create_at_path("a/b/c/d").unwrap();
-    let e = cores[0].create_at_path("e/").unwrap();
-    cores[0].create_at_path("e/f/g/h").unwrap();
+    let a = cores[0].create_at_path("a/").await.unwrap();
+    cores[0].create_at_path("a/b/c/d").await.unwrap();
+    let e = cores[0].create_at_path("e/").await.unwrap();
+    cores[0].create_at_path("e/f/g/h").await.unwrap();
     cores[0]
         .share_file(a.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
     cores[0]
         .share_file(e.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
-    assert::all_pending_shares(&cores[1], &["a", "e"]);
+    assert_stuff(&cores[0], &cores[1]).await;
+    assert::all_pending_shares(&cores[1], &["a", "e"]).await;
 }
 
-#[test]
-fn edited_document() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn edited_document() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let document = cores[0].create_at_path("document").unwrap();
+    let document = cores[0].create_at_path("document").await.unwrap();
     cores[0]
         .write_document(document.id, b"document content")
+        .await
         .unwrap();
     cores[0]
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
-    assert::all_pending_shares(&cores[1], &["document"]);
+    assert_stuff(&cores[0], &cores[1]).await;
+    assert::all_pending_shares(&cores[1], &["document"]).await;
 }
