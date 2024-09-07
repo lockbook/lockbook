@@ -181,17 +181,19 @@ struct PlatformView: View {
                     DeleteConfirmationButtons(metas: metas)
                 }
             })
-            .modifier(FormSheetViewModifier(show: $sheets.creatingFolder, sheetContent: {
-                CreateFolderSheet(info: sheets.creatingFolderInfo!)
-                    .padding(.bottom, 3)
-                    .frame(width: 300, height: 190)
-            }))
-            .modifier(FormSheetViewModifier(show: $sheets.renamingFile, sheetContent: {
-                RenameFileSheet(info: sheets.renamingFileInfo!)
-                    .padding(.bottom, 3)
-                    .frame(width: 300, height: 190)
-            }))
-
+            .background( // to prevent force refresh of HomeView incurred by FormSheet activation
+                EmptyView()
+                    .modifier(FormSheetViewModifier(show: $sheets.creatingFolder, sheetContent: {
+                        CreateFolderSheet(info: sheets.creatingFolderInfo!)
+                            .padding(.bottom, 3)
+                            .frame(width: 300, height: 190)
+                    }))
+                    .modifier(FormSheetViewModifier(show: $sheets.renamingFile, sheetContent: {
+                        RenameFileSheet(info: sheets.renamingFileInfo!)
+                            .padding(.bottom, 3)
+                            .frame(width: 300, height: 190)
+                    }))
+            )
     }
     
     #else
