@@ -21,470 +21,432 @@ async fn sync_and_assert(c1: &Lb, c2: &Lb) {
 
 #[tokio::test]
 async fn identical_move() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    move_by_path(&mut c1, "/document", "/parent/")
-        .await
-        .unwrap();
-    move_by_path(&mut c2, "/document", "/parent/")
-        .await
-        .unwrap();
+    move_by_path(&c1, "/document", "/parent/").await.unwrap();
+    move_by_path(&c2, "/document", "/parent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent/", "/parent/document"]).await;
     assert::all_document_contents(&c2, &[("/parent/document", b"")]).await;
 }
 
 #[tokio::test]
 async fn different_move() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/parent2/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    move_by_path(&mut c1, "/document", "/parent/")
-        .await
-        .unwrap();
-    move_by_path(&mut c2, "/document", "/parent2/")
-        .await
-        .unwrap();
+    move_by_path(&c1, "/document", "/parent/").await.unwrap();
+    move_by_path(&c2, "/document", "/parent2/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent/", "/parent2/", "/parent/document"]).await;
     assert::all_document_contents(&c2, &[("/parent/document", b"")]).await;
 }
 
 #[tokio::test]
 async fn identical_rename() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    rename_path(&mut c1, "/document", "document2")
-        .await
-        .unwrap();
-    rename_path(&mut c2, "/document", "document2")
-        .await
-        .unwrap();
+    rename_path(&c1, "/document", "document2").await.unwrap();
+    rename_path(&c2, "/document", "document2").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/document2"]).await;
     assert::all_document_contents(&c2, &[("/document2", b"")]).await;
 }
 
 #[tokio::test]
 async fn different_rename() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    rename_path(&mut c1, "/document", "document2")
-        .await
-        .unwrap();
-    rename_path(&mut c2, "/document", "document3")
-        .await
-        .unwrap();
+    rename_path(&c1, "/document", "document2").await.unwrap();
+    rename_path(&c2, "/document", "document3").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/document2"]).await;
     assert::all_document_contents(&c2, &[("/document2", b"")]).await;
 }
 
 #[tokio::test]
 async fn move_then_rename() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    move_by_path(&mut c1, "/document", "/parent/")
-        .await
-        .unwrap();
-    rename_path(&mut c2, "/document", "document2")
-        .await
-        .unwrap();
+    move_by_path(&c1, "/document", "/parent/").await.unwrap();
+    rename_path(&c2, "/document", "document2").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent/", "/parent/document2"]).await;
     assert::all_document_contents(&c2, &[("/parent/document2", b"")]).await;
 }
 
 #[tokio::test]
 async fn rename_then_move() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    rename_path(&mut c1, "/document", "document2")
-        .await
-        .unwrap();
-    move_by_path(&mut c2, "/document", "/parent/")
-        .await
-        .unwrap();
+    rename_path(&c1, "/document", "document2").await.unwrap();
+    move_by_path(&c2, "/document", "/parent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent/", "/parent/document2"]).await;
     assert::all_document_contents(&c2, &[("/parent/document2", b"")]).await;
 }
 
 #[tokio::test]
 async fn identical_delete() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/document").await.unwrap();
-    delete_path(&mut c2, "/document").await.unwrap();
+    delete_path(&c1, "/document").await.unwrap();
+    delete_path(&c2, "/document").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn identical_delete_parent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/parent/").await.unwrap();
-    delete_path(&mut c2, "/parent/").await.unwrap();
+    delete_path(&c1, "/parent/").await.unwrap();
+    delete_path(&c2, "/parent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn delete_parent_then_direct() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/parent/").await.unwrap();
-    delete_path(&mut c2, "/parent/document").await.unwrap();
+    delete_path(&c1, "/parent/").await.unwrap();
+    delete_path(&c2, "/parent/document").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn delete_direct_then_parent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/parent/document").await.unwrap();
-    delete_path(&mut c2, "/parent/").await.unwrap();
+    delete_path(&c1, "/parent/document").await.unwrap();
+    delete_path(&c2, "/parent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn identical_delete_grandparent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/grandparent/").await.unwrap();
-    delete_path(&mut c2, "/grandparent/").await.unwrap();
+    delete_path(&c1, "/grandparent/").await.unwrap();
+    delete_path(&c2, "/grandparent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn delete_grandparent_then_direct() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/grandparent/").await.unwrap();
-    delete_path(&mut c2, "/grandparent/parent/document")
+    delete_path(&c1, "/grandparent/").await.unwrap();
+    delete_path(&c2, "/grandparent/parent/document")
         .await
         .unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn delete_direct_then_grandparent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/grandparent/parent/document")
+    delete_path(&c1, "/grandparent/parent/document")
         .await
         .unwrap();
-    delete_path(&mut c2, "/grandparent/").await.unwrap();
+    delete_path(&c2, "/grandparent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn delete_grandparent_then_parent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/grandparent/").await.unwrap();
-    delete_path(&mut c2, "/grandparent/parent/").await.unwrap();
+    delete_path(&c1, "/grandparent/").await.unwrap();
+    delete_path(&c2, "/grandparent/parent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn delete_parent_then_grandparent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/grandparent/parent/").await.unwrap();
-    delete_path(&mut c2, "/grandparent/").await.unwrap();
+    delete_path(&c1, "/grandparent/parent/").await.unwrap();
+    delete_path(&c2, "/grandparent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn move_then_delete() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    move_by_path(&mut c1, "/document", "/parent/")
-        .await
-        .unwrap();
-    delete_path(&mut c2, "/document").await.unwrap();
+    move_by_path(&c1, "/document", "/parent/").await.unwrap();
+    delete_path(&c2, "/document").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn delete_then_move() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/document").await.unwrap();
-    move_by_path(&mut c2, "/document", "/parent/")
-        .await
-        .unwrap();
+    delete_path(&c1, "/document").await.unwrap();
+    move_by_path(&c2, "/document", "/parent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn move_then_delete_new_parent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    move_by_path(&mut c1, "/document", "/parent/")
-        .await
-        .unwrap();
-    delete_path(&mut c2, "/parent/").await.unwrap();
+    move_by_path(&c1, "/document", "/parent/").await.unwrap();
+    delete_path(&c2, "/parent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn delete_new_parent_then_move() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/parent/").await.unwrap();
-    move_by_path(&mut c2, "/document", "/parent/")
-        .await
-        .unwrap();
+    delete_path(&c1, "/parent/").await.unwrap();
+    move_by_path(&c2, "/document", "/parent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn move_then_delete_old_parent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    move_by_path(&mut c1, "/parent/document", "").await.unwrap();
-    delete_path(&mut c2, "/parent/").await.unwrap();
+    move_by_path(&c1, "/parent/document", "").await.unwrap();
+    delete_path(&c2, "/parent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/document"]).await;
     assert::all_document_contents(&c2, &[("/document", b"")]).await;
 }
 
 #[tokio::test]
 async fn delete_old_parent_then_move() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/parent/").await.unwrap();
-    move_by_path(&mut c2, "/parent/document", "").await.unwrap();
+    delete_path(&c1, "/parent/").await.unwrap();
+    move_by_path(&c2, "/parent/document", "").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn rename_then_delete() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    rename_path(&mut c1, "/document", "document2")
-        .await
-        .unwrap();
-    delete_path(&mut c2, "/document").await.unwrap();
+    rename_path(&c1, "/document", "document2").await.unwrap();
+    delete_path(&c2, "/document").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn delete_then_rename() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/document").await.unwrap();
-    rename_path(&mut c2, "/document", "document2")
-        .await
-        .unwrap();
+    delete_path(&c1, "/document").await.unwrap();
+    rename_path(&c2, "/document", "document2").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn create_then_move_parent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/parent2/").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
     c1.create_at_path("/parent/document").await.unwrap();
-    move_by_path(&mut c2, "/parent/", "/parent2/")
-        .await
-        .unwrap();
+    move_by_path(&c2, "/parent/", "/parent2/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent2/", "/parent2/parent/", "/parent2/parent/document"])
         .await;
     assert::all_document_contents(&c2, &[("/parent2/parent/document", b"")]).await;
@@ -492,20 +454,18 @@ async fn create_then_move_parent() {
 
 #[tokio::test]
 async fn move_parent_then_create() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/parent2/").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    move_by_path(&mut c1, "/parent/", "/parent2/")
-        .await
-        .unwrap();
+    move_by_path(&c1, "/parent/", "/parent2/").await.unwrap();
     c2.create_at_path("/parent/document").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent2/", "/parent2/parent/", "/parent2/parent/document"])
         .await;
     assert::all_document_contents(&c2, &[("/parent2/parent/document", b"")]).await;
@@ -513,178 +473,178 @@ async fn move_parent_then_create() {
 
 #[tokio::test]
 async fn create_then_rename_parent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
     c1.create_at_path("/parent/document").await.unwrap();
-    rename_path(&mut c2, "/parent/", "parent2").await.unwrap();
+    rename_path(&c2, "/parent/", "parent2").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent2/", "/parent2/document"]).await;
     assert::all_document_contents(&c2, &[("/parent2/document", b"")]).await;
 }
 
 #[tokio::test]
 async fn rename_parent_then_create() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    rename_path(&mut c1, "/parent/", "parent2").await.unwrap();
+    rename_path(&c1, "/parent/", "parent2").await.unwrap();
     c2.create_at_path("/parent/document").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent2/", "/parent2/document"]).await;
     assert::all_document_contents(&c2, &[("/parent2/document", b"")]).await;
 }
 
 #[tokio::test]
 async fn create_then_delete_parent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
     c1.create_at_path("/parent/document").await.unwrap();
-    delete_path(&mut c2, "/parent/").await.unwrap();
+    delete_path(&c2, "/parent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn delete_parent_then_create() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/parent/").await.unwrap();
+    delete_path(&c1, "/parent/").await.unwrap();
     c2.create_at_path("/parent/document").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn create_then_delete_grandparent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/grandparent/parent/").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
     c1.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
-    delete_path(&mut c2, "/grandparent/").await.unwrap();
+    delete_path(&c2, "/grandparent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn delete_grandparent_then_create() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/grandparent/parent/").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/grandparent/").await.unwrap();
+    delete_path(&c1, "/grandparent/").await.unwrap();
     c2.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn identical_content_edit_not_mergable() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/document.draw").await.unwrap();
-    write_path(&mut c1, "/document.draw", b"document content")
+    write_path(&c1, "/document.draw", b"document content")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    write_path(&mut c1, "/document.draw", b"document content 2")
+    write_path(&c1, "/document.draw", b"document content 2")
         .await
         .unwrap();
-    write_path(&mut c2, "/document.draw", b"document content 2")
+    write_path(&c2, "/document.draw", b"document content 2")
         .await
         .unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/document.draw"]).await;
     assert::all_document_contents(&c2, &[("/document.draw", b"document content 2")]).await;
 }
 
 #[tokio::test]
 async fn identical_content_edit_mergable() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/document.md").await.unwrap();
-    write_path(&mut c1, "/document.md", b"document content")
+    write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    write_path(&mut c1, "/document.md", b"document content 2")
+    write_path(&c1, "/document.md", b"document content 2")
         .await
         .unwrap();
-    write_path(&mut c2, "/document.md", b"document content 2")
+    write_path(&c2, "/document.md", b"document content 2")
         .await
         .unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/document.md"]).await;
     assert::all_document_contents(&c2, &[("/document.md", b"document content 2")]).await;
 }
 
 #[tokio::test]
 async fn different_content_edit_not_mergable() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/document.draw").await.unwrap();
-    write_path(&mut c1, "/document.draw", b"document\n\ncontent\n")
+    write_path(&c1, "/document.draw", b"document\n\ncontent\n")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    write_path(&mut c1, "/document.draw", b"document 2\n\ncontent\n")
+    write_path(&c1, "/document.draw", b"document 2\n\ncontent\n")
         .await
         .unwrap();
-    write_path(&mut c2, "/document.draw", b"document\n\ncontent 2\n")
+    write_path(&c2, "/document.draw", b"document\n\ncontent 2\n")
         .await
         .unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/document.draw", "/document-1.draw"]).await;
     assert::all_document_contents(
         &c2,
@@ -698,52 +658,50 @@ async fn different_content_edit_not_mergable() {
 
 #[tokio::test]
 async fn different_content_edit_mergable() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/document.md").await.unwrap();
-    write_path(&mut c1, "/document.md", b"document\n\ncontent\n")
+    write_path(&c1, "/document.md", b"document\n\ncontent\n")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    write_path(&mut c1, "/document.md", b"document 2\n\ncontent\n")
+    write_path(&c1, "/document.md", b"document 2\n\ncontent\n")
         .await
         .unwrap();
-    write_path(&mut c2, "/document.md", b"document\n\ncontent 2\n")
+    write_path(&c2, "/document.md", b"document\n\ncontent 2\n")
         .await
         .unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/document.md"]).await;
     assert::all_document_contents(&c2, &[("/document.md", b"document 2\n\ncontent 2\n")]).await;
 }
 
 #[tokio::test]
 async fn different_content_edit_mergable_with_move_in_first_sync() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document.md").await.unwrap();
-    write_path(&mut c1, "/document.md", b"document\n\ncontent\n")
+    write_path(&c1, "/document.md", b"document\n\ncontent\n")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    write_path(&mut c1, "/document.md", b"document 2\n\ncontent\n")
+    write_path(&c1, "/document.md", b"document 2\n\ncontent\n")
         .await
         .unwrap();
-    move_by_path(&mut c1, "/document.md", "/parent/")
-        .await
-        .unwrap();
-    write_path(&mut c2, "/document.md", b"document\n\ncontent 2\n")
+    move_by_path(&c1, "/document.md", "/parent/").await.unwrap();
+    write_path(&c2, "/document.md", b"document\n\ncontent 2\n")
         .await
         .unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent/", "/parent/document.md"]).await;
     assert::all_document_contents(&c2, &[("/parent/document.md", b"document 2\n\ncontent 2\n")])
         .await;
@@ -751,28 +709,26 @@ async fn different_content_edit_mergable_with_move_in_first_sync() {
 
 #[tokio::test]
 async fn different_content_edit_mergable_with_move_in_second_sync() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document.md").await.unwrap();
-    write_path(&mut c1, "/document.md", b"document\n\ncontent\n")
+    write_path(&c1, "/document.md", b"document\n\ncontent\n")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    write_path(&mut c1, "/document.md", b"document 2\n\ncontent\n")
+    write_path(&c1, "/document.md", b"document 2\n\ncontent\n")
         .await
         .unwrap();
-    write_path(&mut c2, "/document.md", b"document\n\ncontent 2\n")
+    write_path(&c2, "/document.md", b"document\n\ncontent 2\n")
         .await
         .unwrap();
-    move_by_path(&mut c2, "/document.md", "/parent/")
-        .await
-        .unwrap();
+    move_by_path(&c2, "/document.md", "/parent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent/", "/parent/document.md"]).await;
     assert::all_document_contents(&c2, &[("/parent/document.md", b"document 2\n\ncontent 2\n")])
         .await;
@@ -780,234 +736,230 @@ async fn different_content_edit_mergable_with_move_in_second_sync() {
 
 #[tokio::test]
 async fn move_then_edit_content() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document.md").await.unwrap();
-    write_path(&mut c1, "/document.md", b"document content")
+    write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    move_by_path(&mut c1, "/document.md", "/parent/")
-        .await
-        .unwrap();
-    write_path(&mut c2, "/document.md", b"document content 2")
+    move_by_path(&c1, "/document.md", "/parent/").await.unwrap();
+    write_path(&c2, "/document.md", b"document content 2")
         .await
         .unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent/", "/parent/document.md"]).await;
     assert::all_document_contents(&c2, &[("/parent/document.md", b"document content 2")]).await;
 }
 
 #[tokio::test]
 async fn edit_content_then_move() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document.md").await.unwrap();
-    write_path(&mut c1, "/document.md", b"document content")
+    write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    write_path(&mut c1, "/document.md", b"document content 2")
+    write_path(&c1, "/document.md", b"document content 2")
         .await
         .unwrap();
-    move_by_path(&mut c2, "/document.md", "/parent/")
-        .await
-        .unwrap();
+    move_by_path(&c2, "/document.md", "/parent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/parent/", "/parent/document.md"]).await;
     assert::all_document_contents(&c2, &[("/parent/document.md", b"document content 2")]).await;
 }
 
 #[tokio::test]
 async fn rename_then_edit_content() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/document.md").await.unwrap();
-    write_path(&mut c1, "/document.md", b"document content")
+    write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    rename_path(&mut c1, "/document.md", "document2.md")
+    rename_path(&c1, "/document.md", "document2.md")
         .await
         .unwrap();
-    write_path(&mut c2, "/document.md", b"document content 2")
+    write_path(&c2, "/document.md", b"document content 2")
         .await
         .unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/document2.md"]).await;
     assert::all_document_contents(&c2, &[("/document2.md", b"document content 2")]).await;
 }
 
 #[tokio::test]
 async fn edit_content_then_rename() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/document.md").await.unwrap();
-    write_path(&mut c1, "/document.md", b"document content")
+    write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    write_path(&mut c1, "/document.md", b"document content 2")
+    write_path(&c1, "/document.md", b"document content 2")
         .await
         .unwrap();
-    rename_path(&mut c2, "/document.md", "document2.md")
+    rename_path(&c2, "/document.md", "document2.md")
         .await
         .unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/document2.md"]).await;
     assert::all_document_contents(&c2, &[("/document2.md", b"document content 2")]).await;
 }
 
 #[tokio::test]
 async fn delete_then_edit_content() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/document.md").await.unwrap();
-    write_path(&mut c1, "/document.md", b"document content")
+    write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/document.md").await.unwrap();
-    write_path(&mut c2, "/document.md", b"document content 2")
+    delete_path(&c1, "/document.md").await.unwrap();
+    write_path(&c2, "/document.md", b"document content 2")
         .await
         .unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn edit_content_then_delete() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/document.md").await.unwrap();
-    write_path(&mut c1, "/document.md", b"document content")
+    write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    write_path(&mut c1, "/document.md", b"document content 2")
+    write_path(&c1, "/document.md", b"document content 2")
         .await
         .unwrap();
-    delete_path(&mut c2, "/document.md").await.unwrap();
+    delete_path(&c2, "/document.md").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn delete_parent_then_edit_content() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document.md").await.unwrap();
-    write_path(&mut c1, "/parent/document.md", b"document content")
+    write_path(&c1, "/parent/document.md", b"document content")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/parent/").await.unwrap();
-    write_path(&mut c2, "/parent/document.md", b"document content 2")
+    delete_path(&c1, "/parent/").await.unwrap();
+    write_path(&c2, "/parent/document.md", b"document content 2")
         .await
         .unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn edit_content_then_delete_parent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document.md").await.unwrap();
-    write_path(&mut c1, "/parent/document.md", b"document content")
+    write_path(&c1, "/parent/document.md", b"document content")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    write_path(&mut c1, "/parent/document.md", b"document content 2")
+    write_path(&c1, "/parent/document.md", b"document content 2")
         .await
         .unwrap();
-    delete_path(&mut c2, "/parent/").await.unwrap();
+    delete_path(&c2, "/parent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn delete_grandparent_then_edit_content() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/grandparent/parent/document.md")
         .await
         .unwrap();
-    write_path(&mut c1, "/grandparent/parent/document.md", b"document content")
+    write_path(&c1, "/grandparent/parent/document.md", b"document content")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    delete_path(&mut c1, "/grandparent/").await.unwrap();
-    write_path(&mut c2, "/grandparent/parent/document.md", b"document content 2")
+    delete_path(&c1, "/grandparent/").await.unwrap();
+    write_path(&c2, "/grandparent/parent/document.md", b"document content 2")
         .await
         .unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn edit_content_then_delete_grandparent() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/grandparent/parent/document.md")
         .await
         .unwrap();
-    write_path(&mut c1, "/grandparent/parent/document.md", b"document content")
+    write_path(&c1, "/grandparent/parent/document.md", b"document content")
         .await
         .unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    write_path(&mut c1, "/grandparent/parent/document.md", b"document content 2")
+    write_path(&c1, "/grandparent/parent/document.md", b"document content 2")
         .await
         .unwrap();
-    delete_path(&mut c2, "/grandparent/").await.unwrap();
+    delete_path(&c2, "/grandparent/").await.unwrap();
 
-    sync_and_assert(&mut c1, &mut c2).await;
+    sync_and_assert(&c1, &c2).await;
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
@@ -1015,7 +967,7 @@ async fn edit_content_then_delete_grandparent() {
 #[tokio::test]
 async fn create_two_links() {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
-    let new_client = another_client(&mut cores[1][0]).await;
+    let new_client = another_client(&cores[1][0]).await;
     cores[1].push(new_client);
     let accounts = cores
         .iter()
@@ -1041,15 +993,14 @@ async fn create_two_links() {
         .await
         .unwrap();
 
-    let (cores10, cores11) = cores[1].split_at_mut(1);
-    sync_and_assert(&mut cores10[0], &mut cores11[0]).await;
+    sync_and_assert(&cores[1][0], &cores[1][1]).await;
     assert::all_paths(&cores[1][0], &["/", "/link1"]).await;
 }
 
 #[tokio::test]
 async fn share_then_create_link_in_folder() {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
-    let new_client = another_client(&mut cores[1][0]).await;
+    let new_client = another_client(&cores[1][0]).await;
     cores[1].push(new_client);
     let accounts = cores
         .iter()
@@ -1076,15 +1027,14 @@ async fn share_then_create_link_in_folder() {
         .await
         .unwrap();
 
-    let (cores10, cores11) = cores[1].split_at_mut(1);
-    sync_and_assert(&mut cores10[0], &mut cores11[0]).await;
+    sync_and_assert(&cores[1][0], &cores[1][1]).await;
     assert::all_paths(&cores[1][0], &["/", "/folder/"]).await;
 }
 
 #[tokio::test]
 async fn create_link_in_folder_then_share() {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
-    let new_client = another_client(&mut cores[1][0]).await;
+    let new_client = another_client(&cores[1][0]).await;
     cores[1].push(new_client);
     let accounts = cores
         .iter()
@@ -1111,15 +1061,14 @@ async fn create_link_in_folder_then_share() {
         .await
         .unwrap();
 
-    let (cores10, cores11) = cores[1].split_at_mut(1);
-    sync_and_assert(&mut cores11[0], &mut cores10[0]).await; // note: reverse order from above test
+    sync_and_assert(&cores[1][1], &cores[1][0]).await; // note: order reversed from above test
     assert::all_paths(&cores[1][0], &["/", "/folder/", "/folder/link"]).await;
 }
 
 #[tokio::test]
 async fn create_link_then_move_to_owned_folder() {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
-    let new_client = another_client(&mut cores[1][0]).await;
+    let new_client = another_client(&cores[1][0]).await;
     cores[1].push(new_client);
     let accounts = cores
         .iter()
@@ -1153,8 +1102,7 @@ async fn create_link_then_move_to_owned_folder() {
         .await
         .unwrap();
 
-    let (cores10, cores11) = cores[1].split_at_mut(1);
-    sync_and_assert(&mut cores10[0], &mut cores11[0]).await;
+    sync_and_assert(&cores[1][0], &cores[1][1]).await;
 
     assert::all_paths(&cores[1][0], &["/", "/link"]).await;
 }
@@ -1162,7 +1110,7 @@ async fn create_link_then_move_to_owned_folder() {
 #[tokio::test]
 async fn create_link_then_move_to_owned_folder_and_move_prior_parent_into_it() {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
-    let new_client = another_client(&mut cores[1][0]).await;
+    let new_client = another_client(&cores[1][0]).await;
     cores[1].push(new_client);
     let accounts = cores
         .iter()
@@ -1201,8 +1149,7 @@ async fn create_link_then_move_to_owned_folder_and_move_prior_parent_into_it() {
         .unwrap();
     cores[1][1].move_file(&parent.id, &folder.id).await.unwrap();
 
-    let (cores10, cores11) = cores[1].split_at_mut(1);
-    sync_and_assert(&mut cores10[0], &mut cores11[0]).await;
+    sync_and_assert(&cores[1][0], &cores[1][1]).await;
 
     assert::all_paths(&cores[1][0], &["/", "/link/"]).await;
 }
@@ -1211,7 +1158,7 @@ async fn create_link_then_move_to_owned_folder_and_move_prior_parent_into_it() {
 async fn create_link_then_move_to_owned_folder_and_create_file_with_conflicting_name_in_prior_parent(
 ) {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
-    let new_client = another_client(&mut cores[1][0]).await;
+    let new_client = another_client(&cores[1][0]).await;
     cores[1].push(new_client);
     let accounts = cores
         .iter()
@@ -1253,8 +1200,7 @@ async fn create_link_then_move_to_owned_folder_and_create_file_with_conflicting_
         .await
         .unwrap();
 
-    let (cores10, cores11) = cores[1].split_at_mut(1);
-    sync_and_assert(&mut cores10[0], &mut cores11[0]).await;
+    sync_and_assert(&cores[1][0], &cores[1][1]).await;
 
     assert::all_paths(&cores[1][0], &["/", "/link/"]).await;
     assert::all_paths(
@@ -1267,7 +1213,7 @@ async fn create_link_then_move_to_owned_folder_and_create_file_with_conflicting_
 #[tokio::test]
 async fn move_to_owned_folder_then_create_link() {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
-    let new_client = another_client(&mut cores[1][0]).await;
+    let new_client = another_client(&cores[1][0]).await;
     cores[1].push(new_client);
     let accounts = cores
         .iter()
@@ -1301,15 +1247,14 @@ async fn move_to_owned_folder_then_create_link() {
         .await
         .unwrap();
 
-    let (cores10, cores11) = cores[1].split_at_mut(1);
-    sync_and_assert(&mut cores11[0], &mut cores10[0]).await; // note: reverse order from above test
+    sync_and_assert(&cores[1][1], &cores[1][0]).await; // note: order reversed from above test
     assert::all_paths(&cores[1][0], &["/", "/document"]).await;
 }
 
 #[tokio::test]
 async fn create_link_then_delete() {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
-    let new_client = another_client(&mut cores[1][0]).await;
+    let new_client = another_client(&cores[1][0]).await;
     cores[1].push(new_client);
     let accounts = cores
         .iter()
@@ -1340,8 +1285,7 @@ async fn create_link_then_delete() {
     cores[1][1].sync(None).await.unwrap();
     cores[1][1].delete(&document.id).await.unwrap();
 
-    let (cores10, cores11) = cores[1].split_at_mut(1);
-    sync_and_assert(&mut cores10[0], &mut cores11[0]).await;
+    sync_and_assert(&cores[1][0], &cores[1][1]).await;
 
     assert::all_paths(&cores[1][0], &["/"]).await;
 }
@@ -1349,7 +1293,7 @@ async fn create_link_then_delete() {
 #[tokio::test]
 async fn delete_then_create_link() {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
-    let new_client = another_client(&mut cores[1][0]).await;
+    let new_client = another_client(&cores[1][0]).await;
     cores[1].push(new_client);
     let accounts = cores
         .iter()
@@ -1380,8 +1324,7 @@ async fn delete_then_create_link() {
     cores[1][1].sync(None).await.unwrap();
     cores[1][1].delete(&document.id).await.unwrap();
 
-    let (cores10, cores11) = cores[1].split_at_mut(1);
-    sync_and_assert(&mut cores11[0], &mut cores10[0]).await; // note: order reversed from above test
+    sync_and_assert(&cores[1][1], &cores[1][0]).await; // note: order reversed from above test
 
     assert::all_paths(&cores[1][0], &["/"]).await;
 }
@@ -1389,7 +1332,7 @@ async fn delete_then_create_link() {
 #[tokio::test]
 async fn share_from_two_clients() {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
-    let new_client = another_client(&mut cores[0][0]).await;
+    let new_client = another_client(&cores[0][0]).await;
     cores[0].push(new_client);
     let accounts = cores
         .iter()
@@ -1423,7 +1366,7 @@ async fn share_from_two_clients() {
 #[tokio::test]
 async fn share_from_two_clients_read_then_write() {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
-    let new_client = another_client(&mut cores[0][0]).await;
+    let new_client = another_client(&cores[0][0]).await;
     cores[0].push(new_client);
     let accounts = cores
         .iter()
@@ -1457,7 +1400,7 @@ async fn share_from_two_clients_read_then_write() {
 #[tokio::test]
 async fn share_from_two_clients_write_then_read() {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
-    let new_client = another_client(&mut cores[0][0]).await;
+    let new_client = another_client(&cores[0][0]).await;
     cores[0].push(new_client);
     let accounts = cores
         .iter()
@@ -1559,7 +1502,7 @@ async fn share_upgrade_to_write_then_delete() {
 #[tokio::test]
 async fn deleted_share_of_file_with_local_change() {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
-    let new_client = another_client(&mut cores[1][0]).await;
+    let new_client = another_client(&cores[1][0]).await;
     cores[1].push(new_client);
     let accounts = cores
         .iter()
@@ -1586,8 +1529,7 @@ async fn deleted_share_of_file_with_local_change() {
     cores[1][1].sync(None).await.unwrap();
     cores[1][1].reject_share(&document.id).await.unwrap();
 
-    let (cores10, cores11) = cores[1].split_at_mut(1);
-    sync_and_assert(&mut cores10[0], &mut cores11[0]).await;
+    sync_and_assert(&cores[1][0], &cores[1][1]).await;
 
     assert::all_paths(&cores[1][0], &["/"]).await;
 }

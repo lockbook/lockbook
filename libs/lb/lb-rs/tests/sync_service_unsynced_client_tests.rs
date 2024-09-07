@@ -36,9 +36,9 @@ async fn new_files() {
 
 #[tokio::test]
 async fn edited_document() {
-    let mut core = test_core_with_account().await;
+    let core = test_core_with_account().await;
     core.create_at_path("/document").await.unwrap();
-    write_path(&mut core, "/document", b"document content")
+    write_path(&core, "/document", b"document content")
         .await
         .unwrap();
     assert::all_paths(&core, &["/", "/document"]).await;
@@ -92,9 +92,9 @@ async fn delete() {
 
 #[tokio::test]
 async fn delete_parent() {
-    let mut core = test_core_with_account().await;
+    let core = test_core_with_account().await;
     core.create_at_path("/parent/document").await.unwrap();
-    delete_path(&mut core, "/parent/").await.unwrap();
+    delete_path(&core, "/parent/").await.unwrap();
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
     let summary = core.sync(None).await.unwrap();
@@ -104,11 +104,11 @@ async fn delete_parent() {
 
 #[tokio::test]
 async fn delete_grandparent() {
-    let mut core = test_core_with_account().await;
+    let core = test_core_with_account().await;
     core.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
-    delete_path(&mut core, "/grandparent/").await.unwrap();
+    delete_path(&core, "/grandparent/").await.unwrap();
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
     let summary = core.sync(None).await.unwrap();

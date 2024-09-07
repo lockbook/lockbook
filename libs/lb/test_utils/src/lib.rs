@@ -59,25 +59,25 @@ pub async fn write_path(c: &Lb, path: &str, content: &[u8]) -> Result<(), String
         .map_err(err_to_string)
 }
 
-pub async fn delete_path(c: &mut Lb, path: &str) -> Result<(), String> {
+pub async fn delete_path(c: &Lb, path: &str) -> Result<(), String> {
     let target = c.get_by_path(path).await.map_err(err_to_string)?;
     c.delete(&target.id).await.map_err(err_to_string)
 }
 
-pub async fn move_by_path(c: &mut Lb, src: &str, dest: &str) -> Result<(), String> {
+pub async fn move_by_path(c: &Lb, src: &str, dest: &str) -> Result<(), String> {
     let src = c.get_by_path(src).await.map_err(err_to_string)?;
     let dest = c.get_by_path(dest).await.map_err(err_to_string)?;
     c.move_file(&src.id, &dest.id).await.map_err(err_to_string)
 }
 
-pub async fn rename_path(c: &mut Lb, path: &str, new_name: &str) -> Result<(), String> {
+pub async fn rename_path(c: &Lb, path: &str, new_name: &str) -> Result<(), String> {
     let target = c.get_by_path(path).await.map_err(err_to_string)?;
     c.rename_file(&target.id, new_name)
         .await
         .map_err(err_to_string)
 }
 
-pub async fn another_client(c: &mut Lb) -> Lb {
+pub async fn another_client(c: &Lb) -> Lb {
     let account_string = c.export_account().await.unwrap();
     let mut new_core = test_core();
     new_core.import_account(&account_string).await.unwrap();

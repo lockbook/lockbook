@@ -54,7 +54,7 @@ async fn upsert_id_takeover_change_parent() {
         core1.sync(None).await.unwrap();
         core1
             .client
-            .request(&account1, GetUpdatesRequest { since_metadata_version: 0 })
+            .request(account1, GetUpdatesRequest { since_metadata_version: 0 })
             .await
             .unwrap()
             .file_metadata
@@ -67,7 +67,7 @@ async fn upsert_id_takeover_change_parent() {
     // If this succeeded account2 would be able to control file1
     let result = core2
         .client
-        .request(&account2, UpsertRequest { updates: vec![FileDiff::new(&file1)] })
+        .request(account2, UpsertRequest { updates: vec![FileDiff::new(&file1)] })
         .await;
     assert_matches!(
         result,

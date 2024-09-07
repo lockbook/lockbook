@@ -20,176 +20,176 @@ async fn sync_and_assert_stuff(c1: &Lb, c2: &Lb) {
 
 #[tokio::test]
 async fn concurrent_create_documents() {
-    let mut c1 = test_core_with_account().await;
-    let mut c2 = another_client(&mut c1).await;
+    let c1 = test_core_with_account().await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
     c1.create_at_path("/a.md").await.unwrap();
     c2.create_at_path("/a.md").await.unwrap();
 
-    sync_and_assert_stuff(&mut c1, &mut c2).await;
+    sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/a.md", "/a-1.md"]).await;
     assert::all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]).await;
 }
 
 #[tokio::test]
 async fn concurrent_create_folders() {
-    let mut c1 = test_core_with_account().await;
-    let mut c2 = another_client(&mut c1).await;
+    let c1 = test_core_with_account().await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
     c1.create_at_path("/a/").await.unwrap();
     c2.create_at_path("/a/").await.unwrap();
 
-    sync_and_assert_stuff(&mut c1, &mut c2).await;
+    sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/a/", "/a-1/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn concurrent_create_folders_with_children() {
-    let mut c1 = test_core_with_account().await;
-    let mut c2 = another_client(&mut c1).await;
+    let c1 = test_core_with_account().await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
     c1.create_at_path("/a/child/").await.unwrap();
     c2.create_at_path("/a/child/").await.unwrap();
 
-    sync_and_assert_stuff(&mut c1, &mut c2).await;
+    sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/a/", "/a-1/", "/a/child/", "/a-1/child/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn concurrent_create_document_then_folder() {
-    let mut c1 = test_core_with_account().await;
-    let mut c2 = another_client(&mut c1).await;
+    let c1 = test_core_with_account().await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
     c1.create_at_path("/a.md").await.unwrap();
     c2.create_at_path("/a.md/").await.unwrap();
 
-    sync_and_assert_stuff(&mut c1, &mut c2).await;
+    sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/a.md", "/a-1.md/"]).await;
     assert::all_document_contents(&c2, &[("/a.md", b"")]).await;
 }
 
 #[tokio::test]
 async fn concurrent_create_folder_then_document() {
-    let mut c1 = test_core_with_account().await;
-    let mut c2 = another_client(&mut c1).await;
+    let c1 = test_core_with_account().await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
     c1.create_at_path("/a.md/").await.unwrap();
     c2.create_at_path("/a.md").await.unwrap();
 
-    sync_and_assert_stuff(&mut c1, &mut c2).await;
+    sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/a.md/", "/a-1.md"]).await;
     assert::all_document_contents(&c2, &[("/a-1.md", b"")]).await;
 }
 
 #[tokio::test]
 async fn concurrent_create_document_then_folder_with_child() {
-    let mut c1 = test_core_with_account().await;
-    let mut c2 = another_client(&mut c1).await;
+    let c1 = test_core_with_account().await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
     c1.create_at_path("/a.md").await.unwrap();
     c2.create_at_path("/a.md/child/").await.unwrap();
 
-    sync_and_assert_stuff(&mut c1, &mut c2).await;
+    sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/a.md", "/a-1.md/", "/a-1.md/child/"]).await;
     assert::all_document_contents(&c2, &[("/a.md", b"")]).await;
 }
 
 #[tokio::test]
 async fn concurrent_create_folder_with_child_then_document() {
-    let mut c1 = test_core_with_account().await;
-    let mut c2 = another_client(&mut c1).await;
+    let c1 = test_core_with_account().await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
     c1.create_at_path("/a.md/child/").await.unwrap();
     c2.create_at_path("/a.md").await.unwrap();
 
-    sync_and_assert_stuff(&mut c1, &mut c2).await;
+    sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/a.md/", "/a.md/child/", "/a-1.md"]).await;
     assert::all_document_contents(&c2, &[("/a-1.md", b"")]).await;
 }
 
 #[tokio::test]
 async fn concurrent_move_then_create_documents() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/folder/a.md").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    move_by_path(&mut c1, "/folder/a.md", "").await.unwrap();
+    move_by_path(&c1, "/folder/a.md", "").await.unwrap();
     c2.create_at_path("/a.md").await.unwrap();
 
-    sync_and_assert_stuff(&mut c1, &mut c2).await;
+    sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/folder/", "/a.md", "/a-1.md"]).await;
     assert::all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]).await;
 }
 
 #[tokio::test]
 async fn concurrent_create_then_move_documents() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/folder/a.md").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
     c1.create_at_path("/a.md").await.unwrap();
-    move_by_path(&mut c2, "/folder/a.md", "").await.unwrap();
+    move_by_path(&c2, "/folder/a.md", "").await.unwrap();
 
-    sync_and_assert_stuff(&mut c1, &mut c2).await;
+    sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/folder/", "/a.md", "/a-1.md"]).await;
     assert::all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]).await;
 }
 
 #[tokio::test]
 async fn concurrent_move_then_create_folders() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/folder/a.md/").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    move_by_path(&mut c1, "/folder/a.md/", "").await.unwrap();
+    move_by_path(&c1, "/folder/a.md/", "").await.unwrap();
     c2.create_at_path("/a.md/").await.unwrap();
 
-    sync_and_assert_stuff(&mut c1, &mut c2).await;
+    sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/folder/", "/a.md/", "/a-1.md/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn concurrent_create_then_move_folders() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/folder/a.md/").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
     c1.create_at_path("/a.md/").await.unwrap();
-    move_by_path(&mut c2, "/folder/a.md/", "").await.unwrap();
+    move_by_path(&c2, "/folder/a.md/", "").await.unwrap();
 
-    sync_and_assert_stuff(&mut c1, &mut c2).await;
+    sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(&c2, &["/", "/folder/", "/a.md/", "/a-1.md/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
 #[tokio::test]
 async fn concurrent_move_then_create_folders_with_children() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/folder/a.md/child/").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
-    move_by_path(&mut c1, "/folder/a.md/", "").await.unwrap();
+    move_by_path(&c1, "/folder/a.md/", "").await.unwrap();
     c2.create_at_path("/a.md/child/").await.unwrap();
 
-    sync_and_assert_stuff(&mut c1, &mut c2).await;
+    sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(
         &c2,
         &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
@@ -200,17 +200,17 @@ async fn concurrent_move_then_create_folders_with_children() {
 
 #[tokio::test]
 async fn concurrent_create_then_move_folders_with_children() {
-    let mut c1 = test_core_with_account().await;
+    let c1 = test_core_with_account().await;
     c1.create_at_path("/folder/a.md/child/").await.unwrap();
     c1.sync(None).await.unwrap();
 
-    let mut c2 = another_client(&mut c1).await;
+    let c2 = another_client(&c1).await;
     c2.sync(None).await.unwrap();
 
     c1.create_at_path("/a.md/child/").await.unwrap();
-    move_by_path(&mut c2, "/folder/a.md/", "").await.unwrap();
+    move_by_path(&c2, "/folder/a.md/", "").await.unwrap();
 
-    sync_and_assert_stuff(&mut c1, &mut c2).await;
+    sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(
         &c2,
         &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],

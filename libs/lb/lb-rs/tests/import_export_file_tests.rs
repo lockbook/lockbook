@@ -85,6 +85,7 @@ async fn export_file_successfully() {
     core.export_file(file.id, tmp_path.clone(), false, Some(Box::new(export_progress.clone())))
         .await
         .unwrap();
+    // todo(parth): fix clippy warning await_holding_lock
     for info in paths.lock().unwrap().iter() {
         core.get_by_path(&info.lockbook_path).await.unwrap();
         assert!(info.disk_path.exists());

@@ -17,7 +17,7 @@ async fn forced_upgrade() {
     let client = Network { client: Default::default(), get_code_version: CODE_VERSION, get_time };
 
     let result: Result<PublicKey, ApiError<GetPublicKeyError>> = client
-        .request(&account, GetPublicKeyRequest { username: account.username.clone() })
+        .request(account, GetPublicKeyRequest { username: account.username.clone() })
         .await
         .map(|r: GetPublicKeyResponse| r.key);
 
@@ -34,7 +34,7 @@ async fn expired_request() {
     let client = Network { client: Default::default(), get_code_version, get_time: EARLY_CLOCK };
 
     let result = client
-        .request(&account, GetPublicKeyRequest { username: account.username.clone() })
+        .request(account, GetPublicKeyRequest { username: account.username.clone() })
         .await;
     assert_matches!(result, Err(ApiError::<GetPublicKeyError>::ExpiredAuth));
 }

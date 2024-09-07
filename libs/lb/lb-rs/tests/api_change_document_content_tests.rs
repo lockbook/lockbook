@@ -23,7 +23,7 @@ async fn change_document_content() {
 
     // create document
     core.client
-        .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
+        .request(account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
         .await
         .unwrap();
 
@@ -35,7 +35,7 @@ async fn change_document_content() {
     // change document content
     core.client
         .request(
-            &account,
+            account,
             ChangeDocRequest {
                 diff,
                 new_content: AESEncrypted { value: vec![], nonce: vec![], _t: Default::default() },
@@ -62,7 +62,7 @@ async fn change_document_content_not_found() {
 
     // create document
     core.client
-        .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
+        .request(account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
         .await
         .unwrap();
 
@@ -76,7 +76,7 @@ async fn change_document_content_not_found() {
     let res = core
         .client
         .request(
-            &account,
+            account,
             ChangeDocRequest {
                 diff,
                 new_content: AESEncrypted { value: vec![], nonce: vec![], _t: Default::default() },

@@ -21,7 +21,7 @@ async fn upgrade_account_google_play_already_premium() {
     // upgrade account tier to premium using stripe
     core.client
         .request(
-            &account,
+            account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
@@ -38,7 +38,7 @@ async fn upgrade_account_google_play_already_premium() {
     let result = core
         .client
         .request(
-            &account,
+            account,
             UpgradeAccountGooglePlayRequest {
                 purchase_token: "".to_string(),
                 account_id: "".to_string(),
@@ -64,7 +64,7 @@ async fn upgrade_account_google_play_invalid_purchase_token() {
     let result = core
         .client
         .request(
-            &account,
+            account,
             UpgradeAccountGooglePlayRequest {
                 purchase_token: "".to_string(),
                 account_id: "".to_string(),
@@ -89,7 +89,7 @@ async fn upgrade_account_to_premium() {
     // upgrade account tier to premium
     core.client
         .request(
-            &account,
+            account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
@@ -112,7 +112,7 @@ async fn new_tier_is_old_tier() {
     // upgrade account tier to premium
     core.client
         .request(
-            &account,
+            account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
@@ -129,7 +129,7 @@ async fn new_tier_is_old_tier() {
     let result = core
         .client
         .request(
-            &account,
+            account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
@@ -159,7 +159,7 @@ async fn card_does_not_exist() {
     let result = core
         .client
         .request(
-            &account,
+            account,
             UpgradeAccountStripeRequest {
                 account_tier: StripeAccountTier::Premium(PaymentMethod::OldCard),
             },
@@ -196,7 +196,7 @@ async fn card_decline() {
         let result = core
             .client
             .request(
-                &account,
+                account,
                 UpgradeAccountStripeRequest {
                     account_tier: generate_premium_account_tier(card_number, None, None, None),
                 },
@@ -254,7 +254,7 @@ async fn invalid_cards() {
         let result = core
             .client
             .request(
-                &account,
+                account,
                 UpgradeAccountStripeRequest {
                     account_tier: generate_premium_account_tier(
                         card_number,
@@ -284,7 +284,7 @@ async fn cancel_stripe_subscription() {
     // switch account tier to premium
     core.client
         .request(
-            &account,
+            account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
@@ -299,7 +299,7 @@ async fn cancel_stripe_subscription() {
 
     // cancel stripe subscription
     core.client
-        .request(&account, CancelSubscriptionRequest {})
+        .request(account, CancelSubscriptionRequest {})
         .await
         .unwrap();
 }
@@ -335,7 +335,7 @@ async fn downgrade_denied() {
     // switch account tier to premium
     core.client
         .request(
-            &account,
+            account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
@@ -363,7 +363,7 @@ async fn downgrade_denied() {
     // attempt to cancel subscription but fail
     let result = core
         .client
-        .request(&account, CancelSubscriptionRequest {})
+        .request(account, CancelSubscriptionRequest {})
         .await;
 
     assert_matches!(
@@ -388,7 +388,7 @@ async fn downgrade_denied() {
 
     // cancel subscription again
     core.client
-        .request(&account, CancelSubscriptionRequest {})
+        .request(account, CancelSubscriptionRequest {})
         .await
         .unwrap();
 }
@@ -402,7 +402,7 @@ async fn cancel_subscription_not_premium() {
     // cancel subscription but the account is not premium
     let result = core
         .client
-        .request(&account, CancelSubscriptionRequest {})
+        .request(account, CancelSubscriptionRequest {})
         .await;
 
     assert_matches!(

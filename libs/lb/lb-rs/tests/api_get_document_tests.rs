@@ -28,7 +28,7 @@ async fn get_document() {
     // update document content
     core.client
         .request(
-            &account,
+            account,
             ChangeDocRequest {
                 diff: FileDiff::edit(&old, &new),
                 new_content: AESEncrypted {
@@ -44,7 +44,7 @@ async fn get_document() {
     // get document
     let result = core
         .client
-        .request(&account, GetDocRequest { id, hmac: *new.document_hmac().unwrap() })
+        .request(account, GetDocRequest { id, hmac: *new.document_hmac().unwrap() })
         .await
         .unwrap();
     assert_eq!(
@@ -75,7 +75,7 @@ async fn get_document_not_found() {
     // get document we never created
     let result = core
         .client
-        .request(&account, GetDocRequest { id: *new.id(), hmac: *new.document_hmac().unwrap() })
+        .request(account, GetDocRequest { id: *new.id(), hmac: *new.document_hmac().unwrap() })
         .await;
     assert_matches!(
         result,

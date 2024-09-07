@@ -90,7 +90,7 @@ async fn fuzzer_stuck_test_2() {
     let a = db2.create_at_path("/a/").await.unwrap();
     let b = db2.create_at_path("/a/b/").await.unwrap();
     db2.move_file(&b.id, &root.id).await.unwrap();
-    db2.rename_file(&&b.id, "b2").await.unwrap();
+    db2.rename_file(&b.id, "b2").await.unwrap();
     let _c = db2.create_at_path("/c/").await.unwrap();
     db2.move_file(&b.id, &a.id).await.unwrap();
 
@@ -124,7 +124,7 @@ async fn fuzzer_stuck_test_3() {
 
     db1.create_at_path("/a/b.md").await.unwrap();
     let c = db1.create_at_path("/a/c").await.unwrap();
-    db1.rename_file(&&c.id, "c2").await.unwrap();
+    db1.rename_file(&c.id, "c2").await.unwrap();
 
     db1.create_at_path("/a/d").await.unwrap();
 
@@ -303,11 +303,11 @@ async fn test_move_folder_with_deleted_file() {
         vec![test_core_with_account().await],
         vec![test_core_with_account().await],
     ];
-    let c = another_client(&mut cores[1][0]).await;
+    let c = another_client(&cores[1][0]).await;
     cores[1].push(c);
-    let c = another_client(&mut cores[1][0]).await;
+    let c = another_client(&cores[1][0]).await;
     cores[1].push(c);
-    let c = another_client(&mut cores[2][0]).await;
+    let c = another_client(&cores[2][0]).await;
     cores[2].push(c);
 
     let us6 = cores[0][0].create_at_path("US62E5M/").await.unwrap();
@@ -322,7 +322,7 @@ async fn test_move_folder_with_deleted_file() {
 
 #[tokio::test]
 async fn test_clean_sync_deleted_link() {
-    let mut cores = [test_core_with_account().await, test_core_with_account().await];
+    let cores = [test_core_with_account().await, test_core_with_account().await];
 
     let doc = cores[0].create_at_path("welcome.md").await.unwrap();
     cores[0]
@@ -342,17 +342,13 @@ async fn test_clean_sync_deleted_link() {
     cores[1].reject_share(&doc.id).await.unwrap();
     cores[1].sync(None).await.unwrap();
 
-    another_client(&mut cores[1])
-        .await
-        .sync(None)
-        .await
-        .unwrap();
+    another_client(&cores[1]).await.sync(None).await.unwrap();
 }
 
 #[tokio::test]
 async fn test_unmergable_conflict_progress_closure() {
     let mut cores = vec![test_core_with_account().await];
-    let new_core = another_client(&mut cores[0]).await;
+    let new_core = another_client(&cores[0]).await;
     cores.push(new_core);
 
     let doc = cores[0].create_at_path("test.md").await.unwrap();

@@ -23,7 +23,7 @@ async fn create_two_files_with_same_path() {
         &root.id,
         "document",
         FileType::Document,
-        &account,
+        account,
     )
     .unwrap();
     tree.create_unvalidated(
@@ -32,7 +32,7 @@ async fn create_two_files_with_same_path() {
         &root.id,
         "document",
         FileType::Document,
-        &account,
+        account,
     )
     .unwrap();
     let result = tree.validate(Owner(account.public_key()));
@@ -76,7 +76,7 @@ async fn directly_shared_link() {
         .clone();
     link.user_access_keys.push(
         UserAccessInfo::encrypt(
-            &accounts[1],
+            accounts[1],
             &accounts[1].public_key(),
             &accounts[0].public_key(),
             &symkey::generate_key(),
@@ -86,7 +86,7 @@ async fn directly_shared_link() {
     );
     tx.db()
         .local_metadata
-        .insert(link.id, link.sign(&accounts[1]).unwrap())
+        .insert(link.id, link.sign(accounts[1]).unwrap())
         .unwrap();
 
     let db = tx.db();
