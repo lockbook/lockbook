@@ -130,7 +130,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
     string_to_jstring(
         &env,
         match static_state::get() {
-            Ok(core) => translate(core.import_account(account.as_str())),
+            Ok(core) => translate(core.import_account(account.as_str(), None)),
             e => translate(e.map(|_| ())),
         },
     )

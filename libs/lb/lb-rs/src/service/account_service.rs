@@ -1,12 +1,14 @@
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
 use crate::shared::account::{Account, MAX_USERNAME_LENGTH};
-use crate::shared::api::{DeleteAccountRequest, GetPublicKeyRequest, NewAccountRequest};
+use crate::shared::api::{
+    DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequest,
+};
 use crate::shared::document_repo::DocumentService;
 use crate::shared::file_like::FileLike;
 use crate::shared::file_metadata::{FileMetadata, FileType};
-use crate::{CoreError, CoreState, LbResult, Requester};
-use libsecp256k1::PublicKey;
+use crate::{CoreError, CoreState, LbResult, Requester, DEFAULT_API_LOCATION};
+use libsecp256k1::{PublicKey, SecretKey};
 use qrcode_generator::QrCodeEcc;
 
 impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
@@ -47,26 +49,32 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(account)
     }
 
-    pub(crate) fn import_account(&mut self, account_string: &str) -> LbResult<Account> {
+    pub(crate) fn import_account(&mut self, key: &str, api_url: Option<&str>) -> LbResult<Account> {
         if self.db.account.get().is_some() {
             warn!("tried to import an account, but account exists already.");
             return Err(CoreError::AccountExists.into());
         }
 
-        let decoded = match base64::decode(account_string) {
-            Ok(d) => d,
-            Err(_) => {
-                return Err(CoreError::AccountStringCorrupted.into());
+        if let Ok(key) = base64::decode(key) {
+            if let Ok(account) = bincode::deserialize(&key[..]) {
+                return self.import_account_private_key_v1(account);
+            } else if let Ok(key) = SecretKey::parse_slice(&key) {
+                return self
+                    .import_account_private_key_v2(key, api_url.unwrap_or(DEFAULT_API_LOCATION));
             }
-        };
+        }
 
-        let account: Account = match bincode::deserialize(&decoded[..]) {
-            Ok(a) => a,
-            Err(_) => {
-                return Err(CoreError::AccountStringCorrupted.into());
-            }
-        };
+        let phrase: [&str; 24] = key
+            .split(|c| c == ' ' || c == ',')
+            .filter(|maybe_word| !maybe_word.is_empty())
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|_| CoreError::AccountStringCorrupted)?;
 
+        self.import_account_phrase(phrase, api_url.unwrap_or(DEFAULT_API_LOCATION))
+    }
+
+    pub fn import_account_private_key_v1(&mut self, account: Account) -> LbResult<Account> {
         let server_public_key = self
             .client
             .request(&account, GetPublicKeyRequest { username: account.username.clone() })?
@@ -84,14 +92,50 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(account)
     }
 
-    pub(crate) fn export_account(&self) -> LbResult<String> {
+    pub fn import_account_private_key_v2(
+        &mut self, private_key: SecretKey, api_url: &str,
+    ) -> LbResult<Account> {
+        let mut account =
+            Account { username: "".to_string(), api_url: api_url.to_string(), private_key };
+        let public_key = account.public_key();
+
+        account.username = self
+            .client
+            .request(&account, GetUsernameRequest { key: public_key })?
+            .username;
+
+        self.public_key = Some(public_key);
+        self.db.account.insert(account.clone())?;
+
+        Ok(account)
+    }
+
+    pub fn import_account_phrase(
+        &mut self, phrase: [&str; 24], api_url: &str,
+    ) -> LbResult<Account> {
+        let private_key = Account::phrase_to_private_key(phrase)?;
+        self.import_account_private_key_v2(private_key, api_url)
+    }
+
+    pub(crate) fn export_account_private_key_v1(&self) -> LbResult<String> {
         let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
         let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
         Ok(base64::encode(encoded))
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn export_account_private_key_v2(&self) -> LbResult<String> {
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
+        Ok(base64::encode(account.private_key.serialize()))
+    }
+
+    pub(crate) fn export_account_phrase(&self) -> LbResult<String> {
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
+        Ok(account.get_phrase()?.join(" "))
+    }
+
     pub(crate) fn export_account_qr(&self) -> LbResult<Vec<u8>> {
-        let acct_secret = self.export_account()?;
+        let acct_secret = self.export_account_private_key_v1()?;
         qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
             .map_err(|err| core_err_unexpected(err).into())
     }

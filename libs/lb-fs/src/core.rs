@@ -46,7 +46,7 @@ impl AsyncCore {
         let core = self.c();
         let account_string = account_string.to_string();
 
-        spawn_blocking(move || core.import_account(&account_string).unwrap())
+        spawn_blocking(move || core.import_account(&account_string, None).unwrap())
             .await
             .unwrap();
     }
