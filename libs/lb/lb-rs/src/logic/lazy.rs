@@ -306,14 +306,6 @@ impl<T: TreeLike> LazyTree<T> {
         Ok(result)
     }
 
-    pub fn decrypt_document(
-        &mut self, id: &Uuid, encrypted: &EncryptedDocument, account: &Account,
-    ) -> SharedResult<DecryptedDocument> {
-        let key = self.decrypt_key(id, account)?;
-        let compressed = symkey::decrypt(&key, encrypted)?;
-        compression_service::decompress(&compressed)
-    }
-
     pub fn stage<T2: TreeLikeMut<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
         // todo: optimize by performing minimal updates on self caches
         LazyTree::<StagedTree<T, T2>> {

@@ -10,19 +10,31 @@ use uuid::Uuid;
 use super::activity;
 
 impl Lb {
+<<<<<<< Updated upstream
     pub async fn read_document(&self, id: Uuid) -> LbResult<DecryptedDocument> {
         let mut tx = self.begin_tx().await;
+=======
+    pub(crate) async fn read_document(&mut self, id: Uuid) -> LbResult<DecryptedDocument> {
+        let tx = self.ro_tx().await;
+>>>>>>> Stashed changes
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let account = self.get_account()?;
 
-        //let doc = tree.read_document(&self.async_docs, &id, account).await?;
+        let hmac = tree.find(&id)?.document_hmac().copied();
+
+        if hmac.is_none() {
+            return Ok(vec![]);
+        }
+
+        let doc = self.docs.get(id, hmac).await?;
+
+        let doc = tree.read_document(&id, &doc, account)?;
 
         //self.add_doc_event(activity_service::DocEvent::Read(id, get_time().0))?;
 
-        //Ok(doc)
-        todo!()
+        Ok(doc)
     }
 
     pub async fn write_document(&self, id: Uuid, content: &[u8]) -> LbResult<()> {

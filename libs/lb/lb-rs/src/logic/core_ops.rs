@@ -260,8 +260,8 @@ where
         Ok(result)
     }
 
-    pub async fn read_document(
-        &mut self, d: &AsyncDocs, id: &Uuid, account: &Account,
+    pub fn read_document(
+        &mut self, id: &Uuid, doc: &EncryptedDocument, account: &Account,
     ) -> SharedResult<DecryptedDocument> {
         if self.calculate_deleted(id)? {
             return Err(SharedErrorKind::FileNonexistent.into());
@@ -274,8 +274,9 @@ where
             return Ok(vec![]);
         }
 
-        let doc = d.get(*meta.id(), meta.document_hmac().copied()).await?;
-        let doc = self.decrypt_document(id, &doc, account)?;
+        let key = self.decrypt_key(id, account)?;
+        let compressed = symkey::decrypt(&key, doc)?;
+        let doc = compression_service::decompress(&compressed)?;
 
         Ok(doc)
     }

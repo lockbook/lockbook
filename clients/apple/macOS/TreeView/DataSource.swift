@@ -117,7 +117,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     static let REORDER_PASTEBOARD_TYPE = "net.lockbook.metadata"
 }
 
-class TreeDelegate: NSObject, MenuOutlineViewDelegate {
+class TreeDelegate: NSObject, MenuOutlineViewDelegate { 
     func outlineView(_ outlineView: NSOutlineView, menuForItem item: Any?) -> NSMenu? {
         let menu = NSMenu()
         let file = item as! File
