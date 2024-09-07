@@ -6,8 +6,8 @@ use lb_rs::logic::tree_like::TreeLike;
 use test_utils::*;
 use uuid::Uuid;
 
-#[test]
-fn test_empty() {
+#[tokio::test]
+async fn test_empty() {
     let account = Account::new(random_name(), url());
     let root = FileMetadata::create_root(&account).unwrap();
     let files = vec![root].to_lazy().stage(vec![]);
@@ -15,8 +15,8 @@ fn test_empty() {
     assert_eq!(files.tree.staged.len(), 0);
 }
 
-#[test]
-fn test_stage_promote() {
+#[tokio::test]
+async fn test_stage_promote() {
     let account = &Account::new(random_name(), url());
     let root = FileMetadata::create_root(account)
         .unwrap()
@@ -45,8 +45,8 @@ fn test_stage_promote() {
     assert_eq!(files.tree.staged.len(), 1);
 }
 
-#[test]
-fn test_stage_unstage() {
+#[tokio::test]
+async fn test_stage_unstage() {
     let account = &Account::new(random_name(), url());
     let root = FileMetadata::create_root(account)
         .unwrap()

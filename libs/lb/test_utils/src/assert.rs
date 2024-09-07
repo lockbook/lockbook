@@ -177,7 +177,7 @@ pub async fn all_pending_shares(core: &Lb, expected_names: &[&str]) {
     }
 }
 
-pub async fn local_work_paths(lb: &mut Lb, expected_paths: &[&'static str]) {
+pub async fn local_work_paths(lb: &Lb, expected_paths: &[&'static str]) {
     let dirty = get_dirty_ids(lb, false).await;
     let mut expected_paths = expected_paths.to_vec();
 

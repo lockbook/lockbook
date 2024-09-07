@@ -1,8 +1,8 @@
 use crate::exhaustive_sync::trial::Action::*;
 use crate::exhaustive_sync::trial::Status::{Failed, Ready, Running, Succeeded};
 use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
-use lb_rs::service::api_service::no_network::{CoreIP, InProcess};
 use lb_rs::model::errors::CoreError;
+use lb_rs::service::api_service::no_network::{CoreIP, InProcess};
 use lockbook_server_lib::config::AdminConfig;
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::FileType::{Document, Folder, Link};
@@ -155,7 +155,7 @@ impl Trial {
                 RenameFile { user_index, device_index, name, new_name } => {
                     let db = &self.devices_by_user[user_index][device_index];
                     let doc = find_by_name(db, &name).id;
-                    if let Err(err) = db.rename_file(doc, &new_name) {
+                    if let Err(err) = db.rename_file(doc, &new_name).await {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
@@ -170,7 +170,7 @@ impl Trial {
                     let non_folder = find_by_name(db, &non_folder_name).id;
                     let dest = find_by_name(db, &destination_name).id;
 
-                    let move_file_result = db.move_file(non_folder, dest);
+                    let move_file_result = db.move_file(non_folder, dest).await;
                     match move_file_result {
                         Ok(()) => {}
                         Err(err) => match err.kind {
@@ -185,7 +185,7 @@ impl Trial {
                 DeleteFile { user_index, device_index, name } => {
                     let db = &self.devices_by_user[user_index][device_index];
                     let file = find_by_name(db, &name).id;
-                    if let Err(err) = db.delete_file(file) {
+                    if let Err(err) = db.delete(file).await {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
@@ -201,7 +201,10 @@ impl Trial {
                                 break 'steps;
                             }
                         };
-                    if let Err(err) = db.share_file(file, &target_username, ShareMode::Write) {
+                    if let Err(err) = db
+                        .share_file(file, &target_username, ShareMode::Write)
+                        .await
+                    {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
@@ -216,7 +219,7 @@ impl Trial {
                 }
                 DeleteShare { user_index, device_index, id } => {
                     let db = &self.devices_by_user[user_index][device_index];
-                    if let Err(err) = db.delete_pending_share(id) {
+                    if let Err(err) = db.reject_share(&id) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }

@@ -7,8 +7,8 @@ use lb_rs::logic::SharedResult;
 use test_utils::*;
 use uuid::Uuid;
 
-#[test]
-fn tree_test() -> SharedResult<()> {
+#[tokio::test]
+async fn tree_test() -> SharedResult<()> {
     let account = &Account::new(random_name(), url());
     let file1 = FileMetadata::create_root(account)?;
     let file2 = FileMetadata::create_root(account)?;
@@ -33,8 +33,8 @@ fn tree_test() -> SharedResult<()> {
     Ok(())
 }
 
-#[test]
-fn test_stage_insert_reset() -> SharedResult<()> {
+#[tokio::test]
+async fn test_stage_insert_reset() -> SharedResult<()> {
     let account = &Account::new(random_name(), url());
     let file1 = FileMetadata::create_root(account)?;
     let mut file2 = FileMetadata::create_root(account)?;
@@ -62,8 +62,8 @@ fn test_stage_insert_reset() -> SharedResult<()> {
     Ok(())
 }
 
-#[test]
-fn test_stage_reset() -> SharedResult<()> {
+#[tokio::test]
+async fn test_stage_reset() -> SharedResult<()> {
     let account = &Account::new(random_name(), url());
     let file1 = FileMetadata::create_root(account)?;
     let file2 = FileMetadata::create_root(account)?;
