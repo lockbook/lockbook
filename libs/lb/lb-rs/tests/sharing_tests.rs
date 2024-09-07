@@ -63,8 +63,10 @@ async fn write_document_read_share() {
 
     cores[1].sync(None).await.unwrap();
 
-    let result = cores[1].write_document(document.id, b"document content");
-    assert_matches!(result.await.unwrap_err().kind, CoreError::InsufficientPermission);
+    let result = cores[1]
+        .write_document(document.id, b"document content")
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[tokio::test]
@@ -85,8 +87,10 @@ async fn write_document_in_read_shared_folder() {
 
     cores[1].sync(None).await.unwrap();
 
-    let result = cores[1].write_document(document.id, b"document content");
-    assert_matches!(result.await.unwrap_err().kind, CoreError::InsufficientPermission);
+    let result = cores[1]
+        .write_document(document.id, b"document content")
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[tokio::test]
@@ -254,8 +258,10 @@ async fn write_document_rejected_share() {
     cores[1].sync(None).await.unwrap();
     cores[1].reject_share(&document.id).await.unwrap();
 
-    let result = cores[1].write_document(document.id, b"document content by sharee");
-    assert_matches!(result.await.unwrap_err().kind, CoreError::InsufficientPermission);
+    let result = cores[1]
+        .write_document(document.id, b"document content by sharee")
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[tokio::test]
@@ -373,8 +379,10 @@ async fn write_document_in_rejected_shared_folder_in_rejected_share_folder() {
     cores[1].reject_share(&folder1.id).await.unwrap();
     cores[1].reject_share(&folder2.id).await.unwrap();
 
-    let result = cores[1].write_document(document.id, b"document content by sharee");
-    assert_matches!(result.await.unwrap_err().kind, CoreError::InsufficientPermission);
+    let result = cores[1]
+        .write_document(document.id, b"document content by sharee")
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[tokio::test]
@@ -808,8 +816,10 @@ async fn share_file_root() {
     let sharee_account = &sharee_core.get_account().unwrap();
     let root = core.root().await.unwrap();
 
-    let result = core.share_file(root.id, &sharee_account.username, ShareMode::Read);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::RootModificationInvalid);
+    let result = core
+        .share_file(root.id, &sharee_account.username, ShareMode::Read)
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::RootModificationInvalid);
 }
 
 #[tokio::test]
@@ -818,8 +828,10 @@ async fn share_file_nonexistent() {
     let sharee_core = test_core_with_account().await;
     let sharee_account = &sharee_core.get_account().unwrap();
 
-    let result = core.share_file(Uuid::new_v4(), &sharee_account.username, ShareMode::Read);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::FileNonexistent);
+    let result = core
+        .share_file(Uuid::new_v4(), &sharee_account.username, ShareMode::Read)
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::FileNonexistent);
 }
 
 #[tokio::test]
@@ -854,8 +866,8 @@ async fn delete_nonexistent_share() {
         .await
         .unwrap();
 
-    let result = core.reject_share(&document.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::ShareNonexistent);
+    let result = core.reject_share(&document.id).await;
+    assert_matches!(result.unwrap_err().kind, CoreError::ShareNonexistent);
 }
 
 #[tokio::test]
@@ -944,8 +956,10 @@ async fn share_file_duplicate() {
         .await
         .unwrap();
 
-    let result = core.share_file(document.id, &sharee_account.username, ShareMode::Read);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::ShareAlreadyExists);
+    let result = core
+        .share_file(document.id, &sharee_account.username, ShareMode::Read)
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::ShareAlreadyExists);
 }
 
 #[tokio::test]
@@ -1009,8 +1023,10 @@ async fn share_folder_with_link_inside() {
         .await
         .unwrap();
 
-    let result = cores[1].share_file(folder1.id, &accounts[2].username, ShareMode::Read);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::LinkInSharedFolder);
+    let result = cores[1]
+        .share_file(folder1.id, &accounts[2].username, ShareMode::Read)
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkInSharedFolder);
 }
 
 #[tokio::test]
@@ -1074,12 +1090,14 @@ async fn share_unowned_file_write() {
     cores[0].sync(None).await.unwrap();
     cores[1].sync(None).await.unwrap();
 
-    let result = cores[1].share_file(folder0.id, &accounts[2].username, ShareMode::Write);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::InsufficientPermission);
+    let result = cores[1]
+        .share_file(folder0.id, &accounts[2].username, ShareMode::Write)
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[tokio::test]
-async fn delete_pending_share() {
+async fn reject_share() {
     let cores = [
         test_core_with_account().await,
         test_core_with_account().await,
@@ -1207,16 +1225,16 @@ async fn create_link_with_deleted_duplicate() {
 }
 
 #[tokio::test]
-async fn delete_pending_share_root() {
+async fn reject_share_root() {
     let core = test_core_with_account().await;
     let root = core.root().await.unwrap();
 
-    let result = core.reject_share(&root.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::RootModificationInvalid);
+    let result = core.reject_share(&root.id).await;
+    assert_matches!(result.unwrap_err().kind, CoreError::RootModificationInvalid);
 }
 
 #[tokio::test]
-async fn delete_pending_share_duplicate() {
+async fn reject_share_duplicate() {
     let cores = [
         test_core_with_account().await,
         test_core_with_account().await,
@@ -1244,12 +1262,12 @@ async fn delete_pending_share_duplicate() {
     cores[1].sync(None).await.unwrap();
     cores[1].reject_share(&folder0.id).await.unwrap();
 
-    let result = cores[1].reject_share(&folder0.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::ShareNonexistent);
+    let result = cores[1].reject_share(&folder0.id).await;
+    assert_matches!(result.unwrap_err().kind, CoreError::ShareNonexistent);
 }
 
 #[tokio::test]
-async fn delete_pending_share_nonexistent() {
+async fn reject_share_nonexistent() {
     let cores = [
         test_core_with_account().await,
         test_core_with_account().await,
@@ -1277,8 +1295,8 @@ async fn delete_pending_share_nonexistent() {
     cores[1].sync(None).await.unwrap();
     cores[1].reject_share(&folder0.id).await.unwrap();
 
-    let result = cores[1].reject_share(&folder0.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::ShareNonexistent);
+    let result = cores[1].reject_share(&folder0.id).await;
+    assert_matches!(result.unwrap_err().kind, CoreError::ShareNonexistent);
 }
 
 #[tokio::test]
@@ -1300,8 +1318,8 @@ async fn create_at_path_insufficient_permission() {
         .await
         .unwrap();
 
-    let result = core1.create_at_path("received-folder/document");
-    assert_matches!(result.await.unwrap_err().kind, CoreError::InsufficientPermission);
+    let result = core1.create_at_path("received-folder/document").await;
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[tokio::test]
@@ -1335,16 +1353,16 @@ async fn create_link_at_path_target_is_owned() {
         .await
         .unwrap();
 
-    let result = core.create_link_at_path("link", document.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::LinkTargetIsOwned);
+    let result = core.create_link_at_path("link", document.id).await;
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkTargetIsOwned);
 }
 
 #[tokio::test]
 async fn create_link_at_path_target_nonexistent() {
     let core = test_core_with_account().await;
 
-    let result = core.create_link_at_path("link", Uuid::new_v4());
-    assert_matches!(result.await.unwrap_err().kind, CoreError::LinkTargetNonexistent);
+    let result = core.create_link_at_path("link", Uuid::new_v4()).await;
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkTargetNonexistent);
 }
 
 #[tokio::test]
@@ -1380,8 +1398,10 @@ async fn create_link_at_path_link_in_shared_folder() {
         .await
         .unwrap();
 
-    let result = cores[1].create_link_at_path("folder_link/document", document0.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::LinkInSharedFolder);
+    let result = cores[1]
+        .create_link_at_path("folder_link/document", document0.id)
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkInSharedFolder);
 }
 
 #[tokio::test]
@@ -1409,8 +1429,8 @@ async fn create_link_at_path_link_duplicate() {
         .await
         .unwrap();
 
-    let result = cores[1].create_link_at_path("/link2", document0.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::MultipleLinksToSameFile);
+    let result = cores[1].create_link_at_path("/link2", document0.id).await;
+    assert_matches!(result.unwrap_err().kind, CoreError::MultipleLinksToSameFile);
 }
 
 #[tokio::test]
@@ -1418,8 +1438,10 @@ async fn create_file_link_target_nonexistent() {
     let core = test_core_with_account().await;
     let root = core.root().await.unwrap();
 
-    let result = core.create_file("link", &root.id, FileType::Link { target: Uuid::new_v4() });
-    assert_matches!(result.await.unwrap_err().kind, CoreError::LinkTargetNonexistent);
+    let result = core
+        .create_file("link", &root.id, FileType::Link { target: Uuid::new_v4() })
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkTargetNonexistent);
 }
 
 #[tokio::test]
@@ -1432,8 +1454,10 @@ async fn create_file_link_target_owned() {
         .await
         .unwrap();
 
-    let result = core.create_file("link", &root.id, FileType::Link { target: document.id });
-    assert_matches!(result.await.unwrap_err().kind, CoreError::LinkTargetIsOwned);
+    let result = core
+        .create_file("link", &root.id, FileType::Link { target: document.id })
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkTargetIsOwned);
 }
 
 #[tokio::test]
@@ -1469,9 +1493,10 @@ async fn create_file_shared_link() {
         .await
         .unwrap();
 
-    let result =
-        cores[1].create_file("document_link", &folder.id, FileType::Link { target: document.id });
-    assert_matches!(result.await.unwrap_err().kind, CoreError::LinkInSharedFolder);
+    let result = cores[1]
+        .create_file("document_link", &folder.id, FileType::Link { target: document.id })
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkInSharedFolder);
 }
 
 #[tokio::test]
@@ -1499,9 +1524,10 @@ async fn create_file_duplicate_link() {
         .await
         .unwrap();
 
-    let result =
-        cores[1].create_file("link_2", &roots[1].id, FileType::Link { target: document.id });
-    assert_matches!(result.await.unwrap_err().kind, CoreError::MultipleLinksToSameFile);
+    let result = cores[1]
+        .create_file("link_2", &roots[1].id, FileType::Link { target: document.id })
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::MultipleLinksToSameFile);
 }
 
 #[tokio::test]
@@ -1562,8 +1588,10 @@ async fn create_file_in_read_shared_folder() {
         .await
         .unwrap();
 
-    let result = cores[1].create_file("document", &folder.id, FileType::Document);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::InsufficientPermission);
+    let result = cores[1]
+        .create_file("document", &folder.id, FileType::Document)
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[tokio::test]
@@ -1625,8 +1653,8 @@ async fn rename_file_in_read_shared_folder() {
         .await
         .unwrap();
 
-    let result = cores[1].rename_file(&document.id, "renamed-document");
-    assert_matches!(result.await.unwrap_err().kind, CoreError::InsufficientPermission);
+    let result = cores[1].rename_file(&document.id, "renamed-document").await;
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[tokio::test]
@@ -1883,8 +1911,8 @@ async fn move_file_shared_link() {
         .await
         .unwrap();
 
-    let result = cores[1].move_file(&document_link.id, &folder.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::LinkInSharedFolder);
+    let result = cores[1].move_file(&document_link.id, &folder.id).await;
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkInSharedFolder);
 }
 
 #[tokio::test]
@@ -1928,8 +1956,10 @@ async fn move_file_shared_link_in_folder_a() {
         .await
         .unwrap();
 
-    let result = cores[1].move_file(&document_link.id, &child_folder.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::LinkInSharedFolder);
+    let result = cores[1]
+        .move_file(&document_link.id, &child_folder.id)
+        .await;
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkInSharedFolder);
 }
 
 #[tokio::test]
@@ -1973,8 +2003,8 @@ async fn move_file_shared_link_in_folder_b() {
         .await
         .unwrap();
 
-    let result = cores[1].move_file(&child_folder.id, &folder.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::LinkInSharedFolder);
+    let result = cores[1].move_file(&child_folder.id, &folder.id).await;
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkInSharedFolder);
 }
 
 #[tokio::test]
@@ -2010,8 +2040,8 @@ async fn move_file_in_read_shared_folder() {
         .await
         .unwrap();
 
-    let result = cores[1].move_file(&document.id, &child_folder.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::InsufficientPermission);
+    let result = cores[1].move_file(&document.id, &child_folder.id).await;
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[tokio::test]
@@ -2081,8 +2111,8 @@ async fn move_file_into_read_shared_folder() {
         .await
         .unwrap();
 
-    let result = cores[1].move_file(&document.id, &folder.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::InsufficientPermission);
+    let result = cores[1].move_file(&document.id, &folder.id).await;
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[tokio::test]
@@ -2141,8 +2171,8 @@ async fn move_write_shared_folder() {
         .await
         .unwrap();
 
-    let result = cores[1].move_file(&folder.id, &child_folder.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::InsufficientPermission);
+    let result = cores[1].move_file(&folder.id, &child_folder.id).await;
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[tokio::test]
@@ -2174,8 +2204,8 @@ async fn delete_in_read_shared_folder() {
         .await
         .unwrap();
 
-    let result = cores[1].delete(&document.id);
-    assert_matches!(result.await.unwrap_err().kind, CoreError::InsufficientPermission);
+    let result = cores[1].delete(&document.id).await;
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[tokio::test]
