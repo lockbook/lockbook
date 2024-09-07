@@ -184,12 +184,12 @@ struct PlatformView: View {
             .modifier(FormSheetViewModifier(show: $sheets.creatingFolder, sheetContent: {
                 CreateFolderSheet(info: sheets.creatingFolderInfo!)
                     .padding(.bottom, 3)
-                    .frame(width: 300, height: 160)
+                    .frame(width: 300, height: 190)
             }))
             .modifier(FormSheetViewModifier(show: $sheets.renamingFile, sheetContent: {
                 RenameFileSheet(info: sheets.renamingFileInfo!)
                     .padding(.bottom, 3)
-                    .frame(width: 300, height: 160)
+                    .frame(width: 300, height: 190)
             }))
 
     }
