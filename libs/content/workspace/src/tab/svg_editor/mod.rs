@@ -83,8 +83,6 @@ impl SVGEditor {
             self.show_debug_info(ui);
         }
 
-        self.show_canvas(ui);
-
         if !ui.is_enabled() {
             return;
         }
@@ -139,32 +137,28 @@ impl SVGEditor {
         }
 
         self.handle_clip_input(ui);
+
+        self.show_canvas(ui);
     }
 
     fn show_canvas(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
-            egui::Frame::default()
-                .fill(if ui.visuals().dark_mode {
-                    egui::Color32::BLACK
-                } else {
-                    egui::Color32::WHITE
-                })
-                .show(ui, |ui| {
-                    self.toolbar.show(
-                        ui,
-                        &mut self.buffer,
-                        &mut self.history,
-                        &mut self.skip_frame,
-                        self.inner_rect,
-                    );
+            egui::Frame::default().show(ui, |ui| {
+                self.toolbar.show(
+                    ui,
+                    &mut self.buffer,
+                    &mut self.history,
+                    &mut self.skip_frame,
+                    self.inner_rect,
+                );
 
-                    self.inner_rect = ui.available_rect_before_wrap();
-                    let painter = ui
-                        .allocate_painter(self.inner_rect.size(), egui::Sense::click_and_drag())
-                        .1;
+                self.inner_rect = ui.available_rect_before_wrap();
+                let painter = ui
+                    .allocate_painter(self.inner_rect.size(), egui::Sense::click_and_drag())
+                    .1;
 
-                    self.renderer.render_svg(ui, &mut self.buffer, painter);
-                });
+                self.renderer.render_svg(ui, &mut self.buffer, painter);
+            });
         });
     }
 

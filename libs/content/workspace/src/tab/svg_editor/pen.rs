@@ -65,7 +65,7 @@ impl Pen {
                     // for some reason in ipad there are  two draw events on the same pos which results in a knot.
                     if let Some(last_pos) = self.path_builder.original_points.last() {
                         if last_pos.eq(&payload.pos) && self.path_builder.path.len() > 1 {
-                            event!(Level::DEBUG, ?payload.pos, "draw event canceled because it's pos is equal to the last pos on the path");
+                            event!(Level::TRACE, ?payload.pos, "draw event canceled because it's pos is equal to the last pos on the path");
                             return;
                         }
                     }
