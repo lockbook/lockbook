@@ -98,12 +98,19 @@ class SheetState: ObservableObject {
         .store(in: &cancellables)
         
         DI.workspace.$renameOpenDoc.sink { isRenaming in
-            if isRenaming {
-                DI.workspace.renameOpenDoc = false
-                let file = DI.files.idsAndFiles[DI.workspace.openDoc!]!
-                
-                DI.sheets.renamingFileInfo = RenamingFileInfo(id: file.id, name: file.name, parentPath: DI.files.getPathByIdOrParent(maybeId: file.parent) ?? "Error")
+            if !isRenaming {
+                return
             }
+            
+            DI.workspace.renameOpenDoc = false
+            
+            guard let openDoc = DI.workspace.openDoc,
+                  let file = DI.files.idsAndFiles[openDoc] else {
+                return
+            }
+
+            DI.sheets.renamingFileInfo = RenamingFileInfo(id: file.id, name: file.name, parentPath: DI.files.getPathByIdOrParent(maybeId: file.parent) ?? "Error")
+            
         }
         .store(in: &cancellables)
 
