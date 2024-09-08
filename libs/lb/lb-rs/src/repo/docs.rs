@@ -1,4 +1,4 @@
-use crate::logic::{crypto::EncryptedDocument, file_metadata::DocumentHmac, SharedResult};
+use crate::logic::{crypto::EncryptedDocument, file_like::FileLike, file_metadata::DocumentHmac, SharedResult};
 use uuid::Uuid;
 
 #[derive(Clone, Default)]

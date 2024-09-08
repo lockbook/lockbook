@@ -125,7 +125,7 @@ impl Lb {
     }
 
     pub(crate) async fn start_search_inner(
-        &mut self, search_type: SearchType, results_tx: Sender<SearchResult>,
+        &self, search_type: SearchType, results_tx: Sender<SearchResult>,
         search_rx: Receiver<SearchRequest>,
     ) -> LbResult<()> {
         let tx = self.ro_tx().await;
@@ -148,6 +148,8 @@ impl Lb {
         for id in tree.owned_ids() {
             if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
                 let file = tree.find(&id)?;
+                let id = *file.id();
+                let hmac = file.document_hmac().copied();
 
                 if file.is_document() {
                     let content = match search_type {
@@ -156,7 +158,8 @@ impl Lb {
                                 &tree.name_using_links(&id, account)?,
                             ) {
                                 DocumentType::Text => {
-                                    let doc = tree.read_document(&self.docs, &id, account).await?;
+                                    let doc =
+                                        self.read_document_helper(id, hmac, &mut tree).await?;
                                     match String::from_utf8(doc) {
                                         Ok(str) => Some(str),
                                         Err(utf_8) => {

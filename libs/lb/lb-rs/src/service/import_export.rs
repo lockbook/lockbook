@@ -134,7 +134,7 @@ impl Lb {
                 }
                 .map_err(LbError::from)?;
 
-                let doc = tree.read_document(docs, this_file.id(), account).await?;
+                let doc = tree.decrypt_document(docs, this_file.id(), account).await?;
 
                 file.write_all(doc.as_slice()).map_err(LbError::from)?;
             }

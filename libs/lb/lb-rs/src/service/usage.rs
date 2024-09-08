@@ -41,7 +41,7 @@ impl Lb {
             let file = tree.find(&id)?;
 
             if !is_file_deleted && file.is_document() {
-                let doc = tree.read_document(&self.docs, &id, account).await?;
+                let doc = tree.decrypt_document(&self.docs, &id, account).await?;
                 let doc_size = doc.len();
                 breakdown.insert(id, doc_size);
             }
@@ -64,7 +64,7 @@ impl Lb {
             let file = tree.find(&id)?;
 
             if !is_file_deleted && file.is_document() {
-                let doc = tree.read_document(&self.docs, &id, account).await?;
+                let doc = tree.decrypt_document(&self.docs, &id, account).await?;
                 local_usage += doc.len() as u64
             }
         }

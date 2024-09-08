@@ -1,8 +1,11 @@
 use crate::logic::clock::get_time;
 use crate::logic::crypto::DecryptedDocument;
 use crate::logic::file_like::FileLike;
-use crate::logic::file_metadata::FileType;
+use crate::logic::file_metadata::{DocumentHmac, FileType};
+use crate::logic::lazy::LazyTree;
+use crate::logic::signed_file::SignedFile;
 use crate::logic::tree_like::TreeLike;
+use crate::logic::validate;
 use crate::model::errors::{CoreError, LbResult};
 use crate::Lb;
 use uuid::Uuid;
@@ -10,29 +13,41 @@ use uuid::Uuid;
 use super::activity;
 
 impl Lb {
-<<<<<<< Updated upstream
     pub async fn read_document(&self, id: Uuid) -> LbResult<DecryptedDocument> {
-        let mut tx = self.begin_tx().await;
-=======
-    pub(crate) async fn read_document(&mut self, id: Uuid) -> LbResult<DecryptedDocument> {
         let tx = self.ro_tx().await;
->>>>>>> Stashed changes
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let account = self.get_account()?;
 
-        let hmac = tree.find(&id)?.document_hmac().copied();
+        let file = tree.find(&id)?;
+        validate::is_document(file)?;
 
-        if hmac.is_none() {
-            return Ok(vec![]);
-        }
+        let id = *file.id();
+        let hmac = file.document_hmac().copied();
 
-        let doc = self.docs.get(id, hmac).await?;
 
-        let doc = tree.read_document(&id, &doc, account)?;
+        let doc = self
+            .read_document_helper(id, hmac, &mut tree)
+            .await?;
 
         //self.add_doc_event(activity_service::DocEvent::Read(id, get_time().0))?;
+
+        Ok(doc)
+    }
+
+    pub(crate) async fn read_document_helper<T>(
+        &self, id: Uuid, hmac: Option<DocumentHmac>, tree: &mut LazyTree<T>,
+    ) -> LbResult<DecryptedDocument>
+    where
+        T: TreeLike<F = SignedFile>,
+    {
+        let doc = match hmac {
+            Some(hmac) => {
+                let doc = self.docs.get(id, Some(hmac)).await?;
+                tree.decrypt_document(&id, &doc, self.get_account()?)?
+            }
+            None => vec![],
+        };
 
         Ok(doc)
     }

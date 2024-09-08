@@ -260,7 +260,7 @@ where
         Ok(result)
     }
 
-    pub fn read_document(
+    pub fn decrypt_document(
         &mut self, id: &Uuid, doc: &EncryptedDocument, account: &Account,
     ) -> SharedResult<DecryptedDocument> {
         if self.calculate_deleted(id)? {

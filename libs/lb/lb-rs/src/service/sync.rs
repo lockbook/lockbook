@@ -543,13 +543,13 @@ impl Lb {
                                 // todo these accesses are potentially problematic
                                 // maybe not if service/docs is the persion doing network io
                                 let base_document = base
-                                    .read_document(&self.docs, &id, self.get_account()?)
+                                    .decrypt_document(&self.docs, &id, self.get_account()?)
                                     .await?;
                                 let remote_document = remote
-                                    .read_document(&self.docs, &id, self.get_account()?)
+                                    .decrypt_document(&self.docs, &id, self.get_account()?)
                                     .await?;
                                 let local_document = local
-                                    .read_document(&self.docs, &id, self.get_account()?)
+                                    .decrypt_document(&self.docs, &id, self.get_account()?)
                                     .await?;
 
                                 match document_type {
@@ -624,7 +624,7 @@ impl Lb {
                             } else {
                                 // overwrite (todo: avoid reading/decrypting/encrypting document)
                                 let document = local
-                                    .read_document(&self.docs, &id, self.get_account()?)
+                                    .decrypt_document(&self.docs, &id, self.get_account()?)
                                     .await?;
                                 merge.update_document_unvalidated(
                                     &id,
