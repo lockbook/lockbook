@@ -1038,7 +1038,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         
         let rustNanoseconds = rustEndTime.uptimeNanoseconds - rustStartTime.uptimeNanoseconds
         let rustSeconds = Double(rustNanoseconds) / 1_000_000.0
-        print("Swift time: \(swiftSeconds) ms | Rust time: \(rustSeconds)")
+        // print("Swift time: \(swiftSeconds) ms | Rust time: \(rustSeconds)")
         
     }
 
