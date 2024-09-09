@@ -64,6 +64,15 @@ pub struct DiffState {
     pub data_changed: bool,
 }
 
+impl DiffState {
+    /// is state dirty and require an i/o save
+    pub fn is_dirty(&self) -> bool {
+        self.data_changed
+            || self.delete_changed
+            || self.opacity_changed
+            || self.transformed.is_some()
+    }
+}
 #[derive(Clone, Copy, Debug)]
 pub struct Stroke {
     pub color: (egui::Color32, egui::Color32),

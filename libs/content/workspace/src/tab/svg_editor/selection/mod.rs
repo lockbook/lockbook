@@ -66,7 +66,6 @@ impl Selection {
                 ui.output_mut(|r| r.cursor_icon = egui::CursorIcon::Grab);
             }
         }
-        println!("{:#?}", maybe_selected_el);
 
         // build up selected elements
         let should_rebuild = if cfg!(target_os = "ios") {
@@ -133,7 +132,7 @@ impl Selection {
                     self.candidate_selected_elements.clear();
 
                     self.laso_rect = Some(rect);
-                    ui.painter().rect_filled(
+                    painter.rect_filled(
                         rect,
                         egui::Rounding::ZERO,
                         ui.visuals().hyperlink_color.gamma_multiply(0.1),

@@ -901,6 +901,9 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     }
     
     public func draw(in view: MTKView) {
+        let swiftStartTime = DispatchTime.now()
+
+        
         if tabSwitchTask != nil {
             tabSwitchTask!()
             tabSwitchTask = nil
@@ -908,7 +911,11 @@ public class iOSMTK: MTKView, MTKViewDelegate {
 
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, Float(self.contentScaleFactor))
+        
+        let rustStartTime = DispatchTime.now()
         let output = ios_frame(wsHandle)
+        let rustEndTime = DispatchTime.now()
+
         
         if output.status_updated {
             let status = get_status(wsHandle)
@@ -1023,6 +1030,16 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         }
         
         self.enableSetNeedsDisplay = self.isPaused
+        
+        let swiftEndTime = DispatchTime.now()
+
+        let swiftNanoseconds = swiftEndTime.uptimeNanoseconds - swiftStartTime.uptimeNanoseconds
+        let swiftSeconds = Double(swiftNanoseconds) / 1_000_000.0
+        
+        let rustNanoseconds = rustEndTime.uptimeNanoseconds - rustStartTime.uptimeNanoseconds
+        let rustSeconds = Double(rustNanoseconds) / 1_000_000.0
+        print("Swift time: \(swiftSeconds) ms | Rust time: \(rustSeconds)")
+        
     }
 
     override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -1050,12 +1067,12 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
 
-            for touch in event!.coalescedTouches(for: touch)! {
-                let location = touch.location(in: self)
-                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-                
-                touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
-            }
+//            for touch in event!.coalescedTouches(for: touch)! {
+//                let location = touch.location(in: self)
+//                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+//                
+//                touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+//            }
             
             for touch in event!.predictedTouches(for: touch)! {
                 let location = touch.location(in: self)
@@ -1063,6 +1080,11 @@ public class iOSMTK: MTKView, MTKViewDelegate {
                 
                 touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
             }
+            
+            let location = touch.location(in: self)
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+            touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+
         }
 
         self.setNeedsDisplay(self.frame)

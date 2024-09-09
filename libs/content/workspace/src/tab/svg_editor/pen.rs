@@ -1,6 +1,7 @@
-use bezier_rs::{Bezier, Subpath};
+use bezier_rs::{Bezier, Identifier, Subpath};
 use resvg::usvg::Transform;
 use std::{
+    borrow::BorrowMut,
     collections::VecDeque,
     time::{Duration, Instant},
 };
@@ -37,10 +38,11 @@ impl Pen {
         }
     }
 
+    /// returns true if a path is being built
     pub fn handle_input(
         &mut self, ui: &mut egui::Ui, inner_rect: egui::Rect, buffer: &mut parser::Buffer,
         history: &mut History,
-    ) {
+    ) -> bool {
         if self.active_color.is_none() {
             self.active_color = Some(ThemePalette::get_fg_color());
         }
@@ -62,31 +64,26 @@ impl Pen {
             let _ = span.enter();
             match event {
                 PathEvent::Draw(payload, id) => {
-                    // for some reason in ipad there are  two draw events on the same pos which results in a knot.
-                    if let Some(last_pos) = self.path_builder.original_points.last() {
-                        if last_pos.eq(&payload.pos) && self.path_builder.path.len() > 1 {
-                            event!(Level::TRACE, ?payload.pos, "draw event canceled because it's pos is equal to the last pos on the path");
-                            return;
-                        }
-                    }
-
-                    if self.detect_snap(payload.pos, buffer.master_transform) {
-                        return self.end_path(buffer, history, true);
-                    }
-
                     if let Some(parser::Element::Path(p)) = buffer.elements.get_mut(&id.to_string())
                     {
-                        p.diff_state.data_changed = true;
-
-                        if self.handle_dancing_lines(p) {
-                            event!(Level::DEBUG, ?payload.pos, "draw event canceled to prevent dancing lines");
-                            return;
+                        // for some reason in ipad there are  two draw events on the same pos which results in a knot.
+                        if let Some(last_pos) = self.path_builder.original_points.last() {
+                            if last_pos.eq(&payload.pos) && p.data.len() > 1 {
+                                // event!(Level::TRACE, ?payload.pos, "draw event canceled because it's pos is equal to the last pos on the path");
+                                return true;
+                            }
                         }
 
-                        self.avoid_phantom_strokes(ui);
+                        if self.detect_snap(&p.data, payload.pos, buffer.master_transform) {
+                            self.end_path(&mut p.data, history, true);
+                            return false;
+                        }
 
-                        self.path_builder.cubic_to(payload.pos);
-                        p.data = self.path_builder.path.clone();
+                        p.diff_state.data_changed = true;
+
+                        self.avoid_phantom_strokes(ui, &p.data);
+
+                        self.path_builder.cubic_to(payload.pos, &mut p.data);
 
                         if let Some(f) = payload.force {
                             if let Some(pressure) = &mut p.pressure {
@@ -99,7 +96,6 @@ impl Pen {
                             pressure.push(*pressure.last().unwrap_or(&1.0))
                         }
                     } else {
-                        self.path_builder.cubic_to(payload.pos);
                         let mut stroke = Stroke::default();
                         if let Some(c) = self.active_color {
                             stroke.color = c;
@@ -114,7 +110,7 @@ impl Pen {
                         buffer.elements.insert(
                             id.to_string(),
                             parser::Element::Path(Path {
-                                data: self.path_builder.path.clone(),
+                                data: Subpath::new(vec![], false),
                                 visibility: resvg::usvg::Visibility::Visible,
                                 fill: None,
                                 stroke: Some(stroke),
@@ -128,21 +124,34 @@ impl Pen {
                                 deleted: false,
                             }),
                         );
+
+                        if let Some(parser::Element::Path(p)) =
+                            buffer.elements.get_mut(&id.to_string())
+                        {
+                            self.path_builder.cubic_to(payload.pos, &mut p.data);
+                        }
                     }
+                    return true;
                 }
                 PathEvent::End => {
-                    self.end_path(buffer, history, false);
+                    if let Some(parser::Element::Path(p)) =
+                        buffer.elements.get_mut(&self.current_id.to_string())
+                    {
+                        self.end_path(&mut p.data, history, false);
+                    }
 
                     self.maybe_snap_started = None;
+                    return false;
                 }
             }
         }
+        false
     }
 
-    fn avoid_phantom_strokes(&mut self, ui: &mut egui::Ui) {
+    fn avoid_phantom_strokes(&mut self, ui: &mut egui::Ui, path: &Subpath<ManipulatorGroupId>) {
         let current_touch_id = get_current_touch_id(ui);
         if !current_touch_id.eq(&self.path_builder.first_point_touch_id)
-            && self.path_builder.path.len_segments().eq(&0)
+            && path.len_segments().eq(&0)
         {
             event!(Level::DEBUG, "phantom path detected");
             self.path_builder.clear();
@@ -150,44 +159,33 @@ impl Pen {
         }
     }
 
-    /// a transform occurred causing a mismatch between buffer and path builder finish path early
-    fn handle_dancing_lines(&mut self, p: &mut Path) -> bool {
-        if p.data != self.path_builder.path {
-            self.path_builder.clear();
-            self.current_id += 1;
-            return true;
-        }
-        false
-    }
-
-    pub fn end_path(&mut self, buffer: &mut Buffer, history: &mut History, is_snapped: bool) {
-        if self.path_builder.path.is_empty() {
+    pub fn end_path(
+        &mut self, path: &mut Subpath<ManipulatorGroupId>, history: &mut History, is_snapped: bool,
+    ) {
+        if path.is_empty() {
             return;
         }
 
-        if self.path_builder.path.len() > 2 && is_snapped {
-            self.path_builder.snap(buffer);
+        if path.len() > 2 && is_snapped {
+            // self.path_builder.snap(buffer, path);
         }
 
         history.save(super::Event::Insert(vec![InsertElement { id: self.current_id.to_string() }]));
-
-        if let Some(parser::Element::Path(p)) =
-            buffer.elements.get_mut(&self.current_id.to_string())
-        {
-            p.data = self.path_builder.path.clone();
-        }
 
         self.path_builder.clear();
 
         self.current_id += 1;
     }
 
-    fn detect_snap(&mut self, current_pos: egui::Pos2, master_transform: Transform) -> bool {
-        if self.path_builder.path.len() < 2 {
+    fn detect_snap(
+        &mut self, path: &Subpath<ManipulatorGroupId>, current_pos: egui::Pos2,
+        master_transform: Transform,
+    ) -> bool {
+        if path.len() < 2 {
             return false;
         }
 
-        if let Some(last_pos) = self.path_builder.path.iter().last() {
+        if let Some(last_pos) = path.iter().last() {
             let last_pos = last_pos.end();
             let last_pos = egui::pos2(last_pos.x as f32, last_pos.y as f32);
 
@@ -254,8 +252,8 @@ impl Pen {
         &mut self, inner_rect: egui::Rect, pos: egui::Pos2, end_of_event: bool,
         r: &egui::InputState,
     ) -> (bool, bool) {
-        let pointer_gone_out_of_canvas =
-            !self.path_builder.path.is_empty() && !inner_rect.contains(pos);
+        let pointer_gone_out_of_canvas = !inner_rect.contains(pos);
+        // !self.path_builder.path.is_empty() && !inner_rect.contains(pos);
 
         let pointer_released_in_canvas = end_of_event && inner_rect.contains(pos);
 
@@ -286,7 +284,6 @@ pub struct DrawPayload {
 pub struct CubicBezBuilder {
     /// store the 4 past points
     prev_points_window: VecDeque<egui::Pos2>,
-    path: Subpath<ManipulatorGroupId>,
     simplified_points: Vec<egui::Pos2>,
     original_points: Vec<egui::Pos2>,
     first_point_touch_id: Option<egui::TouchId>,
@@ -303,13 +300,12 @@ impl CubicBezBuilder {
         CubicBezBuilder {
             prev_points_window: VecDeque::from(vec![]),
             first_point_touch_id: None,
-            path: Subpath::<ManipulatorGroupId>::from_anchors(vec![], false),
             simplified_points: vec![],
             original_points: vec![],
         }
     }
 
-    fn line_to(&mut self, dest: egui::Pos2) {
+    fn line_to(&mut self, dest: egui::Pos2, path: &mut Subpath<ManipulatorGroupId>) {
         self.original_points.push(dest);
         if let Some(prev) = self.prev_points_window.back() {
             let bez = Bezier::from_linear_coordinates(
@@ -318,13 +314,12 @@ impl CubicBezBuilder {
                 dest.x.into(),
                 dest.y.into(),
             );
-            self.path
-                .append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
+            path.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
         }
         self.prev_points_window.push_back(dest);
     }
 
-    fn catmull_to(&mut self, dest: egui::Pos2) {
+    fn catmull_to(&mut self, dest: egui::Pos2, path: &mut Subpath<ManipulatorGroupId>) {
         let is_first_point = self.prev_points_window.is_empty();
 
         if is_first_point {
@@ -362,112 +357,110 @@ impl CubicBezBuilder {
             p2.x.into(),
             p2.y.into(),
         );
-        self.path
-            .append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
+        path.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
 
         // shift the window foreword
         self.prev_points_window.pop_front();
     }
 
-    pub fn cubic_to(&mut self, dest: egui::Pos2) {
+    pub fn cubic_to(&mut self, dest: egui::Pos2, path: &mut Subpath<ManipulatorGroupId>) {
         if self.prev_points_window.is_empty() {
             self.original_points.clear();
         }
         self.original_points.push(dest);
-        self.catmull_to(dest);
+        self.catmull_to(dest, path);
     }
 
-    pub fn snap(&mut self, buffer: &mut Buffer) {
-        let perim = self.path.length(None) as f32;
-        let mut tolerance = perim * 0.04;
+    pub fn snap(&mut self, buffer: &mut Buffer, path: &mut Subpath<ManipulatorGroupId>) {
+        // let perim = path.length(None) as f32;
+        // let mut tolerance = perim * 0.04;
 
-        tolerance *= buffer.master_transform.sx;
-        let maybe_simple_points = self.simplify(tolerance);
+        // tolerance *= buffer.master_transform.sx;
+        // let maybe_simple_points = self.simplify(tolerance);
 
-        self.clear();
+        // self.clear();
 
-        if let Some(simple_points) = maybe_simple_points {
-            self.simplified_points = simple_points.clone();
-            simple_points.iter().enumerate().for_each(|(_, p)| {
-                self.line_to(*p);
-            });
-        }
+        // if let Some(simple_points) = maybe_simple_points {
+        //     self.simplified_points = simple_points.clone();
+        //     simple_points.iter().enumerate().for_each(|(_, p)| {
+        //         self.line_to(*p, path);
+        //     });
+        // }
     }
 
     pub fn clear(&mut self) {
         self.prev_points_window.clear();
         self.first_point_touch_id = None;
-        self.path = Subpath::<ManipulatorGroupId>::from_anchors(vec![], false);
     }
 
-    /// Ramer–Douglas–Peucker algorithm courtesy of @author: Michael-F-Bryan
-    /// https://github.com/Michael-F-Bryan/arcs/blob/master/core/src/algorithms/line_simplification.rs
-    fn simplify(&mut self, tolerance: f32) -> Option<Vec<egui::Pos2>> {
-        let mut simplified_points = Vec::new();
+    // Ramer–Douglas–Peucker algorithm courtesy of @author: Michael-F-Bryan
+    // https://github.com/Michael-F-Bryan/arcs/blob/master/core/src/algorithms/line_simplification.rs
+    // fn simplify(&mut self, tolerance: f32) -> Option<Vec<egui::Pos2>> {
+    //     let mut simplified_points = Vec::new();
 
-        // push the first point
-        let mut points = vec![];
-        self.path.iter().for_each(|b| {
-            points.push(egui::pos2(b.start().x as f32, b.start().y as f32));
-            points.push(egui::pos2(b.end().x as f32, b.end().y as f32));
-        });
+    //     // push the first point
+    //     let mut points = vec![];
+    //     self.path.iter().for_each(|b| {
+    //         points.push(egui::pos2(b.start().x as f32, b.start().y as f32));
+    //         points.push(egui::pos2(b.end().x as f32, b.end().y as f32));
+    //     });
 
-        simplified_points.push(points[0]);
+    //     simplified_points.push(points[0]);
 
-        // then simplify every point in between the start and end
-        self.simplify_points(&points, tolerance, &mut simplified_points);
-        // and finally the last one
-        simplified_points.push(*points.last().unwrap());
+    //     // then simplify every point in between the start and end
+    //     self.simplify_points(&points, tolerance, &mut simplified_points);
+    //     // and finally the last one
+    //     simplified_points.push(*points.last().unwrap());
 
-        Some(simplified_points)
-    }
+    //     Some(simplified_points)
+    // }
 
-    fn simplify_points(&self, points: &[egui::Pos2], tolerance: f32, buffer: &mut Vec<egui::Pos2>) {
-        if points.len() < 2 {
-            return;
-        }
-        let first = points.first().unwrap();
-        let last = points.last().unwrap();
-        let rest = &points[1..points.len() - 1];
+    // fn simplify_points(&self, points: &[egui::Pos2], tolerance: f32, buffer: &mut Vec<egui::Pos2>) {
+    //     if points.len() < 2 {
+    //         return;
+    //     }
+    //     let first = points.first().unwrap();
+    //     let last = points.last().unwrap();
+    //     let rest = &points[1..points.len() - 1];
 
-        let line_segment = Line::new(*first, *last);
+    //     let line_segment = Line::new(*first, *last);
 
-        if let Some((ix, distance)) =
-            self.max_by_key(rest, |p| line_segment.perpendicular_distance_to(*p))
-        {
-            if distance > tolerance {
-                // note: index is the index into `rest`, but we want it relative
-                // to `point`
-                let ix = ix + 1;
+    //     if let Some((ix, distance)) =
+    //         self.max_by_key(rest, |p| line_segment.perpendicular_distance_to(*p))
+    //     {
+    //         if distance > tolerance {
+    //             // note: index is the index into `rest`, but we want it relative
+    //             // to `point`
+    //             let ix = ix + 1;
 
-                self.simplify_points(&points[..=ix], tolerance, buffer);
-                buffer.push(points[ix]);
-                self.simplify_points(&points[ix..], tolerance, buffer);
-            }
-        }
-    }
+    //             self.simplify_points(&points[..=ix], tolerance, buffer);
+    //             buffer.push(points[ix]);
+    //             self.simplify_points(&points[ix..], tolerance, buffer);
+    //         }
+    //     }
+    // }
 
-    fn max_by_key<T, F, K>(&self, items: &[T], mut key_func: F) -> Option<(usize, K)>
-    where
-        F: FnMut(&T) -> K,
-        K: PartialOrd,
-    {
-        let mut best_so_far = None;
+    // fn max_by_key<T, F, K>(&self, items: &[T], mut key_func: F) -> Option<(usize, K)>
+    // where
+    //     F: FnMut(&T) -> K,
+    //     K: PartialOrd,
+    // {
+    //     let mut best_so_far = None;
 
-        for (i, item) in items.iter().enumerate() {
-            let key = key_func(item);
+    //     for (i, item) in items.iter().enumerate() {
+    //         let key = key_func(item);
 
-            let is_better = match best_so_far {
-                Some((_, ref best_key)) => key > *best_key,
-                None => true,
-            };
+    //         let is_better = match best_so_far {
+    //             Some((_, ref best_key)) => key > *best_key,
+    //             None => true,
+    //         };
 
-            if is_better {
-                best_so_far = Some((i, key));
-            }
-        }
-        best_so_far
-    }
+    //         if is_better {
+    //             best_so_far = Some((i, key));
+    //         }
+    //     }
+    //     best_so_far
+    // }
 }
 
 struct Line {

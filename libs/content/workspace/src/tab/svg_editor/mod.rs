@@ -20,6 +20,7 @@ pub use history::Event;
 pub use history::InsertElement;
 use lb_rs::Uuid;
 pub use parser::Buffer;
+use parser::DiffState;
 pub use pen::CubicBezBuilder;
 pub use pen::Pen;
 use renderer::Renderer;
@@ -42,10 +43,21 @@ pub struct SVGEditor {
     skip_frame: bool,
     last_render: Instant,
     renderer: Renderer,
+    painter: egui::Painter,
+    has_queued_save_request: bool,
 }
 
+pub struct Response {
+    pub needs_save: bool,
+}
+
+#[derive(PartialEq)]
+pub enum CanvasEvent {
+    PanOrZoom,
+    BuildingPath,
+}
 impl SVGEditor {
-    pub fn new(bytes: &[u8], core: lb_rs::Core, open_file: Uuid) -> Self {
+    pub fn new(bytes: &[u8], ctx: &egui::Context, core: lb_rs::Core, open_file: Uuid) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
         let buffer = parser::Buffer::new(content, &core, open_file);
@@ -70,25 +82,86 @@ impl SVGEditor {
             open_file,
             skip_frame: false,
             last_render: Instant::now(),
+            painter: egui::Painter::new(
+                ctx.to_owned(),
+                egui::LayerId::new(egui::Order::Background, "canvas_painter".into()),
+                egui::Rect::NOTHING,
+            ),
             renderer: Renderer::new(elements_count),
+            has_queued_save_request: false,
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui) {
+    pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         let frame = ui.ctx().frame_nr();
         let span = span!(Level::TRACE, "showing canvas widget", frame);
         let _ = span.enter();
 
-        if ui.input(|r| r.key_down(egui::Key::D)) {
-            self.show_debug_info(ui);
+        let canvas_event = self.process_events(ui);
+
+        self.show_canvas(ui);
+
+        let global_diff = self.get_and_reset_diff_state();
+
+        let is_expensive_frame = if let Some(event) = canvas_event {
+            event == CanvasEvent::BuildingPath || event == CanvasEvent::PanOrZoom
+        } else {
+            false
+        };
+
+        let mut res = Response { needs_save: false };
+
+        if global_diff.is_dirty() || self.has_queued_save_request {
+            let needs_save = if !is_expensive_frame {
+                self.has_queued_save_request = false;
+                true
+            } else {
+                self.has_queued_save_request = true;
+                false
+            };
+            res.needs_save = needs_save;
         }
+
+        res
+    }
+
+    fn get_and_reset_diff_state(&mut self) -> DiffState {
+        let mut global_diff_state = DiffState::default();
+        self.buffer.elements.iter_mut().for_each(|(_, element)| {
+            if element.data_changed() {
+                global_diff_state.data_changed = true;
+            }
+            if element.delete_changed() {
+                global_diff_state.delete_changed = true;
+            }
+            if element.opacity_changed() {
+                global_diff_state.opacity_changed = true;
+            }
+            if element.transformed().is_some() {
+                global_diff_state.transformed = element.transformed();
+            }
+
+            match element {
+                parser::Element::Path(p) => p.diff_state = DiffState::default(),
+                parser::Element::Image(i) => i.diff_state = DiffState::default(),
+                parser::Element::Text(_) => todo!(),
+            }
+        });
+        global_diff_state
+    }
+
+    fn process_events(&mut self, ui: &mut egui::Ui) -> Option<CanvasEvent> {
+        // if ui.input(|r| r.key_down(egui::Key::D)) {
+        self.show_debug_info(ui);
+        // }
 
         if !ui.is_enabled() {
-            return;
+            return None;
         }
 
-        handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
-
+        if handle_zoom_input(ui, self.inner_rect, &mut self.buffer) {
+            return Some(CanvasEvent::PanOrZoom);
+        }
         let unnecessary_touch = ui.input(|i| {
             i.events.iter().any(|e| {
                 if let egui::Event::Touch { device_id: _, id: _, phase, pos: _, force: _ } = e {
@@ -101,44 +174,43 @@ impl SVGEditor {
 
         if ui.input(|r| r.multi_touch().is_some()) || self.skip_frame || unnecessary_touch {
             self.skip_frame = false;
-            return;
+            return None;
         }
 
+        let mut res = None;
         match self.toolbar.active_tool {
             Tool::Pen => {
-                self.toolbar.pen.handle_input(
+                let is_path_being_built = self.toolbar.pen.handle_input(
                     ui,
                     self.inner_rect,
                     &mut self.buffer,
                     &mut self.history,
                 );
+                if is_path_being_built {
+                    res = Some(CanvasEvent::BuildingPath);
+                }
             }
             Tool::Eraser => {
-                if let Some(painter) = &self.renderer.painter {
-                    self.toolbar.eraser.handle_input(
-                        ui,
-                        painter,
-                        self.inner_rect,
-                        &mut self.buffer,
-                        &mut self.history,
-                    );
-                }
+                self.toolbar.eraser.handle_input(
+                    ui,
+                    &self.painter,
+                    self.inner_rect,
+                    &mut self.buffer,
+                    &mut self.history,
+                );
             }
             Tool::Selection => {
-                if let Some(painter) = &self.renderer.painter {
-                    self.toolbar.selection.handle_input(
-                        ui,
-                        painter,
-                        &mut self.buffer,
-                        &mut self.history,
-                    );
-                }
+                self.toolbar.selection.handle_input(
+                    ui,
+                    &self.painter,
+                    &mut self.buffer,
+                    &mut self.history,
+                );
             }
         }
-
         self.handle_clip_input(ui);
 
-        self.show_canvas(ui);
+        return res;
     }
 
     fn show_canvas(&mut self, ui: &mut egui::Ui) {
@@ -153,11 +225,12 @@ impl SVGEditor {
                 );
 
                 self.inner_rect = ui.available_rect_before_wrap();
-                let painter = ui
+                self.painter = ui
                     .allocate_painter(self.inner_rect.size(), egui::Sense::click_and_drag())
                     .1;
 
-                self.renderer.render_svg(ui, &mut self.buffer, painter);
+                self.renderer
+                    .render_svg(ui, &mut self.buffer, &mut self.painter);
             });
         });
     }

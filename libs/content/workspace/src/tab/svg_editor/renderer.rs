@@ -42,30 +42,29 @@ enum RenderOp {
 
 pub struct Renderer {
     mesh_cache: HashMap<String, egui::Shape>,
-    pub painter: Option<egui::Painter>,
     dark_mode: bool,
 }
 
 impl Renderer {
     pub fn new(elements_count: usize) -> Self {
-        Self { mesh_cache: HashMap::with_capacity(elements_count), painter: None, dark_mode: false }
+        Self { mesh_cache: HashMap::with_capacity(elements_count), dark_mode: false }
     }
 
-    pub fn render_svg(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer, painter: egui::Painter) {
+    pub fn render_svg(
+        &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, painter: &mut egui::Painter,
+    ) {
         let frame = ui.ctx().frame_nr();
         let span = span!(Level::TRACE, "rendering svg", frame);
         let _ = span.enter();
 
-        let mut elements = buffer.elements.clone();
-
-        self.painter = Some(painter.clone());
         let dark_mode_changed = ui.visuals().dark_mode != self.dark_mode;
         self.dark_mode = ui.visuals().dark_mode;
 
         // todo: should avoid running this on every frame, because the images are allocated once
-        load_image_textures(buffer, ui);
+        // load_image_textures(buffer, ui);
 
-        let paint_ops: Vec<(String, RenderOp)> = elements
+        let paint_ops: Vec<(String, RenderOp)> = buffer
+            .elements
             .par_iter_mut()
             .filter_map(|(id, el)| {
                 if el.deleted() && el.delete_changed() {
@@ -108,6 +107,7 @@ impl Renderer {
                 }
             }
         }
+
         if !self.mesh_cache.is_empty() {
             painter.extend(self.mesh_cache.clone().into_values().filter(|shape| {
                 if let egui::Shape::Mesh(m) = shape {
@@ -117,15 +117,6 @@ impl Renderer {
                 }
             }));
         }
-
-        buffer
-            .elements
-            .iter_mut()
-            .for_each(|(_, element)| match element {
-                parser::Element::Path(p) => p.diff_state = DiffState::default(),
-                parser::Element::Image(i) => i.diff_state = DiffState::default(),
-                parser::Element::Text(_) => todo!(),
-            })
     }
 }
 
