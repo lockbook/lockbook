@@ -55,8 +55,7 @@ fn handle_cargo_tomls(version: &str) {
     // todo: I wonder if we should just read the workspace members...
     let cargos_to_update = vec![
         "libs/lb/lb-rs",
-        "libs/lb/lb-rs/libs/shared",
-        "libs/lb/lb-rs/libs/test_utils",
+        "libs/lb/test_utils",
         "libs/lb/c_interface_v2",
         "libs/lb/lb_external_interface",
         "libs/content/editor/egui_editor",
