@@ -16,9 +16,11 @@ use super::{
     Buffer, InsertElement,
 };
 
+pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 3.0;
+
 pub struct Pen {
     pub active_color: Option<(egui::Color32, egui::Color32)>,
-    pub active_stroke_width: u32,
+    pub active_stroke_width: f32,
     pub active_opacity: f32,
     path_builder: CubicBezBuilder,
     pub current_id: Uuid, // todo: this should be at a higher component state, maybe in buffer
@@ -27,11 +29,9 @@ pub struct Pen {
 
 impl Pen {
     pub fn new() -> Self {
-        let default_stroke_width = 3;
-
         Pen {
             active_color: None,
-            active_stroke_width: default_stroke_width,
+            active_stroke_width: DEFAULT_PEN_STROKE_WIDTH,
             current_id: Uuid::new_v4(),
             path_builder: CubicBezBuilder::new(),
             maybe_snap_started: None,

@@ -219,7 +219,10 @@ impl SVGEditor {
 
                 self.inner_rect = ui.available_rect_before_wrap();
                 self.painter = ui
-                    .allocate_painter(self.inner_rect.size(), egui::Sense::click_and_drag())
+                    .allocate_painter(
+                        ui.available_rect_before_wrap().size(),
+                        egui::Sense::click_and_drag(),
+                    )
                     .1;
 
                 self.renderer

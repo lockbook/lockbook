@@ -86,38 +86,44 @@ impl SelectionRectContainer {
 
     pub fn show_delete_btn(&self, ui: &mut egui::Ui, painter: &egui::Painter) -> bool {
         let delete_toolbar_dim = egui::pos2(20.0, 20.0);
-        let gap = 15.0;
+        let gap_between_btn_and_rect = 15.0;
         let icon_size = 19.0;
 
         let delete_toolbar_rect = egui::Rect {
             min: egui::pos2(
                 self.container.raw.min.x,
-                self.container.raw.min.y - delete_toolbar_dim.y - gap,
+                self.container.raw.min.y - delete_toolbar_dim.y - gap_between_btn_and_rect,
             ),
             max: egui::pos2(
                 self.container.raw.min.x + delete_toolbar_dim.x,
-                self.container.raw.min.y - gap,
+                self.container.raw.min.y - gap_between_btn_and_rect,
             ),
         };
-        ui.allocate_ui_at_rect(delete_toolbar_rect, |ui| {
-            ui.vertical_centered(|ui| {
-                let res = Icon::DELETE
-                    .size(icon_size)
-                    .color(ui.style().visuals.hyperlink_color)
-                    .paint(ui, painter);
-                let rect = res.rect.expand(10.0);
-                painter.circle_filled(
-                    rect.center(),
-                    (rect.left() - rect.center().x).abs(),
-                    ui.style().visuals.hyperlink_color.gamma_multiply(0.1),
-                );
 
-                rect.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default()))
-                    && ui.input(|r| r.pointer.primary_clicked())
-            })
-            .inner
-        })
-        .inner
+        if ui.is_rect_visible(delete_toolbar_rect) {
+            // let text_color = ui.style().interact(&res).text_color();
+            let wrap_width = ui.available_width();
+
+            let icon_pos = egui::pos2(
+                delete_toolbar_rect.min.x,
+                delete_toolbar_rect.center().y - icon_size / 2.0,
+            );
+
+            let icon: egui::WidgetText = (&Icon::DELETE).into();
+            let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
+
+            painter.galley(icon_pos, icon, ui.style().visuals.hyperlink_color);
+
+            let circle_padding = 7.0;
+            painter.circle_filled(
+                delete_toolbar_rect.center(),
+                (delete_toolbar_rect.left() - delete_toolbar_rect.center().x).abs()
+                    + circle_padding,
+                ui.style().visuals.hyperlink_color.gamma_multiply(0.1),
+            );
+        }
+        delete_toolbar_rect.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default()))
+            && ui.input(|r| r.pointer.primary_clicked())
     }
 }
 

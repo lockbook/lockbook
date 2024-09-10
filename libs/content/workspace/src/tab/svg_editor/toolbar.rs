@@ -9,8 +9,8 @@ use crate::{
 };
 
 use super::{
-    eraser::DEFAULT_ERASER_RADIUS, history::History, parser, selection::Selection,
-    zoom::zoom_percentage_to_transform, Buffer, Eraser, Pen,
+    eraser::DEFAULT_ERASER_RADIUS, history::History, parser, pen::DEFAULT_PEN_STROKE_WIDTH,
+    selection::Selection, zoom::zoom_percentage_to_transform, Buffer, Eraser, Pen,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
@@ -206,9 +206,9 @@ impl Toolbar {
                 if let Some(thickness) = self.show_thickness_pickers(
                     ui,
                     self.pen.active_stroke_width as f32,
-                    vec![2.0, 4.0, 6.0],
+                    vec![DEFAULT_PEN_STROKE_WIDTH, 4.0, 6.0],
                 ) {
-                    self.pen.active_stroke_width = thickness as u32;
+                    self.pen.active_stroke_width = thickness;
                 }
 
                 ui.add_space(4.0);
