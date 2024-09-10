@@ -110,7 +110,7 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "admin"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "clap",
  "dialoguer",
@@ -1086,7 +1086,7 @@ dependencies = [
 
 [[package]]
 name = "c_interface_v2"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "lb-rs",
  "libc",
@@ -2109,7 +2109,7 @@ dependencies = [
 
 [[package]]
 name = "egui_editor"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "eframe",
  "egui",
@@ -3858,7 +3858,7 @@ source = "git+https://github.com/lockbook/lb-fonts#b2718aad58a7ff1c7bbe85f03cb37
 
 [[package]]
 name = "lb-fs"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "async-trait",
  "cli-rs",
@@ -3880,7 +3880,7 @@ dependencies = [
 
 [[package]]
 name = "lb-rs"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -3922,7 +3922,7 @@ dependencies = [
 
 [[package]]
 name = "lb_external_interface"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "basic-human-duration",
  "crossbeam",
@@ -4127,7 +4127,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "cli-rs",
  "fs_extra",
@@ -4139,7 +4139,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-dev"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "clap",
  "dotenvy",
@@ -4150,7 +4150,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "dark-light",
  "eframe",
@@ -4174,7 +4174,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "egui",
  "egui_editor",
@@ -4193,7 +4193,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -4231,7 +4231,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "array-init",
  "clipboard-win 4.5.0",
@@ -5841,7 +5841,7 @@ checksum = "adad44e29e4c806119491a7f06f03de4d1af22c3a680dd47f1e6e179439d1f56"
 
 [[package]]
 name = "releaser"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "cli-rs",
  "fs_extra",
@@ -6843,7 +6843,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "0.9.6"
+version = "0.9.8"
 dependencies = [
  "bincode",
  "itertools 0.10.5",
@@ -8486,7 +8486,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -8496,7 +8496,7 @@ dependencies = [
 
 [[package]]
 name = "workspace"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "bezier-rs",
  "chrono",
@@ -8530,7 +8530,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-ffi"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "egui",
  "egui_extras",
