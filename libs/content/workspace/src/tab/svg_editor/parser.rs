@@ -9,6 +9,7 @@ use resvg::usvg::{
     self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, Options, Paint, Text, Transform,
     Visibility,
 };
+use tracing::warn;
 
 use crate::theme::palette::ThemePalette;
 
@@ -31,9 +32,10 @@ pub struct ManipulatorGroupId;
 
 #[derive(Default)]
 pub struct Buffer {
-    pub elements: HashMap<String, Element>,
+    pub elements: HashMap<Uuid, Element>,
     pub master_transform: Transform,
     pub needs_path_map_update: bool,
+    id_map: HashMap<Uuid, String>,
 }
 
 #[derive(Clone)]
@@ -151,8 +153,8 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer) {
         usvg::Node::Image(img) => {
             let diff_state = DiffState { data_changed: true, ..Default::default() };
 
-            let id =
-                if img.id().is_empty() { Uuid::new_v4().to_string() } else { img.id().to_owned() };
+            let id = get_internal_id(img.id(), buffer);
+
             buffer.elements.insert(
                 id,
                 Element::Image(Image {
@@ -190,11 +192,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer) {
             }
             let diff_state = DiffState { data_changed: true, ..Default::default() };
 
-            let id = if path.id().is_empty() {
-                Uuid::new_v4().to_string()
-            } else {
-                path.id().to_owned()
-            };
+            let id = get_internal_id(path.id(), buffer);
 
             buffer.elements.insert(
                 id,
@@ -213,6 +211,16 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer) {
         }
         usvg::Node::Text(_) => {}
     }
+}
+
+fn get_internal_id(svg_id: &str, buffer: &mut Buffer) -> Uuid {
+    let uuid = Uuid::new_v4();
+    if !svg_id.is_empty() {
+        if buffer.id_map.insert(uuid, svg_id.to_owned()).is_some() {
+            warn!(id = svg_id, "found elements  with duplicate id");
+        }
+    }
+    uuid
 }
 
 fn lb_local_resolver(core: &lb_rs::Core, open_file: Uuid) -> ImageHrefStringResolverFn {
@@ -307,7 +315,7 @@ impl ToString for Buffer {
                             stroke.color.0.g(),
                             stroke.color.0.b(),
                             p.opacity,
-                            el.0
+                            self.id_map.get(el.0).unwrap_or(&el.0.to_string())
                         );
                     }
                     if p.data.len() > 1 {
@@ -318,7 +326,7 @@ impl ToString for Buffer {
                 Element::Image(img) => {
                     let image_element = format!(
                         r#" <image id="{}" href="{}" width="{}" height="{}" x="{}" y="{}" />"#,
-                        img.href.clone().unwrap_or_default(),
+                        self.id_map.get(el.0).unwrap_or(&el.0.to_string()),
                         img.href.clone().unwrap_or_default(),
                         img.view_box.rect.width(),
                         img.view_box.rect.height(),

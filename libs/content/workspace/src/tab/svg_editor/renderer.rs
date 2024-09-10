@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use glam::f64::DVec2;
+use lb_rs::Uuid;
 use lyon::math::Point;
 use lyon::path::{AttributeIndex, LineCap, LineJoin};
 use lyon::tessellation::{
@@ -12,7 +13,7 @@ use rayon::prelude::*;
 use resvg::usvg::{ImageKind, Transform};
 use tracing::{span, Level};
 
-use super::parser::{self, DiffState};
+use super::parser::{self};
 use super::Buffer;
 
 const STROKE_WIDTH: AttributeIndex = 0;
@@ -41,7 +42,7 @@ enum RenderOp {
 }
 
 pub struct Renderer {
-    mesh_cache: HashMap<String, egui::Shape>,
+    mesh_cache: HashMap<Uuid, egui::Shape>,
     dark_mode: bool,
 }
 
@@ -63,12 +64,12 @@ impl Renderer {
         // todo: should avoid running this on every frame, because the images are allocated once
         // load_image_textures(buffer, ui);
 
-        let paint_ops: Vec<(String, RenderOp)> = buffer
+        let paint_ops: Vec<(Uuid, RenderOp)> = buffer
             .elements
             .par_iter_mut()
             .filter_map(|(id, el)| {
                 if el.deleted() && el.delete_changed() {
-                    return Some((id.clone(), RenderOp::Delete));
+                    return Some((*id, RenderOp::Delete));
                 };
 
                 if el.deleted()
@@ -82,7 +83,7 @@ impl Renderer {
                 }
 
                 if let Some(transform) = el.transformed() {
-                    return Some((id.clone(), RenderOp::Transform(transform)));
+                    return Some((*id, RenderOp::Transform(transform)));
                 }
 
                 tesselate_element(el, id, ui.visuals().dark_mode, frame, buffer.master_transform)
@@ -149,8 +150,8 @@ fn load_image_textures(buffer: &mut Buffer, ui: &mut egui::Ui) {
 
 // todo: maybe impl this on element struct
 fn tesselate_element(
-    el: &mut parser::Element, id: &String, dark_mode: bool, frame: u64, master_transform: Transform,
-) -> Option<(String, RenderOp)> {
+    el: &mut parser::Element, id: &Uuid, dark_mode: bool, frame: u64, master_transform: Transform,
+) -> Option<(Uuid, RenderOp)> {
     let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
     let mut stroke_tess = StrokeTessellator::new();
 
@@ -212,7 +213,7 @@ fn tesselate_element(
                 if mesh.is_empty() {
                     None
                 } else {
-                    Some((id.to_owned(), RenderOp::Paint(egui::Shape::Mesh(mesh))))
+                    Some((*id, RenderOp::Paint(egui::Shape::Mesh(mesh))))
                 }
             } else {
                 None
@@ -227,7 +228,7 @@ fn devc_to_point(dvec: DVec2) -> Point {
     Point::new(dvec.x as f32, dvec.y as f32)
 }
 
-fn render_image(img: &mut parser::Image, id: &String) -> Option<(String, RenderOp)> {
+fn render_image(img: &mut parser::Image, id: &Uuid) -> Option<(Uuid, RenderOp)> {
     match &img.data {
         ImageKind::JPEG(_) | ImageKind::PNG(_) => {
             if let Some(texture) = &img.texture {
@@ -242,7 +243,7 @@ fn render_image(img: &mut parser::Image, id: &String) -> Option<(String, RenderO
 
                 let mut mesh = egui::Mesh::with_texture(texture.id());
                 mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE.linear_multiply(img.opacity));
-                Some((id.to_string(), RenderOp::Paint(egui::Shape::mesh(mesh))))
+                Some((*id, RenderOp::Paint(egui::Shape::mesh(mesh))))
             } else {
                 None
             }

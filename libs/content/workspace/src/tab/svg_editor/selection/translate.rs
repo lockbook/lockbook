@@ -41,7 +41,7 @@ pub fn detect_translation(
         }
         if pointer_intersects_element(el, current_pos, last_pos, 10.0) {
             return Some(SelectedElement {
-                id: id.clone(),
+                id: *id,
                 prev_pos: current_pos,
                 transform: Transform::identity(),
             });

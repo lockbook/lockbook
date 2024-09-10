@@ -1,4 +1,5 @@
 use bezier_rs::{Bezier, Identifier, Subpath};
+use lb_rs::Uuid;
 use resvg::usvg::Transform;
 use std::{
     borrow::BorrowMut,
@@ -20,18 +21,18 @@ pub struct Pen {
     pub active_stroke_width: u32,
     pub active_opacity: f32,
     path_builder: CubicBezBuilder,
-    pub current_id: usize, // todo: this should be at a higher component state, maybe in buffer
+    pub current_id: Uuid, // todo: this should be at a higher component state, maybe in buffer
     maybe_snap_started: Option<Instant>,
 }
 
 impl Pen {
-    pub fn new(max_id: usize) -> Self {
+    pub fn new() -> Self {
         let default_stroke_width = 3;
 
         Pen {
             active_color: None,
             active_stroke_width: default_stroke_width,
-            current_id: max_id,
+            current_id: Uuid::new_v4(),
             path_builder: CubicBezBuilder::new(),
             maybe_snap_started: None,
             active_opacity: 1.0,
@@ -64,8 +65,7 @@ impl Pen {
             let _ = span.enter();
             match event {
                 PathEvent::Draw(payload, id) => {
-                    if let Some(parser::Element::Path(p)) = buffer.elements.get_mut(&id.to_string())
-                    {
+                    if let Some(parser::Element::Path(p)) = buffer.elements.get_mut(&id) {
                         // for some reason in ipad there are  two draw events on the same pos which results in a knot.
                         if let Some(last_pos) = self.path_builder.original_points.last() {
                             if last_pos.eq(&payload.pos) && p.data.len() > 1 {
@@ -108,7 +108,7 @@ impl Pen {
                         event!(Level::DEBUG, "starting a new path");
 
                         buffer.elements.insert(
-                            id.to_string(),
+                            id,
                             parser::Element::Path(Path {
                                 data: Subpath::new(vec![], false),
                                 visibility: resvg::usvg::Visibility::Visible,
@@ -125,9 +125,7 @@ impl Pen {
                             }),
                         );
 
-                        if let Some(parser::Element::Path(p)) =
-                            buffer.elements.get_mut(&id.to_string())
-                        {
+                        if let Some(parser::Element::Path(p)) = buffer.elements.get_mut(&id) {
                             self.path_builder.cubic_to(payload.pos, &mut p.data);
                         }
                     }
@@ -135,7 +133,7 @@ impl Pen {
                 }
                 PathEvent::End => {
                     if let Some(parser::Element::Path(p)) =
-                        buffer.elements.get_mut(&self.current_id.to_string())
+                        buffer.elements.get_mut(&self.current_id)
                     {
                         self.end_path(&mut p.data, history, false);
                     }
@@ -170,11 +168,11 @@ impl Pen {
             // self.path_builder.snap(buffer, path);
         }
 
-        history.save(super::Event::Insert(vec![InsertElement { id: self.current_id.to_string() }]));
+        history.save(super::Event::Insert(vec![InsertElement { id: self.current_id }]));
 
         self.path_builder.clear();
 
-        self.current_id += 1;
+        self.current_id = Uuid::new_v4();
     }
 
     fn detect_snap(
@@ -269,7 +267,7 @@ impl Pen {
 
 #[derive(Debug)]
 pub enum PathEvent {
-    Draw(DrawPayload, usize),
+    Draw(DrawPayload, Uuid),
     End,
 }
 

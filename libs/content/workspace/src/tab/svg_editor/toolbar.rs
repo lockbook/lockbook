@@ -68,12 +68,12 @@ impl Toolbar {
         self.set_tool(new_tool);
     }
 
-    pub fn new(max_id: usize) -> Self {
+    pub fn new() -> Self {
         Toolbar {
             active_tool: Tool::Pen,
             previous_tool: None,
             right_tab_rect: None,
-            pen: Pen::new(max_id),
+            pen: Pen::new(),
             eraser: Eraser::new(),
             selection: Selection::default(),
         }
@@ -244,7 +244,6 @@ impl Toolbar {
         let theme_colors = ThemePalette::as_array();
 
         theme_colors.iter().for_each(|theme_color| {
-            // let color = ColorSwatch { id: theme_color.0.clone(), color: theme_color.1 };
             let color = ThemePalette::resolve_dynamic_color(*theme_color, ui);
             if self.show_color_btn(ui, color).clicked() {
                 self.pen.active_color = Some(*theme_color);

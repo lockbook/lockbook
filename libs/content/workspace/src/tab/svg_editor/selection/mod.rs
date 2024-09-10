@@ -4,6 +4,7 @@ mod translate;
 
 use bezier_rs::Subpath;
 use glam::{DAffine2, DMat2, DVec2};
+use lb_rs::Uuid;
 use resvg::usvg::Transform;
 
 use crate::tab::svg_editor::selection::scale::snap_scale;
@@ -29,7 +30,7 @@ pub struct Selection {
 
 #[derive(Clone, Debug)]
 struct SelectedElement {
-    id: String,
+    id: Uuid,
     prev_pos: egui::Pos2,
     transform: Transform,
 }
@@ -177,7 +178,7 @@ impl Selection {
 
                         if el_intersects_laso {
                             self.candidate_selected_elements.push(SelectedElement {
-                                id: id.to_owned(),
+                                id: *id,
                                 prev_pos: pos,
                                 transform: Transform::identity(),
                             });
@@ -319,8 +320,8 @@ impl Selection {
                 buffer
                     .elements
                     .iter()
-                    .find(|(id, _el)| id.to_owned().eq(&selection.id));
-                DeleteElement { id: selection.id.clone() }
+                    .find(|(&id, _el)| id.eq(&selection.id));
+                DeleteElement { id: selection.id }
             })
             .collect();
 

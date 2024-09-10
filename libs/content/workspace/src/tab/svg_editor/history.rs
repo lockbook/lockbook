@@ -1,5 +1,6 @@
 use std::{collections::VecDeque, fmt::Debug};
 
+use lb_rs::Uuid;
 use resvg::usvg::Transform;
 
 use super::parser;
@@ -10,26 +11,26 @@ pub struct History {
     redo: Vec<Event>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum Event {
     Insert(Vec<InsertElement>),
     Delete(Vec<DeleteElement>),
     Transform(Vec<TransformElement>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct DeleteElement {
-    pub id: String,
+    pub id: Uuid,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct InsertElement {
-    pub id: String,
+    pub id: Uuid,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct TransformElement {
-    pub id: String,
+    pub id: Uuid,
     pub transform: Transform,
 }
 
@@ -93,7 +94,7 @@ impl History {
             return;
         }
 
-        if let Some(undo_event) = self.undo.pop_back().to_owned() {
+        if let Some(undo_event) = self.undo.pop_back() {
             let undo_event = self.swap_event(undo_event);
             self.apply_event(&undo_event, buffer);
             self.redo.push(undo_event);
@@ -109,7 +110,7 @@ impl History {
             return;
         }
 
-        if let Some(redo_event) = self.redo.pop().to_owned() {
+        if let Some(redo_event) = self.redo.pop() {
             let redo_event = self.swap_event(redo_event);
             self.apply_event(&redo_event, buffer);
             self.undo.push_back(redo_event);
@@ -122,7 +123,7 @@ impl History {
                 source = Event::Delete(
                     payload
                         .iter()
-                        .map(|insert_payload| DeleteElement { id: insert_payload.id.clone() })
+                        .map(|insert_payload| DeleteElement { id: insert_payload.id })
                         .collect(),
                 );
             }
@@ -130,7 +131,7 @@ impl History {
                 source = Event::Insert(
                     payload
                         .iter()
-                        .map(|delete_payload| InsertElement { id: delete_payload.id.clone() })
+                        .map(|delete_payload| InsertElement { id: delete_payload.id })
                         .collect(),
                 );
             }
@@ -139,7 +140,7 @@ impl History {
                     payload
                         .iter_mut()
                         .map(|transform_payload| TransformElement {
-                            id: transform_payload.id.clone(),
+                            id: transform_payload.id,
                             transform: transform_payload
                                 .transform
                                 .invert()

@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 
+use lb_rs::Uuid;
+
 use super::history::History;
 use super::{util::pointer_intersects_element, Buffer, DeleteElement};
 
 pub struct Eraser {
     pub radius: f32,
-    delete_candidates: HashMap<String, bool>,
+    delete_candidates: HashMap<Uuid, bool>,
     last_pos: Option<egui::Pos2>,
 }
 
@@ -51,7 +53,7 @@ impl Eraser {
                                 self.last_pos,
                                 self.radius as f64,
                             ) {
-                                self.delete_candidates.insert(id.clone(), false);
+                                self.delete_candidates.insert(*id, false);
                             }
                         });
 
@@ -103,11 +105,11 @@ impl Eraser {
                     let event = super::Event::Delete(
                         self.delete_candidates
                             .keys()
-                            .map(|id| DeleteElement { id: id.to_owned() })
+                            .map(|id| DeleteElement { id: *id })
                             .collect(),
                     );
 
-                    history.save(event.clone());
+                    history.save(event);
 
                     self.delete_candidates.clear();
                 }

@@ -61,15 +61,8 @@ impl SVGEditor {
         let content = std::str::from_utf8(bytes).unwrap();
 
         let buffer = parser::Buffer::new(content, &core, open_file);
-        let max_id = buffer
-            .elements
-            .keys()
-            .filter_map(|key_str| key_str.parse::<usize>().ok())
-            .max()
-            .unwrap_or_default()
-            + 1;
 
-        let toolbar = Toolbar::new(max_id);
+        let toolbar = Toolbar::new();
 
         let elements_count = buffer.elements.len();
 
