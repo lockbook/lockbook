@@ -9,7 +9,6 @@ mod toolbar;
 mod util;
 mod zoom;
 
-use std::collections::HashSet;
 use std::time::Instant;
 
 use self::history::History;

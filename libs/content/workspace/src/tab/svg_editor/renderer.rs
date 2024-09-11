@@ -62,7 +62,7 @@ impl Renderer {
         self.dark_mode = ui.visuals().dark_mode;
 
         // todo: should avoid running this on every frame, because the images are allocated once
-        // load_image_textures(buffer, ui);
+        load_image_textures(buffer, ui);
 
         let paint_ops: Vec<(Uuid, RenderOp)> = buffer
             .elements

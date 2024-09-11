@@ -13,7 +13,7 @@ use super::{
     history::History,
     parser::{self, DiffState, ManipulatorGroupId, Path, Stroke},
     toolbar::ToolContext,
-    Buffer, InsertElement,
+    InsertElement,
 };
 
 pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 3.0;
@@ -79,7 +79,12 @@ impl Pen {
                         }
 
                         if self.detect_snap(&p.data, payload.pos, pen_ctx.buffer.master_transform) {
-                            self.end_path(&mut p.data, pen_ctx.history, true);
+                            self.end_path(
+                                &mut p.data,
+                                pen_ctx.history,
+                                true,
+                                pen_ctx.buffer.master_transform,
+                            );
                             return false;
                         }
 
@@ -140,7 +145,12 @@ impl Pen {
                     if let Some(parser::Element::Path(p)) =
                         pen_ctx.buffer.elements.get_mut(&self.current_id)
                     {
-                        self.end_path(&mut p.data, pen_ctx.history, false);
+                        self.end_path(
+                            &mut p.data,
+                            pen_ctx.history,
+                            false,
+                            pen_ctx.buffer.master_transform,
+                        );
                     }
 
                     self.maybe_snap_started = None;
@@ -164,13 +174,14 @@ impl Pen {
 
     pub fn end_path(
         &mut self, path: &mut Subpath<ManipulatorGroupId>, history: &mut History, is_snapped: bool,
+        master_transform: Transform,
     ) {
         if path.is_empty() {
             return;
         }
 
         if path.len() > 2 && is_snapped {
-            // self.path_builder.snap(buffer, path);
+            self.path_builder.snap(master_transform, path);
         }
 
         history.save(super::Event::Insert(vec![InsertElement { id: self.current_id }]));
@@ -374,21 +385,21 @@ impl CubicBezBuilder {
         self.catmull_to(dest, path);
     }
 
-    pub fn snap(&mut self, buffer: &mut Buffer, path: &mut Subpath<ManipulatorGroupId>) {
-        // let perim = path.length(None) as f32;
-        // let mut tolerance = perim * 0.04;
+    pub fn snap(&mut self, master_transform: Transform, path: &mut Subpath<ManipulatorGroupId>) {
+        let perim = path.length(None) as f32;
+        let mut tolerance = perim * 0.04;
 
-        // tolerance *= buffer.master_transform.sx;
-        // let maybe_simple_points = self.simplify(tolerance);
+        tolerance *= master_transform.sx;
+        let maybe_simple_points = self.simplify(tolerance, path);
 
-        // self.clear();
+        self.clear();
 
-        // if let Some(simple_points) = maybe_simple_points {
-        //     self.simplified_points = simple_points.clone();
-        //     simple_points.iter().enumerate().for_each(|(_, p)| {
-        //         self.line_to(*p, path);
-        //     });
-        // }
+        if let Some(simple_points) = maybe_simple_points {
+            self.simplified_points = simple_points.clone();
+            simple_points.iter().enumerate().for_each(|(_, p)| {
+                self.line_to(*p, path);
+            });
+        }
     }
 
     pub fn clear(&mut self) {
@@ -396,74 +407,76 @@ impl CubicBezBuilder {
         self.first_point_touch_id = None;
     }
 
-    // Ramer–Douglas–Peucker algorithm courtesy of @author: Michael-F-Bryan
-    // https://github.com/Michael-F-Bryan/arcs/blob/master/core/src/algorithms/line_simplification.rs
-    // fn simplify(&mut self, tolerance: f32) -> Option<Vec<egui::Pos2>> {
-    //     let mut simplified_points = Vec::new();
+    /// Ramer–Douglas–Peucker algorithm courtesy of @author: Michael-F-Bryan
+    /// https://github.com/Michael-F-Bryan/arcs/blob/master/core/src/algorithms/line_simplification.rs
+    fn simplify(
+        &mut self, tolerance: f32, path: &Subpath<ManipulatorGroupId>,
+    ) -> Option<Vec<egui::Pos2>> {
+        let mut simplified_points = Vec::new();
 
-    //     // push the first point
-    //     let mut points = vec![];
-    //     self.path.iter().for_each(|b| {
-    //         points.push(egui::pos2(b.start().x as f32, b.start().y as f32));
-    //         points.push(egui::pos2(b.end().x as f32, b.end().y as f32));
-    //     });
+        // push the first point
+        let mut points = vec![];
+        path.iter().for_each(|b| {
+            points.push(egui::pos2(b.start().x as f32, b.start().y as f32));
+            points.push(egui::pos2(b.end().x as f32, b.end().y as f32));
+        });
 
-    //     simplified_points.push(points[0]);
+        simplified_points.push(points[0]);
 
-    //     // then simplify every point in between the start and end
-    //     self.simplify_points(&points, tolerance, &mut simplified_points);
-    //     // and finally the last one
-    //     simplified_points.push(*points.last().unwrap());
+        // then simplify every point in between the start and end
+        self.simplify_points(&points, tolerance, &mut simplified_points);
+        // and finally the last one
+        simplified_points.push(*points.last().unwrap());
 
-    //     Some(simplified_points)
-    // }
+        Some(simplified_points)
+    }
 
-    // fn simplify_points(&self, points: &[egui::Pos2], tolerance: f32, buffer: &mut Vec<egui::Pos2>) {
-    //     if points.len() < 2 {
-    //         return;
-    //     }
-    //     let first = points.first().unwrap();
-    //     let last = points.last().unwrap();
-    //     let rest = &points[1..points.len() - 1];
+    fn simplify_points(&self, points: &[egui::Pos2], tolerance: f32, buffer: &mut Vec<egui::Pos2>) {
+        if points.len() < 2 {
+            return;
+        }
+        let first = points.first().unwrap();
+        let last = points.last().unwrap();
+        let rest = &points[1..points.len() - 1];
 
-    //     let line_segment = Line::new(*first, *last);
+        let line_segment = Line::new(*first, *last);
 
-    //     if let Some((ix, distance)) =
-    //         self.max_by_key(rest, |p| line_segment.perpendicular_distance_to(*p))
-    //     {
-    //         if distance > tolerance {
-    //             // note: index is the index into `rest`, but we want it relative
-    //             // to `point`
-    //             let ix = ix + 1;
+        if let Some((ix, distance)) =
+            self.max_by_key(rest, |p| line_segment.perpendicular_distance_to(*p))
+        {
+            if distance > tolerance {
+                // note: index is the index into `rest`, but we want it relative
+                // to `point`
+                let ix = ix + 1;
 
-    //             self.simplify_points(&points[..=ix], tolerance, buffer);
-    //             buffer.push(points[ix]);
-    //             self.simplify_points(&points[ix..], tolerance, buffer);
-    //         }
-    //     }
-    // }
+                self.simplify_points(&points[..=ix], tolerance, buffer);
+                buffer.push(points[ix]);
+                self.simplify_points(&points[ix..], tolerance, buffer);
+            }
+        }
+    }
 
-    // fn max_by_key<T, F, K>(&self, items: &[T], mut key_func: F) -> Option<(usize, K)>
-    // where
-    //     F: FnMut(&T) -> K,
-    //     K: PartialOrd,
-    // {
-    //     let mut best_so_far = None;
+    fn max_by_key<T, F, K>(&self, items: &[T], mut key_func: F) -> Option<(usize, K)>
+    where
+        F: FnMut(&T) -> K,
+        K: PartialOrd,
+    {
+        let mut best_so_far = None;
 
-    //     for (i, item) in items.iter().enumerate() {
-    //         let key = key_func(item);
+        for (i, item) in items.iter().enumerate() {
+            let key = key_func(item);
 
-    //         let is_better = match best_so_far {
-    //             Some((_, ref best_key)) => key > *best_key,
-    //             None => true,
-    //         };
+            let is_better = match best_so_far {
+                Some((_, ref best_key)) => key > *best_key,
+                None => true,
+            };
 
-    //         if is_better {
-    //             best_so_far = Some((i, key));
-    //         }
-    //     }
-    //     best_so_far
-    // }
+            if is_better {
+                best_so_far = Some((i, key));
+            }
+        }
+        best_so_far
+    }
 }
 
 struct Line {
