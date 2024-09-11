@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use lb_rs::Uuid;
 
-use super::history::History;
-use super::{util::pointer_intersects_element, Buffer, DeleteElement};
+use super::toolbar::ToolContext;
+use super::{util::pointer_intersects_element, DeleteElement};
 
 pub struct Eraser {
     pub radius: f32,
@@ -32,14 +32,21 @@ impl Eraser {
         }
     }
 
-    pub fn handle_input(
-        &mut self, ui: &mut egui::Ui, painter: &egui::Painter, inner_rect: egui::Rect,
-        buffer: &mut Buffer, history: &mut History,
-    ) {
-        if let Some(event) = self.setup_events(ui, painter, inner_rect) {
+    pub fn handle_input(&mut self, ui: &mut egui::Ui, eraser_ctx: ToolContext) {
+        let maybe_event = if eraser_ctx.is_multi_touch || eraser_ctx.is_touch_start {
+            Some(EraseEvent::End)
+        } else {
+            self.setup_events(ui, eraser_ctx.painter, eraser_ctx.painter.clip_rect())
+        };
+
+        if let Some(event) = maybe_event {
             match event {
                 EraseEvent::Start(pos) => {
-                    buffer
+                    if eraser_ctx.is_panning_or_zooming {
+                        return;
+                    }
+                    eraser_ctx
+                        .buffer
                         .elements
                         .iter()
                         .filter(|(_, el)| !el.deleted())
@@ -60,7 +67,7 @@ impl Eraser {
                     self.delete_candidates
                         .iter_mut()
                         .for_each(|(id, has_decreased_opacity)| {
-                            if let Some(el) = buffer.elements.get_mut(id) {
+                            if let Some(el) = eraser_ctx.buffer.elements.get_mut(id) {
                                 if !*has_decreased_opacity {
                                     match el {
                                         super::parser::Element::Path(p) => {
@@ -86,7 +93,7 @@ impl Eraser {
                     }
 
                     self.delete_candidates.iter().for_each(|(id, _)| {
-                        if let Some(el) = buffer.elements.get_mut(id) {
+                        if let Some(el) = eraser_ctx.buffer.elements.get_mut(id) {
                             match el {
                                 super::parser::Element::Path(p) => {
                                     p.opacity = 1.0;
@@ -109,7 +116,7 @@ impl Eraser {
                             .collect(),
                     );
 
-                    history.save(event);
+                    eraser_ctx.history.save(event);
 
                     self.delete_candidates.clear();
                 }
@@ -125,11 +132,14 @@ impl Eraser {
                 return None;
             }
 
-            let stroke = egui::Stroke { width: 1.0, color: ui.visuals().text_color() };
-            painter.circle_stroke(cursor_pos, self.radius, stroke);
-            ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::None);
+            if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {
+                self.draw_eraser_cursor(ui, painter, cursor_pos);
+            }
 
             if ui.input(|i| i.pointer.primary_down()) {
+                if cfg!(target_os = "ios") || cfg!(target_os = "android") {
+                    self.draw_eraser_cursor(ui, painter, cursor_pos);
+                }
                 return Some(EraseEvent::Start(cursor_pos));
             }
             if ui.input(|i| i.pointer.primary_released()) {
@@ -142,5 +152,13 @@ impl Eraser {
             self.last_pos = None;
             Some(EraseEvent::End)
         }
+    }
+
+    fn draw_eraser_cursor(
+        &mut self, ui: &mut egui::Ui, painter: &egui::Painter, cursor_pos: egui::Pos2,
+    ) {
+        let stroke = egui::Stroke { width: 1.0, color: ui.visuals().text_color() };
+        painter.circle_stroke(cursor_pos, self.radius, stroke);
+        ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::None);
     }
 }

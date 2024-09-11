@@ -20,6 +20,9 @@ pub struct SelectionRectContainer {
 }
 impl SelectionRectContainer {
     pub fn new(els: &[SelectedElement], buffer: &mut Buffer) -> Option<Self> {
+        if els.is_empty() {
+            return None;
+        }
         let mut container_bb = [DVec2::new(f64::MAX, f64::MAX), DVec2::new(f64::MIN, f64::MIN)];
         let mut children = vec![];
         for el in els.iter() {

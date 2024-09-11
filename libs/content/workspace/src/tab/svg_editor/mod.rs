@@ -9,6 +9,7 @@ mod toolbar;
 mod util;
 mod zoom;
 
+use std::collections::HashSet;
 use std::time::Instant;
 
 use self::history::History;
@@ -26,9 +27,11 @@ pub use pen::Pen;
 use renderer::Renderer;
 use resvg::usvg::ImageKind;
 pub use toolbar::Tool;
+use toolbar::ToolContext;
 use tracing::span;
 use tracing::Level;
 use usvg_parser::Options;
+use util::is_multi_touch;
 
 /// A shorthand for [ImageHrefResolver]'s string function.
 pub type ImageHrefStringResolverFn = Box<dyn Fn(&str, &Options) -> Option<ImageKind> + Send + Sync>;
@@ -144,61 +147,60 @@ impl SVGEditor {
     }
 
     fn process_events(&mut self, ui: &mut egui::Ui) -> Option<CanvasEvent> {
+        // todo: toggle debug print before merge
         // if ui.input(|r| r.key_down(egui::Key::D)) {
         self.show_debug_info(ui);
         // }
+        let mut res = None;
 
         if !ui.is_enabled() {
             return None;
         }
 
-        if handle_zoom_input(ui, self.inner_rect, &mut self.buffer) {
-            return Some(CanvasEvent::PanOrZoom);
-        }
-        let unnecessary_touch = ui.input(|i| {
-            i.events.iter().any(|e| {
-                if let egui::Event::Touch { device_id: _, id: _, phase, pos: _, force: _ } = e {
-                    phase.eq(&egui::TouchPhase::Cancel)
-                } else {
-                    false
-                }
-            })
-        });
-
-        if ui.input(|r| r.multi_touch().is_some()) || self.skip_frame || unnecessary_touch {
+        if self.skip_frame {
             self.skip_frame = false;
             return None;
         }
 
-        let mut res = None;
+        if handle_zoom_input(ui, self.inner_rect, &mut self.buffer) {
+            res = Some(CanvasEvent::PanOrZoom);
+        }
+
+        // let unnecessary_touch = ui.input(|i| {
+        //     i.events.iter().any(|e| {
+        //         if let egui::Event::Touch { device_id: _, id: _, phase, pos: _, force: _ } = e {
+        //             phase.eq(&egui::TouchPhase::Cancel)
+        //         } else {
+        //             false
+        //         }
+        //     })
+        // });
+
+        // if ui.input(|r| r.multi_touch().is_some()) || || unnecessary_touch {
+        //     self.skip_frame = false;
+        // }
+
+        let tool_context = ToolContext {
+            painter: &self.painter,
+            buffer: &mut self.buffer,
+            history: &mut self.history,
+            is_panning_or_zooming: res == Some(CanvasEvent::PanOrZoom),
+            is_multi_touch: is_multi_touch(ui),
+            is_touch_start:  ui.input(|r| r.events.iter().any(|e| matches!(e, egui::Event::Touch { phase, .. } if *phase == egui::TouchPhase::Start)))
+        };
+
         match self.toolbar.active_tool {
             Tool::Pen => {
-                let is_path_being_built = self.toolbar.pen.handle_input(
-                    ui,
-                    self.inner_rect,
-                    &mut self.buffer,
-                    &mut self.history,
-                );
+                let is_path_being_built = self.toolbar.pen.handle_input(ui, tool_context);
                 if is_path_being_built {
                     res = Some(CanvasEvent::BuildingPath);
                 }
             }
             Tool::Eraser => {
-                self.toolbar.eraser.handle_input(
-                    ui,
-                    &self.painter,
-                    self.inner_rect,
-                    &mut self.buffer,
-                    &mut self.history,
-                );
+                self.toolbar.eraser.handle_input(ui, tool_context);
             }
             Tool::Selection => {
-                self.toolbar.selection.handle_input(
-                    ui,
-                    &self.painter,
-                    &mut self.buffer,
-                    &mut self.history,
-                );
+                self.toolbar.selection.handle_input(ui, tool_context);
             }
         }
         self.handle_clip_input(ui);

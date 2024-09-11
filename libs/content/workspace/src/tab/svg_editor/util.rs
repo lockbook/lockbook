@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;
 
@@ -90,4 +92,25 @@ pub fn get_current_touch_id(ui: &mut egui::Ui) -> Option<egui::TouchId> {
             }
         })
     })
+}
+
+pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
+    let mut custom_multi_touch = false;
+    ui.input(|r| {
+        if r.multi_touch().is_some() {
+            custom_multi_touch = true;
+            return;
+        }
+        let mut touch_ids = HashSet::new();
+        for e in r.events.iter() {
+            if let egui::Event::Touch { device_id: _, id, phase: _, pos: _, force: _ } = e {
+                touch_ids.insert(id.0);
+                if touch_ids.len() > 1 {
+                    custom_multi_touch = true;
+                    break;
+                }
+            }
+        }
+    });
+    custom_multi_touch
 }

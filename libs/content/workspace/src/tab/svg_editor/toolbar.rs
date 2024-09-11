@@ -33,6 +33,14 @@ pub enum Tool {
     Selection,
 }
 
+pub struct ToolContext<'a> {
+    pub painter: &'a egui::Painter,
+    pub buffer: &'a mut Buffer,
+    pub history: &'a mut History,
+    pub is_panning_or_zooming: bool,
+    pub is_multi_touch: bool,
+    pub is_touch_start: bool,
+}
 #[derive(Clone)]
 pub struct ColorSwatch {
     pub id: Option<String>,

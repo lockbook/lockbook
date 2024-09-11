@@ -15,7 +15,9 @@ use self::{
     translate::{detect_translation, end_translation},
 };
 
-use super::{history::History, parser, util::bb_to_rect, Buffer, DeleteElement};
+use super::{
+    history::History, parser, toolbar::ToolContext, util::bb_to_rect, Buffer, DeleteElement,
+};
 
 #[derive(Default)]
 pub struct Selection {
@@ -36,10 +38,7 @@ struct SelectedElement {
 }
 
 impl Selection {
-    pub fn handle_input(
-        &mut self, ui: &mut egui::Ui, painter: &egui::Painter, buffer: &mut parser::Buffer,
-        history: &mut History,
-    ) {
+    pub fn handle_input(&mut self, ui: &mut egui::Ui, selection_ctx: ToolContext) {
         let pos = ui.ctx().pointer_hover_pos().or(ui.input(|r| {
             r.events.iter().find_map(|event| {
                 if let egui::Event::Touch { device_id: _, id: _, phase: _, pos, force: _ } = event {
@@ -50,19 +49,32 @@ impl Selection {
             })
         }));
 
-        let working_rect = painter.clip_rect();
+        let working_rect = selection_ctx.painter.clip_rect();
+
+        if selection_ctx.is_multi_touch {
+            self.selection_rect =
+                SelectionRectContainer::new(&self.selected_elements, selection_ctx.buffer);
+            if let Some(s) = &self.selection_rect {
+                s.show(ui, selection_ctx.painter);
+            }
+            self.laso_original_pos = pos;
+            return;
+        }
+
         let mut maybe_selected_el = None;
 
         if let Some(selection_rect) = &self.selection_rect {
-            if selection_rect.show_delete_btn(ui, painter) {
-                self.delete_selection(buffer, history);
+            if selection_rect.show_delete_btn(ui, selection_ctx.painter) {
+                self.delete_selection(selection_ctx.buffer, selection_ctx.history);
                 self.laso_original_pos = None;
                 return;
             }
         }
 
         if matches!(self.current_op, SelectionOperation::Idle) && pos.is_some() {
-            maybe_selected_el = detect_translation(buffer, self.last_pos, pos.unwrap());
+            maybe_selected_el =
+                detect_translation(selection_ctx.buffer, self.last_pos, pos.unwrap());
+
             if maybe_selected_el.is_some() {
                 ui.output_mut(|r| r.cursor_icon = egui::CursorIcon::Grab);
             }
@@ -133,13 +145,13 @@ impl Selection {
                     self.candidate_selected_elements.clear();
 
                     self.laso_rect = Some(rect);
-                    painter.rect_filled(
+                    selection_ctx.painter.rect_filled(
                         rect,
                         egui::Rounding::ZERO,
                         ui.visuals().hyperlink_color.gamma_multiply(0.1),
                     );
                     // if the path bounding box intersects with the laso rect then it's a match
-                    for (id, el) in buffer.elements.iter() {
+                    for (id, el) in selection_ctx.buffer.elements.iter() {
                         if el.deleted() {
                             continue;
                         }
@@ -185,8 +197,10 @@ impl Selection {
                         }
                     }
 
-                    self.selection_rect =
-                        SelectionRectContainer::new(&self.candidate_selected_elements, buffer);
+                    self.selection_rect = SelectionRectContainer::new(
+                        &self.candidate_selected_elements,
+                        selection_ctx.buffer,
+                    );
                 }
             } else if ui.input(|r| r.pointer.primary_released()) && self.laso_rect.is_some() {
                 self.selected_elements = self.candidate_selected_elements.clone();
@@ -196,14 +210,15 @@ impl Selection {
         }
 
         if self.laso_rect.is_none() {
-            self.selection_rect = SelectionRectContainer::new(&self.selected_elements, buffer);
+            self.selection_rect =
+                SelectionRectContainer::new(&self.selected_elements, selection_ctx.buffer);
         }
 
         let mut intent = None;
         if let Some(r) = &self.selection_rect {
-            r.show(ui, painter);
+            r.show(ui, selection_ctx.painter);
             if let Some(p) = pos {
-                if painter.clip_rect().contains(p) {
+                if selection_ctx.painter.clip_rect().contains(p) {
                     intent = r.get_cursor_icon(p);
                 }
             }
@@ -211,11 +226,23 @@ impl Selection {
 
         if ui.input(|r| r.pointer.primary_released()) {
             if let Some(p) = pos {
-                end_translation(buffer, history, &mut self.selected_elements, p, true);
+                end_translation(
+                    selection_ctx.buffer,
+                    selection_ctx.history,
+                    &mut self.selected_elements,
+                    p,
+                    true,
+                );
             }
             self.current_op = SelectionOperation::Idle;
         } else if ui.input(|r| r.pointer.primary_clicked()) && pos.is_some() {
-            end_translation(buffer, history, &mut self.selected_elements, pos.unwrap(), false);
+            end_translation(
+                selection_ctx.buffer,
+                selection_ctx.history,
+                &mut self.selected_elements,
+                pos.unwrap(),
+                false,
+            );
         } else if ui.input(|r| r.pointer.primary_down()) {
             if matches!(self.current_op, SelectionOperation::Idle) {
                 if let Some(r) = &mut intent {
@@ -227,7 +254,7 @@ impl Selection {
                 match self.current_op {
                     SelectionOperation::Translation => {
                         self.selected_elements.iter_mut().for_each(|selection| {
-                            if let Some(el) = buffer.elements.get_mut(&selection.id) {
+                            if let Some(el) = selection_ctx.buffer.elements.get_mut(&selection.id) {
                                 let transform = Transform::identity().post_translate(
                                     p.x - selection.prev_pos.x,
                                     p.y - selection.prev_pos.y,
@@ -245,7 +272,12 @@ impl Selection {
                     | SelectionOperation::NorthScale
                     | SelectionOperation::SouthScale => {
                         if let Some(s_r) = self.selection_rect.as_ref() {
-                            let icon = snap_scale(p, &mut self.selected_elements, s_r, buffer);
+                            let icon = snap_scale(
+                                p,
+                                &mut self.selected_elements,
+                                s_r,
+                                selection_ctx.buffer,
+                            );
                             if let Some(c) = icon {
                                 ui.output_mut(|w| w.cursor_icon = c);
                             }
@@ -276,7 +308,13 @@ impl Selection {
                 .iter_mut()
                 .for_each(|el| el.transform = Transform::identity().post_translate(d.x, d.y));
             if let Some(p) = pos {
-                end_translation(buffer, history, &mut self.selected_elements, p, true);
+                end_translation(
+                    selection_ctx.buffer,
+                    selection_ctx.history,
+                    &mut self.selected_elements,
+                    p,
+                    true,
+                );
             }
         }
 
@@ -296,15 +334,21 @@ impl Selection {
                 factor,
                 &mut self.selected_elements,
                 self.selection_rect.as_ref().unwrap(), // todo: remove unwrap cus it can be none
-                buffer,
+                selection_ctx.buffer,
             );
             if let Some(p) = pos {
-                end_translation(buffer, history, &mut self.selected_elements, p, true);
+                end_translation(
+                    selection_ctx.buffer,
+                    selection_ctx.history,
+                    &mut self.selected_elements,
+                    p,
+                    true,
+                );
             }
         }
 
         if ui.input(|r| r.key_pressed(egui::Key::Backspace)) && !self.selected_elements.is_empty() {
-            self.delete_selection(buffer, history);
+            self.delete_selection(selection_ctx.buffer, selection_ctx.history);
         }
 
         if let Some(p) = pos {

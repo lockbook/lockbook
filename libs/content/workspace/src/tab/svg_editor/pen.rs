@@ -1,8 +1,7 @@
-use bezier_rs::{Bezier, Identifier, Subpath};
+use bezier_rs::{Bezier, Subpath};
 use lb_rs::Uuid;
 use resvg::usvg::Transform;
 use std::{
-    borrow::BorrowMut,
     collections::VecDeque,
     time::{Duration, Instant},
 };
@@ -13,6 +12,7 @@ use crate::{tab::svg_editor::util::get_current_touch_id, theme::palette::ThemePa
 use super::{
     history::History,
     parser::{self, DiffState, ManipulatorGroupId, Path, Stroke},
+    toolbar::ToolContext,
     Buffer, InsertElement,
 };
 
@@ -40,10 +40,11 @@ impl Pen {
     }
 
     /// returns true if a path is being built
-    pub fn handle_input(
-        &mut self, ui: &mut egui::Ui, inner_rect: egui::Rect, buffer: &mut parser::Buffer,
-        history: &mut History,
-    ) -> bool {
+    pub fn handle_input(&mut self, ui: &mut egui::Ui, pen_ctx: ToolContext) -> bool {
+        if pen_ctx.is_multi_touch {
+            return false;
+        }
+
         if self.active_color.is_none() {
             self.active_color = Some(ThemePalette::get_fg_color());
         }
@@ -60,12 +61,15 @@ impl Pen {
             });
         }
 
-        for event in self.setup_events(ui, inner_rect) {
+        for event in self.setup_events(ui, pen_ctx.painter.clip_rect()) {
             let span = span!(Level::TRACE, "building path", frame = ui.ctx().frame_nr());
             let _ = span.enter();
             match event {
                 PathEvent::Draw(payload, id) => {
-                    if let Some(parser::Element::Path(p)) = buffer.elements.get_mut(&id) {
+                    if pen_ctx.is_panning_or_zooming {
+                        continue;
+                    }
+                    if let Some(parser::Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&id) {
                         // for some reason in ipad there are  two draw events on the same pos which results in a knot.
                         if let Some(last_pos) = self.path_builder.original_points.last() {
                             if last_pos.eq(&payload.pos) && p.data.len() > 1 {
@@ -74,8 +78,8 @@ impl Pen {
                             }
                         }
 
-                        if self.detect_snap(&p.data, payload.pos, buffer.master_transform) {
-                            self.end_path(&mut p.data, history, true);
+                        if self.detect_snap(&p.data, payload.pos, pen_ctx.buffer.master_transform) {
+                            self.end_path(&mut p.data, pen_ctx.history, true);
                             return false;
                         }
 
@@ -107,7 +111,7 @@ impl Pen {
 
                         event!(Level::DEBUG, "starting a new path");
 
-                        buffer.elements.insert(
+                        pen_ctx.buffer.elements.insert(
                             id,
                             parser::Element::Path(Path {
                                 data: Subpath::new(vec![], false),
@@ -115,8 +119,8 @@ impl Pen {
                                 fill: None,
                                 stroke: Some(stroke),
                                 transform: Transform::identity().post_scale(
-                                    buffer.master_transform.sx,
-                                    buffer.master_transform.sy,
+                                    pen_ctx.buffer.master_transform.sx,
+                                    pen_ctx.buffer.master_transform.sy,
                                 ),
                                 opacity: self.active_opacity,
                                 pressure,
@@ -125,7 +129,8 @@ impl Pen {
                             }),
                         );
 
-                        if let Some(parser::Element::Path(p)) = buffer.elements.get_mut(&id) {
+                        if let Some(parser::Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&id)
+                        {
                             self.path_builder.cubic_to(payload.pos, &mut p.data);
                         }
                     }
@@ -133,9 +138,9 @@ impl Pen {
                 }
                 PathEvent::End => {
                     if let Some(parser::Element::Path(p)) =
-                        buffer.elements.get_mut(&self.current_id)
+                        pen_ctx.buffer.elements.get_mut(&self.current_id)
                     {
-                        self.end_path(&mut p.data, history, false);
+                        self.end_path(&mut p.data, pen_ctx.history, false);
                     }
 
                     self.maybe_snap_started = None;
