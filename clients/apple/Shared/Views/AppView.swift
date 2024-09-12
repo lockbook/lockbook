@@ -106,8 +106,21 @@ struct AppView: View {
     )
 }
 
-struct AppView_Previews: PreviewProvider {
-    static var previews: some View {
-        AppView().mockDI()
+//struct AppView_Previews: PreviewProvider {
+//    static var previews: some View {
+//        AppView().mockDI()
+//    }
+//}
+
+struct LockbookMainOnboardingView: View {
+    var body: some View {
+        VStack {
+            
+        }
+        .padding(.top)
     }
+}
+
+#Preview {
+    LockbookMainOnboardingView()
 }
