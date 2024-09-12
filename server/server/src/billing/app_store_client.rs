@@ -96,7 +96,9 @@ impl AppStoreClient for Client {
             400 | 404 => {
                 let error: ErrorBody = resp.json().await?;
 
-                if error.error_code == ORIGINAL_TRANS_ID_NOT_FOUND_ERR_CODE || error.error_code == TRANS_ID_NOT_FOUND_ERR_CODE {
+                if error.error_code == ORIGINAL_TRANS_ID_NOT_FOUND_ERR_CODE
+                    || error.error_code == TRANS_ID_NOT_FOUND_ERR_CODE
+                {
                     debug!(
                         "Could not verify subscription from apple's production servers, trying sandbox"
                     );
