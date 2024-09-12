@@ -33,7 +33,6 @@ pub enum Component {
 pub struct ToolBar {
     pub margin: egui::Margin,
     id: egui::Id,
-    pub has_focus: bool,
     buttons: Vec<ToolbarButton>,
     mobile_components: Vec<Component>,
     hide_keyboard_components: Vec<Component>,
@@ -60,7 +59,6 @@ impl ToolBar {
             mobile_components: get_mobile_components(),
             hide_keyboard_components: get_hide_keyboard_components(),
             header_click_count: 1,
-            has_focus: false,
             visibility: visibility.to_owned(),
             id: egui::Id::NULL,
         }
@@ -76,23 +74,9 @@ impl ToolBar {
                     .show(ui, |ui| self.map_buttons(ui, editor, res, true));
             });
         } else {
-            // greedy focus toggle on the editor whenever the pointer is not in the toolbar
-            let pointer = ui.ctx().pointer_hover_pos().unwrap_or_default();
             let toolbar_rect = self.calculate_rect(ui, editor);
-
             if ui.available_rect_before_wrap().width() < toolbar_rect.width() {
                 return;
-            }
-
-            if toolbar_rect.contains(pointer) {
-                if editor.has_focus {
-                    editor.has_focus = false
-                }
-            } else {
-                self.header_click_count = 1;
-                if !editor.has_focus {
-                    editor.has_focus = true
-                }
             }
 
             self.id = ui.id();
@@ -125,17 +109,11 @@ impl ToolBar {
                         self.process_mobile_components(
                             self.hide_keyboard_components.clone(),
                             ui,
-                            editor,
                             editor_res,
                         );
                     }
 
-                    self.process_mobile_components(
-                        self.mobile_components.clone(),
-                        ui,
-                        editor,
-                        editor_res,
-                    );
+                    self.process_mobile_components(self.mobile_components.clone(), ui, editor_res);
                 } else {
                     self.buttons.clone().iter().for_each(|btn| {
                         let res = Button::default().icon(&btn.icon).show(ui);
@@ -145,11 +123,6 @@ impl ToolBar {
 
                         if res.clicked() {
                             (btn.callback)(ui, self, editor_res);
-
-                            ui.memory_mut(|w| {
-                                w.request_focus(editor.id);
-                            });
-
                             ui.ctx().request_repaint();
                         }
                         if btn.id == "header" {
@@ -162,7 +135,7 @@ impl ToolBar {
     }
 
     fn process_mobile_components(
-        &mut self, components: Vec<Component>, ui: &mut egui::Ui, editor: &Editor,
+        &mut self, components: Vec<Component>, ui: &mut egui::Ui,
         editor_res: &mut markdown_editor::Response,
     ) {
         components.iter().for_each(|comp| match comp {
@@ -173,10 +146,6 @@ impl ToolBar {
 
                 if res.clicked() {
                     (btn.callback)(ui, self, editor_res);
-
-                    ui.memory_mut(|w| {
-                        w.request_focus(editor.id);
-                    });
                 }
             }
             Component::Separator(sep) => {
@@ -201,23 +170,25 @@ impl ToolBar {
         };
         let how_on = ui.ctx().animate_bool(egui::Id::from("toolbar_animate"), on);
 
-        let maximized_min_x = (editor.ui_rect.width() - self.width()) / 2.0 + editor.ui_rect.left();
+        let Some(editor_rect) = ui.memory(|m| m.area_rect(editor.id)) else {
+            return egui::Rect::NOTHING;
+        };
 
-        let minimized_min_x =
-            editor.ui_rect.max.x - (self.width() / self.buttons.len() as f32) - 40.0;
+        let maximized_min_x = (editor_rect.width() - self.width()) / 2.0 + editor_rect.left();
+
+        let minimized_min_x = editor_rect.max.x - (self.width() / self.buttons.len() as f32) - 40.0;
 
         let min_pos = egui::Pos2 {
             x: egui::lerp((maximized_min_x)..=(minimized_min_x), how_on),
-            y: editor.ui_rect.bottom() - 90.0,
+            y: editor_rect.bottom() - 90.0,
         };
 
-        let maximized_max_x =
-            editor.ui_rect.right() - (editor.ui_rect.width() - self.width()) / 2.0;
-        let minimized_max_x = editor.ui_rect.right();
+        let maximized_max_x = editor_rect.right() - (editor_rect.width() - self.width()) / 2.0;
+        let minimized_max_x = editor_rect.right();
 
         let max_pos = egui::Pos2 {
             x: egui::lerp((maximized_max_x)..=(minimized_max_x), how_on),
-            y: editor.ui_rect.bottom(),
+            y: editor_rect.bottom(),
         };
 
         match self.visibility {

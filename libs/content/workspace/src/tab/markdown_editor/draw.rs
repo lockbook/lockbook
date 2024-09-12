@@ -16,7 +16,7 @@ use pulldown_cmark::HeadingLevel;
 use super::input::cursor;
 
 impl Editor {
-    pub fn draw_text(&self, mut ui_size: Vec2, ui: &mut Ui, touch_mode: bool) {
+    pub fn draw_text(&self, ui: &mut Ui, touch_mode: bool) {
         let bullet_radius = self.appearance.bullet_radius();
         for galley in &self.galleys.galleys {
             // draw annotations
@@ -125,14 +125,6 @@ impl Editor {
             ui.painter()
                 .galley(galley.text_location, galley.galley.clone(), Color32::TRANSPARENT);
         }
-
-        // draw end-of-text padding
-        ui_size.y -= self.galleys.galleys[self.galleys.len() - 1]
-            .galley
-            .rect
-            .size()
-            .y;
-        ui.allocate_exact_size(ui_size, Sense::hover());
     }
 
     pub fn draw_image_placeholder(

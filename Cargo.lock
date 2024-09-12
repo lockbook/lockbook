@@ -2037,6 +2037,7 @@ dependencies = [
  "objc",
  "parking_lot",
  "percent-encoding 2.3.1",
+ "pollster 0.3.0",
  "raw-window-handle 0.5.2",
  "raw-window-handle 0.6.2",
  "static_assertions",
@@ -2045,6 +2046,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "web-time",
+ "wgpu",
  "winapi",
  "winit",
 ]
@@ -4187,7 +4189,7 @@ dependencies = [
  "lockbook-egui",
  "open",
  "percent-encoding 2.3.1",
- "pollster",
+ "pollster 0.2.5",
  "raw-window-handle 0.6.2",
  "workspace",
  "x11rb",
@@ -4244,7 +4246,7 @@ dependencies = [
  "image 0.24.9",
  "lb-rs",
  "lockbook-egui",
- "pollster",
+ "pollster 0.2.5",
  "raw-window-handle 0.6.2",
  "windows 0.51.1",
  "workspace",
@@ -5421,6 +5423,12 @@ name = "pollster"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5da3b0203fd7ee5720aa0b5e790b591aa5d3f41c3ed2c34a3a393382198af2f7"
+
+[[package]]
+name = "pollster"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22686f4785f02a4fcc856d3b3bb19bf6c8160d103f7a99cc258bddd0251dc7f2"
 
 [[package]]
 name = "polyval"
@@ -8507,7 +8515,7 @@ dependencies = [
  "linkify",
  "lyon",
  "ndk-sys 0.4.1+23.1.7779620",
- "pollster",
+ "pollster 0.2.5",
  "pulldown-cmark",
  "rand 0.8.5",
  "raw-window-handle 0.6.2",
@@ -8534,7 +8542,7 @@ dependencies = [
  "lb_external_interface",
  "libc",
  "ndk-sys 0.4.1+23.1.7779620",
- "pollster",
+ "pollster 0.2.5",
  "raw-window-handle 0.6.2",
  "serde",
  "serde_json",

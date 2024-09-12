@@ -7,12 +7,11 @@ use crate::tab::markdown_editor::input::mutation;
 use crate::tab::markdown_editor::input::Bound;
 use crate::tab::markdown_editor::layouts::Annotation;
 use crate::tab::markdown_editor::style::{InlineNode, ListItem, MarkdownNode};
-use egui::{Pos2, Rect};
+use egui::Pos2;
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt};
 
 pub trait ClickChecker {
-    fn ui(self, pos: Pos2) -> bool; // was the click even in the ui?
     fn text(self, pos: Pos2) -> Option<usize>; // returns galley index
     fn checkbox(self, pos: Pos2, touch_mode: bool) -> Option<usize>; // returns galley index of checkbox
     fn link(self, pos: Pos2) -> Option<String>; // returns url to open
@@ -20,7 +19,6 @@ pub trait ClickChecker {
 }
 
 pub struct EditorClickChecker<'a> {
-    pub ui_rect: Rect,
     pub galleys: &'a Galleys,
     pub bounds: &'a Bounds,
     pub buffer: &'a Buffer,
@@ -29,10 +27,6 @@ pub struct EditorClickChecker<'a> {
 }
 
 impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
-    fn ui(self, pos: Pos2) -> bool {
-        self.ui_rect.contains(pos)
-    }
-
     fn text(self, pos: Pos2) -> Option<usize> {
         for (galley_idx, galley) in self.galleys.galleys.iter().enumerate() {
             if galley.galley_location.contains(pos) {
