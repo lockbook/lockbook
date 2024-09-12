@@ -155,7 +155,7 @@ impl Ops {
             return true;
         }
 
-        let op = &self.all[idx];
+        let op = &self.all[idx - 1];
         if meta.base != prev_meta.base && matches!(op, Operation::Select(..)) {
             return true;
         }
