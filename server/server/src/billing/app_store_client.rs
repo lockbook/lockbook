@@ -22,6 +22,7 @@ const AUDIENCE: &str = "appstoreconnect-v1";
 const BUNDLE_ID: &str = "app.lockbook";
 
 pub const ORIGINAL_TRANS_ID_NOT_FOUND_ERR_CODE: u64 = 4040005;
+pub const TRANS_ID_NOT_FOUND_ERR_CODE: u64 = 4040010;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Claims {
@@ -95,10 +96,10 @@ impl AppStoreClient for Client {
             400 | 404 => {
                 let error: ErrorBody = resp.json().await?;
 
-                if error.error_code == ORIGINAL_TRANS_ID_NOT_FOUND_ERR_CODE {
+                if error.error_code == ORIGINAL_TRANS_ID_NOT_FOUND_ERR_CODE || error.error_code == TRANS_ID_NOT_FOUND_ERR_CODE {
                     debug!(
-                    "Could not verify subscription from apple's production servers, trying sandbox"
-                );
+                        "Could not verify subscription from apple's production servers, trying sandbox"
+                    );
 
                     let resp = gen_auth_req(
                         config,
