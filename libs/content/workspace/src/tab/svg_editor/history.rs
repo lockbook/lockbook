@@ -5,7 +5,7 @@ use resvg::usvg::Transform;
 
 use super::parser;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct History {
     undo: VecDeque<Event>,
     redo: Vec<Event>,

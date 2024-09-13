@@ -17,7 +17,7 @@ pub fn end_translation(
         .filter_map(|el| {
             el.prev_pos = pos;
             if buffer.elements.get_mut(&el.id).is_some() {
-                if save_event {
+                if save_event && !el.transform.is_identity() {
                     Some(TransformElement { id: el.id.to_owned(), transform: el.transform })
                 } else {
                     None

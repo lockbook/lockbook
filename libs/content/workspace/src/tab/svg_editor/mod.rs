@@ -179,7 +179,7 @@ impl SVGEditor {
         //     self.skip_frame = false;
         // }
 
-        let tool_context = ToolContext {
+        let mut tool_context = ToolContext {
             painter: &self.painter,
             buffer: &mut self.buffer,
             history: &mut self.history,
@@ -190,7 +190,7 @@ impl SVGEditor {
 
         match self.toolbar.active_tool {
             Tool::Pen => {
-                let is_path_being_built = self.toolbar.pen.handle_input(ui, tool_context);
+                let is_path_being_built = self.toolbar.pen.handle_input(ui, &mut tool_context);
                 if is_path_being_built {
                     res = Some(CanvasEvent::BuildingPath);
                 }

@@ -260,6 +260,9 @@ impl Selection {
                                     p.y - selection.prev_pos.y,
                                 );
                                 selection.transform = selection.transform.post_concat(transform);
+                                selection.transform.sx = 1.0;
+                                selection.transform.sy = 1.0;
+
                                 el.transform(transform);
                             }
 

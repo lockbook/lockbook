@@ -40,11 +40,7 @@ impl Pen {
     }
 
     /// returns true if a path is being built
-    pub fn handle_input(&mut self, ui: &mut egui::Ui, pen_ctx: ToolContext) -> bool {
-        if pen_ctx.is_multi_touch {
-            return false;
-        }
-
+    pub fn handle_input(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext) -> bool {
         if self.active_color.is_none() {
             self.active_color = Some(ThemePalette::get_fg_color());
         }
@@ -61,14 +57,14 @@ impl Pen {
             });
         }
 
-        for event in self.setup_events(ui, pen_ctx.painter.clip_rect()) {
+        for mut event in self.setup_events(ui, pen_ctx) {
             let span = span!(Level::TRACE, "building path", frame = ui.ctx().frame_nr());
             let _ = span.enter();
+            if pen_ctx.is_panning_or_zooming || pen_ctx.is_multi_touch {
+                event = PathEvent::End;
+            }
             match event {
                 PathEvent::Draw(payload, id) => {
-                    if pen_ctx.is_panning_or_zooming {
-                        continue;
-                    }
                     if let Some(parser::Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&id) {
                         // for some reason in ipad there are  two draw events on the same pos which results in a knot.
                         if let Some(last_pos) = self.path_builder.original_points.last() {
@@ -79,12 +75,7 @@ impl Pen {
                         }
 
                         if self.detect_snap(&p.data, payload.pos, pen_ctx.buffer.master_transform) {
-                            self.end_path(
-                                &mut p.data,
-                                pen_ctx.history,
-                                true,
-                                pen_ctx.buffer.master_transform,
-                            );
+                            self.end_path(pen_ctx, true);
                             return false;
                         }
 
@@ -142,16 +133,7 @@ impl Pen {
                     return true;
                 }
                 PathEvent::End => {
-                    if let Some(parser::Element::Path(p)) =
-                        pen_ctx.buffer.elements.get_mut(&self.current_id)
-                    {
-                        self.end_path(
-                            &mut p.data,
-                            pen_ctx.history,
-                            false,
-                            pen_ctx.buffer.master_transform,
-                        );
-                    }
+                    self.end_path(pen_ctx, false);
 
                     self.maybe_snap_started = None;
                     return false;
@@ -172,23 +154,27 @@ impl Pen {
         }
     }
 
-    pub fn end_path(
-        &mut self, path: &mut Subpath<ManipulatorGroupId>, history: &mut History, is_snapped: bool,
-        master_transform: Transform,
-    ) {
-        if path.is_empty() {
-            return;
+    pub fn end_path(&mut self, pen_ctx: &mut ToolContext, is_snapped: bool) {
+        if let Some(parser::Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id)
+        {
+            let path = &mut path.data;
+            if path.is_empty() {
+                return;
+            }
+
+            if path.len() > 2 && is_snapped {
+                self.path_builder
+                    .snap(pen_ctx.buffer.master_transform, path);
+            }
+
+            pen_ctx
+                .history
+                .save(super::Event::Insert(vec![InsertElement { id: self.current_id }]));
+
+            self.path_builder.clear();
+
+            self.current_id = Uuid::new_v4();
         }
-
-        if path.len() > 2 && is_snapped {
-            self.path_builder.snap(master_transform, path);
-        }
-
-        history.save(super::Event::Insert(vec![InsertElement { id: self.current_id }]));
-
-        self.path_builder.clear();
-
-        self.current_id = Uuid::new_v4();
     }
 
     fn detect_snap(
@@ -227,14 +213,14 @@ impl Pen {
         false
     }
 
-    pub fn setup_events(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect) -> Vec<PathEvent> {
+    pub fn setup_events(&mut self, ui: &mut egui::Ui, pen_ctx: &ToolContext) -> Vec<PathEvent> {
         ui.input(|r| {
             r.events
                 .iter()
                 .filter_map(|e| {
                     if let egui::Event::Touch { device_id: _, id: _, phase, pos, force } = *e {
                         let (should_end_path, should_draw) =
-                            self.decide_event(inner_rect, pos, phase == egui::TouchPhase::End, r);
+                            self.decide_event(&pen_ctx, pos, phase == egui::TouchPhase::End, r);
 
                         if should_end_path {
                             Some(PathEvent::End)
@@ -245,7 +231,7 @@ impl Pen {
                         }
                     } else if let egui::Event::PointerMoved(pos) = *e {
                         let (should_end_path, should_draw) =
-                            self.decide_event(inner_rect, pos, r.pointer.primary_pressed(), r);
+                            self.decide_event(&pen_ctx, pos, r.pointer.any_released(), r);
 
                         if should_end_path {
                             Some(PathEvent::End)
@@ -263,11 +249,18 @@ impl Pen {
     }
 
     fn decide_event(
-        &mut self, inner_rect: egui::Rect, pos: egui::Pos2, end_of_event: bool,
-        r: &egui::InputState,
+        &mut self, pen_ctx: &ToolContext, pos: egui::Pos2, end_of_event: bool, r: &egui::InputState,
     ) -> (bool, bool) {
-        let pointer_gone_out_of_canvas = !inner_rect.contains(pos);
-        // !self.path_builder.path.is_empty() && !inner_rect.contains(pos);
+        let inner_rect = pen_ctx.painter.clip_rect();
+
+        let not_empty_path =
+            if let Some(parser::Element::Path(p)) = pen_ctx.buffer.elements.get(&self.current_id) {
+                !p.data.is_empty()
+            } else {
+                false
+            };
+
+        let pointer_gone_out_of_canvas = !inner_rect.contains(pos) && not_empty_path;
 
         let pointer_released_in_canvas = end_of_event && inner_rect.contains(pos);
 
