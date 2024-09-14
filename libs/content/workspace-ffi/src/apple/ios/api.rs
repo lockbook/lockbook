@@ -1,4 +1,4 @@
-use egui::{Event, Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
+use egui::{vec2, Event, Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::ptr::null;
@@ -365,6 +365,24 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
         pos: Pos2 { x, y },
         force,
     });
+
+    obj.raw_input.events.push(Event::PointerGone);
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn scroll_wheel_ios(
+    obj: *mut c_void, scroll_x: f32, scroll_y: f32, x: f32, y: f32,
+) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    obj.raw_input
+        .events
+        .push(Event::PointerMoved(Pos2 { x, y }));
+
+    obj.raw_input
+        .events
+        .push(Event::Scroll(vec2(scroll_x, scroll_y)));
 
     obj.raw_input.events.push(Event::PointerGone);
 }

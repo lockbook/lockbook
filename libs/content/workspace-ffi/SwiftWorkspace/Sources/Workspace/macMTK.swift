@@ -147,9 +147,9 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     public override func scrollWheel(with event: NSEvent) {
         if event.hasPreciseScrollingDeltas {
-            scroll_wheel(wsHandle, Float(event.scrollingDeltaX), Float(event.scrollingDeltaY))
+            scroll_wheel_macos(wsHandle, Float(event.scrollingDeltaX), Float(event.scrollingDeltaY))
         } else {
-            scroll_wheel(wsHandle, Float(event.scrollingDeltaX * 10), Float(event.scrollingDeltaY * 10))
+            scroll_wheel_macos(wsHandle, Float(event.scrollingDeltaX * 10), Float(event.scrollingDeltaY * 10))
         }
         setNeedsDisplay(self.frame)
     }

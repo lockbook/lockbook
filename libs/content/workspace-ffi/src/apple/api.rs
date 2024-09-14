@@ -1,6 +1,5 @@
 use crate::WgpuWorkspace;
-use egui::os::OperatingSystem;
-use egui::{vec2, Event, Pos2};
+use egui::{Event, Pos2};
 use lb_external_interface::lb_rs::Uuid;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::path::PathBuf;
@@ -118,31 +117,13 @@ pub unsafe extern "C" fn deinit_editor(obj: *mut c_void) {
     let _ = Box::from_raw(obj as *mut WgpuWorkspace);
 }
 
-/// (macos only)
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_x: f32, scroll_y: f32) {
+pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    if matches!(obj.context.os(), OperatingSystem::IOS) {
-        obj.raw_input
-            .events
-            .push(Event::PointerMoved(Pos2 { x: 1.0, y: 200.0 }));
-    }
-
-    if obj.raw_input.modifiers.command || obj.raw_input.modifiers.ctrl {
-        let factor = (scroll_y / 50.).exp();
-
-        obj.raw_input.events.push(Event::Zoom(factor))
-    } else {
-        obj.raw_input
-            .events
-            .push(Event::Scroll(vec2(scroll_x, scroll_y)));
-    }
-
-    if matches!(obj.context.os(), OperatingSystem::IOS) {
-        obj.raw_input.events.push(Event::PointerGone);
-    }
+    obj.raw_input
+        .events
+        .push(Event::PointerMoved(Pos2 { x, y }))
 }
 
 /// # Safety

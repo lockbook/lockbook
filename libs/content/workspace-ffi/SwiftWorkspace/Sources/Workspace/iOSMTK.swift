@@ -26,7 +26,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
 
     var pasteBoardEventId: Int = 0
     var pasteboardString: String?
-    var lastKnownTapLocation: (Float, Float)? = nil
 
     var lastFloatingCursorRect: CGRect? = nil
     var floatingCursor: UIView = UIView()
@@ -108,6 +107,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         floatingCursor.isHidden = true
 
         addSubview(floatingCursor)
+    }
+    
+    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
+        mtkView.handleTrackpadScroll(sender)
     }
     
     @objc private func longPressGestureStateChanged(_ recognizer: UIGestureRecognizer) {
@@ -210,11 +213,11 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
 
         let x = point.x - self.floatingCursorNewStartX
         let y = point.y - self.floatingCursorNewStartY
-
+        
         if y >= bounds.height - 5 {
-            scroll_wheel(wsHandle, 0, -20)
+            scroll_wheel_ios(wsHandle, 0, -20, Float(bounds.size.width) / 2, Float(bounds.size.height) / 2)
         } else if y <= 5 {
-            scroll_wheel(wsHandle, 0, 20)
+            scroll_wheel_ios(wsHandle, 0, 20, Float(bounds.size.width) / 2, Float(bounds.size.height) / 2)
         }
 
         if animate {
@@ -304,29 +307,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                     self.importContent(.url(url), isPaste: true)
                 }
             }
-        }
-    }
-
-    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
-        if let event = sender {
-            if event.state == .ended || event.state == .cancelled || event.state == .failed {
-                // todo: evaluate fling when desired
-                lastKnownTapLocation = nil
-                return
-            }
-
-            let location = event.translation(in: self)
-
-            let y = Float(location.y)
-            let x = Float(location.x)
-
-            if lastKnownTapLocation == nil {
-                lastKnownTapLocation = (x, y)
-            }
-            scroll_wheel(wsHandle, x - lastKnownTapLocation!.0, y - lastKnownTapLocation!.1)
-
-            lastKnownTapLocation = (x, y)
-            self.mtkView.setNeedsDisplay()
         }
     }
 
@@ -739,10 +719,21 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
 
         isMultipleTouchEnabled = true
 
+        // pen support
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
+        
+        // ipad trackpad support
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
+        pan.allowedScrollTypesMask = .all
+        pan.maximumNumberOfTouches  = 0
+        self.addGestureRecognizer(pan)
 
         self.isMultipleTouchEnabled = true
+    }
+    
+    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
+        mtkView.handleTrackpadScroll(sender)
     }
 
     public func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
@@ -822,6 +813,12 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
+        
+        // ipad trackpad support
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
+        pan.allowedScrollTypesMask = .all
+        pan.maximumNumberOfTouches  = 0
+        self.addGestureRecognizer(pan)
         
         self.isPaused = false
         self.enableSetNeedsDisplay = false
@@ -1155,6 +1152,26 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             ios_key_event(wsHandle, key.keyCode.rawValue, shift, ctrl, option, command, false)
             self.setNeedsDisplay(self.frame)
         }
+    }
+    
+    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
+        guard let event = sender else {
+            return
+        }
+        
+        if event.state == .cancelled || event.state == .failed {
+            // todo: evaluate fling when desired
+            return
+        }
+        
+        let translation = event.translation(in: self)
+        let location = event.location(in: self)
+        print("the location \(location.x) \(location.y)")
+        
+        event.setTranslation(.zero, in: self)
+        
+        scroll_wheel_ios(wsHandle, Float(translation.x), Float(translation.y), Float(location.x), Float(location.y))
+        self.setNeedsDisplay()
     }
 
     func isDarkMode() -> Bool {
