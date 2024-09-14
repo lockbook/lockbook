@@ -52,17 +52,17 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
 
         self.clipsToBounds = true
         self.isUserInteractionEnabled = true
-
-        // ipad trackpad support
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
-        pan.allowedScrollTypesMask = .all
-        pan.maximumNumberOfTouches  = 0
-        self.addGestureRecognizer(pan)
-
+        
         // selection support
         textInteraction.textInput = self
         self.addInteraction(textInteraction)
-
+        
+//        // iPad trackpad support
+//        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
+//        pan.allowedScrollTypesMask = .all
+//        pan.maximumNumberOfTouches = 0
+//        self.addGestureRecognizer(pan)
+        
         for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
             let gestureName = gestureRecognizer.name?.lowercased()
 
@@ -112,7 +112,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
         mtkView.handleTrackpadScroll(sender)
     }
-    
+        
     @objc private func longPressGestureStateChanged(_ recognizer: UIGestureRecognizer) {
         switch recognizer.state {
         case .began:
@@ -665,7 +665,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public override var canBecomeFirstResponder: Bool {
         return true
     }
-
+    
     override public var keyCommands: [UIKeyCommand]? {
         let deleteWord = UIKeyCommand(input: UIKeyCommand.inputDelete, modifierFlags: [.alternate], action: #selector(deleteWord))
 
@@ -723,12 +723,15 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
         
-        // ipad trackpad support
+        // iPad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
-        pan.maximumNumberOfTouches  = 0
+        pan.maximumNumberOfTouches = 0
         self.addGestureRecognizer(pan)
-
+        
+        let pointerInteraction = UIPointerInteraction(delegate: mtkView)
+        self.addInteraction(pointerInteraction)
+        
         self.isMultipleTouchEnabled = true
     }
     
@@ -788,7 +791,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
     }
 }
 
-public class iOSMTK: MTKView, MTKViewDelegate {
+public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
     public static let TAB_BAR_HEIGHT: CGFloat = 50
 
@@ -814,10 +817,13 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         
-        // ipad trackpad support
+        let pointerInteraction = UIPointerInteraction(delegate: self)
+        self.addInteraction(pointerInteraction)
+        
+        // iPad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
-        pan.maximumNumberOfTouches  = 0
+        pan.maximumNumberOfTouches = 0
         self.addGestureRecognizer(pan)
         
         self.isPaused = false
@@ -830,7 +836,63 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+    
+    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
+        guard let event = sender, event.state != .cancelled, event.state != .failed else {
+            return
+        }
 
+        var velocity = event.velocity(in: self)
+        
+        velocity.x /= 50
+        velocity.y /= 50
+        
+        let textInputWrapper = (currentWrapper as? iOSMTKTextInputWrapper)
+        
+        if textInputWrapper?.bounds.contains(event.location(in: textInputWrapper)) == true {
+            print("setting")
+            mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
+        }
+        
+        if event.state == .ended {
+            let decelerationRate: CGFloat = 0.95
+            
+            Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { timer in
+                velocity.x *= decelerationRate
+                velocity.y *= decelerationRate
+                
+                if abs(velocity.x) < 0.1 && abs(velocity.y) < 0.1 {
+                    timer.invalidate()
+                    return
+                }
+                
+                print("sending kinetic scroll \(Date().timeIntervalSince1970)")
+                scroll_wheel_macos(self.wsHandle, Float(velocity.x), Float(velocity.y))
+                
+                self.setNeedsDisplay()
+            }
+        } else {
+            print("sending regular scroll \(Date().timeIntervalSince1970)")
+            scroll_wheel_macos(wsHandle, Float(velocity.x), Float(velocity.y))
+        }
+        
+        self.setNeedsDisplay()
+    }
+
+    public func pointerInteraction(_ interaction: UIPointerInteraction, regionFor request: UIPointerRegionRequest, defaultRegion: UIPointerRegion) -> UIPointerRegion? {
+        let offsetY: CGFloat = if interaction.view is iOSMTKTextInputWrapper {
+            Self.TAB_BAR_HEIGHT
+        } else if interaction.view is iOSMTKDrawingWrapper {
+            Self.TAB_BAR_HEIGHT + iOSMTKDrawingWrapper.TOOL_BAR_HEIGHT
+        } else {
+            0
+        }
+        
+//        print("moving mouse to... \(request.location.y + offsetY)")
+        mouse_moved(wsHandle, Float(request.location.x), Float(request.location.y + offsetY))
+        return defaultRegion
+    }
+    
     func openFile(id: UUID) {
         let uuid = CUuid(_0: id.uuid)
         open_file(wsHandle, uuid, false)
@@ -1152,26 +1214,6 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             ios_key_event(wsHandle, key.keyCode.rawValue, shift, ctrl, option, command, false)
             self.setNeedsDisplay(self.frame)
         }
-    }
-    
-    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
-        guard let event = sender else {
-            return
-        }
-        
-        if event.state == .cancelled || event.state == .failed {
-            // todo: evaluate fling when desired
-            return
-        }
-        
-        let translation = event.translation(in: self)
-        let location = event.location(in: self)
-        print("the location \(location.x) \(location.y)")
-        
-        event.setTranslation(.zero, in: self)
-        
-        scroll_wheel_ios(wsHandle, Float(translation.x), Float(translation.y), Float(location.x), Float(location.y))
-        self.setNeedsDisplay()
     }
 
     func isDarkMode() -> Bool {
