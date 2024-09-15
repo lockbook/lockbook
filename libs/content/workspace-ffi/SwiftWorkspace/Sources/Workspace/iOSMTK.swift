@@ -62,7 +62,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         // selection support
         textInteraction.textInput = self
         self.addInteraction(textInteraction)
-        
+
         for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
             let gestureName = gestureRecognizer.name?.lowercased()
 
@@ -213,7 +213,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
 
         let x = point.x - self.floatingCursorNewStartX
         let y = point.y - self.floatingCursorNewStartY
-        
+
         if y >= bounds.height - 5 {
             scroll_wheel(wsHandle, 0, -20)
         } else if y <= 5 {
@@ -816,8 +816,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     var ignoreTextUpdate = false
     
     var cursorTracked = false
-    
-    
     
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
