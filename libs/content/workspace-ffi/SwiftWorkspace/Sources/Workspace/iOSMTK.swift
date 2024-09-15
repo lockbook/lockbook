@@ -52,17 +52,16 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
 
         self.clipsToBounds = true
         self.isUserInteractionEnabled = true
-        
+
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
         pan.maximumNumberOfTouches = 0
         self.addGestureRecognizer(pan)
-        
+
         // selection support
         textInteraction.textInput = self
         self.addInteraction(textInteraction)
-        
         
         for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
             let gestureName = gestureRecognizer.name?.lowercased()
@@ -579,7 +578,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
 
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
         let (x, y) = floatingCursor.isHidden ? (point.x, point.y) : (point.x - floatingCursorNewStartX, point.y - floatingCursorNewStartY)
-
+        
         let point = CPoint(x: x, y: y + iOSMTK.TAB_BAR_HEIGHT)
         let result = position_at_point(wsHandle, point)
 
@@ -795,6 +794,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
 public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
     public static let TAB_BAR_HEIGHT: CGFloat = 50
+    public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
 
     public var wsHandle: UnsafeMutableRawPointer?
     var workspaceState: WorkspaceState?
@@ -816,6 +816,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     var ignoreTextUpdate = false
     
     var cursorTracked = false
+    
+    
     
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
@@ -851,11 +853,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         velocity.y /= 50
                         
         if event.state == .ended {
-            let decelerationRate: CGFloat = 0.95
-            
             Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
-                velocity.x *= decelerationRate
-                velocity.y *= decelerationRate
+                velocity.x *= Self.POINTER_DECELERATION_RATE
+                velocity.y *= Self.POINTER_DECELERATION_RATE
                 
                 if abs(velocity.x) < 0.1 && abs(velocity.y) < 0.1 {
                     timer.invalidate()
@@ -863,7 +863,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                 }
                 
                 if !cursorTracked {
-                    mouse_gone(wsHandle)
                     mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                 }
                 scroll_wheel(self.wsHandle, Float(velocity.x), Float(velocity.y))
@@ -875,7 +874,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             }
         } else {
             if !cursorTracked {
-                mouse_gone(wsHandle)
                 mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
             }
             scroll_wheel(wsHandle, Float(velocity.x), Float(velocity.y))
@@ -896,15 +894,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             0
         }
         
-        if interaction.view is iOSMTKTextInputWrapper {
-            print("in INPUT WRAPPER")
-            Self.TAB_BAR_HEIGHT
-        } else if interaction.view is iOSMTKDrawingWrapper {
-            print("in DRAWING WRAPPER")
-        } else {
-            print("in RAW METAL")
-        }
-        
         mouse_moved(wsHandle, Float(request.location.x), Float(request.location.y + offsetY))
         return defaultRegion
     }
@@ -915,6 +904,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     
     public func pointerInteraction(_ interaction: UIPointerInteraction, willExit region: UIPointerRegion, animator: any UIPointerInteractionAnimating) {
         cursorTracked = false
+        mouse_gone(wsHandle)
     }
     
     func openFile(id: UUID) {
