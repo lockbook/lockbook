@@ -578,7 +578,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
 
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
         let (x, y) = floatingCursor.isHidden ? (point.x, point.y) : (point.x - floatingCursorNewStartX, point.y - floatingCursorNewStartY)
-        
+
         let point = CPoint(x: x, y: y + iOSMTK.TAB_BAR_HEIGHT)
         let result = position_at_point(wsHandle, point)
 
