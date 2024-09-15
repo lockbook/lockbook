@@ -53,15 +53,16 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         self.clipsToBounds = true
         self.isUserInteractionEnabled = true
         
-        // selection support
-        textInteraction.textInput = self
-        self.addInteraction(textInteraction)
-        
-//        // iPad trackpad support
+        // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
         pan.maximumNumberOfTouches = 0
         self.addGestureRecognizer(pan)
+        
+        // selection support
+        textInteraction.textInput = self
+        self.addInteraction(textInteraction)
+        
         
         for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
             let gestureName = gestureRecognizer.name?.lowercased()
@@ -215,9 +216,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         let y = point.y - self.floatingCursorNewStartY
         
         if y >= bounds.height - 5 {
-            scroll_wheel_ios(wsHandle, 0, -20, Float(bounds.size.width) / 2, Float(bounds.size.height) / 2)
+            scroll_wheel(wsHandle, 0, -20)
         } else if y <= 5 {
-            scroll_wheel_ios(wsHandle, 0, 20, Float(bounds.size.width) / 2, Float(bounds.size.height) / 2)
+            scroll_wheel(wsHandle, 0, 20)
         }
 
         if animate {
@@ -665,7 +666,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public override var canBecomeFirstResponder: Bool {
         return true
     }
-    
+
     override public var keyCommands: [UIKeyCommand]? {
         let deleteWord = UIKeyCommand(input: UIKeyCommand.inputDelete, modifierFlags: [.alternate], action: #selector(deleteWord))
 
@@ -723,7 +724,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
         
-        // iPad trackpad support
+        // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
         pan.maximumNumberOfTouches = 0
@@ -822,7 +823,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         let pointerInteraction = UIPointerInteraction(delegate: self)
         self.addInteraction(pointerInteraction)
         
-        // iPad trackpad support
+        // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
         pan.maximumNumberOfTouches = 0
@@ -862,9 +863,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                 }
                 
                 if !cursorTracked {
+                    mouse_gone(wsHandle)
                     mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                 }
-                scroll_wheel_macos(self.wsHandle, Float(velocity.x), Float(velocity.y))
+                scroll_wheel(self.wsHandle, Float(velocity.x), Float(velocity.y))
                 if !cursorTracked {
                     mouse_gone(wsHandle)
                 }
@@ -873,9 +875,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             }
         } else {
             if !cursorTracked {
+                mouse_gone(wsHandle)
                 mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
             }
-            scroll_wheel_macos(wsHandle, Float(velocity.x), Float(velocity.y))
+            scroll_wheel(wsHandle, Float(velocity.x), Float(velocity.y))
             if !cursorTracked {
                 mouse_gone(wsHandle)
             }
@@ -891,6 +894,15 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             Self.TAB_BAR_HEIGHT + iOSMTKDrawingWrapper.TOOL_BAR_HEIGHT
         } else {
             0
+        }
+        
+        if interaction.view is iOSMTKTextInputWrapper {
+            print("in INPUT WRAPPER")
+            Self.TAB_BAR_HEIGHT
+        } else if interaction.view is iOSMTKDrawingWrapper {
+            print("in DRAWING WRAPPER")
+        } else {
+            print("in RAW METAL")
         }
         
         mouse_moved(wsHandle, Float(request.location.x), Float(request.location.y + offsetY))

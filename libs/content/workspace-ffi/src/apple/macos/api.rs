@@ -1,5 +1,5 @@
 use egui::PointerButton::{Primary, Secondary};
-use egui::{vec2, Event, Pos2};
+use egui::{Event, Pos2};
 use std::ffi::{c_char, c_void, CStr};
 
 use super::response::*;
@@ -54,22 +54,6 @@ pub unsafe extern "C" fn modifier_event(
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
     obj.raw_input.modifiers = modifiers;
-}
-
-/// # Safety
-#[no_mangle]
-pub unsafe extern "C" fn scroll_wheel_macos(obj: *mut c_void, scroll_x: f32, scroll_y: f32) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    if obj.raw_input.modifiers.command || obj.raw_input.modifiers.ctrl {
-        let factor = (scroll_y / 50.).exp();
-
-        obj.raw_input.events.push(Event::Zoom(factor))
-    } else {
-        obj.raw_input
-            .events
-            .push(Event::Scroll(vec2(scroll_x, scroll_y)));
-    }
 }
 
 /// # Safety
