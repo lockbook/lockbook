@@ -58,10 +58,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         self.addInteraction(textInteraction)
         
 //        // iPad trackpad support
-//        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
-//        pan.allowedScrollTypesMask = .all
-//        pan.maximumNumberOfTouches = 0
-//        self.addGestureRecognizer(pan)
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
+        pan.allowedScrollTypesMask = .all
+        pan.maximumNumberOfTouches = 0
+        self.addGestureRecognizer(pan)
         
         for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
             let gestureName = gestureRecognizer.name?.lowercased()
@@ -814,6 +814,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     var ignoreSelectionUpdate = false
     var ignoreTextUpdate = false
     
+    var cursorTracked = false
+    
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         
@@ -846,18 +848,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         
         velocity.x /= 50
         velocity.y /= 50
-        
-        let textInputWrapper = (currentWrapper as? iOSMTKTextInputWrapper)
-        
-        if textInputWrapper?.bounds.contains(event.location(in: textInputWrapper)) == true {
-            print("setting")
-            mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
-        }
-        
+                        
         if event.state == .ended {
             let decelerationRate: CGFloat = 0.95
             
-            Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { timer in
+            Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
                 velocity.x *= decelerationRate
                 velocity.y *= decelerationRate
                 
@@ -866,14 +861,24 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                     return
                 }
                 
-                print("sending kinetic scroll \(Date().timeIntervalSince1970)")
+                if !cursorTracked {
+                    mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
+                }
                 scroll_wheel_macos(self.wsHandle, Float(velocity.x), Float(velocity.y))
+                if !cursorTracked {
+                    mouse_gone(wsHandle)
+                }
                 
                 self.setNeedsDisplay()
             }
         } else {
-            print("sending regular scroll \(Date().timeIntervalSince1970)")
+            if !cursorTracked {
+                mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
+            }
             scroll_wheel_macos(wsHandle, Float(velocity.x), Float(velocity.y))
+            if !cursorTracked {
+                mouse_gone(wsHandle)
+            }
         }
         
         self.setNeedsDisplay()
@@ -888,9 +893,16 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             0
         }
         
-//        print("moving mouse to... \(request.location.y + offsetY)")
         mouse_moved(wsHandle, Float(request.location.x), Float(request.location.y + offsetY))
         return defaultRegion
+    }
+    
+    public func pointerInteraction(_ interaction: UIPointerInteraction, willEnter region: UIPointerRegion, animator: any UIPointerInteractionAnimating) {
+        cursorTracked = true
+    }
+    
+    public func pointerInteraction(_ interaction: UIPointerInteraction, willExit region: UIPointerRegion, animator: any UIPointerInteractionAnimating) {
+        cursorTracked = false
     }
     
     func openFile(id: UUID) {

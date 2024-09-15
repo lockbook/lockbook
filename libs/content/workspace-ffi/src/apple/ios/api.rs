@@ -388,6 +388,13 @@ pub unsafe extern "C" fn scroll_wheel_ios(
 }
 
 /// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn mouse_gone(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.raw_input.events.push(Event::PointerGone);
+}
+
+/// # Safety
 /// obj must be a valid pointer to WgpuEditor
 ///
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
