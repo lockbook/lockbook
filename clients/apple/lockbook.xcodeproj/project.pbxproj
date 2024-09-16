@@ -29,6 +29,7 @@
 		4779C62E2AB8C09E007C0100 /* PathSearchActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4779C62C2AB8C09E007C0100 /* PathSearchActionBar.swift */; };
 		477CC4902967A53C00714456 /* ShareFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CC48F2967A53C00714456 /* ShareFileSheet.swift */; };
 		477CC4912967A53C00714456 /* ShareFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CC48F2967A53C00714456 /* ShareFileSheet.swift */; };
+		477D80F12C98810C001AC17C /* MainOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477D80F02C98810C001AC17C /* MainOnboardingView.swift */; };
 		4782F83B2C49B4E700D55923 /* DeleteConfirmationButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4782F83A2C49B4E700D55923 /* DeleteConfirmationButtons.swift */; };
 		4782F83C2C49B4E700D55923 /* DeleteConfirmationButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4782F83A2C49B4E700D55923 /* DeleteConfirmationButtons.swift */; };
 		47837E292A72EA7500863FA4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B273394C26C8A4B400303EAE /* Assets.xcassets */; };
@@ -174,6 +175,7 @@
 		477185F02C751E10001EDABB /* SelectedFilesState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedFilesState.swift; sourceTree = "<group>"; };
 		4779C62C2AB8C09E007C0100 /* PathSearchActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathSearchActionBar.swift; sourceTree = "<group>"; };
 		477CC48F2967A53C00714456 /* ShareFileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFileSheet.swift; sourceTree = "<group>"; };
+		477D80F02C98810C001AC17C /* MainOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainOnboardingView.swift; sourceTree = "<group>"; };
 		4782F83A2C49B4E700D55923 /* DeleteConfirmationButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteConfirmationButtons.swift; sourceTree = "<group>"; };
 		4788D3842C5D71A900507DCE /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 		47A45FBA2969047B00573044 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
@@ -416,6 +418,7 @@
 				B249B9E4282AC03A004F5300 /* MoveSheet.swift */,
 				B249B9E6282AF4F4004F5300 /* HomeView.swift */,
 				473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */,
+				477D80F02C98810C001AC17C /* MainOnboardingView.swift */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -678,6 +681,7 @@
 				B249B9E7282AF4F4004F5300 /* HomeView.swift in Sources */,
 				47A45FBB2969047B00573044 /* ShareService.swift in Sources */,
 				877FB55026D17FD00008AB3F /* UnexpectedErrorService.swift in Sources */,
+				477D80F12C98810C001AC17C /* MainOnboardingView.swift in Sources */,
 				476436CC29B7DE4E00FBDC59 /* SearchService.swift in Sources */,
 				877FB55626D18AA60008AB3F /* AccountService.swift in Sources */,
 				6581ABD3CA16395327F765E8 /* SheetState.swift in Sources */,
