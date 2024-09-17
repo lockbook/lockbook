@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use lb_rs::Uuid;
 
 use super::toolbar::ToolContext;
+use super::util::is_multi_touch;
 use super::{util::pointer_intersects_element, DeleteElement};
 
 pub struct Eraser {
@@ -33,18 +34,16 @@ impl Eraser {
     }
 
     pub fn handle_input(&mut self, ui: &mut egui::Ui, eraser_ctx: ToolContext) {
-        let maybe_event = if eraser_ctx.is_multi_touch || eraser_ctx.is_touch_start {
-            Some(EraseEvent::End)
-        } else {
-            self.setup_events(ui, eraser_ctx.painter, eraser_ctx.painter.clip_rect())
-        };
+        if is_multi_touch(ui) {
+            *eraser_ctx.allow_viewport_changes = true;
+            return;
+        }
 
-        if let Some(event) = maybe_event {
+        if let Some(event) =
+            self.setup_events(ui, eraser_ctx.painter, eraser_ctx.painter.clip_rect())
+        {
             match event {
                 EraseEvent::Start(pos) => {
-                    if eraser_ctx.is_panning_or_zooming {
-                        return;
-                    }
                     eraser_ctx
                         .buffer
                         .elements

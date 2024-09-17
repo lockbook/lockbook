@@ -398,7 +398,7 @@ impl Workspace {
                             TabContent::Pdf(pdf) => pdf.show(ui),
                             TabContent::Svg(svg) => {
                                 let res = svg.show(ui);
-                                if res.needs_save {
+                                if res.request_save {
                                     tab.last_changed = Instant::now();
                                 }
                             }

@@ -16,7 +16,11 @@ use self::{
 };
 
 use super::{
-    history::History, parser, toolbar::ToolContext, util::bb_to_rect, Buffer, DeleteElement,
+    history::History,
+    parser,
+    toolbar::ToolContext,
+    util::{bb_to_rect, is_multi_touch},
+    Buffer, DeleteElement,
 };
 
 #[derive(Default)]
@@ -51,7 +55,7 @@ impl Selection {
 
         let working_rect = selection_ctx.painter.clip_rect();
 
-        if selection_ctx.is_multi_touch {
+        if is_multi_touch(ui) {
             self.selection_rect =
                 SelectionRectContainer::new(&self.selected_elements, selection_ctx.buffer);
             if let Some(s) = &self.selection_rect {

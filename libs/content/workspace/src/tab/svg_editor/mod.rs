@@ -47,16 +47,20 @@ pub struct SVGEditor {
     renderer: Renderer,
     painter: egui::Painter,
     has_queued_save_request: bool,
+    /// don't allow zooming or panning
+    allow_viewport_changes: bool,
+    is_viewport_changing: bool,
 }
 
 pub struct Response {
-    pub needs_save: bool,
+    pub request_save: bool,
 }
 
 #[derive(PartialEq)]
-pub enum CanvasEvent {
+pub enum CanvasOp {
     PanOrZoom,
     BuildingPath,
+    Idle,
 }
 impl SVGEditor {
     pub fn new(bytes: &[u8], ctx: &egui::Context, core: lb_rs::Core, open_file: Uuid) -> Self {
@@ -84,6 +88,8 @@ impl SVGEditor {
             ),
             renderer: Renderer::new(elements_count),
             has_queued_save_request: false,
+            allow_viewport_changes: false,
+            is_viewport_changing: false,
         }
     }
 
@@ -92,32 +98,25 @@ impl SVGEditor {
         let span = span!(Level::TRACE, "showing canvas widget", frame);
         let _ = span.enter();
 
-        let canvas_event = self.process_events(ui);
+        self.process_events(ui);
 
         self.show_canvas(ui);
 
         let global_diff = self.get_and_reset_diff_state();
 
-        let is_expensive_frame = if let Some(event) = canvas_event {
-            event == CanvasEvent::BuildingPath || event == CanvasEvent::PanOrZoom
-        } else {
-            false
-        };
+        if global_diff.is_dirty() {
+            self.has_queued_save_request = true;
+        }
 
-        let mut res = Response { needs_save: false };
-
-        if global_diff.is_dirty() || self.has_queued_save_request {
-            let needs_save = if !is_expensive_frame {
+        let needs_save_and_frame_is_cheap =
+            if self.has_queued_save_request && !global_diff.is_dirty() {
                 self.has_queued_save_request = false;
                 true
             } else {
-                self.has_queued_save_request = true;
                 false
             };
-            res.needs_save = needs_save;
-        }
 
-        res
+        Response { request_save: needs_save_and_frame_is_cheap }
     }
 
     fn get_and_reset_diff_state(&mut self) -> DiffState {
@@ -145,55 +144,38 @@ impl SVGEditor {
         global_diff_state
     }
 
-    fn process_events(&mut self, ui: &mut egui::Ui) -> Option<CanvasEvent> {
+    fn process_events(&mut self, ui: &mut egui::Ui) {
+        ui.input(|r| {
+            r.events.iter().for_each(move |event| {
+                println!("{:#?}", event);
+            })
+        });
+        println!("---");
         // todo: toggle debug print before merge
         // if ui.input(|r| r.key_down(egui::Key::D)) {
         self.show_debug_info(ui);
         // }
-        let mut res = None;
 
         if !ui.is_enabled() {
-            return None;
+            return;
         }
 
         if self.skip_frame {
             self.skip_frame = false;
-            return None;
+            return;
         }
-
-        if handle_zoom_input(ui, self.inner_rect, &mut self.buffer) {
-            res = Some(CanvasEvent::PanOrZoom);
-        }
-
-        // let unnecessary_touch = ui.input(|i| {
-        //     i.events.iter().any(|e| {
-        //         if let egui::Event::Touch { device_id: _, id: _, phase, pos: _, force: _ } = e {
-        //             phase.eq(&egui::TouchPhase::Cancel)
-        //         } else {
-        //             false
-        //         }
-        //     })
-        // });
-
-        // if ui.input(|r| r.multi_touch().is_some()) || || unnecessary_touch {
-        //     self.skip_frame = false;
-        // }
 
         let mut tool_context = ToolContext {
             painter: &self.painter,
             buffer: &mut self.buffer,
             history: &mut self.history,
-            is_panning_or_zooming: res == Some(CanvasEvent::PanOrZoom),
-            is_multi_touch: is_multi_touch(ui),
-            is_touch_start:  ui.input(|r| r.events.iter().any(|e| matches!(e, egui::Event::Touch { phase, .. } if *phase == egui::TouchPhase::Start)))
+            allow_viewport_changes: &mut self.allow_viewport_changes,
+            is_viewport_changing: self.is_viewport_changing,
         };
 
         match self.toolbar.active_tool {
             Tool::Pen => {
-                let is_path_being_built = self.toolbar.pen.handle_input(ui, &mut tool_context);
-                if is_path_being_built {
-                    res = Some(CanvasEvent::BuildingPath);
-                }
+                self.toolbar.pen.handle_input(ui, &mut tool_context);
             }
             Tool::Eraser => {
                 self.toolbar.eraser.handle_input(ui, tool_context);
@@ -202,9 +184,16 @@ impl SVGEditor {
                 self.toolbar.selection.handle_input(ui, tool_context);
             }
         }
-        self.handle_clip_input(ui);
 
-        return res;
+        self.is_viewport_changing = if self.allow_viewport_changes
+            && handle_zoom_input(ui, self.inner_rect, &mut self.buffer)
+        {
+            true
+        } else {
+            false
+        };
+
+        self.handle_clip_input(ui);
     }
 
     fn show_canvas(&mut self, ui: &mut egui::Ui) {

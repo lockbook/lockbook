@@ -82,16 +82,29 @@ pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
     }
 }
 
-pub fn get_current_touch_id(ui: &mut egui::Ui) -> Option<egui::TouchId> {
-    ui.input(|r| {
+pub fn get_event_touch_id(event: &egui::Event) -> Option<egui::TouchId> {
+    if let egui::Event::Touch { device_id: _, id, phase: _, pos: _, force: _ } = event {
+        Some(*id)
+    } else {
+        None
+    }
+}
+
+pub fn get_is_pointer_released(ui: &mut egui::Ui) -> (bool, Option<egui::Pos2>) {
+    let released_pointer_id = ui.input(|r| {
         r.events.iter().find_map(move |event| {
-            if let egui::Event::Touch { device_id: _, id, phase: _, pos: _, force: _ } = event {
-                Some(*id)
+            if let egui::Event::Touch { device_id: _, id, phase, pos, force: _ } = event {
+                if phase == &egui::TouchPhase::End {
+                    Some(*pos)
+                } else {
+                    None
+                }
             } else {
                 None
             }
         })
-    })
+    });
+    (ui.input(|r| r.pointer.any_released()), released_pointer_id)
 }
 
 pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
