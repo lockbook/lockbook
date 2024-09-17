@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use egui::ScrollArea;
+use egui::{Color32, ScrollArea};
 use resvg::usvg::Transform;
 
 use crate::{
@@ -31,6 +31,8 @@ pub enum Tool {
     Pen,
     Eraser,
     Selection,
+    Highlighter,
+    Brush,
 }
 
 pub struct ToolContext<'a> {
@@ -38,7 +40,7 @@ pub struct ToolContext<'a> {
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
     pub allow_viewport_changes: &'a mut bool,
-    pub is_viewport_changing: bool,
+    pub is_viewport_changing: &'a mut bool,
 }
 #[derive(Clone)]
 pub struct ColorSwatch {
@@ -51,6 +53,10 @@ macro_rules! set_tool {
         if $obj.active_tool != $new_tool {
             if (matches!($new_tool, Tool::Selection)) {
                 $obj.selection = Selection::default();
+            }
+            if (matches!($new_tool, Tool::Pen)) {
+                $obj.pen.active_opacity = 1.0;
+                $obj.pen.supports_pressure = false;
             }
             $obj.previous_tool = Some($obj.active_tool);
             $obj.active_tool = $new_tool;
@@ -178,9 +184,32 @@ impl Toolbar {
             set_tool!(self, Tool::Selection);
         }
 
-        let pen_btn = Button::default().icon(&Icon::BRUSH).show(ui);
+        let pen_btn = Button::default().icon(&Icon::PEN).show(ui);
         if pen_btn.clicked() {
             set_tool!(self, Tool::Pen);
+            self.pen.supports_pressure = false;
+            self.pen.active_opacity = 1.0;
+            self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH;
+            self.pen.active_color = None;
+        }
+
+        let brush = Button::default().icon(&Icon::BRUSH).show(ui);
+        if brush.clicked() {
+            set_tool!(self, Tool::Brush);
+            self.pen.supports_pressure = true;
+            self.pen.active_opacity = 1.0;
+            self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH;
+            self.pen.active_color = None;
+        }
+
+        let highlighter_btn = Button::default().icon(&Icon::HIGHLIGHTER).show(ui);
+        let highlighter_opacity = 0.3;
+        if highlighter_btn.clicked() {
+            set_tool!(self, Tool::Highlighter);
+            self.pen.active_opacity = highlighter_opacity;
+            self.pen.supports_pressure = false;
+            self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH * 2.0;
+            self.pen.active_color = Some(get_highlighter_colors()[0]);
         }
 
         let eraser_btn = Button::default().icon(&Icon::ERASER).show(ui);
@@ -192,6 +221,8 @@ impl Toolbar {
             Tool::Pen => pen_btn.rect,
             Tool::Eraser => eraser_btn.rect,
             Tool::Selection => selection_btn.rect,
+            Tool::Highlighter => highlighter_btn.rect,
+            Tool::Brush => brush.rect,
         };
 
         ui.painter().rect_filled(
@@ -209,7 +240,7 @@ impl Toolbar {
 
     fn show_tool_inline_controls(&mut self, ui: &mut egui::Ui) {
         match self.active_tool {
-            Tool::Pen => {
+            Tool::Pen | Tool::Brush => {
                 if let Some(thickness) = self.show_thickness_pickers(
                     ui,
                     self.pen.active_stroke_width as f32,
@@ -217,16 +248,6 @@ impl Toolbar {
                 ) {
                     self.pen.active_stroke_width = thickness;
                 }
-
-                ui.add_space(4.0);
-                ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
-                ui.add_space(4.0);
-
-                ui.label(egui::RichText::from("Opacity:").size(15.0));
-                ui.add_space(10.0);
-                ui.add(
-                    egui::Slider::new(&mut self.pen.active_opacity, 0.0..=1.0).show_value(false),
-                );
 
                 ui.add_space(4.0);
                 ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
@@ -244,6 +265,28 @@ impl Toolbar {
                 }
             }
             Tool::Selection => {}
+            Tool::Highlighter => {
+                if let Some(thickness) = self.show_thickness_pickers(
+                    ui,
+                    self.pen.active_stroke_width as f32,
+                    vec![DEFAULT_PEN_STROKE_WIDTH * 2.0, 4.0 * 2.0, 6.0 * 2.0],
+                ) {
+                    self.pen.active_stroke_width = thickness;
+                }
+
+                ui.add_space(4.0);
+                ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
+                ui.add_space(4.0);
+
+                let highlighter_colors = get_highlighter_colors();
+
+                highlighter_colors.iter().for_each(|theme_color| {
+                    let color = ThemePalette::resolve_dynamic_color(*theme_color, ui);
+                    if self.show_color_btn(ui, color).clicked() {
+                        self.pen.active_color = Some(*theme_color);
+                    }
+                });
+            }
         }
     }
 
@@ -374,7 +417,11 @@ impl Toolbar {
             selected.1 = false;
 
             if selected.0 as i32 == FIT_ZOOM && !buffer.elements.is_empty() {
-                let elements_bound = calc_elements_bounds(buffer);
+                let elements_bound = match calc_elements_bounds(buffer) {
+                    Some(rect) => rect,
+                    None => return None,
+                };
+
                 let is_width_smaller = elements_bound.width() < elements_bound.height();
 
                 let padding_coeff = 0.7; // from 0 to 1. the closer you're to 0 the less zoomed in the fit will be
@@ -404,40 +451,36 @@ impl Toolbar {
     }
 }
 
-fn calc_elements_bounds(buffer: &mut Buffer) -> egui::Rect {
+fn get_highlighter_colors() -> Vec<(Color32, Color32)> {
+    let yellow = (Color32::from_rgb(244, 250, 65), Color32::from_rgb(244, 250, 65));
+    let blue = (Color32::from_rgb(65, 194, 250), Color32::from_rgb(65, 194, 250));
+    let pink = (Color32::from_rgb(254, 110, 175), Color32::from_rgb(254, 110, 175));
+
+    let highlighter_colors = vec![yellow, blue, pink];
+    highlighter_colors
+}
+
+fn calc_elements_bounds(buffer: &mut Buffer) -> Option<egui::Rect> {
     let mut elements_bound =
         egui::Rect { min: egui::pos2(f32::MAX, f32::MAX), max: egui::pos2(f32::MIN, f32::MIN) };
+    let mut dirty_bound = false;
     for (_, el) in buffer.elements.iter() {
         if el.deleted() {
             continue;
         }
 
-        let el_rect = match el {
-            parser::Element::Path(p) => {
-                // without this bezier_rs will panic when calculating bounding box
-                if p.data.len() < 2 {
-                    continue;
-                }
-                let bb = p.data.bounding_box().unwrap_or_default();
-                egui::Rect {
-                    min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
-                    max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
-                }
-            }
-            parser::Element::Image(img) => {
-                let bb = img.bounding_box();
-                egui::Rect {
-                    min: egui::pos2(bb.left(), bb.top()),
-                    max: egui::pos2(bb.right(), bb.bottom()),
-                }
-            }
-            parser::Element::Text(_) => todo!(),
-        };
+        let el_rect = el.bounding_box();
+        dirty_bound = true;
+
         elements_bound.min.x = elements_bound.min.x.min(el_rect.min.x);
         elements_bound.min.y = elements_bound.min.y.min(el_rect.min.y);
 
         elements_bound.max.x = elements_bound.max.x.max(el_rect.max.x);
         elements_bound.max.y = elements_bound.max.y.max(el_rect.max.y);
     }
-    elements_bound
+    if !dirty_bound {
+        None
+    } else {
+        Some(elements_bound)
+    }
 }

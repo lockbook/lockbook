@@ -145,12 +145,6 @@ impl SVGEditor {
     }
 
     fn process_events(&mut self, ui: &mut egui::Ui) {
-        ui.input(|r| {
-            r.events.iter().for_each(move |event| {
-                println!("{:#?}", event);
-            })
-        });
-        println!("---");
         // todo: toggle debug print before merge
         // if ui.input(|r| r.key_down(egui::Key::D)) {
         self.show_debug_info(ui);
@@ -170,11 +164,11 @@ impl SVGEditor {
             buffer: &mut self.buffer,
             history: &mut self.history,
             allow_viewport_changes: &mut self.allow_viewport_changes,
-            is_viewport_changing: self.is_viewport_changing,
+            is_viewport_changing: &mut self.is_viewport_changing,
         };
 
         match self.toolbar.active_tool {
-            Tool::Pen => {
+            Tool::Pen | Tool::Brush | Tool::Highlighter => {
                 self.toolbar.pen.handle_input(ui, &mut tool_context);
             }
             Tool::Eraser => {

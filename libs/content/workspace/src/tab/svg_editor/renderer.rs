@@ -110,6 +110,7 @@ impl Renderer {
         }
 
         if !self.mesh_cache.is_empty() {
+            ui.ctx().graphics(reader)
             painter.extend(self.mesh_cache.clone().into_values().filter(|shape| {
                 if let egui::Shape::Mesh(m) = shape {
                     !m.vertices.is_empty() && !m.indices.is_empty()
@@ -173,7 +174,21 @@ fn tesselate_element(
                 let mut i = 0;
 
                 while let Some(seg) = p.data.get_segment(i) {
-                    let thickness = stroke.width * master_transform.sx;
+                    let pressure = if let Some(ref pressure) = p.pressure {
+                        let pressure_at_segment = pressure.get(i);
+                        if pressure_at_segment.is_some() {
+                            pressure_at_segment
+                        } else {
+                            pressure.get(i - 1)
+                        }
+                    } else {
+                        None
+                    };
+
+                    let normalized_pressure =
+                        if let Some(prsr) = pressure { *prsr * 2.5 + 0.2 } else { 1.0 };
+
+                    let thickness = stroke.width * master_transform.sx * normalized_pressure;
 
                     let start = devc_to_point(seg.start());
                     let end = devc_to_point(seg.end());

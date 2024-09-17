@@ -30,7 +30,11 @@ pub fn scale_from_center(
         },
     );
 
-    let bb = path.bounding_box().unwrap();
+    let bb = match path.bounding_box() {
+        Some(val) => val,
+        None => return,
+    };
+
     let element_rect = egui::Rect {
         min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
         max: egui::pos2(bb[1].x as f32, bb[1].y as f32),

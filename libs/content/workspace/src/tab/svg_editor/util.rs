@@ -81,6 +81,12 @@ pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
         max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
     }
 }
+pub fn rect_to_bb(rect: egui::Rect) -> [DVec2; 2] {
+    [
+        DVec2 { x: rect.left().into(), y: rect.top().into() },
+        DVec2 { x: rect.right().into(), y: rect.bottom().into() },
+    ]
+}
 
 pub fn get_event_touch_id(event: &egui::Event) -> Option<egui::TouchId> {
     if let egui::Event::Touch { device_id: _, id, phase: _, pos: _, force: _ } = event {

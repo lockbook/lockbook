@@ -102,7 +102,7 @@ impl Selection {
             ui.input(|r| r.pointer.primary_clicked())
         };
 
-        if should_rebuild {
+        if should_rebuild && pos.is_some() {
             // is cursor inside of a selected element?
             let pos_over_selected_el = if let Some(r) = &self.selection_rect {
                 r.get_cursor_icon(pos.unwrap()).is_some()
@@ -161,8 +161,7 @@ impl Selection {
                         }
                         let el_intersects_laso = match el {
                             parser::Element::Path(path) => {
-                                let bb = path.data.bounding_box().unwrap();
-                                let path_rect = bb_to_rect(bb);
+                                let path_rect = path.bounding_box();
                                 if self.laso_rect.unwrap().intersects(path_rect) {
                                     let laso_bb = Subpath::new_rect(
                                         glam::DVec2 {
@@ -186,8 +185,13 @@ impl Selection {
                             }
                             parser::Element::Image(img) => {
                                 let img_bb = img.bounding_box();
-                                self.laso_rect.unwrap().contains_rect(img_bb)
-                                    || self.laso_rect.unwrap().intersects(img_bb)
+                                self.laso_rect
+                                    .unwrap_or(egui::Rect::NOTHING)
+                                    .contains_rect(img_bb)
+                                    || self
+                                        .laso_rect
+                                        .unwrap_or(egui::Rect::NOTHING)
+                                        .intersects(img_bb)
                             }
                             parser::Element::Text(_) => todo!(),
                         };
@@ -336,11 +340,11 @@ impl Selection {
             1.0
         };
 
-        if is_scaling_down || is_scaling_up {
+        if is_scaling_down || is_scaling_up && self.selection_rect.is_some() {
             scale_group_from_center(
                 factor,
                 &mut self.selected_elements,
-                self.selection_rect.as_ref().unwrap(), // todo: remove unwrap cus it can be none
+                self.selection_rect.as_ref().unwrap(),
                 selection_ctx.buffer,
             );
             if let Some(p) = pos {

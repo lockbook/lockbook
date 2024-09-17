@@ -6,7 +6,7 @@ use std::{
     collections::VecDeque,
     time::{Duration, Instant},
 };
-use tracing::{debug, event, warn, Level};
+use tracing::{debug, event, trace, warn, Level};
 use tracing_test::traced_test;
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
 use super::{
     parser::{self, DiffState, ManipulatorGroupId, Path, Stroke},
     toolbar::ToolContext,
-    util::{get_event_touch_id, get_is_pointer_released, is_multi_touch},
+    util::{get_event_touch_id, is_multi_touch},
     InsertElement,
 };
 
@@ -30,6 +30,7 @@ pub struct Pen {
     path_builder: CubicBezBuilder,
     pub current_id: Uuid, // todo: this should be at a higher component state, maybe in buffer
     maybe_snap_started: Option<Instant>,
+    pub supports_pressure: bool,
 }
 
 impl Pen {
@@ -41,6 +42,7 @@ impl Pen {
             path_builder: CubicBezBuilder::new(),
             maybe_snap_started: None,
             active_opacity: 1.0,
+            supports_pressure: false,
         }
     }
 
@@ -80,11 +82,9 @@ impl Pen {
     }
 
     pub fn end_path(&mut self, pen_ctx: &mut ToolContext, is_snapped: bool) {
-        debug!("starting to end path");
-
         if let Some(parser::Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id)
         {
-            debug!("found path to end");
+            trace!("found path to end");
             self.path_builder.clear();
 
             let path = &mut path.data;
@@ -170,15 +170,17 @@ impl Pen {
 
                     self.path_builder.cubic_to(payload.pos, &mut p.data);
 
-                    if let Some(f) = payload.force {
-                        if let Some(pressure) = &mut p.pressure {
-                            pressure.push(f)
-                        } else {
-                            p.pressure = Some(vec![f]);
+                    if self.supports_pressure {
+                        if let Some(f) = payload.force {
+                            if let Some(pressure) = &mut p.pressure {
+                                pressure.push(f)
+                            } else {
+                                p.pressure = Some(vec![f]);
+                            }
+                        // sometimes the force is missing from the event so just autofill it based on the last force
+                        } else if let Some(pressure) = &mut p.pressure {
+                            pressure.push(*pressure.last().unwrap_or(&1.0))
                         }
-                    // sometimes the force is missing from the event so just autofill it based on the last force
-                    } else if let Some(pressure) = &mut p.pressure {
-                        pressure.push(*pressure.last().unwrap_or(&1.0))
                     }
                 } else {
                     let mut stroke = Stroke::default();
@@ -188,7 +190,8 @@ impl Pen {
 
                     stroke.width = self.active_stroke_width as f32;
 
-                    let pressure = payload.force.map(|f| vec![f]);
+                    let pressure =
+                        if self.supports_pressure { payload.force.map(|f| vec![f]) } else { None };
                     self.path_builder.first_point_touch_id = payload.id;
 
                     event!(Level::DEBUG, "starting a new path");
@@ -225,11 +228,12 @@ impl Pen {
                 return;
             }
             PathEvent::CancelStroke() => {
-                debug!("canceling stroke");
+                trace!("canceling stroke");
                 if let Some(parser::Element::Path(path)) =
                     pen_ctx.buffer.elements.get_mut(&self.current_id)
                 {
                     self.path_builder.clear();
+                    self.path_builder.is_canceled_path = true;
                     path.diff_state.data_changed = true;
                     path.data = Subpath::new(vec![], false);
                 }
@@ -283,17 +287,15 @@ impl Pen {
         // todo: should i wait for input start
         if input_state.is_multi_touch {
             if is_current_path_empty {
-                debug!("allowing viewport changes");
+                trace!("allowing viewport changes");
                 *pen_ctx.allow_viewport_changes = true;
                 return Some(PathEvent::Break);
             }
             if !get_event_touch_id(e).eq(&self.path_builder.first_point_touch_id) {
-                debug!("no viewport changes");
+                trace!("no viewport changes");
                 *pen_ctx.allow_viewport_changes = false;
                 return None;
             }
-            debug!("multi touch not empty  path, and current id equal to start");
-            println!("{:#?}", self.path_builder.original_points.len());
         }
 
         *pen_ctx.allow_viewport_changes = false;
@@ -302,14 +304,14 @@ impl Pen {
             // let (should_end_path, should_draw) = self.decide_event(pen_ctx, pos, input_state);
 
             if phase == TouchPhase::Cancel {
-                debug!("sending cancel stroke");
+                trace!("sending cancel stroke");
                 return Some(PathEvent::CancelStroke());
             }
             if phase == TouchPhase::End
                 && pen_ctx.painter.clip_rect().contains(pos)
                 && id.eq(&self.path_builder.first_point_touch_id.unwrap_or(TouchId(0)))
             {
-                debug!("sending end path");
+                trace!("sending end path");
                 return Some(PathEvent::End);
             }
             if phase != TouchPhase::End && pen_ctx.painter.clip_rect().contains(pos) {
@@ -321,12 +323,16 @@ impl Pen {
                     warn!("phantom stroke about to happen");
                     return Some(PathEvent::CancelStroke());
                 }
-                if phase == TouchPhase::Move && self.path_builder.prev_points_window.is_empty() {
-                    debug!("probably lifted a finger off from a zoom.");
+                if phase == TouchPhase::Move
+                    && self.path_builder.prev_points_window.is_empty()
+                    && !self.path_builder.is_canceled_path
+                {
+                    trace!("probably lifted a finger off from a zoom.");
                     return None;
                 }
+                *pen_ctx.is_viewport_changing = false;
 
-                debug!("sending draw path");
+                trace!("sending draw path ");
                 return Some(PathEvent::Draw(DrawPayload { pos, force, id: Some(id) }));
             } else {
                 return None;
@@ -403,6 +409,7 @@ pub struct CubicBezBuilder {
     simplified_points: Vec<egui::Pos2>,
     original_points: Vec<egui::Pos2>,
     first_point_touch_id: Option<egui::TouchId>,
+    is_canceled_path: bool,
 }
 
 impl Default for CubicBezBuilder {
@@ -418,6 +425,7 @@ impl CubicBezBuilder {
             first_point_touch_id: None,
             simplified_points: vec![],
             original_points: vec![],
+            is_canceled_path: false,
         }
     }
 
@@ -503,6 +511,7 @@ impl CubicBezBuilder {
     pub fn clear(&mut self) {
         self.prev_points_window.clear();
         self.first_point_touch_id = None;
+        self.is_canceled_path = false;
     }
 
     /// Ramer–Douglas–Peucker algorithm courtesy of @author: Michael-F-Bryan
@@ -627,7 +636,7 @@ fn no_adjacnet_duplicate_points_in_path() {
         buffer: &mut Buffer::default(),
         history: &mut History::default(),
         allow_viewport_changes: &mut false,
-        is_viewport_changing: false,
+        is_viewport_changing: &mut false,
     };
 
     let start_pos = egui::pos2(10.0, 10.0);
@@ -683,7 +692,7 @@ fn correct_start_of_path() {
         buffer: &mut Buffer::default(),
         history: &mut History::default(),
         allow_viewport_changes: &mut false,
-        is_viewport_changing: false,
+        is_viewport_changing: &mut false,
     };
 
     let start_pos = egui::pos2(10.0, 10.0);
@@ -806,10 +815,10 @@ fn cancel_touch_ui_event() {
         buffer: &mut Buffer::default(),
         history: &mut History::default(),
         allow_viewport_changes: &mut false,
-        is_viewport_changing: false,
+        is_viewport_changing: &mut false,
     };
 
-    let input_state = PenPointerInput {
+    let mut input_state = PenPointerInput {
         has_canceled_touches: events.iter().any(|e| {
             if let egui::Event::Touch { device_id, id, phase, pos, force } = e {
                 phase == &egui::TouchPhase::Cancel
@@ -823,7 +832,7 @@ fn cancel_touch_ui_event() {
     };
 
     events.iter().for_each(|e| {
-        if let Some(path_event) = pen.map_ui_event(e, &mut pen_ctx, &input_state) {
+        if let Some(path_event) = pen.map_ui_event(e, &mut pen_ctx, &mut input_state) {
             println!("{:#?}", path_event);
             pen.handle_path_event(path_event, &mut pen_ctx);
         }

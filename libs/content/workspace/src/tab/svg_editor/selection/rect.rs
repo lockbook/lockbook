@@ -5,7 +5,7 @@ use super::{SelectedElement, SelectionOperation, SelectionResponse};
 use crate::{
     tab::svg_editor::{
         parser::ManipulatorGroupId,
-        util::{bb_to_rect, pointer_intersects_outline},
+        util::{bb_to_rect, pointer_intersects_outline, rect_to_bb},
         Buffer,
     },
     theme::icons::Icon,
@@ -26,22 +26,11 @@ impl SelectionRectContainer {
         let mut container_bb = [DVec2::new(f64::MAX, f64::MAX), DVec2::new(f64::MIN, f64::MIN)];
         let mut children = vec![];
         for el in els.iter() {
-            let bb = match buffer.elements.get(&el.id) {
-                Some(el) => match el {
-                    crate::tab::svg_editor::parser::Element::Path(p) => {
-                        p.data.bounding_box().unwrap()
-                    }
-                    crate::tab::svg_editor::parser::Element::Image(img) => {
-                        let rect = img.bounding_box();
-                        [
-                            DVec2 { x: rect.left().into(), y: rect.top().into() },
-                            DVec2 { x: rect.right().into(), y: rect.bottom().into() },
-                        ]
-                    }
-                    crate::tab::svg_editor::parser::Element::Text(_) => todo!(),
-                },
+            let rect = match buffer.elements.get(&el.id) {
+                Some(el) => el.bounding_box(),
                 None => continue,
             };
+            let bb = rect_to_bb(rect);
 
             if let Some(clipped_rect) = SelectionRect::new(bb) {
                 children.push(clipped_rect);
