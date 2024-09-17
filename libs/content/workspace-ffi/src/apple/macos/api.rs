@@ -58,15 +58,6 @@ pub unsafe extern "C" fn modifier_event(
 
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.raw_input
-        .events
-        .push(Event::PointerMoved(Pos2 { x, y }))
-}
-
-/// # Safety
-#[no_mangle]
 pub unsafe extern "C" fn mouse_button(
     obj: *mut c_void, x: f32, y: f32, pressed: bool, primary: bool, shift: bool, ctrl: bool,
     option: bool, command: bool,
