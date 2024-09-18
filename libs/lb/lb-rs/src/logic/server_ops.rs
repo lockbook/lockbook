@@ -1,9 +1,8 @@
-use crate::logic::clock::get_time;
+use crate::model::clock::get_time;
 use crate::logic::file_like::FileLike;
-use crate::logic::file_metadata::FileDiff;
+use crate::model::file_metadata::FileDiff;
 use crate::logic::lazy::{LazyStaged1, LazyTree};
 use crate::logic::server_file::{IntoServerFile, ServerFile};
-
 use crate::logic::server_tree::ServerTree;
 use crate::logic::signed_file::SignedFile;
 use crate::logic::tree_like::TreeLike;

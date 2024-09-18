@@ -2,21 +2,21 @@ use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
-use crate::file_service::UpsertError::UsageIsOverDataCap;
 use crate::schema::ServerDb;
 use crate::ServerError;
 use crate::ServerError::ClientError;
 
 use crate::{RequestContext, ServerState};
 use db_rs::Db;
-use lb_rs::logic::api::*;
-use lb_rs::logic::clock::get_time;
+use lb_rs::model::api::*;
+use lb_rs::model::clock::get_time;
 use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::file_metadata::{Diff, Owner};
+use lb_rs::model::file_metadata::{Diff, Owner};
 use lb_rs::logic::server_file::{IntoServerFile, ServerFile};
 use lb_rs::logic::server_tree::ServerTree;
 use lb_rs::logic::tree_like::TreeLike;
 use lb_rs::logic::{SharedErrorKind, SharedResult};
+use lb_rs::model::api::UpsertError;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::ops::DerefMut;
@@ -86,7 +86,7 @@ where
             debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
 
             if new_usage > usage_cap && new_usage >= old_usage {
-                return Err(ClientError(UsageIsOverDataCap));
+                return Err(ClientError(UpsertError::UsageIsOverDataCap));
             }
 
             let tree = tree.promote()?;

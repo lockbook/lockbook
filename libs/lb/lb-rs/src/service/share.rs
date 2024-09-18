@@ -1,7 +1,7 @@
-use crate::logic::api::GetPublicKeyRequest;
-use crate::logic::file::{File, ShareMode};
+use crate::model::api::GetPublicKeyRequest;
+use crate::model::file::{File, ShareMode};
 use crate::logic::file_like::FileLike;
-use crate::logic::file_metadata::Owner;
+use crate::model::file_metadata::Owner;
 use crate::logic::tree_like::TreeLike;
 use crate::model::errors::{LbError, LbResult};
 use crate::Lb;

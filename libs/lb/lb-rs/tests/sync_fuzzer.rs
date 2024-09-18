@@ -2,8 +2,8 @@ use std::cmp::Ordering;
 
 use crate::Actions::*;
 use indicatif::{ProgressBar, ProgressStyle};
-use lb_rs::logic::file::File;
-use lb_rs::logic::file_metadata::FileType::{Document, Folder};
+use lb_rs::model::file::File;
+use lb_rs::model::file_metadata::FileType::{Document, Folder};
 use lb_rs::model::errors::{CoreError, LbError};
 use lb_rs::Lb;
 use rand::distributions::{Alphanumeric, Distribution, Standard};
@@ -243,7 +243,7 @@ async fn create_clients() -> Vec<Lb> {
     let mut cores = vec![];
 
     for _ in 0..CLIENTS {
-        cores.push(test_core());
+        cores.push(test_core().await);
     }
 
     cores[0]

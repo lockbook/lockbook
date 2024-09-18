@@ -1,11 +1,11 @@
-use lb_rs::logic::account::{Account, MAX_USERNAME_LENGTH};
+use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::logic::pubkey;
 use lb_rs::model::errors::CoreError;
 use test_utils::*;
 
 #[tokio::test]
 async fn create_account_success() {
-    let core = test_core();
+    let core = test_core().await;
     core.create_account(&random_name(), &url(), false)
         .await
         .unwrap();
@@ -13,7 +13,7 @@ async fn create_account_success() {
 
 #[tokio::test]
 async fn create_account_success_with_welcome() {
-    let core = test_core();
+    let core = test_core().await;
     core.create_account(&random_name(), &url(), true)
         .await
         .unwrap();
@@ -25,7 +25,7 @@ async fn create_account_success_with_welcome() {
 
 #[tokio::test]
 async fn create_account_invalid_url() {
-    let core = test_core();
+    let core = test_core().await;
     let result = core
         .create_account(&random_name(), "https://bad-url.net", false)
         .await;
@@ -34,7 +34,7 @@ async fn create_account_invalid_url() {
 
 #[tokio::test]
 async fn create_account_invalid_url_with_welcome() {
-    let core = test_core();
+    let core = test_core().await;
     let result = core
         .create_account(&random_name(), "https://bad-url.net", true)
         .await;
@@ -43,8 +43,8 @@ async fn create_account_invalid_url_with_welcome() {
 
 #[tokio::test]
 async fn create_account_username_taken() {
-    let core1 = test_core();
-    let core2 = test_core();
+    let core1 = test_core().await;
+    let core2 = test_core().await;
     let name = random_name();
 
     core1.create_account(&name, &url(), false).await.unwrap();
@@ -64,7 +64,7 @@ async fn create_account_username_taken() {
 
 #[tokio::test]
 async fn create_account_invalid_username() {
-    let core = test_core();
+    let core = test_core().await;
 
     let invalid_unames =
         ["", "i/o", "@me", "###", "+1", "💩", &"x".repeat(MAX_USERNAME_LENGTH + 1)];
@@ -83,7 +83,7 @@ async fn create_account_invalid_username() {
 
 #[tokio::test]
 async fn create_account_account_exists() {
-    let core = &test_core();
+    let core = &test_core().await;
 
     core.create_account(&random_name(), &url(), false)
         .await
@@ -103,12 +103,12 @@ async fn create_account_account_exists() {
 
 #[tokio::test]
 async fn create_account_account_exists_case() {
-    let core = test_core();
+    let core = test_core().await;
     let name = random_name();
 
     core.create_account(&name, &url(), false).await.unwrap();
 
-    let core = test_core();
+    let core = test_core().await;
     assert!(matches!(
         core.create_account(&(name.to_uppercase()), &url(), false)
             .await
@@ -120,7 +120,7 @@ async fn create_account_account_exists_case() {
 
 #[tokio::test]
 async fn import_account_account_exists() {
-    let mut core = test_core();
+    let mut core = test_core().await;
 
     core.create_account(&random_name(), &url(), false)
         .await
@@ -135,7 +135,7 @@ async fn import_account_account_exists() {
 
 #[tokio::test]
 async fn import_account_corrupted() {
-    let mut core = test_core();
+    let mut core = test_core().await;
 
     assert!(matches!(
         core.import_account("clearly a bad account string")
@@ -148,7 +148,7 @@ async fn import_account_corrupted() {
 
 #[tokio::test]
 async fn import_account_corrupted_base64() {
-    let mut core = test_core();
+    let mut core = test_core().await;
 
     base64::decode("clearlyabadaccountstring").unwrap();
     assert!(matches!(
@@ -162,23 +162,24 @@ async fn import_account_corrupted_base64() {
 
 #[tokio::test]
 async fn import_account_nonexistent() {
-    let core1 = test_core();
+    let core1 = test_core().await;
 
     core1
         .create_account(&random_name(), &url(), false)
         .await
         .unwrap();
 
-    let core2 = test_core();
+    let core2 = test_core().await;
     let account =
         Account { api_url: url(), username: random_name(), private_key: pubkey::generate_key() };
 
     let mut tx = core2.begin_tx().await;
-    tx.db().account.insert(account).unwrap();
+    tx.db().account.insert(account.clone()).unwrap();
+    core2.cache_account(account).await;
 
     let account_string = core2.export_account().await.unwrap();
 
-    let mut core3 = test_core();
+    let mut core3 = test_core().await;
     assert!(matches!(
         core3
             .import_account(&account_string)
@@ -192,28 +193,29 @@ async fn import_account_nonexistent() {
 #[tokio::test]
 async fn import_account_public_key_mismatch() {
     let bad_account_string = {
-        let core1 = test_core();
-        let core2 = test_core();
+        let core1 = test_core().await;
+        let core2 = test_core().await;
+        let core3 = test_core().await;
+        
         let account1 = core1
             .create_account(&random_name(), &url(), false)
             .await
             .unwrap();
+        
         let mut account2 = core2
             .create_account(&random_name(), &url(), false)
             .await
             .unwrap();
         account2.username = account1.username;
 
-        let mut tx = core2.begin_tx().await;
-        tx.db().account.insert(account2).unwrap();
-
-        core2.export_account().await.unwrap()
+        core3.cache_account(account2).await;
+        core3.export_account().await.unwrap()
     };
 
-    let mut core3 = test_core();
+    let mut core4 = test_core().await;
 
     assert!(matches!(
-        core3
+        core4
             .import_account(&bad_account_string)
             .await
             .unwrap_err()
@@ -224,7 +226,7 @@ async fn import_account_public_key_mismatch() {
 
 #[tokio::test]
 async fn export_account() {
-    let core = test_core();
+    let core = test_core().await;
     core.create_account(&random_name(), &url(), false)
         .await
         .unwrap();
@@ -234,7 +236,7 @@ async fn export_account() {
 
 #[tokio::test]
 async fn nonzero_root_version() {
-    let core = test_core();
+    let core = test_core().await;
     core.create_account(&random_name(), &url(), false)
         .await
         .unwrap();

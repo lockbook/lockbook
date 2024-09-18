@@ -1,5 +1,5 @@
 use crate::config::Environment::{Local, Prod, Unknown};
-use lb_rs::logic::account::Username;
+use lb_rs::model::account::Username;
 use semver::VersionReq;
 use std::collections::HashSet;
 use std::fmt::Display;

@@ -1,11 +1,10 @@
-use lb_rs::logic::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
-use lb_rs::logic::document_repo::DocumentService;
-use lb_rs::logic::document_repo::OnDiskDocuments;
-use lb_rs::logic::file::ShareMode;
+use lb_rs::model::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
+use lb_rs::model::file::ShareMode;
 use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::file_metadata::FileType;
-use lb_rs::logic::file_metadata::FileType::Folder;
+use lb_rs::model::file_metadata::FileType;
+use lb_rs::model::file_metadata::FileType::Folder;
 use lb_rs::model::errors::CoreError;
+use lb_rs::repo::docs::AsyncDocs;
 use lb_rs::Lb;
 use test_utils::*;
 
@@ -39,8 +38,8 @@ async fn report_usage() {
         .unwrap()
         .document_hmac()
         .cloned();
-    let docs = OnDiskDocuments::from(&core.config);
-    let local_encrypted = docs.get(&file.id, hmac.as_ref()).unwrap().value;
+    let docs = AsyncDocs::from(&core.config);
+    let local_encrypted = docs.get(file.id, hmac).await.unwrap().value;
 
     assert_eq!(core.get_usage().await.unwrap().usages.len(), 2);
     assert_eq!(
@@ -132,8 +131,8 @@ async fn usage_go_back_down_after_delete_folder() {
         .document_hmac()
         .cloned();
 
-    let docs = OnDiskDocuments::from(&core.config);
-    docs.get(&file.id, hmac.as_ref()).unwrap();
+    let docs = AsyncDocs::from(&core.config);
+    docs.get(file.id, hmac).await.unwrap();
 
     let usage = core
         .get_usage()
@@ -228,8 +227,8 @@ async fn upsert_meta_over_data_cap() {
         .unwrap()
         .document_hmac()
         .cloned();
-    let docs = OnDiskDocuments::from(&core.config);
-    let local_encrypted = docs.get(&document.id, hmac.as_ref()).unwrap().value;
+    let docs = AsyncDocs::from(&core.config);
+    let local_encrypted = docs.get(document.id, hmac).await.unwrap().value;
 
     let file_capacity =
         (FREE_TIER_USAGE_SIZE - local_encrypted.len() as u64) as f64 / METADATA_FEE as f64;

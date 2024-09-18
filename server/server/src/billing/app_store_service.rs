@@ -6,7 +6,7 @@ use crate::config::AppleConfig;
 use crate::document_service::DocumentService;
 use crate::{ClientError, ServerError, ServerState};
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
-use lb_rs::logic::api::{AppStoreAccountState, UnixTimeMillis, UpgradeAccountAppStoreError};
+use lb_rs::model::api::{AppStoreAccountState, UnixTimeMillis, UpgradeAccountAppStoreError};
 use libsecp256k1::PublicKey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;

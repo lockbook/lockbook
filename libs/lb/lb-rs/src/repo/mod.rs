@@ -2,14 +2,16 @@ pub mod docs;
 
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
+use std::time::Duration;
 
 use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use tokio::time;
 
-use crate::logic::account::Account;
-use crate::logic::file_metadata::Owner;
 use crate::logic::signed_file::SignedFile;
+use crate::model::account::Account;
+use crate::model::file_metadata::Owner;
 use crate::Lb;
 
 use uuid::Uuid;
@@ -59,13 +61,17 @@ impl<'a> LbTx<'a> {
 
 impl Lb {
     pub(crate) async fn ro_tx(&self) -> LbRO<'_> {
+        // let guard = time::timeout(Duration::from_secs(1), self.db.read())
+        //     .await
+        //     .unwrap();
+
         let guard = self.db.read().await;
 
         LbRO { guard }
     }
 
     pub async fn begin_tx(&self) -> LbTx<'_> {
-        let mut guard = self.db.write().await;
+        let mut guard = time::timeout(Duration::from_secs(1), self.db.write()).await.unwrap();
         let tx = guard.begin_transaction().unwrap();
 
         LbTx { guard, tx }

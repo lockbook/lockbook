@@ -1,6 +1,6 @@
-use crate::logic::access_info::UserAccessMode;
-use crate::logic::file::File;
-use crate::logic::file_metadata::{FileType, Owner};
+use crate::model::access_info::UserAccessMode;
+use crate::model::file::File;
+use crate::model::file_metadata::{FileType, Owner};
 use crate::logic::filename::MAX_FILENAME_LENGTH;
 use crate::logic::symkey;
 use crate::logic::tree_like::TreeLike;

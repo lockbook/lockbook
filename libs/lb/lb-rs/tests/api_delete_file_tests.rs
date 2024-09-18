@@ -1,5 +1,5 @@
-use lb_rs::logic::api::*;
-use lb_rs::logic::file_metadata::FileDiff;
+use lb_rs::model::api::*;
+use lb_rs::model::file_metadata::FileDiff;
 use lb_rs::service::network::ApiError;
 use test_utils::*;
 use uuid::Uuid;
@@ -15,7 +15,7 @@ async fn delete_document() {
         .begin_tx()
         .await
         .db()
-        .local_metadata
+        .base_metadata
         .get()
         .get(&doc)
         .unwrap()
@@ -38,7 +38,7 @@ async fn delete_document_not_found() {
         .begin_tx()
         .await
         .db()
-        .local_metadata
+        .base_metadata
         .get()
         .get(&doc)
         .unwrap()
@@ -120,7 +120,7 @@ async fn delete_cannot_delete_root() {
         .begin_tx()
         .await
         .db()
-        .local_metadata
+        .base_metadata
         .get()
         .get(&root)
         .unwrap()

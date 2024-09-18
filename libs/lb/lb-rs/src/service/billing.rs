@@ -1,5 +1,5 @@
 use super::network::ApiError;
-use crate::logic::api::{
+use crate::model::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
     StripeAccountTier, SubscriptionInfo, UpgradeAccountAppStoreError,
     UpgradeAccountAppStoreRequest, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,

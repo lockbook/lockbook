@@ -1,25 +1,21 @@
-use db_rs::LookupTable;
-use std::collections::HashSet;
-
-use hmac::{Mac, NewMac};
-use libsecp256k1::PublicKey;
-use tracing::debug;
-use uuid::Uuid;
-
-use crate::logic::access_info::{UserAccessInfo, UserAccessMode};
-use crate::logic::account::Account;
 use crate::logic::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
-use crate::logic::document_repo::DocumentService;
-use crate::logic::file::{File, Share, ShareMode};
-use crate::logic::file_like::FileLike;
-use crate::logic::file_metadata::{FileMetadata, FileType, Owner};
 use crate::logic::lazy::LazyTree;
 use crate::logic::secret_filename::{HmacSha256, SecretFileName};
 use crate::logic::signed_file::SignedFile;
 use crate::logic::staged::{StagedTree, StagedTreeLike};
 use crate::logic::tree_like::{TreeLike, TreeLikeMut};
 use crate::logic::{compression_service, symkey, validate, SharedErrorKind, SharedResult};
-use crate::repo::docs::AsyncDocs;
+use crate::model::access_info::{UserAccessInfo, UserAccessMode};
+use crate::model::account::Account;
+use crate::model::file::{File, Share, ShareMode};
+use crate::model::file_metadata::{FileMetadata, FileType, Owner};
+use db_rs::LookupTable;
+use hmac::{Mac, NewMac};
+use libsecp256k1::PublicKey;
+use tracing::debug;
+use uuid::Uuid;
+
+use super::file_like::FileLike;
 
 pub type TreeWithOp<Staged> = LazyTree<StagedTree<Staged, Option<SignedFile>>>;
 pub type TreeWithOps<Staged> = LazyTree<StagedTree<Staged, Vec<SignedFile>>>;
@@ -263,17 +259,6 @@ where
     pub fn decrypt_document(
         &mut self, id: &Uuid, doc: &EncryptedDocument, account: &Account,
     ) -> SharedResult<DecryptedDocument> {
-        if self.calculate_deleted(id)? {
-            return Err(SharedErrorKind::FileNonexistent.into());
-        }
-
-        let meta = self.find(id)?;
-
-        validate::is_document(meta)?;
-        if meta.document_hmac().is_none() {
-            return Ok(vec![]);
-        }
-
         let key = self.decrypt_key(id, account)?;
         let compressed = symkey::decrypt(&key, doc)?;
         let doc = compression_service::decompress(&compressed)?;
@@ -429,14 +414,16 @@ where
     }
 
     pub fn delete_unreferenced_file_versions(
-        &self, docs: &impl DocumentService,
+        &self, //, docs: &impl DocumentService,
     ) -> SharedResult<()> {
-        let base_files = self.tree.base().all_files()?.into_iter();
-        let local_files = self.tree.all_files()?.into_iter();
-        let file_hmacs = base_files
-            .chain(local_files)
-            .filter_map(|f| f.document_hmac().map(|hmac| (f.id(), hmac)))
-            .collect::<HashSet<_>>();
-        docs.retain(file_hmacs)
+        todo!();
+        // let base_files = self.tree.base().all_files()?.into_iter();
+        // let local_files = self.tree.all_files()?.into_iter();
+        // let file_hmacs = base_files
+        //     .chain(local_files)
+        //     .filter_map(|f| f.document_hmac().map(|hmac| (f.id(), hmac)))
+        //     .collect::<HashSet<_>>();
+        // docs.retain(file_hmacs)
+        Ok(())
     }
 }

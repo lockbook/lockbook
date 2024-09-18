@@ -6,11 +6,10 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::str::FromStr;
 use uuid::Uuid;
-
-use crate::logic::account::Account;
-use crate::logic::account::Username;
+use crate::model::account::Account;
+use crate::model::account::Username;
 use crate::logic::crypto::*;
-use crate::logic::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
+use crate::model::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
 use crate::logic::server_file::ServerFile;
 use crate::logic::signed_file::SignedFile;
 use crate::logic::ValidationFailure;

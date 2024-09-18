@@ -1,6 +1,6 @@
-use crate::logic::access_info::UserAccessMode;
+use crate::model::access_info::UserAccessMode;
 use crate::logic::file_like::FileLike;
-use crate::logic::file_metadata::{Diff, FileDiff, FileType, Owner};
+use crate::model::file_metadata::{Diff, FileDiff, FileType, Owner};
 use crate::logic::filename::MAX_ENCRYPTED_FILENAME_LENGTH;
 use crate::logic::lazy::LazyTree;
 use crate::logic::staged::StagedTreeLike;

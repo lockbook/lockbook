@@ -1,4 +1,4 @@
-use crate::{logic::account::Account, model::errors::{CoreError, LbResult}, Lb};
+use crate::{model::account::Account, model::errors::{CoreError, LbResult}, Lb};
 use libsecp256k1::PublicKey;
 use tokio::sync::OnceCell;
 
@@ -24,7 +24,8 @@ impl Lb {
             .ok_or_else(|| CoreError::AccountNonexistent.into())
     }
 
-    pub(crate) async fn cache_account(&self, account: Account) {
+    #[doc(hidden)]
+    pub async fn cache_account(&self, account: Account) {
         let pk = account.public_key();
         self.keychain.account.set(account);
         self.keychain.public_key.set(pk);

@@ -1,4 +1,4 @@
-use crate::logic::clock;
+use crate::model::clock;
 use crate::model::errors::LbResult;
 use crate::{get_code_version, service::logging::LOG_FILE};
 use crate::Lb;

@@ -1,20 +1,19 @@
 use std::collections::{hash_map, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
-
 use super::network::ApiError;
-use crate::logic::access_info::UserAccessMode;
-use crate::logic::api::{
+use crate::model::access_info::UserAccessMode;
+use crate::model::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
     GetUsernameError, GetUsernameRequest, UpsertRequest,
 };
-use crate::logic::file::ShareMode;
+use crate::model::file::ShareMode;
 use crate::logic::file_like::FileLike;
-use crate::logic::file_metadata::{FileDiff, FileType, Owner};
+use crate::model::file_metadata::{FileDiff, FileType, Owner};
 use crate::logic::filename::{DocumentType, NameComponents};
 use crate::logic::signed_file::SignedFile;
 use crate::logic::staged::StagedTreeLikeMut;
 use crate::logic::tree_like::TreeLike;
-use crate::logic::work_unit::WorkUnit;
+use crate::model::work_unit::WorkUnit;
 use crate::logic::{symkey, SharedErrorKind, ValidationFailure};
 use crate::model::errors::{CoreError, LbResult};
 use crate::Lb;
@@ -40,7 +39,6 @@ impl Lb {
     pub async fn calculate_work(&self) -> LbResult<SyncStatus> {
         let tx = self.ro_tx().await;
         let db = tx.db();
-
         let last_synced = db.last_synced.get().copied().unwrap_or_default() as u64;
         let remote_changes = self
             .client
@@ -267,7 +265,7 @@ impl Lb {
                 .request(self.get_account()?, GetDocRequest { id, hmac })
                 .await?;
             self.docs
-                .insert(&id, Some(&hmac), &remote_document.content)
+                .insert(id, Some(hmac), &remote_document.content)
                 .await?;
         }
 
@@ -542,15 +540,9 @@ impl Lb {
 
                                 // todo these accesses are potentially problematic
                                 // maybe not if service/docs is the persion doing network io
-                                let base_document = base
-                                    .decrypt_document(&self.docs, &id, self.get_account()?)
-                                    .await?;
-                                let remote_document = remote
-                                    .decrypt_document(&self.docs, &id, self.get_account()?)
-                                    .await?;
-                                let local_document = local
-                                    .decrypt_document(&self.docs, &id, self.get_account()?)
-                                    .await?;
+                                let base_document = self.read_document_helper(id, &mut base).await?;
+                                let remote_document = self.read_document_helper(id, &mut remote).await?;
+                                let local_document = self.read_document_helper(id, &mut local).await?;
 
                                 match document_type {
                                     DocumentType::Text => {
@@ -569,8 +561,8 @@ impl Lb {
                                                 &merged_document,
                                                 self.get_account()?,
                                             )?;
-                                        let hmac = merge.find(&id)?.document_hmac();
-                                        self.docs.insert(&id, hmac, &encrypted_document).await?;
+                                        let hmac = merge.find(&id)?.document_hmac().copied();
+                                        self.docs.insert(id, hmac, &encrypted_document).await?;
                                     }
                                     DocumentType::Drawing | DocumentType::Other => {
                                         // duplicate file
@@ -611,10 +603,10 @@ impl Lb {
                                                 self.get_account()?,
                                             )?;
                                         let duplicate_hmac =
-                                            merge.find(&duplicate_id)?.document_hmac();
+                                            merge.find(&duplicate_id)?.document_hmac().copied();
                                         self.docs
                                             .insert(
-                                                &duplicate_id,
+                                                duplicate_id,
                                                 duplicate_hmac,
                                                 &encrypted_document,
                                             )
@@ -623,9 +615,7 @@ impl Lb {
                                 }
                             } else {
                                 // overwrite (todo: avoid reading/decrypting/encrypting document)
-                                let document = local
-                                    .decrypt_document(&self.docs, &id, self.get_account()?)
-                                    .await?;
+                                let document = self.read_document_helper(id, &mut local).await?;
                                 merge.update_document_unvalidated(
                                     &id,
                                     &document,

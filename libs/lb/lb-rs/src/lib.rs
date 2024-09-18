@@ -25,7 +25,8 @@ pub mod logic;
 pub mod model;
 pub mod service;
 
-mod repo;
+// todo make this not pub 
+pub mod repo;
 
 #[derive(Clone)]
 pub struct Lb {
@@ -37,7 +38,6 @@ pub struct Lb {
 }
 
 impl Lb {
-    #[tokio::main]
     #[instrument(level = "info", skip_all, err(Debug))]
     pub async fn init(config: Config) -> Result<Self, UnexpectedError> {
         logging::init(&config)?;
@@ -45,7 +45,7 @@ impl Lb {
         let db = CoreDb::init(db_rs::Config::in_folder(&config.writeable_path))
             .map_err(|err| unexpected_only!("{:#?}", err))?;
         let db = Arc::new(RwLock::new(db));
-        let docs = AsyncDocs::default();
+        let docs = AsyncDocs::from(&config);
         let client = Network::default();
         let keychain = Keychain::default();
         Ok(Self { config, keychain, db, docs, client })
@@ -59,7 +59,7 @@ pub fn get_code_version() -> &'static str {
 pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-use logic::core_config::Config;
+use model::core_config::Config;
 use model::errors::UnexpectedError;
 use repo::docs::AsyncDocs;
 use repo::LbDb;

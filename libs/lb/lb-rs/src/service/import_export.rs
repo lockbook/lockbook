@@ -1,13 +1,13 @@
-use crate::logic::account::Account;
-use crate::logic::file::File;
 use crate::logic::file_like::FileLike;
-use crate::logic::file_metadata::FileType;
 use crate::logic::filename::NameComponents;
 use crate::logic::lazy::LazyStaged1;
 use crate::logic::signed_file::SignedFile;
 use crate::logic::tree_like::TreeLike;
 use crate::logic::{symkey, SharedError};
+use crate::model::account::Account;
 use crate::model::errors::{CoreError, LbError, LbResult};
+use crate::model::file::File;
+use crate::model::file_metadata::FileType;
 use crate::repo::docs::AsyncDocs;
 use crate::Lb;
 use std::collections::HashSet;
@@ -134,9 +134,11 @@ impl Lb {
                 }
                 .map_err(LbError::from)?;
 
-                let doc = tree.decrypt_document(docs, this_file.id(), account).await?;
+                let doc = vec![];
+                // let doc = tree.decrypt_document(docs, this_file.id(), account).await?;
 
                 file.write_all(doc.as_slice()).map_err(LbError::from)?;
+                todo!();
             }
             FileType::Link { target } => {
                 if !tree.calculate_deleted(&target)? {
@@ -210,8 +212,8 @@ impl Lb {
                 let doc = fs::read(&disk_path).map_err(LbError::from)?;
 
                 let encrypted_document = tree.update_document(&id, &doc, account)?;
-                let hmac = tree.find(&id)?.document_hmac();
-                self.docs.insert(&id, hmac, &encrypted_document).await?;
+                let hmac = tree.find(&id)?.document_hmac().copied();
+                self.docs.insert(id, hmac, &encrypted_document).await?;
 
                 update_status(ImportStatus::FinishedItem(file));
                 tree

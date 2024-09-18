@@ -1,11 +1,11 @@
-use crate::logic::access_info::UserAccessMode;
-use crate::logic::account::Account;
-use crate::logic::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
+use crate::model::access_info::UserAccessMode;
+use crate::model::account::Account;
+use crate::logic::crypto::AESKey;
 use crate::logic::file_like::FileLike;
-use crate::logic::file_metadata::{FileType, Owner};
+use crate::model::file_metadata::{FileType, Owner};
 use crate::logic::staged::StagedTree;
 use crate::logic::tree_like::{TreeLike, TreeLikeMut};
-use crate::logic::{compression_service, symkey, SharedErrorKind, SharedResult};
+use crate::logic::{symkey, SharedErrorKind, SharedResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;

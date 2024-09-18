@@ -1,6 +1,6 @@
 use crossbeam::channel::{Receiver, Sender};
-use lb_rs::logic::file::ShareMode;
-use lb_rs::logic::file_metadata::FileType;
+use lb_rs::model::file::ShareMode;
+use lb_rs::model::file_metadata::FileType;
 use lb_rs::service::search::{SearchRequest, SearchResult, SearchResultItem, SearchType};
 use std::collections::HashSet;
 use test_utils::*;
@@ -80,6 +80,7 @@ async fn assert_async_results_path(results: Vec<SearchResult>, paths: Vec<&str>)
 
 #[tokio::test]
 async fn test_async_name_matches() {
+    todo!();
     let core = test_core_with_account().await;
 
     for item in FILE_PATHS {
@@ -158,6 +159,7 @@ async fn assert_async_content_match(
     search_tx: &Sender<SearchRequest>, results_rx: &Receiver<SearchResult>, input: &str,
     matched_text: &str,
 ) {
+    todo!();
     search_tx
         .send(SearchRequest::Search { input: input.to_string() })
         .unwrap();
@@ -224,6 +226,7 @@ async fn test_async_content_matches() {
 
 #[tokio::test]
 async fn test_pending_share_search() {
+    todo!();
     let core1 = test_core_with_account().await;
 
     let core2 = test_core_with_account().await;

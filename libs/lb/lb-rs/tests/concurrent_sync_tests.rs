@@ -18,7 +18,7 @@ async fn test_sync_concurrently() {
     core.sync(None).await.unwrap();
 
     // 1779, 1942
-    let mut core1 = Lb::init(test_config()).unwrap();
+    let mut core1 = Lb::init(test_config()).await.unwrap();
     let core2 = core1.clone();
     core1
         .import_account(&core.export_account().await.unwrap())
@@ -98,7 +98,7 @@ async fn test_sync_concurrently2() {
 
 #[tokio::test]
 async fn new_account_test() {
-    let core = Lb::init(test_config()).unwrap();
+    let core = Lb::init(test_config()).await.unwrap();
     core.create_account(&random_name(), &url(), false)
         .await
         .unwrap();

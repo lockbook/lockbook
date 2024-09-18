@@ -1,5 +1,5 @@
-use crate::logic::account::Username;
-use crate::logic::file_metadata::FileType;
+use super::account::Username;
+use super::file_metadata::FileType;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;

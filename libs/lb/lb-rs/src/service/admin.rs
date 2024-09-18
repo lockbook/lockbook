@@ -1,6 +1,6 @@
 use super::network::ApiError;
-use crate::logic::account::Username;
-use crate::logic::api::*;
+use crate::model::account::Username;
+use crate::model::api::*;
 use crate::model::errors::{core_err_unexpected, CoreError, LbResult};
 use crate::Lb;
 use uuid::Uuid;

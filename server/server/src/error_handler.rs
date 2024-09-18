@@ -9,7 +9,7 @@ use crate::{
 use base64::DecodeError;
 use db_rs::DbError;
 use jsonwebtoken::errors::ErrorKind;
-use lb_rs::logic::api::*;
+use lb_rs::model::api::*;
 use lb_rs::logic::{SharedError, SharedErrorKind};
 use std::fmt::Debug;
 use std::io::Error;
@@ -322,7 +322,7 @@ impl From<SharedError> for ServerError<AdminDisappearFileError> {
 impl From<SharedError> for ServerError<UpsertError> {
     fn from(err: SharedError) -> Self {
         // panic!("{err}");
-        use lb_rs::logic::api::UpsertError::*;
+        use lb_rs::model::api::UpsertError::*;
         match err.kind {
             SharedErrorKind::OldVersionIncorrect => ClientError(OldVersionIncorrect),
             SharedErrorKind::OldFileNotFound => ClientError(OldFileNotFound),

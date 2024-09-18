@@ -1,4 +1,4 @@
-use lb_rs::logic::file_metadata::FileType;
+use lb_rs::model::file_metadata::FileType;
 use lb_rs::logic::path_ops::Filter;
 use lb_rs::model::errors::CoreError;
 use test_utils::*;

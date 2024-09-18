@@ -1,5 +1,5 @@
 use crate::logic::file_like::FileLike;
-use crate::logic::file_metadata::Owner;
+use crate::model::file_metadata::Owner;
 use crate::logic::server_file::ServerFile;
 use crate::logic::tree_like::{TreeLike, TreeLikeMut};
 use crate::logic::SharedResult;

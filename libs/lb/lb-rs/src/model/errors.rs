@@ -9,8 +9,10 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::logic::{api, SharedError, SharedErrorKind, ValidationFailure};
+use crate::logic::{SharedError, SharedErrorKind, ValidationFailure};
 use crate::service::network::ApiError;
+
+use super::api;
 
 pub type LbResult<T> = Result<T, LbError>;
 
@@ -493,6 +495,12 @@ impl From<SharedError> for TestRepoError {
             },
             _ => Self::Shared(err),
         }
+    }
+}
+
+impl From<LbError> for TestRepoError {
+    fn from(value: LbError) -> Self {
+        Self::Core(value)
     }
 }
 

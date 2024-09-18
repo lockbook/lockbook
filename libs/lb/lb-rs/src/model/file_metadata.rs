@@ -6,9 +6,9 @@ use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::logic::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMode};
-use crate::logic::account::Account;
-use crate::logic::clock::get_time;
+use super::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMode};
+use super::account::Account;
+use super::clock::get_time;
 use crate::logic::crypto::AESKey;
 use crate::logic::file_like::FileLike;
 use crate::logic::secret_filename::SecretFileName;

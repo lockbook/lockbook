@@ -1,8 +1,8 @@
-use crate::logic::account::{Account, MAX_USERNAME_LENGTH};
-use crate::logic::api::{DeleteAccountRequest, GetPublicKeyRequest, NewAccountRequest};
 use crate::logic::file_like::FileLike;
-use crate::logic::file_metadata::{FileMetadata, FileType};
+use crate::model::account::{Account, MAX_USERNAME_LENGTH};
+use crate::model::api::{DeleteAccountRequest, GetPublicKeyRequest, NewAccountRequest};
 use crate::model::errors::{core_err_unexpected, CoreError, LbResult};
+use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::Lb;
 use qrcode_generator::QrCodeEcc;
 
@@ -49,20 +49,14 @@ impl Lb {
         db.root.insert(root_id)?;
         tx.end();
 
-        let bg_lb = self.clone();
-        tokio::spawn(async move {
-            if welcome_doc {
-                let welcome_doc = bg_lb
-                    .create_file("welcome.md", &root_id, FileType::Document)
-                    .await
-                    .unwrap();
-                bg_lb
-                    .write_document(welcome_doc.id, &Self::welcome_message(&username))
-                    .await
-                    .unwrap();
-                //sync
-            }
-        });
+        if welcome_doc {
+            let welcome_doc = self
+                .create_file("welcome.md", &root_id, FileType::Document)
+                .await?;
+            self.write_document(welcome_doc.id, &Self::welcome_message(&username))
+                .await?;
+            self.sync(None).await?;
+        }
 
         Ok(account)
     }

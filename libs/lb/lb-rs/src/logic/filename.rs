@@ -1,4 +1,4 @@
-use crate::logic::file::File;
+use crate::model::file::File;
 
 pub const MAX_FILENAME_LENGTH: usize = 64;
 pub const MAX_ENCRYPTED_FILENAME_LENGTH: usize = MAX_FILENAME_LENGTH + 24;
@@ -129,7 +129,8 @@ impl NameComponents {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::logic::{file::File, file_metadata::FileType, filename::NameComponents};
+    use crate::logic::filename::NameComponents;
+    use crate::model::{file::File, file_metadata::FileType};
 
     fn from_components(
         name: &str, variant: Option<usize>, extension: Option<&str>,

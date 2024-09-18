@@ -109,7 +109,7 @@ impl Lb {
         let (search_tx, search_rx) = channel::unbounded::<SearchRequest>();
         let (results_tx, results_rx) = channel::unbounded::<SearchResult>();
 
-        let mut core = self.clone();
+        let core = self.clone();
         let results_tx_c = results_tx.clone();
 
         tokio::spawn(async move {
@@ -149,7 +149,6 @@ impl Lb {
             if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
                 let file = tree.find(&id)?;
                 let id = *file.id();
-                let hmac = file.document_hmac().copied();
 
                 if file.is_document() {
                     let content = match search_type {
@@ -158,8 +157,7 @@ impl Lb {
                                 &tree.name_using_links(&id, account)?,
                             ) {
                                 DocumentType::Text => {
-                                    let doc =
-                                        self.read_document_helper(id, hmac, &mut tree).await?;
+                                    let doc = self.read_document_helper(id, &mut tree).await?;
                                     match String::from_utf8(doc) {
                                         Ok(str) => Some(str),
                                         Err(utf_8) => {

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::logic::file_like::FileLike;
-use crate::logic::file_metadata::Owner;
+use crate::model::file_metadata::Owner;
 use crate::logic::tree_like::TreeLike;
 
 use crate::model::errors::{TestRepoError, Warning};
@@ -38,12 +38,11 @@ impl Lb {
         for id in tree.owned_ids() {
             let file = tree.find(&id)?;
             let id = *file.id();
-            let hmac = file.document_hmac().copied();
             let doc = file.is_document();
             let cont = file.document_hmac().is_some();
             let not_deleted = !tree.calculate_deleted(&id)?;
             if not_deleted && doc && cont {
-                let doc = self.read_document_helper(id, hmac, tree).await?;
+                let doc = self.read_document_helper(id, &mut tree).await?;
 
                 if doc.len() as u64 == 0 {
                     warnings.push(Warning::EmptyFile(id));

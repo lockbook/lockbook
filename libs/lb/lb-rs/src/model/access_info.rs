@@ -1,4 +1,4 @@
-use crate::logic::account::Account;
+use crate::model::account::Account;
 use crate::logic::crypto::{AESEncrypted, AESKey};
 use crate::logic::{pubkey, symkey, SharedResult};
 use libsecp256k1::PublicKey;
@@ -59,8 +59,8 @@ impl UserAccessInfo {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::logic::access_info::{UserAccessInfo, UserAccessMode};
-    use crate::logic::account::Account;
+    use crate::model::access_info::{UserAccessInfo, UserAccessMode};
+    use crate::model::account::Account;
     use crate::logic::symkey;
 
     #[test]

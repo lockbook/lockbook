@@ -1,4 +1,4 @@
-use crate::logic::api::{FileUsage, GetUsageRequest};
+use crate::model::api::{FileUsage, GetUsageRequest};
 use crate::logic::file_like::FileLike;
 use crate::logic::tree_like::TreeLike;
 use crate::logic::usage::{bytes_to_human, get_usage};
@@ -33,7 +33,6 @@ impl Lb {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let account = self.get_account()?;
         let mut breakdown = HashMap::default();
 
         for id in tree.owned_ids() {
@@ -41,7 +40,7 @@ impl Lb {
             let file = tree.find(&id)?;
 
             if !is_file_deleted && file.is_document() {
-                let doc = tree.decrypt_document(&self.docs, &id, account).await?;
+                let doc = self.read_document_helper(id, &mut tree).await?;
                 let doc_size = doc.len();
                 breakdown.insert(id, doc_size);
             }
@@ -56,7 +55,6 @@ impl Lb {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let account = self.get_account()?;
 
         let mut local_usage: u64 = 0;
         for id in tree.owned_ids() {
@@ -64,7 +62,7 @@ impl Lb {
             let file = tree.find(&id)?;
 
             if !is_file_deleted && file.is_document() {
-                let doc = tree.decrypt_document(&self.docs, &id, account).await?;
+                let doc = self.read_document_helper(id, &mut tree).await?;
                 local_usage += doc.len() as u64
             }
         }

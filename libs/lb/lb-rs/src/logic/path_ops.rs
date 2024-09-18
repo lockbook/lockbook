@@ -1,12 +1,10 @@
 use std::collections::HashSet;
-
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
-
-use crate::logic::access_info::UserAccessMode;
-use crate::logic::account::Account;
+use crate::model::access_info::UserAccessMode;
+use crate::model::account::Account;
 use crate::logic::file_like::FileLike;
-use crate::logic::file_metadata::{FileType, Owner};
+use crate::model::file_metadata::{FileType, Owner};
 use crate::logic::lazy::LazyStaged1;
 use crate::logic::signed_file::SignedFile;
 use crate::logic::tree_like::{TreeLike, TreeLikeMut};

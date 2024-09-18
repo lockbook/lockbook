@@ -1,5 +1,5 @@
 use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::file_metadata::FileType::Document;
+use lb_rs::model::file_metadata::FileType::Document;
 use lb_rs::logic::secret_filename::SecretFileName;
 use lb_rs::logic::tree_like::TreeLike;
 use lb_rs::model::errors::TestRepoError::*;
@@ -22,7 +22,7 @@ async fn test_integrity_no_problems_but_more_complicated() {
 
 #[tokio::test]
 async fn test_no_account() {
-    let core = test_core();
+    let core = test_core().await;
     assert_matches!(core.test_repo_integrity().await, Err(NoAccount));
 }
 
@@ -32,6 +32,7 @@ async fn test_no_root() {
     let mut tx = core.begin_tx().await;
     tx.db().base_metadata.clear().unwrap();
     tx.db().root.clear().unwrap();
+    tx.end();
     assert_matches!(core.test_repo_integrity().await, Err(NoRootFolder));
 }
 
@@ -71,6 +72,8 @@ async fn test_invalid_file_name_slash() {
     let mut doc = tree.find(&doc.id).unwrap().clone();
     doc.timestamped_value.value.name = new_name;
     tree.stage(Some(doc)).promote().unwrap();
+    
+    tx.end();
 
     assert_matches!(core.test_repo_integrity().await, Err(FileNameContainsSlash(_)));
 }
@@ -92,6 +95,8 @@ async fn empty_filename() {
     let mut doc = tree.find(&doc.id).unwrap().clone();
     doc.timestamped_value.value.name = new_name;
     tree.stage(Some(doc)).promote().unwrap();
+
+    tx.end();
 
     assert_matches!(core.test_repo_integrity().await, Err(FileNameEmpty(_)));
 }
@@ -174,6 +179,9 @@ async fn test_name_conflict() {
     let mut doc = tree.find(&doc.id).unwrap().clone();
     doc.timestamped_value.value.name = new_name;
     tree.stage(Some(doc)).promote().unwrap();
+
+    tx.end();
+
     assert_matches!(core.test_repo_integrity().await, Err(PathConflict(_)));
 }
 

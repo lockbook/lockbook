@@ -1,4 +1,4 @@
-use lb_rs::logic::file::ShareMode;
+use lb_rs::model::file::ShareMode;
 use lb_rs::model::errors::CoreError;
 use lb_rs::Lb;
 use test_utils::*;

@@ -1,6 +1,6 @@
 use crate::logic::crypto::ECSigned;
 use crate::logic::file_like::FileLike;
-use crate::logic::file_metadata::FileMetadata;
+use crate::model::file_metadata::FileMetadata;
 use crate::logic::tree_like::{TreeLike, TreeLikeMut};
 use crate::logic::SharedResult;
 use std::collections::HashSet;

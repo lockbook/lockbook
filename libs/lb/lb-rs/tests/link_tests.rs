@@ -1,5 +1,5 @@
-use lb_rs::logic::file::{File, ShareMode};
-use lb_rs::logic::file_metadata::FileType;
+use lb_rs::model::file::{File, ShareMode};
+use lb_rs::model::file_metadata::FileType;
 use lb_rs::Lb;
 use std::collections::HashSet;
 use test_utils::*;

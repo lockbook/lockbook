@@ -1,7 +1,7 @@
 use crate::{get_dirty_ids, slices_equal_ignore_order, test_core_from};
-use lb_rs::logic::api::GetUpdatesRequest;
+use lb_rs::model::api::GetUpdatesRequest;
 use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::file_metadata::{FileType, Owner};
+use lb_rs::model::file_metadata::{FileType, Owner};
 use lb_rs::logic::path_ops::Filter::DocumentsOnly;
 use lb_rs::logic::staged::StagedTreeLikeMut;
 use lb_rs::logic::tree_like::TreeLike;
@@ -20,6 +20,8 @@ macro_rules! assert_matches (
     }
 );
 
+// todo: from the perspective of the fuzzer, this probably expects to additionally compare that
+// a core's documents are equal. This may be giving us a false sense of security
 pub async fn cores_equal(left: &Lb, right: &Lb) {
     assert_eq!(&left.get_account().unwrap(), &right.get_account().unwrap());
     assert_eq!(&left.root().await.unwrap(), &right.root().await.unwrap());
@@ -40,6 +42,9 @@ pub async fn new_synced_client_core_equal(lb: &Lb) {
     let account = db.account.get().unwrap().clone();
     let mut local = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
     local.validate(Owner(account.public_key())).unwrap();
+
+    tx.end();
+
     cores_equal(lb, &new_client).await;
 }
 

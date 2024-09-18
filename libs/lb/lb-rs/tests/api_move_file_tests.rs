@@ -1,10 +1,9 @@
 use lb_rs::service::network::ApiError;
 use test_utils::*;
 use uuid::Uuid;
-
-use lb_rs::logic::api::*;
+use lb_rs::model::api::*;
 use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::file_metadata::FileDiff;
+use lb_rs::model::file_metadata::FileDiff;
 use lb_rs::logic::ValidationFailure;
 
 #[tokio::test]

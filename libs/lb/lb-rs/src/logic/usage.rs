@@ -1,6 +1,5 @@
+use crate::model::api::GetUsageResponse;
 use crate::service::usage::{UsageItemMetric, UsageMetrics};
-
-use super::api::GetUsageResponse;
 
 const BYTE: u64 = 1;
 const KILOBYTE: u64 = BYTE * 1000;

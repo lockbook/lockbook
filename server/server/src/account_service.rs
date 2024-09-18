@@ -8,9 +8,9 @@ use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use db_rs::Db;
-use lb_rs::logic::account::Username;
-use lb_rs::logic::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
-use lb_rs::logic::api::{
+use lb_rs::model::account::Username;
+use lb_rs::model::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
+use lb_rs::model::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminDisappearAccountError,
     AdminDisappearAccountRequest, AdminGetAccountInfoError, AdminGetAccountInfoRequest,
     AdminGetAccountInfoResponse, AdminListUsersError, AdminListUsersRequest,
@@ -19,9 +19,9 @@ use lb_rs::logic::api::{
     GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountRequest,
     NewAccountResponse, PaymentPlatform, METADATA_FEE,
 };
-use lb_rs::logic::clock::get_time;
+use lb_rs::model::clock::get_time;
 use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::file_metadata::Owner;
+use lb_rs::model::file_metadata::Owner;
 use lb_rs::logic::lazy::LazyTree;
 use lb_rs::logic::server_file::IntoServerFile;
 use lb_rs::logic::server_tree::ServerTree;

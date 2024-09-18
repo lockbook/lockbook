@@ -1,11 +1,10 @@
 pub mod assert;
 
 use itertools::Itertools as _;
-use lb_rs::logic::api::{PaymentMethod, StripeAccountTier};
-use lb_rs::logic::core_config::Config;
 use lb_rs::logic::crypto::EncryptedDocument;
-use lb_rs::logic::document_repo;
-use lb_rs::logic::work_unit::WorkUnit;
+use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
+use lb_rs::model::core_config::Config;
+use lb_rs::model::work_unit::WorkUnit;
 use lb_rs::Lb;
 use std::collections::HashMap;
 use std::env;
@@ -20,20 +19,20 @@ pub fn test_config() -> Config {
     Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()), logs: false, colored_logs: false }
 }
 
-pub fn test_core() -> Lb {
-    Lb::init(test_config()).unwrap()
+pub async fn test_core() -> Lb {
+    Lb::init(test_config()).await.unwrap()
 }
 
 pub async fn test_core_from(core: &Lb) -> Lb {
     let account_string = core.export_account().await.unwrap();
-    let mut core = test_core();
+    let mut core = test_core().await;
     core.import_account(&account_string).await.unwrap();
     core.sync(None).await.unwrap();
     core
 }
 
 pub async fn test_core_with_account() -> Lb {
-    let core = test_core();
+    let core = test_core().await;
     core.create_account(&random_name(), &url(), false)
         .await
         .unwrap();
@@ -79,7 +78,7 @@ pub async fn rename_path(c: &Lb, path: &str, new_name: &str) -> Result<(), Strin
 
 pub async fn another_client(c: &Lb) -> Lb {
     let account_string = c.export_account().await.unwrap();
-    let mut new_core = test_core();
+    let mut new_core = test_core().await;
     new_core.import_account(&account_string).await.unwrap();
     new_core
 }
@@ -88,8 +87,8 @@ fn err_to_string<E: Debug>(e: E) -> String {
     format!("{}: {:?}", std::any::type_name::<E>(), e)
 }
 
-pub async fn get_dirty_ids(db: &Lb, server: bool) -> Vec<Uuid> {
-    db.calculate_work()
+pub async fn get_dirty_ids(lb: &Lb, server: bool) -> Vec<Uuid> {
+    lb.calculate_work()
         .await
         .unwrap()
         .work_units
@@ -133,7 +132,7 @@ pub fn doc_repo_get_all(config: &Config) -> Vec<EncryptedDocument> {
 }
 
 fn list_files(db: &Config) -> Vec<String> {
-    let path = document_repo::namespace_path(&db.writeable_path);
+    let path = lb_rs::repo::docs::namespace_path(&db.writeable_path.clone().into());
     let path = Path::new(&path);
 
     match fs::read_dir(path) {

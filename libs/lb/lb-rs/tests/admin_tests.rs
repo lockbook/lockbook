@@ -1,11 +1,11 @@
-use lb_rs::logic::api::ServerIndex;
-use lb_rs::logic::file::ShareMode;
+use lb_rs::model::api::ServerIndex;
+use lb_rs::model::file::ShareMode;
 use test_utils::*;
 
 #[tokio::test]
 #[ignore]
 async fn admin_disappear_test() {
-    let admin_core = test_core();
+    let admin_core = test_core().await;
     admin_core
         .create_account("admin1", &url(), false)
         .await
@@ -17,7 +17,7 @@ async fn admin_disappear_test() {
     customer_core.sync(None).await.unwrap();
 
     let account_string = customer_core.export_account().await.unwrap();
-    let mut customer_core_2 = test_core();
+    let mut customer_core_2 = test_core().await;
     customer_core_2
         .import_account(&account_string)
         .await
@@ -35,7 +35,7 @@ async fn admin_disappear_test() {
     admin_core.disappear_file(test2.id).await.unwrap();
 
     let account_string = customer_core.export_account().await.unwrap();
-    let mut customer_core_2 = test_core();
+    let mut customer_core_2 = test_core().await;
     customer_core_2
         .import_account(&account_string)
         .await
@@ -74,7 +74,7 @@ async fn admin_disappear_test() {
 #[tokio::test]
 #[ignore]
 async fn disappear_file_shared_with_disappeared_account() {
-    let admin_core = test_core();
+    let admin_core = test_core().await;
     admin_core
         .create_account("admin1", &url(), false)
         .await
@@ -119,7 +119,7 @@ async fn disappear_file_shared_with_disappeared_account() {
 #[tokio::test]
 #[ignore]
 async fn admin_disappear_folder_shared_with_disappeared_account() {
-    let admin_core = test_core();
+    let admin_core = test_core().await;
     admin_core
         .create_account("admin1", &url(), false)
         .await
@@ -165,7 +165,7 @@ async fn admin_disappear_folder_shared_with_disappeared_account() {
 #[tokio::test]
 #[ignore]
 async fn admin_rebuild_owned_files_index_test() {
-    let admin_core = test_core();
+    let admin_core = test_core().await;
     admin_core
         .create_account("admin1", &url(), false)
         .await
@@ -220,7 +220,7 @@ async fn admin_rebuild_owned_files_index_test() {
 #[tokio::test]
 #[ignore]
 async fn admin_rebuild_shared_files_index_test() {
-    let admin_core = test_core();
+    let admin_core = test_core().await;
     admin_core
         .create_account("admin1", &url(), false)
         .await
