@@ -2,7 +2,7 @@ use crate::tab::markdown_editor;
 use crate::tab::markdown_editor::bounds::BoundExt as _;
 use crate::tab::ExtendedInput as _;
 use egui::os::OperatingSystem;
-use egui::{scroll_area, Margin, ScrollArea};
+use egui::{scroll_area, Margin, Pos2, ScrollArea};
 use egui::{Frame, PointerButton, Rect, TouchPhase, Ui, Vec2};
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
@@ -126,18 +126,31 @@ impl Editor {
         });
 
         // show ui
+        let available_size = ui.available_size();
         let scroll_area_output = ScrollArea::vertical()
             .drag_to_scroll(touch_mode)
             .id_source(self.file_id)
             .show(ui, |ui| {
-                Frame::default()
-                    .outer_margin(Margin::symmetric(200., 0.))
+                ui.spacing_mut().item_spacing = Vec2::ZERO;
+
+                let resp = Frame::default()
+                    .inner_margin(Margin::symmetric(0., 15.))
                     .show(ui, |ui| {
-                        let resp = self.show_inner(ui, touch_mode, events);
+                        let resp = ui
+                            .vertical_centered(|ui| self.show_inner(ui, touch_mode, events))
+                            .inner;
                         ui.allocate_space(Vec2::new(ui.available_width(), 100.));
                         resp
                     })
-                    .inner
+                    .inner;
+
+                // egui doesn't handle hierarchy well
+                // allocate a rectangle after (above) scroll area content but before (beneath) the scroll bar
+                // interact with this rectangle so that editor participates in egui's mouse hit testing
+                let rect = Rect::from_min_size(Pos2::ZERO, available_size);
+                ui.advance_cursor_after_rect(rect);
+
+                resp
             });
 
         // response
