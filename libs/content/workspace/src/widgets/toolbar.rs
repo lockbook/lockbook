@@ -170,7 +170,7 @@ impl ToolBar {
         };
         let how_on = ui.ctx().animate_bool(egui::Id::from("toolbar_animate"), on);
 
-        let Some(editor_rect) = ui.memory(|m| m.area_rect(editor.id)) else {
+        let Some(editor_rect) = ui.memory(|m| m.area_rect(egui::Id::new(editor.file_id))) else {
             return egui::Rect::NOTHING;
         };
 

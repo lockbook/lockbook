@@ -2,8 +2,8 @@ use crate::tab::markdown_editor;
 use crate::tab::markdown_editor::bounds::BoundExt as _;
 use crate::tab::ExtendedInput as _;
 use egui::os::OperatingSystem;
-use egui::{scroll_area, Margin, Pos2, ScrollArea};
-use egui::{Frame, PointerButton, Rect, Sense, TouchPhase, Ui, Vec2};
+use egui::{scroll_area, Margin, ScrollArea};
+use egui::{Frame, PointerButton, Rect, TouchPhase, Ui, Vec2};
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
 use lb_rs::{DocumentHmac, Uuid};
@@ -39,7 +39,6 @@ pub struct Editor {
     pub client: reqwest::blocking::Client,
 
     // input
-    pub id: egui::Id,
     pub file_id: Uuid,
     pub hmac: Option<DocumentHmac>,
     pub needs_name: bool,
@@ -70,7 +69,6 @@ impl Editor {
             core,
             client: Default::default(),
 
-            id: egui::Id::new(file_id),
             file_id,
             hmac,
             needs_name,
@@ -97,12 +95,12 @@ impl Editor {
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         println!("-------------------- show --------------------");
-        let scroll_area_id = ui.id().with(egui::Id::new(self.id));
+        let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
         let maybe_prev_state: Option<scroll_area::State> =
             ui.data_mut(|d| d.get_persisted(scroll_area_id));
         let maybe_last_frame_rect = ui.memory(|m| m.area_rect(scroll_area_id));
 
-        let has_focus = ui.memory(|m| m.has_focus(self.id));
+        let has_focus = ui.memory(|m| m.focus().is_none()); // focus by default
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
         let events = ui.ctx().input(|i| {
@@ -128,36 +126,19 @@ impl Editor {
         });
 
         // show ui
-        let available_size = ui.available_size();
         let scroll_area_output = ScrollArea::vertical()
             .drag_to_scroll(touch_mode)
-            .id_source(self.id)
+            .id_source(self.file_id)
             .show(ui, |ui| {
-                let resp = Frame::default()
+                Frame::default()
                     .outer_margin(Margin::symmetric(200., 0.))
                     .show(ui, |ui| {
-                        let resp = self.show_inner(ui, self.id, touch_mode, events);
+                        let resp = self.show_inner(ui, touch_mode, events);
                         ui.allocate_space(Vec2::new(ui.available_width(), 100.));
                         resp
                     })
-                    .inner;
-
-                // egui doesn't handle hierarchy well
-                // allocate a rectangle after (above) scroll area content but before (beneath) the scroll bar
-                // interact with this rectangle so that editor participates in egui's mouse hit testing
-                let rect = Rect::from_min_size(Pos2::ZERO, available_size);
-                let response = ui.allocate_rect(rect, Sense::click());
-                if response.clicked() {
-                    println!("clicked");
-                    ui.memory_mut(|m| m.request_focus(self.id));
-                };
-
-                resp
+                    .inner
             });
-
-        // unused ids have focus cleared on frame end; check_for_id_clash registers the id as used
-        ui.ctx()
-            .check_for_id_clash(self.id, scroll_area_output.inner_rect, "editor");
 
         // response
         let mut response = scroll_area_output.inner;
@@ -168,9 +149,7 @@ impl Editor {
         response
     }
 
-    fn show_inner(
-        &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: Vec<egui::Event>,
-    ) -> Response {
+    fn show_inner(&mut self, ui: &mut Ui, touch_mode: bool, events: Vec<egui::Event>) -> Response {
         self.debug.frame_start();
 
         // update theme
@@ -263,7 +242,7 @@ impl Editor {
 
         // draw
         self.draw_text(ui, touch_mode);
-        if ui.memory(|m| m.has_focus(id)) && !cfg!(target_os = "ios") {
+        if ui.memory(|m| m.focus().is_none()) && !cfg!(target_os = "ios") {
             self.draw_cursor(ui, touch_mode);
         }
         if self.debug.draw_enabled {
