@@ -144,9 +144,7 @@ impl Editor {
                     })
                     .inner;
 
-                // egui doesn't handle hierarchy well
-                // allocate a rectangle after (above) scroll area content but before (beneath) the scroll bar
-                // interact with this rectangle so that editor participates in egui's mouse hit testing
+                // force scroll area to take up all available space
                 let rect = Rect::from_min_size(Pos2::ZERO, available_size);
                 ui.advance_cursor_after_rect(rect);
 
