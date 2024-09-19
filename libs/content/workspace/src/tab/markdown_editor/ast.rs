@@ -241,7 +241,7 @@ impl Ast {
 
             // capture up to one trailing newline for list items
             if matches!(markdown_node, MarkdownNode::Block(BlockNode::ListItem(..)))
-                && range.1 < buffer.segs.last_cursor_position()
+                && range.1 < buffer.current.segs.last_cursor_position()
                 && buffer[(range.0, range.1 + 1)].ends_with('\n')
             {
                 range.1 += 1;
