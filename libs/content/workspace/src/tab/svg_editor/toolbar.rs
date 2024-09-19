@@ -17,6 +17,7 @@ const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
 const THICKNESS_BTN_X_MARGIN: f32 = 5.0;
 const THICKNESS_BTN_WIDTH: f32 = 30.0;
 
+#[derive(Default)]
 pub struct Toolbar {
     pub active_tool: Tool,
     right_tab_rect: Option<egui::Rect>,
@@ -26,8 +27,9 @@ pub struct Toolbar {
     pub previous_tool: Option<Tool>,
 }
 
-#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug, Default)]
 pub enum Tool {
+    #[default]
     Pen,
     Eraser,
     Selection,
@@ -244,7 +246,7 @@ impl Toolbar {
             Tool::Pen | Tool::Brush => {
                 if let Some(thickness) = self.show_thickness_pickers(
                     ui,
-                    self.pen.active_stroke_width as f32,
+                    self.pen.active_stroke_width,
                     vec![DEFAULT_PEN_STROKE_WIDTH, 4.0, 6.0],
                 ) {
                     self.pen.active_stroke_width = thickness;
@@ -269,7 +271,7 @@ impl Toolbar {
             Tool::Highlighter => {
                 if let Some(thickness) = self.show_thickness_pickers(
                     ui,
-                    self.pen.active_stroke_width as f32,
+                    self.pen.active_stroke_width,
                     vec![DEFAULT_PEN_STROKE_WIDTH * 2.0, 4.0 * 2.0, 6.0 * 2.0],
                 ) {
                     self.pen.active_stroke_width = thickness;

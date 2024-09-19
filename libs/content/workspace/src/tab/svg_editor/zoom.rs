@@ -57,7 +57,7 @@ pub fn handle_zoom_input(
         }
         return true;
     }
-    return false;
+    false
 }
 
 pub fn zoom_percentage_to_transform(

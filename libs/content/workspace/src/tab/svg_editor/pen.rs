@@ -20,6 +20,7 @@ use super::{
 
 pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 3.0;
 
+#[derive(Default)]
 pub struct Pen {
     pub active_color: Option<(egui::Color32, egui::Color32)>,
     pub active_stroke_width: f32,
@@ -177,7 +178,7 @@ impl Pen {
                         stroke.color = c;
                     }
 
-                    stroke.width = self.active_stroke_width as f32;
+                    stroke.width = self.active_stroke_width;
 
                     let pressure =
                         if self.supports_pressure { payload.force.map(|f| vec![f]) } else { None };
@@ -214,7 +215,6 @@ impl Pen {
                 self.end_path(pen_ctx, false);
 
                 self.maybe_snap_started = None;
-                return;
             }
             PathEvent::CancelStroke() => {
                 trace!("canceling stroke");
@@ -676,7 +676,7 @@ fn cancel_touch_ui_event() {
     };
 
     events.iter().for_each(|e| {
-        if let Some(path_event) = pen.map_ui_event(e, &mut pen_ctx, &mut input_state) {
+        if let Some(path_event) = pen.map_ui_event(e, &mut pen_ctx, &input_state) {
             pen.handle_path_event(path_event, &mut pen_ctx);
         }
     });
@@ -706,7 +706,7 @@ fn cancel_touch_ui_event() {
     ];
 
     events.iter().for_each(|e| {
-        if let Some(path_event) = pen.map_ui_event(e, &mut pen_ctx, &mut input_state) {
+        if let Some(path_event) = pen.map_ui_event(e, &mut pen_ctx, &input_state) {
             pen.handle_path_event(path_event, &mut pen_ctx);
         }
     });

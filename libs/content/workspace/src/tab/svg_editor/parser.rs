@@ -18,7 +18,7 @@ use super::selection::u_transform_to_bezier;
 use super::SVGEditor;
 
 const ZOOM_G_ID: &str = "lb_master_transform";
-const LB_STORE_ID: &str = "lb_persistent_store";
+const LB_STORE_ID: &str = "lb_pressure_store";
 
 /// A shorthand for [ImageHrefResolver]'s string function.
 pub type ImageHrefStringResolverFn =
@@ -123,7 +123,7 @@ impl Buffer {
         let utree = maybe_tree.unwrap();
 
         let mut buffer = Buffer::default();
-        let mut store = PersistentStore::default();
+        let mut store = PressureStore::default();
 
         utree
             .root()
@@ -142,7 +142,7 @@ impl Buffer {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
-struct PersistentStore {
+struct PressureStore {
     path_pressures: HashMap<Uuid, Vec<f32>>,
 }
 
@@ -152,7 +152,7 @@ impl SVGEditor {
     }
 }
 
-fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PersistentStore) {
+fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PressureStore) {
     match &u_el {
         usvg::Node::Group(group) => {
             if group.id().eq(ZOOM_G_ID) {
@@ -236,10 +236,8 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PersistentSto
 
 fn get_internal_id(svg_id: &str, buffer: &mut Buffer) -> Uuid {
     let uuid = Uuid::new_v4();
-    if !svg_id.is_empty() {
-        if buffer.id_map.insert(uuid, svg_id.to_owned()).is_some() {
-            warn!(id = svg_id, "found elements  with duplicate id");
-        }
+    if !svg_id.is_empty() && buffer.id_map.insert(uuid, svg_id.to_owned()).is_some() {
+        warn!(id = svg_id, "found elements  with duplicate id");
     }
     uuid
 }
@@ -377,7 +375,7 @@ impl ToString for Buffer {
             })
             .collect();
 
-        let store = PersistentStore { path_pressures };
+        let store = PressureStore { path_pressures };
 
         if let Ok(encoded_store) = bincode::serialize(&store) {
             let serialized_string = base64::encode(encoded_store);

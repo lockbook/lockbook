@@ -179,13 +179,8 @@ impl SVGEditor {
             }
         }
 
-        self.is_viewport_changing = if self.allow_viewport_changes
-            && handle_zoom_input(ui, self.inner_rect, &mut self.buffer)
-        {
-            true
-        } else {
-            false
-        };
+        self.is_viewport_changing =
+            self.allow_viewport_changes && handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
 
         self.handle_clip_input(ui);
     }
