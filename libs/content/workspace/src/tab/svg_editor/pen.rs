@@ -669,7 +669,7 @@ fn cancel_touch_ui_event() {
         is_touch_frame: &mut false,
     };
 
-    let mut input_state = PenPointerInput {
+    let input_state = PenPointerInput {
         is_pointer_released: false,
         pointer_press_origin: Some(pen_ctx.painter.clip_rect().center()),
         is_multi_touch: false,
