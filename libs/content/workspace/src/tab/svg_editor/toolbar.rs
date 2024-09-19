@@ -41,6 +41,7 @@ pub struct ToolContext<'a> {
     pub history: &'a mut History,
     pub allow_viewport_changes: &'a mut bool,
     pub is_viewport_changing: &'a mut bool,
+    pub is_touch_frame: &'a mut bool,
 }
 #[derive(Clone)]
 pub struct ColorSwatch {

@@ -30,7 +30,6 @@ use toolbar::ToolContext;
 use tracing::span;
 use tracing::Level;
 use usvg_parser::Options;
-use util::is_multi_touch;
 
 /// A shorthand for [ImageHrefResolver]'s string function.
 pub type ImageHrefStringResolverFn = Box<dyn Fn(&str, &Options) -> Option<ImageKind> + Send + Sync>;
@@ -165,6 +164,7 @@ impl SVGEditor {
             history: &mut self.history,
             allow_viewport_changes: &mut self.allow_viewport_changes,
             is_viewport_changing: &mut self.is_viewport_changing,
+            is_touch_frame: &mut false,
         };
 
         match self.toolbar.active_tool {

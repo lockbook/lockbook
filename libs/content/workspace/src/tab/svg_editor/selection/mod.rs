@@ -16,11 +16,7 @@ use self::{
 };
 
 use super::{
-    history::History,
-    parser,
-    toolbar::ToolContext,
-    util::{bb_to_rect, is_multi_touch},
-    Buffer, DeleteElement,
+    history::History, parser, toolbar::ToolContext, util::is_multi_touch, Buffer, DeleteElement,
 };
 
 #[derive(Default)]

@@ -6,13 +6,10 @@ use std::{
     collections::VecDeque,
     time::{Duration, Instant},
 };
-use tracing::{debug, event, trace, warn, Level};
+use tracing::{event, trace, warn, Level};
 use tracing_test::traced_test;
 
-use crate::{
-    tab::svg_editor::{history::History, Buffer},
-    theme::palette::ThemePalette,
-};
+use crate::theme::palette::ThemePalette;
 
 use super::{
     parser::{self, DiffState, ManipulatorGroupId, Path, Stroke},
@@ -71,14 +68,6 @@ impl Pen {
             }
         }
         false
-    }
-
-    fn is_phantom_stroke(&mut self, current_touch_id: TouchId) -> bool {
-        if let Some(first_point_touch_id) = self.path_builder.first_point_touch_id {
-            !current_touch_id.eq(&first_point_touch_id)
-        } else {
-            false
-        }
     }
 
     pub fn end_path(&mut self, pen_ctx: &mut ToolContext, is_snapped: bool) {
@@ -194,7 +183,7 @@ impl Pen {
                         if self.supports_pressure { payload.force.map(|f| vec![f]) } else { None };
                     self.path_builder.first_point_touch_id = payload.id;
 
-                    event!(Level::DEBUG, "starting a new path");
+                    event!(Level::TRACE, "starting a new path");
 
                     pen_ctx.buffer.elements.insert(
                         self.current_id,
@@ -246,18 +235,7 @@ impl Pen {
     pub fn get_path_events(
         &mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext,
     ) -> Vec<PathEvent> {
-        let has_canceled_touches = ui.input(|r| {
-            r.events.iter().any(|e| {
-                if let egui::Event::Touch { device_id: _, id: _, phase, pos: _, force: _ } = e {
-                    phase == &TouchPhase::Cancel
-                } else {
-                    false
-                }
-            })
-        });
-
         let input_state = PenPointerInput {
-            has_canceled_touches,
             is_pointer_released: ui.input(|r| r.pointer.any_released()),
             pointer_press_origin: ui.input(|r| r.pointer.press_origin()),
             is_multi_touch: is_multi_touch(ui),
@@ -283,6 +261,7 @@ impl Pen {
         } else {
             true
         };
+        let inner_rect = pen_ctx.painter.clip_rect();
 
         // todo: should i wait for input start
         if input_state.is_multi_touch {
@@ -301,6 +280,7 @@ impl Pen {
         *pen_ctx.allow_viewport_changes = false;
 
         if let egui::Event::Touch { device_id: _, id, phase, pos, force } = *e {
+            *pen_ctx.is_touch_frame = true;
             // let (should_end_path, should_draw) = self.decide_event(pen_ctx, pos, input_state);
 
             if phase == TouchPhase::Cancel {
@@ -308,13 +288,19 @@ impl Pen {
                 return Some(PathEvent::CancelStroke());
             }
             if phase == TouchPhase::End
-                && pen_ctx.painter.clip_rect().contains(pos)
+                && inner_rect.contains(pos)
                 && id.eq(&self.path_builder.first_point_touch_id.unwrap_or(TouchId(0)))
             {
                 trace!("sending end path");
                 return Some(PathEvent::End);
             }
-            if phase != TouchPhase::End && pen_ctx.painter.clip_rect().contains(pos) {
+
+            if !inner_rect.contains(pos) && !is_current_path_empty {
+                trace!("ending path because it's out of canvas clip rect");
+                return Some(PathEvent::End);
+            }
+
+            if phase != TouchPhase::End && inner_rect.contains(pos) {
                 if self
                     .path_builder
                     .first_point_touch_id
@@ -334,53 +320,43 @@ impl Pen {
 
                 trace!("sending draw path ");
                 return Some(PathEvent::Draw(DrawPayload { pos, force, id: Some(id) }));
-            } else {
-                return None;
             }
-        } else if let egui::Event::PointerMoved(pos) = *e {
-            let (should_end_path, should_draw) = (false, false);
-
-            if should_end_path {
-                return Some(PathEvent::End);
-            } else if should_draw {
-                Some(PathEvent::Draw(DrawPayload { pos, force: None, id: None }))
-            } else {
-                None
-            }
-        } else {
-            None
         }
-    }
+        if *pen_ctx.is_touch_frame {
+            return None;
+        }
 
-    fn decide_event(
-        &mut self, pen_ctx: &ToolContext, pos: egui::Pos2, input_state: &PenPointerInput,
-    ) -> (bool, bool) {
-        let inner_rect = pen_ctx.painter.clip_rect();
-
-        let not_empty_path =
-            if let Some(parser::Element::Path(p)) = pen_ctx.buffer.elements.get(&self.current_id) {
+        if let egui::Event::PointerMoved(pos) = *e {
+            let not_empty_path = if let Some(parser::Element::Path(p)) =
+                pen_ctx.buffer.elements.get(&self.current_id)
+            {
                 !p.data.is_empty()
             } else {
                 false
             };
 
-        let pointer_gone_out_of_canvas = !inner_rect.contains(pos) && not_empty_path;
+            let pointer_gone_out_of_canvas = !inner_rect.contains(pos) && not_empty_path;
 
-        let pointer_released_in_canvas =
-            input_state.is_pointer_released && inner_rect.contains(pos);
+            let pointer_released_in_canvas =
+                input_state.is_pointer_released && inner_rect.contains(pos);
 
-        let pointer_pressed_and_originated_in_canvas = inner_rect
-            .contains(input_state.pointer_press_origin.unwrap_or_default())
-            && inner_rect.contains(pos);
-        (
-            pointer_gone_out_of_canvas || pointer_released_in_canvas,
-            pointer_pressed_and_originated_in_canvas,
-        )
+            let pointer_pressed_and_originated_in_canvas = inner_rect
+                .contains(input_state.pointer_press_origin.unwrap_or_default())
+                && inner_rect.contains(pos);
+
+            if pointer_gone_out_of_canvas || pointer_released_in_canvas {
+                return Some(PathEvent::End);
+            } else if pointer_pressed_and_originated_in_canvas {
+                return Some(PathEvent::Draw(DrawPayload { pos, force: None, id: None }));
+            }
+        }
+
+        *pen_ctx.allow_viewport_changes = true;
+        None
     }
 }
 
 struct PenPointerInput {
-    has_canceled_touches: bool,
     is_pointer_released: bool,
     pointer_press_origin: Option<egui::Pos2>,
     is_multi_touch: bool,
@@ -625,62 +601,6 @@ impl Line {
 
 #[traced_test]
 #[test]
-fn no_adjacnet_duplicate_points_in_path() {
-    let mut pen = Pen::new();
-    let mut pen_ctx = ToolContext {
-        painter: &egui::Painter::new(
-            egui::Context::default(),
-            egui::LayerId::background(),
-            egui::Rect::EVERYTHING,
-        ),
-        buffer: &mut Buffer::default(),
-        history: &mut History::default(),
-        allow_viewport_changes: &mut false,
-        is_viewport_changing: &mut false,
-    };
-
-    let start_pos = egui::pos2(10.0, 10.0);
-    let path_id = Uuid::new_v4();
-    pen.current_id = path_id;
-    let touch_id = TouchId(1);
-
-    let events = vec![
-        PathEvent::Draw(DrawPayload { pos: start_pos, force: None, id: Some(touch_id) }),
-        PathEvent::Draw(DrawPayload {
-            pos: egui::pos2(start_pos.x + 1.0, start_pos.y + 1.0),
-            force: None,
-            id: Some(touch_id),
-        }),
-        PathEvent::End,
-        PathEvent::Draw(DrawPayload {
-            pos: egui::pos2(start_pos.x + 1.0, start_pos.y + 1.0),
-            force: None,
-            id: Some(touch_id),
-        }),
-        PathEvent::Draw(DrawPayload {
-            pos: egui::pos2(start_pos.x + 2.0, start_pos.y + 2.0),
-            force: None,
-            id: Some(touch_id),
-        }),
-        PathEvent::Draw(DrawPayload {
-            pos: egui::pos2(start_pos.x + 3.0, start_pos.y + 3.0),
-            force: None,
-            id: Some(touch_id),
-        }),
-    ];
-
-    for event in &events {
-        pen.handle_path_event(*event, &mut pen_ctx);
-    }
-    assert_eq!(pen_ctx.buffer.elements.len(), 2);
-    if let Some(parser::Element::Path(p)) = pen_ctx.buffer.elements.get(&path_id) {
-        // assert_eq!(p.data.len(), events.len() - 1);
-        println!("{:#?}", p.data)
-    }
-}
-
-#[traced_test]
-#[test]
 fn correct_start_of_path() {
     let mut pen = Pen::new();
     let mut pen_ctx = ToolContext {
@@ -689,10 +609,11 @@ fn correct_start_of_path() {
             egui::LayerId::background(),
             egui::Rect::EVERYTHING,
         ),
-        buffer: &mut Buffer::default(),
-        history: &mut History::default(),
+        buffer: &mut parser::Buffer::default(),
+        history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_viewport_changing: &mut false,
+        is_touch_frame: &mut false,
     };
 
     let start_pos = egui::pos2(10.0, 10.0);
@@ -709,72 +630,15 @@ fn correct_start_of_path() {
     if let Some(parser::Element::Path(p)) = pen_ctx.buffer.elements.get(&path_id) {
         assert!(p.data.is_empty());
         assert_eq!(pen.path_builder.original_points.len(), 1);
-        println!("{:#?}", pen.path_builder.original_points)
     }
 }
-
-// #[traced_test]
-// #[test]
-// fn cancel_touch_path_event() {
-//     let mut pen = Pen::new();
-//     let mut pen_ctx = ToolContext {
-//         painter: &egui::Painter::new(
-//             egui::Context::default(),
-//             egui::LayerId::background(),
-//             egui::Rect::EVERYTHING,
-//         ),
-//         buffer: &mut Buffer::default(),
-//         history: &mut History::default(),
-//     };
-//     let start_pos = egui::pos2(10.0, 10.0);
-
-//     let touch_1 = TouchId(1);
-//     let touch_2 = TouchId(2);
-
-//     let events = vec![
-//         PathEvent::Draw(DrawPayload { pos: start_pos, force: None, id: Some(touch_1) }),
-//         PathEvent::Draw(DrawPayload {
-//             pos: egui::pos2(start_pos.x + 1.0, start_pos.y),
-//             force: None,
-//             id: Some(touch_1),
-//         }),
-//         PathEvent::Draw(DrawPayload {
-//             pos: egui::pos2(start_pos.x - 1.0, start_pos.y),
-//             force: None,
-//             id: Some(touch_1),
-//         }),
-//         PathEvent::Draw(DrawPayload { pos: start_pos, force: None, id: Some(touch_2) }),
-//         PathEvent::CancelStroke(),
-//         PathEvent::Draw(DrawPayload {
-//             pos: egui::pos2(start_pos.x, start_pos.y - 1.0),
-//             force: None,
-//             id: Some(touch_2),
-//         }),
-//         PathEvent::Draw(DrawPayload {
-//             pos: egui::pos2(start_pos.x, start_pos.y + 1.0),
-//             force: None,
-//             id: Some(touch_2),
-//         }),
-//     ];
-
-//     for event in &events {
-//         pen.handle_path_event(*event, &mut pen_ctx);
-//     }
-
-//     assert_eq!(pen_ctx.buffer.elements.len(), 1);
-
-//     if let Some(parser::Element::Path(p)) = pen_ctx.buffer.elements.get(&pen.current_id) {
-//         println!("{:#?}", p.data);
-//         assert_eq!(p.data.len(), 2);
-//     }
-// }
 
 #[traced_test]
 #[test]
 fn cancel_touch_ui_event() {
     let touch_1 = TouchId(1);
     let touch_2 = TouchId(2);
-    let events = vec![
+    let mut events = vec![
         egui::Event::Touch {
             device_id: egui::TouchDeviceId(1),
             id: touch_1,
@@ -786,21 +650,7 @@ fn cancel_touch_ui_event() {
             device_id: egui::TouchDeviceId(1),
             id: touch_1,
             phase: TouchPhase::Move,
-            pos: egui::pos2(10.0, 10.0),
-            force: None,
-        },
-        egui::Event::Touch {
-            device_id: egui::TouchDeviceId(1),
-            id: touch_2,
-            phase: TouchPhase::Start,
-            pos: egui::pos2(10.0, 10.0),
-            force: None,
-        },
-        egui::Event::Touch {
-            device_id: egui::TouchDeviceId(1),
-            id: touch_1,
-            phase: TouchPhase::Move,
-            pos: egui::pos2(10.0, 10.0),
+            pos: egui::pos2(11.0, 11.0),
             force: None,
         },
     ];
@@ -812,29 +662,55 @@ fn cancel_touch_ui_event() {
             egui::LayerId::background(),
             egui::Rect::EVERYTHING,
         ),
-        buffer: &mut Buffer::default(),
-        history: &mut History::default(),
+        buffer: &mut parser::Buffer::default(),
+        history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_viewport_changing: &mut false,
+        is_touch_frame: &mut false,
     };
 
     let mut input_state = PenPointerInput {
-        has_canceled_touches: events.iter().any(|e| {
-            if let egui::Event::Touch { device_id, id, phase, pos, force } = e {
-                phase == &egui::TouchPhase::Cancel
-            } else {
-                false
-            }
-        }),
         is_pointer_released: false,
         pointer_press_origin: Some(pen_ctx.painter.clip_rect().center()),
-        is_multi_touch: true,
+        is_multi_touch: false,
     };
 
     events.iter().for_each(|e| {
         if let Some(path_event) = pen.map_ui_event(e, &mut pen_ctx, &mut input_state) {
-            println!("{:#?}", path_event);
             pen.handle_path_event(path_event, &mut pen_ctx);
         }
     });
+
+    events = vec![
+        egui::Event::Touch {
+            device_id: egui::TouchDeviceId(1),
+            id: touch_1,
+            phase: TouchPhase::Cancel,
+            pos: egui::pos2(11.0, 11.0),
+            force: None,
+        },
+        egui::Event::Touch {
+            device_id: egui::TouchDeviceId(1),
+            id: touch_2,
+            phase: TouchPhase::Start,
+            pos: egui::pos2(12.0, 12.0),
+            force: None,
+        },
+        egui::Event::Touch {
+            device_id: egui::TouchDeviceId(1),
+            id: touch_2,
+            phase: TouchPhase::Move,
+            pos: egui::pos2(13.0, 13.0),
+            force: None,
+        },
+    ];
+
+    events.iter().for_each(|e| {
+        if let Some(path_event) = pen.map_ui_event(e, &mut pen_ctx, &mut input_state) {
+            pen.handle_path_event(path_event, &mut pen_ctx);
+        }
+    });
+
+    assert_eq!(pen_ctx.buffer.elements.len(), 1);
+    assert_eq!(pen.path_builder.original_points.len(), 2) // the cancel touch doesn't count
 }
