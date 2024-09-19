@@ -81,7 +81,7 @@ impl Renderer {
                 {
                     return None;
                 }
-
+                
                 if let Some(transform) = el.transformed() {
                     return Some((*id, RenderOp::Transform(transform)));
                 }
@@ -110,7 +110,6 @@ impl Renderer {
         }
 
         if !self.mesh_cache.is_empty() {
-            ui.ctx().graphics(reader)
             painter.extend(self.mesh_cache.clone().into_values().filter(|shape| {
                 if let egui::Shape::Mesh(m) = shape {
                     !m.vertices.is_empty() && !m.indices.is_empty()
