@@ -81,7 +81,7 @@ impl Renderer {
                 {
                     return None;
                 }
-                
+
                 if let Some(transform) = el.transformed() {
                     return Some((*id, RenderOp::Transform(transform)));
                 }
