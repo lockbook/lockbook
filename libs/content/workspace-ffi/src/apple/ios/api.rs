@@ -347,7 +347,7 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
 #[no_mangle]
 pub unsafe extern "C" fn mouse_gone(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.raw_input.events.push(Event::PointerGone);
+    obj.raw_input.events.push(egui::Event::PointerGone);
 }
 
 /// # Safety
