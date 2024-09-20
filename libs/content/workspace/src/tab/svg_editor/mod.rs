@@ -42,7 +42,7 @@ pub struct SVGEditor {
     core: lb_rs::Core,
     open_file: Uuid,
     skip_frame: bool,
-    last_render: Instant,
+    // last_render: Instant,
     renderer: Renderer,
     painter: egui::Painter,
     has_queued_save_request: bool,
@@ -79,7 +79,7 @@ impl SVGEditor {
             core,
             open_file,
             skip_frame: false,
-            last_render: Instant::now(),
+            // last_render: Instant::now(),
             painter: egui::Painter::new(
                 ctx.to_owned(),
                 egui::LayerId::new(egui::Order::Background, "canvas_painter".into()),
@@ -214,29 +214,29 @@ impl SVGEditor {
         });
     }
 
-    fn show_debug_info(&mut self, ui: &mut egui::Ui) {
-        let frame_cost = Instant::now() - self.last_render;
-        self.last_render = Instant::now();
-        let mut anchor_count = 0;
-        self.buffer
-            .elements
-            .iter()
-            .filter(|(_, el)| !el.deleted())
-            .for_each(|(_, el)| {
-                if let parser::Element::Path(p) = el {
-                    anchor_count += p.data.len()
-                }
-            });
+    // fn show_debug_info(&mut self, ui: &mut egui::Ui) {
+    //     let frame_cost = Instant::now() - self.last_render;
+    //     self.last_render = Instant::now();
+    //     let mut anchor_count = 0;
+    //     self.buffer
+    //         .elements
+    //         .iter()
+    //         .filter(|(_, el)| !el.deleted())
+    //         .for_each(|(_, el)| {
+    //             if let parser::Element::Path(p) = el {
+    //                 anchor_count += p.data.len()
+    //             }
+    //         });
 
-        let mut top = self.inner_rect.right_top();
-        top.x -= 150.0;
-        if frame_cost.as_millis() != 0 {
-            ui.painter().debug_text(
-                top,
-                egui::Align2::LEFT_TOP,
-                egui::Color32::RED,
-                format!("{} anchor | {}fps", anchor_count, 1000 / frame_cost.as_millis()),
-            );
-        }
-    }
+    //     let mut top = self.inner_rect.right_top();
+    //     top.x -= 150.0;
+    //     if frame_cost.as_millis() != 0 {
+    //         ui.painter().debug_text(
+    //             top,
+    //             egui::Align2::LEFT_TOP,
+    //             egui::Color32::RED,
+    //             format!("{} anchor | {}fps", anchor_count, 1000 / frame_cost.as_millis()),
+    //         );
+    //     }
+    // }
 }
