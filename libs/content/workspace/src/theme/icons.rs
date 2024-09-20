@@ -14,7 +14,7 @@ const fn ic(c: &'static str) -> Icon {
 impl Icon {
     pub const ACCOUNT: Self = ic("\u{e7ff}"); // Person Outline
     pub const ARROW_CIRCLE_DOWN: Self = ic("\u{f181}"); // Arrow Circle Down
-    pub const BRUSH: Self = ic("\u{e3ae}"); // Bold Text
+    pub const BRUSH: Self = ic("\u{e3ae}"); // Brush
     pub const BOLD: Self = ic("\u{e238}"); // Bold Text
     pub const CHECK_CIRCLE: Self = ic("\u{e86c}"); // Check Circle
     pub const CANCEL: Self = ic("\u{e5c9}"); // Cancel
@@ -35,6 +35,7 @@ impl Icon {
     pub const FOLDER_OPEN: Self = ic("\u{e2c8}"); // Folder Open
     pub const GROUP: Self = ic("\u{e7ef}"); // Group
     pub const HISTORY: Self = ic("\u{e889}"); // History
+    pub const HIGHLIGHTER: Self = ic("\u{e6d1}");
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
     pub const HEADER_1: Self = ic("\u{e262}"); // Header 11
     pub const TOGGLE_SIDEBAR: Self = ic("\u{f7e4}");
@@ -47,6 +48,7 @@ impl Icon {
     pub const MONEY: Self = ic("\u{e263}"); // Monetization On
     pub const NUMBER_LIST: Self = ic("\u{e242}"); // Number List
     pub const PLACE_ITEM: Self = ic("\u{f1f0}"); // Place Item
+    pub const PEN: Self = ic("\u{e150}"); // Pencil
     pub const PREVIEW: Self = ic("\u{f1c5}"); // Preview
     pub const SETTINGS: Self = ic("\u{e8b8}"); // Settings
     pub const SPARKLE: Self = ic("\u{e65f}"); // Auto Awesome

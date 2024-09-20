@@ -404,8 +404,10 @@ impl Workspace {
                             TabContent::Image(img) => img.show(ui),
                             TabContent::Pdf(pdf) => pdf.show(ui),
                             TabContent::Svg(svg) => {
-                                svg.show(ui);
-                                tab.last_changed = Instant::now();
+                                let res = svg.show(ui);
+                                if res.request_save {
+                                    tab.last_changed = Instant::now();
+                                }
                             }
                         };
                     } else {
@@ -620,7 +622,7 @@ impl Workspace {
                             is_mobile_viewport,
                         ))
                     } else if ext == "svg" {
-                        TabContent::Svg(SVGEditor::new(&bytes, core.clone(), id))
+                        TabContent::Svg(SVGEditor::new(&bytes, &ctx, core.clone(), id))
                     } else {
                         TabContent::Markdown(Markdown::new(
                             core.clone(),
