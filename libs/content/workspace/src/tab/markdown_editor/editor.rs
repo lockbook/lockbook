@@ -20,6 +20,7 @@ use markdown_editor::input::cursor::{CursorState, PointerState};
 use markdown_editor::input::{Bound, Event, Offset, Region};
 use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
+use std::mem;
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Serialize, Default)]
@@ -103,27 +104,25 @@ impl Editor {
         let has_focus = ui.memory(|m| m.focus().is_none()); // focus by default
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
-        let events = ui.ctx().input(|i| {
-            i.events
-                .iter()
-                .filter(|e| {
-                    match e {
-                        // keys processed when focused
-                        egui::Event::Key { .. } => has_focus,
+        let events = {
+            let mut events = Vec::new();
 
-                        // clicks/touches processed when within area (todo: check overlays e.g. toolbar)
-                        egui::Event::PointerButton { pressed: true, pos, .. }
-                        | egui::Event::Touch { phase: TouchPhase::Start, pos, .. } => {
-                            maybe_last_frame_rect
-                                .map(|r| r.contains(*pos))
-                                .unwrap_or_default()
-                        }
-                        _ => true,
-                    }
-                })
-                .cloned()
-                .collect::<Vec<_>>()
-        });
+            // keys processed when focused
+            if has_focus {
+                events.extend(
+                    ui.ctx()
+                        .input_mut(|i| mem::take(&mut i.events))
+                        .into_iter()
+                        .filter(|e| match e {
+                            // clicks inferred from hit testing system
+                            egui::Event::PointerButton { .. } | egui::Event::Touch { .. } => false,
+                            _ => true,
+                        }),
+                );
+            }
+
+            events
+        };
 
         // show ui
         let available_size = ui.available_size();

@@ -7,7 +7,7 @@ use crate::tab::markdown_editor::style::{MarkdownNode, RenderStyle};
 use crate::tab::markdown_editor::Editor;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::{CCursor, LayoutJob};
-use egui::{Galley, Pos2, Rect, Sense, TextFormat, Ui, Vec2};
+use egui::{Galley, Id, Pos2, Rect, Response, Sense, TextFormat, Ui, Vec2};
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 use std::mem;
@@ -30,7 +30,8 @@ pub struct GalleyInfo {
     pub tail_size: RelCharOffset,
 
     pub text_location: Pos2,
-    pub galley_location: Rect,
+    pub rect: Rect,
+    pub response: Response,
     pub image: Option<ImageInfo>,
 
     pub annotation_text_format: TextFormat,
@@ -321,12 +322,13 @@ impl GalleyInfo {
         let galley = ui.ctx().fonts(|f| f.layout_job(job.job));
 
         // allocate space for text and non-image annotations
-        let (galley_location, _) = ui.allocate_exact_size(
-            Vec2::new(ui.available_width(), galley.size().y + offset.y),
-            Sense::hover(),
-        );
+        let id = Id::new(job.range);
+        let desired_size = Vec2::new(ui.available_width(), galley.size().y + offset.y);
+        let sense = Sense::click_and_drag();
+        let (_, rect) = ui.allocate_space(desired_size);
+        let response = ui.interact(rect, id, sense);
 
-        let text_location = Pos2::new(offset.x + galley_location.min.x, galley_location.min.y);
+        let text_location = Pos2::new(offset.x + rect.min.x, rect.min.y);
 
         Self {
             range: job.range,
@@ -335,7 +337,8 @@ impl GalleyInfo {
             head_size: job.head_size,
             tail_size: job.tail_size,
             text_location,
-            galley_location,
+            rect,
+            response,
             image,
             annotation_text_format: job.annotation_text_format,
         }

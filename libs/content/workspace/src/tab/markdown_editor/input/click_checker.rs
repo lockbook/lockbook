@@ -29,7 +29,7 @@ pub struct EditorClickChecker<'a> {
 impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
     fn text(self, pos: Pos2) -> Option<usize> {
         for (galley_idx, galley) in self.galleys.galleys.iter().enumerate() {
-            if galley.galley_location.contains(pos) {
+            if galley.rect.contains(pos) {
                 // galleys stretch across the screen, so we need to check if we're to the right of the text
                 // use a tolerance of 10.0 for x and a tolerance of one line for y (supports noncapture when pointer is over a code block)
                 let offset = mutation::pos_to_char_offset(

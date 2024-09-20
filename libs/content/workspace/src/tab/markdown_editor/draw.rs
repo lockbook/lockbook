@@ -72,9 +72,9 @@ impl Editor {
                         }
                     },
                     Annotation::HeadingRule => {
-                        let y = galley.galley_location.max.y - 7.0;
-                        let min = Pos2 { x: galley.galley_location.min.x, y };
-                        let max = Pos2 { x: galley.galley_location.max.x, y };
+                        let y = galley.rect.max.y - 7.0;
+                        let min = Pos2 { x: galley.rect.min.x, y };
+                        let max = Pos2 { x: galley.rect.max.x, y };
 
                         ui.painter().line_segment(
                             [min, max],
@@ -82,10 +82,9 @@ impl Editor {
                         );
                     }
                     Annotation::Rule => {
-                        let y =
-                            galley.galley_location.min.y + galley.galley_location.height() / 2.0;
-                        let min = Pos2 { x: galley.galley_location.min.x, y };
-                        let max = Pos2 { x: galley.galley_location.max.x, y };
+                        let y = galley.rect.min.y + galley.rect.height() / 2.0;
+                        let min = Pos2 { x: galley.rect.min.x, y };
+                        let max = Pos2 { x: galley.rect.max.x, y };
 
                         ui.painter().line_segment(
                             [min, max],
