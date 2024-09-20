@@ -7,7 +7,7 @@ edition = "2021"
 dark-light = "1.0.0"
 egui = "0.28.1"
 eframe = "0.28.1"
-egui-notify = "0.13.0"
+egui-notify = "0.15.0"
 egui-winit = "0.28.1"
 egui_wgpu_backend = "0.30"
 egui_extras = { version = "0.28.1", features = ["image"] }
