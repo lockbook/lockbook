@@ -34,6 +34,7 @@ pub struct Lb {
     pub keychain: Keychain,
     pub db: LbDb,
     pub docs: AsyncDocs,
+    pub search: SearchIndex,
     pub client: Network,
 }
 
@@ -48,7 +49,8 @@ impl Lb {
         let docs = AsyncDocs::from(&config);
         let client = Network::default();
         let keychain = Keychain::default();
-        Ok(Self { config, keychain, db, docs, client })
+        let search = SearchIndex::default();
+        Ok(Self { config, keychain, db, docs, client, search })
     }
 }
 
@@ -65,6 +67,7 @@ use repo::docs::AsyncDocs;
 use repo::LbDb;
 use service::keychain::Keychain;
 use service::network::Network;
+use service::search::SearchIndex;
 use tokio::sync::RwLock;
 use crate::repo::CoreDb;
 use crate::service::logging;

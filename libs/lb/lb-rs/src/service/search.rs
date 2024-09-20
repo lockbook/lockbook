@@ -1,9 +1,13 @@
+use crate::logic::crypto::{DecryptedDocument, EncryptedDocument};
 use crate::logic::file_like::FileLike;
 use crate::logic::filename::DocumentType;
 use crate::logic::tree_like::TreeLike;
 use crate::model::errors::LbResult;
+use crate::model::file::File;
 use crate::{Lb, UnexpectedError};
 use crossbeam::channel::{self, Receiver, Sender};
+use futures::stream::FuturesUnordered;
+use futures::{future, StreamExt};
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -11,6 +15,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread::{self, available_parallelism};
 use sublime_fuzzy::{FuzzySearch, Scoring};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use super::activity::{RankingWeights, Stats};
@@ -24,6 +29,75 @@ const CONTENT_MATCH_PADDING: usize = 8;
 
 const ACTIVITY_WEIGHT: f32 = 0.2;
 const FUZZY_WEIGHT: f32 = 0.8;
+
+#[derive(Clone, Default)]
+pub struct SearchIndex {
+    pub docs: Arc<Mutex<Vec<SearchIndexEntry>>>,
+}
+
+pub struct SearchIndexEntry {
+    pub file: File,
+    pub path: String,
+    pub content: Option<DecryptedDocument>,
+}
+
+#[derive(Copy, Clone)]
+pub enum SearchConfig {
+    Paths,
+    Documents,
+    PathsAndDocuments,
+}
+
+impl Lb {
+    pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<()> {
+        todo!()
+    }
+
+    async fn build_index(&self) -> LbResult<()> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+
+        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+        let all_ids = tree.owned_ids();
+        let mut doc_ids = Vec::with_capacity(all_ids.len());
+        let mut content = HashMap::new();
+
+        for id in all_ids {
+            if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
+                let file = tree.find(&id)?;
+                let is_document = file.is_document();
+                let hmac = file.document_hmac().copied();
+                let has_content = hmac.is_some();
+
+                if is_document && has_content {
+                    match DocumentType::from_file_name_using_extension(
+                        &tree.name_using_links(&id, self.get_account()?)?,
+                    ) {
+                        DocumentType::Text => doc_ids.push((id, hmac)),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        
+        // we could consider releasing the lock here and not hold on to it across the file io. 
+        // this may become needed in a future where files are fetched from the network
+    
+        let mut content_futures = FuturesUnordered::new();
+
+        for (id, hmac) in doc_ids {
+            content_futures.push(async move { (id, self.docs.get(id, hmac).await) });
+        }
+
+        while let Some((id, res)) = content_futures.next().await {
+            let res = res?;
+            tree.decrypt_document(&id, &res, self.get_account()?);
+            content.insert(id, res);
+        }
+
+        Ok(())
+    }
+}
 
 #[derive(Serialize, Debug, Eq, PartialEq)]
 pub struct SearchResultItem {
