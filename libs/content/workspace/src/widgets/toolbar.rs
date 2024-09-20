@@ -102,8 +102,10 @@ impl ToolBar {
                     .fill(ui.visuals().code_bg_color)
                     .inner_margin(self.margin)
                     .shadow(egui::epaint::Shadow {
-                        extrusion: ui.visuals().window_shadow.extrusion,
                         color: ui.visuals().window_shadow.color.gamma_multiply(0.3),
+                        offset: ui.visuals().window_shadow.offset,
+                        blur: ui.visuals().window_shadow.blur,
+                        spread: ui.visuals().window_shadow.spread,
                     })
                     .rounding(egui::Rounding::same(20.0))
                     .show(ui, |ui| self.map_buttons(ui, editor, res, false))
