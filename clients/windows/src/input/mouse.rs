@@ -41,12 +41,17 @@ pub fn handle_wheel(
         app.raw_input.events.push(egui::Event::Zoom(factor));
     } else {
         let scroll_magnitude = 20.0 * delta as f32 / WHEEL_DELTA as f32;
-        let scroll = if matches!(message, MessageAppDep::MouseWheel { .. }) {
+        let delta = if matches!(message, MessageAppDep::MouseWheel { .. }) {
             egui::Vec2 { x: 0.0, y: scroll_magnitude }
         } else {
             egui::Vec2 { x: -scroll_magnitude, y: 0.0 }
         };
-        app.raw_input.events.push(egui::Event::Scroll(scroll));
+
+        app.raw_input.events.push(egui::Event::MouseWheel {
+            unit: MouseWheelUnit::Point,
+            delta,
+            modifiers: obj.raw_input.modifiers,
+        });
     }
     true
 }
