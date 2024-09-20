@@ -1,3 +1,4 @@
+use egui::MouseWheelUnit;
 use lbeguiapp::WgpuLockbook;
 use x11rb::protocol::xproto::{ButtonPressEvent, KeyButMask, MotionNotifyEvent};
 
@@ -41,7 +42,7 @@ fn handle(
             app.raw_input.events.push(egui::Event::MouseWheel {
                 unit: MouseWheelUnit::Point,
                 delta,
-                modifiers: obj.raw_input.modifiers,
+                modifiers: app.raw_input.modifiers,
             })
         }
     } else {

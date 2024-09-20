@@ -1,3 +1,4 @@
+use egui::MouseWheelUnit;
 use lbeguiapp::WgpuLockbook;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
@@ -50,7 +51,7 @@ pub fn handle_wheel(
         app.raw_input.events.push(egui::Event::MouseWheel {
             unit: MouseWheelUnit::Point,
             delta,
-            modifiers: obj.raw_input.modifiers,
+            modifiers: app.raw_input.modifiers,
         });
     }
     true
