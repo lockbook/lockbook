@@ -52,6 +52,8 @@ impl Selection {
         let working_rect = selection_ctx.painter.clip_rect();
 
         if is_multi_touch(ui) {
+            *selection_ctx.allow_viewport_changes = true;
+
             self.selection_rect =
                 SelectionRectContainer::new(&self.selected_elements, selection_ctx.buffer);
             if let Some(s) = &self.selection_rect {

@@ -144,10 +144,7 @@ impl SVGEditor {
     }
 
     fn process_events(&mut self, ui: &mut egui::Ui) {
-        // todo: toggle debug print before merge
-        // if ui.input(|r| r.key_down(egui::Key::D)) {
-        self.show_debug_info(ui);
-        // }
+        // self.show_debug_info(ui);
 
         if !ui.is_enabled() {
             return;
@@ -164,7 +161,14 @@ impl SVGEditor {
             history: &mut self.history,
             allow_viewport_changes: &mut self.allow_viewport_changes,
             is_viewport_changing: &mut self.is_viewport_changing,
-            is_touch_frame: &mut false,
+            is_touch_frame: ui.input(|r| {
+                r.events.iter().any(|e| {
+                    matches!(
+                        e,
+                        egui::Event::Touch { device_id: _, id: _, phase: _, pos: _, force: _ }
+                    )
+                })
+            }),
         };
 
         match self.toolbar.active_tool {

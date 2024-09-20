@@ -280,7 +280,6 @@ impl Pen {
         *pen_ctx.allow_viewport_changes = false;
 
         if let egui::Event::Touch { device_id: _, id, phase, pos, force } = *e {
-            *pen_ctx.is_touch_frame = true;
             // let (should_end_path, should_draw) = self.decide_event(pen_ctx, pos, input_state);
 
             if phase == TouchPhase::Cancel {
@@ -318,11 +317,10 @@ impl Pen {
                 }
                 *pen_ctx.is_viewport_changing = false;
 
-                trace!("sending draw path ");
                 return Some(PathEvent::Draw(DrawPayload { pos, force, id: Some(id) }));
             }
         }
-        if *pen_ctx.is_touch_frame {
+        if pen_ctx.is_touch_frame {
             return None;
         }
 
@@ -613,7 +611,7 @@ fn correct_start_of_path() {
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_viewport_changing: &mut false,
-        is_touch_frame: &mut false,
+        is_touch_frame: true,
     };
 
     let start_pos = egui::pos2(10.0, 10.0);
@@ -666,7 +664,7 @@ fn cancel_touch_ui_event() {
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_viewport_changing: &mut false,
-        is_touch_frame: &mut false,
+        is_touch_frame: true,
     };
 
     let input_state = PenPointerInput {
