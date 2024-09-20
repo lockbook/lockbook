@@ -9,8 +9,6 @@ mod toolbar;
 mod util;
 mod zoom;
 
-use std::time::Instant;
-
 use self::history::History;
 use self::zoom::handle_zoom_input;
 use crate::tab::svg_editor::toolbar::Toolbar;
