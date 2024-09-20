@@ -642,7 +642,7 @@ impl Workspace {
                             is_mobile_viewport,
                         )))
                     } else if ext == "svg" {
-                        Ok(TabContent::Svg(SVGEditor::new(&bytes, core.clone(), id)))
+                        Ok(TabContent::Svg(SVGEditor::new(&bytes, &ctx, core.clone(), id)))
                     } else if (ext == "md" || ext == "txt") && !tab_created {
                         Ok(TabContent::MergeMarkdown { hmac, content: bytes })
                     } else if ext == "md" || ext == "txt" {
