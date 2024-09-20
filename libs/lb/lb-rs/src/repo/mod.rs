@@ -71,7 +71,9 @@ impl Lb {
     }
 
     pub async fn begin_tx(&self) -> LbTx<'_> {
-        let mut guard = time::timeout(Duration::from_secs(1), self.db.write()).await.unwrap();
+        let mut guard = time::timeout(Duration::from_secs(1), self.db.write())
+            .await
+            .unwrap();
         let tx = guard.begin_transaction().unwrap();
 
         LbTx { guard, tx }

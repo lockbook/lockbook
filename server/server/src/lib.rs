@@ -7,8 +7,8 @@ use std::env;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
-use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
 use lb_rs::logic::{pubkey, SharedError};
+use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
 use libsecp256k1::PublicKey;
 use semver::Version;
 use serde::{Deserialize, Serialize};

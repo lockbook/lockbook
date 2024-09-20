@@ -86,7 +86,7 @@ async fn rename() {
 async fn delete() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/document").await.unwrap();
-    delete_path(& c1, "/document").await.unwrap();
+    delete_path(&c1, "/document").await.unwrap();
     c1.sync(None).await.unwrap();
 
     let c2 = another_client(&c1).await;
@@ -98,7 +98,7 @@ async fn delete() {
 async fn delete_parent() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document").await.unwrap();
-    delete_path(& c1, "/parent/").await.unwrap();
+    delete_path(&c1, "/parent/").await.unwrap();
     c1.sync(None).await.unwrap();
 
     let c2 = another_client(&c1).await;
@@ -112,7 +112,7 @@ async fn delete_grandparent() {
     c1.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
-    delete_path(& c1, "/grandparent/").await.unwrap();
+    delete_path(&c1, "/grandparent/").await.unwrap();
     c1.sync(None).await.unwrap();
 
     let c2 = another_client(&c1).await;

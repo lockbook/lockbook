@@ -7,9 +7,9 @@ use crate::document_service::DocumentService;
 use crate::utils::get_build_info;
 use crate::{handle_version_header, router_service, verify_auth, ServerError, ServerState};
 use lazy_static::lazy_static;
+use lb_rs::logic::SharedErrorKind;
 use lb_rs::model::api::*;
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
-use lb_rs::logic::SharedErrorKind;
 use prometheus::{
     register_counter_vec, register_histogram_vec, CounterVec, HistogramVec, TextEncoder,
 };

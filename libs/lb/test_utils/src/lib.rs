@@ -24,9 +24,11 @@ pub async fn test_core() -> Lb {
 }
 
 pub async fn test_core_from(core: &Lb) -> Lb {
-    let account_string = core.export_account_private_key().await.unwrap();
+    let account_string = core.export_account_private_key().unwrap();
     let mut core = test_core().await;
-    core.import_account(&account_string, Some(&url())).await.unwrap();
+    core.import_account(&account_string, Some(&url()))
+        .await
+        .unwrap();
     core.sync(None).await.unwrap();
     core
 }
@@ -77,9 +79,12 @@ pub async fn rename_path(c: &Lb, path: &str, new_name: &str) -> Result<(), Strin
 }
 
 pub async fn another_client(c: &Lb) -> Lb {
-    let account_string = c.export_account_private_key().await.unwrap();
+    let account_string = c.export_account_private_key().unwrap();
     let mut new_core = test_core().await;
-    new_core.import_account(&account_string, Some(&url())).await.unwrap();
+    new_core
+        .import_account(&account_string, Some(&url()))
+        .await
+        .unwrap();
     new_core
 }
 

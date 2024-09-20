@@ -79,10 +79,10 @@ impl Lb {
                 }
             }
         }
-        
-        // we could consider releasing the lock here and not hold on to it across the file io. 
+
+        // we could consider releasing the lock here and not hold on to it across the file io.
         // this may become needed in a future where files are fetched from the network
-    
+
         let mut content_futures = FuturesUnordered::new();
 
         for (id, hmac) in doc_ids {

@@ -1,9 +1,9 @@
-use crate::model::api::GetPublicKeyRequest;
-use crate::model::file::{File, ShareMode};
 use crate::logic::file_like::FileLike;
-use crate::model::file_metadata::Owner;
 use crate::logic::tree_like::TreeLike;
+use crate::model::api::GetPublicKeyRequest;
 use crate::model::errors::{LbError, LbResult};
+use crate::model::file::{File, ShareMode};
+use crate::model::file_metadata::Owner;
 use crate::Lb;
 use libsecp256k1::PublicKey;
 use uuid::Uuid;

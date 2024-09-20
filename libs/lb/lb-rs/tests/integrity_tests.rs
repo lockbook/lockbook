@@ -1,9 +1,9 @@
 use lb_rs::logic::file_like::FileLike;
-use lb_rs::model::file_metadata::FileType::Document;
 use lb_rs::logic::secret_filename::SecretFileName;
 use lb_rs::logic::tree_like::TreeLike;
 use lb_rs::model::errors::TestRepoError::*;
 use lb_rs::model::errors::Warning::*;
+use lb_rs::model::file_metadata::FileType::Document;
 use rand::Rng;
 use test_utils::*;
 
@@ -72,7 +72,7 @@ async fn test_invalid_file_name_slash() {
     let mut doc = tree.find(&doc.id).unwrap().clone();
     doc.timestamped_value.value.name = new_name;
     tree.stage(Some(doc)).promote().unwrap();
-    
+
     tx.end();
 
     assert_matches!(core.test_repo_integrity().await, Err(FileNameContainsSlash(_)));

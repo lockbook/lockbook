@@ -1,9 +1,9 @@
 pub mod compression_service;
 pub mod core_ops;
-pub mod file_like;
-pub mod feature_flag;
 pub mod core_tree;
 pub mod crypto;
+pub mod feature_flag;
+pub mod file_like;
 pub mod filename;
 pub mod lazy;
 pub mod path_ops;

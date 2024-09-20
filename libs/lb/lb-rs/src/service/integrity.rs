@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use crate::logic::file_like::FileLike;
-use crate::model::file_metadata::Owner;
 use crate::logic::tree_like::TreeLike;
+use crate::model::file_metadata::Owner;
 
 use crate::model::errors::{TestRepoError, Warning};
 use crate::Lb;

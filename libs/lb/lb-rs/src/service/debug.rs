@@ -1,16 +1,16 @@
 use crate::model::clock;
 use crate::model::errors::LbResult;
-use crate::{get_code_version, service::logging::LOG_FILE};
 use crate::Lb;
+use crate::{get_code_version, service::logging::LOG_FILE};
 use basic_human_duration::ChronoHumanDuration;
 use serde::Serialize;
-use time::Duration;
 use std::env;
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
     path::PathBuf,
 };
+use time::Duration;
 
 #[derive(Serialize)]
 pub struct DebugInfo {

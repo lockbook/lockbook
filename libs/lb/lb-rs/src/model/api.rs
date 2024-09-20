@@ -1,3 +1,10 @@
+use crate::logic::crypto::*;
+use crate::logic::server_file::ServerFile;
+use crate::logic::signed_file::SignedFile;
+use crate::logic::ValidationFailure;
+use crate::model::account::Account;
+use crate::model::account::Username;
+use crate::model::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
 use http::Method;
 use libsecp256k1::PublicKey;
 use serde::de::DeserializeOwned;
@@ -6,13 +13,6 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::str::FromStr;
 use uuid::Uuid;
-use crate::model::account::Account;
-use crate::model::account::Username;
-use crate::logic::crypto::*;
-use crate::model::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
-use crate::logic::server_file::ServerFile;
-use crate::logic::signed_file::SignedFile;
-use crate::logic::ValidationFailure;
 
 pub const FREE_TIER_USAGE_SIZE: u64 = 1000000;
 pub const PREMIUM_TIER_USAGE_SIZE: u64 = 30000000000;

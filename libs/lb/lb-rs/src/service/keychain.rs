@@ -1,4 +1,8 @@
-use crate::{model::account::Account, model::errors::{CoreError, LbResult}, Lb};
+use crate::{
+    model::account::Account,
+    model::errors::{CoreError, LbResult},
+    Lb,
+};
 use libsecp256k1::PublicKey;
 use tokio::sync::OnceCell;
 

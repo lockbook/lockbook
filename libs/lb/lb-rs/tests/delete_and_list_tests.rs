@@ -1,6 +1,6 @@
-use lb_rs::model::file_metadata::FileType;
 use lb_rs::logic::path_ops::Filter;
 use lb_rs::model::errors::CoreError;
+use lb_rs::model::file_metadata::FileType;
 use test_utils::*;
 
 #[tokio::test]

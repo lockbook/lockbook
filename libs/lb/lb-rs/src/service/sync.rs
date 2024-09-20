@@ -1,23 +1,23 @@
-use std::collections::{hash_map, HashMap, HashSet};
-use std::fmt::{Display, Formatter};
 use super::network::ApiError;
+use crate::logic::file_like::FileLike;
+use crate::logic::filename::{DocumentType, NameComponents};
+use crate::logic::signed_file::SignedFile;
+use crate::logic::staged::StagedTreeLikeMut;
+use crate::logic::tree_like::TreeLike;
+use crate::logic::{symkey, SharedErrorKind, ValidationFailure};
 use crate::model::access_info::UserAccessMode;
 use crate::model::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
     GetUsernameError, GetUsernameRequest, UpsertRequest,
 };
-use crate::model::file::ShareMode;
-use crate::logic::file_like::FileLike;
-use crate::model::file_metadata::{FileDiff, FileType, Owner};
-use crate::logic::filename::{DocumentType, NameComponents};
-use crate::logic::signed_file::SignedFile;
-use crate::logic::staged::StagedTreeLikeMut;
-use crate::logic::tree_like::TreeLike;
-use crate::model::work_unit::WorkUnit;
-use crate::logic::{symkey, SharedErrorKind, ValidationFailure};
 use crate::model::errors::{CoreError, LbResult};
+use crate::model::file::ShareMode;
+use crate::model::file_metadata::{FileDiff, FileType, Owner};
+use crate::model::work_unit::WorkUnit;
 use crate::Lb;
 use serde::Serialize;
+use std::collections::{hash_map, HashMap, HashSet};
+use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
 pub struct SyncContext {
@@ -540,9 +540,12 @@ impl Lb {
 
                                 // todo these accesses are potentially problematic
                                 // maybe not if service/docs is the persion doing network io
-                                let base_document = self.read_document_helper(id, &mut base).await?;
-                                let remote_document = self.read_document_helper(id, &mut remote).await?;
-                                let local_document = self.read_document_helper(id, &mut local).await?;
+                                let base_document =
+                                    self.read_document_helper(id, &mut base).await?;
+                                let remote_document =
+                                    self.read_document_helper(id, &mut remote).await?;
+                                let local_document =
+                                    self.read_document_helper(id, &mut local).await?;
 
                                 match document_type {
                                     DocumentType::Text => {

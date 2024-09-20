@@ -1,5 +1,5 @@
-use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::logic::pubkey;
+use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::model::errors::CoreError;
 use test_utils::*;
 
@@ -128,7 +128,10 @@ async fn import_account_account_exists() {
     let account_string = core.export_account_private_key().unwrap();
 
     assert!(matches!(
-        core.import_account(&account_string, Some(&url())).await.unwrap_err().kind,
+        core.import_account(&account_string, Some(&url()))
+            .await
+            .unwrap_err()
+            .kind,
         CoreError::AccountExists
     ));
 }
@@ -177,7 +180,7 @@ async fn import_account_nonexistent() {
     tx.db().account.insert(account.clone()).unwrap();
     core2.cache_account(account).await;
 
-    let account_string = core2.export_account_private_key().await.unwrap();
+    let account_string = core2.export_account_private_key().unwrap();
 
     let mut core3 = test_core().await;
     assert!(matches!(
@@ -196,12 +199,12 @@ async fn import_account_public_key_mismatch() {
         let core1 = test_core().await;
         let core2 = test_core().await;
         let core3 = test_core().await;
-        
+
         let account1 = core1
             .create_account(&random_name(), &url(), false)
             .await
             .unwrap();
-        
+
         let mut account2 = core2
             .create_account(&random_name(), &url(), false)
             .await
@@ -236,13 +239,14 @@ async fn export_account() {
 
 #[tokio::test]
 async fn import_account_phrases() {
-    let core1 = test_core();
-    let account1 = core1.create_account(&random_name(), &url(), false).unwrap();
+    let core1 = test_core().await;
+    let account1 = core1.create_account(&random_name(), &url(), false).await.unwrap();
     let account_phrase = core1.export_account_phrase().unwrap();
 
-    let core2 = test_core();
+    let mut core2 = test_core().await;
     let account2 = core2
         .import_account(&account_phrase, Some(&account1.api_url))
+        .await
         .unwrap();
 
     assert_eq!(account1.private_key.serialize(), account2.private_key.serialize());

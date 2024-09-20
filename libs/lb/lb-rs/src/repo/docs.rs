@@ -1,4 +1,7 @@
-use crate::{logic::{crypto::EncryptedDocument, SharedErrorKind, SharedResult}, model::{core_config::Config, file_metadata::DocumentHmac}};
+use crate::{
+    logic::{crypto::EncryptedDocument, SharedErrorKind, SharedResult},
+    model::{core_config::Config, file_metadata::DocumentHmac},
+};
 use std::{
     io::ErrorKind,
     path::{Path, PathBuf},

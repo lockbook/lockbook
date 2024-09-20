@@ -2,9 +2,9 @@ use std::cmp::Ordering;
 
 use crate::Actions::*;
 use indicatif::{ProgressBar, ProgressStyle};
+use lb_rs::model::errors::{CoreError, LbError};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType::{Document, Folder};
-use lb_rs::model::errors::{CoreError, LbError};
 use lb_rs::Lb;
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::StdRng;
@@ -253,7 +253,10 @@ async fn create_clients() -> Vec<Lb> {
     let account_string = cores[0].export_account_private_key().unwrap();
 
     for client in &mut cores[1..] {
-        client.import_account(&account_string, Some(&url())).await.unwrap();
+        client
+            .import_account(&account_string, Some(&url()))
+            .await
+            .unwrap();
         client.sync(None).await.unwrap();
     }
     cores

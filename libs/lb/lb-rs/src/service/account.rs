@@ -1,6 +1,8 @@
 use crate::logic::file_like::FileLike;
 use crate::model::account::{Account, MAX_USERNAME_LENGTH};
-use crate::model::api::{DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequest};
+use crate::model::api::{
+    DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequest,
+};
 use crate::model::errors::{core_err_unexpected, CoreError, LbResult};
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::{Lb, DEFAULT_API_LOCATION};
@@ -73,7 +75,8 @@ impl Lb {
                 return self.import_account_private_key_v1(account).await;
             } else if let Ok(key) = SecretKey::parse_slice(&key) {
                 return self
-                    .import_account_private_key_v2(key, api_url.unwrap_or(DEFAULT_API_LOCATION)).await;
+                    .import_account_private_key_v2(key, api_url.unwrap_or(DEFAULT_API_LOCATION))
+                    .await;
             }
         }
 
@@ -84,7 +87,8 @@ impl Lb {
             .try_into()
             .map_err(|_| CoreError::AccountStringCorrupted)?;
 
-        self.import_account_phrase(phrase, api_url.unwrap_or(DEFAULT_API_LOCATION)).await
+        self.import_account_phrase(phrase, api_url.unwrap_or(DEFAULT_API_LOCATION))
+            .await
     }
 
     pub async fn import_account_private_key_v1(&mut self, account: Account) -> LbResult<Account> {
@@ -133,7 +137,8 @@ impl Lb {
         &mut self, phrase: [&str; 24], api_url: &str,
     ) -> LbResult<Account> {
         let private_key = Account::phrase_to_private_key(phrase)?;
-        self.import_account_private_key_v2(private_key, api_url).await
+        self.import_account_private_key_v2(private_key, api_url)
+            .await
     }
 
     pub fn export_account_private_key(&self) -> LbResult<String> {

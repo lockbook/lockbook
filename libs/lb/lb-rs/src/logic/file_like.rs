@@ -2,11 +2,11 @@ use std::fmt::Debug;
 
 use uuid::Uuid;
 
-use crate::model::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMode};
-use crate::model::file_metadata::{DocumentHmac, FileMetadata, FileType, Owner};
 use crate::logic::secret_filename::SecretFileName;
 use crate::logic::server_file::ServerFile;
 use crate::logic::signed_file::SignedFile;
+use crate::model::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMode};
+use crate::model::file_metadata::{DocumentHmac, FileMetadata, FileType, Owner};
 
 pub trait FileLike: PartialEq + Debug + Clone + AsRef<FileMetadata> {
     fn id(&self) -> &Uuid;

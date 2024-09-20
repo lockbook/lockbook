@@ -1,7 +1,7 @@
-use crate::model::file::File;
 use crate::logic::path_ops::Filter;
 use crate::logic::tree_like::TreeLike;
 use crate::model::errors::{CoreError, LbResult};
+use crate::model::file::File;
 use crate::Lb;
 use uuid::Uuid;
 

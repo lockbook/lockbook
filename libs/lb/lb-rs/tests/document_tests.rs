@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
-use lb_rs::{logic::crypto::AESEncrypted, repo::docs::AsyncDocs};
 use lb_rs::logic::symkey;
+use lb_rs::{logic::crypto::AESEncrypted, repo::docs::AsyncDocs};
 use test_utils::{self, test_config};
 
 #[tokio::test]
@@ -34,7 +34,8 @@ async fn insert_get() {
 
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    docs.insert(id, Some(Default::default()), &document).await
+    docs.insert(id, Some(Default::default()), &document)
+        .await
         .unwrap();
     let result = docs.get(id, Some(Default::default())).await.unwrap();
 
@@ -56,7 +57,8 @@ async fn insert_get_different_hmac() {
             0, 0, 0,
         ]),
         &document,
-    ).await
+    )
+    .await
     .unwrap();
     let result = docs
         .maybe_get(
@@ -66,7 +68,7 @@ async fn insert_get_different_hmac() {
                 0, 0, 0, 1,
             ]),
         )
-            .await
+        .await
         .unwrap();
 
     assert_eq!(result, None);
@@ -80,11 +82,13 @@ async fn insert_get_overwrite_different_source() {
 
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    docs.insert(id, Some(Default::default()), &document).await
+    docs.insert(id, Some(Default::default()), &document)
+        .await
         .unwrap();
     let (id_2, document_2) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_2").into_bytes()).unwrap());
-    docs.insert(id_2, Some(Default::default()), &document_2).await
+    docs.insert(id_2, Some(Default::default()), &document_2)
+        .await
         .unwrap();
     let result = docs.get(id, Some(Default::default())).await.unwrap();
 
@@ -100,7 +104,8 @@ async fn insert_get_all() {
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
     docs.insert(id, Some(Default::default()), &document)
-        .await.unwrap();
+        .await
+        .unwrap();
     let (id_2, document_2) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_2").into_bytes()).unwrap());
     docs.insert(id_2, Some(Default::default()), &document_2)

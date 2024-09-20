@@ -1,11 +1,11 @@
-use crate::model::access_info::UserAccessMode;
 use crate::logic::file_like::FileLike;
-use crate::model::file_metadata::{Diff, FileDiff, FileType, Owner};
 use crate::logic::filename::MAX_ENCRYPTED_FILENAME_LENGTH;
 use crate::logic::lazy::LazyTree;
 use crate::logic::staged::StagedTreeLike;
 use crate::logic::tree_like::TreeLike;
 use crate::logic::{SharedErrorKind, SharedResult, ValidationFailure};
+use crate::model::access_info::UserAccessMode;
+use crate::model::file_metadata::{Diff, FileDiff, FileType, Owner};
 use std::collections::{HashMap, HashSet};
 
 pub fn file_name(name: &str) -> SharedResult<()> {

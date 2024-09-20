@@ -1,12 +1,12 @@
-use crate::model::clock::get_time;
 use crate::logic::file_like::FileLike;
-use crate::model::file_metadata::FileDiff;
 use crate::logic::lazy::{LazyStaged1, LazyTree};
 use crate::logic::server_file::{IntoServerFile, ServerFile};
 use crate::logic::server_tree::ServerTree;
 use crate::logic::signed_file::SignedFile;
 use crate::logic::tree_like::TreeLike;
 use crate::logic::{SharedErrorKind, SharedResult};
+use crate::model::clock::get_time;
+use crate::model::file_metadata::FileDiff;
 
 type LazyServerStaged1<'a> = LazyStaged1<ServerTree<'a>, Vec<ServerFile>>;
 
