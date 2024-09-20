@@ -125,10 +125,10 @@ async fn import_account_account_exists() {
     core.create_account(&random_name(), &url(), false)
         .await
         .unwrap();
-    let account_string = core.export_account().await.unwrap();
+    let account_string = core.export_account_private_key().unwrap();
 
     assert!(matches!(
-        core.import_account(&account_string).await.unwrap_err().kind,
+        core.import_account(&account_string, Some(&url())).await.unwrap_err().kind,
         CoreError::AccountExists
     ));
 }
@@ -138,7 +138,7 @@ async fn import_account_corrupted() {
     let mut core = test_core().await;
 
     assert!(matches!(
-        core.import_account("clearly a bad account string")
+        core.import_account("clearly a bad account string", Some(&url()))
             .await
             .unwrap_err()
             .kind,
@@ -152,7 +152,7 @@ async fn import_account_corrupted_base64() {
 
     base64::decode("clearlyabadaccountstring").unwrap();
     assert!(matches!(
-        core.import_account("clearlyabadaccountstring")
+        core.import_account("clearlyabadaccountstring", Some(&url()))
             .await
             .unwrap_err()
             .kind,
@@ -177,12 +177,12 @@ async fn import_account_nonexistent() {
     tx.db().account.insert(account.clone()).unwrap();
     core2.cache_account(account).await;
 
-    let account_string = core2.export_account().await.unwrap();
+    let account_string = core2.export_account_private_key().await.unwrap();
 
     let mut core3 = test_core().await;
     assert!(matches!(
         core3
-            .import_account(&account_string)
+            .import_account(&account_string, Some(&url()))
             .await
             .unwrap_err()
             .kind,
@@ -209,14 +209,14 @@ async fn import_account_public_key_mismatch() {
         account2.username = account1.username;
 
         core3.cache_account(account2).await;
-        core3.export_account().await.unwrap()
+        core3.export_account_private_key().unwrap()
     };
 
     let mut core4 = test_core().await;
 
     assert!(matches!(
         core4
-            .import_account(&bad_account_string)
+            .import_account(&bad_account_string, Some(&url()))
             .await
             .unwrap_err()
             .kind,
@@ -230,8 +230,22 @@ async fn export_account() {
     core.create_account(&random_name(), &url(), false)
         .await
         .unwrap();
-    core.export_account().await.unwrap();
-    core.export_account_qr().await.unwrap();
+    core.export_account_private_key().unwrap();
+    core.export_account_qr().unwrap();
+}
+
+#[tokio::test]
+async fn import_account_phrases() {
+    let core1 = test_core();
+    let account1 = core1.create_account(&random_name(), &url(), false).unwrap();
+    let account_phrase = core1.export_account_phrase().unwrap();
+
+    let core2 = test_core();
+    let account2 = core2
+        .import_account(&account_phrase, Some(&account1.api_url))
+        .unwrap();
+
+    assert_eq!(account1.private_key.serialize(), account2.private_key.serialize());
 }
 
 #[tokio::test]

@@ -350,7 +350,6 @@ struct SelectFolderTextFieldWrapper: NSViewRepresentable {
             }
         }
     }
-
 }
 
 class SelectFolderTextField: NSTextField {

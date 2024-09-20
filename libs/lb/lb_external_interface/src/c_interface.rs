@@ -115,7 +115,7 @@ pub extern "C" fn logout_and_exit() -> ! {
 #[no_mangle]
 pub unsafe extern "C" fn import_account(account_string: *const c_char) -> *const c_char {
     c_string(match static_state::get() {
-        Ok(core) => translate(core.import_account(&str_from_ptr(account_string))),
+        Ok(core) => translate(core.import_account(&str_from_ptr(account_string), None)),
         e => translate(e.map(|_| ())),
     })
 }

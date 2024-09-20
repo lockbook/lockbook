@@ -1,6 +1,6 @@
 [package]
 name = "lb_external_interface"
-version = "0.9.7"
+version = "0.9.9"
 edition = "2021"
 
 [lib]

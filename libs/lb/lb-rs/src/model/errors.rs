@@ -87,6 +87,9 @@ impl Display for CoreError {
             CoreError::InvalidAuthDetails => {
                 write!(f, "our server failed to authenticate your request, please try again")
             }
+            CoreError::KeyPhraseInvalid => {
+                write!(f, "your private key phrase is wrong")
+            }
             CoreError::LinkInSharedFolder => {
                 write!(f, "you cannot move a link into a shared folder")
             }
@@ -157,6 +160,7 @@ impl From<SharedError> for LbError {
             SharedErrorKind::InsufficientPermission => CoreError::InsufficientPermission,
             SharedErrorKind::ShareNonexistent => CoreError::ShareNonexistent,
             SharedErrorKind::DuplicateShare => CoreError::ShareAlreadyExists,
+            SharedErrorKind::KeyPhraseInvalid => CoreError::KeyPhraseInvalid,
             SharedErrorKind::ValidationFailure(failure) => match failure {
                 ValidationFailure::Cycle(_) => CoreError::FolderMovedIntoSelf,
                 ValidationFailure::PathConflict(_) => CoreError::PathTaken,
@@ -278,6 +282,7 @@ pub enum CoreError {
     InsufficientPermission,
     InvalidPurchaseToken,
     InvalidAuthDetails,
+    KeyPhraseInvalid,
     LinkInSharedFolder,
     LinkTargetIsOwned,
     LinkTargetNonexistent,

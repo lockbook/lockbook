@@ -28,11 +28,13 @@ mod ip_tests {
         let server = InProcess::init(test_config(), Default::default());
         let core1 = CoreIP::init_in_process(&test_config(), server.clone());
         let core2 = CoreIP::init_in_process(&test_config(), server);
+        let url = "unused af";
+
         core1
-            .create_account(&random_name(), "unused af", false)
+            .create_account(&random_name(), Some(url), false)
             .unwrap();
         core2
-            .import_account(&core1.export_account().unwrap())
+            .import_account(&core1.export_account_private_key().unwrap(), Some(url))
             .unwrap();
         core2.sync(None).await.unwrap();
 
@@ -53,12 +55,13 @@ mod ip_tests {
             let server = InProcess::init(test_config(), Default::default());
             let core1 = CoreIP::init_in_process(&test_config(), server.clone());
             let core2 = CoreIP::init_in_process(&test_config(), server.clone());
+            let url = "unused af";
 
             core1
-                .create_account(&random_name(), "unused af", false)
+                .create_account(&random_name(), "unused af", Some(url))
                 .unwrap();
             core2
-                .import_account(&core1.export_account().unwrap())
+                .import_account(&core1.export_account_private_key().unwrap(), Some(url))
                 .unwrap();
             core2.sync(None).await.unwrap();
 

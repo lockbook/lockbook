@@ -21,6 +21,7 @@ pub struct Workspace {
 
     pub tabs: Vec<Tab>,
     pub active_tab: usize,
+    active_tab_changed: bool,
     pub backdrop: Image<'static>,
 
     pub ctx: Context,
@@ -97,6 +98,7 @@ impl Workspace {
             cfg,
             tabs: vec![],
             active_tab: 0,
+            active_tab_changed: false,
             backdrop: Image::new(egui::include_image!("../lockbook-backdrop.png")),
             ctx: ctx.clone(),
             core: core.clone(),
@@ -133,6 +135,7 @@ impl Workspace {
                 .iter()
                 .position(|tab| tab.id == active_tab_id)
                 .unwrap_or(0);
+            self.active_tab_changed = true;
         }
     }
 
@@ -158,6 +161,7 @@ impl Workspace {
                 self.tabs[i] = new_tab;
                 if make_active {
                     self.active_tab = i;
+                    self.active_tab_changed = true;
                 }
                 return;
             }
@@ -168,6 +172,7 @@ impl Workspace {
         self.tabs.push(new_tab);
         if make_active {
             self.active_tab = self.tabs.len() - 1;
+            self.active_tab_changed = true;
         }
     }
 
@@ -221,6 +226,7 @@ impl Workspace {
         for (i, tab) in self.tabs.iter().enumerate() {
             if tab.id == id {
                 self.active_tab = i;
+                self.active_tab_changed = true;
                 return true;
             }
         }
@@ -233,6 +239,7 @@ impl Workspace {
         }
         let n_tabs = self.tabs.len();
         self.active_tab = if i == 9 || i >= n_tabs { n_tabs - 1 } else { i - 1 };
+        self.active_tab_changed = true;
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
@@ -431,6 +438,8 @@ impl Workspace {
     }
 
     fn show_tab_strip(&mut self, ui: &mut egui::Ui) {
+        let active_tab_changed = self.active_tab_changed;
+        self.active_tab_changed = false;
         ui.horizontal(|ui| {
             egui::ScrollArea::horizontal()
                 .max_width(ui.available_width())
@@ -439,7 +448,7 @@ impl Workspace {
                         .tabs
                         .iter_mut()
                         .enumerate()
-                        .map(|(i, t)| (tab_label(ui, t, self.active_tab == i)))
+                        .map(|(i, t)| tab_label(ui, t, self.active_tab == i, active_tab_changed))
                         .collect::<Vec<Option<TabLabelResponse>>>()
                         .iter()
                         .enumerate()
@@ -474,6 +483,7 @@ impl Workspace {
                                     } else {
                                         self.tabs[i].rename = None;
                                         self.active_tab = i;
+                                        self.active_tab_changed = true;
                                         self.ctx.send_viewport_cmd(ViewportCommand::Title(
                                             self.tabs[i].name.clone(),
                                         ));
@@ -635,6 +645,7 @@ impl Workspace {
         if self.active_tab >= n_tabs && n_tabs > 0 {
             self.active_tab = n_tabs - 1;
         }
+        self.active_tab_changed = true;
     }
 
     fn process_keys(&mut self) {
@@ -663,6 +674,7 @@ impl Workspace {
         }
 
         // Ctrl-{1-9} to easily navigate tabs (9 will always go to the last tab).
+        let mut set_title = None;
         self.ctx.clone().input_mut(|input| {
             for i in 1..10 {
                 if input.consume_key_exact(COMMAND, NUM_KEYS[i - 1]) {
@@ -679,13 +691,16 @@ impl Workspace {
                     if let Some((name, id)) =
                         self.current_tab().map(|tab| (tab.name.clone(), tab.id))
                     {
-                        self.ctx.send_viewport_cmd(ViewportCommand::Title(name));
+                        set_title = Some(name);
                         self.out.selected_file = Some(id);
                     };
                     break;
                 }
             }
         });
+        if let Some(title) = set_title {
+            self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
+        }
     }
 
     pub fn process_updates(&mut self) {
@@ -801,7 +816,9 @@ enum TabLabelResponse {
     Renamed(String),
 }
 
-fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabelResponse> {
+fn tab_label(
+    ui: &mut egui::Ui, t: &mut Tab, is_active: bool, active_tab_changed: bool,
+) -> Option<TabLabelResponse> {
     let mut lbl_resp = None;
 
     let padding = egui::vec2(15.0, 15.0);
@@ -816,6 +833,10 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
     let h = text.size().y + padding.y * 2.0;
 
     let (rect, resp) = ui.allocate_exact_size((w, h).into(), egui::Sense::hover());
+
+    if is_active && active_tab_changed {
+        resp.scroll_to_me(None);
+    }
 
     if ui.is_rect_visible(rect) {
         let text_color = ui.style().interact(&resp).text_color();

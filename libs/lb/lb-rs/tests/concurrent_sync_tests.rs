@@ -21,7 +21,7 @@ async fn test_sync_concurrently() {
     let mut core1 = Lb::init(test_config()).await.unwrap();
     let core2 = core1.clone();
     core1
-        .import_account(&core.export_account().await.unwrap())
+        .import_account(&core.export_account_private_key().await.unwrap(), Some(&url()))
         .await
         .unwrap();
     let th1 = tokio::spawn(async move {

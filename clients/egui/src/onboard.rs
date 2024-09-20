@@ -249,7 +249,7 @@ impl OnboardScreen {
 
         thread::spawn(move || {
             if let Err(err) = core
-                .import_account(&key)
+                .import_account(&key, None)
                 .map_err(|err| format!("{:?}", err))
             {
                 tx.send(Update::AccountImported(Some(err))).unwrap();

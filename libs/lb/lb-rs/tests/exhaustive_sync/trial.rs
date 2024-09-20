@@ -95,7 +95,7 @@ impl Trial {
                 let device = CoreIP::init_in_process(&test_config(), server.clone());
                 if let Some(ref account_string) = maybe_account_string {
                     device
-                        .import_account(account_string)
+                        .import_account(account_string, Some(&url()))
                         .map_err(|err| Failed(format!("{:#?}", err)))?;
                     device
                         .sync(None)
@@ -104,7 +104,7 @@ impl Trial {
                     device
                         .create_account(&usernames[user_index], &url(), false)
                         .map_err(|err| Failed(format!("failed to create account: {:#?}", err)))?;
-                    maybe_account_string = Some(device.export_account().unwrap());
+                    maybe_account_string = Some(device.export_account_private_key().unwrap());
                 }
                 devices_by_user.push(device);
             }

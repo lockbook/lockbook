@@ -250,10 +250,10 @@ async fn create_clients() -> Vec<Lb> {
         .create_account(&random_name(), &url(), false)
         .await
         .unwrap();
-    let account_string = cores[0].export_account().await.unwrap();
+    let account_string = cores[0].export_account_private_key().unwrap();
 
     for client in &mut cores[1..] {
-        client.import_account(&account_string).await.unwrap();
+        client.import_account(&account_string, Some(&url())).await.unwrap();
         client.sync(None).await.unwrap();
     }
     cores
