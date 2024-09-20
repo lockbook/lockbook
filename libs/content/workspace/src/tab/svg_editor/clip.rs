@@ -1,3 +1,4 @@
+use lb_rs::Uuid;
 use resvg::usvg::{AspectRatio, NonZeroRect, Transform, ViewBox};
 
 use crate::tab::{ClipContent, ExtendedInput as _};
@@ -25,7 +26,7 @@ impl SVGEditor {
                                     r.pointer.hover_pos().unwrap_or(self.inner_rect.center())
                                 });
                                 self.buffer.elements.insert(
-                                    self.toolbar.pen.current_id.to_string(),
+                                    Uuid::new_v4(),
                                     crate::tab::svg_editor::parser::Element::Image(
                                         crate::tab::svg_editor::parser::Image {
                                             data: resvg::usvg::ImageKind::PNG(data.into()),
@@ -49,7 +50,6 @@ impl SVGEditor {
                                         },
                                     ),
                                 );
-                                self.toolbar.pen.current_id += 1;
                             }
                             ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
                         }

@@ -2,7 +2,9 @@ use resvg::usvg::Transform;
 
 use super::{parser, Buffer};
 
-pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut parser::Buffer) {
+pub fn handle_zoom_input(
+    ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut parser::Buffer,
+) -> bool {
     let zoom_delta = ui.input(|r| r.zoom_delta());
     let is_zooming = zoom_delta != 1.0;
 
@@ -27,7 +29,7 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
             if working_rect.contains(cp) {
                 cp
             } else {
-                return; // todo: check this doesn't break zoom on touch devices
+                return false; // todo: check this doesn't break zoom on touch devices
             }
         }
         None => egui::Pos2::ZERO,
@@ -53,7 +55,9 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
         for el in buffer.elements.values_mut() {
             el.transform(t);
         }
+        return true;
     }
+    false
 }
 
 pub fn zoom_percentage_to_transform(

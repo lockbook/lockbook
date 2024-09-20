@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;
 
@@ -79,15 +81,38 @@ pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
         max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
     }
 }
+pub fn rect_to_bb(rect: egui::Rect) -> [DVec2; 2] {
+    [
+        DVec2 { x: rect.left().into(), y: rect.top().into() },
+        DVec2 { x: rect.right().into(), y: rect.bottom().into() },
+    ]
+}
 
-pub fn get_current_touch_id(ui: &mut egui::Ui) -> Option<egui::TouchId> {
+pub fn get_event_touch_id(event: &egui::Event) -> Option<egui::TouchId> {
+    if let egui::Event::Touch { device_id: _, id, phase: _, pos: _, force: _ } = event {
+        Some(*id)
+    } else {
+        None
+    }
+}
+
+pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
+    let mut custom_multi_touch = false;
     ui.input(|r| {
-        r.events.iter().find_map(move |event| {
-            if let egui::Event::Touch { device_id: _, id, phase: _, pos: _, force: _ } = event {
-                Some(*id)
-            } else {
-                None
+        if r.multi_touch().is_some() {
+            custom_multi_touch = true;
+            return;
+        }
+        let mut touch_ids = HashSet::new();
+        for e in r.events.iter() {
+            if let egui::Event::Touch { device_id: _, id, phase: _, pos: _, force: _ } = e {
+                touch_ids.insert(id.0);
+                if touch_ids.len() > 1 {
+                    custom_multi_touch = true;
+                    break;
+                }
             }
-        })
-    })
+        }
+    });
+    custom_multi_touch
 }

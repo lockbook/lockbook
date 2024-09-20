@@ -3,12 +3,14 @@ use std::{collections::HashMap, fmt::Write, path::PathBuf, str::FromStr, sync::A
 use bezier_rs::{Bezier, Identifier, Subpath};
 use egui::TextureHandle;
 use glam::{DAffine2, DMat2, DVec2};
-use lb_rs::Uuid;
+use lb_rs::{base64, Uuid};
 use resvg::tiny_skia::Point;
 use resvg::usvg::{
     self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, Options, Paint, Text, Transform,
     Visibility,
 };
+use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 use crate::theme::palette::ThemePalette;
 
@@ -16,6 +18,7 @@ use super::selection::u_transform_to_bezier;
 use super::SVGEditor;
 
 const ZOOM_G_ID: &str = "lb_master_transform";
+const LB_STORE_ID: &str = "lb_pressure_store";
 
 /// A shorthand for [ImageHrefResolver]'s string function.
 pub type ImageHrefStringResolverFn =
@@ -31,9 +34,10 @@ pub struct ManipulatorGroupId;
 
 #[derive(Default)]
 pub struct Buffer {
-    pub elements: HashMap<String, Element>,
+    pub elements: HashMap<Uuid, Element>,
     pub master_transform: Transform,
     pub needs_path_map_update: bool,
+    id_map: HashMap<Uuid, String>,
 }
 
 #[derive(Clone)]
@@ -64,6 +68,15 @@ pub struct DiffState {
     pub data_changed: bool,
 }
 
+impl DiffState {
+    /// is state dirty and require an i/o save
+    pub fn is_dirty(&self) -> bool {
+        self.data_changed
+            || self.delete_changed
+            || self.opacity_changed
+            || self.transformed.is_some()
+    }
+}
 #[derive(Clone, Copy, Debug)]
 pub struct Stroke {
     pub color: (egui::Color32, egui::Color32),
@@ -91,7 +104,8 @@ pub struct Image {
 
 impl Buffer {
     pub fn new(svg: &str, core: &lb_rs::Core, open_file: Uuid) -> Self {
-        let fontdb = usvg::fontdb::Database::default();
+        let mut fontdb = usvg::fontdb::Database::default();
+        fontdb.load_font_data(lb_fonts::ROBOTO_REGULAR.to_vec());
 
         let lb_local_resolver = ImageHrefResolver {
             resolve_data: ImageHrefResolver::default_data_resolver(),
@@ -109,15 +123,27 @@ impl Buffer {
         let utree = maybe_tree.unwrap();
 
         let mut buffer = Buffer::default();
+        let mut store = PressureStore::default();
+
         utree
             .root()
             .children()
             .iter()
             .enumerate()
-            .for_each(|(_, u_el)| parse_child(u_el, &mut buffer));
+            .for_each(|(_, u_el)| parse_child(u_el, &mut buffer, &mut store));
 
+        store.path_pressures.iter().for_each(|(id, pressure)| {
+            if let Some(Element::Path(p)) = buffer.elements.get_mut(id) {
+                p.pressure = Some(pressure.to_vec());
+            }
+        });
         buffer
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct PressureStore {
+    path_pressures: HashMap<Uuid, Vec<f32>>,
 }
 
 impl SVGEditor {
@@ -126,7 +152,7 @@ impl SVGEditor {
     }
 }
 
-fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer) {
+fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PressureStore) {
     match &u_el {
         usvg::Node::Group(group) => {
             if group.id().eq(ZOOM_G_ID) {
@@ -136,14 +162,14 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer) {
                 .children()
                 .iter()
                 .enumerate()
-                .for_each(|(_, u_el)| parse_child(u_el, buffer));
+                .for_each(|(_, u_el)| parse_child(u_el, buffer, store));
         }
 
         usvg::Node::Image(img) => {
             let diff_state = DiffState { data_changed: true, ..Default::default() };
 
-            let id =
-                if img.id().is_empty() { Uuid::new_v4().to_string() } else { img.id().to_owned() };
+            let id = get_internal_id(img.id(), buffer);
+
             buffer.elements.insert(
                 id,
                 Element::Image(Image {
@@ -181,11 +207,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer) {
             }
             let diff_state = DiffState { data_changed: true, ..Default::default() };
 
-            let id = if path.id().is_empty() {
-                Uuid::new_v4().to_string()
-            } else {
-                path.id().to_owned()
-            };
+            let id = get_internal_id(path.id(), buffer);
 
             buffer.elements.insert(
                 id,
@@ -202,8 +224,22 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer) {
                 }),
             );
         }
-        usvg::Node::Text(_) => {}
+        usvg::Node::Text(t) => {
+            if t.id().eq(LB_STORE_ID) {
+                let raw: String = t.chunks().iter().map(|chunk| chunk.text()).collect();
+                let serialized = base64::decode(raw).unwrap();
+                *store = bincode::deserialize(&serialized).unwrap();
+            }
+        }
     }
+}
+
+fn get_internal_id(svg_id: &str, buffer: &mut Buffer) -> Uuid {
+    let uuid = Uuid::new_v4();
+    if !svg_id.is_empty() && buffer.id_map.insert(uuid, svg_id.to_owned()).is_some() {
+        warn!(id = svg_id, "found elements  with duplicate id");
+    }
+    uuid
 }
 
 fn lb_local_resolver(core: &lb_rs::Core, open_file: Uuid) -> ImageHrefStringResolverFn {
@@ -298,7 +334,7 @@ impl ToString for Buffer {
                             stroke.color.0.g(),
                             stroke.color.0.b(),
                             p.opacity,
-                            el.0
+                            self.id_map.get(el.0).unwrap_or(&el.0.to_string())
                         );
                     }
                     if p.data.len() > 1 {
@@ -309,7 +345,7 @@ impl ToString for Buffer {
                 Element::Image(img) => {
                     let image_element = format!(
                         r#" <image id="{}" href="{}" width="{}" height="{}" x="{}" y="{}" />"#,
-                        img.href.clone().unwrap_or_default(),
+                        self.id_map.get(el.0).unwrap_or(&el.0.to_string()),
                         img.href.clone().unwrap_or_default(),
                         img.view_box.rect.width(),
                         img.view_box.rect.height(),
@@ -321,6 +357,33 @@ impl ToString for Buffer {
                 }
                 Element::Text(_) => {}
             }
+        }
+        let path_pressures = self
+            .elements
+            .iter()
+            .filter_map(|(id, el)| {
+                if let Element::Path(p) = el {
+                    if p.deleted {
+                        return None;
+                    }
+                    p.pressure
+                        .as_ref()
+                        .map(|pressure| (id.to_owned(), pressure.to_owned()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let store = PressureStore { path_pressures };
+
+        if let Ok(encoded_store) = bincode::serialize(&store) {
+            let serialized_string = base64::encode(encoded_store);
+            let store_node = format!(
+                r#"<text id="{}" font-family="Roboto">{}</text>"#,
+                LB_STORE_ID, serialized_string
+            );
+            let _ = write!(&mut root, "{}", store_node);
         }
 
         let zoom_level = format!(
@@ -352,6 +415,23 @@ impl Image {
     }
 }
 
+impl Path {
+    pub fn bounding_box(&self) -> egui::Rect {
+        let default_rect = egui::Rect::NOTHING;
+        if self.data.len() < 2 {
+            return default_rect;
+        }
+        let bb = match self.data.bounding_box() {
+            Some(val) => val,
+            None => return default_rect,
+        };
+
+        egui::Rect {
+            min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
+            max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
+        }
+    }
+}
 impl Element {
     pub fn opacity_changed(&self) -> bool {
         match self {
@@ -400,6 +480,14 @@ impl Element {
                 img.transform = img.transform.post_concat(transform);
                 img.apply_transform(transform);
             }
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn bounding_box(&self) -> egui::Rect {
+        match self {
+            Element::Path(p) => p.bounding_box(),
+            Element::Image(image) => image.bounding_box(),
+
             Element::Text(_) => todo!(),
         }
     }

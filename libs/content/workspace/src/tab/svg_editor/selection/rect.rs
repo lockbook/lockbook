@@ -5,7 +5,7 @@ use super::{SelectedElement, SelectionOperation, SelectionResponse};
 use crate::{
     tab::svg_editor::{
         parser::ManipulatorGroupId,
-        util::{bb_to_rect, pointer_intersects_outline},
+        util::{bb_to_rect, pointer_intersects_outline, rect_to_bb},
         Buffer,
     },
     theme::icons::Icon,
@@ -20,25 +20,17 @@ pub struct SelectionRectContainer {
 }
 impl SelectionRectContainer {
     pub fn new(els: &[SelectedElement], buffer: &mut Buffer) -> Option<Self> {
+        if els.is_empty() {
+            return None;
+        }
         let mut container_bb = [DVec2::new(f64::MAX, f64::MAX), DVec2::new(f64::MIN, f64::MIN)];
         let mut children = vec![];
         for el in els.iter() {
-            let bb = match buffer.elements.get(&el.id) {
-                Some(el) => match el {
-                    crate::tab::svg_editor::parser::Element::Path(p) => {
-                        p.data.bounding_box().unwrap()
-                    }
-                    crate::tab::svg_editor::parser::Element::Image(img) => {
-                        let rect = img.bounding_box();
-                        [
-                            DVec2 { x: rect.left().into(), y: rect.top().into() },
-                            DVec2 { x: rect.right().into(), y: rect.bottom().into() },
-                        ]
-                    }
-                    crate::tab::svg_editor::parser::Element::Text(_) => todo!(),
-                },
+            let rect = match buffer.elements.get(&el.id) {
+                Some(el) => el.bounding_box(),
                 None => continue,
             };
+            let bb = rect_to_bb(rect);
 
             if let Some(clipped_rect) = SelectionRect::new(bb) {
                 children.push(clipped_rect);
@@ -86,38 +78,44 @@ impl SelectionRectContainer {
 
     pub fn show_delete_btn(&self, ui: &mut egui::Ui, painter: &egui::Painter) -> bool {
         let delete_toolbar_dim = egui::pos2(20.0, 20.0);
-        let gap = 15.0;
+        let gap_between_btn_and_rect = 15.0;
         let icon_size = 19.0;
 
         let delete_toolbar_rect = egui::Rect {
             min: egui::pos2(
                 self.container.raw.min.x,
-                self.container.raw.min.y - delete_toolbar_dim.y - gap,
+                self.container.raw.min.y - delete_toolbar_dim.y - gap_between_btn_and_rect,
             ),
             max: egui::pos2(
                 self.container.raw.min.x + delete_toolbar_dim.x,
-                self.container.raw.min.y - gap,
+                self.container.raw.min.y - gap_between_btn_and_rect,
             ),
         };
-        ui.allocate_ui_at_rect(delete_toolbar_rect, |ui| {
-            ui.vertical_centered(|ui| {
-                let res = Icon::DELETE
-                    .size(icon_size)
-                    .color(ui.style().visuals.hyperlink_color)
-                    .paint(ui, painter);
-                let rect = res.rect.expand(10.0);
-                painter.circle_filled(
-                    rect.center(),
-                    (rect.left() - rect.center().x).abs(),
-                    ui.style().visuals.hyperlink_color.gamma_multiply(0.1),
-                );
 
-                rect.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default()))
-                    && ui.input(|r| r.pointer.primary_clicked())
-            })
-            .inner
-        })
-        .inner
+        if ui.is_rect_visible(delete_toolbar_rect) {
+            // let text_color = ui.style().interact(&res).text_color();
+            let wrap_width = ui.available_width();
+
+            let icon_pos = egui::pos2(
+                delete_toolbar_rect.min.x,
+                delete_toolbar_rect.center().y - icon_size / 2.0,
+            );
+
+            let icon: egui::WidgetText = (&Icon::DELETE).into();
+            let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
+
+            painter.galley(icon_pos, icon, ui.style().visuals.hyperlink_color);
+
+            let circle_padding = 7.0;
+            painter.circle_filled(
+                delete_toolbar_rect.center(),
+                (delete_toolbar_rect.left() - delete_toolbar_rect.center().x).abs()
+                    + circle_padding,
+                ui.style().visuals.hyperlink_color.gamma_multiply(0.1),
+            );
+        }
+        delete_toolbar_rect.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default()))
+            && ui.input(|r| r.pointer.primary_clicked())
     }
 }
 
