@@ -111,13 +111,9 @@ impl Renderer {
 
         if !self.mesh_cache.is_empty() {
             painter.extend(buffer.elements.iter().rev().filter_map(|(id, _)| {
-                if let Some(shape) = self.mesh_cache.get(id) {
-                    if let egui::Shape::Mesh(m) = shape {
-                        if !m.vertices.is_empty() && !m.indices.is_empty() {
-                            Some(egui::Shape::mesh(m.to_owned()))
-                        } else {
-                            None
-                        }
+                if let Some(egui::Shape::Mesh(m)) = self.mesh_cache.get(id) {
+                    if !m.vertices.is_empty() && !m.indices.is_empty() {
+                        Some(egui::Shape::mesh(m.to_owned()))
                     } else {
                         None
                     }

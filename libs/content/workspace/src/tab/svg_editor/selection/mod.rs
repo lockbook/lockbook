@@ -100,15 +100,8 @@ impl Selection {
             ui.input(|r| r.pointer.primary_clicked())
         };
 
-        let pos_is_inside_canvas = if let Some(p) = pos {
-            if selection_ctx.painter.clip_rect().contains(p) {
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        };
+        let pos_is_inside_canvas =
+            if let Some(p) = pos { selection_ctx.painter.clip_rect().contains(p) } else { false };
 
         if should_rebuild && pos_is_inside_canvas {
             // is cursor inside of a selected element?
