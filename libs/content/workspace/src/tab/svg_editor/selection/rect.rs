@@ -106,11 +106,10 @@ impl SelectionRectContainer {
 
             painter.galley(icon_pos, icon, ui.style().visuals.hyperlink_color);
 
-            let circle_padding = 7.0;
-            painter.circle_filled(
-                delete_toolbar_rect.center(),
-                (delete_toolbar_rect.left() - delete_toolbar_rect.center().x).abs()
-                    + circle_padding,
+            let padding = 7.0;
+            painter.rect_filled(
+                delete_toolbar_rect.expand(padding),
+                egui::Rounding::same(10.0),
                 ui.style().visuals.hyperlink_color.gamma_multiply(0.1),
             );
         }

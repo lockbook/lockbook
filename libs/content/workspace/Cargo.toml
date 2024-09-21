@@ -31,6 +31,7 @@ tld = "2.35.0"
 tldextract = "0.6.0"
 tracing = "0.1.5"
 tracing-test = "0.2.5"
+indexmap = { version = "2.5.0", features = ["rayon"] } 
 
 # todo: maybe move this switch into lb itself
 [target.'cfg(not(target_os = "android"))'.dependencies]

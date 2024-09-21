@@ -110,11 +110,19 @@ impl Renderer {
         }
 
         if !self.mesh_cache.is_empty() {
-            painter.extend(self.mesh_cache.clone().into_values().filter(|shape| {
-                if let egui::Shape::Mesh(m) = shape {
-                    !m.vertices.is_empty() && !m.indices.is_empty()
+            painter.extend(buffer.elements.iter().rev().filter_map(|(id, _)| {
+                if let Some(shape) = self.mesh_cache.get(id) {
+                    if let egui::Shape::Mesh(m) = shape {
+                        if !m.vertices.is_empty() && !m.indices.is_empty() {
+                            Some(egui::Shape::mesh(m.to_owned()))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
                 } else {
-                    true
+                    None
                 }
             }));
         }

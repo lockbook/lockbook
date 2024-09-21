@@ -186,24 +186,32 @@ impl Pen {
 
                     event!(Level::TRACE, "starting a new path");
 
-                    pen_ctx.buffer.elements.insert(
-                        self.current_id,
-                        parser::Element::Path(Path {
-                            data: Subpath::new(vec![], false),
-                            visibility: resvg::usvg::Visibility::Visible,
-                            fill: None,
-                            stroke: Some(stroke),
-                            transform: Transform::identity().post_scale(
-                                pen_ctx.buffer.master_transform.sx,
-                                pen_ctx.buffer.master_transform.sy,
-                            ),
-                            opacity: self.active_opacity,
-                            pressure,
-                            diff_state: DiffState::default(),
-                            deleted: false,
-                        }),
-                    );
+                    // pen_ctx.buffer.elements.insert(
+                    let el = parser::Element::Path(Path {
+                        data: Subpath::new(vec![], false),
+                        visibility: resvg::usvg::Visibility::Visible,
+                        fill: None,
+                        stroke: Some(stroke),
+                        transform: Transform::identity().post_scale(
+                            pen_ctx.buffer.master_transform.sx,
+                            pen_ctx.buffer.master_transform.sy,
+                        ),
+                        opacity: self.active_opacity,
+                        pressure,
+                        diff_state: DiffState::default(),
+                        deleted: false,
+                    });
+                    // );
 
+                    // this is a highlighter insert at top z-index
+                    if self.active_opacity < 1.0 {
+                        pen_ctx
+                            .buffer
+                            .elements
+                            .insert_before(0, self.current_id, el);
+                    } else {
+                        pen_ctx.buffer.elements.insert(self.current_id, el);
+                    }
                     if let Some(parser::Element::Path(p)) =
                         pen_ctx.buffer.elements.get_mut(&self.current_id)
                     {
