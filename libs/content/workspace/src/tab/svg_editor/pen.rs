@@ -1,11 +1,8 @@
 use bezier_rs::{Bezier, Subpath};
-use egui::{TouchId, TouchPhase};
+use egui::{PointerButton, TouchId, TouchPhase};
 use lb_rs::Uuid;
 use resvg::usvg::Transform;
-use std::{
-    collections::VecDeque,
-    time::{Duration, Instant},
-};
+use std::{collections::VecDeque, time::Instant};
 use tracing::{event, trace, warn, Level};
 use tracing_test::traced_test;
 
@@ -95,42 +92,6 @@ impl Pen {
         }
     }
 
-    fn detect_snap(
-        &mut self, path: &Subpath<ManipulatorGroupId>, current_pos: egui::Pos2,
-        master_transform: Transform,
-    ) -> bool {
-        if path.len() < 2 {
-            return false;
-        }
-
-        if let Some(last_pos) = path.iter().last() {
-            let last_pos = last_pos.end();
-            let last_pos = egui::pos2(last_pos.x as f32, last_pos.y as f32);
-
-            let dist_diff = last_pos.distance(current_pos).abs();
-
-            let mut dist_to_trigger_snap = 1.5;
-
-            dist_to_trigger_snap /= master_transform.sx;
-
-            let time_to_trigger_snap = Duration::from_secs(1);
-
-            if dist_diff < dist_to_trigger_snap {
-                if let Some(snap_start) = self.maybe_snap_started {
-                    if Instant::now() - snap_start > time_to_trigger_snap {
-                        self.maybe_snap_started = None;
-                        return true;
-                    }
-                } else {
-                    self.maybe_snap_started = Some(Instant::now());
-                }
-            } else {
-                self.maybe_snap_started = Some(Instant::now());
-            }
-        }
-        false
-    }
-
     /// given a path event mutate state of the current path by building it, canceling it, or ending it.
     fn handle_path_event(&mut self, event: PathEvent, pen_ctx: &mut ToolContext) {
         match event {
@@ -151,10 +112,10 @@ impl Pen {
                         }
                     }
 
-                    if self.detect_snap(&p.data, payload.pos, pen_ctx.buffer.master_transform) {
-                        self.end_path(pen_ctx, true);
-                        return;
-                    }
+                    // if self.detect_snap(&p.data, payload.pos, pen_ctx.buffer.master_transform) {
+                    //     self.end_path(pen_ctx, true);
+                    //     return;
+                    // }
 
                     p.diff_state.data_changed = true;
 
@@ -235,11 +196,7 @@ impl Pen {
     pub fn get_path_events(
         &mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext,
     ) -> Vec<PathEvent> {
-        let input_state = PenPointerInput {
-            is_pointer_released: ui.input(|r| r.pointer.any_released()),
-            pointer_press_origin: ui.input(|r| r.pointer.press_origin()),
-            is_multi_touch: is_multi_touch(ui),
-        };
+        let input_state = PenPointerInput { is_multi_touch: is_multi_touch(ui) };
 
         ui.input(|r| {
             r.events
@@ -280,8 +237,6 @@ impl Pen {
         *pen_ctx.allow_viewport_changes = false;
 
         if let egui::Event::Touch { device_id: _, id, phase, pos, force } = *e {
-            // let (should_end_path, should_draw) = self.decide_event(pen_ctx, pos, input_state);
-
             if phase == TouchPhase::Cancel {
                 trace!("sending cancel stroke");
                 return Some(PathEvent::CancelStroke());
@@ -325,27 +280,25 @@ impl Pen {
         }
 
         if let egui::Event::PointerMoved(pos) = *e {
-            let not_empty_path = if let Some(parser::Element::Path(p)) =
-                pen_ctx.buffer.elements.get(&self.current_id)
-            {
-                !p.data.is_empty()
-            } else {
-                false
-            };
+            if self.path_builder.original_points.is_empty() {
+                return None;
+            }
 
-            let pointer_gone_out_of_canvas = !inner_rect.contains(pos) && not_empty_path;
-
-            let pointer_released_in_canvas =
-                input_state.is_pointer_released && inner_rect.contains(pos);
-
-            let pointer_pressed_and_originated_in_canvas = inner_rect
-                .contains(input_state.pointer_press_origin.unwrap_or_default())
-                && inner_rect.contains(pos);
-
-            if pointer_gone_out_of_canvas || pointer_released_in_canvas {
+            if !inner_rect.contains(pos) {
                 return Some(PathEvent::End);
-            } else if pointer_pressed_and_originated_in_canvas {
+            } else if pen_ctx.buffer.elements.contains_key(&self.current_id) {
                 return Some(PathEvent::Draw(DrawPayload { pos, force: None, id: None }));
+            }
+        }
+        if let egui::Event::PointerButton { pos, button, pressed, modifiers: _ } = *e {
+            if !inner_rect.contains(pos) || button != PointerButton::Primary {
+                return None;
+            }
+
+            if pressed {
+                return Some(PathEvent::Draw(DrawPayload { pos, force: None, id: None }));
+            } else {
+                return Some(PathEvent::End);
             }
         }
 
@@ -355,8 +308,6 @@ impl Pen {
 }
 
 struct PenPointerInput {
-    is_pointer_released: bool,
-    pointer_press_origin: Option<egui::Pos2>,
     is_multi_touch: bool,
 }
 
@@ -667,11 +618,7 @@ fn cancel_touch_ui_event() {
         is_touch_frame: true,
     };
 
-    let input_state = PenPointerInput {
-        is_pointer_released: false,
-        pointer_press_origin: Some(pen_ctx.painter.clip_rect().center()),
-        is_multi_touch: false,
-    };
+    let input_state = PenPointerInput { is_multi_touch: false };
 
     events.iter().for_each(|e| {
         if let Some(path_event) = pen.map_ui_event(e, &mut pen_ctx, &input_state) {
