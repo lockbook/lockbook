@@ -16,7 +16,7 @@ pub fn scale_group_from_center(
 }
 
 pub fn scale_from_center(
-    factor: f32, el: &mut SelectedElement, selected_rect: &SelectionRectContainer,
+    factor: f32, selection: &mut SelectedElement, selected_rect: &SelectionRectContainer,
     buffer: &mut Buffer,
 ) {
     let path: Subpath<ManipulatorGroupId> = Subpath::new_rect(
@@ -30,20 +30,25 @@ pub fn scale_from_center(
         },
     );
 
-    let bb = path.bounding_box().unwrap();
+    let bb = match path.bounding_box() {
+        Some(val) => val,
+        None => return,
+    };
+
     let element_rect = egui::Rect {
         min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
         max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
     };
 
-    if let Some(node) = buffer.elements.get_mut(&el.id) {
-        el.transform = Transform::identity()
+    if let Some(el) = buffer.elements.get_mut(&selection.id) {
+        let transform = Transform::identity()
             .post_scale(factor, factor)
             .post_translate(
                 -(1. - factor) * (element_rect.width() / 2. - element_rect.right()),
                 -(1. - factor) * (element_rect.height() / 2. - element_rect.bottom()),
             );
-        node.transform(el.transform)
+        selection.transform = selection.transform.post_concat(transform);
+        el.transform(transform)
     }
 }
 

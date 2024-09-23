@@ -4,6 +4,7 @@ mod translate;
 
 use bezier_rs::Subpath;
 use glam::{DAffine2, DMat2, DVec2};
+use lb_rs::Uuid;
 use resvg::usvg::Transform;
 
 use crate::tab::svg_editor::selection::scale::snap_scale;
@@ -14,7 +15,9 @@ use self::{
     translate::{detect_translation, end_translation},
 };
 
-use super::{history::History, parser, util::bb_to_rect, Buffer, DeleteElement};
+use super::{
+    history::History, parser, toolbar::ToolContext, util::is_multi_touch, Buffer, DeleteElement,
+};
 
 #[derive(Default)]
 pub struct Selection {
@@ -29,16 +32,13 @@ pub struct Selection {
 
 #[derive(Clone, Debug)]
 struct SelectedElement {
-    id: String,
+    id: Uuid,
     prev_pos: egui::Pos2,
     transform: Transform,
 }
 
 impl Selection {
-    pub fn handle_input(
-        &mut self, ui: &mut egui::Ui, painter: &egui::Painter, buffer: &mut parser::Buffer,
-        history: &mut History,
-    ) {
+    pub fn handle_input(&mut self, ui: &mut egui::Ui, selection_ctx: ToolContext) {
         let pos = ui.ctx().pointer_hover_pos().or(ui.input(|r| {
             r.events.iter().find_map(|event| {
                 if let egui::Event::Touch { device_id: _, id: _, phase: _, pos, force: _ } = event {
@@ -49,24 +49,38 @@ impl Selection {
             })
         }));
 
-        let working_rect = painter.clip_rect();
+        let working_rect = selection_ctx.painter.clip_rect();
+
+        if is_multi_touch(ui) {
+            *selection_ctx.allow_viewport_changes = true;
+
+            self.selection_rect =
+                SelectionRectContainer::new(&self.selected_elements, selection_ctx.buffer);
+            if let Some(s) = &self.selection_rect {
+                s.show(ui, selection_ctx.painter);
+            }
+            self.laso_original_pos = pos;
+            return;
+        }
+
         let mut maybe_selected_el = None;
 
         if let Some(selection_rect) = &self.selection_rect {
-            if selection_rect.show_delete_btn(ui, painter) {
-                self.delete_selection(buffer, history);
+            if selection_rect.show_delete_btn(ui, selection_ctx.painter) {
+                self.delete_selection(selection_ctx.buffer, selection_ctx.history);
                 self.laso_original_pos = None;
                 return;
             }
         }
 
         if matches!(self.current_op, SelectionOperation::Idle) && pos.is_some() {
-            maybe_selected_el = detect_translation(buffer, self.last_pos, pos.unwrap());
+            maybe_selected_el =
+                detect_translation(selection_ctx.buffer, self.last_pos, pos.unwrap());
+
             if maybe_selected_el.is_some() {
                 ui.output_mut(|r| r.cursor_icon = egui::CursorIcon::Grab);
             }
         }
-        println!("{:#?}", maybe_selected_el);
 
         // build up selected elements
         let should_rebuild = if cfg!(target_os = "ios") {
@@ -86,7 +100,7 @@ impl Selection {
             ui.input(|r| r.pointer.primary_clicked())
         };
 
-        if should_rebuild {
+        if should_rebuild && pos.is_some() {
             // is cursor inside of a selected element?
             let pos_over_selected_el = if let Some(r) = &self.selection_rect {
                 r.get_cursor_icon(pos.unwrap()).is_some()
@@ -133,20 +147,19 @@ impl Selection {
                     self.candidate_selected_elements.clear();
 
                     self.laso_rect = Some(rect);
-                    ui.painter().rect_filled(
+                    selection_ctx.painter.rect_filled(
                         rect,
                         egui::Rounding::ZERO,
                         ui.visuals().hyperlink_color.gamma_multiply(0.1),
                     );
                     // if the path bounding box intersects with the laso rect then it's a match
-                    for (id, el) in buffer.elements.iter() {
+                    for (id, el) in selection_ctx.buffer.elements.iter() {
                         if el.deleted() {
                             continue;
                         }
                         let el_intersects_laso = match el {
                             parser::Element::Path(path) => {
-                                let bb = path.data.bounding_box().unwrap();
-                                let path_rect = bb_to_rect(bb);
+                                let path_rect = path.bounding_box();
                                 if self.laso_rect.unwrap().intersects(path_rect) {
                                     let laso_bb = Subpath::new_rect(
                                         glam::DVec2 {
@@ -170,23 +183,30 @@ impl Selection {
                             }
                             parser::Element::Image(img) => {
                                 let img_bb = img.bounding_box();
-                                self.laso_rect.unwrap().contains_rect(img_bb)
-                                    || self.laso_rect.unwrap().intersects(img_bb)
+                                self.laso_rect
+                                    .unwrap_or(egui::Rect::NOTHING)
+                                    .contains_rect(img_bb)
+                                    || self
+                                        .laso_rect
+                                        .unwrap_or(egui::Rect::NOTHING)
+                                        .intersects(img_bb)
                             }
                             parser::Element::Text(_) => todo!(),
                         };
 
                         if el_intersects_laso {
                             self.candidate_selected_elements.push(SelectedElement {
-                                id: id.to_owned(),
+                                id: *id,
                                 prev_pos: pos,
                                 transform: Transform::identity(),
                             });
                         }
                     }
 
-                    self.selection_rect =
-                        SelectionRectContainer::new(&self.candidate_selected_elements, buffer);
+                    self.selection_rect = SelectionRectContainer::new(
+                        &self.candidate_selected_elements,
+                        selection_ctx.buffer,
+                    );
                 }
             } else if ui.input(|r| r.pointer.primary_released()) && self.laso_rect.is_some() {
                 self.selected_elements = self.candidate_selected_elements.clone();
@@ -196,14 +216,15 @@ impl Selection {
         }
 
         if self.laso_rect.is_none() {
-            self.selection_rect = SelectionRectContainer::new(&self.selected_elements, buffer);
+            self.selection_rect =
+                SelectionRectContainer::new(&self.selected_elements, selection_ctx.buffer);
         }
 
         let mut intent = None;
         if let Some(r) = &self.selection_rect {
-            r.show(ui, painter);
+            r.show(ui, selection_ctx.painter);
             if let Some(p) = pos {
-                if painter.clip_rect().contains(p) {
+                if selection_ctx.painter.clip_rect().contains(p) {
                     intent = r.get_cursor_icon(p);
                 }
             }
@@ -211,11 +232,23 @@ impl Selection {
 
         if ui.input(|r| r.pointer.primary_released()) {
             if let Some(p) = pos {
-                end_translation(buffer, history, &mut self.selected_elements, p, true);
+                end_translation(
+                    selection_ctx.buffer,
+                    selection_ctx.history,
+                    &mut self.selected_elements,
+                    p,
+                    true,
+                );
             }
             self.current_op = SelectionOperation::Idle;
         } else if ui.input(|r| r.pointer.primary_clicked()) && pos.is_some() {
-            end_translation(buffer, history, &mut self.selected_elements, pos.unwrap(), false);
+            end_translation(
+                selection_ctx.buffer,
+                selection_ctx.history,
+                &mut self.selected_elements,
+                pos.unwrap(),
+                false,
+            );
         } else if ui.input(|r| r.pointer.primary_down()) {
             if matches!(self.current_op, SelectionOperation::Idle) {
                 if let Some(r) = &mut intent {
@@ -227,12 +260,15 @@ impl Selection {
                 match self.current_op {
                     SelectionOperation::Translation => {
                         self.selected_elements.iter_mut().for_each(|selection| {
-                            if let Some(el) = buffer.elements.get_mut(&selection.id) {
+                            if let Some(el) = selection_ctx.buffer.elements.get_mut(&selection.id) {
                                 let transform = Transform::identity().post_translate(
                                     p.x - selection.prev_pos.x,
                                     p.y - selection.prev_pos.y,
                                 );
                                 selection.transform = selection.transform.post_concat(transform);
+                                selection.transform.sx = 1.0;
+                                selection.transform.sy = 1.0;
+
                                 el.transform(transform);
                             }
 
@@ -245,7 +281,12 @@ impl Selection {
                     | SelectionOperation::NorthScale
                     | SelectionOperation::SouthScale => {
                         if let Some(s_r) = self.selection_rect.as_ref() {
-                            let icon = snap_scale(p, &mut self.selected_elements, s_r, buffer);
+                            let icon = snap_scale(
+                                p,
+                                &mut self.selected_elements,
+                                s_r,
+                                selection_ctx.buffer,
+                            );
                             if let Some(c) = icon {
                                 ui.output_mut(|w| w.cursor_icon = c);
                             }
@@ -276,7 +317,13 @@ impl Selection {
                 .iter_mut()
                 .for_each(|el| el.transform = Transform::identity().post_translate(d.x, d.y));
             if let Some(p) = pos {
-                end_translation(buffer, history, &mut self.selected_elements, p, true);
+                end_translation(
+                    selection_ctx.buffer,
+                    selection_ctx.history,
+                    &mut self.selected_elements,
+                    p,
+                    true,
+                );
             }
         }
 
@@ -291,20 +338,26 @@ impl Selection {
             1.0
         };
 
-        if is_scaling_down || is_scaling_up {
+        if is_scaling_down || is_scaling_up && self.selection_rect.is_some() {
             scale_group_from_center(
                 factor,
                 &mut self.selected_elements,
-                self.selection_rect.as_ref().unwrap(), // todo: remove unwrap cus it can be none
-                buffer,
+                self.selection_rect.as_ref().unwrap(),
+                selection_ctx.buffer,
             );
             if let Some(p) = pos {
-                end_translation(buffer, history, &mut self.selected_elements, p, true);
+                end_translation(
+                    selection_ctx.buffer,
+                    selection_ctx.history,
+                    &mut self.selected_elements,
+                    p,
+                    true,
+                );
             }
         }
 
         if ui.input(|r| r.key_pressed(egui::Key::Backspace)) && !self.selected_elements.is_empty() {
-            self.delete_selection(buffer, history);
+            self.delete_selection(selection_ctx.buffer, selection_ctx.history);
         }
 
         if let Some(p) = pos {
@@ -320,8 +373,8 @@ impl Selection {
                 buffer
                     .elements
                     .iter()
-                    .find(|(id, _el)| id.to_owned().eq(&selection.id));
-                DeleteElement { id: selection.id.clone() }
+                    .find(|(&id, _el)| id.eq(&selection.id));
+                DeleteElement { id: selection.id }
             })
             .collect();
 

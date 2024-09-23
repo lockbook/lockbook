@@ -26,7 +26,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
 
     var pasteBoardEventId: Int = 0
     var pasteboardString: String?
-    var lastKnownTapLocation: (Float, Float)? = nil
 
     var lastFloatingCursorRect: CGRect? = nil
     var floatingCursor: UIView = UIView()
@@ -57,7 +56,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
-        pan.maximumNumberOfTouches  = 0
+        pan.maximumNumberOfTouches = 0
         self.addGestureRecognizer(pan)
 
         // selection support
@@ -110,6 +109,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         addSubview(floatingCursor)
     }
     
+    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
+        mtkView.handleTrackpadScroll(sender)
+    }
+        
     @objc private func longPressGestureStateChanged(_ recognizer: UIGestureRecognizer) {
         switch recognizer.state {
         case .began:
@@ -304,29 +307,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                     self.importContent(.url(url), isPaste: true)
                 }
             }
-        }
-    }
-
-    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
-        if let event = sender {
-            if event.state == .ended || event.state == .cancelled || event.state == .failed {
-                // todo: evaluate fling when desired
-                lastKnownTapLocation = nil
-                return
-            }
-
-            let location = event.translation(in: self)
-
-            let y = Float(location.y)
-            let x = Float(location.x)
-
-            if lastKnownTapLocation == nil {
-                lastKnownTapLocation = (x, y)
-            }
-            scroll_wheel(wsHandle, x - lastKnownTapLocation!.0, y - lastKnownTapLocation!.1)
-
-            lastKnownTapLocation = (x, y)
-            self.mtkView.setNeedsDisplay()
         }
     }
 
@@ -739,10 +719,24 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
 
         isMultipleTouchEnabled = true
 
+        // pen support
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
-
+        
+        // ipad trackpad support
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
+        pan.allowedScrollTypesMask = .all
+        pan.maximumNumberOfTouches = 0
+        self.addGestureRecognizer(pan)
+        
+        let pointerInteraction = UIPointerInteraction(delegate: mtkView)
+        self.addInteraction(pointerInteraction)
+        
         self.isMultipleTouchEnabled = true
+    }
+    
+    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
+        mtkView.handleTrackpadScroll(sender)
     }
 
     public func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
@@ -797,9 +791,10 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
     }
 }
 
-public class iOSMTK: MTKView, MTKViewDelegate {
+public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
     public static let TAB_BAR_HEIGHT: CGFloat = 50
+    public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
 
     public var wsHandle: UnsafeMutableRawPointer?
     var workspaceState: WorkspaceState?
@@ -820,8 +815,19 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     var ignoreSelectionUpdate = false
     var ignoreTextUpdate = false
     
+    var cursorTracked = false
+    
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
+        
+        let pointerInteraction = UIPointerInteraction(delegate: self)
+        self.addInteraction(pointerInteraction)
+        
+        // ipad trackpad support
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
+        pan.allowedScrollTypesMask = .all
+        pan.maximumNumberOfTouches = 0
+        self.addGestureRecognizer(pan)
         
         self.isPaused = false
         self.enableSetNeedsDisplay = false
@@ -833,7 +839,72 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+    
+    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
+        guard let event = sender, event.state != .cancelled, event.state != .failed else {
+            return
+        }
 
+        var velocity = event.velocity(in: self)
+        
+        velocity.x /= 50
+        velocity.y /= 50
+                        
+        if event.state == .ended {
+            Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
+                velocity.x *= Self.POINTER_DECELERATION_RATE
+                velocity.y *= Self.POINTER_DECELERATION_RATE
+                
+                if abs(velocity.x) < 0.1 && abs(velocity.y) < 0.1 {
+                    timer.invalidate()
+                    return
+                }
+                
+                if !cursorTracked {
+                    mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
+                }
+                scroll_wheel(self.wsHandle, Float(velocity.x), Float(velocity.y))
+                if !cursorTracked {
+                    mouse_gone(wsHandle)
+                }
+                
+                self.setNeedsDisplay()
+            }
+        } else {
+            if !cursorTracked {
+                mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
+            }
+            scroll_wheel(wsHandle, Float(velocity.x), Float(velocity.y))
+            if !cursorTracked {
+                mouse_gone(wsHandle)
+            }
+        }
+        
+        self.setNeedsDisplay()
+    }
+
+    public func pointerInteraction(_ interaction: UIPointerInteraction, regionFor request: UIPointerRegionRequest, defaultRegion: UIPointerRegion) -> UIPointerRegion? {
+        let offsetY: CGFloat = if interaction.view is iOSMTKTextInputWrapper {
+            Self.TAB_BAR_HEIGHT
+        } else if interaction.view is iOSMTKDrawingWrapper {
+            Self.TAB_BAR_HEIGHT + iOSMTKDrawingWrapper.TOOL_BAR_HEIGHT
+        } else {
+            0
+        }
+        
+        mouse_moved(wsHandle, Float(request.location.x), Float(request.location.y + offsetY))
+        return defaultRegion
+    }
+    
+    public func pointerInteraction(_ interaction: UIPointerInteraction, willEnter region: UIPointerRegion, animator: any UIPointerInteractionAnimating) {
+        cursorTracked = true
+    }
+    
+    public func pointerInteraction(_ interaction: UIPointerInteraction, willExit region: UIPointerRegion, animator: any UIPointerInteractionAnimating) {
+        cursorTracked = false
+        mouse_gone(wsHandle)
+    }
+    
     func openFile(id: UUID) {
         let uuid = CUuid(_0: id.uuid)
         open_file(wsHandle, uuid, false)
@@ -901,6 +972,9 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     }
     
     public func draw(in view: MTKView) {
+        let swiftStartTime = DispatchTime.now()
+
+        
         if tabSwitchTask != nil {
             tabSwitchTask!()
             tabSwitchTask = nil
@@ -908,7 +982,11 @@ public class iOSMTK: MTKView, MTKViewDelegate {
 
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, Float(self.contentScaleFactor))
+        
+        let rustStartTime = DispatchTime.now()
         let output = ios_frame(wsHandle)
+        let rustEndTime = DispatchTime.now()
+
         
         if output.status_updated {
             let status = get_status(wsHandle)
@@ -1023,6 +1101,16 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         }
         
         self.enableSetNeedsDisplay = self.isPaused
+        
+        let swiftEndTime = DispatchTime.now()
+
+        let swiftNanoseconds = swiftEndTime.uptimeNanoseconds - swiftStartTime.uptimeNanoseconds
+        let swiftSeconds = Double(swiftNanoseconds) / 1_000_000.0
+        
+        let rustNanoseconds = rustEndTime.uptimeNanoseconds - rustStartTime.uptimeNanoseconds
+        let rustSeconds = Double(rustNanoseconds) / 1_000_000.0
+        // print("Swift time: \(swiftSeconds) ms | Rust time: \(rustSeconds)")
+        
     }
 
     override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -1049,13 +1137,18 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         for touch in touches {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
+            
+//            for touch in event!.coalescedTouches(for: touch)! {
+//                let location = touch.location(in: self)
+//                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+//                
+//                touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+//            }
+            
+            let location = touch.preciseLocation(in: self)
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+            touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
 
-            for touch in event!.coalescedTouches(for: touch)! {
-                let location = touch.location(in: self)
-                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-                
-                touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
-            }
         }
 
         self.setNeedsDisplay(self.frame)
