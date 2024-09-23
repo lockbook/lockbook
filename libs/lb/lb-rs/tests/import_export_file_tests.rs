@@ -9,7 +9,6 @@ use uuid::Uuid;
 
 #[tokio::test]
 async fn import_file_successfully() {
-    todo!(); // this is stuck
     let core = test_core_with_account().await;
     let tmp = tempfile::tempdir().unwrap();
     let tmp_path = tmp.path().to_path_buf();
@@ -83,7 +82,7 @@ async fn export_file_successfully() {
     let export_progress = move |info: ExportFileInfo| {
         path_copy.lock().unwrap().push(info);
     };
-    core.export_file(file.id, tmp_path.clone(), false, Some(Box::new(export_progress.clone())))
+    core.export_file(file.id, tmp_path.clone(), false, &Some(export_progress.clone()))
         .await
         .unwrap();
     // todo(parth): fix clippy warning await_holding_lock
@@ -106,7 +105,7 @@ async fn export_file_successfully() {
         .await
         .unwrap();
 
-    core.export_file(child.parent, tmp_path.clone(), false, Some(Box::new(export_progress)))
+    core.export_file(child.parent, tmp_path.clone(), false, &Some(export_progress))
         .await
         .unwrap();
 

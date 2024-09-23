@@ -15,6 +15,8 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use uuid::Uuid;
 
 pub enum ImportStatus {
@@ -28,242 +30,166 @@ impl Lb {
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> LbResult<()> {
         update_status(ImportStatus::CalculatedTotal(get_total_child_count(sources)?));
-
-        let tx = self.ro_tx().await;
-        let db = tx.db();
-
-        let tree = db.base_metadata.stage(&db.local_metadata);
-        let parent = tree.find(&dest)?;
+        
+        let parent = self.get_file_by_id(dest).await?;
         if !parent.is_folder() {
             return Err(CoreError::FileNotFolder.into());
         }
+        
+        let import_file_futures = FuturesUnordered::new();
 
-        for disk_path in sources {
-            // todo this can happen in parallel and be re-written to be more efficient
-            self.import_file_recursively(disk_path, &dest, update_status)
-                .await?;
+        for source in sources {
+            let lb = self.clone();
+
+            import_file_futures.push(async move {
+                lb.import_file_recursively(source, dest, update_status).await
+            });
         }
 
-        self.cleanup().await?;
-
-        Ok(())
+        import_file_futures.collect::<Vec<LbResult<()>>>().await.into_iter().collect::<LbResult<()>>()
     }
 
-    pub async fn export_file(
-        &mut self, id: Uuid, destination: PathBuf, edit: bool,
-        export_progress: Option<Box<dyn Fn(ExportFileInfo)>>,
-    ) -> LbResult<()> {
-        if destination.is_file() {
+    async fn import_file_recursively<F: Fn(ImportStatus)>(&self, disk_path: &Path, dest: Uuid, update_status: &F) -> LbResult<()> {
+        update_status(ImportStatus::StartingItem(format!("{}", disk_path.display())));
+
+        if !disk_path.exists() {
             return Err(CoreError::DiskPathInvalid.into());
         }
 
-        let tx = self.ro_tx().await;
-        let db = tx.db();
+        let name = disk_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or(CoreError::DiskPathInvalid)?
+            .to_string();
 
-        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+        let file_type = if disk_path.is_file() {
+            FileType::Document
+        } else {
+            FileType::Folder
+        };
 
-        let file = tree.find(&id)?.clone();
+        let mut tries = 0;
+        let mut retry_name = name.clone();
+        let file: File;
+        
+        loop {
+            match self.create_file(&retry_name, &dest, file_type).await {
+                Ok(new_file) => {
+                    file = new_file;
+                    break
+                },
+                Err(err) if err.kind == CoreError::PathTaken => {
+                    tries += 1;
+                    retry_name = format!("{}-{}", name, tries);
+                },
+                Err(err) => return Err(err),
+            }
+        }
 
-        let account = self.get_account()?;
+        match file_type {
+            FileType::Document => {
+                let content = fs::read(&disk_path).map_err(LbError::from)?;
+                self.write_document(file.id, content.as_slice()).await?;
 
-        Self::export_file_recursively(
-            &self.docs,
-            account,
-            &mut tree,
-            &file,
-            &destination,
-            edit,
-            &export_progress,
-        )
-        .await?;
+                update_status(ImportStatus::FinishedItem(file));
+            }
+            FileType::Folder => {
+                let id = file.id;
+                update_status(ImportStatus::FinishedItem(file));
+
+                let disk_children = fs::read_dir(disk_path).map_err(LbError::from)?;
+
+                let import_file_futures = FuturesUnordered::new();
+
+                for disk_child in disk_children {
+                    let child_path = disk_child.map_err(LbError::from)?.path();
+                    let lb = self.clone();
+
+                    import_file_futures.push(async move {
+                        lb.import_file_recursively(&child_path, id, update_status).await
+                    });
+                }
+
+                import_file_futures.collect::<Vec<LbResult<()>>>().await.into_iter().collect::<LbResult<()>>()?;
+            }
+
+            FileType::Link { .. } => {
+                error!("links should not be interpreted!")
+            }
+        }
 
         Ok(())
     }
 
-    async fn export_file_recursively<Base, Local>(
-        docs: &AsyncDocs, account: &Account, tree: &mut LazyStaged1<Base, Local>,
-        this_file: &Base::F, disk_path: &Path, edit: bool,
-        export_progress: &Option<Box<dyn Fn(ExportFileInfo)>>,
-    ) -> LbResult<()>
-    where
-        Base: TreeLike<F = SignedFile>,
-        Local: TreeLike<F = Base::F>,
-    {
-        let dest_with_new = disk_path.join(tree.name_using_links(this_file.id(), account)?);
-
-        if let Some(ref func) = export_progress {
-            func(ExportFileInfo {
-                disk_path: disk_path.to_path_buf(),
-                lockbook_path: tree.id_to_path(this_file.id(), account)?,
-            })
+    pub async fn export_file<F: Fn(ExportFileInfo)>(
+        &mut self, id: Uuid, dest: PathBuf, edit: bool,
+        update_status: &Option<F>,
+    ) -> LbResult<()> {
+        if dest.is_file() {
+            return Err(CoreError::DiskPathInvalid.into());
         }
 
-        match this_file.file_type() {
-            FileType::Folder => {
-                let children = tree.children(this_file.id())?;
-                fs::create_dir(dest_with_new.clone()).map_err(LbError::from)?;
+        self.export_file_recursively(id, &dest, edit, update_status).await
+    }
 
-                for id in children {
-                    if !tree.calculate_deleted(&id)? {
-                        let file = tree.find(&id)?.clone();
-                        Box::pin(Self::export_file_recursively(
-                            docs,
-                            account,
-                            tree,
-                            &file,
-                            &dest_with_new,
-                            edit,
-                            export_progress,
-                        ))
-                        .await?;
-                    }
-                }
-            }
+    pub async fn export_file_recursively<F: Fn(ExportFileInfo)>(&self, id: Uuid, disk_path: &Path, edit: bool, update_status: &Option<F>) -> LbResult<()> {
+        let file = self.get_file_by_id(id).await?;
+
+        let new_dest = disk_path.join(&file.name);
+
+        if let Some(update_status) = update_status {
+            update_status(ExportFileInfo {
+                disk_path: disk_path.to_path_buf(),
+                lockbook_path: self.get_path_by_id(file.id).await?,
+            });
+        }
+
+        match file.file_type {
             FileType::Document => {
-                let mut file = if edit {
+                let mut disk_file = if edit {
                     OpenOptions::new()
                         .write(true)
                         .create(true)
                         .truncate(true)
-                        .open(dest_with_new)
+                        .open(new_dest)
                 } else {
                     OpenOptions::new()
                         .write(true)
                         .create_new(true)
-                        .open(dest_with_new)
+                        .open(new_dest)
                 }
                 .map_err(LbError::from)?;
 
-                let doc = vec![];
-                // let doc = tree.decrypt_document(docs, this_file.id(), account).await?;
+                disk_file.write(self.read_document(file.id).await?.as_slice()).map_err(LbError::from)?;
+            }
+            FileType::Folder => {
+                fs::create_dir(new_dest.clone()).map_err(LbError::from)?;
+                let export_file_futures = FuturesUnordered::new();
 
-                file.write_all(doc.as_slice()).map_err(LbError::from)?;
-                todo!();
+                for child in self.get_children(&file.id).await? {
+                    let lb = self.clone();
+                    let new_dest = &new_dest;
+
+                    export_file_futures.push(async move {
+                        lb.export_file_recursively(child.id, new_dest, edit, update_status).await
+                    });
+                }
+
+                export_file_futures.collect::<Vec<LbResult<()>>>().await.into_iter().collect::<LbResult<()>>()?;
             }
             FileType::Link { target } => {
-                if !tree.calculate_deleted(&target)? {
-                    let file = tree.find(&target)?.clone();
-                    Box::pin(Self::export_file_recursively(
-                        docs,
-                        account,
-                        tree,
-                        &file,
-                        disk_path,
-                        edit,
-                        export_progress,
-                    ))
-                    .await?;
-                }
+                let export_file_futures = FuturesUnordered::new();
+                let lb = self.clone();
+                
+                export_file_futures.push(async move {
+                    lb.export_file_recursively(target, disk_path, edit, update_status).await
+                });
+
+                export_file_futures.collect::<Vec<LbResult<()>>>().await.into_iter().collect::<LbResult<()>>()?;
             }
         }
 
         Ok(())
-    }
-
-    async fn import_file_recursively<F: Fn(ImportStatus)>(
-        &self, disk_path: &Path, dest: &Uuid, update_status: &F,
-    ) -> LbResult<()> {
-        let mut tx = self.begin_tx().await;
-        let db = tx.db();
-
-        let mut tree = (&db.base_metadata)
-            .to_staged(&mut db.local_metadata)
-            .to_lazy();
-        let account = self.get_account()?;
-
-        update_status(ImportStatus::StartingItem(format!("{}", disk_path.display())));
-
-        let mut disk_paths_with_destinations = vec![(PathBuf::from(disk_path), *dest)];
-        loop {
-            let (disk_path, dest) = match disk_paths_with_destinations.pop() {
-                None => break,
-                Some((disk_path, dest)) => (disk_path, dest),
-            };
-
-            if !disk_path.exists() {
-                return Err(CoreError::DiskPathInvalid.into());
-            }
-
-            let disk_file_name = disk_path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .ok_or(CoreError::DiskPathInvalid)?;
-
-            let ftype = match disk_path.is_file() {
-                true => FileType::Document,
-                false => FileType::Folder,
-            };
-
-            let file_name =
-                Self::generate_non_conflicting_name(&mut tree, account, &dest, disk_file_name)?;
-
-            let id = tree.create(
-                Uuid::new_v4(),
-                symkey::generate_key(),
-                &dest,
-                &file_name,
-                ftype,
-                account,
-            )?;
-
-            let file = tree.decrypt(account, &id, &db.pub_key_lookup)?;
-
-            tree = if ftype == FileType::Document {
-                let doc = fs::read(&disk_path).map_err(LbError::from)?;
-
-                let encrypted_document = tree.update_document(&id, &doc, account)?;
-                let hmac = tree.find(&id)?.document_hmac().copied();
-                self.docs.insert(id, hmac, &encrypted_document).await?;
-
-                update_status(ImportStatus::FinishedItem(file));
-                tree
-            } else {
-                update_status(ImportStatus::FinishedItem(file));
-
-                let entries = fs::read_dir(disk_path).map_err(LbError::from)?;
-
-                for entry in entries {
-                    let child_path = entry.map_err(LbError::from)?.path();
-                    disk_paths_with_destinations.push((child_path.clone(), id));
-                }
-
-                tree
-            };
-        }
-
-        Ok(())
-    }
-
-    fn generate_non_conflicting_name<Base, Local>(
-        tree: &mut LazyStaged1<Base, Local>, account: &Account, parent: &Uuid, proposed_name: &str,
-    ) -> LbResult<String>
-    where
-        Base: TreeLike<F = SignedFile>,
-        Local: TreeLike<F = Base::F>,
-    {
-        let maybe_siblings = tree.children(parent)?;
-        let mut new_name = NameComponents::from(proposed_name);
-
-        let mut siblings = HashSet::new();
-
-        for id in maybe_siblings {
-            if !tree.calculate_deleted(&id)? {
-                siblings.insert(id);
-            }
-        }
-
-        let siblings: Result<Vec<String>, SharedError> = siblings
-            .iter()
-            .map(|id| tree.name_using_links(id, account))
-            .collect();
-        let siblings = siblings?;
-
-        loop {
-            if !siblings.iter().any(|name| *name == new_name.to_name()) {
-                return Ok(new_name.to_name());
-            }
-            new_name = new_name.generate_next();
-        }
     }
 }
 
