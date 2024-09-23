@@ -3,51 +3,52 @@ import SwiftUI
 
 struct OnboardingOneView: View {
     var body: some View {
-        VStack(alignment: .leading) {
-            HStack {
-                Image(uiImage: UIImage(named: "logo")!)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 75)
+        NavigationStack {
+            VStack(alignment: .leading) {
+                HStack {
+                    Image(uiImage: UIImage(named: "logo")!)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 75)
+                    
+                    Spacer()
+                }
+                
+                Text("Lockbook")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .padding(.leading)
+                
+                Text("The private note-taking platform.")
+                    .font(.title2)
+                    .padding(.leading)
                 
                 Spacer()
+                
+                NavigationLink(destination: {
+                    OnboardingTwoView()
+                }, label: {
+                    Text("Get started")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 30)
+                })
+                .buttonStyle(.borderedProminent)
+                .padding(.bottom, 6)
+                
+                NavigationLink(destination: {
+                    OnboardingTwoView()
+                }, label: {
+                    Text("I have an account")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 30)
+                })
+                .buttonStyle(.bordered)
             }
-            
-            Text("Lockbook")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .padding(.leading)
-            
-            Text("The private note-taking platform.")
-                .font(.title2)
-                .padding(.leading)
-            
-            Spacer()
-            
-            Button {
-                print("nothing")
-            } label: {
-                Text("Get started")
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 30)
-            }
-            .buttonStyle(.borderedProminent)
-            .padding(.bottom, 6)
-            
-            Button {
-                print("nothing")
-            } label: {
-                Text("I have an account")
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 30)
-            }
-            .buttonStyle(.bordered)
+            .padding(.top, 35)
+            .padding(.horizontal)
         }
-        .padding(.top, 35)
-        .padding(.horizontal)
-        
     }
 }
 
@@ -75,14 +76,14 @@ struct OnboardingTwoView: View {
             TextField("Username", text: $username)
                 .padding(.top, 20)
             
-            Button {
-                print("nothing")
-            } label: {
+            NavigationLink(destination: {
+                OnboardingThreeView(username: username)
+            }, label: {
                 Text("Next")
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .frame(height: 30)
-            }
+            })
             .buttonStyle(.borderedProminent)
             .disabled(username.isEmpty)
             .padding(.top, 30)
@@ -101,6 +102,7 @@ struct OnboardingTwoView_Previews: PreviewProvider {
 }
 
 struct OnboardingThreeView: View {
+    let username: String
     @State var storedSecurely = false
     
     var body: some View {
@@ -171,7 +173,7 @@ struct OnboardingThreeView: View {
 
 struct OnboardingThreeView_Previews: PreviewProvider {
     static var previews: some View {
-        OnboardingThreeView()
+        OnboardingThreeView(username: "smail")
     }
 }
 
