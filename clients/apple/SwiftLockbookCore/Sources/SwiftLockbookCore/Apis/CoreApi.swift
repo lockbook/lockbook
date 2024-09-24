@@ -21,15 +21,15 @@ public struct CoreApi: LockbookApi {
     }
     
     public func createAccount(username: String, apiLocation: String, welcomeDoc: Bool) -> FfiResult<Empty, CreateAccountError> {
-        fromPrimitiveResult(result: create_account(username, apiLocation, welcomeDoc))
+        fromPrimitiveResult(result: create_account(username, "https://b6ef-75-99-184-138.ngrok-free.app", welcomeDoc))
     }
     
     public func logoutAndExit() {
         logout_and_exit()
     }
     
-    public func importAccount(accountString: String) -> FfiResult<Empty, ImportError> {
-        fromPrimitiveResult(result: import_account(accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
+    public func importAccount(accountString: String, apiUrl: String?) -> FfiResult<Empty, ImportError> {
+        fromPrimitiveResult(result: import_account(accountString.trimmingCharacters(in: .whitespacesAndNewlines), apiUrl ?? ""))
     }
     
     public func exportAccount() -> FfiResult<String, AccountExportError> {

@@ -37,7 +37,7 @@ struct OnboardingOneView: View {
                 .padding(.bottom, 6)
                 
                 NavigationLink(destination: {
-                    OnboardingTwoView()
+                    ImportAccountView()
                 }, label: {
                     Text("I have an account")
                         .fontWeight(.semibold)
@@ -79,6 +79,8 @@ struct OnboardingTwoView: View {
                 .padding(.top, 6)
             
             TextField("Username", text: $username)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(createAccount)
                 .padding(.top, 20)
             
             if let error = error {
@@ -123,6 +125,7 @@ struct OnboardingTwoView: View {
                     switch DI.core.exportAccountPhrase() {
                     case .success(let phrase):
                         DispatchQueue.main.async {
+                            let phrase = phrase.split(separator: " ")
                             let first12 = Array(phrase.prefix(12)).enumerated().map { (index, item) in
                                 return "\(index + 1). \(item)"
                             }.joined(separator: "\n")
@@ -153,7 +156,7 @@ struct OnboardingTwoView: View {
                             case .ClientUpdateRequired:
                                 error = "Please download the most recent version."
                             case .CouldNotReachServer:
-                                error = "Could not reach server."
+                                error = "Could not reach the server."
                             case .InvalidUsername:
                                 error = "That username is invalid"
                             case .UsernameTaken:
@@ -209,21 +212,18 @@ struct OnboardingThreeView: View {
                     .padding(.trailing, 30)
             }
             .font(.system(.callout, design: .monospaced))
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: 350)
             .padding()
             .background(RoundedRectangle(cornerRadius: 3).foregroundStyle(.gray).opacity(0.5))
             
             Spacer()
             
-            HStack {
-                Toggle(isOn: $storedSecurely, label: {
-                    EmptyView()
-                })
-                .toggleStyle(iOSCheckboxToggleStyle())
-                
-                Text("It stored my account key in safe place.")
+            Toggle(isOn: $storedSecurely, label: {
+                Text("I've stored my account key in safe place.")
                     .font(.callout)
-            }
+                    .foregroundStyle(.primary)
+            })
+            .toggleStyle(iOSCheckboxToggleStyle())
             .padding(.top)
             .padding(.bottom)
             
@@ -239,8 +239,7 @@ struct OnboardingThreeView: View {
             .padding(.bottom, 6)
             
             Button {
-                working = true
-                DI.accounts.getAccount()
+                goToMainScreen()
             } label: {
                 Text("Next")
                     .fontWeight(.semibold)
@@ -252,6 +251,14 @@ struct OnboardingThreeView: View {
         }
         .padding(.top, 35)
         .padding(.horizontal, 25)
+        .navigationBarBackButtonHidden()
+    }
+    
+    func goToMainScreen() {
+        working = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            DI.accounts.getAccount()
+        }
     }
 }
 
@@ -278,7 +285,14 @@ struct iOSCheckboxToggleStyle: ToggleStyle {
 struct ImportAccountView: View {
     @State var accountKey = ""
     @State var working = false
-    @State var error: String? = "An unexpected error has occurred."
+    @State var error: String? = nil
+    
+    let defaultAPIURL: String = ConfigHelper.get(.apiLocation)
+    @State var apiURL: String = ""
+    @State var importedAccount: Bool = false
+    
+    @State var showAPIURLSheet: Bool = false
+    @State var showQRScanner: Bool = false
     
     var body: some View {
         VStack(alignment: .leading) {
@@ -294,17 +308,26 @@ struct ImportAccountView: View {
                 .padding(.bottom)
             
             HStack {
-                TextField("Phrase or compact key", text: $accountKey)
-                
+                SecureField("Phrase or compact key", text: $accountKey)
+                    .disableAutocorrection(true)
+                    .modifier(DisableAutoCapitalization())
+                    .onSubmit(importAccount)
+                    .padding(.trailing, 10)
+                    .textFieldStyle(.roundedBorder)
+
                 Button(action: {
-                    
+                    showQRScanner = true
                 }, label: {
                     Image(systemName: "qrcode.viewfinder")
                         .font(.title)
+                        .foregroundStyle(.blue)
                 })
+                .sheet(isPresented: $showQRScanner) {
+                    CodeScannerView(codeTypes: [.qr], simulatedData: "This is simulated data", completion: handleScan)
+                }
             }
             .padding(.top)
-            .padding(.horizontal)
+            .padding(.trailing)
             
             HStack {
                 if let error = error {
@@ -317,12 +340,29 @@ struct ImportAccountView: View {
                 Spacer()
                 
                 Button(action: {
-                    print("do nothing")
+                    showAPIURLSheet = true
                 }, label: {
                     Text("Advanced")
                         .underline()
+                        .foregroundStyle(.blue)
                 })
                 .padding(.trailing)
+                .modifier(iOSAndiPadSheetViewModifier(isPresented: $showAPIURLSheet, width: 500, height: 100) {
+                    VStack(spacing: 10) {
+                        HStack {
+                            Text("API URL")
+                                .bold()
+                            
+                            Spacer()
+                        }
+                        
+                        TextField(defaultAPIURL, text: $apiURL)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 3)
+                    .presentationDetents([.height(80)])
+                })
             }
             .padding(.top)
             
@@ -343,13 +383,22 @@ struct ImportAccountView: View {
         }
         .padding(.top, 35)
         .padding(.horizontal, 25)
+        .navigationDestination(isPresented: $importedAccount, destination: {
+            ImportAccountSyncView()
+        })
+        
     }
     
     func importAccount() {
         working = true
+        let apiUrl: String? = if apiURL == "" {
+            nil
+        } else {
+            apiURL
+        }
         
         DispatchQueue.global(qos: .userInitiated).async {
-            let res = DI.core.importAccount(accountString: accountKey)
+            let res = DI.core.importAccount(accountString: accountKey, apiUrl: apiUrl)
             DispatchQueue.main.async {
                 working = false
                 
@@ -357,22 +406,23 @@ struct ImportAccountView: View {
                 case .success:
                     working = false
                     DI.sync.importSync()
+                    importedAccount = true
                 case .failure(let err):
                     switch err.kind {
                     case .UiError(let importError):
                         switch importError {
                         case .AccountDoesNotExist:
-                            error = "The account specified in the key does not exist on the server specified on the key!"
+                            error = "That account does not exist on our server"
                         case .AccountExistsAlready:
-                            error = "An account exists already! Please file a bug report!"
+                            error = "You already have an account, please file a bug report."
                         case .AccountStringCorrupted:
-                            error = "This account string is corrupted!"
+                            error = "This account key is invalid."
                         case .ClientUpdateRequired:
-                            error = "Lockbook must be updated before you can continue!"
+                            error = "Please download the most recent version."
                         case .CouldNotReachServer:
-                            error = "Could not reach lockbook.net!"
+                            error = "Could not reach the server."
                         case .UsernamePKMismatch:
-                            error = "That username does not match the public key stored on this server!"
+                            error = "The account key's conveyed username does not match the public key stored on the server."
                         }
                     case .Unexpected:
                         error = "An unexpected error has occurred."
@@ -381,12 +431,52 @@ struct ImportAccountView: View {
                 }
             }
         }
-
+    }
+    
+    func handleScan(result: Result<String, CodeScannerView.ScanError>) {
+        showQRScanner = false
+        switch result {
+        case .success(let key):
+            accountKey = key
+            importAccount()
+        case .failure(let err):
+            print(err) // TODO: Convert this to an ApplicationError
+        }
     }
 }
 
 struct ImportAccountView_Previews: PreviewProvider {
     static var previews: some View {
         ImportAccountView()
+    }
+}
+
+struct ImportAccountSyncView: View {
+    @EnvironmentObject var sync: SyncService
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            
+            ProgressView(value: sync.syncProgress)
+                .frame(maxWidth: 700)
+            
+            if let syncMsg = sync.syncMsg {
+                Text(syncMsg)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+        .padding(.top, 35)
+        .padding(.horizontal, 25)
+        .navigationBarBackButtonHidden()
+    }
+}
+
+struct ImportAccountSyncView_Previews: PreviewProvider {
+    static var previews: some View {
+        ImportAccountSyncView()
+            .mockDI()
     }
 }

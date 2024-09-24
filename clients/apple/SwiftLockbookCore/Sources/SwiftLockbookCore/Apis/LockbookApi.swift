@@ -4,7 +4,7 @@ public protocol LockbookApi {
     // Account
     func getAccount() -> FfiResult<Account, GetAccountError>
     func createAccount(username: String, apiLocation: String, welcomeDoc: Bool) -> FfiResult<Empty, CreateAccountError>
-    func importAccount(accountString: String) -> FfiResult<Empty, ImportError>
+    func importAccount(accountString: String, apiUrl: String?) -> FfiResult<Empty, ImportError>
     func exportAccount() -> FfiResult<String, AccountExportError>
     func exportAccountPhrase() -> FfiResult<String, AccountExportError>
     func getUsage() -> FfiResult<UsageMetrics, GetUsageError>

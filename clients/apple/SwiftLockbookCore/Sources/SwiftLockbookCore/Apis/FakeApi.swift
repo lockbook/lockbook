@@ -14,7 +14,7 @@ public struct FakeApi: LockbookApi {
     
     public func logoutAndExit() {}
     
-    public func importAccount(accountString: String) -> FfiResult<Empty, ImportError> {
+    public func importAccount(accountString: String, apiUrl: String?) -> FfiResult<Empty, ImportError> {
         .failure(.init(unexpected: "LAZY"))
     }
     

@@ -113,9 +113,16 @@ pub extern "C" fn logout_and_exit() -> ! {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn import_account(account_string: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn import_account(account_string: *const c_char, api_url: *const c_char) -> *const c_char {
+    let api_url_str = &str_from_ptr(api_url);
+    let api_url = if api_url_str == "" {
+        None
+    } else {
+        Some(api_url_str.as_str())
+    };
+
     c_string(match static_state::get() {
-        Ok(core) => translate(core.import_account(&str_from_ptr(account_string), None)),
+        Ok(core) => translate(core.import_account(&str_from_ptr(account_string), api_url)),
         e => translate(e.map(|_| ())),
     })
 }

@@ -342,6 +342,36 @@ struct FormSheetViewModifier<ViewContent: View>: ViewModifier {
     }
 }
 
+struct iOSAndiPadSheetViewModifier<PresentedContent: View>: ViewModifier {
+    @Binding var isPresented: Bool
+    var width: CGFloat? = nil
+    var height: CGFloat? = nil
+    
+    let presentedContent: () -> PresentedContent
+    
+    func body(content: Content) -> some View {
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            if isPresented {
+                content
+                    .background(FormSheet(content: {
+                        presentedContent()
+                            .onDisappear {
+                                isPresented = false
+                            }
+                            .frame(width: width, height: height)
+                    }))
+            } else {
+                content
+            }
+        } else {
+            content
+                .sheet(isPresented: $isPresented, content: {
+                    presentedContent()
+                })
+        }
+    }
+}
+
 struct AutoSizeSheetViewModifier: ViewModifier {
     @Binding var sheetHeight: CGFloat
     
