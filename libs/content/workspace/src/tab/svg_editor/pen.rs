@@ -315,7 +315,6 @@ impl Pen {
                     trace!("probably lifted a finger off from a zoom.");
                     return None;
                 }
-                *pen_ctx.is_viewport_changing = false;
 
                 return Some(PathEvent::Draw(DrawPayload { pos, force, id: Some(id) }));
             }
@@ -610,7 +609,6 @@ fn correct_start_of_path() {
         buffer: &mut parser::Buffer::default(),
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
-        is_viewport_changing: &mut false,
         is_touch_frame: true,
     };
 
@@ -663,7 +661,6 @@ fn cancel_touch_ui_event() {
         buffer: &mut parser::Buffer::default(),
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
-        is_viewport_changing: &mut false,
         is_touch_frame: true,
     };
 

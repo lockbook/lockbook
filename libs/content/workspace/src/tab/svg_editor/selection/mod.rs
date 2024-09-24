@@ -38,7 +38,7 @@ struct SelectedElement {
 }
 
 impl Selection {
-    pub fn handle_input(&mut self, ui: &mut egui::Ui, selection_ctx: ToolContext) {
+    pub fn handle_input(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
         let pos = ui.ctx().pointer_hover_pos().or(ui.input(|r| {
             r.events.iter().find_map(|event| {
                 if let egui::Event::Touch { device_id: _, id: _, phase: _, pos, force: _ } = event {
