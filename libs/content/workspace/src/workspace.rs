@@ -15,8 +15,8 @@ use crate::tab::{Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
 use lb_rs::{
-    CoreError, DocumentHmac, File, FileType, LbError, NameComponents, SyncProgress, SyncStatus,
-    Uuid,
+    CoreError, DecryptedDocument, DocumentHmac, File, FileType, LbError, NameComponents,
+    SyncProgress, SyncStatus, Uuid,
 };
 
 pub struct Workspace {
@@ -45,7 +45,7 @@ pub struct Workspace {
 
 pub enum WsMsg {
     FileCreated(Result<File, String>),
-    FileLoaded(Uuid, Result<TabContent, TabFailure>),
+    FileLoaded(Uuid, bool, bool, Result<(Option<DocumentHmac>, DecryptedDocument), TabFailure>),
     SaveResult(Uuid, Result<(String, Option<DocumentHmac>, Instant, usize), LbError>),
     FileRenamed { id: Uuid, new_name: String },
 
@@ -415,9 +415,6 @@ impl Workspace {
                                     tab.last_changed = Instant::now();
                                 }
                             }
-                            TabContent::MergeMarkdown { .. } => {
-                                unreachable!()
-                            }
                         };
                     } else {
                         ui.spinner();
@@ -558,6 +555,7 @@ impl Workspace {
                             core.safe_write(id, hmac, content.clone().into())
                                 .map(|hmac| (content, Some(hmac), Instant::now(), seq))
                         } else {
+                            // todo: what if editor opened a file with no hmac, then we overwrite outside edits here
                             core.write_document(id, content.as_bytes())
                                 .map(|_| (content, hmac, Instant::now(), seq))
                         };
@@ -617,50 +615,15 @@ impl Workspace {
 
         let core = self.core.clone();
         let ctx = self.ctx.clone();
-
-        // todo
-        // let settings = &self.settings.read().unwrap();
-        // let toolbar_visibility = settings.toolbar_visibility;
-        let toolbar_visibility = ToolBarVisibility::Maximized;
         let update_tx = self.updates_tx.clone();
-        let cfg = self.cfg.clone();
-        let is_mobile_viewport = !self.show_tabs;
 
         thread::spawn(move || {
-            let ext = fname.split('.').last().unwrap_or_default();
-
             let content = core
                 .read_document_with_hmac(id)
-                .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
-                .and_then(|(hmac, bytes)| {
-                    if is_supported_image_fmt(ext) {
-                        Ok(TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes)))
-                    } else if ext == "pdf" {
-                        Ok(TabContent::Pdf(PdfViewer::new(
-                            &bytes,
-                            &ctx,
-                            &cfg.data_dir,
-                            is_mobile_viewport,
-                        )))
-                    } else if ext == "svg" {
-                        Ok(TabContent::Svg(SVGEditor::new(&bytes, &ctx, core.clone(), id)))
-                    } else if (ext == "md" || ext == "txt") && !tab_created {
-                        Ok(TabContent::MergeMarkdown { hmac, content: bytes })
-                    } else if ext == "md" || ext == "txt" {
-                        Ok(TabContent::Markdown(Markdown::new(
-                            core.clone(),
-                            &bytes,
-                            &toolbar_visibility,
-                            is_new_file,
-                            id,
-                            hmac,
-                            ext != "md",
-                        )))
-                    } else {
-                        Err(TabFailure::SimpleMisc(format!("Unsupported file extension: {}", ext)))
-                    }
-                });
-            update_tx.send(WsMsg::FileLoaded(id, content)).unwrap();
+                .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))); // todo(steve)
+            update_tx
+                .send(WsMsg::FileLoaded(id, is_new_file, tab_created, content))
+                .unwrap();
             ctx.request_repaint();
         });
     }
@@ -734,7 +697,7 @@ impl Workspace {
     pub fn process_updates(&mut self, ui: &mut Ui) {
         while let Ok(update) = self.updates_rx.try_recv() {
             match update {
-                WsMsg::FileLoaded(id, content) => {
+                WsMsg::FileLoaded(id, is_new_file, tab_created, load_result) => {
                     if let Some((name, id)) =
                         self.current_tab().map(|tab| (tab.name.clone(), tab.id))
                     {
@@ -742,29 +705,69 @@ impl Workspace {
                         self.out.selected_file = Some(id);
                     };
 
+                    let ctx = self.ctx.clone();
+                    let cfg = self.cfg.clone();
+                    let core = self.core.clone();
+                    let show_tabs = self.show_tabs;
+
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
-                        match content {
-                            Ok(content) => match content {
-                                TabContent::MergeMarkdown { hmac, content } => {
-                                    match tab.content.as_mut().unwrap() {
-                                        TabContent::Markdown(md) => {
-                                            md.editor
-                                                .reload(String::from_utf8_lossy(&content).into());
-                                            md.editor.hmac = hmac;
-                                            md.editor.show(ui);
-                                        }
-                                        _ => unreachable!(),
-                                    };
-                                }
-                                _ => {
-                                    tab.content = Some(content);
-                                }
-                            },
-                            Err(fail) => {
-                                println!("failed to load file: {:?}", fail);
-                                tab.failure = Some(fail);
+                        let (maybe_hmac, bytes) = match load_result {
+                            Ok((hmac, bytes)) => (hmac, bytes),
+                            Err(err) => {
+                                println!("failed to load file: {:?}", err);
+                                tab.failure = Some(err);
+                                return;
                             }
-                        }
+                        };
+                        let ext = tab.name.split('.').last().unwrap_or_default();
+
+                        if is_supported_image_fmt(ext) {
+                            tab.content = Some(TabContent::Image(ImageViewer::new(
+                                &id.to_string(),
+                                ext,
+                                &bytes,
+                            )));
+                        } else if ext == "pdf" {
+                            tab.content = Some(TabContent::Pdf(PdfViewer::new(
+                                &bytes,
+                                &ctx,
+                                &cfg.data_dir,
+                                !show_tabs, // todo: use settings to determine toolbar visibility
+                            )));
+                        } else if ext == "svg" {
+                            tab.content = Some(TabContent::Svg(SVGEditor::new(
+                                &bytes,
+                                &ctx,
+                                core.clone(),
+                                id,
+                            )));
+                        } else if ext == "md" || ext == "txt" {
+                            if tab_created {
+                                tab.content = Some(TabContent::Markdown(Markdown::new(
+                                    core.clone(),
+                                    &bytes,
+                                    &ToolBarVisibility::Maximized,
+                                    is_new_file,
+                                    id,
+                                    maybe_hmac,
+                                    ext != "md",
+                                )));
+                            } else {
+                                match tab.content.as_mut() {
+                                    Some(TabContent::Markdown(md)) => {
+                                        md.editor.reload(String::from_utf8_lossy(&bytes).into());
+                                        md.editor.hmac = maybe_hmac;
+                                        md.editor.show(ui);
+                                    }
+                                    _ => unreachable!(),
+                                };
+                            }
+                        } else {
+                            tab.failure = Some(TabFailure::SimpleMisc(format!(
+                                "Unsupported file extension: {}",
+                                ext
+                            )));
+                        };
 
                         Some(tab.name.clone())
                     } else {
