@@ -730,7 +730,7 @@ pub unsafe extern "C" fn selection_rects(
 
     while cont_start < range.end() {
         let mut new_end: Cursor = cont_start.into();
-        new_end.advance(Offset::To(Bound::Line), false, buffer, galleys, &markdown.editor.bounds);
+        new_end.advance(Offset::Next(Bound::Line), false, buffer, galleys, &markdown.editor.bounds);
         let end_of_rect = cmp::min(new_end.selection.end(), range.end());
 
         let cursor_representing_rect: Cursor = (cont_start, end_of_rect).into();
