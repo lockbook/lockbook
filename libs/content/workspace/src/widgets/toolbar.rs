@@ -246,17 +246,7 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                 ToolbarButton {
                     icon: Icon::HEADER_1,
                     id: "header".to_string(),
-                    callback: |ui, t, _| {
-                        ui.ctx()
-                            .push_markdown_event(Modification::toggle_heading_style(
-                                t.header_click_count,
-                            ));
-                        if t.header_click_count > 5 {
-                            t.header_click_count = 6;
-                        } else {
-                            t.header_click_count += 1;
-                        }
-                    },
+                    callback: toggle_heading_style,
                 },
                 ToolbarButton {
                     icon: Icon::BOLD,
@@ -340,15 +330,7 @@ fn get_mobile_components() -> Vec<Component> {
         Component::Button(ToolbarButton {
             icon: Icon::HEADER_1,
             id: "header".to_string(),
-            callback: |ui, t, _| {
-                ui.ctx()
-                    .push_markdown_event(Modification::toggle_heading_style(t.header_click_count));
-                if t.header_click_count > 5 {
-                    t.header_click_count = 6;
-                } else {
-                    t.header_click_count += 1;
-                }
-            },
+            callback: toggle_heading_style,
         }),
         Component::Button(ToolbarButton {
             icon: Icon::BOLD,
@@ -467,4 +449,17 @@ fn get_mobile_components() -> Vec<Component> {
             callback: |ui, _, _| ui.ctx().push_markdown_event(Modification::Undo),
         }),
     ]
+}
+
+/// increment from h1 -> h6 and then wraps back to h1
+fn toggle_heading_style(
+    ui: &mut egui::Ui, t: &mut ToolBar, _response: &mut markdown_editor::Response,
+) {
+    if t.header_click_count > 5 {
+        t.header_click_count = 1;
+    } else {
+        t.header_click_count += 1;
+    }
+    ui.ctx()
+        .push_markdown_event(Modification::toggle_heading_style(t.header_click_count));
 }
