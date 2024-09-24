@@ -15,7 +15,8 @@ use crate::tab::{Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
 use lb_rs::{
-    DocumentHmac, File, FileType, LbError, NameComponents, SyncProgress, SyncStatus, Uuid,
+    CoreError, DocumentHmac, File, FileType, LbError, NameComponents, SyncProgress, SyncStatus,
+    Uuid,
 };
 
 pub struct Workspace {
@@ -778,6 +779,7 @@ impl Workspace {
                     }
                 }
                 WsMsg::SaveResult(id, result) => {
+                    let mut reopen = false;
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         match result {
                             Ok((content, hmac, time_saved, seq)) => {
@@ -793,9 +795,15 @@ impl Workspace {
                                 }
                             }
                             Err(err) => {
+                                if err.kind == CoreError::ReReadRequired {
+                                    reopen = true;
+                                }
                                 tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
                             }
                         }
+                    }
+                    if reopen {
+                        self.open_file(id, false, false);
                     }
                 }
                 WsMsg::BgSignal(Signal::BwDone) => {
