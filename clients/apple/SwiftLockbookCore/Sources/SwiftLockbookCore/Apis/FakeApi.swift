@@ -22,6 +22,10 @@ public struct FakeApi: LockbookApi {
         .failure(.init(unexpected: "LAZY"))
     }
     
+    public func exportAccountPhrase() -> FfiResult<String, AccountExportError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
     public func getUsage() -> FfiResult<UsageMetrics, GetUsageError> {
         .failure(.init(unexpected: "LAZY"))
     }

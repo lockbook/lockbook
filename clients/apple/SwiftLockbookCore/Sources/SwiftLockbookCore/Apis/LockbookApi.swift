@@ -6,6 +6,7 @@ public protocol LockbookApi {
     func createAccount(username: String, apiLocation: String, welcomeDoc: Bool) -> FfiResult<Empty, CreateAccountError>
     func importAccount(accountString: String) -> FfiResult<Empty, ImportError>
     func exportAccount() -> FfiResult<String, AccountExportError>
+    func exportAccountPhrase() -> FfiResult<String, AccountExportError>
     func getUsage() -> FfiResult<UsageMetrics, GetUsageError>
     func getUncompressedUsage() -> FfiResult<UsageItemMetric, GetUsageError>
     func deleteAccount() -> FfiResult<Empty, DeleteAccountError>

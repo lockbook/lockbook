@@ -60,6 +60,11 @@ struct OnboardingOneView_Previews: PreviewProvider {
 
 struct OnboardingTwoView: View {
     @State var username: String = ""
+    @State var createdAccount = false
+    @State var keyPhrase: (String, String)? = nil
+    
+    @State var error: String? = nil
+    @State var working: Bool = false
     
     var body: some View {
         VStack(alignment: .leading) {
@@ -76,8 +81,16 @@ struct OnboardingTwoView: View {
             TextField("Username", text: $username)
                 .padding(.top, 20)
             
-            NavigationLink(destination: {
-                OnboardingThreeView(username: username)
+            if let error = error {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .fontWeight(.bold)
+                    .lineLimit(2, reservesSpace: false)
+                    .padding(.top, 10)
+            }
+            
+            Button(action: {
+                createAccount()
             }, label: {
                 Text("Next")
                     .fontWeight(.semibold)
@@ -85,13 +98,79 @@ struct OnboardingTwoView: View {
                     .frame(height: 30)
             })
             .buttonStyle(.borderedProminent)
-            .disabled(username.isEmpty)
+            .disabled(username.isEmpty || working)
             .padding(.top, 30)
             
             Spacer()
         }
         .padding(.top, 35)
         .padding(.horizontal, 25)
+        .navigationDestination(isPresented: $createdAccount, destination: {
+            if let keyPhrase = keyPhrase {
+                OnboardingThreeView(username: username, keyPhrasePart1: keyPhrase.0, keyPhrasePart2: keyPhrase.1)
+            }
+        })
+    }
+    
+    func createAccount() {
+        working = true
+        error = nil
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let operation = DI.core.createAccount(username: username, apiLocation: ConfigHelper.get(.apiLocation), welcomeDoc: true)
+                switch operation {
+                case .success:
+                    switch DI.core.exportAccountPhrase() {
+                    case .success(let phrase):
+                        DispatchQueue.main.async {
+                            let first12 = Array(phrase.prefix(12)).enumerated().map { (index, item) in
+                                return "\(index + 1). \(item)"
+                            }.joined(separator: "\n")
+                            
+                            let last12 = Array(phrase.suffix(12)).enumerated().map { (index, item) in
+                                return "\(index + 1). \(item)"
+                            }.joined(separator: "\n")
+                            
+                            keyPhrase = (first12, last12)
+                            
+                            createdAccount = true
+                        }
+                    case .failure(let err):
+                        error = "Unexpected error."
+                        DI.errors.handleError(err)
+                    }
+                    
+                    break
+                case .failure(let err):
+                    DispatchQueue.main.async {
+                        working = false
+                        
+                        switch err.kind {
+                        case .UiError(let uiError):
+                            switch uiError {
+                            case .AccountExistsAlready:
+                                error = "You already have an account, please file a bug report."
+                            case .ClientUpdateRequired:
+                                error = "Please download the most recent version."
+                            case .CouldNotReachServer:
+                                error = "Could not reach server."
+                            case .InvalidUsername:
+                                error = "That username is invalid"
+                            case .UsernameTaken:
+                                error = "That username is not available."
+                            case .ServerDisabled:
+                                error = "The server is not accepting any new accounts at this moment. Please try again later."
+                            }
+                            break;
+                        case .Unexpected:
+                            error = "An unexpected error has occurred."
+                            DI.errors.handleError(err)
+                        }
+                    }
+                    break
+                }
+        }
+
     }
 }
 
@@ -103,7 +182,11 @@ struct OnboardingTwoView_Previews: PreviewProvider {
 
 struct OnboardingThreeView: View {
     let username: String
+    let keyPhrasePart1: String
+    let keyPhrasePart2: String
+    
     @State var storedSecurely = false
+    @State var working = false
     
     var body: some View {
         VStack(alignment: .leading) {
@@ -119,10 +202,10 @@ struct OnboardingThreeView: View {
                 .padding(.bottom)
             
             HStack {
-                Text("1. turkey\n2. era\n3. velvet\n4. detail\n5. prison\n6. income\n7. dose\n8. royal\n9. fever\n10. truly\n11. unique\n12. couple")
+                Text(keyPhrasePart1)
                     .padding(.leading, 30)
                 Spacer()
-                Text("13. party\n14. example\n15. piece\n16. art\n17. leaf\n18. follow\n19. rose\n20. access\n21. vacant\n22. gather\n23. wasp\n24. audit")
+                Text(keyPhrasePart2)
                     .padding(.trailing, 30)
             }
             .font(.system(.callout, design: .monospaced))
@@ -145,7 +228,7 @@ struct OnboardingThreeView: View {
             .padding(.bottom)
             
             Button {
-                print("nothing")
+                DI.settings.copyAccountString()
             } label: {
                 Text("Copy compact key")
                     .fontWeight(.semibold)
@@ -156,7 +239,8 @@ struct OnboardingThreeView: View {
             .padding(.bottom, 6)
             
             Button {
-                print("nothing")
+                working = true
+                DI.accounts.getAccount()
             } label: {
                 Text("Next")
                     .fontWeight(.semibold)
@@ -164,7 +248,7 @@ struct OnboardingThreeView: View {
                     .frame(height: 30)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(!storedSecurely)
+            .disabled(!storedSecurely || working)
         }
         .padding(.top, 35)
         .padding(.horizontal, 25)
@@ -173,7 +257,7 @@ struct OnboardingThreeView: View {
 
 struct OnboardingThreeView_Previews: PreviewProvider {
     static var previews: some View {
-        OnboardingThreeView(username: "smail")
+        OnboardingThreeView(username: "smail", keyPhrasePart1: "1. turkey\n2. era\n3. velvet\n4. detail\n5. prison\n6. income\n7. dose\n8. royal\n9. fever\n10. truly\n11. unique\n12. couple", keyPhrasePart2: "13. party\n14. example\n15. piece\n16. art\n17. leaf\n18. follow\n19. rose\n20. access\n21. vacant\n22. gather\n23. wasp\n24. audit")
     }
 }
 
@@ -193,6 +277,8 @@ struct iOSCheckboxToggleStyle: ToggleStyle {
 
 struct ImportAccountView: View {
     @State var accountKey = ""
+    @State var working = false
+    @State var error: String? = "An unexpected error has occurred."
     
     var body: some View {
         VStack(alignment: .leading) {
@@ -211,7 +297,7 @@ struct ImportAccountView: View {
                 TextField("Phrase or compact key", text: $accountKey)
                 
                 Button(action: {
-                    print("do nothing")
+                    
                 }, label: {
                     Image(systemName: "qrcode.viewfinder")
                         .font(.title)
@@ -221,6 +307,13 @@ struct ImportAccountView: View {
             .padding(.horizontal)
             
             HStack {
+                if let error = error {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .fontWeight(.bold)
+                        .lineLimit(2, reservesSpace: false)
+                }
+                
                 Spacer()
                 
                 Button(action: {
@@ -233,8 +326,9 @@ struct ImportAccountView: View {
             }
             .padding(.top)
             
+            
             Button {
-                print("nothing")
+                importAccount()
             } label: {
                 Text("Next")
                     .fontWeight(.semibold)
@@ -243,12 +337,51 @@ struct ImportAccountView: View {
             }
             .buttonStyle(.borderedProminent)
             .padding(.top)
-            .disabled(accountKey.isEmpty)
+            .disabled(accountKey.isEmpty || working)
             
             Spacer()
         }
         .padding(.top, 35)
         .padding(.horizontal, 25)
+    }
+    
+    func importAccount() {
+        working = true
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let res = DI.core.importAccount(accountString: accountKey)
+            DispatchQueue.main.async {
+                working = false
+                
+                switch res {
+                case .success:
+                    working = false
+                    DI.sync.importSync()
+                case .failure(let err):
+                    switch err.kind {
+                    case .UiError(let importError):
+                        switch importError {
+                        case .AccountDoesNotExist:
+                            error = "The account specified in the key does not exist on the server specified on the key!"
+                        case .AccountExistsAlready:
+                            error = "An account exists already! Please file a bug report!"
+                        case .AccountStringCorrupted:
+                            error = "This account string is corrupted!"
+                        case .ClientUpdateRequired:
+                            error = "Lockbook must be updated before you can continue!"
+                        case .CouldNotReachServer:
+                            error = "Could not reach lockbook.net!"
+                        case .UsernamePKMismatch:
+                            error = "That username does not match the public key stored on this server!"
+                        }
+                    case .Unexpected:
+                        error = "An unexpected error has occurred."
+                        DI.errors.handleError(err)
+                    }
+                }
+            }
+        }
+
     }
 }
 

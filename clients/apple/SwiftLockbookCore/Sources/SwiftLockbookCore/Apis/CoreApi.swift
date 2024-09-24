@@ -33,7 +33,11 @@ public struct CoreApi: LockbookApi {
     }
     
     public func exportAccount() -> FfiResult<String, AccountExportError> {
-        fromPrimitiveResult(result: export_account())
+        fromPrimitiveResult(result: export_account_key())
+    }
+    
+    public func exportAccountPhrase() -> FfiResult<String, AccountExportError> {
+        fromPrimitiveResult(result: export_account_phrase())
     }
     
     public func getUsage() -> FfiResult<UsageMetrics, GetUsageError> {

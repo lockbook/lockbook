@@ -124,9 +124,20 @@ pub unsafe extern "C" fn import_account(account_string: *const c_char) -> *const
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn export_account() -> *const c_char {
+pub unsafe extern "C" fn export_account_key() -> *const c_char {
     c_string(match static_state::get() {
-        Ok(core) => translate(core.export_account()),
+        Ok(core) => translate(core.export_account_key()),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn export_account_phrase() -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.export_account_phrase()),
         e => translate(e.map(|_| ())),
     })
 }
