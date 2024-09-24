@@ -102,8 +102,6 @@ impl GestureHandler {
             // when was the last time the shortcut was applied.
             let should_apply_shortcut =
                 if let Some(last_applied_shortcut) = &current_gesture.last_applied_shortcut {
-                    // todo: how many shortcuts did we apply during this gesture. change the cool off based on that.
-
                     let shortcut_cool_off = if current_gesture.total_applied_shortcuts > 8 {
                         Duration::from_millis(50)
                     } else {
