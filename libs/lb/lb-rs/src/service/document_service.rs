@@ -59,7 +59,6 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(())
     }
 
-    // todo: cleanup old_hmac
     pub(crate) fn safe_write(
         &mut self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>,
     ) -> LbResult<DocumentHmac> {
@@ -84,6 +83,8 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         })?;
         self.docs.insert(&id, Some(&hmac), &encrypted_document)?;
         self.add_doc_event(activity_service::DocEvent::Write(id, get_time().0))?;
+
+        self.docs.delete(&id, old_hmac.as_ref())?;
 
         Ok(hmac)
     }
