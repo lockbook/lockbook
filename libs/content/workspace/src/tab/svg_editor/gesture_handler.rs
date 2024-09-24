@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use resvg::usvg::Transform;
 use tracing::trace;
 
-use super::{toolbar::ToolContext, Buffer};
+use super::{toolbar::ToolContext, util::get_touch_positions, Buffer};
 
 #[derive(Default)]
 pub struct GestureHandler {
@@ -33,7 +33,7 @@ impl GestureHandler {
         if !*gesture_ctx.allow_viewport_changes {
             return;
         }
-
+        ui.ctx().request_repaint();
         // populate gesture on first multi frame
         if ui.input(|r| r.multi_touch()).is_some() {
             if self.current_gesture.is_none() {
@@ -69,7 +69,7 @@ impl GestureHandler {
                 || current_gesture.potential_pan.y.abs() > PAN_THRESH.y
                 || (current_gesture.potential_zoom - 1.0).abs() > ZOOM_THRESH;
 
-        if is_potential_viewport_change_higher_than_threshold {
+        if is_potential_viewport_change_higher_than_threshold || !gesture_ctx.is_touch_frame {
             trace!("potential viewport change is higher than threshold");
             change_viewport(ui, gesture_ctx);
             return;
@@ -102,13 +102,17 @@ impl GestureHandler {
             // when was the last time the shortcut was applied.
             let should_apply_shortcut =
                 if let Some(last_applied_shortcut) = &current_gesture.last_applied_shortcut {
-                    let shortcut_cool_off = if current_gesture.total_applied_shortcuts > 8 {
-                        Duration::from_millis(50)
+                    if current_gesture.total_applied_shortcuts == 0 {
+                        true
                     } else {
-                        Duration::from_millis(300)
-                    };
+                        let shortcut_cool_off = if current_gesture.total_applied_shortcuts > 8 {
+                            Duration::from_millis(50)
+                        } else {
+                            Duration::from_millis(200)
+                        };
 
-                    Instant::now() - last_applied_shortcut.1 > shortcut_cool_off
+                        Instant::now() - last_applied_shortcut.1 > shortcut_cool_off
+                    }
                 } else {
                     true
                 };
@@ -138,16 +142,30 @@ fn change_viewport(ui: &mut egui::Ui, gesture_ctx: &mut ToolContext<'_>) {
     let zoom_delta = ui.input(|r| r.zoom_delta());
     let is_zooming = zoom_delta != 1.0;
     let pan = get_pan(ui);
-    let pos = match ui.ctx().pointer_hover_pos() {
-        Some(cp) => {
-            if gesture_ctx.painter.clip_rect().contains(cp) {
-                cp
-            } else {
-                return; // todo: check this doesn't break zoom on touch devices
+
+    let touch_positions = get_touch_positions(ui);
+    let pos_cardinality = touch_positions.len();
+    let mut sum_pos = egui::Pos2::default();
+    for pos in get_touch_positions(ui).values() {
+        sum_pos.x += pos.x;
+        sum_pos.y += pos.y;
+    }
+
+    let pos = if pos_cardinality != 0 {
+        sum_pos / pos_cardinality as f32
+    } else {
+        match ui.ctx().pointer_hover_pos() {
+            Some(cp) => {
+                if gesture_ctx.painter.clip_rect().contains(cp) {
+                    cp
+                } else {
+                    return; // todo: check this doesn't break zoom on touch devices
+                }
             }
+            None => egui::Pos2::ZERO,
         }
-        None => egui::Pos2::ZERO,
     };
+
     let mut t = Transform::identity();
     if let Some(p) = pan {
         t = t.post_translate(p.x, p.y);
