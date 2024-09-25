@@ -3,6 +3,7 @@ use std::{collections::HashMap, fmt::Write, path::PathBuf, str::FromStr, sync::A
 use bezier_rs::{Bezier, Identifier, Subpath};
 use egui::TextureHandle;
 use glam::{DAffine2, DMat2, DVec2};
+use indexmap::IndexMap;
 use lb_rs::{base64, Uuid};
 use resvg::tiny_skia::Point;
 use resvg::usvg::{
@@ -34,7 +35,7 @@ pub struct ManipulatorGroupId;
 
 #[derive(Default)]
 pub struct Buffer {
-    pub elements: HashMap<Uuid, Element>,
+    pub elements: IndexMap<Uuid, Element>,
     pub master_transform: Transform,
     pub needs_path_map_update: bool,
     id_map: HashMap<Uuid, String>,
@@ -208,7 +209,6 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PressureStore
             let diff_state = DiffState { data_changed: true, ..Default::default() };
 
             let id = get_internal_id(path.id(), buffer);
-
             buffer.elements.insert(
                 id,
                 Element::Path(Path {
@@ -235,11 +235,12 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, store: &mut PressureStore
 }
 
 fn get_internal_id(svg_id: &str, buffer: &mut Buffer) -> Uuid {
-    let uuid = Uuid::new_v4();
-    if !svg_id.is_empty() && buffer.id_map.insert(uuid, svg_id.to_owned()).is_some() {
+    let id: Uuid = svg_id.parse().unwrap_or(Uuid::new_v4());
+
+    if buffer.id_map.insert(id, svg_id.to_owned()).is_some() {
         warn!(id = svg_id, "found elements  with duplicate id");
     }
-    uuid
+    id
 }
 
 fn lb_local_resolver(core: &lb_rs::Core, open_file: Uuid) -> ImageHrefStringResolverFn {
