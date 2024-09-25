@@ -200,7 +200,7 @@ struct OnboardingThreeView: View {
             Text("It proves you’re you, and it is a secret. If you lose it, you can’t recover your account.")
                 .padding(.top)
             
-            Text("You can view you’re key again in the settings.")
+            Text("You can view your key again in the settings.")
                 .padding(.top, 6)
                 .padding(.bottom)
             
