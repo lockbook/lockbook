@@ -214,7 +214,7 @@ struct OnboardingThreeView: View {
             .font(.system(.callout, design: .monospaced))
             .frame(maxWidth: 350)
             .padding()
-            .background(RoundedRectangle(cornerRadius: 3).foregroundStyle(.gray).opacity(0.5))
+            .background(RoundedRectangle(cornerRadius: 6).foregroundStyle(.gray).opacity(0.1))
             
             Spacer()
             
