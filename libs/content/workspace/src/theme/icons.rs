@@ -1,7 +1,7 @@
 #[derive(Clone, PartialEq)]
 pub struct Icon {
     pub has_badge: bool,
-    icon: &'static str,
+    pub icon: &'static str,
     pub size: f32,
     color: Option<egui::Color32>,
     weak: bool,
@@ -14,7 +14,11 @@ const fn ic(c: &'static str) -> Icon {
 impl Icon {
     pub const ACCOUNT: Self = ic("\u{e7ff}"); // Person Outline
     pub const ARROW_CIRCLE_DOWN: Self = ic("\u{f181}"); // Arrow Circle Down
-    pub const BRUSH: Self = ic("\u{e3ae}"); // Brush
+    pub const BRING_BACK: Self = ic("\u{e5cb}");
+    pub const BRING_TO_BACK: Self = ic("\u{e5dc}");
+    pub const BRING_TO_FRONT: Self = ic("\u{e5dd}");
+    pub const BRING_FRONT: Self = ic("\u{e5cc}");
+    pub const BRUSH: Self = ic("\u{e3ae}");
     pub const BOLD: Self = ic("\u{e238}"); // Bold Text
     pub const CHECK_CIRCLE: Self = ic("\u{e86c}"); // Check Circle
     pub const CANCEL: Self = ic("\u{e5c9}"); // Cancel

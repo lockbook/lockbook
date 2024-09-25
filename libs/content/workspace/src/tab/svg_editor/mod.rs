@@ -95,8 +95,12 @@ impl SVGEditor {
         let span = span!(Level::TRACE, "showing canvas widget", frame);
         let _ = span.enter();
 
+        self.painter
+            .set_layer_id(egui::LayerId::new(egui::Order::Debug, "canvas_widgets".into()));
         self.process_events(ui);
 
+        self.painter
+            .set_layer_id(egui::LayerId::new(egui::Order::Background, "canvas_elements".into()));
         self.show_canvas(ui);
 
         let global_diff = self.get_and_reset_diff_state();

@@ -22,7 +22,7 @@ use super::{
 #[derive(Default)]
 pub struct Selection {
     last_pos: Option<egui::Pos2>,
-    selected_elements: Vec<SelectedElement>,
+    pub selected_elements: Vec<SelectedElement>,
     candidate_selected_elements: Vec<SelectedElement>,
     selection_rect: Option<SelectionRectContainer>,
     laso_original_pos: Option<egui::Pos2>,
@@ -31,8 +31,8 @@ pub struct Selection {
 }
 
 #[derive(Clone, Debug)]
-struct SelectedElement {
-    id: Uuid,
+pub struct SelectedElement {
+    pub id: Uuid,
     prev_pos: egui::Pos2,
     transform: Transform,
 }
@@ -100,7 +100,10 @@ impl Selection {
             ui.input(|r| r.pointer.primary_clicked())
         };
 
-        if should_rebuild && pos.is_some() {
+        let pos_is_inside_canvas =
+            if let Some(p) = pos { selection_ctx.painter.clip_rect().contains(p) } else { false };
+
+        if should_rebuild && pos_is_inside_canvas {
             // is cursor inside of a selected element?
             let pos_over_selected_el = if let Some(r) = &self.selection_rect {
                 r.get_cursor_icon(pos.unwrap()).is_some()
@@ -358,6 +361,24 @@ impl Selection {
 
         if ui.input(|r| r.key_pressed(egui::Key::Backspace)) && !self.selected_elements.is_empty() {
             self.delete_selection(selection_ctx.buffer, selection_ctx.history);
+        }
+        if ui.input(|r| r.key_pressed(egui::Key::OpenBracket)) && !self.selected_elements.is_empty()
+        {
+            let index = if let Some((selected_el_index, _, el)) = selection_ctx
+                .buffer
+                .elements
+                .get_full_mut(&self.selected_elements[0].id)
+            {
+                match el {
+                    parser::Element::Path(path) => path.diff_state.data_changed = true,
+                    parser::Element::Image(image) => image.diff_state.data_changed = true,
+                    parser::Element::Text(_) => todo!(),
+                }
+                selected_el_index
+            } else {
+                0
+            };
+            selection_ctx.buffer.elements.swap_indices(0, index);
         }
 
         if let Some(p) = pos {
