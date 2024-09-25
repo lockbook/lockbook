@@ -381,20 +381,6 @@ impl Selection {
             selection_ctx.buffer.elements.swap_indices(0, index);
         }
 
-        // if ui.input(|r| r.key_pressed(egui::Key::OpenBracket)) && !self.selected_elements.is_empty()
-        // {
-        //     if let Some((selected_el_index, _, el)) = selection_ctx
-        //         .buffer
-        //         .elements
-        //         .get_full(&self.selected_elements[0].id)
-        //     {
-        //         selection_ctx
-        //             .buffer
-        //             .elements
-        //             .swap_indices(0, selected_el_index);
-        //     }
-        // }
-
         if let Some(p) = pos {
             self.last_pos = Some(p);
         }
