@@ -115,6 +115,7 @@ impl Pen {
                         }
                     }
 
+                    // todo: snaping is broken, bring it back when the pen tool is stable  
                     if self.detect_snap(&p.data, payload.pos, pen_ctx.buffer.master_transform) {
                         self.end_path(pen_ctx, true);
                         return;
