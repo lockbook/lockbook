@@ -2,7 +2,10 @@ use bezier_rs::{Bezier, Subpath};
 use egui::{PointerButton, TouchId, TouchPhase};
 use lb_rs::Uuid;
 use resvg::usvg::Transform;
-use std::{collections::VecDeque, time::Instant};
+use std::{
+    collections::VecDeque,
+    time::{Duration, Instant},
+};
 use tracing::{event, trace, warn, Level};
 use tracing_test::traced_test;
 
@@ -112,10 +115,10 @@ impl Pen {
                         }
                     }
 
-                    // if self.detect_snap(&p.data, payload.pos, pen_ctx.buffer.master_transform) {
-                    //     self.end_path(pen_ctx, true);
-                    //     return;
-                    // }
+                    if self.detect_snap(&p.data, payload.pos, pen_ctx.buffer.master_transform) {
+                        self.end_path(pen_ctx, true);
+                        return;
+                    }
 
                     p.diff_state.data_changed = true;
 
@@ -205,6 +208,42 @@ impl Pen {
                 .rev()
                 .collect()
         })
+    }
+
+    fn detect_snap(
+        &mut self, path: &Subpath<ManipulatorGroupId>, current_pos: egui::Pos2,
+        master_transform: Transform,
+    ) -> bool {
+        if path.len() < 2 {
+            return false;
+        }
+
+        if let Some(last_pos) = path.iter().last() {
+            let last_pos = last_pos.end();
+            let last_pos = egui::pos2(last_pos.x as f32, last_pos.y as f32);
+
+            let dist_diff = last_pos.distance(current_pos).abs();
+
+            let mut dist_to_trigger_snap = 1.5;
+
+            dist_to_trigger_snap /= master_transform.sx;
+
+            let time_to_trigger_snap = Duration::from_secs(1);
+
+            if dist_diff < dist_to_trigger_snap {
+                if let Some(snap_start) = self.maybe_snap_started {
+                    if Instant::now() - snap_start > time_to_trigger_snap {
+                        self.maybe_snap_started = None;
+                        return true;
+                    }
+                } else {
+                    self.maybe_snap_started = Some(Instant::now());
+                }
+            } else {
+                self.maybe_snap_started = Some(Instant::now());
+            }
+        }
+        false
     }
 
     /// converts a single ui event into a path event  
