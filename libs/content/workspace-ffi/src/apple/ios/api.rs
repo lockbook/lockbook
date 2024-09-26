@@ -228,7 +228,7 @@ pub unsafe extern "C" fn unmark_text(_obj: *mut c_void) {
 /// should we be returning a subset of the document? https://stackoverflow.com/questions/12676851/uitextinput-is-it-ok-to-return-incorrect-beginningofdocument-endofdocumen
 #[no_mangle]
 pub unsafe extern "C" fn beginning_of_document(_obj: *mut c_void) -> CTextPosition {
-    CTextPosition { ..Default::default() }
+    DocCharOffset(0).into()
 }
 
 /// # Safety
@@ -244,8 +244,13 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
         None => return CTextPosition::default(),
     };
 
-    let result = markdown.editor.buffer.current.segs.last_cursor_position().0;
-    CTextPosition { pos: result, ..Default::default() }
+    markdown
+        .editor
+        .buffer
+        .current
+        .segs
+        .last_cursor_position()
+        .into()
 }
 
 /// # Safety
