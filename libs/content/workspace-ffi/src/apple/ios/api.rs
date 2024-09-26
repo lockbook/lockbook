@@ -719,7 +719,7 @@ pub unsafe extern "C" fn selection_rects(
         let mut new_end = cont_start;
         new_end = new_end.advance(
             &mut None,
-            Offset::To(Bound::Line),
+            Offset::Next(Bound::Line),
             false,
             segs,
             galleys,
