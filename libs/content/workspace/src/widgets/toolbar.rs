@@ -329,8 +329,26 @@ fn get_mobile_components() -> Vec<Component> {
             icon: Icon::HEADER_1,
             id: "header".to_string(),
             callback: toggle_heading_style,
+        }),
+        Component::Button(ToolbarButton {
+            icon: Icon::BOLD,
+            id: "bold".to_string(),
+            callback: |ui, _, _| {
+                ui.ctx().push_markdown_event(Event::ToggleStyle {
+                    region: Region::Selection,
+                    style: MarkdownNode::Inline(InlineNode::Bold),
+                })
+            },
+        }),
+        Component::Button(ToolbarButton {
             icon: Icon::ITALIC,
             id: "italic".to_string(),
+            callback: |ui, _, _| {
+                ui.ctx().push_markdown_event(Event::ToggleStyle {
+                    region: Region::Selection,
+                    style: MarkdownNode::Inline(InlineNode::Italic),
+                })
+            },
         }),
         Component::Button(ToolbarButton {
             icon: Icon::CODE,
@@ -441,5 +459,5 @@ fn toggle_heading_style(
         t.header_click_count += 1;
     }
     ui.ctx()
-        .push_markdown_event(Modification::toggle_heading_style(t.header_click_count));
+        .push_markdown_event(Event::toggle_heading_style(t.header_click_count));
 }
