@@ -1,11 +1,12 @@
 use egui::{Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use lb_external_interface::lb_rs::text::offset_types::{
-    DocCharOffset, RangeExt as _, RelCharOffset,
+    DocCharOffset, RangeExt as _, RangeIterExt, RelCharOffset,
 };
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::ptr::null;
 use tracing::instrument;
+use workspace_rs::tab::markdown_editor::bounds::RangesExt;
 use workspace_rs::tab::markdown_editor::input::advance::AdvanceExt as _;
 use workspace_rs::tab::markdown_editor::input::{cursor, mutation};
 use workspace_rs::tab::markdown_editor::input::{Bound, Event, Increment, Offset, Region};
@@ -698,10 +699,10 @@ pub unsafe extern "C" fn selection_rects(
         None => return UITextSelectionRects::default(),
     };
 
-    let segs = &markdown.editor.buffer.current.segs;
     let galleys = &markdown.editor.galleys;
     let text = &markdown.editor.bounds.text;
     let appearance = &markdown.editor.appearance;
+    let bounds = &markdown.editor.bounds;
 
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
     let range = match range {
@@ -711,44 +712,30 @@ pub unsafe extern "C" fn selection_rects(
             return UITextSelectionRects::default();
         }
     };
-    let mut cont_start = range.start();
 
     let mut selection_rects = vec![];
 
-    while cont_start < range.end() {
-        let mut new_end = cont_start;
-        new_end = new_end.advance(
-            &mut None,
-            Offset::Next(Bound::Line),
-            false,
-            segs,
-            galleys,
-            &markdown.editor.bounds,
-        );
-        let end_of_rect = cmp::min(new_end, range.end());
+    let lines = bounds.lines.find_intersecting(range, false);
+    for line in lines.iter() {
+        let mut line = bounds.lines[line];
+        if line.0 < range.start() {
+            line.0 = range.start();
+        }
+        if line.1 > range.end() {
+            line.1 = range.end();
+        }
+        if line.is_empty() {
+            continue;
+        }
 
-        let selection_representing_rect = (cont_start, end_of_rect);
-
-        let start_line =
-            cursor::line(selection_representing_rect.start(), galleys, text, appearance);
-        let end_line = cursor::line(selection_representing_rect.end(), galleys, text, appearance);
-
+        let start_line = cursor::line(line.0, galleys, text, appearance);
+        let end_line = cursor::line(line.1, galleys, text, appearance);
         selection_rects.push(CRect {
             min_x: (start_line[1].x) as f64,
             min_y: start_line[0].y as f64,
             max_x: end_line[1].x as f64,
             max_y: end_line[1].y as f64,
         });
-
-        new_end.advance(
-            &mut None,
-            Offset::Next(Bound::Char),
-            false,
-            segs,
-            galleys,
-            &markdown.editor.bounds,
-        );
-        cont_start = new_end;
     }
 
     UITextSelectionRects {
