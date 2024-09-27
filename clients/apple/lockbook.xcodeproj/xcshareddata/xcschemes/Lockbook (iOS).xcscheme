@@ -76,7 +76,7 @@
          <EnvironmentVariable
             key = "LOG_LEVEL"
             value = "5"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>
