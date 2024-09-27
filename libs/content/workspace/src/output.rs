@@ -71,7 +71,7 @@ impl WsStatus {
         if !self.dirtyness.dirty_files.is_empty() {
             let size = self.dirtyness.dirty_files.len();
             if size == 1 {
-                self.message = format!("{size} file need to be synced");
+                self.message = format!("{size} file needs to be synced");
             } else {
                 self.message = format!("{size} files need to be synced");
             }
