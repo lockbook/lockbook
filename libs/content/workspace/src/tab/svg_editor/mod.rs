@@ -172,7 +172,7 @@ impl SVGEditor {
                         egui::Event::Touch { device_id: _, id: _, phase: _, pos: _, force: _ }
                     )
                 })
-            }),
+            }) || cfg!(target_os = "ios"),
         };
 
         match self.toolbar.active_tool {
