@@ -1064,7 +1064,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
         let newFile = UUID(uuid: output.doc_created._0)
         if !newFile.isNil() {
-            self.workspaceState?.openDoc = newFile
+            openFile(id: newFile)
         }
 
         if output.new_folder_btn_pressed {
