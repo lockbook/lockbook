@@ -920,7 +920,7 @@ fn tab_label(
 
             // First, we check if the close button was clicked.
             // Since egui 0.26.2, ui.interact(close_btn_rect, ..).clicked() is always false for unknown reasons
-            if ui.input(|i| i.pointer.primary_clicked()) && close_hovered {
+            if ui.input(|i| i.pointer.primary_released()) && close_hovered {
                 lbl_resp = Some(TabLabelResponse::Closed);
             } else {
                 // Then, we check if the tab label was clicked so that a close button click
