@@ -8,7 +8,6 @@ name = "workspace_rs"
 
 [dependencies]
 bezier-rs = "0.2.0"
-bincode = "1.3.3"
 egui = "0.26.2"
 epaint = "0.26.2"
 glam = "0.22.0"
