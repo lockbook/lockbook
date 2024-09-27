@@ -9,8 +9,8 @@ use crate::{
 };
 
 use super::{
-    eraser::DEFAULT_ERASER_RADIUS, history::History, parser, pen::DEFAULT_PEN_STROKE_WIDTH,
-    selection::Selection, zoom::zoom_percentage_to_transform, Buffer, Eraser, Pen,
+    eraser::DEFAULT_ERASER_RADIUS, gesture_handler::zoom_percentage_to_transform, history::History,
+    parser, pen::DEFAULT_PEN_STROKE_WIDTH, selection::Selection, Buffer, Eraser, Pen,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
@@ -42,7 +42,6 @@ pub struct ToolContext<'a> {
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
     pub allow_viewport_changes: &'a mut bool,
-    pub is_viewport_changing: &'a mut bool,
     pub is_touch_frame: bool,
 }
 #[derive(Clone)]

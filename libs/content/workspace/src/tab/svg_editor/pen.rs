@@ -271,13 +271,10 @@ impl Pen {
         // todo: should i wait for input start
         if input_state.is_multi_touch {
             if is_current_path_empty {
-                trace!("allowing viewport changes");
                 *pen_ctx.allow_viewport_changes = true;
                 return Some(PathEvent::Break);
             }
             if !get_event_touch_id(e).eq(&self.path_builder.first_point_touch_id) {
-                trace!("no viewport changes");
-                *pen_ctx.allow_viewport_changes = false;
                 return None;
             }
         }
@@ -318,7 +315,6 @@ impl Pen {
                     trace!("probably lifted a finger off from a zoom.");
                     return None;
                 }
-                *pen_ctx.is_viewport_changing = false;
 
                 return Some(PathEvent::Draw(DrawPayload { pos, force, id: Some(id) }));
             }
@@ -609,7 +605,6 @@ fn correct_start_of_path() {
         buffer: &mut parser::Buffer::default(),
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
-        is_viewport_changing: &mut false,
         is_touch_frame: true,
     };
 
@@ -662,7 +657,6 @@ fn cancel_touch_ui_event() {
         buffer: &mut parser::Buffer::default(),
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
-        is_viewport_changing: &mut false,
         is_touch_frame: true,
     };
 
