@@ -1,4 +1,4 @@
-use lb_rs::model::errors::CoreError;
+use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
 use lb_rs::Lb;
 use test_utils::*;
@@ -601,7 +601,7 @@ async fn test_share_link_write() {
             .await
             .unwrap_err()
             .kind, // this succeeded and now correctly fails (was sharing link instead of target)
-        CoreError::InsufficientPermission
+        LbErrKind::InsufficientPermission
     );
     cores[1].sync(None).await.unwrap();
 

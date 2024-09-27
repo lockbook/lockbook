@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use crate::Actions::*;
 use indicatif::{ProgressBar, ProgressStyle};
-use lb_rs::model::errors::{CoreError, LbError};
+use lb_rs::model::errors::{LbErrKind, LbErr};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType::{Document, Folder};
 use lb_rs::Lb;
@@ -132,7 +132,7 @@ impl Actions {
                         let move_file_result = client.move_file(&file.id, &new_parent.id).await;
                         match move_file_result {
                             Ok(()) => {}
-                            Err(LbError { kind: CoreError::FolderMovedIntoSelf, .. }) => {}
+                            Err(LbErr { kind: LbErrKind::FolderMovedIntoSelf, .. }) => {}
                             _ => panic!(
                                 "Unexpected error while moving file: {:#?}",
                                 move_file_result

@@ -5,7 +5,7 @@ use crate::logic::signed_file::SignedFile;
 use crate::logic::tree_like::TreeLike;
 use crate::logic::validate;
 use crate::model::clock::get_time;
-use crate::model::errors::{CoreError, LbResult};
+use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_metadata::FileType;
 use crate::Lb;
 use uuid::Uuid;
@@ -39,7 +39,7 @@ impl Lb {
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
             .to_lazy();
-        let account = db.account.get().ok_or(CoreError::AccountNonexistent)?;
+        let account = db.account.get().ok_or(LbErrKind::AccountNonexistent)?;
 
         let id = match tree.find(&id)?.file_type() {
             FileType::Document | FileType::Folder => id,
@@ -90,7 +90,7 @@ impl Lb {
         let hmac = file.document_hmac().copied();
 
         if tree.calculate_deleted(&id)? {
-            return Err(CoreError::FileNonexistent.into());
+            return Err(LbErrKind::FileNonexistent.into());
         }
 
         let doc = match hmac {

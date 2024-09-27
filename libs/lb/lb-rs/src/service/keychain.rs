@@ -1,6 +1,6 @@
 use crate::{
     model::account::Account,
-    model::errors::{CoreError, LbResult},
+    model::errors::{LbErrKind, LbResult},
     Lb,
 };
 use libsecp256k1::PublicKey;
@@ -17,7 +17,7 @@ impl Lb {
         self.keychain
             .account
             .get()
-            .ok_or_else(|| CoreError::AccountNonexistent.into())
+            .ok_or_else(|| LbErrKind::AccountNonexistent.into())
     }
 
     pub fn get_pk(&self) -> LbResult<PublicKey> {
@@ -25,7 +25,7 @@ impl Lb {
             .public_key
             .get()
             .copied()
-            .ok_or_else(|| CoreError::AccountNonexistent.into())
+            .ok_or_else(|| LbErrKind::AccountNonexistent.into())
     }
 
     #[doc(hidden)]

@@ -2,7 +2,7 @@ use crate::logic::filename::MAX_FILENAME_LENGTH;
 use crate::logic::symkey;
 use crate::logic::tree_like::TreeLike;
 use crate::model::access_info::UserAccessMode;
-use crate::model::errors::{CoreError, LbResult};
+use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::Lb;
@@ -18,13 +18,13 @@ impl Lb {
 
         // todo this is checked later and probably can be removed
         if name.len() > MAX_FILENAME_LENGTH {
-            return Err(CoreError::FileNameTooLong.into());
+            return Err(LbErrKind::FileNameTooLong.into());
         }
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
             .to_lazy();
 
-        let account = db.account.get().ok_or(CoreError::AccountNonexistent)?;
+        let account = db.account.get().ok_or(LbErrKind::AccountNonexistent)?;
 
         let id =
             tree.create(Uuid::new_v4(), symkey::generate_key(), parent, name, file_type, account)?;
@@ -41,7 +41,7 @@ impl Lb {
         let db = tx.db();
 
         if new_name.len() > MAX_FILENAME_LENGTH {
-            return Err(CoreError::FileNameTooLong.into());
+            return Err(LbErrKind::FileNameTooLong.into());
         }
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
@@ -94,7 +94,7 @@ impl Lb {
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let account = self.get_account()?;
 
-        let root_id = db.root.get().ok_or(CoreError::RootNonexistent)?;
+        let root_id = db.root.get().ok_or(LbErrKind::RootNonexistent)?;
 
         let root = tree.decrypt(account, root_id, &db.pub_key_lookup)?;
 
@@ -151,10 +151,10 @@ impl Lb {
         let account = self.get_account()?;
 
         if tree.calculate_deleted(&id)? {
-            return Err(CoreError::FileNonexistent.into());
+            return Err(LbErrKind::FileNonexistent.into());
         }
         if tree.access_mode(Owner(self.get_pk()?), &id)? < Some(UserAccessMode::Read) {
-            return Err(CoreError::FileNonexistent.into());
+            return Err(LbErrKind::FileNonexistent.into());
         }
 
         let file = tree.decrypt(account, &id, &db.pub_key_lookup)?;

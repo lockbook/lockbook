@@ -10,7 +10,7 @@ use crate::model::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
     GetUsernameError, GetUsernameRequest, UpsertRequest,
 };
-use crate::model::errors::{CoreError, LbResult};
+use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
 use crate::model::file_metadata::{FileDiff, FileType, Owner};
 use crate::model::work_unit::WorkUnit;
@@ -338,7 +338,7 @@ impl Lb {
                                 },
                             }
                         }
-                        return Err(CoreError::Unexpected(format!(
+                        return Err(LbErrKind::Unexpected(format!(
                             "sync failed to find a topological order for file creations: {:?}",
                             deletion_creations
                         ))
@@ -417,7 +417,7 @@ impl Lb {
                                 },
                             }
                         }
-                        return Err(CoreError::Unexpected(format!(
+                        return Err(LbErrKind::Unexpected(format!(
                             "sync failed to find a topological order for file creations: {:?}",
                             creations
                         ))
@@ -660,7 +660,7 @@ impl Lb {
                                 if links_to_delete.insert(link) {
                                     continue 'merge_construction;
                                 } else {
-                                    return Err(CoreError::Unexpected(format!(
+                                    return Err(LbErrKind::Unexpected(format!(
                                         "sync failed to resolve broken link (deletion): {:?}",
                                         link
                                     ))
@@ -692,7 +692,7 @@ impl Lb {
                                     }
                                 }
                                 if !progress {
-                                    return Err(CoreError::Unexpected(format!(
+                                    return Err(LbErrKind::Unexpected(format!(
                                         "sync failed to resolve cycle: {:?}",
                                         ids
                                     ))
@@ -719,7 +719,7 @@ impl Lb {
                                     }
                                 }
                                 if !progress {
-                                    return Err(CoreError::Unexpected(format!(
+                                    return Err(LbErrKind::Unexpected(format!(
                                         "sync failed to resolve path conflict: {:?}",
                                         ids
                                     ))
@@ -741,7 +741,7 @@ impl Lb {
                                     progress = true;
                                 }
                                 if !progress {
-                                    return Err(CoreError::Unexpected(format!(
+                                    return Err(LbErrKind::Unexpected(format!(
                                     "sync failed to resolve shared link: link: {:?}, shared_ancestor: {:?}",
                                     link, shared_ancestor
                                 )).into());
@@ -756,7 +756,7 @@ impl Lb {
                                     }
                                 }
                                 if !progress {
-                                    return Err(CoreError::Unexpected(format!(
+                                    return Err(LbErrKind::Unexpected(format!(
                                         "sync failed to resolve duplicate link: target: {:?}",
                                         target
                                     ))
@@ -766,7 +766,7 @@ impl Lb {
                             ValidationFailure::BrokenLink(link) => {
                                 // delete local link with this target
                                 if !links_to_delete.insert(*link) {
-                                    return Err(CoreError::Unexpected(format!(
+                                    return Err(LbErrKind::Unexpected(format!(
                                         "sync failed to resolve broken link: {:?}",
                                         link
                                     ))
@@ -790,7 +790,7 @@ impl Lb {
                                     progress = true;
                                 }
                                 if !progress {
-                                    return Err(CoreError::Unexpected(format!(
+                                    return Err(LbErrKind::Unexpected(format!(
                                         "sync failed to resolve owned link: {:?}",
                                         link
                                     ))
@@ -976,7 +976,7 @@ impl Lb {
                 .all_files()?
                 .into_iter()
                 .find(|f| f.is_root())
-                .ok_or(CoreError::RootNonexistent)?;
+                .ok_or(LbErrKind::RootNonexistent)?;
             root_id = Some(*root.id());
         }
 

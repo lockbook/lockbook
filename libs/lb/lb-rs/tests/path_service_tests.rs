@@ -1,5 +1,5 @@
 use lb_rs::logic::path_ops::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
-use lb_rs::model::errors::CoreError;
+use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file_metadata::FileType;
 use test_utils::*;
 
@@ -59,7 +59,7 @@ async fn create_at_path_missing_folders() {
 async fn create_at_path_path_contains_empty_file_name() {
     let core = test_core_with_account().await;
     let result = core.create_at_path("//document").await;
-    assert_matches!(result.unwrap_err().kind, CoreError::PathContainsEmptyFileName);
+    assert_matches!(result.unwrap_err().kind, LbErrKind::PathContainsEmptyFileName);
 }
 
 #[tokio::test]
@@ -67,7 +67,7 @@ async fn create_at_path_path_taken() {
     let core = test_core_with_account().await;
     core.create_at_path("/folder/document").await.unwrap();
     let result = core.create_at_path("/folder/document").await;
-    assert_matches!(result.unwrap_err().kind, CoreError::PathTaken);
+    assert_matches!(result.unwrap_err().kind, LbErrKind::PathTaken);
 }
 
 #[tokio::test]
@@ -75,7 +75,7 @@ async fn create_at_path_not_folder() {
     let core = test_core_with_account().await;
     core.create_at_path("/not-folder").await.unwrap();
     let result = core.create_at_path("/not-folder/document").await;
-    assert_matches!(result.unwrap_err().kind, CoreError::FileNotFolder);
+    assert_matches!(result.unwrap_err().kind, LbErrKind::FileNotFolder);
 }
 
 #[tokio::test]

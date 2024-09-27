@@ -3,7 +3,7 @@ use crate::model::account::{Account, MAX_USERNAME_LENGTH};
 use crate::model::api::{
     DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequest,
 };
-use crate::model::errors::{core_err_unexpected, CoreError, LbResult};
+use crate::model::errors::{core_err_unexpected, LbErrKind, LbResult};
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::{Lb, DEFAULT_API_LOCATION};
 use libsecp256k1::SecretKey;
@@ -24,14 +24,14 @@ impl Lb {
         let username = String::from(username).to_lowercase();
 
         if username.len() > MAX_USERNAME_LENGTH {
-            return Err(CoreError::UsernameInvalid.into());
+            return Err(LbErrKind::UsernameInvalid.into());
         }
 
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
         if db.account.get().is_some() {
-            return Err(CoreError::AccountExists.into());
+            return Err(LbErrKind::AccountExists.into());
         }
 
         let account = Account::new(username.clone(), api_url.to_string());
@@ -67,7 +67,7 @@ impl Lb {
     pub async fn import_account(&mut self, key: &str, api_url: Option<&str>) -> LbResult<Account> {
         if self.get_account().is_ok() {
             warn!("tried to import an account, but account exists already.");
-            return Err(CoreError::AccountExists.into());
+            return Err(LbErrKind::AccountExists.into());
         }
 
         if let Ok(key) = base64::decode(key) {
@@ -85,7 +85,7 @@ impl Lb {
             .filter(|maybe_word| !maybe_word.is_empty())
             .collect::<Vec<_>>()
             .try_into()
-            .map_err(|_| CoreError::AccountStringCorrupted)?;
+            .map_err(|_| LbErrKind::AccountStringCorrupted)?;
 
         self.import_account_phrase(phrase, api_url.unwrap_or(DEFAULT_API_LOCATION))
             .await
@@ -101,7 +101,7 @@ impl Lb {
         let account_public_key = account.public_key();
 
         if account_public_key != server_public_key {
-            return Err(CoreError::UsernamePublicKeyMismatch.into());
+            return Err(LbErrKind::UsernamePublicKeyMismatch.into());
         }
 
         let mut tx = self.begin_tx().await;
@@ -175,8 +175,8 @@ impl Lb {
             .request(account, DeleteAccountRequest {})
             .await
             .map_err(|err| match err {
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })?;
 

@@ -1,7 +1,7 @@
 use crate::logic::file_like::FileLike;
 use crate::logic::tree_like::TreeLike;
 use crate::model::api::GetPublicKeyRequest;
-use crate::model::errors::{LbError, LbResult};
+use crate::model::errors::{LbErr, LbResult};
 use crate::model::file::{File, ShareMode};
 use crate::model::file_metadata::Owner;
 use crate::Lb;
@@ -17,7 +17,7 @@ impl Lb {
             self.client
                 .request(account, GetPublicKeyRequest { username: String::from(username) })
                 .await
-                .map_err(LbError::from)?
+                .map_err(LbErr::from)?
                 .key,
         );
 
@@ -84,7 +84,7 @@ impl Lb {
         Ok(())
     }
 
-    pub async fn reject_share(&self, id: &Uuid) -> Result<(), LbError> {
+    pub async fn reject_share(&self, id: &Uuid) -> Result<(), LbErr> {
         let pk = self.get_account()?.public_key();
         self.delete_share(id, Some(pk)).await
     }

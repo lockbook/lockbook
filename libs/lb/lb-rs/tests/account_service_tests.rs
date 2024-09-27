@@ -1,6 +1,6 @@
 use lb_rs::logic::pubkey;
 use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
-use lb_rs::model::errors::CoreError;
+use lb_rs::model::errors::LbErrKind;
 use test_utils::*;
 
 #[tokio::test]
@@ -29,7 +29,7 @@ async fn create_account_invalid_url() {
     let result = core
         .create_account(&random_name(), "https://bad-url.net", false)
         .await;
-    assert!(matches!(result.unwrap_err().kind, CoreError::ServerUnreachable))
+    assert!(matches!(result.unwrap_err().kind, LbErrKind::ServerUnreachable))
 }
 
 #[tokio::test]
@@ -38,7 +38,7 @@ async fn create_account_invalid_url_with_welcome() {
     let result = core
         .create_account(&random_name(), "https://bad-url.net", true)
         .await;
-    assert!(matches!(result.unwrap_err().kind, CoreError::ServerUnreachable))
+    assert!(matches!(result.unwrap_err().kind, LbErrKind::ServerUnreachable))
 }
 
 #[tokio::test]
@@ -55,7 +55,7 @@ async fn create_account_username_taken() {
         .unwrap_err();
 
     assert!(
-        matches!(err.kind, CoreError::UsernameTaken),
+        matches!(err.kind, LbErrKind::UsernameTaken),
         "Username \"{}\" should have caused a UsernameTaken error but instead was {:?}",
         &name,
         err
@@ -73,7 +73,7 @@ async fn create_account_invalid_username() {
         let err = core.create_account(uname, &url(), false).await.unwrap_err();
 
         assert!(
-            matches!(err.kind, CoreError::UsernameInvalid),
+            matches!(err.kind, LbErrKind::UsernameInvalid),
             "Username \"{}\" should have been InvalidUsername but instead was {:?}",
             uname,
             err
@@ -95,7 +95,7 @@ async fn create_account_account_exists() {
                 .await
                 .unwrap_err()
                 .kind,
-            CoreError::AccountExists
+            LbErrKind::AccountExists
         ),
         "This action should have failed with AccountAlreadyExists!",
     );
@@ -114,7 +114,7 @@ async fn create_account_account_exists_case() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::UsernameTaken
+        LbErrKind::UsernameTaken
     ));
 }
 
@@ -132,7 +132,7 @@ async fn import_account_account_exists() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::AccountExists
+        LbErrKind::AccountExists
     ));
 }
 
@@ -145,7 +145,7 @@ async fn import_account_corrupted() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::AccountStringCorrupted
+        LbErrKind::AccountStringCorrupted
     ));
 }
 
@@ -159,7 +159,7 @@ async fn import_account_corrupted_base64() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::AccountStringCorrupted
+        LbErrKind::AccountStringCorrupted
     ));
 }
 
@@ -189,7 +189,7 @@ async fn import_account_nonexistent() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::AccountNonexistent
+        LbErrKind::AccountNonexistent
     ));
 }
 
@@ -223,7 +223,7 @@ async fn import_account_public_key_mismatch() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::UsernamePublicKeyMismatch
+        LbErrKind::UsernamePublicKeyMismatch
     ));
 }
 

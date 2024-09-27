@@ -1,6 +1,6 @@
 use lb_rs::logic::file_like::FileLike;
 use lb_rs::model::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
-use lb_rs::model::errors::CoreError;
+use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::file_metadata::FileType::Folder;
@@ -181,7 +181,7 @@ async fn change_doc_over_data_cap() {
 
     let result = core.sync(None).await;
 
-    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverDataCap);
+    assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
 }
 
 #[tokio::test]
@@ -200,7 +200,7 @@ async fn old_file_and_new_large_one() {
 
     let result = core.sync(None).await;
 
-    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverDataCap);
+    assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
 }
 
 #[tokio::test]
@@ -245,7 +245,7 @@ async fn upsert_meta_over_data_cap() {
         .unwrap();
 
     let result = core.sync(None).await;
-    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverDataCap);
+    assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
 }
 
 #[tokio::test]
@@ -261,7 +261,7 @@ async fn upsert_meta_empty_folder_over_data_cap() {
     }
     let result = core.sync(None);
 
-    assert_eq!(result.await.unwrap_err().kind, CoreError::UsageIsOverDataCap);
+    assert_eq!(result.await.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
 }
 
 #[tokio::test]

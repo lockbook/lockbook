@@ -1,5 +1,5 @@
 use lb_rs::logic::filename::MAX_FILENAME_LENGTH;
-use lb_rs::model::errors::CoreError;
+use lb_rs::model::errors::LbErrKind;
 use test_utils::{assert_matches, test_core_with_account};
 use uuid::Uuid;
 
@@ -16,7 +16,7 @@ async fn rename() {
 async fn rename_not_found() {
     let core = test_core_with_account().await;
     let result = core.rename_file(&Uuid::new_v4(), "test").await;
-    assert_matches!(result.unwrap_err().kind, CoreError::FileNonexistent);
+    assert_matches!(result.unwrap_err().kind, LbErrKind::FileNonexistent);
 }
 
 #[tokio::test]
@@ -25,7 +25,7 @@ async fn rename_not_root() {
     let result = core
         .rename_file(&core.root().await.unwrap().id, "test")
         .await;
-    assert_matches!(result.unwrap_err().kind, CoreError::RootModificationInvalid);
+    assert_matches!(result.unwrap_err().kind, LbErrKind::RootModificationInvalid);
 }
 
 #[tokio::test]
@@ -34,7 +34,7 @@ async fn apply_rename_invalid_name() {
     let id = core.create_at_path("doc.md").await.unwrap().id;
     assert_matches!(
         core.rename_file(&id, "docs/2.md").await.unwrap_err().kind,
-        CoreError::FileNameContainsSlash
+        LbErrKind::FileNameContainsSlash
     );
 }
 
@@ -43,7 +43,7 @@ async fn name_taken() {
     let core = test_core_with_account().await;
     core.create_at_path("doc1.md").await.unwrap();
     let id = core.create_at_path("doc2.md").await.unwrap().id;
-    assert_matches!(core.rename_file(&id, "doc1.md").await.unwrap_err().kind, CoreError::PathTaken);
+    assert_matches!(core.rename_file(&id, "doc1.md").await.unwrap_err().kind, LbErrKind::PathTaken);
 }
 
 #[tokio::test]
@@ -51,7 +51,7 @@ async fn name_empty() {
     let core = test_core_with_account().await;
     core.create_at_path("doc1.md").await.unwrap();
     let id = core.create_at_path("doc2.md").await.unwrap().id;
-    assert_matches!(core.rename_file(&id, "").await.unwrap_err().kind, CoreError::FileNameEmpty);
+    assert_matches!(core.rename_file(&id, "").await.unwrap_err().kind, LbErrKind::FileNameEmpty);
 }
 
 #[tokio::test]
@@ -79,7 +79,7 @@ async fn mv_not_found_parent() {
     let id = core.create_at_path("folder/doc1.md").await.unwrap().id;
     assert_matches!(
         core.move_file(&id, &Uuid::new_v4()).await.unwrap_err().kind,
-        CoreError::FileParentNonexistent
+        LbErrKind::FileParentNonexistent
     );
 }
 
@@ -91,7 +91,7 @@ async fn mv_not_found_target() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::FileNonexistent
+        LbErrKind::FileNonexistent
     );
 }
 
@@ -100,7 +100,7 @@ async fn move_parent_document() {
     let core = test_core_with_account().await;
     let id = core.create_at_path("folder/doc1.md").await.unwrap().id;
     let target = core.create_at_path("doc2.md").await.unwrap().id;
-    assert_matches!(core.move_file(&id, &target).await.unwrap_err().kind, CoreError::FileNotFolder);
+    assert_matches!(core.move_file(&id, &target).await.unwrap_err().kind, LbErrKind::FileNotFolder);
 }
 
 #[tokio::test]
@@ -112,7 +112,7 @@ async fn move_root() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::RootModificationInvalid
+        LbErrKind::RootModificationInvalid
     );
 }
 
@@ -121,7 +121,7 @@ async fn move_path_conflict() {
     let core = test_core_with_account().await;
     let dest = core.create_at_path("folder/test.md").await.unwrap().parent;
     let src = core.create_at_path("test.md").await.unwrap().id;
-    assert_matches!(core.move_file(&src, &dest).await.unwrap_err().kind, CoreError::PathTaken);
+    assert_matches!(core.move_file(&src, &dest).await.unwrap_err().kind, LbErrKind::PathTaken);
 }
 
 #[tokio::test]
@@ -135,7 +135,7 @@ async fn folder_into_self() {
         .id;
     assert_matches!(
         core.move_file(&src, &dest).await.unwrap_err().kind,
-        CoreError::FolderMovedIntoSelf
+        LbErrKind::FolderMovedIntoSelf
     );
 }
 
@@ -157,6 +157,6 @@ async fn delete_root() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::RootModificationInvalid
+        LbErrKind::RootModificationInvalid
     );
 }

@@ -5,7 +5,7 @@ use crate::model::api::{
     UpgradeAccountAppStoreRequest, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
     UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
-use crate::model::errors::{core_err_unexpected, CoreError, LbResult};
+use crate::model::errors::{core_err_unexpected, LbErrKind, LbResult};
 use crate::Lb;
 
 impl Lb {
@@ -18,29 +18,29 @@ impl Lb {
             .map_err(|err| match err {
                 ApiError::Endpoint(err) => match err {
                     UpgradeAccountStripeError::OldCardDoesNotExist => {
-                        CoreError::OldCardDoesNotExist
+                        LbErrKind::OldCardDoesNotExist
                     }
-                    UpgradeAccountStripeError::AlreadyPremium => CoreError::AlreadyPremium,
-                    UpgradeAccountStripeError::InvalidCardNumber => CoreError::CardInvalidNumber,
-                    UpgradeAccountStripeError::InvalidCardExpYear => CoreError::CardInvalidExpYear,
+                    UpgradeAccountStripeError::AlreadyPremium => LbErrKind::AlreadyPremium,
+                    UpgradeAccountStripeError::InvalidCardNumber => LbErrKind::CardInvalidNumber,
+                    UpgradeAccountStripeError::InvalidCardExpYear => LbErrKind::CardInvalidExpYear,
                     UpgradeAccountStripeError::InvalidCardExpMonth => {
-                        CoreError::CardInvalidExpMonth
+                        LbErrKind::CardInvalidExpMonth
                     }
-                    UpgradeAccountStripeError::InvalidCardCvc => CoreError::CardInvalidCvc,
-                    UpgradeAccountStripeError::CardDecline => CoreError::CardDecline,
+                    UpgradeAccountStripeError::InvalidCardCvc => LbErrKind::CardInvalidCvc,
+                    UpgradeAccountStripeError::CardDecline => LbErrKind::CardDecline,
                     UpgradeAccountStripeError::InsufficientFunds => {
-                        CoreError::CardInsufficientFunds
+                        LbErrKind::CardInsufficientFunds
                     }
-                    UpgradeAccountStripeError::TryAgain => CoreError::TryAgain,
-                    UpgradeAccountStripeError::CardNotSupported => CoreError::CardNotSupported,
-                    UpgradeAccountStripeError::ExpiredCard => CoreError::CardExpired,
+                    UpgradeAccountStripeError::TryAgain => LbErrKind::TryAgain,
+                    UpgradeAccountStripeError::CardNotSupported => LbErrKind::CardNotSupported,
+                    UpgradeAccountStripeError::ExpiredCard => LbErrKind::CardExpired,
                     UpgradeAccountStripeError::ExistingRequestPending => {
-                        CoreError::ExistingRequestPending
+                        LbErrKind::ExistingRequestPending
                     }
-                    UpgradeAccountStripeError::UserNotFound => CoreError::AccountNonexistent,
+                    UpgradeAccountStripeError::UserNotFound => LbErrKind::AccountNonexistent,
                 },
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })?;
 
@@ -63,17 +63,17 @@ impl Lb {
             .await
             .map_err(|err| match err {
                 ApiError::Endpoint(err) => match err {
-                    UpgradeAccountGooglePlayError::AlreadyPremium => CoreError::AlreadyPremium,
+                    UpgradeAccountGooglePlayError::AlreadyPremium => LbErrKind::AlreadyPremium,
                     UpgradeAccountGooglePlayError::InvalidPurchaseToken => {
-                        CoreError::InvalidPurchaseToken
+                        LbErrKind::InvalidPurchaseToken
                     }
                     UpgradeAccountGooglePlayError::ExistingRequestPending => {
-                        CoreError::ExistingRequestPending
+                        LbErrKind::ExistingRequestPending
                     }
                     UpgradeAccountGooglePlayError::UserNotFound => core_err_unexpected(err),
                 },
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })?;
 
@@ -93,20 +93,20 @@ impl Lb {
             .await
             .map_err(|err| match err {
                 ApiError::Endpoint(err) => match err {
-                    UpgradeAccountAppStoreError::AlreadyPremium => CoreError::AlreadyPremium,
+                    UpgradeAccountAppStoreError::AlreadyPremium => LbErrKind::AlreadyPremium,
                     UpgradeAccountAppStoreError::InvalidAuthDetails => {
-                        CoreError::InvalidAuthDetails
+                        LbErrKind::InvalidAuthDetails
                     }
                     UpgradeAccountAppStoreError::ExistingRequestPending => {
-                        CoreError::ExistingRequestPending
+                        LbErrKind::ExistingRequestPending
                     }
                     UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked => {
-                        CoreError::AppStoreAccountAlreadyLinked
+                        LbErrKind::AppStoreAccountAlreadyLinked
                     }
                     UpgradeAccountAppStoreError::UserNotFound => core_err_unexpected(err),
                 },
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })?;
 
@@ -120,21 +120,21 @@ impl Lb {
             .request(account, CancelSubscriptionRequest {})
             .await
             .map_err(|err| match err {
-                ApiError::Endpoint(CancelSubscriptionError::NotPremium) => CoreError::NotPremium,
+                ApiError::Endpoint(CancelSubscriptionError::NotPremium) => LbErrKind::NotPremium,
                 ApiError::Endpoint(CancelSubscriptionError::AlreadyCanceled) => {
-                    CoreError::AlreadyCanceled
+                    LbErrKind::AlreadyCanceled
                 }
                 ApiError::Endpoint(CancelSubscriptionError::UsageIsOverFreeTierDataCap) => {
-                    CoreError::UsageIsOverFreeTierDataCap
+                    LbErrKind::UsageIsOverFreeTierDataCap
                 }
                 ApiError::Endpoint(CancelSubscriptionError::ExistingRequestPending) => {
-                    CoreError::ExistingRequestPending
+                    LbErrKind::ExistingRequestPending
                 }
                 ApiError::Endpoint(CancelSubscriptionError::CannotCancelForAppStore) => {
-                    CoreError::CannotCancelSubscriptionForAppStore
+                    LbErrKind::CannotCancelSubscriptionForAppStore
                 }
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })?;
 
@@ -149,8 +149,8 @@ impl Lb {
             .request(account, GetSubscriptionInfoRequest {})
             .await
             .map_err(|err| match err {
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })?
             .subscription_info)

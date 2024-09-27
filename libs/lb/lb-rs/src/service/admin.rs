@@ -1,7 +1,7 @@
 use super::network::ApiError;
 use crate::model::account::Username;
 use crate::model::api::*;
-use crate::model::errors::{core_err_unexpected, CoreError, LbResult};
+use crate::model::errors::{core_err_unexpected, LbErrKind, LbResult};
 use crate::Lb;
 use uuid::Uuid;
 
@@ -15,13 +15,13 @@ impl Lb {
             .map_err(|err| {
                 match err {
                     ApiError::Endpoint(AdminDisappearAccountError::UserNotFound) => {
-                        CoreError::UsernameNotFound
+                        LbErrKind::UsernameNotFound
                     }
                     ApiError::Endpoint(AdminDisappearAccountError::NotPermissioned) => {
-                        CoreError::InsufficientPermission
+                        LbErrKind::InsufficientPermission
                     }
-                    ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                    ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                    ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                    ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                     _ => core_err_unexpected(err),
                 }
                 .into()
@@ -36,13 +36,13 @@ impl Lb {
             .map_err(|err| {
                 match err {
                     ApiError::Endpoint(AdminDisappearFileError::FileNonexistent) => {
-                        CoreError::FileNonexistent
+                        LbErrKind::FileNonexistent
                     }
                     ApiError::Endpoint(AdminDisappearFileError::NotPermissioned) => {
-                        CoreError::InsufficientPermission
+                        LbErrKind::InsufficientPermission
                     }
-                    ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                    ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                    ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                    ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                     _ => core_err_unexpected(err),
                 }
                 .into()
@@ -58,10 +58,10 @@ impl Lb {
             .await
             .map_err(|err| match err {
                 ApiError::Endpoint(AdminListUsersError::NotPermissioned) => {
-                    CoreError::InsufficientPermission
+                    LbErrKind::InsufficientPermission
                 }
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })?
             .users)
@@ -76,13 +76,13 @@ impl Lb {
             .await
             .map_err(|err| match err {
                 ApiError::Endpoint(AdminGetAccountInfoError::NotPermissioned) => {
-                    CoreError::InsufficientPermission
+                    LbErrKind::InsufficientPermission
                 }
                 ApiError::Endpoint(AdminGetAccountInfoError::UserNotFound) => {
-                    CoreError::UsernameNotFound
+                    LbErrKind::UsernameNotFound
                 }
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })?
             .account)
@@ -96,13 +96,13 @@ impl Lb {
             .map_err(|err| {
                 match err {
                     ApiError::Endpoint(AdminValidateAccountError::NotPermissioned) => {
-                        CoreError::InsufficientPermission
+                        LbErrKind::InsufficientPermission
                     }
                     ApiError::Endpoint(AdminValidateAccountError::UserNotFound) => {
-                        CoreError::UsernameNotFound
+                        LbErrKind::UsernameNotFound
                     }
-                    ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                    ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                    ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                    ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                     _ => core_err_unexpected(err),
                 }
                 .into()
@@ -117,10 +117,10 @@ impl Lb {
             .map_err(|err| {
                 match err {
                     ApiError::Endpoint(AdminValidateServerError::NotPermissioned) => {
-                        CoreError::InsufficientPermission
+                        LbErrKind::InsufficientPermission
                     }
-                    ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                    ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                    ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                    ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                     _ => core_err_unexpected(err),
                 }
                 .into()
@@ -135,13 +135,13 @@ impl Lb {
             .map_err(|err| {
                 match err {
                     ApiError::Endpoint(AdminFileInfoError::FileNonexistent) => {
-                        CoreError::FileNonexistent
+                        LbErrKind::FileNonexistent
                     }
                     ApiError::Endpoint(AdminFileInfoError::NotPermissioned) => {
-                        CoreError::InsufficientPermission
+                        LbErrKind::InsufficientPermission
                     }
-                    ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                    ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                    ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                    ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                     _ => core_err_unexpected(err),
                 }
                 .into()
@@ -156,10 +156,10 @@ impl Lb {
             .map_err(|err| {
                 match err {
                     ApiError::Endpoint(AdminRebuildIndexError::NotPermissioned) => {
-                        CoreError::InsufficientPermission
+                        LbErrKind::InsufficientPermission
                     }
-                    ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                    ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                    ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                    ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                     _ => core_err_unexpected(err),
                 }
                 .into()
@@ -173,16 +173,16 @@ impl Lb {
             .await
             .map_err(|err| match err {
                 ApiError::Endpoint(AdminSetUserTierError::NotPermissioned) => {
-                    CoreError::InsufficientPermission
+                    LbErrKind::InsufficientPermission
                 }
                 ApiError::Endpoint(AdminSetUserTierError::UserNotFound) => {
-                    CoreError::UsernameNotFound
+                    LbErrKind::UsernameNotFound
                 }
                 ApiError::Endpoint(AdminSetUserTierError::ExistingRequestPending) => {
-                    CoreError::ExistingRequestPending
+                    LbErrKind::ExistingRequestPending
                 }
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })?;
 

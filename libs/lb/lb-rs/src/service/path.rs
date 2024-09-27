@@ -1,6 +1,6 @@
 use crate::logic::path_ops::Filter;
 use crate::logic::tree_like::TreeLike;
-use crate::model::errors::{CoreError, LbResult};
+use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::Lb;
 use uuid::Uuid;
@@ -16,7 +16,7 @@ impl Lb {
             .to_lazy();
         let account = self.get_account()?;
 
-        let root = db.root.get().ok_or(CoreError::RootNonexistent)?;
+        let root = db.root.get().ok_or(LbErrKind::RootNonexistent)?;
 
         let id = tree.create_link_at_path(path, target_id, root, account, &pub_key)?;
 
@@ -35,7 +35,7 @@ impl Lb {
             .to_lazy();
         let account = self.get_account()?;
 
-        let root = db.root.get().ok_or(CoreError::RootNonexistent)?;
+        let root = db.root.get().ok_or(LbErrKind::RootNonexistent)?;
 
         let id = tree.create_at_path(path, root, account, &pub_key)?;
 
@@ -51,7 +51,7 @@ impl Lb {
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let account = self.get_account()?;
 
-        let root = db.root.get().ok_or(CoreError::RootNonexistent)?;
+        let root = db.root.get().ok_or(LbErrKind::RootNonexistent)?;
 
         let id = tree.path_to_id(path, root, account)?;
 

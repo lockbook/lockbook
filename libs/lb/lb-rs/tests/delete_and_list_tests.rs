@@ -1,5 +1,5 @@
 use lb_rs::logic::path_ops::Filter;
-use lb_rs::model::errors::CoreError;
+use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file_metadata::FileType;
 use test_utils::*;
 
@@ -29,7 +29,7 @@ async fn test_create_delete_read() {
     let core = test_core_with_account().await;
     let id = core.create_at_path("test.md").await.unwrap().id;
     core.delete(&id).await.unwrap();
-    assert_matches!(core.read_document(id).await.unwrap_err().kind, CoreError::FileNonexistent);
+    assert_matches!(core.read_document(id).await.unwrap_err().kind, LbErrKind::FileNonexistent);
 }
 
 #[tokio::test]
@@ -42,7 +42,7 @@ async fn test_create_delete_write() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::FileNonexistent
+        LbErrKind::FileNonexistent
     );
 }
 
@@ -57,7 +57,7 @@ async fn test_create_parent_delete_create_in_parent() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::FileParentNonexistent
+        LbErrKind::FileParentNonexistent
     );
 }
 
@@ -67,7 +67,7 @@ async fn try_to_delete_root() {
     let root = core.root().await.unwrap();
     assert_matches!(
         core.delete(&root.id).await.unwrap_err().kind,
-        CoreError::RootModificationInvalid
+        LbErrKind::RootModificationInvalid
     );
 }
 
@@ -80,7 +80,7 @@ async fn test_create_parent_delete_parent_read_doc() {
         .unwrap();
     assert_eq!(core.read_document(doc.id).await.unwrap(), "content".as_bytes());
     core.delete(&doc.parent).await.unwrap();
-    assert_matches!(core.read_document(doc.id).await.unwrap_err().kind, CoreError::FileNonexistent);
+    assert_matches!(core.read_document(doc.id).await.unwrap_err().kind, LbErrKind::FileNonexistent);
 }
 
 #[tokio::test]
@@ -93,7 +93,7 @@ async fn test_create_parent_delete_parent_rename_doc() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::FileNonexistent
+        LbErrKind::FileNonexistent
     );
 }
 
@@ -107,7 +107,7 @@ async fn test_create_parent_delete_parent_rename_parent() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::FileNonexistent
+        LbErrKind::FileNonexistent
     );
 }
 
@@ -119,7 +119,7 @@ async fn test_folder_move_delete_source_doc() {
     core.delete(&doc.parent).await.unwrap();
     assert_matches!(
         core.move_file(&doc.id, &folder2.id).await.unwrap_err().kind,
-        CoreError::FileNonexistent
+        LbErrKind::FileNonexistent
     );
 }
 
@@ -134,7 +134,7 @@ async fn test_folder_move_delete_source_parent() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::FileNonexistent
+        LbErrKind::FileNonexistent
     );
 }
 
@@ -146,7 +146,7 @@ async fn test_folder_move_delete_destination_parent() {
     core.delete(&folder2.id).await.unwrap();
     assert_matches!(
         core.move_file(&doc.id, &folder2.id).await.unwrap_err().kind,
-        CoreError::FileParentNonexistent
+        LbErrKind::FileParentNonexistent
     );
 }
 
@@ -161,7 +161,7 @@ async fn test_folder_move_delete_destination_doc() {
             .await
             .unwrap_err()
             .kind,
-        CoreError::FileParentNonexistent
+        LbErrKind::FileParentNonexistent
     );
 }
 

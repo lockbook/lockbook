@@ -5,7 +5,7 @@ use crate::logic::signed_file::SignedFile;
 use crate::logic::tree_like::TreeLike;
 use crate::logic::{symkey, SharedError};
 use crate::model::account::Account;
-use crate::model::errors::{CoreError, LbError, LbResult};
+use crate::model::errors::{LbErrKind, LbErr, LbResult};
 use crate::model::file::File;
 use crate::model::file_metadata::FileType;
 use crate::repo::docs::AsyncDocs;
@@ -33,7 +33,7 @@ impl Lb {
         
         let parent = self.get_file_by_id(dest).await?;
         if !parent.is_folder() {
-            return Err(CoreError::FileNotFolder.into());
+            return Err(LbErrKind::FileNotFolder.into());
         }
         
         let import_file_futures = FuturesUnordered::new();
@@ -53,13 +53,13 @@ impl Lb {
         update_status(ImportStatus::StartingItem(format!("{}", disk_path.display())));
 
         if !disk_path.exists() {
-            return Err(CoreError::DiskPathInvalid.into());
+            return Err(LbErrKind::DiskPathInvalid.into());
         }
 
         let name = disk_path
             .file_name()
             .and_then(|name| name.to_str())
-            .ok_or(CoreError::DiskPathInvalid)?
+            .ok_or(LbErrKind::DiskPathInvalid)?
             .to_string();
 
         let file_type = if disk_path.is_file() {
@@ -78,7 +78,7 @@ impl Lb {
                     file = new_file;
                     break
                 },
-                Err(err) if err.kind == CoreError::PathTaken => {
+                Err(err) if err.kind == LbErrKind::PathTaken => {
                     tries += 1;
                     retry_name = format!("{}-{}", name, tries);
                 },
@@ -88,7 +88,7 @@ impl Lb {
 
         match file_type {
             FileType::Document => {
-                let content = fs::read(&disk_path).map_err(LbError::from)?;
+                let content = fs::read(&disk_path).map_err(LbErr::from)?;
                 self.write_document(file.id, content.as_slice()).await?;
 
                 update_status(ImportStatus::FinishedItem(file));
@@ -97,12 +97,12 @@ impl Lb {
                 let id = file.id;
                 update_status(ImportStatus::FinishedItem(file));
 
-                let disk_children = fs::read_dir(disk_path).map_err(LbError::from)?;
+                let disk_children = fs::read_dir(disk_path).map_err(LbErr::from)?;
 
                 let import_file_futures = FuturesUnordered::new();
 
                 for disk_child in disk_children {
-                    let child_path = disk_child.map_err(LbError::from)?.path();
+                    let child_path = disk_child.map_err(LbErr::from)?.path();
                     let lb = self.clone();
 
                     import_file_futures.push(async move {
@@ -126,7 +126,7 @@ impl Lb {
         update_status: &Option<F>,
     ) -> LbResult<()> {
         if dest.is_file() {
-            return Err(CoreError::DiskPathInvalid.into());
+            return Err(LbErrKind::DiskPathInvalid.into());
         }
 
         self.export_file_recursively(id, &dest, edit, update_status).await
@@ -158,12 +158,12 @@ impl Lb {
                         .create_new(true)
                         .open(new_dest)
                 }
-                .map_err(LbError::from)?;
+                .map_err(LbErr::from)?;
 
-                disk_file.write(self.read_document(file.id).await?.as_slice()).map_err(LbError::from)?;
+                disk_file.write(self.read_document(file.id).await?.as_slice()).map_err(LbErr::from)?;
             }
             FileType::Folder => {
-                fs::create_dir(new_dest.clone()).map_err(LbError::from)?;
+                fs::create_dir(new_dest.clone()).map_err(LbErr::from)?;
                 let export_file_futures = FuturesUnordered::new();
 
                 for child in self.get_children(&file.id).await? {
@@ -204,9 +204,9 @@ fn get_total_child_count(paths: &[PathBuf]) -> LbResult<usize> {
 fn get_child_count(path: &Path) -> LbResult<usize> {
     let mut count = 1;
     if path.is_dir() {
-        let children = fs::read_dir(path).map_err(LbError::from)?;
+        let children = fs::read_dir(path).map_err(LbErr::from)?;
         for maybe_child in children {
-            let child_path = maybe_child.map_err(LbError::from)?.path();
+            let child_path = maybe_child.map_err(LbErr::from)?.path();
 
             count += get_child_count(&child_path)?;
         }

@@ -24,9 +24,8 @@ extern crate tracing;
 pub mod logic;
 pub mod model;
 pub mod service;
-
-// todo make this not pub
 pub mod repo;
+pub mod blocking;
 
 #[derive(Clone)]
 pub struct Lb {
@@ -40,11 +39,11 @@ pub struct Lb {
 
 impl Lb {
     #[instrument(level = "info", skip_all, err(Debug))]
-    pub async fn init(config: Config) -> Result<Self, UnexpectedError> {
+    pub async fn init(config: Config) -> LbResult<Self> {
         logging::init(&config)?;
 
         let db = CoreDb::init(db_rs::Config::in_folder(&config.writeable_path))
-            .map_err(|err| unexpected_only!("{:#?}", err))?;
+            .map_err(|err| LbErrKind::Unexpected(format!("{:#?}", err)))?;
         let db = Arc::new(RwLock::new(db));
         let docs = AsyncDocs::from(&config);
         let client = Network::default();
@@ -65,7 +64,7 @@ use crate::repo::CoreDb;
 use crate::service::logging;
 use db_rs::Db;
 use model::core_config::Config;
-use model::errors::UnexpectedError;
+use model::errors::{LbErrKind, LbResult};
 use repo::docs::AsyncDocs;
 use repo::LbDb;
 use service::keychain::Keychain;
