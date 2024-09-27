@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use resvg::usvg::Transform;
-use tracing::{field::debug, trace};
+use tracing::trace;
 
 use crate::tab::svg_editor::util::is_multi_touch;
 
@@ -53,7 +53,6 @@ const PAN_THRESH: egui::Vec2 = egui::vec2(10.0, 10.0);
 const DECISION_TIME: Duration = Duration::from_millis(800);
 
 impl GestureHandler {
-    /// returns true if the viewport is changing and there was a zoom or pan event
     pub fn handle_input(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext) {
         if !*gesture_ctx.allow_viewport_changes && self.current_gesture.is_none() {
             return;
@@ -108,7 +107,6 @@ impl GestureHandler {
             return;
         }
 
-        // // when was the last time the shortcut was applied.
         let should_apply_shortcut =
             if let Some(last_applied_shortcut) = &current_gesture.last_applied_shortcut {
                 if current_gesture.total_applied_shortcuts == 0 {
