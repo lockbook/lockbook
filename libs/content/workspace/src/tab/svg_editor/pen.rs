@@ -266,13 +266,10 @@ impl Pen {
         // todo: should i wait for input start
         if input_state.is_multi_touch {
             if is_current_path_empty {
-                trace!("allowing viewport changes");
                 *pen_ctx.allow_viewport_changes = true;
                 return Some(PathEvent::Break);
             }
             if !get_event_touch_id(e).eq(&self.path_builder.first_point_touch_id) {
-                trace!("no viewport changes");
-                *pen_ctx.allow_viewport_changes = false;
                 return None;
             }
         }
