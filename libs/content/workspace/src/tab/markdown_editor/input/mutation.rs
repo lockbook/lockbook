@@ -68,6 +68,7 @@ impl Editor {
                 self.apply_style(range, style.clone(), unapply, operations);
 
                 // modify cursor
+                let mut cursor_modified = false;
                 if current_selection.is_empty() {
                     // toggling style at end of styled range moves cursor to outside of styled range
                     if let Some(text_range) = self
@@ -82,9 +83,13 @@ impl Editor {
                             && text_range.range_type == AstTextRangeType::Tail
                         {
                             operations.push(Operation::Select(text_range.range.end().to_range()));
+                            cursor_modified = true;
                         }
                     }
-                } else if style.node_type() != MarkdownNodeType::Inline(InlineNodeType::Link) {
+                }
+                if !cursor_modified
+                    && style.node_type() != MarkdownNodeType::Inline(InlineNodeType::Link)
+                {
                     // toggling link style leaves cursor where you can type link destination
                     operations.push(Operation::Select(current_selection));
                 }
