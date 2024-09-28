@@ -302,6 +302,7 @@ impl Pen {
             }
         }
         if pen_ctx.is_touch_frame {
+            *pen_ctx.allow_viewport_changes = true;
             return None;
         }
 
