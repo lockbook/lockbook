@@ -147,9 +147,6 @@ impl SVGEditor {
 
     fn process_events(&mut self, ui: &mut egui::Ui) {
         // self.show_debug_info(ui);
-        println!("-----");
-        ui.input(|r| println!("{:#?}", r.events));
-        println!("-----");
 
         if !ui.is_enabled() {
             return;
