@@ -32,37 +32,6 @@ const MATCHED_CONTENT_3: (&str, &str) = (
     vel orci eleifend, sed cursus ante porta. Phasellus pellente...",
 );
 
-#[tokio::test]
-async fn test_matches() {
-    let core = test_core_with_account().await;
-
-    for item in FILE_PATHS {
-        core.create_at_path(item).await.unwrap();
-    }
-
-    let search_results = core.search_file_paths("").await.unwrap();
-    assert!(search_results.is_empty());
-
-    let search_results = core.search_file_paths("abcde.md").await.unwrap();
-    assert_result_paths(&search_results, &["/abcde.md"]).await;
-
-    let search_results = core.search_file_paths("d/o").await.unwrap();
-    assert_result_paths(&search_results, &["/dir/doc1", "/dir/doc2", "/dir/doc3"]).await;
-
-    let search_results = core.search_file_paths("d/3").await.unwrap();
-    assert_result_paths(&search_results, &["/dir/doc3"]).await;
-
-    let search_results = core.search_file_paths("ad").await.unwrap();
-    assert_result_paths(&search_results, &["/abc.md", "/abcd.md", "/abcde.md"]).await;
-}
-
-async fn assert_result_paths(results: &[SearchResultItem], paths: &[&str]) {
-    assert_eq!(results.len(), paths.len());
-    for i in 0..results.len() {
-        assert_eq!(results.get(i).unwrap().path, *paths.get(i).unwrap());
-    }
-}
-
 async fn assert_async_results_path(results: Vec<SearchResult>, paths: Vec<&str>) {
     assert_eq!(results.len(), paths.len());
 

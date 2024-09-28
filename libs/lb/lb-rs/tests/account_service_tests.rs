@@ -240,7 +240,10 @@ async fn export_account() {
 #[tokio::test]
 async fn import_account_phrases() {
     let core1 = test_core().await;
-    let account1 = core1.create_account(&random_name(), &url(), false).await.unwrap();
+    let account1 = core1
+        .create_account(&random_name(), &url(), false)
+        .await
+        .unwrap();
     let account_phrase = core1.export_account_phrase().unwrap();
 
     let mut core2 = test_core().await;

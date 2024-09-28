@@ -10,13 +10,13 @@ use crate::model::file::File;
 use crate::model::file_metadata::FileType;
 use crate::repo::docs::AsyncDocs;
 use crate::Lb;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use std::collections::HashSet;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
 use uuid::Uuid;
 
 pub enum ImportStatus {
@@ -30,26 +30,33 @@ impl Lb {
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> LbResult<()> {
         update_status(ImportStatus::CalculatedTotal(get_total_child_count(sources)?));
-        
+
         let parent = self.get_file_by_id(dest).await?;
         if !parent.is_folder() {
             return Err(CoreError::FileNotFolder.into());
         }
-        
+
         let import_file_futures = FuturesUnordered::new();
 
         for source in sources {
             let lb = self.clone();
 
             import_file_futures.push(async move {
-                lb.import_file_recursively(source, dest, update_status).await
+                lb.import_file_recursively(source, dest, update_status)
+                    .await
             });
         }
 
-        import_file_futures.collect::<Vec<LbResult<()>>>().await.into_iter().collect::<LbResult<()>>()
+        import_file_futures
+            .collect::<Vec<LbResult<()>>>()
+            .await
+            .into_iter()
+            .collect::<LbResult<()>>()
     }
 
-    async fn import_file_recursively<F: Fn(ImportStatus)>(&self, disk_path: &Path, dest: Uuid, update_status: &F) -> LbResult<()> {
+    async fn import_file_recursively<F: Fn(ImportStatus)>(
+        &self, disk_path: &Path, dest: Uuid, update_status: &F,
+    ) -> LbResult<()> {
         update_status(ImportStatus::StartingItem(format!("{}", disk_path.display())));
 
         if !disk_path.exists() {
@@ -62,26 +69,22 @@ impl Lb {
             .ok_or(CoreError::DiskPathInvalid)?
             .to_string();
 
-        let file_type = if disk_path.is_file() {
-            FileType::Document
-        } else {
-            FileType::Folder
-        };
+        let file_type = if disk_path.is_file() { FileType::Document } else { FileType::Folder };
 
         let mut tries = 0;
         let mut retry_name = name.clone();
         let file: File;
-        
+
         loop {
             match self.create_file(&retry_name, &dest, file_type).await {
                 Ok(new_file) => {
                     file = new_file;
-                    break
-                },
+                    break;
+                }
                 Err(err) if err.kind == CoreError::PathTaken => {
                     tries += 1;
                     retry_name = format!("{}-{}", name, tries);
-                },
+                }
                 Err(err) => return Err(err),
             }
         }
@@ -106,11 +109,16 @@ impl Lb {
                     let lb = self.clone();
 
                     import_file_futures.push(async move {
-                        lb.import_file_recursively(&child_path, id, update_status).await
+                        lb.import_file_recursively(&child_path, id, update_status)
+                            .await
                     });
                 }
 
-                import_file_futures.collect::<Vec<LbResult<()>>>().await.into_iter().collect::<LbResult<()>>()?;
+                import_file_futures
+                    .collect::<Vec<LbResult<()>>>()
+                    .await
+                    .into_iter()
+                    .collect::<LbResult<()>>()?;
             }
 
             FileType::Link { .. } => {
@@ -122,17 +130,19 @@ impl Lb {
     }
 
     pub async fn export_file<F: Fn(ExportFileInfo)>(
-        &mut self, id: Uuid, dest: PathBuf, edit: bool,
-        update_status: &Option<F>,
+        &mut self, id: Uuid, dest: PathBuf, edit: bool, update_status: &Option<F>,
     ) -> LbResult<()> {
         if dest.is_file() {
             return Err(CoreError::DiskPathInvalid.into());
         }
 
-        self.export_file_recursively(id, &dest, edit, update_status).await
+        self.export_file_recursively(id, &dest, edit, update_status)
+            .await
     }
 
-    pub async fn export_file_recursively<F: Fn(ExportFileInfo)>(&self, id: Uuid, disk_path: &Path, edit: bool, update_status: &Option<F>) -> LbResult<()> {
+    pub async fn export_file_recursively<F: Fn(ExportFileInfo)>(
+        &self, id: Uuid, disk_path: &Path, edit: bool, update_status: &Option<F>,
+    ) -> LbResult<()> {
         let file = self.get_file_by_id(id).await?;
 
         let new_dest = disk_path.join(&file.name);
@@ -160,7 +170,9 @@ impl Lb {
                 }
                 .map_err(LbError::from)?;
 
-                disk_file.write(self.read_document(file.id).await?.as_slice()).map_err(LbError::from)?;
+                disk_file
+                    .write(self.read_document(file.id).await?.as_slice())
+                    .map_err(LbError::from)?;
             }
             FileType::Folder => {
                 fs::create_dir(new_dest.clone()).map_err(LbError::from)?;
@@ -171,21 +183,31 @@ impl Lb {
                     let new_dest = &new_dest;
 
                     export_file_futures.push(async move {
-                        lb.export_file_recursively(child.id, new_dest, edit, update_status).await
+                        lb.export_file_recursively(child.id, new_dest, edit, update_status)
+                            .await
                     });
                 }
 
-                export_file_futures.collect::<Vec<LbResult<()>>>().await.into_iter().collect::<LbResult<()>>()?;
+                export_file_futures
+                    .collect::<Vec<LbResult<()>>>()
+                    .await
+                    .into_iter()
+                    .collect::<LbResult<()>>()?;
             }
             FileType::Link { target } => {
                 let export_file_futures = FuturesUnordered::new();
                 let lb = self.clone();
-                
+
                 export_file_futures.push(async move {
-                    lb.export_file_recursively(target, disk_path, edit, update_status).await
+                    lb.export_file_recursively(target, disk_path, edit, update_status)
+                        .await
                 });
 
-                export_file_futures.collect::<Vec<LbResult<()>>>().await.into_iter().collect::<LbResult<()>>()?;
+                export_file_futures
+                    .collect::<Vec<LbResult<()>>>()
+                    .await
+                    .into_iter()
+                    .collect::<LbResult<()>>()?;
             }
         }
 
