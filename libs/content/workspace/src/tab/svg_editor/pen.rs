@@ -25,7 +25,6 @@ pub struct Pen {
     path_builder: PathBuilder,
     pub current_id: Uuid, // todo: this should be at a higher component state, maybe in buffer
     maybe_snap_started: Option<Instant>,
-    pub supports_pressure: bool,
 }
 
 impl Pen {
@@ -37,7 +36,6 @@ impl Pen {
             path_builder: PathBuilder::new(),
             maybe_snap_started: None,
             active_opacity: 1.0,
-            supports_pressure: false,
         }
     }
 
@@ -121,19 +119,6 @@ impl Pen {
                     p.diff_state.data_changed = true;
 
                     self.path_builder.cubic_to(payload.pos, &mut p.data);
-
-                    if self.supports_pressure {
-                        if let Some(f) = payload.force {
-                            if let Some(pressure) = &mut p.pressure {
-                                pressure.push(f)
-                            } else {
-                                p.pressure = Some(vec![f]);
-                            }
-                        // sometimes the force is missing from the event so just autofill it based on the last force
-                        } else if let Some(pressure) = &mut p.pressure {
-                            pressure.push(*pressure.last().unwrap_or(&1.0))
-                        }
-                    }
                 } else {
                     let mut stroke = Stroke::default();
                     if let Some(c) = self.active_color {
@@ -142,8 +127,6 @@ impl Pen {
 
                     stroke.width = self.active_stroke_width;
 
-                    let pressure =
-                        if self.supports_pressure { payload.force.map(|f| vec![f]) } else { None };
                     self.path_builder.first_point_touch_id = payload.id;
 
                     event!(Level::TRACE, "starting a new path");
@@ -159,7 +142,6 @@ impl Pen {
                             pen_ctx.buffer.master_transform.sy,
                         ),
                         opacity: self.active_opacity,
-                        pressure,
                         diff_state: DiffState::default(),
                         deleted: false,
                     });
@@ -317,6 +299,7 @@ impl Pen {
             }
         }
         if pen_ctx.is_touch_frame {
+            *pen_ctx.allow_viewport_changes = true;
             return None;
         }
 

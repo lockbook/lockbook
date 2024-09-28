@@ -170,11 +170,11 @@ impl SVGEditor {
                         egui::Event::Touch { device_id: _, id: _, phase: _, pos: _, force: _ }
                     )
                 })
-            }),
+            }) || cfg!(target_os = "ios"),
         };
 
         match self.toolbar.active_tool {
-            Tool::Pen | Tool::Brush | Tool::Highlighter => {
+            Tool::Pen | Tool::Highlighter => {
                 self.toolbar.pen.handle_input(ui, &mut tool_context);
             }
             Tool::Eraser => {
