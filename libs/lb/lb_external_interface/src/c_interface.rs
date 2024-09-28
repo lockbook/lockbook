@@ -11,7 +11,7 @@ use serde::Serialize;
 use serde_json::json;
 use time::Duration;
 
-use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchType};
+use lb_rs::service::search::{SearchRequest, SearchResult, SearchType};
 use lb_rs::{
     clock, Config, FileType, Filter, ImportStatus, ShareMode, SyncProgress, UnexpectedError, Uuid,
 };

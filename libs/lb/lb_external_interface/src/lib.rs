@@ -15,7 +15,7 @@ use strum::IntoEnumIterator;
 
 pub use lb_rs;
 pub use lb_rs::Core;
-use lb_rs::{service::search_service::SearchType, *};
+use lb_rs::{service::search::SearchType, *};
 
 use self::errors::*;
 

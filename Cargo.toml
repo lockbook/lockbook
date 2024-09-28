@@ -19,5 +19,5 @@ members = [
 	"clients/admin",
 	"utils/dev-tool",
 	"utils/releaser",
-	"utils/winstaller",
+	"utils/winstaller", "libs/lb/lb-c",
 ]
