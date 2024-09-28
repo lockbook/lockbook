@@ -85,7 +85,7 @@ impl SVGEditor {
             ),
             renderer: Renderer::new(elements_count),
             has_queued_save_request: false,
-            allow_viewport_changes: false,
+            allow_viewport_changes: true,
             gesture_handler: GestureHandler::default(),
         }
     }

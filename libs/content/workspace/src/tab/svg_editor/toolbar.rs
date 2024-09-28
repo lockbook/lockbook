@@ -296,6 +296,8 @@ impl Toolbar {
     fn show_selection_controls(&self, ui: &mut egui::Ui, buffer: &mut Buffer) {
         let mut max_current_index = 0;
         let mut min_cureent_index = usize::MAX;
+
+        ui.add_space(3.0);
         ui.label("layers: ");
         self.selection
             .selected_elements

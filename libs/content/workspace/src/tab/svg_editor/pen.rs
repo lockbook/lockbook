@@ -308,6 +308,7 @@ impl Pen {
 
         if let egui::Event::PointerMoved(pos) = *e {
             if self.path_builder.original_points.is_empty() {
+                *pen_ctx.allow_viewport_changes = true;
                 return None;
             }
 
