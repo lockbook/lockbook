@@ -34,7 +34,6 @@ pub enum Tool {
     Eraser,
     Selection,
     Highlighter,
-    Brush,
 }
 
 pub struct ToolContext<'a> {
@@ -58,7 +57,6 @@ macro_rules! set_tool {
             }
             if (matches!($new_tool, Tool::Pen)) {
                 $obj.pen.active_opacity = 1.0;
-                $obj.pen.supports_pressure = false;
             }
             $obj.previous_tool = Some($obj.active_tool);
             $obj.active_tool = $new_tool;
@@ -189,16 +187,6 @@ impl Toolbar {
         let pen_btn = Button::default().icon(&Icon::PEN).show(ui);
         if pen_btn.clicked() {
             set_tool!(self, Tool::Pen);
-            self.pen.supports_pressure = false;
-            self.pen.active_opacity = 1.0;
-            self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH;
-            self.pen.active_color = None;
-        }
-
-        let brush = Button::default().icon(&Icon::BRUSH).show(ui);
-        if brush.clicked() {
-            set_tool!(self, Tool::Brush);
-            self.pen.supports_pressure = true;
             self.pen.active_opacity = 1.0;
             self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH;
             self.pen.active_color = None;
@@ -209,7 +197,6 @@ impl Toolbar {
         if highlighter_btn.clicked() {
             set_tool!(self, Tool::Highlighter);
             self.pen.active_opacity = highlighter_opacity;
-            self.pen.supports_pressure = false;
             self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH * 2.0;
             self.pen.active_color = Some(get_highlighter_colors()[0]);
         }
@@ -224,7 +211,6 @@ impl Toolbar {
             Tool::Eraser => eraser_btn.rect,
             Tool::Selection => selection_btn.rect,
             Tool::Highlighter => highlighter_btn.rect,
-            Tool::Brush => brush.rect,
         };
 
         ui.painter().rect_filled(
@@ -242,7 +228,7 @@ impl Toolbar {
 
     fn show_tool_inline_controls(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) {
         match self.active_tool {
-            Tool::Pen | Tool::Brush => {
+            Tool::Pen => {
                 if let Some(thickness) = self.show_thickness_pickers(
                     ui,
                     self.pen.active_stroke_width,
