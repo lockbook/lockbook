@@ -1,4 +1,4 @@
-use egui::{vec2, Context, Image, Ui, ViewportCommand};
+use egui::{vec2, Context, Image, TextWrapMode, Ui, ViewportCommand};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -887,7 +887,7 @@ fn tab_label(
     let wrap_width = ui.available_width();
 
     let text: egui::WidgetText = (&t.name).into();
-    let text = text.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
+    let text = text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
 
     let x_icon = Icon::CLOSE.size(16.0);
 
@@ -974,7 +974,8 @@ fn tab_label(
             );
 
             let icon: egui::WidgetText = (&x_icon).into();
-            let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
+            let icon =
+                icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
 
             ui.painter().galley(icon_draw_pos, icon, text_color);
 
