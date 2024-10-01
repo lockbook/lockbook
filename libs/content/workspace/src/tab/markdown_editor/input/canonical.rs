@@ -38,7 +38,6 @@ impl Editor {
         &mut self, ctx: &egui::Context, event: egui::Event, now: Instant, touch_mode: bool,
     ) -> Option<Event> {
         let click_checker = EditorClickChecker {
-            ui_rect: self.ui_rect,
             galleys: &self.galleys,
             buffer: &self.buffer,
             ast: &self.ast,
@@ -237,20 +236,18 @@ impl Editor {
                 button: PointerButton::Primary,
                 pressed: true,
                 modifiers,
-            } if click_checker.ui(pos) => pointer_press(pointer_state, now, pos, modifiers),
-            egui::Event::PointerMoved(pos) if click_checker.ui(pos) => {
-                pointer_move(pointer_state, now, pos, touch_mode)
-            }
+            } => pointer_press(pointer_state, now, pos, modifiers),
+            egui::Event::PointerMoved(pos) => pointer_move(pointer_state, now, pos, touch_mode),
             egui::Event::PointerButton {
                 pos,
                 button: PointerButton::Primary,
                 pressed: false,
                 ..
             } => pointer_release(pointer_state, pos, &click_checker, touch_mode),
-            egui::Event::Touch { phase: TouchPhase::Start, pos, .. } if click_checker.ui(pos) => {
+            egui::Event::Touch { phase: TouchPhase::Start, pos, .. } => {
                 pointer_press(pointer_state, now, pos, Default::default())
             }
-            egui::Event::Touch { phase: TouchPhase::Move, pos, .. } if click_checker.ui(pos) => {
+            egui::Event::Touch { phase: TouchPhase::Move, pos, .. } => {
                 pointer_move(pointer_state, now, pos, touch_mode)
             }
             egui::Event::Touch { phase: TouchPhase::End, pos, .. } => {
@@ -344,7 +341,7 @@ fn pointer_release(
         None
     }
     .or_else(|| {
-        if click_checker.ui(pos) && !cfg!(target_os = "ios") {
+        if !cfg!(target_os = "ios") {
             Some(Event::Select {
                 region: if click_mods.shift {
                     Region::ToLocation(location)

@@ -925,18 +925,18 @@ impl Editor {
 pub fn pos_to_char_offset(
     mut pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs, text: &Text,
 ) -> DocCharOffset {
-    if !galleys.is_empty() && pos.y < galleys[0].galley_location.min.y {
+    if !galleys.is_empty() && pos.y < galleys[0].rect.min.y {
         // click position is above first galley
         0.into()
-    } else if !galleys.is_empty() && pos.y >= galleys[galleys.len() - 1].galley_location.max.y {
+    } else if !galleys.is_empty() && pos.y >= galleys[galleys.len() - 1].rect.max.y {
         // click position is below last galley
         segs.last_cursor_position()
     } else {
         let mut result = 0.into();
         for galley_idx in 0..galleys.len() {
             let galley = &galleys[galley_idx];
-            if pos.y <= galley.galley_location.max.y {
-                if galley.galley_location.min.y <= pos.y {
+            if pos.y <= galley.rect.max.y {
+                if galley.rect.min.y <= pos.y {
                     // click position is in a galley
                 } else {
                     // click position is between galleys

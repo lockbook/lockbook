@@ -2,7 +2,9 @@ use crate::tab::markdown_editor;
 use crate::tab::markdown_editor::bounds::BoundExt as _;
 use crate::tab::ExtendedInput as _;
 use egui::os::OperatingSystem;
-use egui::{Color32, Frame, PointerButton, Rect, Sense, TouchPhase, Ui, Vec2};
+use egui::{
+    scroll_area, Frame, Margin, PointerButton, Pos2, Rect, ScrollArea, TouchPhase, Ui, Vec2,
+};
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
 use lb_rs::{DocumentHmac, Uuid};
@@ -19,6 +21,7 @@ use markdown_editor::input::cursor::{CursorState, PointerState};
 use markdown_editor::input::{Bound, Event, Offset, Region};
 use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
+use std::mem;
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Serialize, Default)]
@@ -38,7 +41,6 @@ pub struct Editor {
     pub client: reqwest::blocking::Client,
 
     // input
-    pub id: egui::Id,
     pub file_id: Uuid,
     pub hmac: Option<DocumentHmac>,
     pub needs_name: bool,
@@ -56,12 +58,6 @@ pub struct Editor {
     pub galleys: Galleys,
     pub capture: CaptureState,
 
-    // state from last frame for focus & change detection
-    pub has_focus: bool,
-    pub ui_rect: Rect,
-    pub scroll_area_rect: Rect,
-    pub scroll_area_offset: Vec2,
-
     // referenced by toolbar for keyboard toggle (todo: cleanup)
     pub is_virtual_keyboard_showing: bool,
 }
@@ -75,7 +71,6 @@ impl Editor {
             core,
             client: Default::default(),
 
-            id: egui::Id::new(file_id),
             file_id,
             hmac,
             needs_name,
@@ -92,11 +87,6 @@ impl Editor {
             galleys: Default::default(),
             capture: Default::default(),
 
-            has_focus: true,
-            ui_rect: Rect { min: Default::default(), max: Default::default() },
-            scroll_area_rect: Rect { min: Default::default(), max: Default::default() },
-            scroll_area_offset: Default::default(),
-
             is_virtual_keyboard_showing: false,
         }
     }
@@ -106,100 +96,69 @@ impl Editor {
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
+        let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
+        let maybe_prev_state: Option<scroll_area::State> =
+            ui.data_mut(|d| d.get_persisted(scroll_area_id));
+
+        let has_focus = ui.memory(|m| m.focused().is_none()); // focus by default
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
-        let events = ui.ctx().input(|i| i.events.clone());
-        ui.interact(self.scroll_area_rect, self.id, Sense::focusable_noninteractive());
+        let events = {
+            let mut events = Vec::new();
 
-        // calculate focus
-        let mut request_focus = ui.memory(|m| m.has_focus(self.id));
-        let mut surrender_focus = false;
-        for event in &events {
-            if let egui::Event::PointerButton { pos, pressed: true, .. } = event {
-                if ui.is_enabled() && self.scroll_area_rect.contains(*pos) && self.has_focus {
-                    request_focus = true;
-                } else {
-                    surrender_focus = true;
-                }
+            // keys processed when focused
+            if has_focus {
+                events.extend(
+                    ui.ctx()
+                        .input_mut(|i| mem::take(&mut i.events))
+                        .into_iter()
+                        .filter(|e| match e {
+                            // clicks inferred from hit testing system
+                            egui::Event::PointerButton { .. } | egui::Event::Touch { .. } => false,
+                            _ => true,
+                        }),
+                );
             }
-        }
+
+            events
+        };
 
         // show ui
-        let mut focus = false;
-
-        let sao = egui::ScrollArea::vertical()
+        let available_size = ui.available_size();
+        let scroll_area_output = ScrollArea::vertical()
             .drag_to_scroll(touch_mode)
-            .id_source(self.id)
+            .id_source(self.file_id)
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
 
-                // set focus
-                if request_focus {
-                    ui.memory_mut(|m| {
-                        m.request_focus(self.id);
-                    });
-                }
-                if surrender_focus {
-                    ui.memory_mut(|m| m.surrender_focus(self.id));
-                }
-                ui.memory_mut(|m| {
-                    if m.has_focus(self.id) {
-                        focus = true;
-                        m.set_focus_lock_filter(
-                            self.id,
-                            egui::EventFilter {
-                                tab: true,
-                                horizontal_arrows: true,
-                                vertical_arrows: true,
-                                escape: true,
-                            },
-                        );
-                    }
-                });
-
-                let fill =
-                    if ui.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
-
-                Frame::default()
-                    .fill(fill)
-                    .inner_margin(egui::Margin::symmetric(0.0, 15.0))
+                let resp = Frame::default()
+                    .inner_margin(Margin::symmetric(0., 15.))
                     .show(ui, |ui| {
-                        ui.vertical_centered(|ui| self.show_inner(ui, self.id, touch_mode, events))
+                        let resp = ui
+                            .vertical_centered(|ui| self.show_inner(ui, touch_mode, events))
+                            .inner;
+                        ui.allocate_space(Vec2::new(ui.available_width(), 100.));
+                        resp
                     })
+                    .inner;
+
+                // force scroll area to take up all available space
+                let rect = Rect::from_min_size(Pos2::ZERO, available_size);
+                ui.advance_cursor_after_rect(rect);
+
+                resp
             });
-        self.ui_rect = sao.inner_rect;
 
-        // set focus again because egui clears it for our widget for some reason
-        if focus {
-            ui.memory_mut(|m| {
-                m.request_focus(self.id);
-                m.set_focus_lock_filter(
-                    self.id,
-                    egui::EventFilter {
-                        tab: true,
-                        horizontal_arrows: true,
-                        vertical_arrows: true,
-                        escape: true,
-                    },
-                );
-            });
-        }
+        // response
+        let mut response = scroll_area_output.inner;
+        response.scroll_updated = !maybe_prev_state
+            .map(|s| s.offset == scroll_area_output.state.offset)
+            .unwrap_or_default();
 
-        let mut resp = sao.inner.inner.inner;
-        resp.scroll_updated = self.scroll_area_offset != sao.state.offset;
-
-        // remember scroll area rect for focus next frame
-        self.scroll_area_rect = sao.inner_rect;
-
-        // remember scroll area offset for change detection
-        self.scroll_area_offset = sao.state.offset;
-
-        resp
+        response
     }
 
-    fn show_inner(
-        &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: Vec<egui::Event>,
-    ) -> Response {
+    fn show_inner(&mut self, ui: &mut Ui, touch_mode: bool, events: Vec<egui::Event>) -> Response {
         self.debug.frame_start();
 
         // update theme
@@ -218,18 +177,9 @@ impl Editor {
 
         // process events
         let (text_updated, selection_updated) = if self.initialized {
-            if ui.memory(|m| m.has_focus(id))
-                || cfg!(target_os = "ios")
-                || cfg!(target_os = "android")
-            {
-                let custom_events = ui.ctx().pop_events();
-                self.process_events(ui.ctx(), events, custom_events, touch_mode)
-            } else {
-                (false, false)
-            }
+            let custom_events = ui.ctx().pop_events();
+            self.process_events(ui.ctx(), events, custom_events, touch_mode)
         } else {
-            ui.memory_mut(|m| m.request_focus(id));
-
             // put the cursor at the first valid cursor position
             ui.ctx().push_markdown_event(Event::Select {
                 region: Region::ToOffset {
@@ -300,8 +250,8 @@ impl Editor {
         }
 
         // draw
-        self.draw_text(self.ui_rect.size(), ui, touch_mode);
-        if ui.memory(|m| m.has_focus(id)) && !cfg!(target_os = "ios") {
+        self.draw_text(ui, touch_mode);
+        if ui.memory(|m| m.focused().is_none()) && !cfg!(target_os = "ios") {
             self.draw_cursor(ui, touch_mode);
         }
         if self.debug.draw_enabled {
@@ -332,7 +282,6 @@ impl Editor {
         // set cursor style
         {
             let click_checker = &EditorClickChecker {
-                ui_rect: self.ui_rect,
                 galleys: &self.galleys,
                 buffer: &self.buffer,
                 ast: &self.ast,
