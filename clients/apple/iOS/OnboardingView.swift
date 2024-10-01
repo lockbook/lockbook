@@ -205,17 +205,26 @@ struct OnboardingThreeView: View {
                 .padding(.bottom)
             
             HStack {
-                Text(keyPhrasePart1)
-                    .padding(.leading, 30)
+                VStack(alignment: .leading) {
+                    ForEach(parseKeyPhrase(keyPhrasePart1), id: \.self) { phrase in
+                        keyText(from: phrase)
+                    }
+                }
+                .padding(.leading, 30)
+                
                 Spacer()
-                Text(keyPhrasePart2)
-                    .padding(.trailing, 30)
+                
+                VStack(alignment: .leading) {
+                    ForEach(parseKeyPhrase(keyPhrasePart2), id: \.self) { phrase in
+                        keyText(from: phrase)
+                    }
+                }
+                .padding(.trailing, 30)
             }
-            .font(.system(.callout, design: .monospaced))
             .frame(maxWidth: 350)
             .padding()
             .background(RoundedRectangle(cornerRadius: 6).foregroundStyle(.gray).opacity(0.1))
-            
+
             Spacer()
             
             Toggle(isOn: $storedSecurely, label: {
@@ -254,10 +263,34 @@ struct OnboardingThreeView: View {
         .navigationBarBackButtonHidden()
     }
     
+    func parseKeyPhrase(_ keyPhrase: String) -> [String] {
+         return keyPhrase.components(separatedBy: "\n")
+     }
+     
+     @ViewBuilder
+     func keyText(from phrase: String) -> some View {
+         let components = phrase.split(separator: " ", maxSplits: 1)
+         
+         if components.count == 2 {
+             let number = components[0]
+             let word = components[1]
+             
+             HStack {
+                 Text("\(number)")
+                     .foregroundColor(.blue)
+                 
+                 Text(word)
+                     .foregroundColor(.primary)
+                     .font(.system(.callout, design: .monospaced))
+             }
+         }
+     }
+    
     func goToMainScreen() {
         working = true
         DispatchQueue.global(qos: .userInitiated).async {
             DI.accounts.getAccount()
+            DI.files.refresh()
         }
     }
 }
@@ -287,7 +320,7 @@ struct ImportAccountView: View {
     @State var working = false
     @State var error: String? = nil
     
-    let defaultAPIURL: String = ConfigHelper.get(.apiLocation)
+    @State var unsavedAPIURL: String = ""
     @State var apiURL: String = ""
     @State var importedAccount: Bool = false
     
@@ -347,21 +380,8 @@ struct ImportAccountView: View {
                         .foregroundStyle(.blue)
                 })
                 .padding(.trailing)
-                .modifier(iOSAndiPadSheetViewModifier(isPresented: $showAPIURLSheet, width: 500, height: 100) {
-                    VStack(spacing: 10) {
-                        HStack {
-                            Text("API URL")
-                                .bold()
-                            
-                            Spacer()
-                        }
-                        
-                        TextField(defaultAPIURL, text: $apiURL)
-                            .textFieldStyle(.roundedBorder)
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 3)
-                    .presentationDetents([.height(80)])
+                .modifier(iOSAndiPadSheetViewModifier(isPresented: $showAPIURLSheet, width: 500, height: 130) {
+                    SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
                 })
             }
             .padding(.top)
@@ -441,6 +461,46 @@ struct ImportAccountView: View {
             importAccount()
         case .failure(let err):
             print(err) // TODO: Convert this to an ApplicationError
+        }
+    }
+}
+
+struct SetAPIURLView: View {
+    @Binding var apiURL: String
+
+    @State var unsavedAPIURL = ""
+    let defaultAPIURL: String = ConfigHelper.get(.apiLocation)
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Text("API URL")
+                    .bold()
+                
+                Spacer()
+            }
+            
+            TextField("Default API URL: \(defaultAPIURL)", text: $unsavedAPIURL)
+                .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+            
+            Button {
+                apiURL = unsavedAPIURL
+                dismiss()
+            } label: {
+                Text("Save")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 3)
+        .presentationDetents([.height(110)])
+        .onDisappear {
+            unsavedAPIURL = ""
         }
     }
 }

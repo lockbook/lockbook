@@ -21,7 +21,7 @@ public struct CoreApi: LockbookApi {
     }
     
     public func createAccount(username: String, apiLocation: String, welcomeDoc: Bool) -> FfiResult<Empty, CreateAccountError> {
-        fromPrimitiveResult(result: create_account(username, "https://b6ef-75-99-184-138.ngrok-free.app", welcomeDoc))
+        fromPrimitiveResult(result: create_account(username, "https://f031-108-145-161-6.ngrok-free.app", welcomeDoc))
     }
     
     public func logoutAndExit() {
