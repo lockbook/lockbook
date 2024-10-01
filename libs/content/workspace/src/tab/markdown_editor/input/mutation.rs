@@ -1,4 +1,6 @@
 use crate::tab::markdown_editor;
+use crate::tab::markdown_editor::bounds::Bounds;
+use crate::tab::markdown_editor::style::InlineNode;
 use egui::Pos2;
 use lb_rs::text::buffer;
 use lb_rs::text::buffer::Buffer;
@@ -19,6 +21,7 @@ use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 use super::advance::AdvanceExt as _;
+use super::Bound;
 
 impl Editor {
     /// Translates editor events into buffer operations by interpreting them in the context of the current editor state.
@@ -931,6 +934,7 @@ impl Editor {
     }
 }
 
+// todo: find a better home along with text & link functions
 pub fn pos_to_char_offset(
     mut pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs, text: &Text,
 ) -> DocCharOffset {
@@ -959,6 +963,73 @@ pub fn pos_to_char_offset(
         }
         result
     }
+}
+
+pub fn pos_to_galley(
+    pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs, bounds: &Bounds,
+) -> Option<usize> {
+    for (galley_idx, galley) in galleys.galleys.iter().enumerate() {
+        if galley.rect.contains(pos) {
+            // galleys stretch across the screen, so we need to check if we're to the right of the text
+            // use a tolerance of 10.0 for x and a tolerance of one line for y (supports noncapture when pointer is over a code block)
+            let offset = pos_to_char_offset(pos, galleys, segs, &bounds.text);
+
+            let prev_line_end_pos_x = {
+                let line_start_offset = offset
+                    .advance_to_bound(Bound::Line, true, bounds)
+                    .advance_to_next_bound(Bound::Line, true, bounds);
+                let line_end_offset =
+                    line_start_offset.advance_to_bound(Bound::Line, false, bounds);
+                let (_, egui_cursor) =
+                    galleys.galley_and_cursor_by_char_offset(line_end_offset, &bounds.text);
+                galley.galley.pos_from_cursor(&egui_cursor).max.x + galley.text_location.x
+            };
+            let curr_line_end_pos_x = {
+                let line_end_offset = offset.advance_to_bound(Bound::Line, false, bounds);
+                let (_, egui_cursor) =
+                    galleys.galley_and_cursor_by_char_offset(line_end_offset, &bounds.text);
+                galley.galley.pos_from_cursor(&egui_cursor).max.x + galley.text_location.x
+            };
+            let next_line_end_pos_x = {
+                let line_end_offset = offset
+                    .advance_to_bound(Bound::Line, false, bounds)
+                    .advance_to_next_bound(Bound::Line, false, bounds);
+                let (_, egui_cursor) =
+                    galleys.galley_and_cursor_by_char_offset(line_end_offset, &bounds.text);
+                galley.galley.pos_from_cursor(&egui_cursor).max.x + galley.text_location.x
+            };
+
+            let max_pos_x = prev_line_end_pos_x
+                .max(curr_line_end_pos_x)
+                .max(next_line_end_pos_x);
+            let tolerance = 10.0;
+            return if max_pos_x + tolerance > pos.x { Some(galley_idx) } else { None };
+        }
+    }
+    None
+}
+
+pub fn pos_to_link(
+    pos: Pos2, galleys: &Galleys, buffer: &Buffer, bounds: &Bounds, ast: &Ast,
+) -> Option<String> {
+    pos_to_galley(pos, galleys, &buffer.current.segs, bounds)?;
+    let offset = pos_to_char_offset(pos, galleys, &buffer.current.segs, &bounds.text);
+
+    // todo: binary search
+    for ast_node in &ast.nodes {
+        if let MarkdownNode::Inline(InlineNode::Link(_, url, _)) = &ast_node.node_type {
+            if ast_node.range.contains_inclusive(offset) {
+                return Some(url.to_string());
+            }
+        }
+    }
+    for plaintext_link in &bounds.links {
+        if plaintext_link.contains_inclusive(offset) {
+            return Some(buffer[*plaintext_link].to_string());
+        }
+    }
+
+    None
 }
 
 /// Returns list of nodes whose styles should be removed before applying `style`

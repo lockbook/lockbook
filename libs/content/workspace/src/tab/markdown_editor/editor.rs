@@ -12,13 +12,14 @@ use markdown_editor::debug::DebugInfo;
 use markdown_editor::galleys::Galleys;
 use markdown_editor::images::ImageCache;
 use markdown_editor::input::capture::CaptureState;
-use markdown_editor::input::click_checker::{ClickChecker, EditorClickChecker};
 use markdown_editor::input::cursor;
 use markdown_editor::input::cursor::CursorState;
 use markdown_editor::input::Bound;
 use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
 use std::time::{Duration, Instant};
+
+use super::input::mutation;
 
 #[derive(Debug, Serialize, Default)]
 pub struct Response {
@@ -244,20 +245,24 @@ impl Editor {
 
         // set cursor style
         {
-            let click_checker = &EditorClickChecker {
-                galleys: &self.galleys,
-                buffer: &self.buffer,
-                ast: &self.ast,
-                appearance: &self.appearance,
-                bounds: &self.bounds,
-            };
             let hovering_link = ui
                 .input(|r| r.pointer.hover_pos())
-                .map(|pos| click_checker.link(pos).is_some())
+                .map(|pos| {
+                    mutation::pos_to_link(pos, &self.galleys, &self.buffer, &self.bounds, &self.ast)
+                        .is_some()
+                })
                 .unwrap_or_default();
             let hovering_text = ui
                 .input(|r| r.pointer.hover_pos())
-                .map(|pos| click_checker.text(pos).is_some())
+                .map(|pos| {
+                    mutation::pos_to_galley(
+                        pos,
+                        &self.galleys,
+                        &self.buffer.current.segs,
+                        &self.bounds,
+                    )
+                    .is_some()
+                })
                 .unwrap_or_default();
             let cmd_down = ui.input(|i| i.modifiers.command);
             if hovering_link && cmd_down {

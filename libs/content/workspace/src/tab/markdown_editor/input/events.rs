@@ -95,7 +95,7 @@ impl Editor {
                 })
             })
             .into_iter()
-            .filter_map(|e| translate_egui_keyboard_event(e))
+            .filter_map(translate_egui_keyboard_event)
             .collect::<Vec<_>>()
         } else {
             Vec::new()
