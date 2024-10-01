@@ -23,6 +23,11 @@ struct OnboardingOneView: View {
                     .font(.title2)
                     .padding(.leading)
                 
+                Text("The perfect place to record, sync, and share your thoughts.")
+                    .font(.body)
+                    .padding(.leading)
+                    .padding(.top)
+                
                 Spacer()
                 
                 NavigationLink(destination: {
@@ -482,7 +487,7 @@ struct SetAPIURLView: View {
                 Spacer()
             }
             
-            TextField("Default API URL: \(defaultAPIURL)", text: $unsavedAPIURL)
+            TextField("Default: \(defaultAPIURL)", text: $unsavedAPIURL)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
