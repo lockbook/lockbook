@@ -1,16 +1,13 @@
 use crate::tab::markdown_editor;
 use crate::tab::markdown_editor::bounds::BoundExt as _;
-use crate::tab::ExtendedInput as _;
 use egui::os::OperatingSystem;
-use egui::{
-    scroll_area, Frame, Margin, PointerButton, Pos2, Rect, ScrollArea, TouchPhase, Ui, Vec2,
-};
+use egui::{scroll_area, Frame, Margin, Pos2, Rect, ScrollArea, Ui, Vec2};
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
 use lb_rs::{DocumentHmac, Uuid};
 use markdown_editor::appearance::Appearance;
 use markdown_editor::ast::{Ast, AstTextRangeType};
-use markdown_editor::bounds::{BoundCase, Bounds};
+use markdown_editor::bounds::Bounds;
 use markdown_editor::debug::DebugInfo;
 use markdown_editor::galleys::Galleys;
 use markdown_editor::images::ImageCache;
@@ -18,10 +15,9 @@ use markdown_editor::input::capture::CaptureState;
 use markdown_editor::input::click_checker::{ClickChecker, EditorClickChecker};
 use markdown_editor::input::cursor;
 use markdown_editor::input::cursor::{CursorState, PointerState};
-use markdown_editor::input::{Bound, Event, Offset, Region};
+use markdown_editor::input::Bound;
 use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
-use std::mem;
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Serialize, Default)]
@@ -100,28 +96,7 @@ impl Editor {
         let maybe_prev_state: Option<scroll_area::State> =
             ui.data_mut(|d| d.get_persisted(scroll_area_id));
 
-        let has_focus = ui.memory(|m| m.focused().is_none()); // focus by default
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
-
-        let events = {
-            let mut events = Vec::new();
-
-            // keys processed when focused
-            if has_focus {
-                events.extend(
-                    ui.ctx()
-                        .input_mut(|i| mem::take(&mut i.events))
-                        .into_iter()
-                        .filter(|e| match e {
-                            // clicks inferred from hit testing system
-                            egui::Event::PointerButton { .. } | egui::Event::Touch { .. } => false,
-                            _ => true,
-                        }),
-                );
-            }
-
-            events
-        };
 
         // show ui
         let available_size = ui.available_size();
@@ -135,7 +110,7 @@ impl Editor {
                     .inner_margin(Margin::symmetric(0., 15.))
                     .show(ui, |ui| {
                         let resp = ui
-                            .vertical_centered(|ui| self.show_inner(ui, touch_mode, events))
+                            .vertical_centered(|ui| self.show_inner(ui, touch_mode))
                             .inner;
                         ui.allocate_space(Vec2::new(ui.available_width(), 100.));
                         resp
@@ -158,7 +133,7 @@ impl Editor {
         response
     }
 
-    fn show_inner(&mut self, ui: &mut Ui, touch_mode: bool, events: Vec<egui::Event>) -> Response {
+    fn show_inner(&mut self, ui: &mut Ui, touch_mode: bool) -> Response {
         self.debug.frame_start();
 
         // update theme
@@ -177,18 +152,9 @@ impl Editor {
 
         // process events
         let (text_updated, selection_updated) = if self.initialized {
-            let custom_events = ui.ctx().pop_events();
-            self.process_events(ui.ctx(), events, custom_events, touch_mode)
+            self.process_events(ui.ctx())
         } else {
-            // put the cursor at the first valid cursor position
-            ui.ctx().push_markdown_event(Event::Select {
-                region: Region::ToOffset {
-                    offset: Offset::To(Bound::Doc),
-                    backwards: true,
-                    extend_selection: false,
-                },
-            });
-
+            self.initialized = true;
             (true, true)
         };
 
@@ -233,7 +199,6 @@ impl Editor {
             &self.bounds,
             &self.ast,
         );
-        self.initialized = true;
 
         // repaint conditions
         let mut repaints = Vec::new();
@@ -310,103 +275,6 @@ impl Editor {
             scroll_updated: false, // set by scroll_ui
             suggest_rename,
         }
-    }
-
-    fn process_events(
-        &mut self, ctx: &egui::Context, mut events: Vec<egui::Event>,
-        mut custom_events: Vec<crate::Event>, touch_mode: bool,
-    ) -> (bool, bool) {
-        // if the cursor is in an invalid location, move it to the next valid location
-        {
-            let mut fixed_selection = self.buffer.current.selection;
-            if let BoundCase::BetweenRanges { range_after, .. } =
-                fixed_selection.0.bound_case(&self.bounds.text)
-            {
-                fixed_selection.0 = range_after.start();
-            }
-            if let BoundCase::BetweenRanges { range_after, .. } =
-                fixed_selection.1.bound_case(&self.bounds.text)
-            {
-                fixed_selection.1 = range_after.start();
-            }
-            if fixed_selection != self.buffer.current.selection {
-                let event =
-                    crate::Event::Markdown(Event::Select { region: fixed_selection.into() });
-                custom_events.splice(0..0, std::iter::once(event));
-            }
-        }
-
-        // remove clicks that are also touches so we don't click to set selection while touching to open a context menu
-        // todo: O(n), fewer clones
-        let mut i = 1;
-        loop {
-            if i >= events.len() {
-                break;
-            }
-
-            if matches!((events[i - 1].clone(), events[i].clone()),
-                // touch start / pointer pressed
-                (
-                    egui::Event::Touch { phase: TouchPhase::Start, pos: touch_pos, .. },
-                    egui::Event::PointerButton {
-                        pos: pointer_pos,
-                        button: PointerButton::Primary,
-                        pressed: true,
-                        ..
-                    },
-                )
-                // touch move / pointer move
-                | (
-                    egui::Event::Touch { phase: TouchPhase::Move, pos: touch_pos, .. },
-                    egui::Event::PointerMoved(pointer_pos),
-                )
-                // touch end / pointer release
-                | (
-                    egui::Event::Touch { phase: TouchPhase::End, pos: touch_pos, .. },
-                    egui::Event::PointerButton {
-                        pos: pointer_pos,
-                        button: PointerButton::Primary,
-                        pressed: false,
-                        ..
-                    },
-                ) if touch_pos == pointer_pos)
-            {
-                events.remove(i);
-            } else if matches!((events[i - 1].clone(), events[i].clone()),
-                // pointer pressed / touch start
-                (
-                    egui::Event::PointerButton {
-                        pos: pointer_pos,
-                        button: PointerButton::Primary,
-                        pressed: true,
-                        ..
-                    },
-                    egui::Event::Touch { phase: TouchPhase::Start, pos: touch_pos, .. },
-                )
-                // pointer move / touch move
-                | (
-                    egui::Event::PointerMoved(pointer_pos),
-                    egui::Event::Touch { phase: TouchPhase::Move, pos: touch_pos, .. },
-                )
-                // pointer release / touch end
-                | (
-                    egui::Event::PointerButton {
-                        pos: pointer_pos,
-                        button: PointerButton::Primary,
-                        pressed: false,
-                        ..
-                    },
-                    egui::Event::Touch { phase: TouchPhase::End, pos: touch_pos, .. },
-                ) if touch_pos == pointer_pos)
-            {
-                events.remove(i - 1);
-            } else {
-                i += 1;
-            }
-        }
-
-        let combined_events = self.combine_events(ctx, events.clone(), custom_events, touch_mode);
-        self.process_combined_events(ctx, combined_events)
     }
 
     fn get_suggested_title(&self) -> Option<String> {

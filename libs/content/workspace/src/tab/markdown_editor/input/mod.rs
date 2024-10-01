@@ -102,7 +102,8 @@ pub enum Event {
     ToggleDebug,
     ToggleCheckbox(usize),
     OpenUrl(String),
-    SetBaseFontSize(f32),
+    IncrementBaseFontSize,
+    DecrementBaseFontSize,
 }
 
 impl From<(DocCharOffset, DocCharOffset)> for Region {

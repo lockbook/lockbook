@@ -631,7 +631,16 @@ impl Editor {
                 ctx.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
             }
             Event::ToggleDebug => self.debug.draw_enabled = !self.debug.draw_enabled,
-            Event::SetBaseFontSize(size) => self.appearance.base_font_size = Some(size),
+            Event::IncrementBaseFontSize => {
+                self.appearance.base_font_size =
+                    self.appearance.base_font_size.map(|size| size + 1.)
+            }
+            Event::DecrementBaseFontSize => {
+                if self.appearance.font_size() > 2. {
+                    self.appearance.base_font_size =
+                        self.appearance.base_font_size.map(|size| size - 1.)
+                }
+            }
             Event::ToggleCheckbox(galley_idx) => {
                 let galley = &self.galleys[galley_idx];
                 if let Some(Annotation::Item(ListItem::Todo(checked), ..)) = galley.annotation {
