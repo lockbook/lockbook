@@ -1,5 +1,5 @@
 use crate::WgpuWorkspace;
-use egui::{vec2, Event, Pos2};
+use egui::{vec2, Event, MouseWheelUnit, Pos2};
 use lb_external_interface::lb_rs::Uuid;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::path::PathBuf;
@@ -59,9 +59,11 @@ pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_x: f32, scroll_y:
 
         obj.raw_input.events.push(Event::Zoom(factor))
     } else {
-        obj.raw_input
-            .events
-            .push(Event::Scroll(vec2(scroll_x, scroll_y)));
+        obj.raw_input.events.push(Event::MouseWheel {
+            unit: MouseWheelUnit::Point,
+            delta: vec2(scroll_x, scroll_y),
+            modifiers: obj.raw_input.modifiers,
+        });
     }
 }
 
