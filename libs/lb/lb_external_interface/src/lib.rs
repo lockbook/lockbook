@@ -93,7 +93,6 @@ impl FfiCore {
         Ok(self.core.export_account_qr()?)
     }
 
-
     pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {
         Ok(self.core.get_account()?)
     }
