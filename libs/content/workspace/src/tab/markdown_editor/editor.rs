@@ -1,25 +1,25 @@
-use std::time::{Duration, Instant};
-
+use crate::tab::markdown_editor;
+use crate::tab::markdown_editor::bounds::BoundExt as _;
+use crate::tab::ExtendedInput as _;
 use egui::os::OperatingSystem;
-use egui::{Color32, Event, Frame, Rect, Sense, Ui, Vec2};
-use lb_rs::Uuid;
+use egui::{Color32, Frame, PointerButton, Rect, Sense, TouchPhase, Ui, Vec2};
+use lb_rs::text::buffer::Buffer;
+use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::{DocumentHmac, Uuid};
+use markdown_editor::appearance::Appearance;
+use markdown_editor::ast::{Ast, AstTextRangeType};
+use markdown_editor::bounds::{BoundCase, Bounds};
+use markdown_editor::debug::DebugInfo;
+use markdown_editor::galleys::Galleys;
+use markdown_editor::images::ImageCache;
+use markdown_editor::input::capture::CaptureState;
+use markdown_editor::input::click_checker::{ClickChecker, EditorClickChecker};
+use markdown_editor::input::cursor;
+use markdown_editor::input::cursor::{CursorState, PointerState};
+use markdown_editor::input::{Bound, Event, Offset, Region};
+use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
-
-use crate::tab::markdown_editor::appearance::Appearance;
-use crate::tab::markdown_editor::ast::{Ast, AstTextRangeType};
-use crate::tab::markdown_editor::bounds::{BoundCase, Bounds};
-use crate::tab::markdown_editor::buffer::Buffer;
-use crate::tab::markdown_editor::debug::DebugInfo;
-use crate::tab::markdown_editor::galleys::Galleys;
-use crate::tab::markdown_editor::images::ImageCache;
-use crate::tab::markdown_editor::input::canonical::{Bound, Modification, Offset, Region};
-use crate::tab::markdown_editor::input::capture::CaptureState;
-use crate::tab::markdown_editor::input::click_checker::{ClickChecker, EditorClickChecker};
-use crate::tab::markdown_editor::input::cursor::PointerState;
-use crate::tab::markdown_editor::input::events;
-use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
-use crate::tab::markdown_editor::{ast, bounds, galleys, images};
-use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Serialize, Default)]
 pub struct Response {
@@ -40,22 +40,24 @@ pub struct Editor {
     // input
     pub id: egui::Id,
     pub file_id: Uuid,
+    pub hmac: Option<DocumentHmac>,
     pub needs_name: bool,
     pub initialized: bool,
     pub appearance: Appearance,
 
-    // state
+    // internal systems
     pub buffer: Buffer,
+    pub cursor: CursorState,
     pub pointer_state: PointerState,
     pub debug: DebugInfo,
     pub images: ImageCache,
-    pub has_focus: bool,
     pub ast: Ast,
     pub bounds: Bounds,
     pub galleys: Galleys,
     pub capture: CaptureState,
 
     // state from last frame for focus & change detection
+    pub has_focus: bool,
     pub ui_rect: Rect,
     pub scroll_area_rect: Rect,
     pub scroll_area_offset: Vec2,
@@ -66,7 +68,8 @@ pub struct Editor {
 
 impl Editor {
     pub fn new(
-        core: lb_rs::Core, content: &str, file_id: Uuid, needs_name: bool, plaintext_mode: bool,
+        core: lb_rs::Core, content: &str, file_id: Uuid, hmac: Option<DocumentHmac>,
+        needs_name: bool, plaintext_mode: bool,
     ) -> Self {
         Self {
             core,
@@ -74,20 +77,22 @@ impl Editor {
 
             id: egui::Id::new(file_id),
             file_id,
+            hmac,
             needs_name,
             initialized: false,
             appearance: Appearance { plaintext_mode, ..Default::default() },
 
             buffer: content.into(),
+            cursor: Default::default(),
             pointer_state: Default::default(),
             debug: Default::default(),
             images: Default::default(),
-            has_focus: true,
             ast: Default::default(),
             bounds: Default::default(),
             galleys: Default::default(),
             capture: Default::default(),
 
+            has_focus: true,
             ui_rect: Rect { min: Default::default(), max: Default::default() },
             scroll_area_rect: Rect { min: Default::default(), max: Default::default() },
             scroll_area_offset: Default::default(),
@@ -96,10 +101,8 @@ impl Editor {
         }
     }
 
-    /// Merge merges changes made outside the editor with changes made inside the editor by evaluating the diff between
-    /// the base and new content and fuzzy-patching the diff into the editor's content.
-    pub fn merge(&self, base: &str, new: &str) -> Vec<Modification> {
-        super::input::merge::merge(base, &self.buffer.current.text, new)
+    pub fn reload(&mut self, text: String) {
+        self.buffer.reload(text)
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
@@ -112,7 +115,7 @@ impl Editor {
         let mut request_focus = ui.memory(|m| m.has_focus(self.id));
         let mut surrender_focus = false;
         for event in &events {
-            if let Event::PointerButton { pos, pressed: true, .. } = event {
+            if let egui::Event::PointerButton { pos, pressed: true, .. } = event {
                 if ui.is_enabled() && self.scroll_area_rect.contains(*pos) && self.has_focus {
                     request_focus = true;
                 } else {
@@ -161,7 +164,7 @@ impl Editor {
                     .fill(fill)
                     .inner_margin(egui::Margin::symmetric(0.0, 15.0))
                     .show(ui, |ui| {
-                        ui.vertical_centered(|ui| self.show_inner(ui, self.id, touch_mode, &events))
+                        ui.vertical_centered(|ui| self.show_inner(ui, self.id, touch_mode, events))
                     })
             });
         self.ui_rect = sao.inner_rect;
@@ -195,7 +198,7 @@ impl Editor {
     }
 
     fn show_inner(
-        &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: &[Event],
+        &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: Vec<egui::Event>,
     ) -> Response {
         self.debug.frame_start();
 
@@ -220,9 +223,7 @@ impl Editor {
                 || cfg!(target_os = "android")
             {
                 let custom_events = ui.ctx().pop_events();
-                let (text_updated, selection_updated) =
-                    self.process_events(ui.ctx(), events, &custom_events, touch_mode);
-                (text_updated, selection_updated)
+                self.process_events(ui.ctx(), events, custom_events, touch_mode)
             } else {
                 (false, false)
             }
@@ -230,7 +231,7 @@ impl Editor {
             ui.memory_mut(|m| m.request_focus(id));
 
             // put the cursor at the first valid cursor position
-            ui.ctx().push_markdown_event(Modification::Select {
+            ui.ctx().push_markdown_event(Event::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Doc),
                     backwards: true,
@@ -243,15 +244,11 @@ impl Editor {
 
         // recalculate dependent state
         if text_updated {
-            self.ast = ast::calc(&self.buffer.current);
+            self.ast = ast::calc(&self.buffer);
             self.bounds.ast = bounds::calc_ast(&self.ast);
-            self.bounds.words = bounds::calc_words(
-                &self.buffer.current,
-                &self.ast,
-                &self.bounds.ast,
-                &self.appearance,
-            );
-            self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer.current);
+            self.bounds.words =
+                bounds::calc_words(&self.buffer, &self.ast, &self.bounds.ast, &self.appearance);
+            self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer);
         }
         if text_updated || selection_updated || self.capture.mark_changes_processed() {
             self.bounds.text = bounds::calc_text(
@@ -260,11 +257,10 @@ impl Editor {
                 &self.bounds.paragraphs,
                 &self.appearance,
                 &self.buffer.current.segs,
-                self.buffer.current.cursor,
+                self.buffer.current.selection,
                 &self.capture,
             );
-            self.bounds.links =
-                bounds::calc_links(&self.buffer.current, &self.bounds.text, &self.ast);
+            self.bounds.links = bounds::calc_links(&self.buffer, &self.bounds.text, &self.ast);
         }
         if text_updated || selection_updated || theme_updated {
             self.images =
@@ -272,7 +268,7 @@ impl Editor {
         }
         self.galleys = galleys::calc(
             &self.ast,
-            &self.buffer.current,
+            &self.buffer,
             &self.bounds,
             &self.images,
             &self.appearance,
@@ -318,8 +314,9 @@ impl Editor {
                 .range_bound(Bound::Doc, false, false, &self.bounds)
                 .unwrap() // there's always a document
         };
-        if selection_updated && self.buffer.current.cursor.selection != all_selection {
-            let cursor_end_line = self.buffer.current.cursor.end_line(
+        if selection_updated && self.buffer.current.selection != all_selection {
+            let cursor_end_line = cursor::line(
+                self.buffer.current.selection.end(),
                 &self.galleys,
                 &self.bounds.text,
                 &self.appearance,
@@ -367,147 +364,100 @@ impl Editor {
     }
 
     fn process_events(
-        &mut self, ctx: &egui::Context, events: &[Event], custom_events: &[crate::Event],
-        touch_mode: bool,
+        &mut self, ctx: &egui::Context, mut events: Vec<egui::Event>,
+        mut custom_events: Vec<crate::Event>, touch_mode: bool,
     ) -> (bool, bool) {
         // if the cursor is in an invalid location, move it to the next valid location
-        if let BoundCase::BetweenRanges { range_after, .. } = self
-            .buffer
-            .current
-            .cursor
-            .selection
-            .0
-            .bound_case(&self.bounds.text)
         {
-            self.buffer.current.cursor.selection.0 = range_after.start();
-        }
-        if let BoundCase::BetweenRanges { range_after, .. } = self
-            .buffer
-            .current
-            .cursor
-            .selection
-            .1
-            .bound_case(&self.bounds.text)
-        {
-            self.buffer.current.cursor.selection.1 = range_after.start();
+            let mut fixed_selection = self.buffer.current.selection;
+            if let BoundCase::BetweenRanges { range_after, .. } =
+                fixed_selection.0.bound_case(&self.bounds.text)
+            {
+                fixed_selection.0 = range_after.start();
+            }
+            if let BoundCase::BetweenRanges { range_after, .. } =
+                fixed_selection.1.bound_case(&self.bounds.text)
+            {
+                fixed_selection.1 = range_after.start();
+            }
+            if fixed_selection != self.buffer.current.selection {
+                let event =
+                    crate::Event::Markdown(Event::Select { region: fixed_selection.into() });
+                custom_events.splice(0..0, std::iter::once(event));
+            }
         }
 
-        let prior_selection = self.buffer.current.cursor.selection;
-        let click_checker = EditorClickChecker {
-            ui_rect: self.ui_rect,
-            galleys: &self.galleys,
-            buffer: &self.buffer,
-            ast: &self.ast,
-            appearance: &self.appearance,
-            bounds: &self.bounds,
-        };
-        let combined_events = events::combine(
-            events,
-            custom_events,
-            &click_checker,
-            touch_mode,
-            &self.appearance,
-            &mut self.pointer_state,
-            &mut self.core,
-            self.file_id,
-        );
-        let (text_updated, maybe_to_clipboard, maybe_opened_url) = events::process(
-            &combined_events,
-            &self.galleys,
-            &self.bounds,
-            &self.ast,
-            &mut self.buffer,
-            &mut self.debug,
-            &mut self.appearance,
-        );
-
-        // in touch mode, check if we should open the menu
-        let click_checker = EditorClickChecker {
-            ui_rect: self.ui_rect,
-            galleys: &self.galleys,
-            buffer: &self.buffer,
-            ast: &self.ast,
-            appearance: &self.appearance,
-            bounds: &self.bounds,
-        };
-        let maybe_context_menu_pos = if touch_mode {
-            let current_cursor = self.buffer.current.cursor;
-            let current_selection = current_cursor.selection;
-
-            let touched_a_galley = events.iter().any(|e| {
-                if let Event::Touch { pos, .. } | Event::PointerButton { pos, .. } = e {
-                    (&click_checker).text(*pos).is_some()
-                } else {
-                    false
-                }
-            });
-
-            let touched_cursor = current_selection.is_empty()
-                && prior_selection == current_selection
-                && touched_a_galley
-                && combined_events
-                    .iter()
-                    .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
-
-            let touched_selection = current_selection.is_empty()
-                && prior_selection.contains_inclusive(current_selection.1)
-                && touched_a_galley
-                && combined_events
-                    .iter()
-                    .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
-
-            let double_touched_for_selection = !current_selection.is_empty()
-                && touched_a_galley
-                && combined_events.iter().any(|e| {
-                    matches!(
-                        e,
-                        Modification::Select { region: Region::BoundAt { bound: Bound::Word, .. } }
-                    )
-                });
-
-            let maybe_context_menu_pos =
-                if touched_cursor || touched_selection || double_touched_for_selection {
-                    // set menu location
-                    Some(
-                        self.buffer.current.cursor.end_line(
-                            &self.galleys,
-                            &self.bounds.text,
-                            &self.appearance,
-                        )[0],
-                    )
-                } else {
-                    None
-                };
-            if touched_cursor || touched_selection {
-                // put the cursor back the way it was
-                self.buffer.current.cursor.selection = prior_selection;
+        // remove clicks that are also touches so we don't click to set selection while touching to open a context menu
+        // todo: O(n), fewer clones
+        let mut i = 1;
+        loop {
+            if i >= events.len() {
+                break;
             }
 
-            maybe_context_menu_pos
-        } else {
-            None
-        };
-
-        // assume https for urls without a scheme
-        let maybe_opened_url = maybe_opened_url.map(|url| {
-            if !url.contains("://") {
-                format!("https://{}", url)
+            if matches!((events[i - 1].clone(), events[i].clone()),
+                // touch start / pointer pressed
+                (
+                    egui::Event::Touch { phase: TouchPhase::Start, pos: touch_pos, .. },
+                    egui::Event::PointerButton {
+                        pos: pointer_pos,
+                        button: PointerButton::Primary,
+                        pressed: true,
+                        ..
+                    },
+                )
+                // touch move / pointer move
+                | (
+                    egui::Event::Touch { phase: TouchPhase::Move, pos: touch_pos, .. },
+                    egui::Event::PointerMoved(pointer_pos),
+                )
+                // touch end / pointer release
+                | (
+                    egui::Event::Touch { phase: TouchPhase::End, pos: touch_pos, .. },
+                    egui::Event::PointerButton {
+                        pos: pointer_pos,
+                        button: PointerButton::Primary,
+                        pressed: false,
+                        ..
+                    },
+                ) if touch_pos == pointer_pos)
+            {
+                events.remove(i);
+            } else if matches!((events[i - 1].clone(), events[i].clone()),
+                // pointer pressed / touch start
+                (
+                    egui::Event::PointerButton {
+                        pos: pointer_pos,
+                        button: PointerButton::Primary,
+                        pressed: true,
+                        ..
+                    },
+                    egui::Event::Touch { phase: TouchPhase::Start, pos: touch_pos, .. },
+                )
+                // pointer move / touch move
+                | (
+                    egui::Event::PointerMoved(pointer_pos),
+                    egui::Event::Touch { phase: TouchPhase::Move, pos: touch_pos, .. },
+                )
+                // pointer release / touch end
+                | (
+                    egui::Event::PointerButton {
+                        pos: pointer_pos,
+                        button: PointerButton::Primary,
+                        pressed: false,
+                        ..
+                    },
+                    egui::Event::Touch { phase: TouchPhase::End, pos: touch_pos, .. },
+                ) if touch_pos == pointer_pos)
+            {
+                events.remove(i - 1);
             } else {
-                url
+                i += 1;
             }
-        });
-
-        if let Some(clip) = maybe_to_clipboard {
-            ctx.output_mut(|o| o.copied_text = clip);
-        }
-        if let Some(url) = maybe_opened_url {
-            ctx.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
-        }
-        if let Some(pos) = maybe_context_menu_pos {
-            ctx.set_context_menu(pos);
         }
 
-        (text_updated, self.buffer.current.cursor.selection != prior_selection)
+        let combined_events = self.combine_events(ctx, events.clone(), custom_events, touch_mode);
+        self.process_combined_events(ctx, combined_events)
     }
 
     fn get_suggested_title(&self) -> Option<String> {
@@ -537,7 +487,7 @@ impl Editor {
                 break; // suggested title must be from first paragraph
             }
 
-            return Some(String::from(&self.buffer.current[text_range_portion]) + ".md");
+            return Some(String::from(&self.buffer[text_range_portion]) + ".md");
         }
         None
     }

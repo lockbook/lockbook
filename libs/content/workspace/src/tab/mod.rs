@@ -4,8 +4,7 @@ use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use chrono::DateTime;
 use egui::Id;
-use lb_rs::{File, FileType, Uuid};
-use markdown_editor::input::canonical::Modification;
+use lb_rs::{DocumentHmac, File, FileType, Uuid};
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -29,18 +28,23 @@ pub struct Tab {
 
 pub struct SaveRequest {
     pub id: lb_rs::Uuid,
+    pub hmac: Option<DocumentHmac>,
     pub content: String,
 }
 
 impl Tab {
     pub fn make_save_request(&self) -> Option<SaveRequest> {
+        let mut hmac = None;
         if let Some(tab_content) = &self.content {
             let maybe_save_content = match tab_content {
-                TabContent::Markdown(md) => Some(md.editor.buffer.current.text.clone()),
+                TabContent::Markdown(md) => {
+                    hmac = md.editor.hmac;
+                    Some(md.editor.buffer.current.text.clone())
+                }
                 TabContent::Svg(svg) => Some(svg.get_minimal_content()),
                 _ => None,
             };
-            maybe_save_content.map(|content| SaveRequest { id: self.id, content })
+            maybe_save_content.map(|content| SaveRequest { id: self.id, content, hmac })
         } else {
             None
         }
@@ -56,6 +60,17 @@ pub enum TabContent {
     Markdown(Markdown),
     Pdf(PdfViewer),
     Svg(SVGEditor),
+}
+
+impl std::fmt::Debug for TabContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TabContent::Image(_) => write!(f, "TabContent::Image"),
+            TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
+            TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
+            TabContent::Svg(_) => write!(f, "TabContent::Svg"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -76,7 +91,7 @@ impl From<lb_rs::LbError> for TabFailure {
 
 #[derive(Debug, Clone)]
 pub enum Event {
-    Markdown(Modification),
+    Markdown(markdown_editor::Event),
     Drop { content: Vec<ClipContent>, position: egui::Pos2 },
     Paste { content: Vec<ClipContent>, position: egui::Pos2 },
 }
@@ -120,7 +135,7 @@ impl ExtendedOutput for egui::Context {
 
 pub trait ExtendedInput {
     fn push_event(&self, event: Event);
-    fn push_markdown_event(&self, event: Modification);
+    fn push_markdown_event(&self, event: markdown_editor::Event);
     fn pop_events(&self) -> Vec<Event>;
 }
 
@@ -136,7 +151,7 @@ impl ExtendedInput for egui::Context {
         })
     }
 
-    fn push_markdown_event(&self, event: Modification) {
+    fn push_markdown_event(&self, event: markdown_editor::Event) {
         self.push_event(Event::Markdown(event))
     }
 
