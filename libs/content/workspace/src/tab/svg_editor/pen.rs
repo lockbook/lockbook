@@ -1,5 +1,5 @@
 use bezier_rs::{Bezier, Subpath};
-use egui::{TouchId, TouchPhase};
+use egui::{PointerButton, TouchId, TouchPhase};
 use lb_rs::Uuid;
 use resvg::usvg::Transform;
 use std::{
@@ -28,7 +28,6 @@ pub struct Pen {
     path_builder: CubicBezBuilder,
     pub current_id: Uuid, // todo: this should be at a higher component state, maybe in buffer
     maybe_snap_started: Option<Instant>,
-    pub supports_pressure: bool,
 }
 
 impl Pen {
@@ -40,7 +39,6 @@ impl Pen {
             path_builder: CubicBezBuilder::new(),
             maybe_snap_started: None,
             active_opacity: 1.0,
-            supports_pressure: false,
         }
     }
 
@@ -95,6 +93,114 @@ impl Pen {
         }
     }
 
+    /// given a path event mutate state of the current path by building it, canceling it, or ending it.
+    fn handle_path_event(&mut self, event: PathEvent, pen_ctx: &mut ToolContext) {
+        match event {
+            PathEvent::Draw(payload) => {
+                if let Some(parser::Element::Path(p)) =
+                    pen_ctx.buffer.elements.get_mut(&self.current_id)
+                {
+                    if let Some(touch_id) = payload.id {
+                        if self.path_builder.first_point_touch_id.is_none() {
+                            self.path_builder.first_point_touch_id = Some(touch_id);
+                        }
+                    }
+                    // for some reason in ipad there are  two draw events on the same pos which results in a knot.
+                    if let Some(last_pos) = self.path_builder.original_points.last() {
+                        if last_pos.eq(&payload.pos) {
+                            event!(Level::TRACE, ?payload.pos, "draw event canceled because it's pos is equal to the last pos on the path");
+                            return;
+                        }
+                    }
+
+                    // todo: snaping is broken, bring it back when the pen tool is stable
+                    if self.detect_snap(&p.data, payload.pos, pen_ctx.buffer.master_transform) {
+                        self.end_path(pen_ctx, true);
+                        return;
+                    }
+
+                    p.diff_state.data_changed = true;
+
+                    self.path_builder.cubic_to(payload.pos, &mut p.data);
+                } else {
+                    let mut stroke = Stroke::default();
+                    if let Some(c) = self.active_color {
+                        stroke.color = c;
+                    }
+
+                    stroke.width = self.active_stroke_width;
+
+                    self.path_builder.first_point_touch_id = payload.id;
+
+                    event!(Level::TRACE, "starting a new path");
+
+                    // pen_ctx.buffer.elements.insert(
+                    let el = parser::Element::Path(Path {
+                        data: Subpath::new(vec![], false),
+                        visibility: resvg::usvg::Visibility::Visible,
+                        fill: None,
+                        stroke: Some(stroke),
+                        transform: Transform::identity().post_scale(
+                            pen_ctx.buffer.master_transform.sx,
+                            pen_ctx.buffer.master_transform.sy,
+                        ),
+                        opacity: self.active_opacity,
+                        diff_state: DiffState::default(),
+                        deleted: false,
+                    });
+                    // );
+
+                    // this is a highlighter insert at top z-index
+                    if self.active_opacity < 1.0 {
+                        pen_ctx
+                            .buffer
+                            .elements
+                            .insert_before(0, self.current_id, el);
+                    } else {
+                        pen_ctx.buffer.elements.insert(self.current_id, el);
+                    }
+                    if let Some(parser::Element::Path(p)) =
+                        pen_ctx.buffer.elements.get_mut(&self.current_id)
+                    {
+                        self.path_builder.cubic_to(payload.pos, &mut p.data);
+                    }
+                }
+            }
+            PathEvent::End => {
+                self.end_path(pen_ctx, false);
+
+                self.maybe_snap_started = None;
+            }
+            PathEvent::CancelStroke() => {
+                trace!("canceling stroke");
+                if let Some(parser::Element::Path(path)) =
+                    pen_ctx.buffer.elements.get_mut(&self.current_id)
+                {
+                    self.path_builder.clear();
+                    self.path_builder.is_canceled_path = true;
+                    path.diff_state.data_changed = true;
+                    path.data = Subpath::new(vec![], false);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// convert egui events into path events
+    pub fn get_path_events(
+        &mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext,
+    ) -> Vec<PathEvent> {
+        let input_state = PenPointerInput { is_multi_touch: is_multi_touch(ui) };
+
+        ui.input(|r| {
+            r.events
+                .iter()
+                .filter_map(|e| self.map_ui_event(e, pen_ctx, &input_state))
+                .rev()
+                .collect()
+        })
+    }
+
     fn detect_snap(
         &mut self, path: &Subpath<ManipulatorGroupId>, current_pos: egui::Pos2,
         master_transform: Transform,
@@ -131,125 +237,6 @@ impl Pen {
         false
     }
 
-    /// given a path event mutate state of the current path by building it, canceling it, or ending it.
-    fn handle_path_event(&mut self, event: PathEvent, pen_ctx: &mut ToolContext) {
-        match event {
-            PathEvent::Draw(payload) => {
-                if let Some(parser::Element::Path(p)) =
-                    pen_ctx.buffer.elements.get_mut(&self.current_id)
-                {
-                    if let Some(touch_id) = payload.id {
-                        if self.path_builder.first_point_touch_id.is_none() {
-                            self.path_builder.first_point_touch_id = Some(touch_id);
-                        }
-                    }
-                    // for some reason in ipad there are  two draw events on the same pos which results in a knot.
-                    if let Some(last_pos) = self.path_builder.original_points.last() {
-                        if last_pos.eq(&payload.pos) {
-                            event!(Level::TRACE, ?payload.pos, "draw event canceled because it's pos is equal to the last pos on the path");
-                            return;
-                        }
-                    }
-
-                    if self.detect_snap(&p.data, payload.pos, pen_ctx.buffer.master_transform) {
-                        self.end_path(pen_ctx, true);
-                        return;
-                    }
-
-                    p.diff_state.data_changed = true;
-
-                    self.path_builder.cubic_to(payload.pos, &mut p.data);
-
-                    if self.supports_pressure {
-                        if let Some(f) = payload.force {
-                            if let Some(pressure) = &mut p.pressure {
-                                pressure.push(f)
-                            } else {
-                                p.pressure = Some(vec![f]);
-                            }
-                        // sometimes the force is missing from the event so just autofill it based on the last force
-                        } else if let Some(pressure) = &mut p.pressure {
-                            pressure.push(*pressure.last().unwrap_or(&1.0))
-                        }
-                    }
-                } else {
-                    let mut stroke = Stroke::default();
-                    if let Some(c) = self.active_color {
-                        stroke.color = c;
-                    }
-
-                    stroke.width = self.active_stroke_width;
-
-                    let pressure =
-                        if self.supports_pressure { payload.force.map(|f| vec![f]) } else { None };
-                    self.path_builder.first_point_touch_id = payload.id;
-
-                    event!(Level::TRACE, "starting a new path");
-
-                    pen_ctx.buffer.elements.insert(
-                        self.current_id,
-                        parser::Element::Path(Path {
-                            data: Subpath::new(vec![], false),
-                            visibility: resvg::usvg::Visibility::Visible,
-                            fill: None,
-                            stroke: Some(stroke),
-                            transform: Transform::identity().post_scale(
-                                pen_ctx.buffer.master_transform.sx,
-                                pen_ctx.buffer.master_transform.sy,
-                            ),
-                            opacity: self.active_opacity,
-                            pressure,
-                            diff_state: DiffState::default(),
-                            deleted: false,
-                        }),
-                    );
-
-                    if let Some(parser::Element::Path(p)) =
-                        pen_ctx.buffer.elements.get_mut(&self.current_id)
-                    {
-                        self.path_builder.cubic_to(payload.pos, &mut p.data);
-                    }
-                }
-            }
-            PathEvent::End => {
-                self.end_path(pen_ctx, false);
-
-                self.maybe_snap_started = None;
-            }
-            PathEvent::CancelStroke() => {
-                trace!("canceling stroke");
-                if let Some(parser::Element::Path(path)) =
-                    pen_ctx.buffer.elements.get_mut(&self.current_id)
-                {
-                    self.path_builder.clear();
-                    self.path_builder.is_canceled_path = true;
-                    path.diff_state.data_changed = true;
-                    path.data = Subpath::new(vec![], false);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    /// convert egui events into path events
-    pub fn get_path_events(
-        &mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext,
-    ) -> Vec<PathEvent> {
-        let input_state = PenPointerInput {
-            is_pointer_released: ui.input(|r| r.pointer.any_released()),
-            pointer_press_origin: ui.input(|r| r.pointer.press_origin()),
-            is_multi_touch: is_multi_touch(ui),
-        };
-
-        ui.input(|r| {
-            r.events
-                .iter()
-                .filter_map(|e| self.map_ui_event(e, pen_ctx, &input_state))
-                .rev()
-                .collect()
-        })
-    }
-
     /// converts a single ui event into a path event  
     fn map_ui_event(
         &mut self, e: &egui::Event, pen_ctx: &mut ToolContext<'_>, input_state: &PenPointerInput,
@@ -266,13 +253,10 @@ impl Pen {
         // todo: should i wait for input start
         if input_state.is_multi_touch {
             if is_current_path_empty {
-                trace!("allowing viewport changes");
                 *pen_ctx.allow_viewport_changes = true;
                 return Some(PathEvent::Break);
             }
             if !get_event_touch_id(e).eq(&self.path_builder.first_point_touch_id) {
-                trace!("no viewport changes");
-                *pen_ctx.allow_viewport_changes = false;
                 return None;
             }
         }
@@ -280,8 +264,6 @@ impl Pen {
         *pen_ctx.allow_viewport_changes = false;
 
         if let egui::Event::Touch { device_id: _, id, phase, pos, force } = *e {
-            // let (should_end_path, should_draw) = self.decide_event(pen_ctx, pos, input_state);
-
             if phase == TouchPhase::Cancel {
                 trace!("sending cancel stroke");
                 return Some(PathEvent::CancelStroke());
@@ -315,37 +297,35 @@ impl Pen {
                     trace!("probably lifted a finger off from a zoom.");
                     return None;
                 }
-                *pen_ctx.is_viewport_changing = false;
 
                 return Some(PathEvent::Draw(DrawPayload { pos, force, id: Some(id) }));
             }
         }
         if pen_ctx.is_touch_frame {
+            *pen_ctx.allow_viewport_changes = true;
             return None;
         }
 
         if let egui::Event::PointerMoved(pos) = *e {
-            let not_empty_path = if let Some(parser::Element::Path(p)) =
-                pen_ctx.buffer.elements.get(&self.current_id)
-            {
-                !p.data.is_empty()
-            } else {
-                false
-            };
+            if self.path_builder.original_points.is_empty() {
+                return None;
+            }
 
-            let pointer_gone_out_of_canvas = !inner_rect.contains(pos) && not_empty_path;
-
-            let pointer_released_in_canvas =
-                input_state.is_pointer_released && inner_rect.contains(pos);
-
-            let pointer_pressed_and_originated_in_canvas = inner_rect
-                .contains(input_state.pointer_press_origin.unwrap_or_default())
-                && inner_rect.contains(pos);
-
-            if pointer_gone_out_of_canvas || pointer_released_in_canvas {
+            if !inner_rect.contains(pos) {
                 return Some(PathEvent::End);
-            } else if pointer_pressed_and_originated_in_canvas {
+            } else if pen_ctx.buffer.elements.contains_key(&self.current_id) {
                 return Some(PathEvent::Draw(DrawPayload { pos, force: None, id: None }));
+            }
+        }
+        if let egui::Event::PointerButton { pos, button, pressed, modifiers: _ } = *e {
+            if !inner_rect.contains(pos) || button != PointerButton::Primary {
+                return None;
+            }
+
+            if pressed {
+                return Some(PathEvent::Draw(DrawPayload { pos, force: None, id: None }));
+            } else {
+                return Some(PathEvent::End);
             }
         }
 
@@ -355,8 +335,6 @@ impl Pen {
 }
 
 struct PenPointerInput {
-    is_pointer_released: bool,
-    pointer_press_origin: Option<egui::Pos2>,
     is_multi_touch: bool,
 }
 
@@ -610,7 +588,6 @@ fn correct_start_of_path() {
         buffer: &mut parser::Buffer::default(),
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
-        is_viewport_changing: &mut false,
         is_touch_frame: true,
     };
 
@@ -663,15 +640,10 @@ fn cancel_touch_ui_event() {
         buffer: &mut parser::Buffer::default(),
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
-        is_viewport_changing: &mut false,
         is_touch_frame: true,
     };
 
-    let input_state = PenPointerInput {
-        is_pointer_released: false,
-        pointer_press_origin: Some(pen_ctx.painter.clip_rect().center()),
-        is_multi_touch: false,
-    };
+    let input_state = PenPointerInput { is_multi_touch: false };
 
     events.iter().for_each(|e| {
         if let Some(path_event) = pen.map_ui_event(e, &mut pen_ctx, &input_state) {

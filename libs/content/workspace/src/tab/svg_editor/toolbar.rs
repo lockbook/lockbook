@@ -9,8 +9,8 @@ use crate::{
 };
 
 use super::{
-    eraser::DEFAULT_ERASER_RADIUS, history::History, parser, pen::DEFAULT_PEN_STROKE_WIDTH,
-    selection::Selection, zoom::zoom_percentage_to_transform, Buffer, Eraser, Pen,
+    eraser::DEFAULT_ERASER_RADIUS, gesture_handler::zoom_percentage_to_transform, history::History,
+    parser, pen::DEFAULT_PEN_STROKE_WIDTH, selection::Selection, Buffer, Eraser, Pen,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
@@ -34,7 +34,6 @@ pub enum Tool {
     Eraser,
     Selection,
     Highlighter,
-    Brush,
 }
 
 pub struct ToolContext<'a> {
@@ -42,7 +41,6 @@ pub struct ToolContext<'a> {
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
     pub allow_viewport_changes: &'a mut bool,
-    pub is_viewport_changing: &'a mut bool,
     pub is_touch_frame: bool,
 }
 #[derive(Clone)]
@@ -59,7 +57,6 @@ macro_rules! set_tool {
             }
             if (matches!($new_tool, Tool::Pen)) {
                 $obj.pen.active_opacity = 1.0;
-                $obj.pen.supports_pressure = false;
             }
             $obj.previous_tool = Some($obj.active_tool);
             $obj.active_tool = $new_tool;
@@ -190,16 +187,6 @@ impl Toolbar {
         let pen_btn = Button::default().icon(&Icon::PEN).show(ui);
         if pen_btn.clicked() {
             set_tool!(self, Tool::Pen);
-            self.pen.supports_pressure = false;
-            self.pen.active_opacity = 1.0;
-            self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH;
-            self.pen.active_color = None;
-        }
-
-        let brush = Button::default().icon(&Icon::BRUSH).show(ui);
-        if brush.clicked() {
-            set_tool!(self, Tool::Brush);
-            self.pen.supports_pressure = true;
             self.pen.active_opacity = 1.0;
             self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH;
             self.pen.active_color = None;
@@ -210,7 +197,6 @@ impl Toolbar {
         if highlighter_btn.clicked() {
             set_tool!(self, Tool::Highlighter);
             self.pen.active_opacity = highlighter_opacity;
-            self.pen.supports_pressure = false;
             self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH * 2.0;
             self.pen.active_color = Some(get_highlighter_colors()[0]);
         }
@@ -225,7 +211,6 @@ impl Toolbar {
             Tool::Eraser => eraser_btn.rect,
             Tool::Selection => selection_btn.rect,
             Tool::Highlighter => highlighter_btn.rect,
-            Tool::Brush => brush.rect,
         };
 
         ui.painter().rect_filled(
@@ -238,12 +223,12 @@ impl Toolbar {
         ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
         ui.add_space(4.0);
 
-        self.show_tool_inline_controls(ui);
+        self.show_tool_inline_controls(ui, buffer);
     }
 
-    fn show_tool_inline_controls(&mut self, ui: &mut egui::Ui) {
+    fn show_tool_inline_controls(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) {
         match self.active_tool {
-            Tool::Pen | Tool::Brush => {
+            Tool::Pen => {
                 if let Some(thickness) = self.show_thickness_pickers(
                     ui,
                     self.pen.active_stroke_width,
@@ -267,7 +252,11 @@ impl Toolbar {
                     self.eraser.radius = thickness;
                 }
             }
-            Tool::Selection => {}
+            Tool::Selection => {
+                if !self.selection.selected_elements.is_empty() {
+                    self.show_selection_controls(ui, buffer);
+                }
+            }
             Tool::Highlighter => {
                 if let Some(thickness) = self.show_thickness_pickers(
                     ui,
@@ -302,6 +291,105 @@ impl Toolbar {
                 self.pen.active_color = Some(*theme_color);
             }
         });
+    }
+
+    fn show_selection_controls(&self, ui: &mut egui::Ui, buffer: &mut Buffer) {
+        let mut max_current_index = 0;
+        let mut min_cureent_index = usize::MAX;
+        ui.label("layers: ");
+        self.selection
+            .selected_elements
+            .iter()
+            .for_each(|selected_element| {
+                if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
+                    max_current_index = el_id.max(max_current_index);
+                    min_cureent_index = el_id.min(min_cureent_index);
+                }
+            });
+
+        if Button::default()
+            .icon(&Icon::BRING_TO_BACK.color(if max_current_index == buffer.elements.len() - 1 {
+                ui.visuals().text_color().gamma_multiply(0.4)
+            } else {
+                ui.visuals().text_color()
+            }))
+            .show(ui)
+            .clicked()
+            && max_current_index != buffer.elements.len() - 1
+        {
+            self.selection
+                .selected_elements
+                .iter()
+                .for_each(|selected_element| {
+                    if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
+                        buffer.elements.move_index(el_id, buffer.elements.len() - 1);
+                    }
+                });
+        }
+
+        if Button::default()
+            .icon(&Icon::BRING_BACK.color(if max_current_index == buffer.elements.len() - 1 {
+                ui.visuals().text_color().gamma_multiply(0.4)
+            } else {
+                ui.visuals().text_color()
+            }))
+            .show(ui)
+            .clicked()
+            && max_current_index != buffer.elements.len() - 1
+        {
+            self.selection
+                .selected_elements
+                .iter()
+                .for_each(|selected_element| {
+                    if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
+                        if el_id < buffer.elements.len() - 1 {
+                            buffer.elements.swap_indices(el_id, el_id + 1);
+                        }
+                    }
+                });
+        }
+
+        if Button::default()
+            .icon(&Icon::BRING_FRONT.color(if min_cureent_index == 0 {
+                ui.visuals().text_color().gamma_multiply(0.4)
+            } else {
+                ui.visuals().text_color()
+            }))
+            .show(ui)
+            .clicked()
+            && min_cureent_index != 0
+        {
+            self.selection
+                .selected_elements
+                .iter()
+                .for_each(|selected_element| {
+                    if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
+                        if el_id > 0 {
+                            buffer.elements.swap_indices(el_id, el_id - 1);
+                        }
+                    }
+                });
+        }
+
+        if Button::default()
+            .icon(&Icon::BRING_TO_FRONT.color(if min_cureent_index == 0 {
+                ui.visuals().text_color().gamma_multiply(0.4)
+            } else {
+                ui.visuals().text_color()
+            }))
+            .show(ui)
+            .clicked()
+            && min_cureent_index != 0
+        {
+            self.selection
+                .selected_elements
+                .iter()
+                .for_each(|selected_element| {
+                    if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
+                        buffer.elements.move_index(el_id, 0);
+                    }
+                });
+        }
     }
 
     fn show_color_btn(&self, ui: &mut egui::Ui, color: egui::Color32) -> egui::Response {

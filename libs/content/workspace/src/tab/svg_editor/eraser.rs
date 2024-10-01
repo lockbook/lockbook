@@ -33,7 +33,7 @@ impl Eraser {
         }
     }
 
-    pub fn handle_input(&mut self, ui: &mut egui::Ui, eraser_ctx: ToolContext) {
+    pub fn handle_input(&mut self, ui: &mut egui::Ui, eraser_ctx: &mut ToolContext) {
         if is_multi_touch(ui) {
             *eraser_ctx.allow_viewport_changes = true;
             return;

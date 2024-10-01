@@ -110,11 +110,15 @@ impl Renderer {
         }
 
         if !self.mesh_cache.is_empty() {
-            painter.extend(self.mesh_cache.clone().into_values().filter(|shape| {
-                if let egui::Shape::Mesh(m) = shape {
-                    !m.vertices.is_empty() && !m.indices.is_empty()
+            painter.extend(buffer.elements.iter().rev().filter_map(|(id, _)| {
+                if let Some(egui::Shape::Mesh(m)) = self.mesh_cache.get(id) {
+                    if !m.vertices.is_empty() && !m.indices.is_empty() {
+                        Some(egui::Shape::mesh(m.to_owned()))
+                    } else {
+                        None
+                    }
                 } else {
-                    true
+                    None
                 }
             }));
         }
@@ -173,21 +177,7 @@ fn tesselate_element(
                 let mut i = 0;
 
                 while let Some(seg) = p.data.get_segment(i) {
-                    let pressure = if let Some(ref pressure) = p.pressure {
-                        let pressure_at_segment = pressure.get(i);
-                        if pressure_at_segment.is_some() {
-                            pressure_at_segment
-                        } else {
-                            pressure.get(i - 1)
-                        }
-                    } else {
-                        None
-                    };
-
-                    let normalized_pressure =
-                        if let Some(prsr) = pressure { *prsr * 2.0 + 0.5 } else { 1.0 };
-
-                    let thickness = stroke.width * master_transform.sx * normalized_pressure;
+                    let thickness = stroke.width * master_transform.sx;
 
                     let start = devc_to_point(seg.start());
                     let end = devc_to_point(seg.end());

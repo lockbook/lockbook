@@ -1,21 +1,22 @@
 use crate::tab::markdown_editor::appearance::Appearance;
 use crate::tab::markdown_editor::ast::Ast;
+use crate::tab::markdown_editor::bounds::BoundExt as _;
 use crate::tab::markdown_editor::bounds::Bounds;
-use crate::tab::markdown_editor::buffer::Buffer;
 use crate::tab::markdown_editor::galleys::Galleys;
-use crate::tab::markdown_editor::input::canonical::Bound;
 use crate::tab::markdown_editor::input::mutation;
+use crate::tab::markdown_editor::input::Bound;
 use crate::tab::markdown_editor::layouts::Annotation;
-use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt};
 use crate::tab::markdown_editor::style::{InlineNode, ListItem, MarkdownNode};
 use egui::{Pos2, Rect};
+use lb_rs::text::buffer::Buffer;
+use lb_rs::text::offset_types::{DocCharOffset, RangeExt};
 
 pub trait ClickChecker {
-    fn ui(&self, pos: Pos2) -> bool; // was the click even in the ui?
-    fn text(&self, pos: Pos2) -> Option<usize>; // returns galley index
-    fn checkbox(&self, pos: Pos2, touch_mode: bool) -> Option<usize>; // returns galley index of checkbox
-    fn link(&self, pos: Pos2) -> Option<String>; // returns url to open
-    fn pos_to_char_offset(&self, pos: Pos2) -> DocCharOffset; // converts pos to char offset
+    fn ui(self, pos: Pos2) -> bool; // was the click even in the ui?
+    fn text(self, pos: Pos2) -> Option<usize>; // returns galley index
+    fn checkbox(self, pos: Pos2, touch_mode: bool) -> Option<usize>; // returns galley index of checkbox
+    fn link(self, pos: Pos2) -> Option<String>; // returns url to open
+    fn pos_to_char_offset(self, pos: Pos2) -> DocCharOffset; // converts pos to char offset
 }
 
 pub struct EditorClickChecker<'a> {
@@ -28,11 +29,11 @@ pub struct EditorClickChecker<'a> {
 }
 
 impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
-    fn ui(&self, pos: Pos2) -> bool {
+    fn ui(self, pos: Pos2) -> bool {
         self.ui_rect.contains(pos)
     }
 
-    fn text(&self, pos: Pos2) -> Option<usize> {
+    fn text(self, pos: Pos2) -> Option<usize> {
         for (galley_idx, galley) in self.galleys.galleys.iter().enumerate() {
             if galley.galley_location.contains(pos) {
                 // galleys stretch across the screen, so we need to check if we're to the right of the text
@@ -82,7 +83,7 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
         None
     }
 
-    fn checkbox(&self, pos: Pos2, touch_mode: bool) -> Option<usize> {
+    fn checkbox(self, pos: Pos2, touch_mode: bool) -> Option<usize> {
         for (galley_idx, galley) in self.galleys.galleys.iter().enumerate() {
             if let Some(Annotation::Item(ListItem::Todo(_), ..)) = galley.annotation {
                 if galley
@@ -96,7 +97,7 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
         None
     }
 
-    fn link(&self, pos: Pos2) -> Option<String> {
+    fn link(self, pos: Pos2) -> Option<String> {
         self.text(pos)?;
         let offset = mutation::pos_to_char_offset(
             pos,
@@ -115,14 +116,14 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
         }
         for plaintext_link in &self.bounds.links {
             if plaintext_link.contains_inclusive(offset) {
-                return Some(self.buffer.current[*plaintext_link].to_string());
+                return Some(self.buffer[*plaintext_link].to_string());
             }
         }
 
         None
     }
 
-    fn pos_to_char_offset(&self, pos: Pos2) -> DocCharOffset {
+    fn pos_to_char_offset(self, pos: Pos2) -> DocCharOffset {
         mutation::pos_to_char_offset(
             pos,
             self.galleys,

@@ -1,7 +1,7 @@
-use crate::tab::markdown_editor::offset_types::{DocCharOffset, RelCharOffset};
 use crate::tab::markdown_editor::style::{IndentLevel, ListItem, Title, Url};
 use egui::text::LayoutJob;
 use egui::TextFormat;
+use lb_rs::text::offset_types::{DocCharOffset, RelCharOffset};
 use pulldown_cmark::LinkType;
 
 #[derive(Clone, Debug, Default, PartialEq)]
