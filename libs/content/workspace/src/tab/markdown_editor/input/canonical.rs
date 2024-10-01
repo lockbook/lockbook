@@ -1,13 +1,8 @@
 use crate::tab::markdown_editor;
 use egui::{self, Key, Modifiers};
-use markdown_editor::input::click_checker::ClickChecker;
-use markdown_editor::input::cursor::{ClickType, PointerState};
-use markdown_editor::input::{Bound, Event, Increment, Location, Offset, Region};
+use markdown_editor::input::{Bound, Event, Increment, Offset, Region};
 use markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use pulldown_cmark::{HeadingLevel, LinkType};
-use std::time::Instant;
-
-use super::click_checker::EditorClickChecker;
 
 impl From<Modifiers> for Offset {
     fn from(modifiers: Modifiers) -> Self {
@@ -226,96 +221,6 @@ pub fn translate_egui_keyboard_event(event: egui::Event) -> Option<Event> {
         }
         _ => None,
     }
-}
-
-fn pointer_press(
-    pointer_state: &mut PointerState, now: Instant, pos: egui::Pos2, modifiers: Modifiers,
-) -> Option<Event> {
-    pointer_state.press(now, pos, modifiers);
-    None
-}
-
-fn pointer_move(
-    pointer_state: &mut PointerState, now: Instant, pos: egui::Pos2, touch_mode: bool,
-) -> Option<Event> {
-    pointer_state.drag(now, pos);
-    if pointer_state.click_dragged.unwrap_or_default() && !touch_mode {
-        if pointer_state.click_mods.unwrap_or_default().shift {
-            Some(Event::Select { region: Region::ToLocation(Location::Pos(pos)) })
-        } else if let Some(click_pos) = pointer_state.click_pos {
-            Some(Event::Select {
-                region: Region::BetweenLocations {
-                    start: Location::Pos(click_pos),
-                    end: Location::Pos(pos),
-                },
-            })
-        } else {
-            Some(Event::Select { region: Region::ToLocation(Location::Pos(pos)) })
-        }
-    } else {
-        None
-    }
-}
-
-fn pointer_release(
-    pointer_state: &mut PointerState, pos: egui::Pos2, click_checker: &EditorClickChecker,
-    touch_mode: bool,
-) -> Option<Event> {
-    let click_type = pointer_state.click_type.unwrap_or_default();
-    let click_pos = pointer_state.click_pos.unwrap_or_default();
-    let click_mods = pointer_state.click_mods.unwrap_or_default();
-    let click_dragged = pointer_state.click_dragged.unwrap_or_default();
-    pointer_state.release();
-    let location = Location::Pos(pos);
-
-    if let Some(galley_idx) = click_checker.checkbox(pos, touch_mode) {
-        Some(Event::ToggleCheckbox(galley_idx))
-    } else if let Some(url) = click_checker.link(pos) {
-        if (touch_mode && !click_dragged) || click_mods.command {
-            Some(Event::OpenUrl(url))
-        } else {
-            None
-        }
-    } else {
-        None
-    }
-    .or_else(|| {
-        if !cfg!(target_os = "ios") {
-            Some(Event::Select {
-                region: if click_mods.shift {
-                    Region::ToLocation(location)
-                } else {
-                    match click_type {
-                        ClickType::Single => {
-                            if touch_mode {
-                                if !click_dragged {
-                                    Region::Location(location)
-                                } else {
-                                    return None;
-                                }
-                            } else {
-                                Region::BetweenLocations {
-                                    start: Location::Pos(click_pos),
-                                    end: location,
-                                }
-                            }
-                        }
-                        ClickType::Double => {
-                            Region::BoundAt { bound: Bound::Word, location, backwards: true }
-                        }
-                        ClickType::Triple => {
-                            Region::BoundAt { bound: Bound::Paragraph, location, backwards: true }
-                        }
-                        ClickType::Quadruple => {
-                            Region::BoundAt { bound: Bound::Doc, location, backwards: true }
-                        }
-                    }
-                },
-            })
-        } else {
-            None
-        }
-    })
 }
 
 impl Event {

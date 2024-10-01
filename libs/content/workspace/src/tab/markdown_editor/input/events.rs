@@ -1,4 +1,5 @@
 use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _};
+use crate::tab::markdown_editor::input::Location;
 use crate::tab::{self, markdown_editor, ClipContent, ExtendedInput as _};
 use egui::{Context, EventFilter};
 use lb_rs::text::buffer;
@@ -7,6 +8,7 @@ use markdown_editor::input::{Event, Region};
 use markdown_editor::Editor;
 
 use super::canonical::translate_egui_keyboard_event;
+use super::Bound;
 
 impl Editor {
     pub fn process_events(&mut self, ctx: &Context) -> (bool, bool) {
@@ -101,15 +103,52 @@ impl Editor {
     }
 
     fn get_pointer_events(&self, ctx: &Context) -> Vec<Event> {
+        if cfg!(target_os = "ios") {
+            // iOS handles touch events using virtual keyboard FFI fn's
+            return Vec::new();
+        }
         for i in 0..self.galleys.galleys.len() {
             let galley = &self.galleys.galleys[i];
             if let Some(response) = ctx.read_response(galley.response.id) {
-                if response.clicked() {
-                    println!("clicked galley {:?} at {:?}", i, response.interact_pointer_pos());
-                }
+                let pos =
+                    if let Some(pos) = response.interact_pointer_pos() { pos } else { continue };
+                let location = Location::Pos(pos);
+                let modifiers = ctx.input(|i| i.modifiers);
+
+                // note: deliberate order; a double click is also a click
+                let region = if response.triple_clicked() {
+                    Region::BoundAt { bound: Bound::Paragraph, location, backwards: true }
+                } else if response.double_clicked() {
+                    Region::BoundAt { bound: Bound::Word, location, backwards: true }
+                } else if response.clicked() && modifiers.shift {
+                    Region::ToLocation(location)
+                } else if response.clicked() {
+                    Region::Location(location)
+                } else if response.secondary_clicked() {
+                    // todo: show context menu
+                    continue;
+                } else if response.dragged() && modifiers.shift {
+                    Region::ToLocation(location)
+                } else if response.dragged() {
+                    let origin = if let Some(origin) = ctx.input(|i| i.pointer.press_origin()) {
+                        origin
+                    } else {
+                        // unexpected
+                        continue;
+                    };
+
+                    Region::BetweenLocations {
+                        start: Location::Pos(origin),
+                        end: Location::Pos(pos),
+                    }
+                } else {
+                    // can't yet tell if drag
+                    continue;
+                };
+
+                return vec![Event::Select { region }];
             }
         }
-
-        todo!()
+        Vec::new()
     }
 }

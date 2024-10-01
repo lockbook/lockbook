@@ -14,7 +14,7 @@ use markdown_editor::images::ImageCache;
 use markdown_editor::input::capture::CaptureState;
 use markdown_editor::input::click_checker::{ClickChecker, EditorClickChecker};
 use markdown_editor::input::cursor;
-use markdown_editor::input::cursor::{CursorState, PointerState};
+use markdown_editor::input::cursor::CursorState;
 use markdown_editor::input::Bound;
 use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
@@ -46,7 +46,6 @@ pub struct Editor {
     // internal systems
     pub buffer: Buffer,
     pub cursor: CursorState,
-    pub pointer_state: PointerState,
     pub debug: DebugInfo,
     pub images: ImageCache,
     pub ast: Ast,
@@ -75,7 +74,6 @@ impl Editor {
 
             buffer: content.into(),
             cursor: Default::default(),
-            pointer_state: Default::default(),
             debug: Default::default(),
             images: Default::default(),
             ast: Default::default(),
@@ -192,8 +190,8 @@ impl Editor {
         );
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
         self.capture.update(
+            ui.input(|i| i.pointer.latest_pos()),
             Instant::now(),
-            &self.pointer_state,
             &self.galleys,
             &self.buffer.current.segs,
             &self.bounds,
