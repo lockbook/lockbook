@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::thread;
 
 use eframe::egui;
+use egui::TextWrapMode;
 use rfd::FileDialog;
 use workspace_rs::theme::icons::Icon;
 
@@ -208,10 +209,12 @@ impl TreeNode {
             )
         };
 
-        let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
+        let icon =
+            icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
 
         let text: egui::WidgetText = (&self.file.name).into();
-        let text = text.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
+        let text =
+            text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
 
         let width = (depth_inset + padding.x * 2.0 + icon.size().x + 5.0 + text.size().x)
             .max(ui.available_size_before_wrap().x);

@@ -35,6 +35,7 @@ impl ProgressBar {
                 stroke,
                 fill_texture_id: egui::TextureId::default(),
                 uv: egui::Rect::ZERO,
+                blur_width: 0.,
             });
 
             let width = rect.max.x - rect.min.x;
@@ -49,6 +50,7 @@ impl ProgressBar {
                 stroke,
                 fill_texture_id: egui::TextureId::default(),
                 uv: egui::Rect::ZERO,
+                blur_width: 0.,
             });
         }
 

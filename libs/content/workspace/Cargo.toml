@@ -8,8 +8,8 @@ name = "workspace_rs"
 
 [dependencies]
 bezier-rs = "0.2.0"
-egui = "0.26.2"
-epaint = "0.26.2"
+egui = "0.28.1"
+epaint = "0.28.1"
 glam = "0.22.0"
 image = "0.24"
 lb-fonts = { git = "https://github.com/lockbook/lb-fonts" }
@@ -29,7 +29,7 @@ tld = "2.35.0"
 tldextract = "0.6.0"
 tracing = "0.1.5"
 tracing-test = "0.2.5"
-indexmap = { version = "2.5.0", features = ["rayon"] } 
+indexmap = { version = "2.5.0", features = ["rayon"] }
 
 # todo: maybe move this switch into lb itself
 [target.'cfg(not(target_os = "android"))'.dependencies]
