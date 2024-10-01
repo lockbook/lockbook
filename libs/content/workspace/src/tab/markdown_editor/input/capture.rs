@@ -1,20 +1,14 @@
-use std::{
-    collections::{HashMap, HashSet},
-    time::{Duration, Instant},
-};
+use std::collections::{HashMap, HashSet};
+use std::time::{Duration, Instant};
 
-use crate::tab::markdown_editor::{
-    appearance::{Appearance, CaptureCondition},
-    ast::{Ast, AstTextRangeType},
-    bounds::{AstTextRanges, Bounds, Paragraphs, RangesExt as _},
-    galleys::Galleys,
-    input::{
-        cursor::{Cursor, PointerState},
-        mutation,
-    },
-    offset_types::{RangeExt as _, RangeIterExt},
-    unicode_segs::UnicodeSegs,
-};
+use crate::tab::markdown_editor;
+use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt};
+use lb_rs::text::unicode_segs::UnicodeSegs;
+use markdown_editor::appearance::{Appearance, CaptureCondition};
+use markdown_editor::ast::{Ast, AstTextRangeType};
+use markdown_editor::bounds::{AstTextRanges, Bounds, Paragraphs, RangesExt as _};
+use markdown_editor::galleys::Galleys;
+use markdown_editor::input::{cursor::PointerState, mutation};
 
 pub const HOVER_REVEAL_DEBOUNCE: Duration = Duration::from_millis(300);
 
@@ -114,8 +108,8 @@ impl CaptureState {
     /// reveal. Debounce is evaluated using the time of last update rather than the current time to facilitate change
     /// detection.
     pub fn captured(
-        &self, cursor: Cursor, paragraphs: &Paragraphs, ast: &Ast, ast_ranges: &AstTextRanges,
-        ast_range_idx: usize, appearance: &Appearance,
+        &self, selection: (DocCharOffset, DocCharOffset), paragraphs: &Paragraphs, ast: &Ast,
+        ast_ranges: &AstTextRanges, ast_range_idx: usize, appearance: &Appearance,
     ) -> bool {
         let ast_text_range = &ast_ranges[ast_range_idx];
         if ast_text_range.range_type == AstTextRangeType::Text {
@@ -123,7 +117,7 @@ impl CaptureState {
         }
 
         // check if this text range intersects any paragraph with selected text
-        let selection_paragraphs = paragraphs.find_intersecting(cursor.selection, true);
+        let selection_paragraphs = paragraphs.find_intersecting(selection, true);
         let text_range_paragraphs = paragraphs.find_intersecting(ast_text_range.range, true);
         let intersects_selected_paragraph =
             selection_paragraphs.intersects(&text_range_paragraphs, false);

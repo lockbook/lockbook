@@ -1,22 +1,20 @@
 use crate::tab::markdown_editor::appearance::{Appearance, CaptureCondition};
 use crate::tab::markdown_editor::ast::{Ast, AstTextRange, AstTextRangeType};
-use crate::tab::markdown_editor::buffer::SubBuffer;
 use crate::tab::markdown_editor::galleys::Galleys;
-use crate::tab::markdown_editor::input::canonical::Bound;
 use crate::tab::markdown_editor::input::capture::CaptureState;
-use crate::tab::markdown_editor::input::cursor::Cursor;
-use crate::tab::markdown_editor::offset_types::{
-    DocByteOffset, DocCharOffset, RangeExt, RelByteOffset,
-};
+use crate::tab::markdown_editor::input::Bound;
 use crate::tab::markdown_editor::style::{BlockNodeType, InlineNodeType, MarkdownNodeType};
-use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
 use crate::tab::markdown_editor::Editor;
 use egui::epaint::text::cursor::RCursor;
+use lb_rs::text::buffer::Buffer;
+use lb_rs::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
+use lb_rs::text::unicode_segs::UnicodeSegs;
 use linkify::LinkFinder;
 use std::cmp::Ordering;
 use std::collections::HashSet;
+use std::ops::Sub;
 use tldextract::{TldExtractor, TldOption};
-use unicode_segmentation::UnicodeSegmentation;
+use unicode_segmentation::UnicodeSegmentation as _;
 
 pub type AstTextRanges = Vec<AstTextRange>;
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
@@ -76,7 +74,7 @@ pub fn calc_ast(ast: &Ast) -> AstTextRanges {
 }
 
 pub fn calc_words(
-    buffer: &SubBuffer, ast: &Ast, ast_ranges: &AstTextRanges, appearance: &Appearance,
+    buffer: &Buffer, ast: &Ast, ast_ranges: &AstTextRanges, appearance: &Appearance,
 ) -> Words {
     let mut result = vec![];
 
@@ -99,8 +97,9 @@ pub fn calc_words(
             for (byte_offset, word) in
                 (buffer[text_range.range].to_string() + " ").split_word_bound_indices()
             {
-                let char_offset = buffer.segs.offset_to_char(
-                    buffer.segs.offset_to_byte(text_range.range.0) + RelByteOffset(byte_offset),
+                let char_offset = buffer.current.segs.offset_to_char(
+                    buffer.current.segs.offset_to_byte(text_range.range.0)
+                        + RelByteOffset(byte_offset),
                 );
 
                 if !prev_word.trim().is_empty() {
@@ -170,15 +169,17 @@ pub fn calc_lines(galleys: &Galleys, ast: &AstTextRanges, text: &Text) -> Lines 
     result
 }
 
-pub fn calc_paragraphs(buffer: &SubBuffer) -> Paragraphs {
+pub fn calc_paragraphs(buffer: &Buffer) -> Paragraphs {
     let mut result = vec![];
 
     let carriage_return_matches = buffer
+        .current
         .text
         .match_indices('\r')
         .map(|(idx, _)| DocByteOffset(idx))
         .collect::<HashSet<_>>();
     let line_feed_matches = buffer
+        .current
         .text
         .match_indices('\n')
         .map(|(idx, _)| DocByteOffset(idx))
@@ -191,26 +192,26 @@ pub fn calc_paragraphs(buffer: &SubBuffer) -> Paragraphs {
 
     let mut prev_char_offset = DocCharOffset(0);
     for byte_offset in newline_matches {
-        let char_offset = buffer.segs.offset_to_char(byte_offset);
+        let char_offset = buffer.current.segs.offset_to_char(byte_offset);
 
         // note: paragraphs can be empty
         result.push((prev_char_offset, char_offset));
 
         prev_char_offset = char_offset + 1 // skip the matched newline;
     }
-    result.push((prev_char_offset, buffer.segs.last_cursor_position()));
+    result.push((prev_char_offset, buffer.current.segs.last_cursor_position()));
 
     result
 }
 
 pub fn calc_text(
     ast: &Ast, ast_ranges: &AstTextRanges, paragraphs: &Paragraphs, appearance: &Appearance,
-    segs: &UnicodeSegs, cursor: Cursor, capture: &CaptureState,
+    segs: &UnicodeSegs, selection: (DocCharOffset, DocCharOffset), capture: &CaptureState,
 ) -> Text {
     let mut result = vec![];
     let mut last_range_pushed = false;
     for (i, text_range) in ast_ranges.iter().enumerate() {
-        let captured = capture.captured(cursor, paragraphs, ast, ast_ranges, i, appearance);
+        let captured = capture.captured(selection, paragraphs, ast, ast_ranges, i, appearance);
 
         let this_range_pushed = if !captured {
             // text range or uncaptured syntax range
@@ -238,7 +239,7 @@ pub fn calc_text(
     result
 }
 
-pub fn calc_links(buffer: &SubBuffer, text: &Text, ast: &Ast) -> PlainTextLinks {
+pub fn calc_links(buffer: &Buffer, text: &Text, ast: &Ast) -> PlainTextLinks {
     let finder = {
         let mut this = LinkFinder::new();
         this.kinds(&[linkify::LinkKind::Url])
@@ -399,7 +400,22 @@ pub enum BoundCase {
     },
 }
 
-impl DocCharOffset {
+pub trait BoundExt {
+    fn range_bound(
+        self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds,
+    ) -> Option<(Self, Self)>
+    where
+        Self: Sized;
+    fn char_bound(self, backwards: bool, jump: bool, text: &Text) -> Option<(Self, Self)>
+    where
+        Self: Sized;
+    fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase;
+    fn advance_bound(self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds) -> Self;
+    fn advance_to_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self;
+    fn advance_to_next_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self;
+}
+
+impl BoundExt for DocCharOffset {
     /// Returns the range in the direction of `backwards` from offset `self`. `jump` is used to control behavior when
     /// `self` is at a boundary in the direction of `backwards`. When `backwards` and `jump` are false and `self` is at
     /// the end of a range, returns that range. When `backwards` is `false` but `jump` is true and `self` is at the end
@@ -409,7 +425,7 @@ impl DocCharOffset {
     /// For example, `jump` would be set to `true` when implementing alt+left/right behavior, which should always move
     /// the cursor to the next word, but set to `false` when implementing cmd+left/right behavior, which should not
     /// move the cursor if it is already at the line bound in the same direction.
-    pub fn range_bound(
+    fn range_bound(
         self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds,
     ) -> Option<(Self, Self)> {
         let ranges = match bound {
@@ -560,7 +576,7 @@ impl DocCharOffset {
     }
 
     // todo: broken when first/last range are empty (did those ranges need to be differentiated anyway?)
-    pub fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase {
+    fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase {
         let range_before = Bounds::range_before(ranges, self);
         let range_after = Bounds::range_after(ranges, self);
         match (range_before, range_after) {
@@ -631,40 +647,47 @@ impl DocCharOffset {
     /// Advances to a bound in a direction, stopping at the bound (e.g. cmd+left/right). If you're beyond the furthest
     /// bound, this snaps you into it, even if that moves you in the opposite direction. If you're not in a bound e.g.
     /// jumping to end of word while not in a word, this does nothing.
-    pub fn advance_to_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self {
+    fn advance_to_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self {
         self.advance_bound(bound, backwards, false, bounds)
     }
 
     /// Advances to a bound in a direction, jumping to the next bound if already at one (e.g. alt+left/right). If
     /// you're beyond the furthest bound, this snaps you into it, even if that moves you in the opposite direction.
-    pub fn advance_to_next_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self {
+    fn advance_to_next_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self {
         self.advance_bound(bound, backwards, true, bounds)
     }
 }
 
 pub trait RangesExt {
+    type Element: Copy + Sub<Self::Element>;
+
     /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that contain `offset`.
     /// When no ranges contain `offset`, result.start() == result.end() == the index of the first range after `offset`.
     fn find_containing(
-        &self, offset: DocCharOffset, start_inclusive: bool, end_inclusive: bool,
+        &self, offset: Self::Element, start_inclusive: bool, end_inclusive: bool,
     ) -> (usize, usize);
 
     /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that are contained by `range`.
     /// When no ranges are contained by `range`, result.start() == result.end() == the index of the first range after `range`.
     fn find_contained(
-        &self, range: (DocCharOffset, DocCharOffset), start_inclusive: bool, end_inclusive: bool,
+        &self, range: (Self::Element, Self::Element), start_inclusive: bool, end_inclusive: bool,
     ) -> (usize, usize);
 
     /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that intersect `range`.
     /// When no ranges intersect `range`, result.start() == result.end() == the index of the first range after `range`.
     fn find_intersecting(
-        &self, range: (DocCharOffset, DocCharOffset), allow_empty: bool,
+        &self, range: (Self::Element, Self::Element), allow_empty: bool,
     ) -> (usize, usize);
 }
 
-impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
+impl<Range: RangeExt> RangesExt for Vec<Range>
+where
+    Range::Element: Copy + Sub<Range::Element> + Ord,
+{
+    type Element = Range::Element;
+
     fn find_containing(
-        &self, offset: DocCharOffset, start_inclusive: bool, end_inclusive: bool,
+        &self, offset: Range::Element, start_inclusive: bool, end_inclusive: bool,
     ) -> (usize, usize) {
         match self.binary_search_by(|range| {
             if offset < range.start() {
@@ -711,7 +734,7 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
     }
 
     fn find_contained(
-        &self, range: (DocCharOffset, DocCharOffset), start_inclusive: bool, end_inclusive: bool,
+        &self, range: (Range::Element, Range::Element), start_inclusive: bool, end_inclusive: bool,
     ) -> (usize, usize) {
         let (mut start, mut end) = self.find_intersecting(range, true);
         while start < end
@@ -736,7 +759,7 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
     }
 
     fn find_intersecting(
-        &self, range: (DocCharOffset, DocCharOffset), allow_empty: bool,
+        &self, range: (Range::Element, Range::Element), allow_empty: bool,
     ) -> (usize, usize) {
         let (start_start, _) = self.find_containing(range.start(), false, allow_empty);
         let (_, end_end) = self.find_containing(range.end(), allow_empty, false);
@@ -917,15 +940,17 @@ impl Editor {
     fn ranges_text(&self, ranges: &[(DocCharOffset, DocCharOffset)]) -> Vec<String> {
         ranges
             .iter()
-            .map(|&range| self.buffer.current[range].to_string())
+            .map(|&range| self.buffer[range].to_string())
             .collect::<Vec<_>>()
     }
 }
 
 #[cfg(test)]
 mod test {
+    use lb_rs::text::offset_types::DocCharOffset;
+
     use super::{join, Bounds, RangesExt};
-    use crate::tab::markdown_editor::{input::canonical::Bound, offset_types::DocCharOffset};
+    use crate::tab::markdown_editor::{bounds::BoundExt as _, input::Bound};
 
     #[test]
     fn range_before_after_no_ranges() {

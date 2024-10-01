@@ -9,6 +9,8 @@ impl Workspace {
     // todo should anyone outside workspace ever call this? Or should they call something more
     // general that would allow workspace to determine if a sync is needed
     pub fn perform_sync(&mut self) {
+        // todo: save all dirty tabs
+
         if self.status.syncing {
             return;
         }
@@ -86,20 +88,15 @@ impl Workspace {
     }
 
     pub fn refresh_files(&mut self, work: &SyncStatus) {
-        let server_ids: Vec<lb_rs::Uuid> = work
-            .work_units
-            .iter()
-            .filter_map(|wu| match wu {
-                lb_rs::WorkUnit::LocalChange { .. } => None,
-                lb_rs::WorkUnit::ServerChange(id) => Some(*id),
-            })
-            .collect();
+        let server_ids = work.work_units.iter().filter_map(|wu| match wu {
+            lb_rs::WorkUnit::LocalChange { .. } => None,
+            lb_rs::WorkUnit::ServerChange(id) => Some(*id),
+        });
 
         for id in server_ids {
-            if !self.tabs.iter().any(|t| t.id == id) {
-                continue;
+            if self.tabs.iter().any(|t| t.id == id) {
+                self.open_file(id, false, false);
             }
-            self.open_file(id, false, false);
         }
     }
 

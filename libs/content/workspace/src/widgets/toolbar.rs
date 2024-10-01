@@ -3,7 +3,7 @@ use pulldown_cmark::LinkType;
 use crate::tab::{markdown_editor, ExtendedOutput};
 use crate::tab::{
     markdown_editor::{
-        input::canonical::{Modification, Region},
+        input::{Event, Region},
         style::{BlockNode, InlineNode, ListItem, MarkdownNode},
         Editor,
     },
@@ -252,7 +252,7 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                     icon: Icon::BOLD,
                     id: "bold".to_string(),
                     callback: |ui, _, _| {
-                        ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                        ui.ctx().push_markdown_event(Event::ToggleStyle {
                             region: Region::Selection,
                             style: MarkdownNode::Inline(InlineNode::Bold),
                         })
@@ -262,7 +262,7 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                     icon: Icon::ITALIC,
                     id: "italic".to_string(),
                     callback: |ui, _, _| {
-                        ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                        ui.ctx().push_markdown_event(Event::ToggleStyle {
                             region: Region::Selection,
                             style: MarkdownNode::Inline(InlineNode::Italic),
                         })
@@ -272,7 +272,7 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                     icon: Icon::CODE,
                     id: "in_line_code".to_string(),
                     callback: |ui, _, _| {
-                        ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                        ui.ctx().push_markdown_event(Event::ToggleStyle {
                             region: Region::Selection,
                             style: MarkdownNode::Inline(InlineNode::Code),
                         });
@@ -282,20 +282,18 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                     icon: Icon::NUMBER_LIST,
                     id: "number_list".to_string(),
                     callback: |ui, _, _| {
-                        ui.ctx()
-                            .push_markdown_event(Modification::toggle_block_style(
-                                BlockNode::ListItem(ListItem::Numbered(1), 0),
-                            ))
+                        ui.ctx().push_markdown_event(Event::toggle_block_style(
+                            BlockNode::ListItem(ListItem::Numbered(1), 0),
+                        ))
                     },
                 },
                 ToolbarButton {
                     icon: Icon::TODO_LIST,
                     id: "todo_list".to_string(),
                     callback: |ui, _, _| {
-                        ui.ctx()
-                            .push_markdown_event(Modification::toggle_block_style(
-                                BlockNode::ListItem(ListItem::Todo(false), 0),
-                            ))
+                        ui.ctx().push_markdown_event(Event::toggle_block_style(
+                            BlockNode::ListItem(ListItem::Todo(false), 0),
+                        ))
                     },
                 },
                 ToolbarButton {
@@ -336,7 +334,7 @@ fn get_mobile_components() -> Vec<Component> {
             icon: Icon::BOLD,
             id: "bold".to_string(),
             callback: |ui, _, _| {
-                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                ui.ctx().push_markdown_event(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Bold),
                 })
@@ -346,7 +344,7 @@ fn get_mobile_components() -> Vec<Component> {
             icon: Icon::ITALIC,
             id: "italic".to_string(),
             callback: |ui, _, _| {
-                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                ui.ctx().push_markdown_event(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Italic),
                 })
@@ -356,7 +354,7 @@ fn get_mobile_components() -> Vec<Component> {
             icon: Icon::CODE,
             id: "in_line_code".to_string(),
             callback: |ui, _, _| {
-                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                ui.ctx().push_markdown_event(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Code),
                 });
@@ -366,7 +364,7 @@ fn get_mobile_components() -> Vec<Component> {
             icon: Icon::STRIKETHROUGH,
             id: "strikethrough".to_string(),
             callback: |ui, _, _| {
-                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                ui.ctx().push_markdown_event(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Strikethrough),
                 });
@@ -378,7 +376,7 @@ fn get_mobile_components() -> Vec<Component> {
             id: "number_list".to_string(),
             callback: |ui, _, _| {
                 ui.ctx()
-                    .push_markdown_event(Modification::toggle_block_style(BlockNode::ListItem(
+                    .push_markdown_event(Event::toggle_block_style(BlockNode::ListItem(
                         ListItem::Numbered(1),
                         0,
                     )))
@@ -389,7 +387,7 @@ fn get_mobile_components() -> Vec<Component> {
             id: "bullet_list".to_string(),
             callback: |ui, _, _| {
                 ui.ctx()
-                    .push_markdown_event(Modification::toggle_block_style(BlockNode::ListItem(
+                    .push_markdown_event(Event::toggle_block_style(BlockNode::ListItem(
                         ListItem::Bulleted,
                         0,
                     )))
@@ -400,7 +398,7 @@ fn get_mobile_components() -> Vec<Component> {
             id: "todo_list".to_string(),
             callback: |ui, _, _| {
                 ui.ctx()
-                    .push_markdown_event(Modification::toggle_block_style(BlockNode::ListItem(
+                    .push_markdown_event(Event::toggle_block_style(BlockNode::ListItem(
                         ListItem::Todo(false),
                         0,
                     )))
@@ -411,7 +409,7 @@ fn get_mobile_components() -> Vec<Component> {
             icon: Icon::LINK,
             id: "link".to_string(),
             callback: |ui, _, _| {
-                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                ui.ctx().push_markdown_event(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Link(
                         LinkType::Inline,
@@ -427,7 +425,7 @@ fn get_mobile_components() -> Vec<Component> {
             id: "indent".to_string(),
             callback: |ui, _, _| {
                 ui.ctx()
-                    .push_markdown_event(Modification::Indent { deindent: false })
+                    .push_markdown_event(Event::Indent { deindent: false })
             },
         }),
         Component::Button(ToolbarButton {
@@ -435,18 +433,18 @@ fn get_mobile_components() -> Vec<Component> {
             id: "deindent".to_string(),
             callback: |ui, _, _| {
                 ui.ctx()
-                    .push_markdown_event(Modification::Indent { deindent: true })
+                    .push_markdown_event(Event::Indent { deindent: true })
             },
         }),
         Component::Button(ToolbarButton {
             icon: Icon::UNDO,
             id: "undo".to_string(),
-            callback: |ui, _, _| ui.ctx().push_markdown_event(Modification::Undo),
+            callback: |ui, _, _| ui.ctx().push_markdown_event(Event::Undo),
         }),
         Component::Button(ToolbarButton {
             icon: Icon::REDO,
             id: "redo".to_string(),
-            callback: |ui, _, _| ui.ctx().push_markdown_event(Modification::Undo),
+            callback: |ui, _, _| ui.ctx().push_markdown_event(Event::Undo),
         }),
     ]
 }
@@ -461,5 +459,5 @@ fn toggle_heading_style(
         t.header_click_count += 1;
     }
     ui.ctx()
-        .push_markdown_event(Modification::toggle_heading_style(t.header_click_count));
+        .push_markdown_event(Event::toggle_heading_style(t.header_click_count));
 }

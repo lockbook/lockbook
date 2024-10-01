@@ -4,6 +4,7 @@ extern crate tracing;
 pub mod model;
 pub mod service;
 pub mod shared;
+pub mod text;
 
 mod repo;
 
@@ -12,6 +13,7 @@ pub use basic_human_duration::ChronoHumanDuration;
 pub use libsecp256k1::PublicKey;
 use service::search_service::{SearchRequest, SearchResult, SearchType};
 pub use shared::document_repo::{DocumentService, OnDiskDocuments};
+pub use shared::file_metadata::DocumentHmac;
 pub use time::Duration;
 pub use uuid::Uuid;
 
@@ -235,6 +237,18 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
             ])
     }
 
+    pub fn safe_write(
+        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>,
+    ) -> LbResult<DocumentHmac> {
+        self.in_tx(|s| s.safe_write(id, old_hmac, content))
+            .expected_errs(&[
+                CoreError::FileNonexistent,
+                CoreError::FileNotDocument,
+                CoreError::InsufficientPermission,
+                CoreError::ReReadRequired,
+            ])
+    }
+
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn get_root(&self) -> Result<File, LbError> {
         self.in_tx(|s| s.root())
@@ -270,6 +284,14 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, LbError> {
         self.in_tx(|s| s.read_document(id))
+            .expected_errs(&[CoreError::FileNotDocument, CoreError::FileNonexistent])
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn read_document_with_hmac(
+        &self, id: Uuid,
+    ) -> Result<(Option<DocumentHmac>, DecryptedDocument), LbError> {
+        self.in_tx(|s| s.read_document_with_hmac(id))
             .expected_errs(&[CoreError::FileNotDocument, CoreError::FileNonexistent])
     }
 

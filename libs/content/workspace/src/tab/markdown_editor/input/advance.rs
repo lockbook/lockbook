@@ -1,17 +1,32 @@
 use std::mem;
 
-use crate::tab::markdown_editor::bounds::{Bounds, Text};
-use crate::tab::markdown_editor::buffer::SubBuffer;
+use crate::tab::markdown_editor::bounds::{BoundExt as _, Bounds, Text};
 use crate::tab::markdown_editor::galleys::{GalleyInfo, Galleys};
-use crate::tab::markdown_editor::input::canonical::{Increment, Offset};
-use crate::tab::markdown_editor::offset_types::DocCharOffset;
+use crate::tab::markdown_editor::input::{Increment, Offset};
 use egui::epaint::text::cursor::Cursor as EguiCursor;
 use egui::{Pos2, Vec2};
+use lb_rs::text::offset_types::DocCharOffset;
+use lb_rs::text::unicode_segs::UnicodeSegs;
 
-impl DocCharOffset {
-    pub fn advance(
+pub trait AdvanceExt {
+    fn advance(
         self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool,
-        buffer: &SubBuffer, galleys: &Galleys, bounds: &Bounds,
+        segs: &UnicodeSegs, galleys: &Galleys, bounds: &Bounds,
+    ) -> Self;
+    fn advance_by_line(
+        self, x_target: f32, backwards: bool, galleys: &Galleys, text: &Text,
+    ) -> Self;
+    fn x(self, galleys: &Galleys, text: &Text) -> f32;
+    fn x_impl(galley: &GalleyInfo, cursor: EguiCursor) -> f32;
+    fn from_x(x: f32, galley: &GalleyInfo, cursor: EguiCursor) -> EguiCursor;
+    fn cursor_to_pos_abs(galley: &GalleyInfo, cursor: EguiCursor) -> Pos2;
+    fn pos_abs_to_cursor(galley: &GalleyInfo, pos_abs: Pos2) -> EguiCursor;
+}
+
+impl AdvanceExt for DocCharOffset {
+    fn advance(
+        self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool,
+        segs: &UnicodeSegs, galleys: &Galleys, bounds: &Bounds,
     ) -> Self {
         let maybe_x_target_value = mem::take(maybe_x_target);
         match offset {
@@ -20,7 +35,7 @@ impl DocCharOffset {
             Offset::By(Increment::Line) => {
                 let x_target = maybe_x_target_value.unwrap_or(self.x(galleys, &bounds.text));
                 let result = self.advance_by_line(x_target, backwards, galleys, &bounds.text);
-                if self != 0 && self != buffer.segs.last_cursor_position() {
+                if self != 0 && self != segs.last_cursor_position() {
                     *maybe_x_target = Some(x_target);
                 }
                 result
@@ -105,7 +120,7 @@ impl DocCharOffset {
     }
 
     /// returns the absolute position of `cursor` in `galley`
-    pub fn cursor_to_pos_abs(galley: &GalleyInfo, cursor: EguiCursor) -> Pos2 {
+    fn cursor_to_pos_abs(galley: &GalleyInfo, cursor: EguiCursor) -> Pos2 {
         // experimentally, max.y gives us the y that will put us in the correct row
         galley.text_location + galley.galley.pos_from_cursor(&cursor).max.to_vec2()
     }
