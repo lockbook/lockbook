@@ -132,6 +132,9 @@ impl Editor {
             .rect
             .size()
             .y;
+        if ui_size.y < 0.0 {
+            ui_size.y = 0.;
+        }
         ui.allocate_exact_size(ui_size, Sense::hover());
     }
 

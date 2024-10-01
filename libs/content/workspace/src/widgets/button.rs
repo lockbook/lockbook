@@ -1,4 +1,4 @@
-use egui::Rounding;
+use egui::{Rounding, TextWrapMode};
 
 use crate::theme::icons::Icon;
 
@@ -66,7 +66,8 @@ impl<'a> Button<'a> {
         let icon_text_style = text_style.clone();
         let maybe_icon_galley = self.icon.map(|icon| {
             let icon: egui::WidgetText = icon.into();
-            let galley = icon.into_galley(ui, Some(false), wrap_width, icon_text_style);
+            let galley =
+                icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, icon_text_style);
             width += galley.size().x;
             if self.text.is_some() {
                 width += padding.x / 2.;
@@ -76,7 +77,7 @@ impl<'a> Button<'a> {
 
         let maybe_text_galley = self.text.map(|text| {
             let text: egui::WidgetText = text.into();
-            let galley = text.into_galley(ui, Some(false), wrap_width, text_style);
+            let galley = text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, text_style);
             width += galley.size().x;
             galley
         });
@@ -108,6 +109,7 @@ impl<'a> Button<'a> {
                 stroke: self.stroke,
                 fill_texture_id: egui::TextureId::default(),
                 uv: egui::Rect::ZERO,
+                blur_width: 0.,
             });
 
             let mut text_pos =

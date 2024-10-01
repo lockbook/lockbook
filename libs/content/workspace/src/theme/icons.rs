@@ -1,3 +1,5 @@
+use egui::TextWrapMode;
+
 #[derive(Clone, PartialEq)]
 pub struct Icon {
     pub has_badge: bool,
@@ -145,7 +147,8 @@ impl Icon {
             let icon_pos = egui::pos2(rect.min.x + padding.x, rect.center().y - self.size / 2.0);
 
             let icon: egui::WidgetText = self.into();
-            let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
+            let icon =
+                icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
 
             painter
                 .unwrap_or(ui.painter())

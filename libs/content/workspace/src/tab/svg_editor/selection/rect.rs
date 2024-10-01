@@ -1,4 +1,5 @@
 use bezier_rs::Subpath;
+use egui::TextWrapMode;
 use glam::DVec2;
 
 use super::{SelectedElement, SelectionOperation, SelectionResponse};
@@ -102,7 +103,8 @@ impl SelectionRectContainer {
             );
 
             let icon: egui::WidgetText = (&Icon::DELETE).into();
-            let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
+            let icon =
+                icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
 
             painter.galley(icon_pos, icon, ui.style().visuals.hyperlink_color);
 

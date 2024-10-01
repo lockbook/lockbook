@@ -101,7 +101,7 @@ impl FileTree {
                 egui::Frame::none()
                     .fill(ui.visuals().extreme_bg_color.gamma_multiply(0.6))
                     .rounding(3.0)
-                    .inner_margin(egui::style::Margin::symmetric(12.0, 7.0))
+                    .inner_margin(egui::Margin::symmetric(12.0, 7.0))
                     .show(ui, |ui| {
                         ui.label(self.state.drag_caption());
                     });

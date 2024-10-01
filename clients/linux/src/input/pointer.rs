@@ -1,3 +1,4 @@
+use egui::MouseWheelUnit;
 use lbeguiapp::WgpuLockbook;
 use x11rb::protocol::xproto::{ButtonPressEvent, KeyButMask, MotionNotifyEvent};
 
@@ -38,7 +39,11 @@ fn handle(
             let factor = (delta.y / resistence).exp();
             app.raw_input.events.push(egui::Event::Zoom(factor))
         } else {
-            app.raw_input.events.push(egui::Event::Scroll(delta))
+            app.raw_input.events.push(egui::Event::MouseWheel {
+                unit: MouseWheelUnit::Point,
+                delta,
+                modifiers: app.raw_input.modifiers,
+            })
         }
     } else {
         // button event

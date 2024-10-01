@@ -82,6 +82,7 @@ async fn request_device(
                 label: None,
                 required_features: adapter.features(),
                 required_limits: adapter.limits(),
+                memory_hints: Default::default(),
             },
             None,
         )
