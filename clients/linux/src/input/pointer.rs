@@ -1,3 +1,4 @@
+use egui::MouseWheelUnit;
 use lbeguiapp::WgpuLockbook;
 use x11rb::protocol::xproto::{ButtonPressEvent, KeyButMask, MotionNotifyEvent};
 

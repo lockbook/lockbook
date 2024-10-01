@@ -1,3 +1,4 @@
+use egui::MouseWheelUnit;
 use lbeguiapp::WgpuLockbook;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
