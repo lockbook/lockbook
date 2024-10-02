@@ -8,7 +8,7 @@ use markdown_editor::input::{Event, Region};
 use markdown_editor::Editor;
 
 use super::canonical::translate_egui_keyboard_event;
-use super::Bound;
+use super::{mutation, Bound};
 
 impl Editor {
     pub fn process_events(&mut self, ctx: &Context) -> (bool, bool) {
@@ -107,13 +107,25 @@ impl Editor {
             // iOS handles touch events using virtual keyboard FFI fn's
             return Vec::new();
         }
+
+        let mut maybe_hovered_url = ctx.input(|r| r.pointer.latest_pos()).and_then(|pos| {
+            mutation::pos_to_link(pos, &self.galleys, &self.buffer, &self.bounds, &self.ast)
+        });
+
         for i in 0..self.galleys.galleys.len() {
             let galley = &self.galleys.galleys[i];
             if let Some(response) = ctx.read_response(galley.response.id) {
+                let modifiers = ctx.input(|i| i.modifiers);
+
+                if response.hovered() && modifiers.command && maybe_hovered_url.is_some() {
+                    ctx.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+                } else if response.hovered() {
+                    ctx.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
+                }
+
                 let pos =
                     if let Some(pos) = response.interact_pointer_pos() { pos } else { continue };
                 let location = Location::Pos(pos);
-                let modifiers = ctx.input(|i| i.modifiers);
 
                 // note: deliberate order; a double click is also a click
                 let region = if response.triple_clicked() {
@@ -122,6 +134,14 @@ impl Editor {
                     Region::BoundAt { bound: Bound::Word, location, backwards: true }
                 } else if response.clicked() && modifiers.shift {
                     Region::ToLocation(location)
+                } else if response.clicked() && modifiers.command {
+                    if let Some(url) = maybe_hovered_url.take() {
+                        // assume https for urls without a scheme
+                        let url =
+                            if !url.contains("://") { format!("https://{}", url) } else { url };
+                        ctx.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
+                    }
+                    continue;
                 } else if response.clicked() {
                     Region::Location(location)
                 } else if response.secondary_clicked() {

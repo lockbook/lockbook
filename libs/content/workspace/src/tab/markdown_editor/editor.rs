@@ -19,8 +19,6 @@ use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
 use std::time::{Duration, Instant};
 
-use super::input::mutation;
-
 #[derive(Debug, Serialize, Default)]
 pub struct Response {
     // state changes
@@ -242,35 +240,6 @@ impl Editor {
         let suggested_title = self.get_suggested_title();
         let suggest_rename =
             if suggested_title != prior_suggested_title { suggested_title } else { None };
-
-        // set cursor style
-        {
-            let hovering_link = ui
-                .input(|r| r.pointer.hover_pos())
-                .map(|pos| {
-                    mutation::pos_to_link(pos, &self.galleys, &self.buffer, &self.bounds, &self.ast)
-                        .is_some()
-                })
-                .unwrap_or_default();
-            let hovering_text = ui
-                .input(|r| r.pointer.hover_pos())
-                .map(|pos| {
-                    mutation::pos_to_galley(
-                        pos,
-                        &self.galleys,
-                        &self.buffer.current.segs,
-                        &self.bounds,
-                    )
-                    .is_some()
-                })
-                .unwrap_or_default();
-            let cmd_down = ui.input(|i| i.modifiers.command);
-            if hovering_link && cmd_down {
-                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            } else if hovering_text {
-                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
-            }
-        }
 
         Response {
             text_updated,

@@ -100,7 +100,6 @@ pub enum Event {
     Copy,
     ToggleDebug,
     ToggleCheckbox(usize),
-    OpenUrl(String),
     IncrementBaseFontSize,
     DecrementBaseFontSize,
 }

@@ -628,11 +628,6 @@ impl Editor {
             Event::Copy => {
                 ctx.output_mut(|o| o.copied_text = self.buffer[current_selection].into());
             }
-            Event::OpenUrl(url) => {
-                // assume https for urls without a scheme
-                let url = if !url.contains("://") { format!("https://{}", url) } else { url };
-                ctx.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
-            }
             Event::ToggleDebug => self.debug.draw_enabled = !self.debug.draw_enabled,
             Event::IncrementBaseFontSize => {
                 self.appearance.base_font_size =
