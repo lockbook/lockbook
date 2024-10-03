@@ -1,4 +1,4 @@
-use egui::{vec2, Context, Image, TextWrapMode, Ui, ViewportCommand};
+use egui::{vec2, Context, Image, TextWrapMode, ViewportCommand};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -251,7 +251,7 @@ impl Workspace {
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         self.set_tooltip_visibility(ui);
 
-        self.process_updates(ui);
+        self.process_updates();
         self.process_keys();
         self.status.populate_message();
 
@@ -694,7 +694,7 @@ impl Workspace {
         }
     }
 
-    pub fn process_updates(&mut self, ui: &mut Ui) {
+    pub fn process_updates(&mut self) {
         while let Ok(update) = self.updates_rx.try_recv() {
             match update {
                 WsMsg::FileLoaded(id, is_new_file, tab_created, load_result) => {
@@ -757,7 +757,6 @@ impl Workspace {
                                     Some(TabContent::Markdown(md)) => {
                                         md.editor.reload(String::from_utf8_lossy(&bytes).into());
                                         md.editor.hmac = maybe_hmac;
-                                        md.editor.show(ui);
                                     }
                                     _ => unreachable!(),
                                 };
