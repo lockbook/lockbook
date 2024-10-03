@@ -25,8 +25,9 @@ struct OnboardingOneView: View {
                 
                 Text("The perfect place to record, sync, and share your thoughts.")
                     .font(.body)
-                    .padding(.leading)
+                    .frame(maxWidth: 270)
                     .padding(.top)
+                    .padding(.leading)
                 
                 Spacer()
                 
@@ -83,6 +84,8 @@ struct OnboardingTwoView: View {
             
             TextField("Username", text: $username)
                 .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
                 .onSubmit(createAccount)
                 .padding(.top, 20)
             
@@ -93,7 +96,7 @@ struct OnboardingTwoView: View {
                     .lineLimit(2, reservesSpace: false)
                     .padding(.top, 10)
             }
-            
+                        
             Button(action: {
                 createAccount()
             }, label: {
@@ -107,6 +110,11 @@ struct OnboardingTwoView: View {
             .padding(.top, 30)
             
             Spacer()
+            
+            Text("By using Lockbook, you acknowledge our [Privacy Policy](https://lockbook.net/privacy-policy) and accept our [Terms of Service](https://lockbook.net/tos).")
+                .foregroundColor(.gray)
+                .font(.caption)
+                .padding()
         }
         .padding(.top, 35)
         .padding(.horizontal, 25)
@@ -161,7 +169,7 @@ struct OnboardingTwoView: View {
                             case .CouldNotReachServer:
                                 error = "Could not reach the server."
                             case .InvalidUsername:
-                                error = "That username is invalid"
+                                error = "That username is invalid."
                             case .UsernameTaken:
                                 error = "That username is not available."
                             case .ServerDisabled:
@@ -302,15 +310,15 @@ struct OnboardingThreeView: View {
 
 struct iOSCheckboxToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
-        Button(action: {
+        HStack {
+            Image(systemName: configuration.isOn ? "checkmark.square" : "square")
+            
+            configuration.label
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
             configuration.isOn.toggle()
-        }, label: {
-            HStack {
-                Image(systemName: configuration.isOn ? "checkmark.square" : "square")
-
-                configuration.label
-            }
-        })
+        }
     }
 }
 
@@ -343,9 +351,14 @@ struct ImportAccountView: View {
                 SecureField("Phrase or compact key", text: $accountKey)
                     .disableAutocorrection(true)
                     .modifier(DisableAutoCapitalization())
-                    .onSubmit(importAccount)
                     .padding(.trailing, 10)
                     .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        importAccount(isAutoImporting: false)
+                    }
+                    .onChange(of: accountKey) { _ in
+                        importAccount(isAutoImporting: true)
+                    }
 
                 Button(action: {
                     showQRScanner = true
@@ -387,7 +400,7 @@ struct ImportAccountView: View {
             
             
             Button {
-                importAccount()
+                importAccount(isAutoImporting: false)
             } label: {
                 Text("Next")
                     .fontWeight(.semibold)
@@ -399,6 +412,11 @@ struct ImportAccountView: View {
             .disabled(accountKey.isEmpty || working)
             
             Spacer()
+            
+            Text("By using Lockbook, you acknowledge our [Privacy Policy](https://lockbook.net/privacy-policy) and accept our [Terms of Service](https://lockbook.net/tos).")
+                .foregroundColor(.gray)
+                .font(.caption)
+                .padding()
         }
         .padding(.top, 35)
         .padding(.horizontal, 25)
@@ -408,7 +426,7 @@ struct ImportAccountView: View {
         
     }
     
-    func importAccount() {
+    func importAccount(isAutoImporting: Bool) {
         working = true
         let apiUrl: String? = if apiURL == "" {
             nil
@@ -435,7 +453,9 @@ struct ImportAccountView: View {
                         case .AccountExistsAlready:
                             error = "You already have an account, please file a bug report."
                         case .AccountStringCorrupted:
-                            error = "This account key is invalid."
+                            if !isAutoImporting {
+                                error = "This account key is invalid."
+                            }
                         case .ClientUpdateRequired:
                             error = "Please download the most recent version."
                         case .CouldNotReachServer:
@@ -457,7 +477,6 @@ struct ImportAccountView: View {
         switch result {
         case .success(let key):
             accountKey = key
-            importAccount()
         case .failure(let err):
             print(err) // TODO: Convert this to an ApplicationError
         }
@@ -468,6 +487,7 @@ struct SetAPIURLView: View {
     @Binding var apiURL: String
 
     @State var unsavedAPIURL = ""
+    @FocusState var focused: Bool
     let defaultAPIURL: String = ConfigHelper.get(.apiLocation)
     
     @Environment(\.dismiss) private var dismiss
@@ -485,6 +505,10 @@ struct SetAPIURLView: View {
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
+                .focused($focused)
+                .onAppear {
+                    focused = true
+                }
             
             Button {
                 apiURL = unsavedAPIURL
