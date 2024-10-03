@@ -1137,18 +1137,16 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         for touch in touches {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
-            
-//            for touch in event!.coalescedTouches(for: touch)! {
-//                let location = touch.location(in: self)
-//                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-//                
-//                touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
-//            }
-            
+                        
             let location = touch.preciseLocation(in: self)
             let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
             touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
 
+            for touch in event!.predictedTouches(for: touch)! {
+                let location = touch.location(in: self)
+                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+                touches_predicted(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+            }
         }
 
         self.setNeedsDisplay(self.frame)
@@ -1159,12 +1157,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
 
-            for touch in event!.coalescedTouches(for: touch)! {
-                let location = touch.location(in: self)
-                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-                
-                touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
-            }
+            let location = touch.preciseLocation(in: self)
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+            touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
         }
 
         self.setNeedsDisplay(self.frame)
@@ -1175,12 +1170,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
 
-            for touch in event!.coalescedTouches(for: touch)! {
-                let location = touch.location(in: self)
-                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-                
-                touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(force))
-            }
+            let location = touch.preciseLocation(in: self)
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 02
+            touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(force))
         }
 
         self.setNeedsDisplay(self.frame)

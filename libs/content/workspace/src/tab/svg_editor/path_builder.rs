@@ -1,7 +1,8 @@
 use std::collections::VecDeque;
 
-use bezier_rs::{Bezier, Subpath};
+use bezier_rs::{Bezier, ManipulatorGroup, Subpath};
 use resvg::usvg::Transform;
+use tracing::trace;
 
 use super::parser::ManipulatorGroupId;
 
@@ -14,6 +15,7 @@ pub struct PathBuilder {
     pub original_points: Vec<egui::Pos2>,
     pub first_point_touch_id: Option<egui::TouchId>,
     pub is_canceled_path: bool,
+    pub first_predicted_mg: Option<usize>,
 }
 
 impl Default for PathBuilder {
@@ -30,6 +32,7 @@ impl PathBuilder {
             simplified_points: vec![],
             original_points: vec![],
             is_canceled_path: false,
+            first_predicted_mg: None,
         }
     }
 
@@ -47,11 +50,13 @@ impl PathBuilder {
         self.prev_points_window.push_back(dest);
     }
 
-    fn catmull_to(&mut self, dest: egui::Pos2, path: &mut Subpath<ManipulatorGroupId>) {
+    fn catmull_to(
+        &mut self, dest: egui::Pos2, path: &mut Subpath<ManipulatorGroupId>,
+    ) -> Option<usize> {
         self.prev_points_window.push_back(dest);
 
         if self.prev_points_window.len() < 3 {
-            return;
+            return None;
         }
 
         if self.prev_points_window.len() == 3 {
@@ -65,11 +70,11 @@ impl PathBuilder {
             self.prev_points_window[3],
         );
 
-        let cp1x = p1.x + (p2.x - p0.x) / 10.; // * k, k is tension which is set to 1, 0 <= k <= 1
-        let cp1y = p1.y + (p2.y - p0.y) / 10.;
+        let cp1x = p1.x + (p2.x - p0.x) / 6.0; // * k, k is tension which is set to 1, 0 <= k <= 1
+        let cp1y = p1.y + (p2.y - p0.y) / 6.0;
 
-        let cp2x = p2.x - (p3.x - p1.x) / 10.;
-        let cp2y = p2.y - (p3.y - p1.y) / 10.;
+        let cp2x = p2.x - (p3.x - p1.x) / 6.0;
+        let cp2y = p2.y - (p3.y - p1.y) / 6.0;
 
         let bez = Bezier::from_cubic_coordinates(
             self.prev_points_window.back().unwrap().x.into(),
@@ -81,18 +86,26 @@ impl PathBuilder {
             p2.x.into(),
             p2.y.into(),
         );
-        path.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
 
+        path.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
         // shift the window foreword
         self.prev_points_window.pop_front();
+        Some(path.manipulator_groups().len() - 1)
     }
 
-    pub fn cubic_to(&mut self, dest: egui::Pos2, path: &mut Subpath<ManipulatorGroupId>) {
+    pub fn cubic_to(
+        &mut self, dest: egui::Pos2, path: &mut Subpath<ManipulatorGroupId>, master_transform: f32,
+    ) -> Option<usize> {
         if self.prev_points_window.is_empty() {
             self.original_points.clear();
         }
         self.original_points.push(dest);
-        self.catmull_to(dest, path);
+        if !self.is_redundant_point(path, dest, master_transform) {
+            self.catmull_to(dest, path)
+        } else {
+            trace!("found redundant point");
+            None
+        }
     }
 
     pub fn snap(&mut self, master_transform: Transform, path: &mut Subpath<ManipulatorGroupId>) {
@@ -188,6 +201,35 @@ impl PathBuilder {
         }
         best_so_far
     }
+
+    fn is_redundant_point(
+        &self, path: &Subpath<ManipulatorGroupId>, point: egui::Pos2, master_transform: f32,
+    ) -> bool {
+        let last_point = match path.manipulator_groups().last() {
+            Some(val) => val,
+            None => return false,
+        };
+
+        let distance = last_point
+            .anchor
+            .distance(glam::DVec2 { x: point.x as f64, y: point.y as f64 });
+        let tolerance = 2.0;
+
+        // distance < tolerance
+        false
+    }
+}
+
+pub fn get_anchor_avg_displacement(
+    path: &Subpath<ManipulatorGroupId>, master_transform: f32,
+) -> f64 {
+    let mut displacement_sum = 0.0;
+    for (i, mg) in path.manipulator_groups().iter().enumerate() {
+        if let Some(next_mg) = path.manipulator_groups().get(i + 1) {
+            displacement_sum += next_mg.anchor.distance(mg.anchor) / master_transform as f64;
+        }
+    }
+    displacement_sum / path.manipulator_groups().len() as f64
 }
 
 struct Line {

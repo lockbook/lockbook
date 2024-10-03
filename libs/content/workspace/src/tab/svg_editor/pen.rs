@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use tracing::{event, trace, warn, Level};
 use tracing_test::traced_test;
 
-use crate::theme::palette::ThemePalette;
+use crate::{tab::ExtendedInput, theme::palette::ThemePalette};
 
 use super::{
     parser::{self, DiffState, ManipulatorGroupId, Path, Stroke},
@@ -57,13 +57,26 @@ impl Pen {
             });
         }
 
+        self.handle_path_event(PathEvent::ClearPredictedTouches, pen_ctx);
+
         for path_event in self.get_path_events(ui, pen_ctx) {
             self.handle_path_event(path_event, pen_ctx);
-            if path_event == PathEvent::Break || path_event == PathEvent::End {
-                break;
+
+            if path_event == PathEvent::Break {
+                return false;
             }
         }
-        false
+
+        ui.ctx().pop_events().iter().for_each(|event| {
+            if let crate::Event::PredictedTouch { id, force, pos } = *event {
+                self.handle_path_event(
+                    PathEvent::PredictedDraw(DrawPayload { pos, force, id: Some(id) }),
+                    pen_ctx,
+                );
+            }
+        });
+
+        true
     }
 
     pub fn end_path(&mut self, pen_ctx: &mut ToolContext, is_snapped: bool) {
@@ -118,7 +131,12 @@ impl Pen {
 
                     p.diff_state.data_changed = true;
 
-                    self.path_builder.cubic_to(payload.pos, &mut p.data);
+                    self.path_builder.cubic_to(
+                        payload.pos,
+                        &mut p.data,
+                        pen_ctx.buffer.master_transform.sx,
+                    );
+                    event!(Level::TRACE, "drawing");
                 } else {
                     let mut stroke = Stroke::default();
                     if let Some(c) = self.active_color {
@@ -159,7 +177,11 @@ impl Pen {
                     if let Some(parser::Element::Path(p)) =
                         pen_ctx.buffer.elements.get_mut(&self.current_id)
                     {
-                        self.path_builder.cubic_to(payload.pos, &mut p.data);
+                        self.path_builder.cubic_to(
+                            payload.pos,
+                            &mut p.data,
+                            pen_ctx.buffer.master_transform.sx,
+                        );
                     }
                 }
             }
@@ -179,7 +201,41 @@ impl Pen {
                     path.data = Subpath::new(vec![], false);
                 }
             }
-            _ => {}
+            PathEvent::PredictedDraw(payload) => {
+                if let Some(parser::Element::Path(p)) =
+                    pen_ctx.buffer.elements.get_mut(&self.current_id)
+                {
+                    let maybe_new_mg = self.path_builder.cubic_to(
+                        payload.pos,
+                        &mut p.data,
+                        pen_ctx.buffer.master_transform.sx,
+                    );
+                    trace!(maybe_new_mg, "adding predicted touch to the path at");
+
+                    if self.path_builder.first_predicted_mg.is_none() && maybe_new_mg.is_some() {
+                        self.path_builder.first_predicted_mg = maybe_new_mg;
+                        trace!(maybe_new_mg, "setting start of mg");
+                    }
+                } else {
+                    warn!("predicting touches on an empty path")
+                }
+            }
+            PathEvent::ClearPredictedTouches => {
+                if let Some(first_predicted_mg) = self.path_builder.first_predicted_mg {
+                    if let Some(parser::Element::Path(p)) =
+                        pen_ctx.buffer.elements.get_mut(&self.current_id)
+                    {
+                        for n in (first_predicted_mg..p.data.manipulator_groups().len()).rev() {
+                            trace!(n, "removing predicted touch at ");
+                            p.data.remove_manipulator_group(n);
+                        }
+                        self.path_builder.first_predicted_mg = None;
+                    } else {
+                        trace!("no path found ");
+                    }
+                }
+            }
+            PathEvent::Break => {}
         }
     }
 
@@ -325,7 +381,6 @@ impl Pen {
                 return Some(PathEvent::End);
             }
         }
-
         *pen_ctx.allow_viewport_changes = true;
         None
     }
@@ -338,6 +393,8 @@ struct PenPointerInput {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PathEvent {
     Draw(DrawPayload),
+    PredictedDraw(DrawPayload),
+    ClearPredictedTouches,
     End,
     CancelStroke(),
     Break,

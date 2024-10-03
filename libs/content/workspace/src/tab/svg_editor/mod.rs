@@ -118,6 +118,21 @@ impl SVGEditor {
                 false
             };
 
+        // for (id, el) in self.buffer.elements.iter() {
+        //     if el.deleted() {
+        //         continue;
+        //     }
+        //     match el {
+        //         parser::Element::Path(path) => {
+        //             println!(
+        //                 "avg_distance for path {} : {} ",
+        //                 id,
+        //                 get_anchor_avg_displacement(&path.data, self.buffer.master_transform.sx)
+        //             )
+        //         }
+        //         _ => {}
+        //     }
+        // }
         Response { request_save: needs_save_and_frame_is_cheap }
     }
 

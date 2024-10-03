@@ -78,7 +78,7 @@ pub fn process(
 fn handle_custom_event(
     event: crate::Event, core: &mut lb_rs::Core, file_id: Uuid,
 ) -> Vec<Modification> {
-    match event {
+    let vec = match event {
         crate::Event::Markdown(modification) => vec![modification],
         crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
             let mut modifications = Vec::new();
@@ -102,5 +102,7 @@ fn handle_custom_event(
             }
             modifications
         }
-    }
+        tab::Event::PredictedTouch { id: _, force: _, pos: _ } => vec![],
+    };
+    vec
 }

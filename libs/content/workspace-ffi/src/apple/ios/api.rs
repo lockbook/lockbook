@@ -370,6 +370,22 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
 }
 
 /// # Safety
+/// obj must be a valid pointer to WgpuEditor
+///
+/// https://developer.apple.com/documentation/uikit/uikeyinput/1614543-inserttext
+#[no_mangle]
+pub unsafe extern "C" fn touches_predicted(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let force = if force == 0.0 { None } else { Some(force) };
+
+    obj.context.push_event(workspace_rs::Event::PredictedTouch {
+        id: TouchId(id),
+        force,
+        pos: Pos2 { x, y },
+    });
+}
+
+/// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn mouse_gone(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);

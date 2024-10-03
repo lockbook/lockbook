@@ -8,6 +8,7 @@ use lb_rs::{File, FileType, Uuid};
 use markdown_editor::input::canonical::Modification;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use svg_editor::Pen;
 
 pub mod image_viewer;
 pub mod markdown_editor;
@@ -79,6 +80,7 @@ pub enum Event {
     Markdown(Modification),
     Drop { content: Vec<ClipContent>, position: egui::Pos2 },
     Paste { content: Vec<ClipContent>, position: egui::Pos2 },
+    PredictedTouch { id: egui::TouchId, force: Option<f32>, pos: egui::Pos2 },
 }
 
 #[derive(Debug, Clone)]
