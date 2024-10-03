@@ -28,7 +28,7 @@ public struct CoreApi: LockbookApi {
         logout_and_exit()
     }
     
-    public func importAccount(accountString: String, apiUrl: String?) -> FfiResult<Empty, ImportError> {
+    public func importAccount(accountString: String, apiUrl: String? = nil) -> FfiResult<Empty, ImportError> {
         fromPrimitiveResult(result: import_account(accountString.trimmingCharacters(in: .whitespacesAndNewlines), apiUrl ?? ""))
     }
     

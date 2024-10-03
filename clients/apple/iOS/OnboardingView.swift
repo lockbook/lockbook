@@ -57,10 +57,8 @@ struct OnboardingOneView: View {
     }
 }
 
-struct OnboardingOneView_Previews: PreviewProvider {
-    static var previews: some View {
-        OnboardingOneView()
-    }
+#Preview("Onboarding 1") {
+    OnboardingOneView()
 }
 
 struct OnboardingTwoView: View {
@@ -182,10 +180,8 @@ struct OnboardingTwoView: View {
     }
 }
 
-struct OnboardingTwoView_Previews: PreviewProvider {
-    static var previews: some View {
-        OnboardingTwoView()
-    }
+#Preview("Onboarding 2") {
+    OnboardingTwoView()
 }
 
 struct OnboardingThreeView: View {
@@ -300,10 +296,8 @@ struct OnboardingThreeView: View {
     }
 }
 
-struct OnboardingThreeView_Previews: PreviewProvider {
-    static var previews: some View {
-        OnboardingThreeView(username: "smail", keyPhrasePart1: "1. turkey\n2. era\n3. velvet\n4. detail\n5. prison\n6. income\n7. dose\n8. royal\n9. fever\n10. truly\n11. unique\n12. couple", keyPhrasePart2: "13. party\n14. example\n15. piece\n16. art\n17. leaf\n18. follow\n19. rose\n20. access\n21. vacant\n22. gather\n23. wasp\n24. audit")
-    }
+#Preview("Onboarding 3") {
+    OnboardingThreeView(username: "smail", keyPhrasePart1: "1. turkey\n2. era\n3. velvet\n4. detail\n5. prison\n6. income\n7. dose\n8. royal\n9. fever\n10. truly\n11. unique\n12. couple", keyPhrasePart2: "13. party\n14. example\n15. piece\n16. art\n17. leaf\n18. follow\n19. rose\n20. access\n21. vacant\n22. gather\n23. wasp\n24. audit")
 }
 
 struct iOSCheckboxToggleStyle: ToggleStyle {
@@ -510,10 +504,8 @@ struct SetAPIURLView: View {
     }
 }
 
-struct ImportAccountView_Previews: PreviewProvider {
-    static var previews: some View {
-        ImportAccountView()
-    }
+#Preview("Import Account") {
+    ImportAccountView()
 }
 
 struct ImportAccountSyncView: View {
@@ -539,9 +531,7 @@ struct ImportAccountSyncView: View {
     }
 }
 
-struct ImportAccountSyncView_Previews: PreviewProvider {
-    static var previews: some View {
-        ImportAccountSyncView()
-            .mockDI()
-    }
-}
+//#Preview("Import Account Syncing") {
+//    ImportAccountSyncView()
+//        .mockDI()
+//}
