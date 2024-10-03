@@ -16,7 +16,7 @@ use pulldown_cmark::HeadingLevel;
 use super::input::cursor;
 
 impl Editor {
-    pub fn draw_text(&self, ui: &mut Ui, touch_mode: bool) {
+    pub fn draw_text(&self, ui: &mut Ui) {
         let bullet_radius = self.appearance.bullet_radius();
         for galley in &self.galleys.galleys {
             // draw annotations
@@ -56,13 +56,13 @@ impl Editor {
                         }
                         ListItem::Todo(checked) => {
                             ui.painter().rect_filled(
-                                galley.checkbox_bounds(touch_mode, &self.appearance),
+                                galley.checkbox_bounds(&self.appearance),
                                 self.appearance.checkbox_rounding(),
                                 self.appearance.checkbox_bg(),
                             );
                             if *checked {
                                 ui.painter().line_segment(
-                                    galley.checkbox_slash(touch_mode, &self.appearance),
+                                    galley.checkbox_slash(&self.appearance),
                                     Stroke {
                                         width: self.appearance.checkbox_slash_width(),
                                         color: self.appearance.text(),

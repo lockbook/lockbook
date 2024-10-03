@@ -1,7 +1,9 @@
 use crate::tab::markdown_editor;
 use crate::tab::markdown_editor::bounds::BoundExt as _;
 use egui::os::OperatingSystem;
-use egui::{scroll_area, Frame, Margin, Pos2, Rect, ScrollArea, Ui, Vec2};
+use egui::{
+    scroll_area, Context, EventFilter, Frame, Id, Margin, Pos2, Rect, ScrollArea, Ui, Vec2,
+};
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
 use lb_rs::{DocumentHmac, Uuid};
@@ -88,6 +90,34 @@ impl Editor {
         self.buffer.reload(text)
     }
 
+    pub fn id(&self) -> Id {
+        Id::new(self.file_id)
+    }
+
+    pub fn focus(&mut self, ctx: &Context) {
+        ctx.memory_mut(|m| {
+            m.request_focus(self.id());
+        });
+    }
+
+    pub fn focus_lock(&mut self, ctx: &Context) {
+        ctx.memory_mut(|m| {
+            m.set_focus_lock_filter(
+                self.id(),
+                EventFilter {
+                    tab: true,
+                    horizontal_arrows: true,
+                    vertical_arrows: true,
+                    escape: true,
+                },
+            );
+        });
+    }
+
+    pub fn focused(&self, ctx: &Context) -> bool {
+        ctx.memory(|m| m.has_focus(self.id()))
+    }
+
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
         let maybe_prev_state: Option<scroll_area::State> =
@@ -132,6 +162,16 @@ impl Editor {
 
     fn show_inner(&mut self, ui: &mut Ui, touch_mode: bool) -> Response {
         self.debug.frame_start();
+
+        ui.ctx().check_for_id_clash(self.id(), Rect::NOTHING, "");
+
+        // focus editor by default
+        if ui.memory(|m| m.focused().is_none()) {
+            self.focus(ui.ctx());
+        }
+        if self.focused(ui.ctx()) {
+            self.focus_lock(ui.ctx());
+        }
 
         // update theme
         let theme_updated = self.appearance.set_theme(ui.visuals());
@@ -212,8 +252,8 @@ impl Editor {
         }
 
         // draw
-        self.draw_text(ui, touch_mode);
-        if ui.memory(|m| m.focused().is_none()) && !cfg!(target_os = "ios") {
+        self.draw_text(ui);
+        if self.focused(ui.ctx()) && !cfg!(target_os = "ios") {
             self.draw_cursor(ui, touch_mode);
         }
         if self.debug.draw_enabled {

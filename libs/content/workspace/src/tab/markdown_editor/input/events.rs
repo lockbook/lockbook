@@ -1,5 +1,7 @@
 use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _};
 use crate::tab::markdown_editor::input::Location;
+use crate::tab::markdown_editor::layouts::Annotation;
+use crate::tab::markdown_editor::style::ListItem;
 use crate::tab::{self, markdown_editor, ClipContent, ExtendedInput as _};
 use egui::{Context, EventFilter};
 use lb_rs::text::buffer;
@@ -84,8 +86,7 @@ impl Editor {
     }
 
     fn get_key_events(&self, ctx: &Context) -> Vec<Event> {
-        let has_focus = ctx.memory(|m| m.focused().is_none()); // focused by default
-        if has_focus {
+        if self.focused(ctx) {
             ctx.input(|r| {
                 r.filtered_events(&EventFilter {
                     tab: true,
@@ -143,6 +144,12 @@ impl Editor {
                     }
                     continue;
                 } else if response.clicked() {
+                    if let Some(Annotation::Item(ListItem::Todo(_), ..)) = galley.annotation {
+                        if galley.checkbox_bounds(&self.appearance).contains(pos) {
+                            return vec![Event::ToggleCheckbox(i)];
+                        }
+                    }
+
                     Region::Location(location)
                 } else if response.secondary_clicked() {
                     // todo: show context menu
