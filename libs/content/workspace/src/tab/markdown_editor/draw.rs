@@ -76,20 +76,16 @@ impl Editor {
                         let min = Pos2 { x: galley.rect.min.x, y };
                         let max = Pos2 { x: galley.rect.max.x, y };
 
-                        ui.painter().line_segment(
-                            [min, max],
-                            Stroke::new(0.3, self.appearance.heading_line()),
-                        );
+                        ui.painter()
+                            .line_segment([min, max], Stroke::new(0.3, self.appearance.rule()));
                     }
                     Annotation::Rule => {
                         let y = galley.rect.min.y + galley.rect.height() / 2.0;
                         let min = Pos2 { x: galley.rect.min.x, y };
                         let max = Pos2 { x: galley.rect.max.x, y };
 
-                        ui.painter().line_segment(
-                            [min, max],
-                            Stroke::new(0.3, self.appearance.heading_line()),
-                        );
+                        ui.painter()
+                            .line_segment([min, max], Stroke::new(0.3, self.appearance.rule()));
                     }
                     _ => {}
                 }

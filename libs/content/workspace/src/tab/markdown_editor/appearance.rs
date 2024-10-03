@@ -61,7 +61,7 @@ pub struct Appearance {
     pub selection_bg: Option<ThemedColor>,
     pub checkbox_bg: Option<ThemedColor>,
     pub heading: Option<ThemedColor>,
-    pub heading_line: Option<ThemedColor>,
+    pub rule: Option<ThemedColor>,
     pub code: Option<ThemedColor>,
     pub bold: Option<ThemedColor>,
     pub italics: Option<ThemedColor>,
@@ -124,8 +124,8 @@ impl Appearance {
         self.heading.unwrap_or(BLACK).get(self.current_theme)
     }
 
-    pub fn heading_line(&self) -> Color32 {
-        self.heading_line.unwrap_or(GRAY).get(self.current_theme)
+    pub fn rule(&self) -> Color32 {
+        self.rule.unwrap_or(GRAY).get(self.current_theme)
     }
 
     pub fn code(&self) -> Color32 {
