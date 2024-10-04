@@ -133,9 +133,14 @@ impl Editor {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
         // show ui
+        if touch_mode {
+            ui.ctx().style_mut(|style| {
+                style.spacing.scroll = egui::style::ScrollStyle::solid();
+            });
+        }
         let available_size = ui.available_size();
         let scroll_area_output = ScrollArea::vertical()
-            .drag_to_scroll(touch_mode)
+            .drag_to_scroll(true)
             .id_source(self.file_id)
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
@@ -248,6 +253,7 @@ impl Editor {
             &self.bounds,
             &self.images,
             &self.appearance,
+            touch_mode,
             ui,
         );
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);

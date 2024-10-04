@@ -104,20 +104,15 @@ impl Editor {
     }
 
     fn get_pointer_events(&self, ctx: &Context) -> Vec<Event> {
-        if cfg!(target_os = "ios") {
-            // iOS handles touch events using virtual keyboard FFI fn's
-            return Vec::new();
-        }
-
-        let mut maybe_hovered_url = ctx.input(|r| r.pointer.latest_pos()).and_then(|pos| {
-            mutation::pos_to_link(pos, &self.galleys, &self.buffer, &self.bounds, &self.ast)
-        });
-
         for i in 0..self.galleys.galleys.len() {
             let galley = &self.galleys.galleys[i];
             if let Some(response) = ctx.read_response(galley.response.id) {
                 let modifiers = ctx.input(|i| i.modifiers);
 
+                // hover: cursor icons
+                let maybe_hovered_url = ctx.input(|r| r.pointer.latest_pos()).and_then(|pos| {
+                    mutation::pos_to_link(pos, &self.galleys, &self.buffer, &self.bounds, &self.ast)
+                });
                 if response.hovered() && modifiers.command && maybe_hovered_url.is_some() {
                     ctx.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
                 } else if response.hovered() {
@@ -135,17 +130,32 @@ impl Editor {
                     Region::BoundAt { bound: Bound::Word, location, backwards: true }
                 } else if response.clicked() && modifiers.shift {
                     Region::ToLocation(location)
-                } else if response.clicked() && modifiers.command {
-                    if let Some(url) = maybe_hovered_url.take() {
-                        // assume https for urls without a scheme
-                        let url =
-                            if !url.contains("://") { format!("https://{}", url) } else { url };
-                        ctx.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
-                    }
-                    continue;
                 } else if response.clicked() {
+                    if modifiers.command || cfg!(target_os = "ios") || cfg!(target_os = "android") {
+                        if let Some(url) = mutation::pos_to_link(
+                            pos,
+                            &self.galleys,
+                            &self.buffer,
+                            &self.bounds,
+                            &self.ast,
+                        ) {
+                            // todo: prompt to confirm on mobile
+                            // assume https for urls without a scheme
+                            let url =
+                                if !url.contains("://") { format!("https://{}", url) } else { url };
+                            ctx.output_mut(|o| {
+                                o.open_url = Some(egui::output::OpenUrl::new_tab(url))
+                            });
+                            continue;
+                        }
+                    }
+
                     if let Some(Annotation::Item(ListItem::Todo(_), ..)) = galley.annotation {
-                        if galley.checkbox_bounds(&self.appearance).contains(pos) {
+                        let mut checkbox_bounds = galley.checkbox_bounds(&self.appearance);
+                        if cfg!(target_os = "ios") || cfg!(target_os = "android") {
+                            checkbox_bounds = checkbox_bounds.expand(16.);
+                        }
+                        if checkbox_bounds.contains(pos) {
                             return vec![Event::ToggleCheckbox(i)];
                         }
                     }
@@ -172,6 +182,11 @@ impl Editor {
                     // can't yet tell if drag
                     continue;
                 };
+
+                if cfg!(target_os = "ios") {
+                    // iOS handles cursor placement using virtual keyboard FFI fn's
+                    return Vec::new();
+                }
 
                 return vec![Event::Select { region }];
             }
