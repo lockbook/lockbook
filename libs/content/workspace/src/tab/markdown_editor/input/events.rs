@@ -109,11 +109,31 @@ impl Editor {
             if let Some(response) = ctx.read_response(galley.response.id) {
                 let modifiers = ctx.input(|i| i.modifiers);
 
-                // hover: cursor icons
-                let maybe_hovered_url = ctx.input(|r| r.pointer.latest_pos()).and_then(|pos| {
-                    mutation::pos_to_link(pos, &self.galleys, &self.buffer, &self.bounds, &self.ast)
-                });
-                if response.hovered() && modifiers.command && maybe_hovered_url.is_some() {
+                // hover-based cursor icons
+                let hovering_clickable = ctx
+                    .input(|r| r.pointer.latest_pos())
+                    .map(|pos| {
+                        if modifiers.command
+                            && mutation::pos_to_link(
+                                pos,
+                                &self.galleys,
+                                &self.buffer,
+                                &self.bounds,
+                                &self.ast,
+                            )
+                            .is_some()
+                        {
+                            return true;
+                        }
+                        if let Some(Annotation::Item(ListItem::Todo(_), ..)) = galley.annotation {
+                            if galley.checkbox_bounds(&self.appearance).contains(pos) {
+                                return true;
+                            }
+                        }
+                        false
+                    })
+                    .unwrap_or_default();
+                if response.hovered() && hovering_clickable {
                     ctx.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
                 } else if response.hovered() {
                     ctx.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
@@ -123,43 +143,40 @@ impl Editor {
                     if let Some(pos) = response.interact_pointer_pos() { pos } else { continue };
                 let location = Location::Pos(pos);
 
+                let maybe_clicked_link = if modifiers.command
+                    || cfg!(target_os = "ios")
+                    || cfg!(target_os = "android")
+                {
+                    mutation::pos_to_link(pos, &self.galleys, &self.buffer, &self.bounds, &self.ast)
+                } else {
+                    None
+                };
+                let clicked_checkbox =
+                    if let Some(Annotation::Item(ListItem::Todo(_), ..)) = galley.annotation {
+                        let mut checkbox_bounds = galley.checkbox_bounds(&self.appearance);
+                        if cfg!(target_os = "ios") || cfg!(target_os = "android") {
+                            checkbox_bounds = checkbox_bounds.expand(16.);
+                        }
+                        checkbox_bounds.contains(pos)
+                    } else {
+                        false
+                    };
+
                 // note: deliberate order; a double click is also a click
-                let region = if response.triple_clicked() {
+                let region = if response.clicked() && maybe_clicked_link.is_some() {
+                    let url = maybe_clicked_link.unwrap();
+                    let url = if !url.contains("://") { format!("https://{}", url) } else { url };
+                    ctx.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
+                    continue;
+                } else if response.clicked() && clicked_checkbox {
+                    return vec![Event::ToggleCheckbox(i)];
+                } else if response.triple_clicked() {
                     Region::BoundAt { bound: Bound::Paragraph, location, backwards: true }
                 } else if response.double_clicked() {
                     Region::BoundAt { bound: Bound::Word, location, backwards: true }
                 } else if response.clicked() && modifiers.shift {
                     Region::ToLocation(location)
                 } else if response.clicked() {
-                    if modifiers.command || cfg!(target_os = "ios") || cfg!(target_os = "android") {
-                        if let Some(url) = mutation::pos_to_link(
-                            pos,
-                            &self.galleys,
-                            &self.buffer,
-                            &self.bounds,
-                            &self.ast,
-                        ) {
-                            // todo: prompt to confirm on mobile
-                            // assume https for urls without a scheme
-                            let url =
-                                if !url.contains("://") { format!("https://{}", url) } else { url };
-                            ctx.output_mut(|o| {
-                                o.open_url = Some(egui::output::OpenUrl::new_tab(url))
-                            });
-                            continue;
-                        }
-                    }
-
-                    if let Some(Annotation::Item(ListItem::Todo(_), ..)) = galley.annotation {
-                        let mut checkbox_bounds = galley.checkbox_bounds(&self.appearance);
-                        if cfg!(target_os = "ios") || cfg!(target_os = "android") {
-                            checkbox_bounds = checkbox_bounds.expand(16.);
-                        }
-                        if checkbox_bounds.contains(pos) {
-                            return vec![Event::ToggleCheckbox(i)];
-                        }
-                    }
-
                     Region::Location(location)
                 } else if response.secondary_clicked() {
                     // todo: show context menu
