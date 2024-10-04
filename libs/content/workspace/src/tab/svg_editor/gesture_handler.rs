@@ -136,7 +136,7 @@ impl GestureHandler {
 
     fn change_viewport(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext<'_>) {
         let zoom_delta = ui.input(|r| r.zoom_delta());
-        let is_zooming = zoom_delta != 1.0;
+        let is_zooming = (zoom_delta - 1.0).abs() > 0.05;
         let pan = get_pan(ui);
 
         let touch_positions = get_touch_positions(ui);
