@@ -60,6 +60,9 @@ pub struct Editor {
 
     // referenced by toolbar for keyboard toggle (todo: cleanup)
     pub is_virtual_keyboard_showing: bool,
+
+    // referenced by toolbar for layout (todo: cleanup)
+    pub scroll_area_rect: Rect,
 }
 
 impl Editor {
@@ -87,6 +90,8 @@ impl Editor {
             capture: Default::default(),
 
             is_virtual_keyboard_showing: false,
+
+            scroll_area_rect: Rect::ZERO,
         }
     }
 
@@ -180,6 +185,8 @@ impl Editor {
 
                 resp
             });
+
+        self.scroll_area_rect = scroll_area_output.inner_rect;
 
         // response
         let mut response = scroll_area_output.inner;

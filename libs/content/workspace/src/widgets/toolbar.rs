@@ -174,9 +174,7 @@ impl ToolBar {
         };
         let how_on = ui.ctx().animate_bool(egui::Id::from("toolbar_animate"), on);
 
-        let Some(editor_rect) = ui.memory(|m| m.area_rect(egui::Id::new(editor.file_id))) else {
-            return egui::Rect::NOTHING;
-        };
+        let editor_rect = editor.scroll_area_rect;
 
         let maximized_min_x = (editor_rect.width() - self.width()) / 2.0 + editor_rect.left();
         let minimized_min_x = editor_rect.max.x - (self.width() / self.buttons.len() as f32) - 40.0;
