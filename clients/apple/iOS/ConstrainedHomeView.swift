@@ -25,16 +25,33 @@ struct ConstrainedHomeViewWrapper: View {
                 NavigationStack(path: $files.path) {
                     mainView
                 }
-                
-                if canShowFileTreeInfo {
-                    FilePathBreadcrumb()
-                    
-                    BottomBar(isiOS: true)
-                }
             }
             .onChange(of: files.path) { new in
                 if files.path.last?.fileType != .Document && DI.workspace.openDoc != nil {
                     DI.workspace.requestCloseAllTabs()
+                }
+            }
+            .ignoresSafeArea(.container, edges: [.bottom])
+            
+            if canShowFileTreeInfo {
+                VStack {
+                    Spacer()
+                    
+                    VStack(spacing: 0) {
+                        FilePathBreadcrumb()
+                        
+                        BottomBar(isiOS: true)
+                            .padding(.top, 10)
+                    }
+                    .background(
+                        VStack(spacing: 0) {
+                            Divider()
+                            
+                            Spacer()
+                        }
+                            .background(.background)
+                            .ignoresSafeArea(.container, edges: [.bottom])
+                    )
                 }
             }
             
@@ -249,6 +266,7 @@ struct FileListView: View {
                 childrenView
             }
         }
+        .padding(.bottom, 100)
         .modifier(FilesListScrollViewModifier(haveScrollView: haveScrollView, isEmptyView: children.isEmpty))
         .toolbar {
             if selected.selectedFiles == nil {
