@@ -193,14 +193,6 @@ impl Editor {
 
         ui.ctx().check_for_id_clash(self.id(), Rect::NOTHING, "");
 
-        // focus editor by default
-        if ui.memory(|m| m.focused().is_none()) {
-            self.focus(ui.ctx());
-        }
-        if self.focused(ui.ctx()) {
-            self.focus_lock(ui.ctx());
-        }
-
         // update theme
         let theme_updated = self.appearance.set_theme(ui.visuals());
 
@@ -309,6 +301,14 @@ impl Editor {
         let suggested_title = self.get_suggested_title();
         let suggest_rename =
             if suggested_title != prior_suggested_title { suggested_title } else { None };
+
+        // focus editor by default
+        if ui.memory(|m| m.focused().is_none()) {
+            self.focus(ui.ctx());
+        }
+        if self.focused(ui.ctx()) {
+            self.focus_lock(ui.ctx());
+        }
 
         Response {
             text_updated,

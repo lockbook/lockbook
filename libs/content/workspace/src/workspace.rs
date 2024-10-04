@@ -1,4 +1,4 @@
-use egui::{vec2, Context, Image, TextWrapMode, ViewportCommand};
+use egui::{vec2, Context, EventFilter, Image, TextWrapMode, ViewportCommand};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -930,16 +930,34 @@ fn tab_label(
                 })
                 .inner;
 
-            res.request_focus();
-
-            if res.lost_focus()
-                || ui.input(|i| {
-                    i.pointer.primary_clicked()
-                        && !rect.contains(i.pointer.interact_pos().unwrap_or_default())
+            if !res.has_focus() && !res.lost_focus() {
+                // request focus on the first frame
+                res.request_focus();
+            }
+            if res.has_focus() {
+                // focus lock filter must be set every frame
+                ui.memory_mut(|m| {
+                    m.set_focus_lock_filter(
+                        res.id,
+                        EventFilter {
+                            tab: true, // suppress 'tab' behavior
+                            horizontal_arrows: true,
+                            vertical_arrows: true,
+                            escape: false, // press 'esc' to release focus
+                        },
+                    )
                 })
-                || ui.input(|i| i.key_pressed(egui::Key::Enter))
-            {
-                lbl_resp = Some(TabLabelResponse::Renamed(str.to_owned()))
+            }
+
+            // submit
+            if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                lbl_resp = Some(TabLabelResponse::Renamed(str.to_owned()));
+                // t.rename = None; is done by code processing this response
+            }
+
+            // release focus to cancel ('esc' or click elsewhere)
+            if res.lost_focus() {
+                t.rename = None;
             }
         } else {
             if resp.hovered() {
