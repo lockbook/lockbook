@@ -257,6 +257,7 @@ impl Editor {
                 &self.appearance,
                 &self.buffer.current.segs,
                 self.buffer.current.selection,
+                ui.ctx().input(|i| i.pointer.primary_down()),
                 &self.capture,
             );
             self.bounds.links = bounds::calc_links(&self.buffer, &self.bounds.text, &self.ast);

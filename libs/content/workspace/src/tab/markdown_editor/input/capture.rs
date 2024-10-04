@@ -109,7 +109,7 @@ impl CaptureState {
     /// detection.
     pub fn captured(
         &self, selection: (DocCharOffset, DocCharOffset), ast: &Ast, ast_ranges: &AstTextRanges,
-        ast_range_idx: usize, appearance: &Appearance,
+        ast_range_idx: usize, selecting: bool, appearance: &Appearance,
     ) -> bool {
         let ast_text_range = &ast_ranges[ast_range_idx];
         if ast_text_range.range_type == AstTextRangeType::Text {
@@ -118,7 +118,7 @@ impl CaptureState {
 
         // check if the ast node for this range intersects the selection
         let ast_node = &ast.nodes[ast_text_range.ancestors.last().copied().unwrap_or_default()];
-        let node_intersects_selection = ast_node.range.intersects(&selection, true);
+        let node_intersects_selection = ast_node.range.intersects(&selection, true) && !selecting;
 
         // check if the pointer is hovering this text range with a satisfied debounce
         let hovered = self

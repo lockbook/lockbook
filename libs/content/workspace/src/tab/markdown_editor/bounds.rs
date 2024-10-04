@@ -206,12 +206,12 @@ pub fn calc_paragraphs(buffer: &Buffer) -> Paragraphs {
 
 pub fn calc_text(
     ast: &Ast, ast_ranges: &AstTextRanges, appearance: &Appearance, segs: &UnicodeSegs,
-    selection: (DocCharOffset, DocCharOffset), capture: &CaptureState,
+    selection: (DocCharOffset, DocCharOffset), selecting: bool, capture: &CaptureState,
 ) -> Text {
     let mut result = vec![];
     let mut last_range_pushed = false;
     for (i, text_range) in ast_ranges.iter().enumerate() {
-        let captured = capture.captured(selection, ast, ast_ranges, i, appearance);
+        let captured = capture.captured(selection, ast, ast_ranges, i, selecting, appearance);
 
         let this_range_pushed = if !captured {
             // text range or uncaptured syntax range
