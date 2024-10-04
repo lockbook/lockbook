@@ -6,7 +6,7 @@ use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt};
 use lb_rs::text::unicode_segs::UnicodeSegs;
 use markdown_editor::appearance::{Appearance, CaptureCondition};
 use markdown_editor::ast::{Ast, AstTextRangeType};
-use markdown_editor::bounds::{AstTextRanges, Bounds, Paragraphs, RangesExt as _};
+use markdown_editor::bounds::{AstTextRanges, Bounds, RangesExt as _};
 use markdown_editor::galleys::Galleys;
 use markdown_editor::input::{cursor::PointerState, mutation};
 
@@ -116,6 +116,10 @@ impl CaptureState {
             return false;
         }
 
+        // check if the ast node for this range intersects the selection
+        let ast_node = &ast.nodes[ast_text_range.ancestors.last().copied().unwrap_or_default()];
+        let node_intersects_selection = ast_node.range.intersects(&selection, true);
+
         // check if the pointer is hovering this text range with a satisfied debounce
         let hovered = self
             .hovered_at_by_ast_text_range
@@ -125,9 +129,7 @@ impl CaptureState {
 
         match appearance.markdown_capture(ast_text_range.node(ast).node_type()) {
             CaptureCondition::Always => true,
-            CaptureCondition::NoCursor => {
-                !(ast_text_range.range.intersects(&selection, true) || hovered)
-            }
+            CaptureCondition::NoCursor => !(node_intersects_selection || hovered),
             CaptureCondition::Never => false,
         }
     }

@@ -205,8 +205,8 @@ pub fn calc_paragraphs(buffer: &Buffer) -> Paragraphs {
 }
 
 pub fn calc_text(
-    ast: &Ast, ast_ranges: &AstTextRanges, paragraphs: &Paragraphs, appearance: &Appearance,
-    segs: &UnicodeSegs, selection: (DocCharOffset, DocCharOffset), capture: &CaptureState,
+    ast: &Ast, ast_ranges: &AstTextRanges, appearance: &Appearance, segs: &UnicodeSegs,
+    selection: (DocCharOffset, DocCharOffset), capture: &CaptureState,
 ) -> Text {
     let mut result = vec![];
     let mut last_range_pushed = false;
