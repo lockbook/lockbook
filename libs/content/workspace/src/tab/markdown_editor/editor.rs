@@ -1,8 +1,9 @@
-use crate::tab::markdown_editor;
 use crate::tab::markdown_editor::bounds::BoundExt as _;
+use crate::tab::{markdown_editor, ExtendedInput};
 use egui::os::OperatingSystem;
 use egui::{
-    scroll_area, Context, EventFilter, Frame, Id, Margin, Pos2, Rect, ScrollArea, Ui, Vec2,
+    scroll_area, Context, CursorIcon, EventFilter, Frame, Id, Margin, Rect, ScrollArea, Sense, Ui,
+    Vec2,
 };
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
@@ -20,6 +21,9 @@ use markdown_editor::input::Bound;
 use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
 use std::time::{Duration, Instant};
+
+use super::input::{Location, Region};
+use super::Event;
 
 #[derive(Debug, Serialize, Default)]
 pub struct Response {
@@ -120,8 +124,11 @@ impl Editor {
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
-        let maybe_prev_state: Option<scroll_area::State> =
-            ui.data_mut(|d| d.get_persisted(scroll_area_id));
+        let prev_scroll_area_offset = ui.data_mut(|d| {
+            d.get_persisted(scroll_area_id)
+                .map(|s: scroll_area::State| s.offset)
+                .unwrap_or_default()
+        });
 
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
@@ -136,26 +143,42 @@ impl Editor {
                 let resp = Frame::default()
                     .inner_margin(Margin::symmetric(0., 15.))
                     .show(ui, |ui| {
-                        let resp = ui
-                            .vertical_centered(|ui| self.show_inner(ui, touch_mode))
-                            .inner;
-                        ui.allocate_space(Vec2::new(ui.available_width(), 100.));
-                        resp
+                        ui.vertical_centered(|ui| self.show_inner(ui, touch_mode))
+                            .inner
                     })
                     .inner;
 
-                // force scroll area to take up all available space
-                let rect = Rect::from_min_size(Pos2::ZERO, available_size);
-                ui.advance_cursor_after_rect(rect);
+                // fill available space / end of text padding
+                let inner_content_height = ui.cursor().min.y + prev_scroll_area_offset.y;
+                let padding_height = if inner_content_height < available_size.y {
+                    // fill available space
+                    available_size.y - inner_content_height
+                } else {
+                    // end of text padding
+                    available_size.y / 2.
+                };
+                let padding_response = ui.allocate_response(
+                    Vec2::new(available_size.x, padding_height),
+                    Sense { click: true, drag: false, focusable: false },
+                );
+                if padding_response.clicked() {
+                    ui.ctx().push_markdown_event(Event::Select {
+                        region: Region::Location(Location::DocCharOffset(
+                            self.buffer.current.segs.last_cursor_position(),
+                        )),
+                    });
+                    ui.ctx().request_repaint();
+                }
+                if padding_response.hovered() {
+                    ui.ctx().set_cursor_icon(CursorIcon::Text);
+                }
 
                 resp
             });
 
         // response
         let mut response = scroll_area_output.inner;
-        response.scroll_updated = !maybe_prev_state
-            .map(|s| s.offset == scroll_area_output.state.offset)
-            .unwrap_or_default();
+        response.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
 
         response
     }
