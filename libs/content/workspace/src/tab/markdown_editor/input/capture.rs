@@ -108,19 +108,13 @@ impl CaptureState {
     /// reveal. Debounce is evaluated using the time of last update rather than the current time to facilitate change
     /// detection.
     pub fn captured(
-        &self, selection: (DocCharOffset, DocCharOffset), paragraphs: &Paragraphs, ast: &Ast,
-        ast_ranges: &AstTextRanges, ast_range_idx: usize, appearance: &Appearance,
+        &self, selection: (DocCharOffset, DocCharOffset), ast: &Ast, ast_ranges: &AstTextRanges,
+        ast_range_idx: usize, appearance: &Appearance,
     ) -> bool {
         let ast_text_range = &ast_ranges[ast_range_idx];
         if ast_text_range.range_type == AstTextRangeType::Text {
             return false;
         }
-
-        // check if this text range intersects any paragraph with selected text
-        let selection_paragraphs = paragraphs.find_intersecting(selection, true);
-        let text_range_paragraphs = paragraphs.find_intersecting(ast_text_range.range, true);
-        let intersects_selected_paragraph =
-            selection_paragraphs.intersects(&text_range_paragraphs, false);
 
         // check if the pointer is hovering this text range with a satisfied debounce
         let hovered = self
@@ -131,7 +125,9 @@ impl CaptureState {
 
         match appearance.markdown_capture(ast_text_range.node(ast).node_type()) {
             CaptureCondition::Always => true,
-            CaptureCondition::NoCursor => !(intersects_selected_paragraph || hovered),
+            CaptureCondition::NoCursor => {
+                !(ast_text_range.range.intersects(&selection, true) || hovered)
+            }
             CaptureCondition::Never => false,
         }
     }

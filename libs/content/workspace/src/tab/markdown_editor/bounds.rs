@@ -211,7 +211,7 @@ pub fn calc_text(
     let mut result = vec![];
     let mut last_range_pushed = false;
     for (i, text_range) in ast_ranges.iter().enumerate() {
-        let captured = capture.captured(selection, paragraphs, ast, ast_ranges, i, appearance);
+        let captured = capture.captured(selection, ast, ast_ranges, i, appearance);
 
         let this_range_pushed = if !captured {
             // text range or uncaptured syntax range
