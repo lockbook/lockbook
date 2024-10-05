@@ -84,7 +84,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         self.docs.insert(&id, Some(&hmac), &encrypted_document)?;
         self.add_doc_event(activity_service::DocEvent::Write(id, get_time().0))?;
 
-        self.docs.delete(&id, old_hmac.as_ref())?;
+        self.cleanup()?;
 
         Ok(hmac)
     }
