@@ -44,11 +44,7 @@ struct ConstrainedHomeViewWrapper: View {
                             .padding(.top, 10)
                     }
                     .background(
-                        VStack(spacing: 0) {
-                            Divider()
-                            
-                            Spacer()
-                        }
+                        EmptyView()
                             .background(.background)
                             .ignoresSafeArea(.container, edges: [.bottom])
                     )
