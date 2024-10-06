@@ -240,7 +240,7 @@ mod test_account_key_and_phrase {
     use libsecp256k1::SecretKey;
     use rand::rngs::OsRng;
 
-    use crate::Account;
+    use crate::model::account::Account;
 
     #[test]
     fn account_key_and_phrase_eq() {

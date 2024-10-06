@@ -2,9 +2,9 @@ use crate::logic::crypto::{DecryptedDocument, EncryptedDocument};
 use crate::logic::file_like::FileLike;
 use crate::logic::filename::DocumentType;
 use crate::logic::tree_like::TreeLike;
-use crate::model::errors::LbResult;
+use crate::model::errors::{LbErr, LbResult};
 use crate::model::file::File;
-use crate::{Lb, UnexpectedError};
+use crate::{Lb};
 use crossbeam::channel::{self, Receiver, Sender};
 use futures::stream::FuturesUnordered;
 use futures::{future, StreamExt};
@@ -583,10 +583,9 @@ pub enum SearchRequest {
     EndSearch,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[serde(untagged)]
 pub enum SearchResult {
-    Error(UnexpectedError),
     StartOfSearch,
     FileNameMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
     FileContentMatches { id: Uuid, path: String, content_matches: Vec<ContentMatch> },

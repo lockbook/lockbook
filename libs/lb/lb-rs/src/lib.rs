@@ -33,7 +33,7 @@ pub struct Lb {
     pub keychain: Keychain,
     pub db: LbDb,
     pub docs: AsyncDocs,
-    pub search: SearchIndex,
+    // pub search: SearchIndex,
     pub client: Network,
 }
 
@@ -48,8 +48,8 @@ impl Lb {
         let docs = AsyncDocs::from(&config);
         let client = Network::default();
         let keychain = Keychain::default();
-        let search = SearchIndex::default();
-        Ok(Self { config, keychain, db, docs, client, search })
+        // let search = SearchIndex::default();
+        Ok(Self { config, keychain, db, docs, client })
     }
 }
 
@@ -69,6 +69,6 @@ use repo::docs::AsyncDocs;
 use repo::LbDb;
 use service::keychain::Keychain;
 use service::network::Network;
-use service::search::SearchIndex;
+// use service::search::SearchIndex;
 use std::sync::Arc;
 use tokio::sync::RwLock;
