@@ -215,9 +215,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         let y = point.y - self.floatingCursorNewStartY
 
         if y >= bounds.height - 5 {
-            scroll_wheel(wsHandle, 0, -20)
+            scroll_wheel(wsHandle, 0, -20, false, false, false, false)
         } else if y <= 5 {
-            scroll_wheel(wsHandle, 0, 20)
+            scroll_wheel(wsHandle, 0, 20, false, false, false, false)
         }
 
         if animate {
@@ -863,7 +863,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                 if !cursorTracked {
                     mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                 }
-                scroll_wheel(self.wsHandle, Float(velocity.x), Float(velocity.y))
+                scroll_wheel(self.wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false)
                 if !cursorTracked {
                     mouse_gone(wsHandle)
                 }
@@ -874,7 +874,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             if !cursorTracked {
                 mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
             }
-            scroll_wheel(wsHandle, Float(velocity.x), Float(velocity.y))
+            scroll_wheel(wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false)
             if !cursorTracked {
                 mouse_gone(wsHandle)
             }
