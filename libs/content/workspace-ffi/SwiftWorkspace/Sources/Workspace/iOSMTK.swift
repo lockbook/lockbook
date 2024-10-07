@@ -1122,9 +1122,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         for touch in touches {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
-
+            let location = touch.preciseLocation(in: self)
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+            
             for touch in event!.coalescedTouches(for: touch)! {
-                let location = touch.location(in: self)
+                let location = touch.preciseLocation(in: self)
                 let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
                 touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(force))
             }
@@ -1140,13 +1142,21 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                         
             let location = touch.preciseLocation(in: self)
             let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-            touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
 
             for touch in event!.predictedTouches(for: touch)! {
-                let location = touch.location(in: self)
+                let location = touch.preciseLocation(in: self)
                 let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
                 touches_predicted(wsHandle, value, Float(location.x), Float(location.y), Float(force))
             }
+            
+            for touch in event!.coalescedTouches(for: touch)! {
+                let location = touch.location(in: self)
+                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+                touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+            }
+
+            // touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+
         }
 
         self.setNeedsDisplay(self.frame)

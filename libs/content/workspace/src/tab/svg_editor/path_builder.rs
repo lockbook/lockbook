@@ -1,8 +1,10 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, time::Instant};
 
-use bezier_rs::{Bezier, ManipulatorGroup, Subpath};
+use bezier_rs::{Bezier, Identifier, ManipulatorGroup, Subpath};
+use glam::DVec2;
 use resvg::usvg::Transform;
-use tracing::trace;
+use serde::de::IntoDeserializer;
+use tracing::{trace, warn};
 
 use super::parser::ManipulatorGroupId;
 
@@ -14,6 +16,7 @@ pub struct PathBuilder {
     pub simplified_points: Vec<egui::Pos2>,
     pub original_points: Vec<egui::Pos2>,
     pub first_point_touch_id: Option<egui::TouchId>,
+    pub first_point_frame: Option<Instant>,
     pub is_canceled_path: bool,
     pub first_predicted_mg: Option<usize>,
 }
@@ -33,21 +36,36 @@ impl PathBuilder {
             original_points: vec![],
             is_canceled_path: false,
             first_predicted_mg: None,
+            first_point_frame: None,
         }
     }
 
-    fn line_to(&mut self, dest: egui::Pos2, path: &mut Subpath<ManipulatorGroupId>) {
-        self.original_points.push(dest);
-        if let Some(prev) = self.prev_points_window.back() {
+    pub fn line_to(
+        &mut self, dest: egui::Pos2, path: &mut Subpath<ManipulatorGroupId>,
+    ) -> Option<usize> {
+        if let Some(last_mg) = path.manipulator_groups().last() {
+            if self.is_redundant_point(path, dest) {
+                return None;
+            }
+            self.original_points.clear();
             let bez = Bezier::from_linear_coordinates(
-                prev.x.into(),
-                prev.y.into(),
+                last_mg.anchor.x,
+                last_mg.anchor.y,
                 dest.x.into(),
                 dest.y.into(),
             );
             path.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
+            Some(path.manipulator_groups().len() - 1)
+        } else {
+            path.append_bezier(
+                &Bezier::from_linear_dvec2(
+                    DVec2 { x: dest.x.into(), y: dest.y.into() },
+                    DVec2 { x: dest.x as f64 + 1.0, y: dest.y as f64 + 1.0 },
+                ),
+                bezier_rs::AppendType::IgnoreStart,
+            );
+            Some(path.manipulator_groups().len() - 1)
         }
-        self.prev_points_window.push_back(dest);
     }
 
     fn catmull_to(
@@ -100,7 +118,7 @@ impl PathBuilder {
             self.original_points.clear();
         }
         self.original_points.push(dest);
-        if !self.is_redundant_point(path, dest, master_transform) {
+        if !self.is_redundant_point(path, dest) {
             self.catmull_to(dest, path)
         } else {
             trace!("found redundant point");
@@ -128,6 +146,7 @@ impl PathBuilder {
     pub fn clear(&mut self) {
         self.prev_points_window.clear();
         self.first_point_touch_id = None;
+        self.first_point_frame = None;
         self.is_canceled_path = false;
     }
 
@@ -202,9 +221,7 @@ impl PathBuilder {
         best_so_far
     }
 
-    fn is_redundant_point(
-        &self, path: &Subpath<ManipulatorGroupId>, point: egui::Pos2, master_transform: f32,
-    ) -> bool {
+    fn is_redundant_point(&self, path: &Subpath<ManipulatorGroupId>, point: egui::Pos2) -> bool {
         let last_point = match path.manipulator_groups().last() {
             Some(val) => val,
             None => return false,
@@ -213,10 +230,9 @@ impl PathBuilder {
         let distance = last_point
             .anchor
             .distance(glam::DVec2 { x: point.x as f64, y: point.y as f64 });
-        let tolerance = 2.0;
-
-        // distance < tolerance
-        false
+        let tolerance = 1.0;
+        warn!(?distance, "distance");
+        distance < tolerance
     }
 }
 

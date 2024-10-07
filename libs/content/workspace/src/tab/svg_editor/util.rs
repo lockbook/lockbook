@@ -89,13 +89,7 @@ pub fn rect_to_bb(rect: egui::Rect) -> [DVec2; 2] {
     ]
 }
 
-pub fn get_event_touch_id(event: &egui::Event) -> Option<egui::TouchId> {
-    if let egui::Event::Touch { device_id: _, id, phase: _, pos: _, force: _ } = event {
-        Some(*id)
-    } else {
-        None
-    }
-}
+
 
 pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
     let mut custom_multi_touch = false;

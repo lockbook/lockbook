@@ -96,6 +96,8 @@ impl SVGEditor {
         let span = span!(Level::TRACE, "showing canvas widget", frame);
         let _ = span.enter();
 
+        // ui.input(|r| println!("{:#?}", r.events));
+
         self.painter
             .set_layer_id(egui::LayerId::new(egui::Order::Debug, "canvas_widgets".into()));
         self.process_events(ui);
