@@ -1,7 +1,6 @@
 pub mod advance;
 pub mod canonical;
 pub mod capture;
-pub mod click_checker;
 pub mod cursor;
 pub mod events;
 pub mod mutation;
@@ -101,8 +100,8 @@ pub enum Event {
     Copy,
     ToggleDebug,
     ToggleCheckbox(usize),
-    OpenUrl(String),
-    SetBaseFontSize(f32),
+    IncrementBaseFontSize,
+    DecrementBaseFontSize,
 }
 
 impl From<(DocCharOffset, DocCharOffset)> for Region {

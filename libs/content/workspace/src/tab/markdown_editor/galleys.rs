@@ -7,7 +7,7 @@ use crate::tab::markdown_editor::style::{MarkdownNode, RenderStyle};
 use crate::tab::markdown_editor::Editor;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::{CCursor, LayoutJob};
-use egui::{Galley, Pos2, Rect, Sense, TextFormat, Ui, Vec2};
+use egui::{Galley, Pos2, Rect, Response, Sense, TextFormat, Ui, Vec2};
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 use std::mem;
@@ -30,7 +30,8 @@ pub struct GalleyInfo {
     pub tail_size: RelCharOffset,
 
     pub text_location: Pos2,
-    pub galley_location: Rect,
+    pub rect: Rect,
+    pub response: Response,
     pub image: Option<ImageInfo>,
 
     pub annotation_text_format: TextFormat,
@@ -44,7 +45,7 @@ pub struct ImageInfo {
 
 pub fn calc(
     ast: &Ast, buffer: &Buffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
-    ui: &mut Ui,
+    touch_mode: bool, ui: &mut Ui,
 ) -> Galleys {
     let mut result: Galleys = Default::default();
 
@@ -91,6 +92,7 @@ pub fn calc(
                     .apply_style(&mut text_format, appearance);
             }
             if in_selection && !cfg!(target_os = "ios") {
+                // iOS draws its own selection rects
                 RenderStyle::Selection.apply_style(&mut text_format, appearance);
             }
             if maybe_link_range.is_some() {
@@ -161,7 +163,7 @@ pub fn calc(
             };
             result
                 .galleys
-                .push(GalleyInfo::from(layout_info, images, appearance, ui));
+                .push(GalleyInfo::from(layout_info, images, appearance, touch_mode, ui));
         }
     }
 
@@ -287,7 +289,8 @@ pub fn annotation_offset(annotation: &Option<Annotation>, appearance: &Appearanc
 
 impl GalleyInfo {
     pub fn from(
-        mut job: LayoutJobInfo, images: &ImageCache, appearance: &Appearance, ui: &mut Ui,
+        mut job: LayoutJobInfo, images: &ImageCache, appearance: &Appearance, touch_mode: bool,
+        ui: &mut Ui,
     ) -> Self {
         let offset = annotation_offset(&job.annotation, appearance);
         job.job.wrap.max_width = ui.available_width() - offset.x;
@@ -321,12 +324,13 @@ impl GalleyInfo {
         let galley = ui.ctx().fonts(|f| f.layout_job(job.job));
 
         // allocate space for text and non-image annotations
-        let (galley_location, _) = ui.allocate_exact_size(
-            Vec2::new(ui.available_width(), galley.size().y + offset.y),
-            Sense::hover(),
+        let desired_size = Vec2::new(ui.available_width(), galley.size().y + offset.y);
+        let response = ui.allocate_response(
+            desired_size,
+            Sense { click: true, drag: !touch_mode, focusable: false },
         );
 
-        let text_location = Pos2::new(offset.x + galley_location.min.x, galley_location.min.y);
+        let text_location = Pos2::new(offset.x + response.rect.min.x, response.rect.min.y);
 
         Self {
             range: job.range,
@@ -335,7 +339,8 @@ impl GalleyInfo {
             head_size: job.head_size,
             tail_size: job.tail_size,
             text_location,
-            galley_location,
+            rect: response.rect,
+            response,
             image,
             annotation_text_format: job.annotation_text_format,
         }
@@ -370,12 +375,12 @@ impl GalleyInfo {
         Rect { min, max }
     }
 
-    pub fn checkbox_bounds(&self, touch_mode: bool, appearance: &Appearance) -> Rect {
+    pub fn checkbox_bounds(&self, appearance: &Appearance) -> Rect {
         let bullet_center = self.bullet_center();
         let mut min = bullet_center;
         let mut max = bullet_center;
 
-        let dim = appearance.checkbox_dim(touch_mode);
+        let dim = appearance.checkbox_dim();
         min.x -= dim / 2.0;
         max.x += dim / 2.0;
         min.y -= dim / 2.0;
@@ -384,8 +389,8 @@ impl GalleyInfo {
         Rect { min, max }
     }
 
-    pub fn checkbox_slash(&self, touch_mode: bool, appearance: &Appearance) -> [Pos2; 2] {
-        let bounds = self.checkbox_bounds(touch_mode, appearance);
+    pub fn checkbox_slash(&self, appearance: &Appearance) -> [Pos2; 2] {
+        let bounds = self.checkbox_bounds(appearance);
         [Pos2 { x: bounds.min.x, y: bounds.max.y }, Pos2 { x: bounds.max.x, y: bounds.min.y }]
     }
 
