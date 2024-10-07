@@ -51,8 +51,14 @@ pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
 
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_x: f32, scroll_y: f32) {
+pub unsafe extern "C" fn scroll_wheel(
+    obj: *mut c_void, scroll_x: f32, scroll_y: f32, shift: bool, ctrl: bool, option: bool,
+    command: bool,
+) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
+    obj.raw_input.modifiers = modifiers;
 
     if obj.raw_input.modifiers.command || obj.raw_input.modifiers.ctrl {
         let factor = (scroll_y / 50.).exp();
