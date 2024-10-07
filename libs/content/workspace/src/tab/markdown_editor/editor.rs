@@ -140,8 +140,14 @@ impl Editor {
 
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
+        // show find toolbar
+        let find_resp = self.find.show(ui);
+        if let Some(term) = find_resp.term {
+            ui.ctx()
+                .push_markdown_event(Event::Find { term, backwards: find_resp.backwards });
+        }
+
         // show ui
-        self.find.show(ui);
         if touch_mode {
             ui.ctx().style_mut(|style| {
                 style.spacing.scroll = egui::style::ScrollStyle::solid();
