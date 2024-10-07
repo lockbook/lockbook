@@ -41,12 +41,11 @@ impl Find {
             if self.term.is_none() {
                 self.term = Some(String::from(&buffer[buffer.current.selection]));
                 ui.memory_mut(|m| m.request_focus(self.id));
+            }
+            if ui.memory(|m| m.has_focus(self.id)) {
+                self.term = None;
             } else {
-                if ui.memory(|m| m.has_focus(self.id)) {
-                    self.term = None;
-                } else {
-                    ui.memory_mut(|m| m.request_focus(self.id));
-                }
+                ui.memory_mut(|m| m.request_focus(self.id));
             }
         }
         if ui.memory(|m| m.has_focus(self.id)) {
@@ -78,7 +77,7 @@ impl Find {
                     .hint_text("Search")
                     .ui(ui);
                 if term != &before_term {
-                    if term == "" {
+                    if term.is_empty() {
                         self.match_count = 0;
                     } else {
                         self.match_count = text.matches(term.as_str()).count();
