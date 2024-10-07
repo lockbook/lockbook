@@ -1,16 +1,20 @@
-use egui::{Button, EventFilter, Frame, Id, Key, Margin, TextEdit, Ui, Widget as _};
-use lb_rs::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt};
+use egui::{Button, EventFilter, Frame, Id, Key, Label, Margin, TextEdit, Ui, Widget as _};
+use lb_rs::text::{
+    buffer::Buffer,
+    offset_types::{DocByteOffset, DocCharOffset, RangeExt},
+};
 
 use super::Editor;
 
 pub struct Find {
     pub id: egui::Id,
     pub term: Option<String>,
+    pub match_count: usize,
 }
 
 impl Default for Find {
     fn default() -> Self {
-        Self { id: Id::new("find"), term: None }
+        Self { id: Id::new("find"), term: None, match_count: 0 }
     }
 }
 
@@ -21,13 +25,13 @@ pub struct Response {
 }
 
 impl Find {
-    pub fn show(&mut self, ui: &mut Ui) -> Response {
+    pub fn show(&mut self, buffer: &Buffer, ui: &mut Ui) -> Response {
         let resp = if self.term.is_some() {
             Frame::default()
                 .inner_margin(Margin::symmetric(10., 10.))
                 .fill(ui.style().visuals.window_fill)
                 .stroke(ui.style().visuals.window_stroke)
-                .show(ui, |ui| self.show_inner(ui))
+                .show(ui, |ui| self.show_inner(&buffer.current.text, ui))
                 .inner
         } else {
             Response::default()
@@ -35,7 +39,7 @@ impl Find {
 
         if ui.input(|i| i.key_pressed(Key::F) && i.modifiers.command) {
             if self.term.is_none() {
-                self.term = Some(String::new());
+                self.term = Some(String::from(&buffer[buffer.current.selection]));
                 ui.memory_mut(|m| m.request_focus(self.id));
             } else {
                 if ui.memory(|m| m.has_focus(self.id)) {
@@ -62,30 +66,44 @@ impl Find {
         resp
     }
 
-    pub fn show_inner(&mut self, ui: &mut Ui) -> Response {
-        let mut resp = Response::default();
+    pub fn show_inner(&mut self, text: &str, ui: &mut Ui) -> Response {
+        let mut result = Response::default();
         ui.horizontal(|ui| {
             let resp = if let Some(term) = &mut self.term {
+                let before_term = term.clone();
+                let resp = TextEdit::singleline(term)
+                    .return_key(None)
+                    .id(self.id)
+                    .desired_width(300.)
+                    .hint_text("Search")
+                    .ui(ui);
+                if term != &before_term {
+                    if term == "" {
+                        self.match_count = 0;
+                    } else {
+                        self.match_count = text.matches(term.as_str()).count();
+                    }
+                }
+                ui.add_space(5.);
+
                 if Button::new("<").small().ui(ui).clicked()
                     || ui.input(|i| i.key_pressed(Key::Enter) && i.modifiers.shift)
                 {
-                    resp.term = Some(term.clone());
-                    resp.backwards = true;
+                    result.term = Some(term.clone());
+                    result.backwards = true;
                 }
                 ui.add_space(5.);
                 if Button::new(">").small().ui(ui).clicked()
                     || ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift)
                 {
-                    resp.term = Some(term.clone());
+                    result.term = Some(term.clone());
                 }
                 ui.add_space(5.);
 
-                let resp = TextEdit::singleline(term)
-                    .return_key(None)
-                    .id(self.id)
-                    .desired_width(ui.available_width())
-                    .hint_text("Search")
+                Label::new(format!("Matches: {:?}", self.match_count))
+                    .selectable(false)
                     .ui(ui);
+                ui.add_space(ui.available_width());
 
                 resp
             } else {
@@ -96,7 +114,7 @@ impl Find {
                 ui.ctx().request_repaint();
             }
         });
-        resp
+        result
     }
 }
 

@@ -141,7 +141,7 @@ impl Editor {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
         // show find toolbar
-        let find_resp = self.find.show(ui);
+        let find_resp = self.find.show(&self.buffer, ui);
         if let Some(term) = find_resp.term {
             ui.ctx()
                 .push_markdown_event(Event::Find { term, backwards: find_resp.backwards });
