@@ -2,8 +2,8 @@ use crate::tab::markdown_editor::bounds::BoundExt as _;
 use crate::tab::{markdown_editor, ExtendedInput};
 use egui::os::OperatingSystem;
 use egui::{
-    scroll_area, Context, CursorIcon, EventFilter, Frame, Id, Margin, Rect, ScrollArea, Sense, Ui,
-    Vec2,
+    scroll_area, Context, CursorIcon, EventFilter, Frame, Id, Margin, Rect, ScrollArea, Sense,
+    Stroke, Ui, Vec2,
 };
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
@@ -22,6 +22,7 @@ use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
 use std::time::{Duration, Instant};
 
+use super::find::Find;
 use super::input::{Location, Region};
 use super::Event;
 
@@ -57,12 +58,13 @@ pub struct Editor {
     pub bounds: Bounds,
     pub galleys: Galleys,
     pub capture: CaptureState,
+    pub find: Find,
 
     // referenced by toolbar for keyboard toggle (todo: cleanup)
     pub is_virtual_keyboard_showing: bool,
 
     // referenced by toolbar for layout (todo: cleanup)
-    pub scroll_area_rect: Rect,
+    pub rect: Rect,
 }
 
 impl Editor {
@@ -88,10 +90,11 @@ impl Editor {
             bounds: Default::default(),
             galleys: Default::default(),
             capture: Default::default(),
+            find: Default::default(),
 
             is_virtual_keyboard_showing: false,
 
-            scroll_area_rect: Rect::ZERO,
+            rect: Rect::ZERO,
         }
     }
 
@@ -128,7 +131,7 @@ impl Editor {
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
-        let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
+        let scroll_area_id = ui.id().with("child").with(egui::Id::new(self.file_id));
         let prev_scroll_area_offset = ui.data_mut(|d| {
             d.get_persisted(scroll_area_id)
                 .map(|s: scroll_area::State| s.offset)
@@ -138,78 +141,86 @@ impl Editor {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
         // show ui
+        self.find.show(ui);
         if touch_mode {
             ui.ctx().style_mut(|style| {
                 style.spacing.scroll = egui::style::ScrollStyle::solid();
             });
         }
         let available_size = ui.available_size();
-        let scroll_area_output = ScrollArea::vertical()
-            .drag_to_scroll(true)
-            .id_source(self.file_id)
+
+        Frame::canvas(ui.style())
+            .stroke(Stroke::NONE)
+            .outer_margin(Margin::same(2.))
             .show(ui, |ui| {
-                ui.spacing_mut().item_spacing = Vec2::ZERO;
-
-                let resp = Frame::default()
-                    .inner_margin(Margin::symmetric(0., 15.))
+                let scroll_area_output = ScrollArea::vertical()
+                    .drag_to_scroll(true)
+                    .id_source(self.file_id)
                     .show(ui, |ui| {
-                        ui.vertical_centered(|ui| self.show_inner(ui, touch_mode))
-                            .inner
-                    })
-                    .inner;
+                        ui.spacing_mut().item_spacing = Vec2::ZERO;
+                        let resp = ui
+                            .vertical_centered(|ui| {
+                                // clip elements width
+                                let max_width = 800.0;
+                                if ui.max_rect().width() > max_width {
+                                    ui.set_max_width(max_width);
+                                } else {
+                                    ui.set_max_width(ui.max_rect().width() - 15.);
+                                }
 
-                // fill available space / end of text padding
-                let inner_content_height = ui.cursor().min.y + prev_scroll_area_offset.y;
-                let padding_height = if inner_content_height < available_size.y {
-                    // fill available space
-                    available_size.y - inner_content_height
-                } else {
-                    // end of text padding
-                    available_size.y / 2.
-                };
-                let padding_response = ui.allocate_response(
-                    Vec2::new(available_size.x, padding_height),
-                    Sense { click: true, drag: false, focusable: false },
-                );
-                if padding_response.clicked() {
-                    ui.ctx().push_markdown_event(Event::Select {
-                        region: Region::Location(Location::DocCharOffset(
-                            self.buffer.current.segs.last_cursor_position(),
-                        )),
+                                // register widget id
+                                ui.ctx().check_for_id_clash(self.id(), Rect::NOTHING, "");
+
+                                Frame::canvas(ui.style())
+                                    .stroke(Stroke::NONE)
+                                    .inner_margin(Margin::same(15.))
+                                    .show(ui, |ui| self.show_inner(ui, touch_mode))
+                                    .inner
+                            })
+                            .inner;
+
+                        // fill available space / end of text padding
+                        let inner_content_height = ui.cursor().min.y + prev_scroll_area_offset.y;
+                        let padding_height = if inner_content_height < available_size.y {
+                            // fill available space
+                            available_size.y - inner_content_height
+                        } else {
+                            // end of text padding
+                            available_size.y / 2.
+                        };
+                        let padding_response = ui.allocate_response(
+                            Vec2::new(available_size.x, padding_height),
+                            Sense { click: true, drag: false, focusable: false },
+                        );
+                        if padding_response.clicked() {
+                            ui.ctx().push_markdown_event(Event::Select {
+                                region: Region::Location(Location::DocCharOffset(
+                                    self.buffer.current.segs.last_cursor_position(),
+                                )),
+                            });
+                            ui.ctx().request_repaint();
+                        }
+                        if padding_response.hovered() {
+                            ui.ctx().set_cursor_icon(CursorIcon::Text);
+                        }
+
+                        resp
                     });
-                    ui.ctx().request_repaint();
-                }
-                if padding_response.hovered() {
-                    ui.ctx().set_cursor_icon(CursorIcon::Text);
-                }
+                let mut resp = scroll_area_output.inner;
+
+                self.rect = scroll_area_output.inner_rect;
+                resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
 
                 resp
-            });
-
-        self.scroll_area_rect = scroll_area_output.inner_rect;
-
-        // response
-        let mut response = scroll_area_output.inner;
-        response.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
-
-        response
+            })
+            .inner
     }
 
     fn show_inner(&mut self, ui: &mut Ui, touch_mode: bool) -> Response {
         self.debug.frame_start();
 
-        ui.ctx().check_for_id_clash(self.id(), Rect::NOTHING, "");
-
         // update theme
         let theme_updated = self.appearance.set_theme(ui.visuals());
-
-        // clip elements width
-        let max_width = 800.0;
-        if ui.max_rect().width() > max_width {
-            ui.set_max_width(max_width);
-        } else {
-            ui.set_max_width(ui.max_rect().width() - 15.);
-        }
 
         // remember state for change detection
         let prior_suggested_title = self.get_suggested_title();
