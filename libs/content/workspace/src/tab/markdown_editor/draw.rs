@@ -16,7 +16,7 @@ use pulldown_cmark::HeadingLevel;
 use super::input::cursor;
 
 impl Editor {
-    pub fn draw_text(&self, mut ui_size: Vec2, ui: &mut Ui, touch_mode: bool) {
+    pub fn draw_text(&self, ui: &mut Ui) {
         let bullet_radius = self.appearance.bullet_radius();
         for galley in &self.galleys.galleys {
             // draw annotations
@@ -56,13 +56,13 @@ impl Editor {
                         }
                         ListItem::Todo(checked) => {
                             ui.painter().rect_filled(
-                                galley.checkbox_bounds(touch_mode, &self.appearance),
+                                galley.checkbox_bounds(&self.appearance),
                                 self.appearance.checkbox_rounding(),
                                 self.appearance.checkbox_bg(),
                             );
                             if *checked {
                                 ui.painter().line_segment(
-                                    galley.checkbox_slash(touch_mode, &self.appearance),
+                                    galley.checkbox_slash(&self.appearance),
                                     Stroke {
                                         width: self.appearance.checkbox_slash_width(),
                                         color: self.appearance.text(),
@@ -72,25 +72,20 @@ impl Editor {
                         }
                     },
                     Annotation::HeadingRule => {
-                        let y = galley.galley_location.max.y - 7.0;
-                        let min = Pos2 { x: galley.galley_location.min.x, y };
-                        let max = Pos2 { x: galley.galley_location.max.x, y };
+                        let y = galley.rect.max.y - 7.0;
+                        let min = Pos2 { x: galley.rect.min.x, y };
+                        let max = Pos2 { x: galley.rect.max.x, y };
 
-                        ui.painter().line_segment(
-                            [min, max],
-                            Stroke::new(0.3, self.appearance.heading_line()),
-                        );
+                        ui.painter()
+                            .line_segment([min, max], Stroke::new(0.3, self.appearance.rule()));
                     }
                     Annotation::Rule => {
-                        let y =
-                            galley.galley_location.min.y + galley.galley_location.height() / 2.0;
-                        let min = Pos2 { x: galley.galley_location.min.x, y };
-                        let max = Pos2 { x: galley.galley_location.max.x, y };
+                        let y = galley.rect.min.y + galley.rect.height() / 2.0;
+                        let min = Pos2 { x: galley.rect.min.x, y };
+                        let max = Pos2 { x: galley.rect.max.x, y };
 
-                        ui.painter().line_segment(
-                            [min, max],
-                            Stroke::new(0.3, self.appearance.heading_line()),
-                        );
+                        ui.painter()
+                            .line_segment([min, max], Stroke::new(0.3, self.appearance.rule()));
                     }
                     _ => {}
                 }
@@ -125,17 +120,6 @@ impl Editor {
             ui.painter()
                 .galley(galley.text_location, galley.galley.clone(), Color32::TRANSPARENT);
         }
-
-        // draw end-of-text padding
-        ui_size.y -= self.galleys.galleys[self.galleys.len() - 1]
-            .galley
-            .rect
-            .size()
-            .y;
-        if ui_size.y < 0.0 {
-            ui_size.y = 0.;
-        }
-        ui.allocate_exact_size(ui_size, Sense::hover());
     }
 
     pub fn draw_image_placeholder(

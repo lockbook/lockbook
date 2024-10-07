@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 dark-light = "1.0.0"
 egui = "0.28.1"
-eframe = "0.28.1"
+eframe = { version = "0.28.1", default-features = false, features = ["wgpu"] }
 egui-notify = "0.15.0"
 egui-winit = "0.28.1"
 egui_wgpu_backend = "0.30"

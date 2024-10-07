@@ -61,7 +61,7 @@ pub struct Appearance {
     pub selection_bg: Option<ThemedColor>,
     pub checkbox_bg: Option<ThemedColor>,
     pub heading: Option<ThemedColor>,
-    pub heading_line: Option<ThemedColor>,
+    pub rule: Option<ThemedColor>,
     pub code: Option<ThemedColor>,
     pub bold: Option<ThemedColor>,
     pub italics: Option<ThemedColor>,
@@ -124,8 +124,8 @@ impl Appearance {
         self.heading.unwrap_or(BLACK).get(self.current_theme)
     }
 
-    pub fn heading_line(&self) -> Color32 {
-        self.heading_line.unwrap_or(GRAY).get(self.current_theme)
+    pub fn rule(&self) -> Color32 {
+        self.rule.unwrap_or(GRAY).get(self.current_theme)
     }
 
     pub fn code(&self) -> Color32 {
@@ -156,9 +156,8 @@ impl Appearance {
         self.bullet_radius.unwrap_or(2.5)
     }
 
-    pub fn checkbox_dim(&self, touch_mode: bool) -> f32 {
-        self.checkbox_dim
-            .unwrap_or(if touch_mode { 16.0 } else { 12.0 })
+    pub fn checkbox_dim(&self) -> f32 {
+        self.checkbox_dim.unwrap_or(12.0)
     }
 
     pub fn checkbox_rounding(&self) -> f32 {

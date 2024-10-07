@@ -2,13 +2,14 @@ use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 use crate::tab::markdown_editor;
+use egui::Pos2;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt};
 use lb_rs::text::unicode_segs::UnicodeSegs;
 use markdown_editor::appearance::{Appearance, CaptureCondition};
 use markdown_editor::ast::{Ast, AstTextRangeType};
 use markdown_editor::bounds::{AstTextRanges, Bounds, Paragraphs, RangesExt as _};
 use markdown_editor::galleys::Galleys;
-use markdown_editor::input::{cursor::PointerState, mutation};
+use markdown_editor::input::mutation;
 
 pub const HOVER_REVEAL_DEBOUNCE: Duration = Duration::from_millis(300);
 
@@ -36,8 +37,8 @@ impl CaptureState {
     /// Updates the state of the hover reveal mechanism. Call this every frame after text layout so that the galleys
     /// are synchronized with other parameters.
     pub fn update(
-        &mut self, now: Instant, pointer_state: &PointerState, galleys: &Galleys,
-        segs: &UnicodeSegs, bounds: &Bounds, ast: &Ast,
+        &mut self, pointer_pos: Option<Pos2>, now: Instant, galleys: &Galleys, segs: &UnicodeSegs,
+        bounds: &Bounds, ast: &Ast,
     ) {
         if self
             .hovered_at_by_ast_text_range
@@ -51,7 +52,7 @@ impl CaptureState {
         }
         self.now = now;
 
-        if let Some(pos) = pointer_state.pointer_pos {
+        if let Some(pos) = pointer_pos {
             let pointer = mutation::pos_to_char_offset(pos, galleys, segs, &bounds.text);
 
             // revealed ranges are those whose ast nodes are hovered

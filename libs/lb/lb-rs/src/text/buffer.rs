@@ -6,6 +6,7 @@ use std::ops::Index;
 use std::time::{Duration, Instant};
 use unicode_segmentation::UnicodeSegmentation;
 
+/// Long-lived state of the editor's text buffer. Factored into sub-structs for borrow-checking.
 /// # Operation algebra
 /// Operations are created based on a version of the buffer. This version is called the operation's base and is
 /// identified with a sequence number. When the base of an operation is equal to the buffer's current sequence number,
@@ -50,8 +51,6 @@ use unicode_segmentation::UnicodeSegmentation;
 /// when it was applied. We store information necessary to undo applied operations alongside the operations themselves
 /// i.e. the text replaced in the application. When the operation is transformed for any reason, this undo information
 /// is invalidated.
-
-/// Long-lived state of the editor's text buffer. Factored into sub-structs for borrow-checking.
 #[derive(Default)]
 pub struct Buffer {
     /// Current contents of the buffer (what should be displayed in the editor). Todo: hide behind a read-only accessor
