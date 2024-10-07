@@ -64,7 +64,7 @@ impl Lb {
         Ok(account)
     }
 
-    pub async fn import_account(&mut self, key: &str, api_url: Option<&str>) -> LbResult<Account> {
+    pub async fn import_account(&self, key: &str, api_url: Option<&str>) -> LbResult<Account> {
         if self.get_account().is_ok() {
             warn!("tried to import an account, but account exists already.");
             return Err(LbErrKind::AccountExists.into());
@@ -91,7 +91,7 @@ impl Lb {
             .await
     }
 
-    pub async fn import_account_private_key_v1(&mut self, account: Account) -> LbResult<Account> {
+    pub async fn import_account_private_key_v1(&self, account: Account) -> LbResult<Account> {
         let server_public_key = self
             .client
             .request(&account, GetPublicKeyRequest { username: account.username.clone() })
@@ -113,7 +113,7 @@ impl Lb {
     }
 
     pub async fn import_account_private_key_v2(
-        &mut self, private_key: SecretKey, api_url: &str,
+        &self, private_key: SecretKey, api_url: &str,
     ) -> LbResult<Account> {
         let mut account =
             Account { username: "".to_string(), api_url: api_url.to_string(), private_key };
@@ -134,7 +134,7 @@ impl Lb {
     }
 
     pub async fn import_account_phrase(
-        &mut self, phrase: [&str; 24], api_url: &str,
+        &self, phrase: [&str; 24], api_url: &str,
     ) -> LbResult<Account> {
         let private_key = Account::phrase_to_private_key(phrase)?;
         self.import_account_private_key_v2(private_key, api_url)

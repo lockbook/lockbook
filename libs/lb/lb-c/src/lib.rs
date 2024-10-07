@@ -56,6 +56,31 @@ pub extern "C" fn lb_create_account(
     }
 }
 
+#[no_mangle]
+pub extern "C" fn lb_import_account(
+    lb: *mut Lb, key: *const c_char, api_url: *const c_char,
+) -> LbAccountRes {
+    let lb = rlb(lb);
+    let key = rstr(key);
+    let api_url = unsafe { api_url.as_ref().map(|url| rstr(url)) };
+
+    match lb.import_account(key, api_url) {
+        Ok(account) => {
+            let username = cstring(account.username);
+            LbAccountRes { username, err: ptr::null_mut() }
+        }
+        Err(err) => {
+            let err = Box::into_raw(Box::new(err.into()));
+            LbAccountRes { username: ptr::null_mut(), err }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_logout_and_exit(lb: *mut Lb) {
+    
+}
+
 mod ffi_utils;
 mod lb_c_err;
 mod mem_cleanup;

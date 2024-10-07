@@ -87,6 +87,7 @@ impl Lb {
         Ok(())
     }
 
+    // todo: keychain?
     pub async fn root(&self) -> LbResult<File> {
         let tx = self.ro_tx().await;
         let db = tx.db();
