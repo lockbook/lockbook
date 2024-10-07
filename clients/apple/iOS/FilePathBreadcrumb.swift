@@ -7,23 +7,24 @@ struct FilePathBreadcrumb: View {
     @EnvironmentObject var files: FileService
         
     var body: some View {
-        ScrollViewReader { scrollHelper in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack {
-                    if(files.path.count > 0) {
+        if(files.path.count > 0) {
+            ScrollViewReader { scrollHelper in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
                         breadcrumb
                     }
-                }
-                .onChange(of: files.path.count) { count in
-                    if count > 0 {
-                        withAnimation {
-                            scrollHelper.scrollTo(files.path.count - 1, anchor: .trailing)
+                    .onChange(of: files.path.count) { count in
+                        if count > 0 {
+                            withAnimation {
+                                scrollHelper.scrollTo(files.path.count - 1, anchor: .trailing)
+                            }
                         }
                     }
                 }
             }
+            .padding(.horizontal)
+            .padding(.top)
         }
-        .padding(.horizontal)
     }
     
     var breadcrumb: some View {
