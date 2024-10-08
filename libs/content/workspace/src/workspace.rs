@@ -11,7 +11,7 @@ use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
-use crate::tab::{Tab, TabContent, TabFailure};
+use crate::tab::{SaveRequest, Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
 use lb_rs::{
@@ -540,24 +540,16 @@ impl Workspace {
                     let core = self.core.clone();
                     let update_tx = self.updates_tx.clone();
                     let ctx = self.ctx.clone();
-                    let seq = if let Some(TabContent::Markdown(md)) = &tab.content {
-                        md.editor.buffer.current.seq
-                    } else {
-                        0
-                    };
 
                     thread::spawn(move || {
-                        let content = save_req.content;
-                        let id = save_req.id;
-                        let hmac = save_req.hmac;
+                        let SaveRequest { seq, content, id, old_hmac, safe_write } = save_req;
 
-                        let result = if hmac.is_some() {
-                            core.safe_write(id, hmac, content.clone().into())
-                                .map(|hmac| (content, Some(hmac), Instant::now(), seq))
+                        let result = if safe_write {
+                            core.safe_write(id, old_hmac, content.clone().into())
+                                .map(|new_hmac| (content, Some(new_hmac), Instant::now(), seq))
                         } else {
-                            // todo: what if editor opened a file with no hmac, then we overwrite outside edits here
                             core.write_document(id, content.as_bytes())
-                                .map(|_| (content, hmac, Instant::now(), seq))
+                                .map(|_| (content, None, Instant::now(), seq))
                         };
 
                         // re-read
@@ -786,14 +778,12 @@ impl Workspace {
                         match result {
                             Ok((content, hmac, time_saved, seq)) => {
                                 tab.last_saved = time_saved;
-                                if hmac.is_some() {
-                                    match tab.content.as_mut().unwrap() {
-                                        TabContent::Markdown(md) => {
-                                            md.editor.hmac = hmac;
-                                            md.editor.buffer.saved(seq, content);
-                                        }
-                                        _ => unreachable!(),
+                                match tab.content.as_mut().unwrap() {
+                                    TabContent::Markdown(md) => {
+                                        md.editor.hmac = hmac;
+                                        md.editor.buffer.saved(seq, content);
                                     }
+                                    _ => unreachable!(),
                                 }
                             }
                             Err(err) => {
