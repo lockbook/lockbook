@@ -918,7 +918,7 @@ fn tab_label(
                 .inner;
 
             if !res.has_focus() && !res.lost_focus() {
-                // request focus on the first frame
+                // request focus on the first frame (todo: wrong but works)
                 res.request_focus();
             }
             if res.has_focus() {

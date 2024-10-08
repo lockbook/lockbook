@@ -93,7 +93,7 @@ impl ToolBar {
                         spread: ui.visuals().window_shadow.spread,
                         color: ui.visuals().window_shadow.color.gamma_multiply(0.3),
                     })
-                    .rounding(egui::Rounding::same(20.0))
+                    .rounding(ui.style().visuals.menu_rounding)
                     .show(ui, |ui| self.map_buttons(ui, editor, res, false))
             });
         }
@@ -174,7 +174,7 @@ impl ToolBar {
         };
         let how_on = ui.ctx().animate_bool(egui::Id::from("toolbar_animate"), on);
 
-        let editor_rect = editor.scroll_area_rect;
+        let editor_rect = editor.rect;
 
         let maximized_min_x = (editor_rect.width() - self.width()) / 2.0 + editor_rect.left();
         let minimized_min_x = editor_rect.max.x - (self.width() / self.buttons.len() as f32) - 40.0;
