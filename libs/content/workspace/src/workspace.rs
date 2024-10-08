@@ -778,12 +778,9 @@ impl Workspace {
                         match result {
                             Ok((content, hmac, time_saved, seq)) => {
                                 tab.last_saved = time_saved;
-                                match tab.content.as_mut().unwrap() {
-                                    TabContent::Markdown(md) => {
-                                        md.editor.hmac = hmac;
-                                        md.editor.buffer.saved(seq, content);
-                                    }
-                                    _ => {}
+                                if let TabContent::Markdown(md) = tab.content.as_mut().unwrap() {
+                                    md.editor.hmac = hmac;
+                                    md.editor.buffer.saved(seq, content);
                                 }
                             }
                             Err(err) => {
