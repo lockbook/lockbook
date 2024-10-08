@@ -26,28 +26,30 @@ pub struct Tab {
     pub last_saved: Instant,
 }
 
+#[derive(Debug, Default)]
 pub struct SaveRequest {
     pub id: lb_rs::Uuid,
-    pub hmac: Option<DocumentHmac>,
+    pub old_hmac: Option<DocumentHmac>,
+    pub seq: usize,
     pub content: String,
+    pub safe_write: bool,
 }
 
 impl Tab {
     pub fn make_save_request(&self) -> Option<SaveRequest> {
-        let mut hmac = None;
-        if let Some(tab_content) = &self.content {
-            let maybe_save_content = match tab_content {
-                TabContent::Markdown(md) => {
-                    hmac = md.editor.hmac;
-                    Some(md.editor.buffer.current.text.clone())
-                }
-                TabContent::Svg(svg) => Some(svg.get_minimal_content()),
-                _ => None,
-            };
-            maybe_save_content.map(|content| SaveRequest { id: self.id, content, hmac })
-        } else {
-            None
-        }
+        let tab_content = self.content.as_ref()?;
+        let mut result = SaveRequest { id: self.id, ..Default::default() };
+        match tab_content {
+            TabContent::Markdown(md) => {
+                result.old_hmac = md.editor.hmac;
+                result.seq = md.editor.buffer.current.seq;
+                result.content = md.editor.buffer.current.text.clone();
+                result.safe_write = true;
+            }
+            TabContent::Svg(svg) => result.content = svg.get_minimal_content(),
+            _ => return None,
+        };
+        Some(result)
     }
 
     pub fn is_dirty(&self) -> bool {
