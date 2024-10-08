@@ -1,12 +1,28 @@
 use crossbeam::channel::{Receiver, Sender};
-use lb_rs::model::file::ShareMode;
+use lb_rs::model::file::{self, ShareMode};
 use lb_rs::model::file_metadata::FileType;
-use lb_rs::service::search::{SearchRequest, SearchResult, SearchResultItem, SearchType};
+use lb_rs::service::search::{SearchConfig, SearchResult};
 use std::collections::HashSet;
 use test_utils::*;
 
 const FILE_PATHS: [&str; 6] =
     ["/abc.md", "/abcd.md", "/abcde.md", "/dir/doc1", "/dir/doc2", "/dir/doc3"];
+
+const MATCHED_PATHS_1: (&str, [&str; 3]) = (
+    "a",
+    ["/abc.md", "/abcd.md", "/abcde.md"]
+);
+
+const MATCHED_PATHS_2: (&str, [&str; 3]) = (
+    "dir",
+    ["/dir/doc1", "/dir/doc2", "/dir/doc3"]
+);
+
+const MATCHED_PATHS_3: (&str, [&str; 1]) = (
+    "bbbb",
+    ["/bbbbbbb.md"]
+);
+
 const CONTENT: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus \
 lorem purus, malesuada a dui a, auctor lobortis dolor. Proin ut placerat lectus. Vestibulum massa \
 orci, fermentum id nunc sit amet, scelerisque tempus enim. Duis tristique imperdiet ex. Curabitur \
@@ -32,172 +48,80 @@ const MATCHED_CONTENT_3: (&str, &str) = (
     vel orci eleifend, sed cursus ante porta. Phasellus pellente...",
 );
 
-async fn assert_async_results_path(results: Vec<SearchResult>, paths: Vec<&str>) {
-    assert_eq!(results.len(), paths.len());
-
-    let results_set: HashSet<&str> = results
-        .iter()
-        .map(|result| match result {
-            SearchResult::FileNameMatch { path, .. } => path.as_str(),
-            _ => panic!("Non file name match, search_result: {:?}", result),
-        })
-        .collect();
-    let paths_set: HashSet<&str> = paths.into_iter().collect();
-
-    assert_eq!(results_set, paths_set)
-}
-
 #[tokio::test]
-async fn test_async_name_matches() {
-    todo!();
+async fn search_paths_successfully() {
     let core = test_core_with_account().await;
 
-    for item in FILE_PATHS {
-        core.create_at_path(item).await.unwrap();
+    for file_path in FILE_PATHS {
+        core.create_at_path(file_path).await.unwrap();
     }
 
-    let start_search = core.start_search(SearchType::PathAndContentSearch);
+    let search1 = core.search("", SearchConfig::Paths).await.unwrap();
+    assert_eq!(search1.len(), 0);
 
-    start_search
-        .search_tx
-        .send(SearchRequest::Search { input: "".to_string() })
-        .unwrap();
+    let matched_paths_1: HashSet<_> = MATCHED_PATHS_1.1.iter().collect();
+    let search2 = core.search(MATCHED_PATHS_1.0, SearchConfig::Paths).await.unwrap();
+    assert_eq!(search2.len(), MATCHED_PATHS_1.1.len());
 
-    let (result1, result2) =
-        (start_search.results_rx.recv().unwrap(), start_search.results_rx.recv().unwrap());
-    match (result1, result2) {
-        (SearchResult::StartOfSearch, SearchResult::EndOfSearch) => {}
-        _ => panic!("Results should just be start of search and end of search"),
-    }
-
-    start_search
-        .search_tx
-        .send(SearchRequest::Search { input: "a".to_string() })
-        .unwrap();
-
-    let result = start_search.results_rx.recv().unwrap();
-    match result {
-        SearchResult::StartOfSearch => {}
-        _ => panic!("There should be a start of search, search_result: {:?}", result),
-    }
-
-    let results = vec![
-        start_search.results_rx.recv().unwrap(),
-        start_search.results_rx.recv().unwrap(),
-        start_search.results_rx.recv().unwrap(),
-    ];
-    assert_async_results_path(results, vec!["/abc.md", "/abcd.md", "/abcde.md"]).await;
-
-    let result = start_search.results_rx.recv().unwrap();
-    match result {
-        SearchResult::EndOfSearch => {}
-        _ => panic!("There should be an end of search, search_result: {:?}", result),
-    }
-
-    start_search
-        .search_tx
-        .send(SearchRequest::Search { input: "dir".to_string() })
-        .unwrap();
-
-    let result = start_search.results_rx.recv().unwrap();
-    match result {
-        SearchResult::StartOfSearch => {}
-        _ => panic!("There should be a start of search, search_result: {:?}", result),
-    }
-
-    let results = vec![
-        start_search.results_rx.recv().unwrap(),
-        start_search.results_rx.recv().unwrap(),
-        start_search.results_rx.recv().unwrap(),
-    ];
-    assert_async_results_path(results, vec!["/dir/doc1", "/dir/doc2", "/dir/doc3"]).await;
-
-    let result = start_search.results_rx.recv().unwrap();
-    match result {
-        SearchResult::EndOfSearch => {}
-        _ => panic!("There should be an end of search, search_result: {:?}", result),
-    }
-
-    start_search
-        .search_tx
-        .send(SearchRequest::EndSearch)
-        .unwrap();
-}
-
-async fn assert_async_content_match(
-    search_tx: &Sender<SearchRequest>, results_rx: &Receiver<SearchResult>, input: &str,
-    matched_text: &str,
-) {
-    todo!();
-    search_tx
-        .send(SearchRequest::Search { input: input.to_string() })
-        .unwrap();
-
-    let result = results_rx.recv().unwrap();
-    match result {
-        SearchResult::StartOfSearch => {}
-        _ => panic!("There should be a start of search, search_result: {:?}", result),
-    }
-
-    let result = results_rx.recv().unwrap();
-    match result {
-        SearchResult::FileContentMatches { content_matches, .. } => {
-            assert_eq!(content_matches[0].paragraph, matched_text)
+    for result in search2 {
+        if let SearchResult::PathMatch { path, .. } = result {
+            assert!(matched_paths_1.contains(&path.as_str()), "A path from the first set didn't match.");
+        } else {
+            panic!("Non-path search result.")
         }
-        _ => panic!("There should be a content match, search_result: {:?}", result),
     }
-
-    let result = results_rx.recv().unwrap();
-    match result {
-        SearchResult::EndOfSearch => {}
-        _ => panic!("There should be an end of search, search_result: {:?}", result),
+    
+    let matched_paths_2: HashSet<_> = MATCHED_PATHS_2.1.iter().collect();
+    let search3 = core.search(MATCHED_PATHS_2.0, SearchConfig::Paths).await.unwrap();
+    assert_eq!(search3.len(), MATCHED_PATHS_2.1.len());
+    
+    for result in search3 {
+        if let SearchResult::PathMatch { path, .. } = result {
+            assert!(matched_paths_2.contains(&path.as_str()), "A path from the second set didn't match.");
+        } else {
+            panic!("Non-path search result.")
+        }
     }
 }
 
 #[tokio::test]
-async fn test_async_content_matches() {
+async fn search_content_successfully() {
     let core = test_core_with_account().await;
 
     let file = core.create_at_path("/aaaaaaaaaa.md").await.unwrap();
-    core.write_document(file.id, CONTENT.as_bytes())
-        .await
-        .unwrap();
+    core.write_document(file.id, CONTENT.as_bytes()).await.unwrap();
 
-    let start_search = core.start_search(SearchType::PathAndContentSearch);
+    let search1 = core.search("", SearchConfig::PathsAndDocuments).await.unwrap();
+    assert_eq!(search1.len(), 0);
 
-    assert_async_content_match(
-        &start_search.search_tx,
-        &start_search.results_rx,
-        MATCHED_CONTENT_1.0,
-        MATCHED_CONTENT_1.1,
-    )
-    .await;
-    assert_async_content_match(
-        &start_search.search_tx,
-        &start_search.results_rx,
-        MATCHED_CONTENT_2.0,
-        MATCHED_CONTENT_2.1,
-    )
-    .await;
-    assert_async_content_match(
-        &start_search.search_tx,
-        &start_search.results_rx,
-        MATCHED_CONTENT_3.0,
-        MATCHED_CONTENT_3.1,
-    )
-    .await;
+    let results1 = core.search(MATCHED_CONTENT_1.0, SearchConfig::PathsAndDocuments).await.unwrap();
+    assert_eq!(results1.len(), 1);
+    if let SearchResult::DocumentMatch { content_matches, .. } = &results1[0] {
+        assert!(content_matches[0].paragraph == MATCHED_CONTENT_1.1)
+    } else {
+        panic!("Search result was not a document match.")
+    }
 
-    start_search
-        .search_tx
-        .send(SearchRequest::EndSearch)
-        .unwrap();
+    let results2 = core.search(MATCHED_CONTENT_2.0, SearchConfig::PathsAndDocuments).await.unwrap();
+    assert_eq!(results2.len(), 1);
+    if let SearchResult::DocumentMatch { content_matches, .. } = &results2[0] {
+        assert!(content_matches[0].paragraph == MATCHED_CONTENT_2.1)
+    } else {
+        panic!("Search result was not a document match.")
+    }
+
+    let results3 = core.search(MATCHED_CONTENT_3.0, SearchConfig::PathsAndDocuments).await.unwrap();
+    assert_eq!(results3.len(), 1);
+    if let SearchResult::DocumentMatch { content_matches, .. } = &results3[0] {
+        assert!(content_matches[0].paragraph == MATCHED_CONTENT_3.1)
+    } else {
+        panic!("Search result was not a document match.")
+    }
 }
 
 #[tokio::test]
-async fn test_pending_share_search() {
-    todo!();
+async fn search_exclude_pending_share() {
     let core1 = test_core_with_account().await;
-
     let core2 = test_core_with_account().await;
 
     let file1 = core1.create_at_path("/aaaaaaa.md").await.unwrap();
@@ -223,33 +147,14 @@ async fn test_pending_share_search() {
         .await
         .unwrap();
 
-    let start_search = core2.start_search(SearchType::PathAndContentSearch);
+    let search1 = core2.search("", SearchConfig::PathsAndDocuments).await.unwrap();
+    assert_eq!(search1.len(), 0);
 
-    start_search
-        .search_tx
-        .send(SearchRequest::Search { input: "bbbb".to_string() })
-        .unwrap();
-
-    let result = start_search.results_rx.recv().unwrap();
-    match result {
-        SearchResult::StartOfSearch => {}
-        _ => panic!("There should be a start of search, search_result: {:?}", result),
+    let search2 = core2.search(MATCHED_PATHS_3.0, SearchConfig::PathsAndDocuments).await.unwrap();
+    assert_eq!(search2.len(), 1);
+    if let SearchResult::PathMatch { path, .. } = &search2[0] {
+        assert!(path == MATCHED_PATHS_3.1[0])
+    } else {
+        panic!("Search result was not a path match.")
     }
-
-    let results = vec![start_search.results_rx.recv().unwrap()];
-    assert_async_results_path(results, vec!["/bbbbbbb.md"]).await;
-
-    let result = start_search.results_rx.recv().unwrap();
-    match result {
-        SearchResult::EndOfSearch => {}
-        _ => panic!("There should be an end of search, search_result: {:?}", result),
-    }
-
-    start_search
-        .search_tx
-        .send(SearchRequest::EndSearch)
-        .unwrap();
-
-    let search_results = core2.search_file_paths("bbb").await.unwrap();
-    assert_result_paths(&search_results, &["/bbbbbbb.md"]).await;
 }
