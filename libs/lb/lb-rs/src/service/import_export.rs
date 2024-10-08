@@ -130,7 +130,7 @@ impl Lb {
     }
 
     pub async fn export_file<F: Fn(ExportFileInfo)>(
-        &mut self, id: Uuid, dest: PathBuf, edit: bool, update_status: &Option<F>,
+        &self, id: Uuid, dest: PathBuf, edit: bool, update_status: &Option<F>,
     ) -> LbResult<()> {
         if dest.is_file() {
             return Err(LbErrKind::DiskPathInvalid.into());
