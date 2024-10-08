@@ -783,7 +783,7 @@ impl Workspace {
                                         md.editor.hmac = hmac;
                                         md.editor.buffer.saved(seq, content);
                                     }
-                                    _ => unreachable!(),
+                                    _ => {}
                                 }
                             }
                             Err(err) => {
