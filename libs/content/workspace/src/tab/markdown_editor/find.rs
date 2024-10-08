@@ -41,8 +41,7 @@ impl Find {
             if self.term.is_none() {
                 self.term = Some(String::from(&buffer[buffer.current.selection]));
                 ui.memory_mut(|m| m.request_focus(self.id));
-            }
-            if ui.memory(|m| m.has_focus(self.id)) {
+            } else if ui.memory(|m| m.has_focus(self.id)) {
                 self.term = None;
             } else {
                 ui.memory_mut(|m| m.request_focus(self.id));
