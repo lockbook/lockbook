@@ -30,7 +30,6 @@ const MAX_CONTENT_MATCH_LENGTH: usize = 400;
 const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
 const CONTENT_MATCH_PADDING: usize = 8;
 
-const ACTIVITY_WEIGHT: f32 = 0.2;
 const FUZZY_WEIGHT: f32 = 0.8;
 
 #[derive(Clone, Default)]
@@ -52,6 +51,8 @@ pub enum SearchConfig {
     Documents,
     PathsAndDocuments,
 }
+
+#[derive(Debug)]
 pub enum SearchResult {
     DocumentMatch { id: Uuid, path: String, content_matches: Vec<ContentMatch> },
     PathMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
@@ -74,7 +75,8 @@ impl Lb {
             let lb = self.clone();
 
             tokio::spawn(async move {
-                lb.build_index();
+                lb.build_index().await.unwrap(); // TODO: remove unwrap
+                lb.search.is_building_index.store(false, std::sync::atomic::Ordering::SeqCst);
             });
 
             match cfg {
@@ -109,6 +111,7 @@ impl Lb {
             SearchConfig::PathsAndDocuments => {
                 let docs = &self.search.docs;
                 let mut results = Self::search_paths(docs, input).await?;
+
                 results.extend(Self::search_content(docs, input).await?);
 
                 Ok(results)
@@ -191,11 +194,13 @@ impl Lb {
                         }
                     }
 
-                    return Some(SearchResult::DocumentMatch {
-                        id: doc.id,
-                        path: doc.path.clone(),
-                        content_matches: sub_results,
-                    });
+                    if !sub_results.is_empty() {
+                        return Some(SearchResult::DocumentMatch {
+                            id: doc.id,
+                            path: doc.path.clone(),
+                            content_matches: sub_results,
+                        });
+                    }
                 }
 
                 None
@@ -229,13 +234,16 @@ impl Lb {
                 let is_document = file.is_document();
                 let hmac = file.document_hmac().copied();
                 let has_content = hmac.is_some();
-                all_valid_ids.push(id);
 
-                if is_document && has_content {
-                    if let DocumentType::Text = DocumentType::from_file_name_using_extension(
-                        &tree.name_using_links(&id, self.get_account()?)?,
-                    ) {
-                        doc_ids.insert(id, hmac);
+                if is_document {
+                    all_valid_ids.push(id);
+
+                    if has_content {
+                        if let DocumentType::Text = DocumentType::from_file_name_using_extension(
+                            &tree.name_using_links(&id, self.get_account()?)?,
+                        ) {
+                            doc_ids.insert(id, hmac);
+                        }
                     }
                 }
             }
