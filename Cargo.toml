@@ -5,8 +5,6 @@ resolver="2"
 members = [
 	"libs/lb/lb-rs",
 	"libs/lb/test_utils",
-	"libs/lb/c_interface_v2",
-	"libs/lb/lb_external_interface",
 	"libs/content/editor/egui_editor",
 	"libs/content/workspace",
 	"libs/content/workspace-ffi",
@@ -19,5 +17,6 @@ members = [
 	"clients/admin",
 	"utils/dev-tool",
 	"utils/releaser",
-	"utils/winstaller", "libs/lb/lb-c",
+	"utils/winstaller",
+    "libs/lb/lb-c",
 ]
