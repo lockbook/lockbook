@@ -79,7 +79,10 @@ impl Find {
                     if term.is_empty() {
                         self.match_count = 0;
                     } else {
-                        self.match_count = text.matches(term.as_str()).count();
+                        self.match_count = text
+                            .to_lowercase()
+                            .matches(term.to_lowercase().as_str())
+                            .count();
                     }
                 }
                 ui.add_space(5.);
@@ -125,14 +128,18 @@ impl Editor {
                 start += 1;
             }
             let byte_start = buffer.segs.offset_to_byte(start);
-            let slice_result = &buffer.text[byte_start.0..].find(&term)?;
+            let slice_result = &buffer.text[byte_start.0..]
+                .to_lowercase()
+                .find(&term.to_lowercase())?;
             slice_result + byte_start.0
         } else {
             let mut end = buffer.selection.end();
             if end != 0 {
                 end -= 1;
             }
-            buffer.text[..buffer.segs.offset_to_byte(end).0].rfind(&term)?
+            buffer.text[..buffer.segs.offset_to_byte(end).0]
+                .to_lowercase()
+                .rfind(&term.to_lowercase())?
         };
         let result_end = result_start + term.len();
         Some((
