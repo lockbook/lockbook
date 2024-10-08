@@ -94,6 +94,7 @@ pub enum Event {
     Newline { advance_cursor: bool }, // distinct from replace because it triggers auto-bullet, etc
     Delete { region: Region }, // distinct from replace because it triggers numbered list renumber, etc
     Indent { deindent: bool },
+    Find { term: String, backwards: bool },
     Undo,
     Redo,
     Cut,

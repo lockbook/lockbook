@@ -612,6 +612,11 @@ impl Editor {
                     }));
                 }
             }
+            Event::Find { term, backwards } => {
+                if let Some(result) = self.find(term, backwards) {
+                    operations.push(Operation::Select(result));
+                }
+            }
             Event::Undo => {
                 response |= self.buffer.undo();
             }
