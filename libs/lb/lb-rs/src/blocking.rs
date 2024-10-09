@@ -256,7 +256,7 @@ impl Lb {
             .block_on(self.lb.get_subscription_info())
     }
 
-    pub fn delete_account(&self) -> LbResult<()> {
+    pub fn delete_account(&mut self) -> LbResult<()> {
         self.rt
             .block_on(self.lb.delete_account())
     }
