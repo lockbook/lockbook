@@ -41,12 +41,12 @@ impl Editor {
         self.event.prev_event = Some(event.clone());
         match event {
             Event::Select { region } => {
-                operations.push(Operation::Select(self.region_to_range(region)))
+                operations.push(Operation::Select(self.region_to_range(region)));
             }
             Event::Replace { region, text } => {
                 let range = self.region_to_range(region);
                 operations.push(Operation::Replace(Replace { range, text }));
-                operations.push(Operation::Select(range.start().to_range()))
+                operations.push(Operation::Select(range.start().to_range()));
             }
             Event::ToggleStyle { region, mut style } => {
                 let range = self.region_to_range(region);
@@ -95,7 +95,6 @@ impl Editor {
                     self.apply_style(range, style.clone(), unapply, operations);
 
                     // modify cursor
-                    let mut cursor_modified = false;
                     if current_selection.is_empty() {
                         // toggling style at end of styled range moves cursor to outside of styled range
                         if let Some(text_range) = self
@@ -111,15 +110,8 @@ impl Editor {
                             {
                                 operations
                                     .push(Operation::Select(text_range.range.end().to_range()));
-                                cursor_modified = true;
                             }
                         }
-                    }
-                    if !cursor_modified
-                        && style.node_type() != MarkdownNodeType::Inline(InlineNodeType::Link)
-                    {
-                        // toggling link style leaves cursor where you can type link destination
-                        operations.push(Operation::Select(current_selection));
                     }
                 }
             }
@@ -690,25 +682,38 @@ impl Editor {
     /// Returns true if all text in the current selection has style `style`
     fn should_unapply(&self, style: &MarkdownNode) -> bool {
         let current_selection = self.buffer.current.selection;
-        if current_selection.is_empty() {
-            return false;
-        }
 
+        // look for at least one ancestor that applies the style for each of selection start and end
+        let mut style_applying_ancestor_start = None;
+        let mut style_applying_ancestor_end = None;
         for text_range in &self.bounds.ast {
-            // skip ranges before or after the cursor
-            if text_range.range.end() <= current_selection.start() {
+            // skip ranges before or after the selection
+            if text_range.range.end() < current_selection.start() {
                 continue;
             }
             if current_selection.end() <= text_range.range.start() {
                 break;
             }
 
-            // look for at least one ancestor that applies the style
+            // skip ranges that do not contain the selection start or end
+            let start_contained = text_range
+                .range
+                .contains(current_selection.start(), false, true);
+            let end_contained = text_range
+                .range
+                .contains(current_selection.end(), false, true);
+            if !start_contained && !end_contained {
+                continue;
+            }
+
             let mut found_list_item = false;
             for &ancestor in text_range.ancestors.iter().rev() {
                 // only consider the innermost list item
-                if matches!(style.node_type(), MarkdownNodeType::Block(BlockNodeType::ListItem(..)))
-                {
+                // text in a bulleted sublist of a numbered superlist is not considered having a numbered list style
+                if matches!(
+                    self.ast.nodes[ancestor].node_type.node_type(),
+                    MarkdownNodeType::Block(BlockNodeType::ListItem(..))
+                ) {
                     if found_list_item {
                         continue;
                     } else {
@@ -716,26 +721,35 @@ impl Editor {
                     }
                 }
 
-                // node type must match
-                if self.ast.nodes[ancestor].node_type.node_type() != style.node_type() {
-                    continue;
+                let style_matches =
+                    self.ast.nodes[ancestor].node_type.node_type() == style.node_type();
+                if style_matches {
+                    if start_contained {
+                        style_applying_ancestor_start = Some(ancestor);
+                    }
+                    if end_contained {
+                        style_applying_ancestor_end = Some(ancestor);
+                    }
+                    break;
                 }
-
-                return true;
             }
         }
 
-        false
+        // style-applying ancestor must be the same for both
+        style_applying_ancestor_start.is_some()
+            && style_applying_ancestor_start == style_applying_ancestor_end
     }
 
     /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
     fn apply_style(
-        &self, selection: (DocCharOffset, DocCharOffset), style: MarkdownNode, unapply: bool,
+        &self, range: (DocCharOffset, DocCharOffset), style: MarkdownNode, unapply: bool,
         operations: &mut Vec<Operation>,
     ) {
+        let selection = self.buffer.current.selection;
         if self.buffer.current.text.is_empty() {
-            insert_head(selection.start(), style.clone(), operations);
-            insert_tail(selection.start(), style, operations);
+            insert_head(range.start(), style.clone(), operations);
+            operations.push(Operation::Select(selection));
+            insert_tail(range.start(), style, operations);
             return;
         }
 
@@ -744,12 +758,12 @@ impl Editor {
         let mut end_range = None;
         for text_range in &self.bounds.ast {
             // when at bound, start prefers next
-            if text_range.range.contains_inclusive(selection.start()) {
+            if text_range.range.contains_inclusive(range.start()) {
                 start_range = Some(text_range.clone());
             }
             // when at bound, end prefers previous unless selection is empty
-            if (selection.is_empty() || end_range.is_none())
-                && text_range.range.contains_inclusive(selection.end())
+            if (range.is_empty() || end_range.is_none())
+                && text_range.range.contains_inclusive(range.end())
             {
                 end_range = Some(text_range);
             }
@@ -804,27 +818,23 @@ impl Editor {
         if unapply {
             // if unapplying, tail or dehead node containing start to crop styled region to selection
             if let Some(last_start_ancestor) = last_start_ancestor {
-                if self.ast.nodes[last_start_ancestor].text_range.start() < selection.start() {
-                    let offset = adjust_for_whitespace(
-                        &self.buffer,
-                        selection.start(),
-                        style.node_type(),
-                        true,
-                    );
+                if self.ast.nodes[last_start_ancestor].text_range.start() < range.start() {
+                    let offset =
+                        adjust_for_whitespace(&self.buffer, range.start(), style.node_type(), true);
                     insert_tail(offset, style.clone(), operations);
                 } else {
                     dehead_ast_node(last_start_ancestor, &self.ast, operations);
                 }
             }
+
+            // selection must be updated after between changes to start and end to avoid selecting new head/tail
+            operations.push(Operation::Select(selection));
+
             // if unapplying, head or detail node containing end to crop styled region to selection
             if let Some(last_end_ancestor) = last_end_ancestor {
-                if self.ast.nodes[last_end_ancestor].text_range.end() > selection.end() {
-                    let offset = adjust_for_whitespace(
-                        &self.buffer,
-                        selection.end(),
-                        style.node_type(),
-                        false,
-                    );
+                if self.ast.nodes[last_end_ancestor].text_range.end() > range.end() {
+                    let offset =
+                        adjust_for_whitespace(&self.buffer, range.end(), style.node_type(), false);
                     insert_head(offset, style.clone(), operations);
                 } else {
                     detail_ast_node(last_end_ancestor, &self.ast, operations);
@@ -833,19 +843,19 @@ impl Editor {
         } else {
             // if applying, head start and/or tail end to extend styled region to selection
             if last_start_ancestor.is_none() {
-                let offset = adjust_for_whitespace(
-                    &self.buffer,
-                    selection.start(),
-                    style.node_type(),
-                    false,
-                )
-                .min(selection.end());
+                let offset =
+                    adjust_for_whitespace(&self.buffer, range.start(), style.node_type(), false)
+                        .min(range.end());
                 insert_head(offset, style.clone(), operations)
             }
+
+            // selection must be updated after between changes to start and end to avoid selecting new head/tail
+            operations.push(Operation::Select(selection));
+
             if last_end_ancestor.is_none() {
                 let offset =
-                    adjust_for_whitespace(&self.buffer, selection.end(), style.node_type(), true)
-                        .max(selection.start());
+                    adjust_for_whitespace(&self.buffer, range.end(), style.node_type(), true)
+                        .max(range.start());
                 insert_tail(offset, style.clone(), operations)
             }
         }
