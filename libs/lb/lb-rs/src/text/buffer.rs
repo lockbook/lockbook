@@ -141,6 +141,7 @@ impl Ops {
     }
 
     fn is_undo_checkpoint(&self, idx: usize) -> bool {
+        // start and end of undo history are checkpoints
         if idx == 0 {
             return true;
         }
@@ -148,14 +149,21 @@ impl Ops {
             return true;
         }
 
+        // events separated by enough time are checkpoints
         let meta = &self.meta[idx];
         let prev_meta = &self.meta[idx - 1];
         if meta.timestamp - prev_meta.timestamp > Duration::from_millis(500) {
             return true;
         }
 
-        let op = &self.all[idx - 1];
-        if meta.base != prev_meta.base && matches!(op, Operation::Select(..)) {
+        // immediately after a standalone selection is a checkpoint
+        let mut prev_op_standalone = meta.base != prev_meta.base;
+        if idx > 1 {
+            let prev_prev_meta = &self.meta[idx - 2];
+            prev_op_standalone &= prev_meta.base != prev_prev_meta.base;
+        }
+        let prev_op_selection = matches!(&self.all[idx - 1], Operation::Select(..));
+        if prev_op_standalone && prev_op_selection {
             return true;
         }
 
