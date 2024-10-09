@@ -23,6 +23,7 @@ use serde::Serialize;
 use std::time::{Duration, Instant};
 
 use super::find::Find;
+use super::input::mutation::EventState;
 use super::input::{Location, Region};
 use super::Event;
 
@@ -59,6 +60,7 @@ pub struct Editor {
     pub galleys: Galleys,
     pub capture: CaptureState,
     pub find: Find,
+    pub event: EventState,
 
     // referenced by toolbar for keyboard toggle (todo: cleanup)
     pub is_virtual_keyboard_showing: bool,
@@ -91,6 +93,7 @@ impl Editor {
             galleys: Default::default(),
             capture: Default::default(),
             find: Default::default(),
+            event: Default::default(),
 
             is_virtual_keyboard_showing: false,
 
