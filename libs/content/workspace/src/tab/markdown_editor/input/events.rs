@@ -2,7 +2,7 @@ use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _};
 use crate::tab::markdown_editor::input::Location;
 use crate::tab::markdown_editor::layouts::Annotation;
 use crate::tab::markdown_editor::style::ListItem;
-use crate::tab::{self, markdown_editor, ClipContent, ExtendedInput as _};
+use crate::tab::{self, markdown_editor, ClipContent, ExtendedInput as _, ExtendedOutput as _};
 use egui::{Context, EventFilter};
 use lb_rs::text::buffer;
 use lb_rs::text::offset_types::RangeExt as _;
@@ -179,7 +179,7 @@ impl Editor {
                 } else if response.clicked() {
                     Region::Location(location)
                 } else if response.secondary_clicked() {
-                    // todo: show context menu
+                    ctx.set_context_menu(pos);
                     continue;
                 } else if response.dragged() && modifiers.shift {
                     Region::ToLocation(location)
