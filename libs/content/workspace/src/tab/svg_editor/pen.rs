@@ -3,13 +3,13 @@ use egui::{PointerButton, TouchId, TouchPhase};
 use lb_rs::Uuid;
 use resvg::usvg::Transform;
 use std::time::{Duration, Instant};
-use tracing::{event, trace, warn, Level};
+use tracing::{event, trace, Level};
 use tracing_test::traced_test;
 
 use crate::{tab::ExtendedInput, theme::palette::ThemePalette};
 
 use super::{
-    parser::{self, DiffState, ManipulatorGroupId, Path, Stroke},
+    parser::{self, DiffState, Path, Stroke},
     toolbar::ToolContext,
     util::is_multi_touch,
     InsertElement, PathBuilder,
@@ -50,7 +50,9 @@ impl Pen {
         let mut is_drawing = false;
 
         // clear the previous predicted touches and replace them with the actual touches
-        self.handle_path_event(PathEvent::ClearPredictedTouches, pen_ctx);
+        if self.path_builder.first_predicted_mg.is_some() {
+            self.handle_path_event(PathEvent::ClearPredictedTouches, pen_ctx);
+        }
 
         // handle std egui input events
         ui.input(|r| {
@@ -58,6 +60,7 @@ impl Pen {
                 if let Some(path_event) =
                     self.map_ui_event(IntegrationEvent::Native(e), pen_ctx, &input_state)
                 {
+                    trace!(?path_event, "native events");
                     self.handle_path_event(path_event, pen_ctx);
                     if matches!(path_event, PathEvent::Draw(..)) {
                         is_drawing = true;
@@ -71,6 +74,7 @@ impl Pen {
             if let Some(path_event) =
                 self.map_ui_event(IntegrationEvent::Custom(e), pen_ctx, &input_state)
             {
+                trace!(?path_event, "custom events");
                 self.handle_path_event(path_event, pen_ctx);
                 if matches!(path_event, PathEvent::Draw(..)) {
                     is_drawing = true;
@@ -130,7 +134,7 @@ impl Pen {
                     //     pen_ctx.buffer.master_transform.sx,
                     // );
 
-                    self.path_builder.line_to(payload.pos, &mut p.data);
+                    self.path_builder.cubic_to(payload.pos, &mut p.data);
                     event!(Level::TRACE, "drawing");
                 } else {
                     let mut stroke = Stroke::default();
@@ -177,7 +181,7 @@ impl Pen {
                         //     &mut p.data,
                         //     pen_ctx.buffer.master_transform.sx,
                         // );
-                        self.path_builder.line_to(payload.pos, &mut p.data);
+                        self.path_builder.cubic_to(payload.pos, &mut p.data);
                     }
                 }
             }
@@ -266,7 +270,6 @@ impl Pen {
                 return None;
             }
         }
-        *pen_ctx.allow_viewport_changes = false;
 
         if let IntegrationEvent::Native(&egui::Event::Touch {
             device_id: _,
@@ -276,75 +279,90 @@ impl Pen {
             force,
         }) = e
         {
+            *pen_ctx.allow_viewport_changes = false;
             match phase {
                 TouchPhase::Start => {
-                    if !is_current_path_empty || !inner_rect.contains(pos) {
-                        return None;
+                    if is_current_path_empty && inner_rect.contains(pos) {
+                        return Some(PathEvent::Draw(DrawPayload { pos, force, id: Some(id) }));
                     }
-                    return Some(PathEvent::Draw(DrawPayload { pos, force, id: Some(id) }));
                 }
                 TouchPhase::Move => {
-                    if !inner_rect.contains(pos) || is_current_path_empty {
-                        return None;
+                    if inner_rect.contains(pos) && !is_current_path_empty {
+                        return Some(PathEvent::Draw(DrawPayload { pos, force, id: Some(id) }));
                     }
-                    return Some(PathEvent::Draw(DrawPayload { pos, force, id: Some(id) }));
                 }
                 TouchPhase::End => {
-                    if is_current_path_empty {
-                        return None;
+                    if !is_current_path_empty {
+                        return Some(PathEvent::End);
                     }
-                    return Some(PathEvent::End);
                 }
                 TouchPhase::Cancel => {
-                    if !inner_rect.contains(pos) {
-                        return None;
+                    if inner_rect.contains(pos) {
+                        return Some(PathEvent::CancelStroke());
                     }
-                    return Some(PathEvent::CancelStroke());
                 }
             }
         }
 
         if let IntegrationEvent::Custom(&crate::Event::PredictedTouch { id, force, pos }) = e {
-            if !inner_rect.contains(pos) || is_current_path_empty {
-                return None;
+            *pen_ctx.allow_viewport_changes = false;
+            if inner_rect.contains(pos) && is_current_path_empty {
+                return Some(PathEvent::PredictedDraw(DrawPayload { pos, force, id: Some(id) }));
             }
-
-            return Some(PathEvent::PredictedDraw(DrawPayload { pos, force, id: Some(id) }));
         }
 
         if pen_ctx.is_touch_frame {
             *pen_ctx.allow_viewport_changes = true;
+            // shouldn't handle non touch events on touch devices to avoid breaking ipad hover.
             return None;
         }
 
-        if let IntegrationEvent::Native(egui::Event::PointerMoved(pos)) = e {
-            if self.path_builder.original_points.is_empty() {
+        // todo figure out if there's common ground between multi touch and zoom/scroll events
+        // it would to handle viewport lock for the touch and pointer events in the same spot
+        if matches!(e, IntegrationEvent::Native(&egui::Event::Zoom(_)))
+            || matches!(e, IntegrationEvent::Native(&egui::Event::Scroll(_)))
+        {
+            if is_current_path_empty {
+                *pen_ctx.allow_viewport_changes = true;
+                return None;
+            } else {
+                *pen_ctx.allow_viewport_changes = false;
                 return None;
             }
-
-            if !inner_rect.contains(*pos) {
-                return Some(PathEvent::End);
-            } else if pen_ctx.buffer.elements.contains_key(&self.current_id) {
-                return Some(PathEvent::Draw(DrawPayload { pos: *pos, force: None, id: None }));
-            }
         }
-        if let IntegrationEvent::Native(egui::Event::PointerButton {
+
+        if let IntegrationEvent::Native(&egui::Event::PointerButton {
             pos,
             button,
             pressed,
             modifiers: _,
         }) = e
         {
-            if !inner_rect.contains(*pos) || *button != PointerButton::Primary {
+            *pen_ctx.allow_viewport_changes = false;
+            if button != PointerButton::Primary {
                 return None;
             }
 
-            if *pressed {
-                return Some(PathEvent::Draw(DrawPayload { pos: *pos, force: None, id: None }));
-            } else {
-                return Some(PathEvent::End);
+            // equivalent to touch started
+            if pressed {
+                if is_current_path_empty && inner_rect.contains(pos) {
+                    return Some(PathEvent::Draw(DrawPayload { pos, force: None, id: None }));
+                }
+                // equivalent to touch end
+            } else if !is_current_path_empty {
+                {
+                    return Some(PathEvent::End);
+                }
             }
         }
+
+        if let IntegrationEvent::Native(&egui::Event::PointerMoved(pos)) = e {
+            *pen_ctx.allow_viewport_changes = false;
+            if inner_rect.contains(pos) && !is_current_path_empty {
+                return Some(PathEvent::Draw(DrawPayload { pos, force: None, id: None }));
+            }
+        }
+
         *pen_ctx.allow_viewport_changes = true;
         None
     }
