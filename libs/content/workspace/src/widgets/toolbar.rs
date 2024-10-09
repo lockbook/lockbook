@@ -251,11 +251,30 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                     },
                 },
                 ToolbarButton {
+                    icon: Icon::STRIKETHROUGH,
+                    id: "strikethrough".to_string(),
+                    callback: |ui, _, _| {
+                        ui.ctx().push_markdown_event(Event::ToggleStyle {
+                            region: Region::Selection,
+                            style: MarkdownNode::Inline(InlineNode::Strikethrough),
+                        });
+                    },
+                },
+                ToolbarButton {
                     icon: Icon::NUMBER_LIST,
                     id: "number_list".to_string(),
                     callback: |ui, _, _| {
                         ui.ctx().push_markdown_event(Event::toggle_block_style(
                             BlockNode::ListItem(ListItem::Numbered(1), 0),
+                        ))
+                    },
+                },
+                ToolbarButton {
+                    icon: Icon::BULLET_LIST,
+                    id: "bullet_list".to_string(),
+                    callback: |ui, _, _| {
+                        ui.ctx().push_markdown_event(Event::toggle_block_style(
+                            BlockNode::ListItem(ListItem::Bulleted, 0),
                         ))
                     },
                 },
@@ -266,6 +285,20 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                         ui.ctx().push_markdown_event(Event::toggle_block_style(
                             BlockNode::ListItem(ListItem::Todo(false), 0),
                         ))
+                    },
+                },
+                ToolbarButton {
+                    icon: Icon::LINK,
+                    id: "link".to_string(),
+                    callback: |ui, _, _| {
+                        ui.ctx().push_markdown_event(Event::ToggleStyle {
+                            region: Region::Selection,
+                            style: MarkdownNode::Inline(InlineNode::Link(
+                                LinkType::Inline,
+                                "".into(),
+                                "".into(),
+                            )),
+                        });
                     },
                 },
                 ToolbarButton {
