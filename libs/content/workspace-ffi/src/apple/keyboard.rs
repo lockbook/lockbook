@@ -322,9 +322,18 @@ impl NSKeys {
             KeypadDivide => egui::Key::Slash,
             KeypadEnter => egui::Key::Enter,
             KeypadMinus => egui::Key::Minus,
-            Apostrophe | Comma | BackApostrophe | Backslash | CapsLock | Command | Control
-            | Equals | FrontSlash | LeftBracket | Minus | Option | Period | RightBracket
-            | Semicolon | Shift | Fn => return None,
+            Apostrophe => egui::Key::Quote,
+            BackApostrophe => egui::Key::Backtick,
+            Comma => egui::Key::Comma,
+            Backslash => egui::Key::Backslash,
+            Equals => egui::Key::Equals,
+            FrontSlash => egui::Key::Slash,
+            LeftBracket => egui::Key::OpenBracket,
+            RightBracket => egui::Key::CloseBracket,
+            Minus => egui::Key::Minus,
+            Period => egui::Key::Period,
+            Semicolon => egui::Key::Semicolon,
+            CapsLock | Command | Control | Option | Shift | Fn => return None,
         };
 
         Some(key)

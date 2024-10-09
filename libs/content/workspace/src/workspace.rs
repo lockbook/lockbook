@@ -1,4 +1,4 @@
-use egui::{vec2, Context, EventFilter, Image, TextWrapMode, ViewportCommand};
+use egui::{vec2, Context, EventFilter, Image, Key, Modifiers, TextWrapMode, ViewportCommand};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -237,15 +237,6 @@ impl Workspace {
             }
         }
         false
-    }
-
-    pub fn goto_tab(&mut self, i: usize) {
-        if i == 0 || self.tabs.is_empty() {
-            return;
-        }
-        let n_tabs = self.tabs.len();
-        self.active_tab = if i == 9 || i >= n_tabs { n_tabs - 1 } else { i - 1 };
-        self.active_tab_changed = true;
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
@@ -632,7 +623,21 @@ impl Workspace {
     }
 
     fn process_keys(&mut self) {
-        const COMMAND: egui::Modifiers = egui::Modifiers::COMMAND;
+        const COMMAND: Modifiers = Modifiers::COMMAND;
+        const SHIFT: Modifiers = Modifiers::SHIFT;
+        const NUM_KEYS: [Key; 10] = [
+            Key::Num0,
+            Key::Num1,
+            Key::Num2,
+            Key::Num3,
+            Key::Num4,
+            Key::Num5,
+            Key::Num6,
+            Key::Num7,
+            Key::Num8,
+            Key::Num9,
+        ];
+
         // Ctrl-N pressed while new file modal is not open.
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::N)) {
             self.create_file(false);
@@ -656,33 +661,44 @@ impl Workspace {
             self.out.selected_file = self.current_tab().map(|tab| tab.id);
         }
 
-        // Ctrl-{1-9} to easily navigate tabs (9 will always go to the last tab).
-        let mut set_title = None;
-        self.ctx.clone().input_mut(|input| {
-            for i in 1..10 {
-                if input.consume_key_exact(COMMAND, NUM_KEYS[i - 1]) {
-                    self.goto_tab(i);
-                    // Remove any text event that's also present this frame so that it doesn't show up
-                    // in the editor.
-                    if let Some(index) = input
-                        .events
-                        .iter()
-                        .position(|evt| *evt == egui::Event::Text(i.to_string()))
-                    {
-                        input.events.remove(index);
-                    }
-                    if let Some((name, id)) =
-                        self.current_tab().map(|tab| (tab.name.clone(), tab.id))
-                    {
-                        set_title = Some(name);
-                        self.out.selected_file = Some(id);
-                    };
-                    break;
+        // tab navigation
+        let mut goto_tab = None;
+        self.ctx.input_mut(|input| {
+            // Cmd+1 through Cmd+8 to select tab by cardinal index
+            for (i, &key) in NUM_KEYS.iter().enumerate().skip(1).take(8) {
+                if input.consume_key_exact(COMMAND, key) {
+                    goto_tab = Some(i.min(self.tabs.len()) - 1);
                 }
             }
+
+            // Cmd+9 to go to last tab
+            if input.consume_key_exact(COMMAND, Key::Num9) {
+                goto_tab = Some(self.tabs.len() - 1);
+            }
+
+            // Cmd+Shift+[ to go to previous tab
+            if input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket) && self.active_tab != 0 {
+                goto_tab = Some(self.active_tab - 1);
+            }
+
+            // Cmd+Shift+] to go to next tab
+            if input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket)
+                && self.active_tab != self.tabs.len() - 1
+            {
+                goto_tab = Some(self.active_tab + 1);
+            }
         });
-        if let Some(title) = set_title {
-            self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
+        if let Some(goto_tab) = goto_tab {
+            if self.active_tab != goto_tab {
+                self.active_tab_changed = true;
+            }
+
+            self.active_tab = goto_tab;
+
+            if let Some((name, id)) = self.current_tab().map(|tab| (tab.name.clone(), tab.id)) {
+                self.ctx.send_viewport_cmd(ViewportCommand::Title(name));
+                self.out.selected_file = Some(id);
+            };
         }
     }
 
@@ -1017,18 +1033,6 @@ fn tab_label(
 
     lbl_resp
 }
-
-pub const NUM_KEYS: [egui::Key; 9] = [
-    egui::Key::Num1,
-    egui::Key::Num2,
-    egui::Key::Num3,
-    egui::Key::Num4,
-    egui::Key::Num5,
-    egui::Key::Num6,
-    egui::Key::Num7,
-    egui::Key::Num8,
-    egui::Key::Num9,
-];
 
 // The only difference from count_and_consume_key is that here we use matches_exact instead of matches_logical,
 // preserving the behavior before egui 0.25.0. The documentation for the 0.25.0 count_and_consume_key says
