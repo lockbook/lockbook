@@ -1,10 +1,8 @@
 use std::{collections::VecDeque, time::Instant};
 
-use bezier_rs::{Bezier, Identifier, ManipulatorGroup, Subpath};
+use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;
 use resvg::usvg::Transform;
-use serde::de::IntoDeserializer;
-use tracing::{trace, warn};
 
 use super::parser::ManipulatorGroupId;
 
@@ -174,18 +172,6 @@ impl PathBuilder {
         let tolerance = 2.0;
         distance < tolerance
     }
-}
-
-pub fn get_anchor_avg_displacement(
-    path: &Subpath<ManipulatorGroupId>, master_transform: f32,
-) -> f64 {
-    let mut displacement_sum = 0.0;
-    for (i, mg) in path.manipulator_groups().iter().enumerate() {
-        if let Some(next_mg) = path.manipulator_groups().get(i + 1) {
-            displacement_sum += next_mg.anchor.distance(mg.anchor) / master_transform as f64;
-        }
-    }
-    displacement_sum / path.manipulator_groups().len() as f64
 }
 
 struct Line {

@@ -3,7 +3,7 @@ use egui::{PointerButton, TouchId, TouchPhase};
 use lb_rs::Uuid;
 use resvg::usvg::Transform;
 use std::time::{Duration, Instant};
-use tracing::{event, trace, warn, Level};
+use tracing::{event, trace, Level};
 use tracing_test::traced_test;
 
 use crate::{tab::ExtendedInput, theme::palette::ThemePalette};
@@ -60,7 +60,7 @@ impl Pen {
                 if let Some(path_event) =
                     self.map_ui_event(IntegrationEvent::Native(e), pen_ctx, &input_state)
                 {
-                    warn!(?path_event, "native events");
+                    trace!(?path_event, "native events");
                     self.handle_path_event(path_event, pen_ctx);
                     if matches!(path_event, PathEvent::Draw(..)) {
                         is_drawing = true;
@@ -87,7 +87,7 @@ impl Pen {
     pub fn end_path(&mut self, pen_ctx: &mut ToolContext, is_snapped: bool) {
         if let Some(parser::Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id)
         {
-            warn!("found path to end");
+            trace!("found path to end");
             self.path_builder.clear();
 
             let path = &mut path.data;
@@ -190,7 +190,7 @@ impl Pen {
                 self.maybe_snap_started = None;
             }
             PathEvent::CancelStroke() => {
-                warn!("canceling stroke");
+                trace!("canceling stroke");
                 self.cancel_path(pen_ctx);
             }
             PathEvent::PredictedDraw(payload) => {
@@ -198,11 +198,11 @@ impl Pen {
                     pen_ctx.buffer.elements.get_mut(&self.current_id)
                 {
                     let maybe_new_mg = self.path_builder.line_to(payload.pos, &mut p.data);
-                    warn!(maybe_new_mg, "adding predicted touch to the path at");
+                    trace!(maybe_new_mg, "adding predicted touch to the path at");
 
                     if self.path_builder.first_predicted_mg.is_none() && maybe_new_mg.is_some() {
                         self.path_builder.first_predicted_mg = maybe_new_mg;
-                        warn!(maybe_new_mg, "setting start of mg");
+                        trace!(maybe_new_mg, "setting start of mg");
                     }
                 }
             }
@@ -212,16 +212,15 @@ impl Pen {
                         pen_ctx.buffer.elements.get_mut(&self.current_id)
                     {
                         for n in (first_predicted_mg..p.data.manipulator_groups().len()).rev() {
-                            warn!(n, "removing predicted touch at ");
+                            trace!(n, "removing predicted touch at ");
                             p.data.remove_manipulator_group(n);
                         }
                         self.path_builder.first_predicted_mg = None;
                     } else {
-                        warn!("no path found ");
+                        trace!("no path found ");
                     }
                 }
             }
-            PathEvent::Break => {}
         }
     }
 
@@ -259,14 +258,14 @@ impl Pen {
         if input_state.is_multi_touch {
             if let Some(first_point_frame) = self.path_builder.first_point_frame {
                 if Instant::now() - first_point_frame < Duration::from_millis(500) {
-                    warn!("drew stroke for a bit but then shifted to a vw change");
+                    trace!("drew stroke for a bit but then shifted to a vw change");
                     *pen_ctx.allow_viewport_changes = true;
                     return Some(PathEvent::CancelStroke());
                 }
             }
 
             if is_current_path_empty {
-                warn!("path is empty on a multi touch allow zoom");
+                trace!("path is empty on a multi touch allow zoom");
                 *pen_ctx.allow_viewport_changes = true;
                 return None;
             }
@@ -289,25 +288,25 @@ impl Pen {
             match phase {
                 TouchPhase::Start => {
                     if is_current_path_empty && inner_rect.contains(pos) {
-                        warn!("start path");
+                        trace!("start path");
                         return Some(PathEvent::Draw(DrawPayload { pos, force, id: Some(id) }));
                     }
                 }
                 TouchPhase::Move => {
                     if inner_rect.contains(pos) && !is_current_path_empty {
-                        warn!("continue draw path");
+                        trace!("continue draw path");
                         return Some(PathEvent::Draw(DrawPayload { pos, force, id: Some(id) }));
                     }
                 }
                 TouchPhase::End => {
                     if !is_current_path_empty {
-                        warn!("end path");
+                        trace!("end path");
                         return Some(PathEvent::End);
                     }
                 }
                 TouchPhase::Cancel => {
                     if inner_rect.contains(pos) {
-                        warn!("cancel path");
+                        trace!("cancel path");
                         return Some(PathEvent::CancelStroke());
                     }
                 }
@@ -318,7 +317,7 @@ impl Pen {
             *pen_ctx.allow_viewport_changes = false;
             if inner_rect.contains(pos) && !is_current_path_empty && has_same_touch_id_as_curr_path
             {
-                warn!("draw predicted");
+                trace!("draw predicted");
                 return Some(PathEvent::PredictedDraw(DrawPayload { pos, force, id: Some(id) }));
             }
         }
@@ -420,7 +419,6 @@ pub enum PathEvent {
     ClearPredictedTouches,
     End,
     CancelStroke(),
-    Break,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -7,7 +7,6 @@ use egui::Id;
 use lb_rs::{DocumentHmac, File, FileType, Uuid};
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
-use svg_editor::Pen;
 
 pub mod image_viewer;
 pub mod markdown_editor;
