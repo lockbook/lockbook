@@ -25,11 +25,13 @@ pub type ImageHrefStringResolverFn =
 
 impl Identifier for ManipulatorGroupId {
     fn new() -> Self {
-        ManipulatorGroupId
+        ManipulatorGroupId { is_predicted: false }
     }
 }
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct ManipulatorGroupId;
+pub struct ManipulatorGroupId {
+    pub is_predicted: bool,
+}
 
 #[derive(Default)]
 pub struct Buffer {

@@ -166,7 +166,7 @@ fn tesselate_element(
 
             if let Some(stroke) = p.stroke {
                 if p.data.is_empty() {
-                    return None;
+                    return Some((*id, RenderOp::Delete));
                 }
                 let stroke_color = if dark_mode { stroke.color.1 } else { stroke.color.0 }
                     .linear_multiply(p.opacity);

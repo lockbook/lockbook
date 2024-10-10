@@ -96,6 +96,7 @@ pub enum Event {
     Markdown(markdown_editor::Event),
     Drop { content: Vec<ClipContent>, position: egui::Pos2 },
     Paste { content: Vec<ClipContent>, position: egui::Pos2 },
+    PredictedTouch { id: egui::TouchId, force: Option<f32>, pos: egui::Pos2 },
 }
 
 #[derive(Debug, Clone)]

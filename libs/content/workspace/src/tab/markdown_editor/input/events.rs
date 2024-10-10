@@ -80,6 +80,7 @@ impl Editor {
                         }
                     }
                 }
+                crate::Event::PredictedTouch { .. } => {}
             }
         }
         result
