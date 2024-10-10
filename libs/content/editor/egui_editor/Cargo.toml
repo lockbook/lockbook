@@ -1,6 +1,6 @@
 [package]
 name = "egui_editor"
-version = "0.9.10"
+version = "0.9.11"
 edition = "2021"
 
 [lib]
