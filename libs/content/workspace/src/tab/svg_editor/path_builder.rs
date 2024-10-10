@@ -67,96 +67,6 @@ impl PathBuilder {
         }
     }
 
-    fn kochanek_bartels_to_bezier(
-        &mut self, p0: DVec2, p1: DVec2, p2: DVec2, dest: DVec2,
-    ) -> Bezier {
-        let tension = 0.0; // Adjust to control tightness
-        let continuity = 0.0; // Adjust to control smoothness between segments
-        let bias = 0.0; // Adjust to control curvature near points
-
-        let p3 = dest;
-
-        // Calculate tangents using the Kochanek-Bartels spline formula
-        let d1 = (1.0 - tension) * (1.0 + continuity) * (1.0 + bias) * (p1.x - p0.x) / 2.0
-            + (1.0 - tension) * (1.0 - continuity) * (1.0 - bias) * (p2.x - p1.x) / 2.0;
-        let d2 = (1.0 - tension) * (1.0 - continuity) * (1.0 + bias) * (p2.x - p1.x) / 2.0
-            + (1.0 - tension) * (1.0 + continuity) * (1.0 - bias) * (p3.x - p2.x) / 2.0;
-
-        let tangent1 = DVec2 {
-            x: d1,
-            y: (1.0 - tension) * (1.0 + continuity) * (1.0 + bias) * (p1.y - p0.y) / 2.0
-                + (1.0 - tension) * (1.0 - continuity) * (1.0 - bias) * (p2.y - p1.y) / 2.0,
-        };
-        let tangent2 = DVec2 {
-            x: d2,
-            y: (1.0 - tension) * (1.0 - continuity) * (1.0 + bias) * (p2.y - p1.y) / 2.0
-                + (1.0 - tension) * (1.0 + continuity) * (1.0 - bias) * (p3.y - p2.y) / 2.0,
-        };
-
-        // Define the control points for the cubic Bézier curve
-        let p0_bez = p1;
-        let p1_bez = DVec2 { x: p1.x + tangent1.x / 3.0, y: p1.y + tangent1.y / 3.0 };
-        let p2_bez = DVec2 { x: p2.x - tangent2.x / 3.0, y: p2.y - tangent2.y / 3.0 };
-        let p3_bez = p2;
-
-        Bezier::from_cubic_coordinates(
-            p0_bez.x, p0_bez.y, p1_bez.x, p1_bez.y, p2_bez.x, p2_bez.y, p3_bez.x, p3_bez.y,
-        )
-    }
-
-    pub fn cubic_to(
-        &mut self, dest: egui::Pos2, path: &mut Subpath<ManipulatorGroupId>,
-    ) -> Option<usize> {
-        if self.is_redundant_point(path, dest) {
-            return None;
-        }
-        let bez = match path.manipulator_groups().len() {
-            0 => Bezier::from_linear_dvec2(
-                DVec2 { x: dest.x.into(), y: dest.y.into() },
-                DVec2 { x: dest.x as f64 + 1.0, y: dest.y as f64 + 1.0 },
-            ),
-            1 | 2 => {
-                let p0 = path
-                    .manipulator_groups()
-                    .get(path.manipulator_groups().len() - 1)
-                    .unwrap();
-                Bezier::from_linear_coordinates(
-                    p0.anchor.x,
-                    p0.anchor.y,
-                    dest.x.into(),
-                    dest.y.into(),
-                )
-            }
-            _ => {
-                let p2 = path
-                    .manipulator_groups()
-                    .get(path.manipulator_groups().len() - 1)
-                    .unwrap()
-                    .anchor;
-                let p1 = path
-                    .manipulator_groups()
-                    .get(path.manipulator_groups().len() - 2)
-                    .unwrap()
-                    .anchor;
-
-                let p0 = path
-                    .manipulator_groups()
-                    .get(path.manipulator_groups().len() - 3)
-                    .unwrap()
-                    .anchor;
-
-                self.kochanek_bartels_to_bezier(
-                    p0,
-                    p1,
-                    p2,
-                    DVec2 { x: dest.x.into(), y: dest.y.into() },
-                )
-            }
-        };
-        path.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
-        Some(path.manipulator_groups().len() - 1)
-    }
-
     pub fn snap(&mut self, master_transform: Transform, path: &mut Subpath<ManipulatorGroupId>) {
         let perim = path.length(None) as f32;
         let mut tolerance = perim * 0.04;
@@ -261,8 +171,7 @@ impl PathBuilder {
         let distance = last_point
             .anchor
             .distance(glam::DVec2 { x: point.x as f64, y: point.y as f64 });
-        let tolerance = 1.0;
-        warn!(?distance, "distance");
+        let tolerance = 2.0;
         distance < tolerance
     }
 }

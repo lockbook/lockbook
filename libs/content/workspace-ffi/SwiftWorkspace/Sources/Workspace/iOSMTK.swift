@@ -715,6 +715,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
 
     init(mtkView: iOSMTK) {
         self.mtkView = mtkView
+
         super.init(frame: .infinite)
 
         isMultipleTouchEnabled = true
@@ -1149,13 +1150,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                 touches_predicted(wsHandle, value, Float(location.x), Float(location.y), Float(force))
             }
             
-            for touch in event!.coalescedTouches(for: touch)! {
-                let location = touch.location(in: self)
-                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-                touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
-            }
+            // for touch in event!.coalescedTouches(for: touch)! {
+            //     let location = touch.location(in: self)
+            //     let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+            //     touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+            // }
 
-            // touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+            touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
 
         }
 
