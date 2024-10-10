@@ -1,6 +1,6 @@
 [package]
 name = "c_interface_v2"
-version = "0.9.10"
+version = "0.9.11"
 edition = "2021"
 
 [lib]
