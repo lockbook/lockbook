@@ -2,8 +2,8 @@ use crate::tab::markdown_editor::bounds::BoundExt as _;
 use crate::tab::{markdown_editor, ExtendedInput};
 use egui::os::OperatingSystem;
 use egui::{
-    scroll_area, Context, CursorIcon, EventFilter, Frame, Id, Margin, Rect, ScrollArea, Sense,
-    Stroke, Ui, Vec2,
+    scroll_area, Context, CursorIcon, EventFilter, Frame, Id, Margin, Pos2, Rect, ScrollArea,
+    Sense, Stroke, Ui, Vec2,
 };
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
@@ -171,10 +171,10 @@ impl Editor {
                             .vertical_centered(|ui| {
                                 // clip elements width
                                 let max_width = 800.0;
-                                if ui.max_rect().width() > max_width + 15. {
+                                if ui.max_rect().width() > max_width {
                                     ui.set_max_width(max_width);
                                 } else {
-                                    ui.set_max_width(ui.max_rect().width() - 15.);
+                                    ui.set_max_width(ui.max_rect().width());
                                 }
 
                                 // register widget id
@@ -189,10 +189,10 @@ impl Editor {
                             .inner;
 
                         // fill available space / end of text padding
-                        let inner_content_height = ui.cursor().min.y + prev_scroll_area_offset.y;
-                        let padding_height = if inner_content_height < max_rect.height() {
+                        let min_rect = ui.min_rect();
+                        let padding_height = if min_rect.height() < max_rect.height() {
                             // fill available space
-                            max_rect.height() - inner_content_height
+                            max_rect.height() - min_rect.height()
                         } else {
                             // end of text padding
                             max_rect.height() / 2.
@@ -212,13 +212,6 @@ impl Editor {
                         if padding_response.hovered() {
                             ui.ctx().set_cursor_icon(CursorIcon::Text);
                         }
-
-                        ui.painter().rect(
-                            padding_response.rect,
-                            egui::Rounding::ZERO,
-                            egui::Color32::BLUE,
-                            Stroke::NONE,
-                        );
 
                         resp
                     });
