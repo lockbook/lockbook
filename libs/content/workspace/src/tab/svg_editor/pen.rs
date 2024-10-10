@@ -122,13 +122,16 @@ impl Pen {
                     self.path_builder.first_point_frame = Some(Instant::now());
                 }
 
-                let has_same_touch_id_as_curr_path = payload.id.is_some_and(|curr_id| {
+                let has_same_touch_id_as_curr_path = if let Some(curr_id) = payload.id {
                     if let Some(first_point_touch_id) = self.path_builder.first_point_touch_id {
                         first_point_touch_id == curr_id
                     } else {
-                        false
+                        true
                     }
-                });
+                } else {
+                    true
+                };
+
                 if !has_same_touch_id_as_curr_path {
                     self.cancel_path(pen_ctx);
                 }

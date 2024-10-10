@@ -96,8 +96,6 @@ impl SVGEditor {
         let span = span!(Level::TRACE, "showing canvas widget", frame);
         let _ = span.enter();
 
-        // ui.input(|r| println!("{:#?}", r.events));
-
         self.painter
             .set_layer_id(egui::LayerId::new(egui::Order::Debug, "canvas_widgets".into()));
         self.process_events(ui);
@@ -120,21 +118,6 @@ impl SVGEditor {
                 false
             };
 
-        // for (id, el) in self.buffer.elements.iter() {
-        //     if el.deleted() {
-        //         continue;
-        //     }
-        //     match el {
-        //         parser::Element::Path(path) => {
-        //             println!(
-        //                 "avg_distance for path {} : {} ",
-        //                 id,
-        //                 get_anchor_avg_displacement(&path.data, self.buffer.master_transform.sx)
-        //             )
-        //         }
-        //         _ => {}
-        //     }
-        // }
         Response { request_save: needs_save_and_frame_is_cheap }
     }
 
