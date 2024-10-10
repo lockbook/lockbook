@@ -134,7 +134,6 @@ impl Pen {
 
                     event!(Level::TRACE, "starting a new path");
 
-                    // pen_ctx.buffer.elements.insert(
                     let el = parser::Element::Path(Path {
                         data: Subpath::new(vec![], false),
                         visibility: resvg::usvg::Visibility::Visible,
@@ -148,12 +147,7 @@ impl Pen {
                         diff_state: DiffState::default(),
                         deleted: false,
                     });
-                    // );
 
-                    // this is a highlighter insert at top z-index
-                    // if self.active_opacity < 1.0 {
-                    // pen_ctx.buffer.elements.insert(self.current_id, el);
-                    // } else {
                     pen_ctx
                         .buffer
                         .elements
