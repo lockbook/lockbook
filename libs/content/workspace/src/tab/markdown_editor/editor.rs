@@ -156,8 +156,6 @@ impl Editor {
                 style.spacing.scroll = egui::style::ScrollStyle::solid();
             });
         }
-        let available_size = ui.available_size();
-
         Frame::canvas(ui.style())
             .stroke(Stroke::NONE)
             .outer_margin(Margin::same(2.))
@@ -167,6 +165,8 @@ impl Editor {
                     .id_source(self.file_id)
                     .show(ui, |ui| {
                         ui.spacing_mut().item_spacing = Vec2::ZERO;
+                        let max_rect = ui.max_rect();
+
                         let resp = ui
                             .vertical_centered(|ui| {
                                 // clip elements width
@@ -174,7 +174,7 @@ impl Editor {
                                 if ui.max_rect().width() > max_width {
                                     ui.set_max_width(max_width);
                                 } else {
-                                    ui.set_max_width(ui.max_rect().width() - 15.);
+                                    ui.set_max_width(ui.max_rect().width());
                                 }
 
                                 // register widget id
@@ -189,16 +189,16 @@ impl Editor {
                             .inner;
 
                         // fill available space / end of text padding
-                        let inner_content_height = ui.cursor().min.y + prev_scroll_area_offset.y;
-                        let padding_height = if inner_content_height < available_size.y {
+                        let min_rect = ui.min_rect();
+                        let padding_height = if min_rect.height() < max_rect.height() {
                             // fill available space
-                            available_size.y - inner_content_height
+                            max_rect.height() - min_rect.height()
                         } else {
                             // end of text padding
-                            available_size.y / 2.
+                            max_rect.height() / 2.
                         };
                         let padding_response = ui.allocate_response(
-                            Vec2::new(available_size.x, padding_height),
+                            Vec2::new(max_rect.width(), padding_height),
                             Sense { click: true, drag: false, focusable: false },
                         );
                         if padding_response.clicked() {
