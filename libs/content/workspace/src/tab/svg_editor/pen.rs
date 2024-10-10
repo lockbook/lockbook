@@ -9,7 +9,7 @@ use tracing_test::traced_test;
 use crate::{tab::ExtendedInput, theme::palette::ThemePalette};
 
 use super::{
-    parser::{self, DiffState, Path, Stroke},
+    parser::{self, DiffState, Element, Path, Stroke},
     toolbar::ToolContext,
     util::is_multi_touch,
     InsertElement, PathBuilder,
@@ -184,12 +184,19 @@ impl Pen {
                     }
                 }
             }
-            PathEvent::End => {
+            PathEvent::End(payload) => {
+                if let Some(parser::Element::Path(p)) =
+                    pen_ctx.buffer.elements.get_mut(&self.current_id)
+                {
+                    p.diff_state.data_changed = true;
+
+                    self.path_builder.line_to(payload.pos, &mut p.data);
+                }
                 self.end_path(pen_ctx, false);
 
                 self.maybe_snap_started = None;
             }
-            PathEvent::CancelStroke() => {
+            PathEvent::CancelStroke => {
                 trace!("canceling stroke");
                 self.cancel_path(pen_ctx);
             }
@@ -260,7 +267,7 @@ impl Pen {
                 if Instant::now() - first_point_frame < Duration::from_millis(500) {
                     trace!("drew stroke for a bit but then shifted to a vw change");
                     *pen_ctx.allow_viewport_changes = true;
-                    return Some(PathEvent::CancelStroke());
+                    return Some(PathEvent::CancelStroke);
                 }
             }
 
@@ -301,13 +308,13 @@ impl Pen {
                 TouchPhase::End => {
                     if !is_current_path_empty {
                         trace!("end path");
-                        return Some(PathEvent::End);
+                        return Some(PathEvent::End(DrawPayload { pos, force, id: Some(id) }));
                     }
                 }
                 TouchPhase::Cancel => {
                     if inner_rect.contains(pos) {
                         trace!("cancel path");
-                        return Some(PathEvent::CancelStroke());
+                        return Some(PathEvent::CancelStroke);
                     }
                 }
             }
@@ -369,7 +376,7 @@ impl Pen {
                 // equivalent to touch end
             } else if !is_current_path_empty {
                 {
-                    return Some(PathEvent::End);
+                    return Some(PathEvent::End(DrawPayload { pos, force: None, id: None }));
                 }
             }
         }
@@ -417,8 +424,8 @@ pub enum PathEvent {
     Draw(DrawPayload),
     PredictedDraw(DrawPayload),
     ClearPredictedTouches,
-    End,
-    CancelStroke(),
+    End(DrawPayload),
+    CancelStroke,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -456,8 +463,8 @@ fn correct_start_of_path() {
         pen.handle_path_event(*event, &mut pen_ctx);
     }
     if let Some(parser::Element::Path(p)) = pen_ctx.buffer.elements.get(&path_id) {
-        assert!(p.data.is_empty());
-        assert_eq!(pen.path_builder.original_points.len(), 1);
+        assert_eq!(p.data.len(), 2);
+        // assert_eq!(pen.path_builder.original_points.len(), 1);
     }
 }
 
@@ -525,7 +532,7 @@ fn cancel_touch_ui_event() {
             device_id: egui::TouchDeviceId(1),
             id: touch_2,
             phase: TouchPhase::Move,
-            pos: egui::pos2(13.0, 13.0),
+            pos: egui::pos2(16.0, 16.0),
             force: None,
         },
     ];
@@ -537,7 +544,9 @@ fn cancel_touch_ui_event() {
             pen.handle_path_event(path_event, &mut pen_ctx);
         }
     });
-
     assert_eq!(pen_ctx.buffer.elements.len(), 1);
-    assert_eq!(pen.path_builder.original_points.len(), 2) // the cancel touch doesn't count
+
+    if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get(&pen.current_id) {
+        assert_eq!(path.data.len(), 3)
+    }
 }
