@@ -332,7 +332,14 @@ impl Pen {
         // todo figure out if there's common ground between multi touch and zoom/scroll events
         // it would to handle viewport lock for the touch and pointer events in the same spot
         if matches!(e, IntegrationEvent::Native(&egui::Event::Zoom(_)))
-            || matches!(e, IntegrationEvent::Native(&egui::Event::Scroll(_)))
+            || matches!(
+                e,
+                IntegrationEvent::Native(&egui::Event::MouseWheel {
+                    unit: _,
+                    delta: _,
+                    modifiers: _
+                })
+            )
         {
             if is_current_path_empty {
                 *pen_ctx.allow_viewport_changes = true;

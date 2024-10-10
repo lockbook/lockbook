@@ -1,13 +1,13 @@
 [package]
 name = "lockbook-windows"
-version = "0.9.9"
+version = "0.9.10"
 edition = "2021"
 
 [target.'cfg(windows)'.dependencies]
 array-init = "2.0.0"
 clipboard-win = "4.5.0"
-egui = "0.26.2"
-egui_wgpu_backend = "0.28"
+egui = "0.28.1"
+egui_wgpu_backend = "0.30"
 env_logger = "0.10"
 image = "0.24.7"
 lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false, features = [

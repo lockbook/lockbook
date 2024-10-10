@@ -1,6 +1,6 @@
 [package]
 name = "workspace-ffi"
-version = "0.9.9"
+version = "0.9.10"
 edition = "2021"
 
 [lib]
@@ -9,16 +9,16 @@ crate-type = ["lib", "staticlib", "cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-egui = "0.26.2"
-egui_wgpu_backend = "0.28"
-egui_extras = { version = "0.26.2", features = ["image"] }
+egui = "0.28.1"
+egui_wgpu_backend = "0.30"
+egui_extras = { version = "0.28.1", features = ["image"] }
 libc = "0.2"
 workspace = { path = "../workspace/" }
 lb_external_interface = { path = "../../lb/lb_external_interface" }
 raw-window-handle = "0.6"
 jni = "0.21.0"
 pollster = "0.2"
-tracing="0.1.5"
+tracing = "0.1.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
 

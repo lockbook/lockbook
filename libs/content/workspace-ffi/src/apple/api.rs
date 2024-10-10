@@ -1,5 +1,5 @@
 use crate::WgpuWorkspace;
-use egui::{vec2, Event, Pos2};
+use egui::{vec2, Event, MouseWheelUnit, Pos2};
 use lb_external_interface::lb_rs::Uuid;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::path::PathBuf;
@@ -51,17 +51,25 @@ pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
 
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_x: f32, scroll_y: f32) {
+pub unsafe extern "C" fn scroll_wheel(
+    obj: *mut c_void, scroll_x: f32, scroll_y: f32, shift: bool, ctrl: bool, option: bool,
+    command: bool,
+) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
+    obj.raw_input.modifiers = modifiers;
 
     if obj.raw_input.modifiers.command || obj.raw_input.modifiers.ctrl {
         let factor = (scroll_y / 50.).exp();
 
         obj.raw_input.events.push(Event::Zoom(factor))
     } else {
-        obj.raw_input
-            .events
-            .push(Event::Scroll(vec2(scroll_x, scroll_y)));
+        obj.raw_input.events.push(Event::MouseWheel {
+            unit: MouseWheelUnit::Point,
+            delta: vec2(scroll_x, scroll_y),
+            modifiers: obj.raw_input.modifiers,
+        });
     }
 }
 

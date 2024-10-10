@@ -1,16 +1,16 @@
 [package]
 name = "lockbook-egui"
-version = "0.9.9"
+version = "0.9.10"
 edition = "2021"
 
 [dependencies]
 dark-light = "1.0.0"
-egui = "0.26.2"
-eframe = "0.26.2"
-egui-notify = "0.13.0"
-egui-winit = "0.26.2"
-egui_wgpu_backend = "0.28"
-egui_extras = { version = "0.26.2", features = ["image"] }
+egui = "0.28.1"
+eframe = { version = "0.28.1", default-features = false, features = ["wgpu"] }
+egui-notify = "0.15.0"
+egui-winit = "0.28.1"
+egui_wgpu_backend = "0.30"
+egui_extras = { version = "0.28.1", features = ["image"] }
 env_logger = "0.10"
 image = { version = "0.24", default-features = false, features = [
     "png",

@@ -1,11 +1,11 @@
 [package]
 name = "winstaller"
-version = "0.9.9"
+version = "0.9.10"
 edition = "2021"
 
 [target.'cfg(windows)'.dependencies]
-eframe = "0.26.2"
-egui_extras = { version = "0.26.2", features = ["image"] }
+eframe = "0.28.1"
+egui_extras = { version = "0.28.1", features = ["image"] }
 image = { version = "0.24", features = ["png"] }
 mslnk = "0.1.8"
 

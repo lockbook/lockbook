@@ -3,6 +3,7 @@ use std::thread;
 use std::time::Instant;
 
 use eframe::egui;
+use egui::TextWrapMode;
 use lb::Duration;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::{Button, ProgressBar};
@@ -53,7 +54,7 @@ impl super::AccountScreen {
                         let text = text.color(ui.visuals().text_color().gamma_multiply(0.8));
                         let galley = text.into_galley(
                             ui,
-                            Some(false),
+                            Some(TextWrapMode::Extend),
                             ui.available_width(),
                             egui::TextStyle::Small,
                         );

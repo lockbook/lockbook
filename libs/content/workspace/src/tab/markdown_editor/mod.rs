@@ -1,25 +1,25 @@
 use crate::widgets::{toolbar::MOBILE_TOOL_BAR_SIZE, ToolBar, ToolBarVisibility};
-pub use editor::{Editor, Response};
 use egui::{FontData, FontDefinitions, FontFamily};
-use lb_rs::Uuid;
+use lb_rs::{DocumentHmac, Uuid};
 use std::sync::Arc;
 
 pub mod appearance;
 pub mod ast;
 pub mod bounds;
-pub mod buffer;
 pub mod debug;
 pub mod draw;
 pub mod editor;
+pub mod find;
 pub mod galleys;
 pub mod images;
 pub mod input;
 pub mod layouts;
-pub mod offset_types;
 pub mod output;
 pub mod style;
 pub mod test_input;
-pub mod unicode_segs;
+
+pub use editor::{Editor, Response};
+pub use input::Event;
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
     let (pt_sans, pt_mono, pt_bold) = if cfg!(target_vendor = "apple") {
@@ -77,10 +77,10 @@ impl Markdown {
     // todo: you eleminated the idea of an auto rename signal here, evaluate what to do with it
     pub fn new(
         core: lb_rs::Core, bytes: &[u8], toolbar_visibility: &ToolBarVisibility, needs_name: bool,
-        file_id: Uuid, plaintext_mode: bool,
+        file_id: Uuid, hmac: Option<DocumentHmac>, plaintext_mode: bool,
     ) -> Self {
         let content = String::from_utf8_lossy(bytes);
-        let editor = Editor::new(core, &content, file_id, needs_name, plaintext_mode);
+        let editor = Editor::new(core, &content, file_id, hmac, needs_name, plaintext_mode);
         let toolbar = ToolBar::new(toolbar_visibility);
 
         Self { editor, toolbar }

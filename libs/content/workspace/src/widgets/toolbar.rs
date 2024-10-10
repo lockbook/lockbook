@@ -3,7 +3,7 @@ use pulldown_cmark::LinkType;
 use crate::tab::{markdown_editor, ExtendedOutput};
 use crate::tab::{
     markdown_editor::{
-        input::canonical::{Modification, Region},
+        input::{Event, Region},
         style::{BlockNode, InlineNode, ListItem, MarkdownNode},
         Editor,
     },
@@ -76,23 +76,9 @@ impl ToolBar {
                     .show(ui, |ui| self.map_buttons(ui, editor, res, true));
             });
         } else {
-            // greedy focus toggle on the editor whenever the pointer is not in the toolbar
-            let pointer = ui.ctx().pointer_hover_pos().unwrap_or_default();
             let toolbar_rect = self.calculate_rect(ui, editor);
-
             if ui.available_rect_before_wrap().width() < toolbar_rect.width() {
                 return;
-            }
-
-            if toolbar_rect.contains(pointer) {
-                if editor.has_focus {
-                    editor.has_focus = false
-                }
-            } else {
-                self.header_click_count = 1;
-                if !editor.has_focus {
-                    editor.has_focus = true
-                }
             }
 
             self.id = ui.id();
@@ -102,10 +88,12 @@ impl ToolBar {
                     .fill(ui.visuals().code_bg_color)
                     .inner_margin(self.margin)
                     .shadow(egui::epaint::Shadow {
-                        extrusion: ui.visuals().window_shadow.extrusion,
+                        offset: ui.visuals().window_shadow.offset,
+                        blur: ui.visuals().window_shadow.blur,
+                        spread: ui.visuals().window_shadow.spread,
                         color: ui.visuals().window_shadow.color.gamma_multiply(0.3),
                     })
-                    .rounding(egui::Rounding::same(20.0))
+                    .rounding(ui.style().visuals.menu_rounding)
                     .show(ui, |ui| self.map_buttons(ui, editor, res, false))
             });
         }
@@ -125,17 +113,11 @@ impl ToolBar {
                         self.process_mobile_components(
                             self.hide_keyboard_components.clone(),
                             ui,
-                            editor,
                             editor_res,
                         );
                     }
 
-                    self.process_mobile_components(
-                        self.mobile_components.clone(),
-                        ui,
-                        editor,
-                        editor_res,
-                    );
+                    self.process_mobile_components(self.mobile_components.clone(), ui, editor_res);
                 } else {
                     self.buttons.clone().iter().for_each(|btn| {
                         let res = Button::default().icon(&btn.icon).show(ui);
@@ -145,11 +127,6 @@ impl ToolBar {
 
                         if res.clicked() {
                             (btn.callback)(ui, self, editor_res);
-
-                            ui.memory_mut(|w| {
-                                w.request_focus(editor.id);
-                            });
-
                             ui.ctx().request_repaint();
                         }
                         if btn.id == "header" {
@@ -162,7 +139,7 @@ impl ToolBar {
     }
 
     fn process_mobile_components(
-        &mut self, components: Vec<Component>, ui: &mut egui::Ui, editor: &Editor,
+        &mut self, components: Vec<Component>, ui: &mut egui::Ui,
         editor_res: &mut markdown_editor::Response,
     ) {
         components.iter().for_each(|comp| match comp {
@@ -173,10 +150,6 @@ impl ToolBar {
 
                 if res.clicked() {
                     (btn.callback)(ui, self, editor_res);
-
-                    ui.memory_mut(|w| {
-                        w.request_focus(editor.id);
-                    });
                 }
             }
             Component::Separator(sep) => {
@@ -201,23 +174,22 @@ impl ToolBar {
         };
         let how_on = ui.ctx().animate_bool(egui::Id::from("toolbar_animate"), on);
 
-        let maximized_min_x = (editor.ui_rect.width() - self.width()) / 2.0 + editor.ui_rect.left();
+        let editor_rect = editor.rect;
 
-        let minimized_min_x =
-            editor.ui_rect.max.x - (self.width() / self.buttons.len() as f32) - 40.0;
+        let maximized_min_x = (editor_rect.width() - self.width()) / 2.0 + editor_rect.left();
+        let minimized_min_x = editor_rect.max.x - (self.width() / self.buttons.len() as f32) - 40.0;
 
         let min_pos = egui::Pos2 {
             x: egui::lerp((maximized_min_x)..=(minimized_min_x), how_on),
-            y: editor.ui_rect.bottom() - 90.0,
+            y: editor_rect.bottom() - 90.0,
         };
 
-        let maximized_max_x =
-            editor.ui_rect.right() - (editor.ui_rect.width() - self.width()) / 2.0;
-        let minimized_max_x = editor.ui_rect.right();
+        let maximized_max_x = editor_rect.right() - (editor_rect.width() - self.width()) / 2.0;
+        let minimized_max_x = editor_rect.right();
 
         let max_pos = egui::Pos2 {
             x: egui::lerp((maximized_max_x)..=(minimized_max_x), how_on),
-            y: editor.ui_rect.bottom(),
+            y: editor_rect.bottom(),
         };
 
         match self.visibility {
@@ -252,7 +224,7 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                     icon: Icon::BOLD,
                     id: "bold".to_string(),
                     callback: |ui, _, _| {
-                        ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                        ui.ctx().push_markdown_event(Event::ToggleStyle {
                             region: Region::Selection,
                             style: MarkdownNode::Inline(InlineNode::Bold),
                         })
@@ -262,7 +234,7 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                     icon: Icon::ITALIC,
                     id: "italic".to_string(),
                     callback: |ui, _, _| {
-                        ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                        ui.ctx().push_markdown_event(Event::ToggleStyle {
                             region: Region::Selection,
                             style: MarkdownNode::Inline(InlineNode::Italic),
                         })
@@ -272,9 +244,19 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                     icon: Icon::CODE,
                     id: "in_line_code".to_string(),
                     callback: |ui, _, _| {
-                        ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                        ui.ctx().push_markdown_event(Event::ToggleStyle {
                             region: Region::Selection,
                             style: MarkdownNode::Inline(InlineNode::Code),
+                        });
+                    },
+                },
+                ToolbarButton {
+                    icon: Icon::STRIKETHROUGH,
+                    id: "strikethrough".to_string(),
+                    callback: |ui, _, _| {
+                        ui.ctx().push_markdown_event(Event::ToggleStyle {
+                            region: Region::Selection,
+                            style: MarkdownNode::Inline(InlineNode::Strikethrough),
                         });
                     },
                 },
@@ -282,20 +264,41 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                     icon: Icon::NUMBER_LIST,
                     id: "number_list".to_string(),
                     callback: |ui, _, _| {
-                        ui.ctx()
-                            .push_markdown_event(Modification::toggle_block_style(
-                                BlockNode::ListItem(ListItem::Numbered(1), 0),
-                            ))
+                        ui.ctx().push_markdown_event(Event::toggle_block_style(
+                            BlockNode::ListItem(ListItem::Numbered(1), 0),
+                        ))
+                    },
+                },
+                ToolbarButton {
+                    icon: Icon::BULLET_LIST,
+                    id: "bullet_list".to_string(),
+                    callback: |ui, _, _| {
+                        ui.ctx().push_markdown_event(Event::toggle_block_style(
+                            BlockNode::ListItem(ListItem::Bulleted, 0),
+                        ))
                     },
                 },
                 ToolbarButton {
                     icon: Icon::TODO_LIST,
                     id: "todo_list".to_string(),
                     callback: |ui, _, _| {
-                        ui.ctx()
-                            .push_markdown_event(Modification::toggle_block_style(
-                                BlockNode::ListItem(ListItem::Todo(false), 0),
-                            ))
+                        ui.ctx().push_markdown_event(Event::toggle_block_style(
+                            BlockNode::ListItem(ListItem::Todo(false), 0),
+                        ))
+                    },
+                },
+                ToolbarButton {
+                    icon: Icon::LINK,
+                    id: "link".to_string(),
+                    callback: |ui, _, _| {
+                        ui.ctx().push_markdown_event(Event::ToggleStyle {
+                            region: Region::Selection,
+                            style: MarkdownNode::Inline(InlineNode::Link(
+                                LinkType::Inline,
+                                "".into(),
+                                "".into(),
+                            )),
+                        });
                     },
                 },
                 ToolbarButton {
@@ -336,7 +339,7 @@ fn get_mobile_components() -> Vec<Component> {
             icon: Icon::BOLD,
             id: "bold".to_string(),
             callback: |ui, _, _| {
-                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                ui.ctx().push_markdown_event(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Bold),
                 })
@@ -346,7 +349,7 @@ fn get_mobile_components() -> Vec<Component> {
             icon: Icon::ITALIC,
             id: "italic".to_string(),
             callback: |ui, _, _| {
-                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                ui.ctx().push_markdown_event(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Italic),
                 })
@@ -356,7 +359,7 @@ fn get_mobile_components() -> Vec<Component> {
             icon: Icon::CODE,
             id: "in_line_code".to_string(),
             callback: |ui, _, _| {
-                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                ui.ctx().push_markdown_event(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Code),
                 });
@@ -366,7 +369,7 @@ fn get_mobile_components() -> Vec<Component> {
             icon: Icon::STRIKETHROUGH,
             id: "strikethrough".to_string(),
             callback: |ui, _, _| {
-                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                ui.ctx().push_markdown_event(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Strikethrough),
                 });
@@ -378,7 +381,7 @@ fn get_mobile_components() -> Vec<Component> {
             id: "number_list".to_string(),
             callback: |ui, _, _| {
                 ui.ctx()
-                    .push_markdown_event(Modification::toggle_block_style(BlockNode::ListItem(
+                    .push_markdown_event(Event::toggle_block_style(BlockNode::ListItem(
                         ListItem::Numbered(1),
                         0,
                     )))
@@ -389,7 +392,7 @@ fn get_mobile_components() -> Vec<Component> {
             id: "bullet_list".to_string(),
             callback: |ui, _, _| {
                 ui.ctx()
-                    .push_markdown_event(Modification::toggle_block_style(BlockNode::ListItem(
+                    .push_markdown_event(Event::toggle_block_style(BlockNode::ListItem(
                         ListItem::Bulleted,
                         0,
                     )))
@@ -400,7 +403,7 @@ fn get_mobile_components() -> Vec<Component> {
             id: "todo_list".to_string(),
             callback: |ui, _, _| {
                 ui.ctx()
-                    .push_markdown_event(Modification::toggle_block_style(BlockNode::ListItem(
+                    .push_markdown_event(Event::toggle_block_style(BlockNode::ListItem(
                         ListItem::Todo(false),
                         0,
                     )))
@@ -411,7 +414,7 @@ fn get_mobile_components() -> Vec<Component> {
             icon: Icon::LINK,
             id: "link".to_string(),
             callback: |ui, _, _| {
-                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                ui.ctx().push_markdown_event(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Link(
                         LinkType::Inline,
@@ -427,7 +430,7 @@ fn get_mobile_components() -> Vec<Component> {
             id: "indent".to_string(),
             callback: |ui, _, _| {
                 ui.ctx()
-                    .push_markdown_event(Modification::Indent { deindent: false })
+                    .push_markdown_event(Event::Indent { deindent: false })
             },
         }),
         Component::Button(ToolbarButton {
@@ -435,18 +438,18 @@ fn get_mobile_components() -> Vec<Component> {
             id: "deindent".to_string(),
             callback: |ui, _, _| {
                 ui.ctx()
-                    .push_markdown_event(Modification::Indent { deindent: true })
+                    .push_markdown_event(Event::Indent { deindent: true })
             },
         }),
         Component::Button(ToolbarButton {
             icon: Icon::UNDO,
             id: "undo".to_string(),
-            callback: |ui, _, _| ui.ctx().push_markdown_event(Modification::Undo),
+            callback: |ui, _, _| ui.ctx().push_markdown_event(Event::Undo),
         }),
         Component::Button(ToolbarButton {
             icon: Icon::REDO,
             id: "redo".to_string(),
-            callback: |ui, _, _| ui.ctx().push_markdown_event(Modification::Undo),
+            callback: |ui, _, _| ui.ctx().push_markdown_event(Event::Undo),
         }),
     ]
 }
@@ -461,5 +464,5 @@ fn toggle_heading_style(
         t.header_click_count += 1;
     }
     ui.ctx()
-        .push_markdown_event(Modification::toggle_heading_style(t.header_click_count));
+        .push_markdown_event(Event::toggle_heading_style(t.header_click_count));
 }
