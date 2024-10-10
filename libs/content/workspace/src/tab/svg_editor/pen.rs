@@ -9,7 +9,7 @@ use tracing_test::traced_test;
 use crate::{tab::ExtendedInput, theme::palette::ThemePalette};
 
 use super::{
-    parser::{self, DiffState, Element, Path, Stroke},
+    parser::{self, DiffState, Path, Stroke},
     toolbar::ToolContext,
     util::is_multi_touch,
     InsertElement, PathBuilder,
@@ -546,7 +546,7 @@ fn cancel_touch_ui_event() {
     });
     assert_eq!(pen_ctx.buffer.elements.len(), 1);
 
-    if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get(&pen.current_id) {
+    if let Some(parser::Element::Path(path)) = pen_ctx.buffer.elements.get(&pen.current_id) {
         assert_eq!(path.data.len(), 3)
     }
 }
