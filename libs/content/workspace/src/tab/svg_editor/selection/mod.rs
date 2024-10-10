@@ -97,7 +97,7 @@ impl Selection {
                     })
                 })
         } else {
-            ui.input(|r| r.pointer.primary_clicked())
+            ui.input(|r| r.pointer.primary_down())
         };
 
         let pos_is_inside_canvas =

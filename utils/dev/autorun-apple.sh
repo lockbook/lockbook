@@ -67,7 +67,3 @@ case "$1" in
 		./build/Lockbook-macOS.xcarchive/Products/Applications/Lockbook.app/Contents/MacOS/Lockbook
 		;;
 		esac
-
-
-
-

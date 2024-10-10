@@ -158,6 +158,8 @@ impl Eraser {
     ) {
         let stroke = egui::Stroke { width: 1.0, color: ui.visuals().text_color() };
         painter.circle_stroke(cursor_pos, self.radius, stroke);
-        ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::None);
+
+        // todo: apple integration doesn't support this correctly.
+        // ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::None);
     }
 }

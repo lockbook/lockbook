@@ -55,7 +55,7 @@ impl SVGEditor {
                         }
                     }
                 }
-                crate::Event::Markdown(..) => {}
+                _ => {}
             }
         }
     }
