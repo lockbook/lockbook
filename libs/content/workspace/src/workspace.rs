@@ -342,7 +342,7 @@ impl Workspace {
         ui.vertical(|ui| {
             if !self.tabs.is_empty() {
                 if self.show_tabs {
-                    // self.show_tab_strip(ui);
+                    self.show_tab_strip(ui);
                 } else {
                     self.show_mobile_title(ui);
                 }

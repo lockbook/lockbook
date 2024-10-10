@@ -2,8 +2,8 @@ use crate::tab::markdown_editor::bounds::BoundExt as _;
 use crate::tab::{markdown_editor, ExtendedInput};
 use egui::os::OperatingSystem;
 use egui::{
-    scroll_area, Context, CursorIcon, EventFilter, Frame, Id, Margin, Pos2, Rect, ScrollArea,
-    Sense, Stroke, Ui, Vec2,
+    scroll_area, Context, CursorIcon, EventFilter, Frame, Id, Margin, Rect, ScrollArea, Sense,
+    Stroke, Ui, Vec2,
 };
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
