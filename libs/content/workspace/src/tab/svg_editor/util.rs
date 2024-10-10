@@ -89,8 +89,6 @@ pub fn rect_to_bb(rect: egui::Rect) -> [DVec2; 2] {
     ]
 }
 
-
-
 pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
     let mut custom_multi_touch = false;
     ui.input(|r| {
