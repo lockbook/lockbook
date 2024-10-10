@@ -23,78 +23,96 @@ use std::collections::{HashMap, HashSet};
 use super::advance::AdvanceExt as _;
 use super::Bound;
 
+/// tracks editor state necessary to support translating input events to buffer operations
+#[derive(Default)]
+pub struct EventState {
+    prev_event: Option<Event>,
+}
+
 impl Editor {
     /// Translates editor events into buffer operations by interpreting them in the context of the current editor state.
     /// Dispatches events that aren't buffer operations. Returns a (text_updated, selection_updated) pair.
     pub fn calc_operations(
-        &mut self, ctx: &egui::Context, modification: Event, operations: &mut Vec<Operation>,
+        &mut self, ctx: &egui::Context, event: Event, operations: &mut Vec<Operation>,
     ) -> buffer::Response {
         let current_selection = self.buffer.current.selection;
         let mut response = buffer::Response::default();
-        match modification {
+        let prev_event_eq = self.event.prev_event.as_ref() == Some(&event);
+        self.event.prev_event = Some(event.clone());
+        match event {
             Event::Select { region } => {
-                operations.push(Operation::Select(self.region_to_range(region)))
+                operations.push(Operation::Select(self.region_to_range(region)));
             }
             Event::Replace { region, text } => {
                 let range = self.region_to_range(region);
                 operations.push(Operation::Replace(Replace { range, text }));
-                operations.push(Operation::Select(range.start().to_range()))
+                operations.push(Operation::Select(range.start().to_range()));
             }
             Event::ToggleStyle { region, mut style } => {
                 let range = self.region_to_range(region);
                 let unapply = self.should_unapply(&style);
 
-                // unapply conflicting styles; if replacing a list item with a list item, preserve indentation level and
-                // don't remove outer items in nested lists
-                let mut removed_conflicting_list_item = false;
-                let mut list_item_indent_level = 0;
-                if !unapply {
-                    for conflict in conflicting_styles(range, &style, &self.ast, &self.bounds.ast) {
-                        if let MarkdownNode::Block(BlockNode::ListItem(_, indent_level)) = conflict
+                if !unapply && prev_event_eq {
+                    // Markdown doesn't recognize empty list items on a line after text or empty styled text ranges.
+                    // It's annoying to hit cmd+b repeatedly and have it continuously add symbols that aren't parsed.
+                    // This hack makes a second consecutive style toggle just undo the first.
+                    // This hack has less-than-ideal implications when toggling style for a selection that includes
+                    // some text already having that style and some not, where toggling the style twice shouldn't
+                    // neccesarily undo the first toggle.
+                    // We can remove this when we implement our own markdown parser.
+                    response |= self.buffer.undo();
+                    self.event.prev_event = None;
+                } else {
+                    // unapply conflicting styles; if replacing a list item with a list item, preserve indentation level and
+                    // don't remove outer items in nested lists
+                    let mut removed_conflicting_list_item = false;
+                    let mut list_item_indent_level = 0;
+                    if !unapply {
+                        for conflict in
+                            conflicting_styles(range, &style, &self.ast, &self.bounds.ast)
                         {
-                            if !removed_conflicting_list_item {
-                                list_item_indent_level = indent_level;
-                                removed_conflicting_list_item = true;
+                            if let MarkdownNode::Block(BlockNode::ListItem(_, indent_level)) =
+                                conflict
+                            {
+                                if !removed_conflicting_list_item {
+                                    list_item_indent_level = indent_level;
+                                    removed_conflicting_list_item = true;
+                                    self.apply_style(range, conflict, true, operations);
+                                }
+                            } else {
                                 self.apply_style(range, conflict, true, operations);
                             }
-                        } else {
-                            self.apply_style(range, conflict, true, operations);
                         }
                     }
-                }
-                if let MarkdownNode::Block(BlockNode::ListItem(item_type, _)) = style {
-                    style =
-                        MarkdownNode::Block(BlockNode::ListItem(item_type, list_item_indent_level));
-                };
+                    if let MarkdownNode::Block(BlockNode::ListItem(item_type, _)) = style {
+                        style = MarkdownNode::Block(BlockNode::ListItem(
+                            item_type,
+                            list_item_indent_level,
+                        ));
+                    };
 
-                // apply style
-                self.apply_style(range, style.clone(), unapply, operations);
+                    // apply style
+                    self.apply_style(range, style.clone(), unapply, operations);
 
-                // modify cursor
-                let mut cursor_modified = false;
-                if current_selection.is_empty() {
-                    // toggling style at end of styled range moves cursor to outside of styled range
-                    if let Some(text_range) = self
-                        .bounds
-                        .ast
-                        .find_containing(current_selection.1, true, true)
-                        .iter()
-                        .last()
-                    {
-                        let text_range = &self.bounds.ast[text_range];
-                        if text_range.node(&self.ast).node_type() == style.node_type()
-                            && text_range.range_type == AstTextRangeType::Tail
+                    // modify cursor
+                    if current_selection.is_empty() {
+                        // toggling style at end of styled range moves cursor to outside of styled range
+                        if let Some(text_range) = self
+                            .bounds
+                            .ast
+                            .find_containing(current_selection.1, true, true)
+                            .iter()
+                            .last()
                         {
-                            operations.push(Operation::Select(text_range.range.end().to_range()));
-                            cursor_modified = true;
+                            let text_range = &self.bounds.ast[text_range];
+                            if text_range.node(&self.ast).node_type() == style.node_type()
+                                && text_range.range_type == AstTextRangeType::Tail
+                            {
+                                operations
+                                    .push(Operation::Select(text_range.range.end().to_range()));
+                            }
                         }
                     }
-                }
-                if !cursor_modified
-                    && style.node_type() != MarkdownNodeType::Inline(InlineNodeType::Link)
-                {
-                    // toggling link style leaves cursor where you can type link destination
-                    operations.push(Operation::Select(current_selection));
                 }
             }
             Event::Newline { advance_cursor } => {
@@ -664,25 +682,38 @@ impl Editor {
     /// Returns true if all text in the current selection has style `style`
     fn should_unapply(&self, style: &MarkdownNode) -> bool {
         let current_selection = self.buffer.current.selection;
-        if current_selection.is_empty() {
-            return false;
-        }
 
+        // look for at least one ancestor that applies the style for each of selection start and end
+        let mut style_applying_ancestor_start = None;
+        let mut style_applying_ancestor_end = None;
         for text_range in &self.bounds.ast {
-            // skip ranges before or after the cursor
-            if text_range.range.end() <= current_selection.start() {
+            // skip ranges before or after the selection
+            if text_range.range.end() < current_selection.start() {
                 continue;
             }
             if current_selection.end() <= text_range.range.start() {
                 break;
             }
 
-            // look for at least one ancestor that applies the style
+            // skip ranges that do not contain the selection start or end
+            let start_contained = text_range
+                .range
+                .contains(current_selection.start(), false, true);
+            let end_contained = text_range
+                .range
+                .contains(current_selection.end(), false, true);
+            if !start_contained && !end_contained {
+                continue;
+            }
+
             let mut found_list_item = false;
             for &ancestor in text_range.ancestors.iter().rev() {
                 // only consider the innermost list item
-                if matches!(style.node_type(), MarkdownNodeType::Block(BlockNodeType::ListItem(..)))
-                {
+                // text in a bulleted sublist of a numbered superlist is not considered having a numbered list style
+                if matches!(
+                    self.ast.nodes[ancestor].node_type.node_type(),
+                    MarkdownNodeType::Block(BlockNodeType::ListItem(..))
+                ) {
                     if found_list_item {
                         continue;
                     } else {
@@ -690,26 +721,35 @@ impl Editor {
                     }
                 }
 
-                // node type must match
-                if self.ast.nodes[ancestor].node_type.node_type() != style.node_type() {
-                    continue;
+                let style_matches =
+                    self.ast.nodes[ancestor].node_type.node_type() == style.node_type();
+                if style_matches {
+                    if start_contained {
+                        style_applying_ancestor_start = Some(ancestor);
+                    }
+                    if end_contained {
+                        style_applying_ancestor_end = Some(ancestor);
+                    }
+                    break;
                 }
-
-                return true;
             }
         }
 
-        false
+        // style-applying ancestor must be the same for both
+        style_applying_ancestor_start.is_some()
+            && style_applying_ancestor_start == style_applying_ancestor_end
     }
 
     /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
     fn apply_style(
-        &self, selection: (DocCharOffset, DocCharOffset), style: MarkdownNode, unapply: bool,
+        &self, range: (DocCharOffset, DocCharOffset), style: MarkdownNode, unapply: bool,
         operations: &mut Vec<Operation>,
     ) {
+        let selection = self.buffer.current.selection;
         if self.buffer.current.text.is_empty() {
-            insert_head(selection.start(), style.clone(), operations);
-            insert_tail(selection.start(), style, operations);
+            insert_head(range.start(), style.clone(), operations);
+            operations.push(Operation::Select(selection));
+            insert_tail(range.start(), style, operations);
             return;
         }
 
@@ -718,12 +758,12 @@ impl Editor {
         let mut end_range = None;
         for text_range in &self.bounds.ast {
             // when at bound, start prefers next
-            if text_range.range.contains_inclusive(selection.start()) {
+            if text_range.range.contains_inclusive(range.start()) {
                 start_range = Some(text_range.clone());
             }
             // when at bound, end prefers previous unless selection is empty
-            if (selection.is_empty() || end_range.is_none())
-                && text_range.range.contains_inclusive(selection.end())
+            if (range.is_empty() || end_range.is_none())
+                && text_range.range.contains_inclusive(range.end())
             {
                 end_range = Some(text_range);
             }
@@ -778,28 +818,36 @@ impl Editor {
         if unapply {
             // if unapplying, tail or dehead node containing start to crop styled region to selection
             if let Some(last_start_ancestor) = last_start_ancestor {
-                if self.ast.nodes[last_start_ancestor].text_range.start() < selection.start() {
-                    let offset = adjust_for_whitespace(
-                        &self.buffer,
-                        selection.start(),
-                        style.node_type(),
-                        true,
-                    );
-                    insert_tail(offset, style.clone(), operations);
+                if self.ast.nodes[last_start_ancestor].text_range.start() < range.start() {
+                    if !matches!(style.node_type(), MarkdownNodeType::Block(..)) {
+                        let offset = adjust_for_whitespace(
+                            &self.buffer,
+                            range.start(),
+                            style.node_type(),
+                            true,
+                        );
+                        insert_tail(offset, style.clone(), operations);
+                    }
                 } else {
                     dehead_ast_node(last_start_ancestor, &self.ast, operations);
                 }
             }
+
+            // selection must be updated after between changes to start and end to avoid selecting new head/tail
+            operations.push(Operation::Select(selection));
+
             // if unapplying, head or detail node containing end to crop styled region to selection
             if let Some(last_end_ancestor) = last_end_ancestor {
-                if self.ast.nodes[last_end_ancestor].text_range.end() > selection.end() {
-                    let offset = adjust_for_whitespace(
-                        &self.buffer,
-                        selection.end(),
-                        style.node_type(),
-                        false,
-                    );
-                    insert_head(offset, style.clone(), operations);
+                if self.ast.nodes[last_end_ancestor].text_range.end() > range.end() {
+                    if !matches!(style.node_type(), MarkdownNodeType::Block(..)) {
+                        let offset = adjust_for_whitespace(
+                            &self.buffer,
+                            range.end(),
+                            style.node_type(),
+                            false,
+                        );
+                        insert_head(offset, style.clone(), operations);
+                    }
                 } else {
                     detail_ast_node(last_end_ancestor, &self.ast, operations);
                 }
@@ -807,19 +855,19 @@ impl Editor {
         } else {
             // if applying, head start and/or tail end to extend styled region to selection
             if last_start_ancestor.is_none() {
-                let offset = adjust_for_whitespace(
-                    &self.buffer,
-                    selection.start(),
-                    style.node_type(),
-                    false,
-                )
-                .min(selection.end());
+                let offset =
+                    adjust_for_whitespace(&self.buffer, range.start(), style.node_type(), false)
+                        .min(range.end());
                 insert_head(offset, style.clone(), operations)
             }
+
+            // selection must be updated after between changes to start and end to avoid selecting new head/tail
+            operations.push(Operation::Select(selection));
+
             if last_end_ancestor.is_none() {
                 let offset =
-                    adjust_for_whitespace(&self.buffer, selection.end(), style.node_type(), true)
-                        .max(selection.start());
+                    adjust_for_whitespace(&self.buffer, range.end(), style.node_type(), true)
+                        .max(range.start());
                 insert_tail(offset, style.clone(), operations)
             }
         }
@@ -1034,21 +1082,21 @@ pub fn pos_to_link(
 
 /// Returns list of nodes whose styles should be removed before applying `style`
 fn conflicting_styles(
-    selection: (DocCharOffset, DocCharOffset), style: &MarkdownNode, ast: &Ast,
+    range: (DocCharOffset, DocCharOffset), style: &MarkdownNode, ast: &Ast,
     ast_ranges: &AstTextRanges,
 ) -> Vec<MarkdownNode> {
     let mut result = Vec::new();
     let mut dedup_set = HashSet::new();
-    if selection.is_empty() {
+    if range.is_empty() {
         return result;
     }
 
     for text_range in ast_ranges {
-        // skip ranges before or after the cursor
-        if text_range.range.end() <= selection.start() {
+        // skip ranges before or after the parameter range
+        if text_range.range.end() < range.start() {
             continue;
         }
-        if selection.end() <= text_range.range.start() {
+        if range.end() <= text_range.range.start() {
             break;
         }
 
