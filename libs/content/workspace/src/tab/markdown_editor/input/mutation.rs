@@ -819,9 +819,15 @@ impl Editor {
             // if unapplying, tail or dehead node containing start to crop styled region to selection
             if let Some(last_start_ancestor) = last_start_ancestor {
                 if self.ast.nodes[last_start_ancestor].text_range.start() < range.start() {
-                    let offset =
-                        adjust_for_whitespace(&self.buffer, range.start(), style.node_type(), true);
-                    insert_tail(offset, style.clone(), operations);
+                    if !matches!(style.node_type(), MarkdownNodeType::Block(..)) {
+                        let offset = adjust_for_whitespace(
+                            &self.buffer,
+                            range.start(),
+                            style.node_type(),
+                            true,
+                        );
+                        insert_tail(offset, style.clone(), operations);
+                    }
                 } else {
                     dehead_ast_node(last_start_ancestor, &self.ast, operations);
                 }
@@ -833,9 +839,15 @@ impl Editor {
             // if unapplying, head or detail node containing end to crop styled region to selection
             if let Some(last_end_ancestor) = last_end_ancestor {
                 if self.ast.nodes[last_end_ancestor].text_range.end() > range.end() {
-                    let offset =
-                        adjust_for_whitespace(&self.buffer, range.end(), style.node_type(), false);
-                    insert_head(offset, style.clone(), operations);
+                    if !matches!(style.node_type(), MarkdownNodeType::Block(..)) {
+                        let offset = adjust_for_whitespace(
+                            &self.buffer,
+                            range.end(),
+                            style.node_type(),
+                            false,
+                        );
+                        insert_head(offset, style.clone(), operations);
+                    }
                 } else {
                     detail_ast_node(last_end_ancestor, &self.ast, operations);
                 }
@@ -1070,21 +1082,21 @@ pub fn pos_to_link(
 
 /// Returns list of nodes whose styles should be removed before applying `style`
 fn conflicting_styles(
-    selection: (DocCharOffset, DocCharOffset), style: &MarkdownNode, ast: &Ast,
+    range: (DocCharOffset, DocCharOffset), style: &MarkdownNode, ast: &Ast,
     ast_ranges: &AstTextRanges,
 ) -> Vec<MarkdownNode> {
     let mut result = Vec::new();
     let mut dedup_set = HashSet::new();
-    if selection.is_empty() {
+    if range.is_empty() {
         return result;
     }
 
     for text_range in ast_ranges {
-        // skip ranges before or after the cursor
-        if text_range.range.end() <= selection.start() {
+        // skip ranges before or after the parameter range
+        if text_range.range.end() < range.start() {
             continue;
         }
-        if selection.end() <= text_range.range.start() {
+        if range.end() <= text_range.range.start() {
             break;
         }
 
