@@ -171,15 +171,11 @@ impl Pen {
                         deleted: false,
                     });
 
-                    // this is a highlighter insert at top z-index
-                    if self.active_opacity < 1.0 {
-                        pen_ctx
-                            .buffer
-                            .elements
-                            .insert_before(0, self.current_id, el);
-                    } else {
-                        pen_ctx.buffer.elements.insert(self.current_id, el);
-                    }
+                    pen_ctx
+                        .buffer
+                        .elements
+                        .insert_before(0, self.current_id, el);
+                    // }
                     if let Some(parser::Element::Path(p)) =
                         pen_ctx.buffer.elements.get_mut(&self.current_id)
                     {

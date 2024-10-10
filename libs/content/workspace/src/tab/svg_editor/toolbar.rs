@@ -193,11 +193,11 @@ impl Toolbar {
         }
 
         let highlighter_btn = Button::default().icon(&Icon::HIGHLIGHTER).show(ui);
-        let highlighter_opacity = 0.3;
+        let highlighter_opacity = 0.1;
         if highlighter_btn.clicked() {
             set_tool!(self, Tool::Highlighter);
             self.pen.active_opacity = highlighter_opacity;
-            self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH * 2.0;
+            self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH * 4.0;
             self.pen.active_color = Some(get_highlighter_colors()[0]);
         }
 
@@ -261,7 +261,7 @@ impl Toolbar {
                 if let Some(thickness) = self.show_thickness_pickers(
                     ui,
                     self.pen.active_stroke_width,
-                    vec![DEFAULT_PEN_STROKE_WIDTH * 2.0, 4.0 * 2.0, 6.0 * 2.0],
+                    vec![DEFAULT_PEN_STROKE_WIDTH * 4.0, 4.0 * 4.0, 6.0 * 4.0],
                 ) {
                     self.pen.active_stroke_width = thickness;
                 }
