@@ -628,6 +628,7 @@ impl Editor {
                         range: current_selection,
                         text: "\t".into(),
                     }));
+                    operations.push(Operation::Select(current_selection));
                 }
             }
             Event::Find { term, backwards } => {
