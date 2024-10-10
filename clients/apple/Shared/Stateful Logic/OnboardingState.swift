@@ -66,7 +66,7 @@ class OnboardingService: ObservableObject {
         self.createAccountError = ""
         self.importAccountError = ""
         DispatchQueue.global(qos: .userInitiated).async {
-            let res = self.core.importAccount(accountString: self.accountString)
+            let res = self.core.importAccount(accountString: self.accountString, apiUrl: nil)
             DispatchQueue.main.async {
                 self.working = false
                 switch res {

@@ -30,11 +30,3 @@ struct QRScanner: View {
         }
     }
 }
-
-struct ImportView_Previews: PreviewProvider {
-    
-    static var previews: some View {
-        OnboardingView(selectedTab: .Import)
-            .mockDI()
-    }
-}
