@@ -158,7 +158,6 @@ impl Editor {
         }
         Frame::canvas(ui.style())
             .stroke(Stroke::NONE)
-            .outer_margin(Margin::same(2.))
             .show(ui, |ui| {
                 let scroll_area_output = ScrollArea::vertical()
                     .drag_to_scroll(true)
