@@ -13,7 +13,7 @@ struct OnboardingOneView: View {
                     
                     Spacer()
                 }
-                
+                                    
                 Text("Lockbook")
                     .font(.largeTitle)
                     .fontWeight(.bold)
@@ -22,12 +22,12 @@ struct OnboardingOneView: View {
                 Text("The private note-taking platform.")
                     .font(.title2)
                     .padding(.leading)
-                
+
                 Text("The perfect place to record, sync, and share your thoughts.")
                     .font(.body)
                     .frame(maxWidth: 270)
                     .padding(.top)
-                    .padding(.leading)
+                    .padding(.leading, 12)
                 
                 Spacer()
                 
@@ -51,6 +51,11 @@ struct OnboardingOneView: View {
                         .frame(height: 30)
                 })
                 .buttonStyle(.bordered)
+                
+                Text("By using Lockbook, you acknowledge our [Privacy Policy](https://lockbook.net/privacy-policy) and accept our [Terms of Service](https://lockbook.net/tos).")
+                    .foregroundColor(.gray)
+                    .font(.caption2)
+                    .padding()
             }
             .padding(.top, 35)
             .padding(.horizontal)
@@ -110,11 +115,6 @@ struct OnboardingTwoView: View {
             .padding(.top, 30)
             
             Spacer()
-            
-            Text("By using Lockbook, you acknowledge our [Privacy Policy](https://lockbook.net/privacy-policy) and accept our [Terms of Service](https://lockbook.net/tos).")
-                .foregroundColor(.gray)
-                .font(.caption)
-                .padding()
         }
         .padding(.top, 35)
         .padding(.horizontal, 25)
@@ -142,7 +142,7 @@ struct OnboardingTwoView: View {
                             }.joined(separator: "\n")
                             
                             let last12 = Array(phrase.suffix(12)).enumerated().map { (index, item) in
-                                return "\(index + 1). \(item)"
+                                return "\(index + 13). \(item)"
                             }.joined(separator: "\n")
                             
                             keyPhrase = (first12, last12)
@@ -202,14 +202,14 @@ struct OnboardingThreeView: View {
     
     var body: some View {
         VStack(alignment: .leading) {
-            Text("This is your account key")
+            Text("Your account key")
                 .font(.title)
                 .fontWeight(.bold)
             
-            Text("It proves you’re you, and it is a secret. If you lose it, you can’t recover your account.")
+            Text("This key confirms your identity and keeps your account secure. It's confidential and cannot be recovered if lost.")
                 .padding(.top)
             
-            Text("You can view your key again in the settings.")
+            Text("You can always access your key in the settings.")
                 .padding(.top, 6)
                 .padding(.bottom)
             
@@ -372,31 +372,14 @@ struct ImportAccountView: View {
                 }
             }
             .padding(.top)
-            .padding(.trailing)
             
-            HStack {
-                if let error = error {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .fontWeight(.bold)
-                        .lineLimit(2, reservesSpace: false)
-                }
-                
-                Spacer()
-                
-                Button(action: {
-                    showAPIURLSheet = true
-                }, label: {
-                    Text("Advanced")
-                        .underline()
-                        .foregroundStyle(.blue)
-                })
-                .padding(.trailing)
-                .modifier(iOSAndiPadSheetViewModifier(isPresented: $showAPIURLSheet, width: 500, height: 130) {
-                    SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
-                })
+            if let error = error {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .fontWeight(.bold)
+                    .lineLimit(2, reservesSpace: false)
+                    .padding(.top)
             }
-            .padding(.top)
             
             
             Button {
@@ -413,10 +396,22 @@ struct ImportAccountView: View {
             
             Spacer()
             
-            Text("By using Lockbook, you acknowledge our [Privacy Policy](https://lockbook.net/privacy-policy) and accept our [Terms of Service](https://lockbook.net/tos).")
-                .foregroundColor(.gray)
-                .font(.caption)
-                .padding()
+            HStack {
+                Spacer()
+                
+                Button(action: {
+                    showAPIURLSheet = true
+                }, label: {
+                    Text("Advanced")
+                        .font(.body)
+                        .foregroundStyle(.gray)
+                })
+                .padding(.trailing)
+                .padding(.bottom)
+                .modifier(iOSAndiPadSheetViewModifier(isPresented: $showAPIURLSheet, width: 500, height: 130) {
+                    SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
+                })
+            }
         }
         .padding(.top, 35)
         .padding(.horizontal, 25)
