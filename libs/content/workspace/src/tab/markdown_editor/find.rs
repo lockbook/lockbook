@@ -1,4 +1,4 @@
-use egui::{Button, EventFilter, Frame, Id, Key, Label, Margin, TextEdit, Ui, Widget as _};
+use egui::{Button, EventFilter, Frame, Id, Key, Label, Margin, Stroke, TextEdit, Ui, Widget as _};
 use lb_rs::text::{
     buffer::Buffer,
     offset_types::{DocByteOffset, DocCharOffset, RangeExt},
@@ -27,10 +27,9 @@ pub struct Response {
 impl Find {
     pub fn show(&mut self, buffer: &Buffer, ui: &mut Ui) -> Response {
         let resp = if self.term.is_some() {
-            Frame::default()
+            Frame::canvas(ui.style())
+                .stroke(Stroke::NONE)
                 .inner_margin(Margin::symmetric(10., 10.))
-                .fill(ui.style().visuals.window_fill)
-                .stroke(ui.style().visuals.window_stroke)
                 .show(ui, |ui| self.show_inner(&buffer.current.text, ui))
                 .inner
         } else {
@@ -87,14 +86,14 @@ impl Find {
                 }
                 ui.add_space(5.);
 
-                if Button::new("<").small().ui(ui).clicked()
+                if Button::new("↑").small().ui(ui).clicked()
                     || ui.input(|i| i.key_pressed(Key::Enter) && i.modifiers.shift)
                 {
                     result.term = Some(term.clone());
                     result.backwards = true;
                 }
                 ui.add_space(5.);
-                if Button::new(">").small().ui(ui).clicked()
+                if Button::new("↓").small().ui(ui).clicked()
                     || ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift)
                 {
                     result.term = Some(term.clone());
