@@ -13,7 +13,6 @@ mod util;
 use self::history::History;
 use crate::tab::svg_editor::toolbar::Toolbar;
 pub use eraser::Eraser;
-use gesture_handler::GestureHandler;
 pub use history::DeleteElement;
 pub use history::Event;
 pub use history::InsertElement;
@@ -47,7 +46,6 @@ pub struct SVGEditor {
     has_queued_save_request: bool,
     /// don't allow zooming or panning
     allow_viewport_changes: bool,
-    gesture_handler: GestureHandler,
 }
 
 pub struct Response {
@@ -87,7 +85,6 @@ impl SVGEditor {
             renderer: Renderer::new(elements_count),
             has_queued_save_request: false,
             allow_viewport_changes: false,
-            gesture_handler: GestureHandler::default(),
         }
     }
 
@@ -98,6 +95,19 @@ impl SVGEditor {
 
         self.painter
             .set_layer_id(egui::LayerId::new(egui::Order::Debug, "canvas_widgets".into()));
+
+        ui.vertical(|ui| {
+            egui::Frame::default().show(ui, |ui| {
+                self.toolbar.show(
+                    ui,
+                    &mut self.buffer,
+                    &mut self.history,
+                    &mut self.skip_frame,
+                    self.inner_rect,
+                );
+            })
+        });
+
         self.process_events(ui);
 
         self.painter
@@ -174,8 +184,11 @@ impl SVGEditor {
         };
 
         match self.toolbar.active_tool {
-            Tool::Pen | Tool::Highlighter => {
+            Tool::Pen => {
                 self.toolbar.pen.handle_input(ui, &mut tool_context);
+            }
+            Tool::Highlighter => {
+                self.toolbar.highlighter.handle_input(ui, &mut tool_context);
             }
             Tool::Eraser => {
                 self.toolbar.eraser.handle_input(ui, &mut tool_context);
@@ -185,20 +198,14 @@ impl SVGEditor {
             }
         }
 
-        self.gesture_handler.handle_input(ui, &mut tool_context);
+        self.toolbar
+            .gesture_handler
+            .handle_input(ui, &mut tool_context);
     }
 
     fn show_canvas(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             egui::Frame::default().show(ui, |ui| {
-                self.toolbar.show(
-                    ui,
-                    &mut self.buffer,
-                    &mut self.history,
-                    &mut self.skip_frame,
-                    self.inner_rect,
-                );
-
                 self.inner_rect = ui.available_rect_before_wrap();
                 self.painter = ui
                     .allocate_painter(
