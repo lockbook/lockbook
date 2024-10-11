@@ -185,16 +185,10 @@ impl Editor {
                 } else if response.dragged() && modifiers.shift {
                     Region::ToLocation(location)
                 } else if response.dragged() {
-                    let origin = if let Some(origin) = ctx.input(|i| i.pointer.press_origin()) {
-                        origin
+                    if response.drag_started() {
+                        Region::Location(location)
                     } else {
-                        // unexpected
-                        continue;
-                    };
-
-                    Region::BetweenLocations {
-                        start: Location::Pos(origin),
-                        end: Location::Pos(pos),
+                        Region::ToLocation(location)
                     }
                 } else {
                     // can't yet tell if drag

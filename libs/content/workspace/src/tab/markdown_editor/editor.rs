@@ -161,7 +161,7 @@ impl Editor {
             .outer_margin(Margin::same(2.))
             .show(ui, |ui| {
                 let scroll_area_output = ScrollArea::vertical()
-                    .drag_to_scroll(true)
+                    .drag_to_scroll(touch_mode)
                     .id_source(self.file_id)
                     .show(ui, |ui| {
                         ui.spacing_mut().item_spacing = Vec2::ZERO;
