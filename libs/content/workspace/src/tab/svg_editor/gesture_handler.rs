@@ -10,6 +10,7 @@ use super::{toolbar::ToolContext, util::get_touch_positions, Buffer};
 #[derive(Default)]
 pub struct GestureHandler {
     current_gesture: Option<Gesture>,
+    pub is_zoom_locked: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -136,7 +137,7 @@ impl GestureHandler {
 
     fn change_viewport(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext<'_>) {
         let zoom_delta = ui.input(|r| r.zoom_delta());
-        let is_zooming = (zoom_delta - 1.0).abs() > 0.05;
+        let is_zooming = zoom_delta != 1.0;
         let pan = get_pan(ui);
 
         let touch_positions = get_touch_positions(ui);
@@ -166,7 +167,7 @@ impl GestureHandler {
         if let Some(p) = pan {
             t = t.post_translate(p.x, p.y);
         }
-        if is_zooming {
+        if is_zooming && !self.is_zoom_locked {
             // apply zoom
             t = t.post_scale(zoom_delta, zoom_delta);
 

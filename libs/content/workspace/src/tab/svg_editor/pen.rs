@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use tracing::{event, trace, Level};
 use tracing_test::traced_test;
 
-use crate::{tab::ExtendedInput, theme::palette::ThemePalette};
+use crate::tab::ExtendedInput;
 
 use super::{
     parser::{self, DiffState, Path, Stroke},
@@ -15,11 +15,12 @@ use super::{
     InsertElement, PathBuilder,
 };
 
-pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 3.0;
+pub const PEN_STROKE_WIDTHS: [f32; 3] = [3.0, 4.0, 6.0];
+pub const HIGHLIGHTER_STROKE_WIDTHS: [f32; 3] = [15.0, 20.0, 25.0];
 
 #[derive(Default)]
 pub struct Pen {
-    pub active_color: Option<(egui::Color32, egui::Color32)>,
+    pub active_color: (egui::Color32, egui::Color32),
     pub active_stroke_width: f32,
     pub active_opacity: f32,
     path_builder: PathBuilder,
@@ -33,10 +34,10 @@ enum IntegrationEvent<'a> {
     Native(&'a egui::Event),
 }
 impl Pen {
-    pub fn new() -> Self {
+    pub fn new(active_color: (egui::Color32, egui::Color32), active_stroke_width: f32) -> Self {
         Pen {
-            active_color: None,
-            active_stroke_width: DEFAULT_PEN_STROKE_WIDTH,
+            active_color,
+            active_stroke_width,
             current_id: Uuid::new_v4(),
             path_builder: PathBuilder::new(),
             maybe_snap_started: None,
@@ -144,16 +145,8 @@ impl Pen {
                     self.path_builder.line_to(payload.pos, &mut p.data);
                     event!(Level::TRACE, "drawing");
                 } else {
-                    let mut stroke = Stroke::default();
-
-                    if let Some(c) = self.active_color {
-                        stroke.color = c;
-                    } else {
-                        stroke.color = ThemePalette::get_fg_color();
-                        self.active_color = Some(stroke.color);
-                    }
-
-                    stroke.width = self.active_stroke_width;
+                    let stroke =
+                        Stroke { color: self.active_color, width: self.active_stroke_width };
 
                     event!(Level::TRACE, "starting a new path");
 
@@ -437,7 +430,7 @@ pub struct DrawPayload {
 #[traced_test]
 #[test]
 fn correct_start_of_path() {
-    let mut pen = Pen::new();
+    let mut pen = Pen::new((egui::Color32::BLACK, egui::Color32::WHITE), 1.0);
     let mut pen_ctx = ToolContext {
         painter: &egui::Painter::new(
             egui::Context::default(),
@@ -489,7 +482,7 @@ fn cancel_touch_ui_event() {
         },
     ];
 
-    let mut pen = Pen::new();
+    let mut pen = Pen::new((egui::Color32::BLACK, egui::Color32::WHITE), 1.0);
     let mut pen_ctx = ToolContext {
         painter: &egui::Painter::new(
             egui::Context::default(),
