@@ -28,12 +28,16 @@ public struct CoreApi: LockbookApi {
         logout_and_exit()
     }
     
-    public func importAccount(accountString: String) -> FfiResult<Empty, ImportError> {
-        fromPrimitiveResult(result: import_account(accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
+    public func importAccount(accountString: String, apiUrl: String? = nil) -> FfiResult<Empty, ImportError> {
+        fromPrimitiveResult(result: import_account(accountString.trimmingCharacters(in: .whitespacesAndNewlines), apiUrl ?? ""))
     }
     
     public func exportAccount() -> FfiResult<String, AccountExportError> {
-        fromPrimitiveResult(result: export_account())
+        fromPrimitiveResult(result: export_account_key())
+    }
+    
+    public func exportAccountPhrase() -> FfiResult<String, AccountExportError> {
+        fromPrimitiveResult(result: export_account_phrase())
     }
     
     public func getUsage() -> FfiResult<UsageMetrics, GetUsageError> {

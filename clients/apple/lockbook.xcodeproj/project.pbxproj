@@ -29,6 +29,7 @@
 		4779C62E2AB8C09E007C0100 /* PathSearchActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4779C62C2AB8C09E007C0100 /* PathSearchActionBar.swift */; };
 		477CC4902967A53C00714456 /* ShareFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CC48F2967A53C00714456 /* ShareFileSheet.swift */; };
 		477CC4912967A53C00714456 /* ShareFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CC48F2967A53C00714456 /* ShareFileSheet.swift */; };
+		477D80F12C98810C001AC17C /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477D80F02C98810C001AC17C /* OnboardingView.swift */; };
 		4782F83B2C49B4E700D55923 /* DeleteConfirmationButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4782F83A2C49B4E700D55923 /* DeleteConfirmationButtons.swift */; };
 		4782F83C2C49B4E700D55923 /* DeleteConfirmationButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4782F83A2C49B4E700D55923 /* DeleteConfirmationButtons.swift */; };
 		47837E292A72EA7500863FA4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B273394C26C8A4B400303EAE /* Assets.xcassets */; };
@@ -64,7 +65,6 @@
 		870DC09F26BDE6F4002E9A92 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 870DC09E26BDE6F4002E9A92 /* SettingsView.swift */; };
 		870DC0A226BF378F002E9A92 /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 870DC0A126BF378F002E9A92 /* AccountSettingsView.swift */; };
 		870DC0A426BF37C0002E9A92 /* UsageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 870DC0A326BF37C0002E9A92 /* UsageSettingsView.swift */; };
-		8715F92827161CC60051689E /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8715F92727161CC60051689E /* OnboardingView.swift */; };
 		8715F92927161CC60051689E /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8715F92727161CC60051689E /* OnboardingView.swift */; };
 		8715F92C271641CF0051689E /* Scanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8715F92B271641CF0051689E /* Scanner.swift */; };
 		873559BE26C31210008B3C36 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873559BD26C31210008B3C36 /* SettingsView.swift */; };
@@ -174,6 +174,7 @@
 		477185F02C751E10001EDABB /* SelectedFilesState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedFilesState.swift; sourceTree = "<group>"; };
 		4779C62C2AB8C09E007C0100 /* PathSearchActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathSearchActionBar.swift; sourceTree = "<group>"; };
 		477CC48F2967A53C00714456 /* ShareFileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFileSheet.swift; sourceTree = "<group>"; };
+		477D80F02C98810C001AC17C /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		4782F83A2C49B4E700D55923 /* DeleteConfirmationButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteConfirmationButtons.swift; sourceTree = "<group>"; };
 		4788D3842C5D71A900507DCE /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 		47A45FBA2969047B00573044 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
@@ -416,6 +417,7 @@
 				B249B9E4282AC03A004F5300 /* MoveSheet.swift */,
 				B249B9E6282AF4F4004F5300 /* HomeView.swift */,
 				473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */,
+				477D80F02C98810C001AC17C /* OnboardingView.swift */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -427,6 +429,7 @@
 				870DC0A026BF3775002E9A92 /* Settings */,
 				8741E8F925ACBCF9005B7B01 /* DesktopHomeView.swift */,
 				DFE4E36E2B847F4300AC8A15 /* WindowManager.swift */,
+				8715F92727161CC60051689E /* OnboardingView.swift */,
 				EA5C7D792516606100F7F358 /* Info.plist */,
 				EA5C7D7A2516606100F7F358 /* macOS.entitlements */,
 				B273394E26C8B3EF00303EAE /* Media.xcassets */,
@@ -447,7 +450,6 @@
 				4756C4DA2A57CE86002C64B1 /* CreateFolderSheet.swift */,
 				EA9079C22569960A00E04F5D /* ListFileCell.swift */,
 				87F78F762709352C0001E159 /* LogoView.swift */,
-				8715F92727161CC60051689E /* OnboardingView.swift */,
 				B2459BEC28DBB43100756D71 /* ColorProgressBar.swift */,
 				4709DC37296609F100426106 /* PendingSharesView.swift */,
 				4709C76F29FDAAE9004449EF /* SuggestedDocs.swift */,
@@ -649,7 +651,6 @@
 				B2386A502C2F37D700B12415 /* DebugView.swift in Sources */,
 				87BD383826C020B00030D2B1 /* SettingsService.swift in Sources */,
 				B249B9ED282AF6BF004F5300 /* OutlineContextMenu.swift in Sources */,
-				8715F92827161CC60051689E /* OnboardingView.swift in Sources */,
 				47FB55ED2AF19AD400B74C09 /* RenameFileSheet.swift in Sources */,
 				47FAA4C829EC830600DB606E /* BranchState.swift in Sources */,
 				477185F12C751E10001EDABB /* SelectedFilesState.swift in Sources */,
@@ -678,6 +679,7 @@
 				B249B9E7282AF4F4004F5300 /* HomeView.swift in Sources */,
 				47A45FBB2969047B00573044 /* ShareService.swift in Sources */,
 				877FB55026D17FD00008AB3F /* UnexpectedErrorService.swift in Sources */,
+				477D80F12C98810C001AC17C /* OnboardingView.swift in Sources */,
 				476436CC29B7DE4E00FBDC59 /* SearchService.swift in Sources */,
 				877FB55626D18AA60008AB3F /* AccountService.swift in Sources */,
 				6581ABD3CA16395327F765E8 /* SheetState.swift in Sources */,
@@ -1028,6 +1030,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_PREVIEWS = YES;
+				GCC_OPTIMIZATION_LEVEL = s;
 				INFOPLIST_FILE = iOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";

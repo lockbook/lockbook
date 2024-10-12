@@ -143,7 +143,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportAccount(
     string_to_jstring(
         &env,
         match static_state::get() {
-            Ok(core) => translate(core.export_account()),
+            Ok(core) => translate(core.export_account_key()),
             e => translate(e.map(|_| ())),
         },
     )

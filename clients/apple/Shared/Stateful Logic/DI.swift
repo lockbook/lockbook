@@ -83,6 +83,7 @@ extension View {
             .environmentObject(Mock.sheets)
             .environmentObject(Mock.billing)
             .environmentObject(Mock.share)
+            .environmentObject(Mock.search)
             .environmentObject(Mock.workspace)
     }
 }
