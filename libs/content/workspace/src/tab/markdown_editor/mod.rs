@@ -101,7 +101,9 @@ impl Markdown {
             } else {
                 self.editor.show(ui)
             };
-            if !self.editor.appearance.plaintext_mode {
+            if !self.editor.appearance.plaintext_mode
+                && self.toolbar.visibility != ToolBarVisibility::Disabled
+            {
                 self.toolbar.show(ui, &mut self.editor, &mut res);
             }
             res

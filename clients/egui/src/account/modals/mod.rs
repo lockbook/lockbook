@@ -85,7 +85,6 @@ impl super::AccountScreen {
                 match inner {
                     SuccessfullyUpgraded => self.workspace.refresh_sync_status(),
                     ToggleToolbarVisibility(new_change) => {
-                        self.modals.settings = None;
                         self.refresh_toolbar_visibilities(new_change);
                         ctx.request_repaint();
                     }
