@@ -109,7 +109,9 @@ impl Lb {
         let hmac = *hmac.ok_or_else(|| {
             LbErrKind::Unexpected(format!("hmac missing for a document we just wrote {}", id))
         })?;
-        self.docs.insert(id, Some(hmac), &encrypted_document).await?;
+        self.docs
+            .insert(id, Some(hmac), &encrypted_document)
+            .await?;
         let bg_lb = self.clone();
         tokio::spawn(async move {
             bg_lb
