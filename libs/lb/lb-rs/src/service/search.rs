@@ -4,11 +4,11 @@ use crate::logic::filename::DocumentType;
 use crate::logic::tree_like::TreeLike;
 use crate::model::errors::{LbErr, LbResult, UnexpectedError};
 use crate::model::file::File;
-use crate::{Lb};
+use crate::Lb;
 use crossbeam::channel::{self, Receiver, Sender};
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 
-use futures::{future};
+use futures::future;
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
@@ -76,7 +76,9 @@ impl Lb {
 
             tokio::spawn(async move {
                 lb.build_index().await.unwrap(); // TODO: remove unwrap
-                lb.search.is_building_index.store(false, std::sync::atomic::Ordering::SeqCst);
+                lb.search
+                    .is_building_index
+                    .store(false, std::sync::atomic::Ordering::SeqCst);
             });
 
             match cfg {

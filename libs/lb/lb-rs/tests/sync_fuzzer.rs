@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use crate::Actions::*;
 use indicatif::{ProgressBar, ProgressStyle};
-use lb_rs::model::errors::{LbErrKind, LbErr};
+use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType::{Document, Folder};
 use lb_rs::Lb;

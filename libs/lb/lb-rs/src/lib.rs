@@ -21,11 +21,11 @@
 #[macro_use]
 extern crate tracing;
 
+pub mod blocking;
 pub mod logic;
 pub mod model;
-pub mod service;
 pub mod repo;
-pub mod blocking;
+pub mod service;
 
 #[derive(Clone)]
 pub struct Lb {
