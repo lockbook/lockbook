@@ -8,3 +8,4 @@ crate_type = ["cdylib"]
 
 [dependencies]
 jni = "0.21.1"
+lb-rs = { path = "../lb-rs" }
