@@ -215,9 +215,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         let y = point.y - self.floatingCursorNewStartY
 
         if y >= bounds.height - 5 {
-            scroll_wheel(wsHandle, 0, -20)
+            scroll_wheel(wsHandle, 0, -20, false, false, false, false)
         } else if y <= 5 {
-            scroll_wheel(wsHandle, 0, 20)
+            scroll_wheel(wsHandle, 0, 20, false, false, false, false)
         }
 
         if animate {
@@ -715,6 +715,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
 
     init(mtkView: iOSMTK) {
         self.mtkView = mtkView
+
         super.init(frame: .infinite)
 
         isMultipleTouchEnabled = true
@@ -863,7 +864,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                 if !cursorTracked {
                     mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                 }
-                scroll_wheel(self.wsHandle, Float(velocity.x), Float(velocity.y))
+                scroll_wheel(self.wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false)
                 if !cursorTracked {
                     mouse_gone(wsHandle)
                 }
@@ -874,7 +875,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             if !cursorTracked {
                 mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
             }
-            scroll_wheel(wsHandle, Float(velocity.x), Float(velocity.y))
+            scroll_wheel(wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false)
             if !cursorTracked {
                 mouse_gone(wsHandle)
             }
@@ -1064,7 +1065,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
         let newFile = UUID(uuid: output.doc_created._0)
         if !newFile.isNil() {
-            self.workspaceState?.openDoc = newFile
+            openFile(id: newFile)
         }
 
         if output.new_folder_btn_pressed {
@@ -1122,9 +1123,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         for touch in touches {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
-
+            let location = touch.preciseLocation(in: self)
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+            
             for touch in event!.coalescedTouches(for: touch)! {
-                let location = touch.location(in: self)
+                let location = touch.preciseLocation(in: self)
                 let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
                 touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(force))
             }
@@ -1137,16 +1140,22 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         for touch in touches {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
-            
-//            for touch in event!.coalescedTouches(for: touch)! {
-//                let location = touch.location(in: self)
-//                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-//                
-//                touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
-//            }
-            
+                        
             let location = touch.preciseLocation(in: self)
             let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+
+            for touch in event!.predictedTouches(for: touch)! {
+                let location = touch.preciseLocation(in: self)
+                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+                touches_predicted(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+            }
+            
+            // for touch in event!.coalescedTouches(for: touch)! {
+            //     let location = touch.location(in: self)
+            //     let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+            //     touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+            // }
+
             touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
 
         }
@@ -1159,12 +1168,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
 
-            for touch in event!.coalescedTouches(for: touch)! {
-                let location = touch.location(in: self)
-                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-                
-                touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
-            }
+            let location = touch.preciseLocation(in: self)
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+            touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
         }
 
         self.setNeedsDisplay(self.frame)
@@ -1175,12 +1181,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
 
-            for touch in event!.coalescedTouches(for: touch)! {
-                let location = touch.location(in: self)
-                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-                
-                touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(force))
-            }
+            let location = touch.preciseLocation(in: self)
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 02
+            touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(force))
         }
 
         self.setNeedsDisplay(self.frame)

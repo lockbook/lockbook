@@ -6,7 +6,7 @@ use crate::logic::tree_like::TreeLike;
 use crate::logic::validate;
 use crate::model::clock::get_time;
 use crate::model::errors::{LbErrKind, LbResult};
-use crate::model::file_metadata::FileType;
+use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::Lb;
 use uuid::Uuid;
 
@@ -60,6 +60,66 @@ impl Lb {
         });
 
         Ok(())
+    }
+
+    pub async fn read_document_with_hmac(
+        &mut self, id: Uuid,
+    ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+
+        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+
+        let doc = self.read_document_helper(id, &mut tree).await?;
+        let hmac = tree.find(&id)?.document_hmac().copied();
+
+        let bg_lb = self.clone();
+        tokio::spawn(async move {
+            bg_lb
+                .add_doc_event(activity::DocEvent::Read(id, get_time().0))
+                .await
+                .unwrap();
+        });
+
+        Ok((hmac, doc))
+    }
+
+    pub async fn safe_write(
+        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>,
+    ) -> LbResult<DocumentHmac> {
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+
+        let mut tree = (&db.base_metadata)
+            .to_staged(&mut db.local_metadata)
+            .to_lazy();
+
+        let account = self.get_account()?;
+        let file = tree.find(&id)?;
+        if file.document_hmac() != old_hmac.as_ref() {
+            return Err(LbErrKind::ReReadRequired.into());
+        }
+        let id = match file.file_type() {
+            FileType::Document | FileType::Folder => id,
+            FileType::Link { target } => target,
+        };
+        // todo can we not borrow here?
+        let encrypted_document = tree.update_document(&id, &content, account)?;
+        let hmac = tree.find(&id)?.document_hmac();
+        let hmac = *hmac.ok_or_else(|| {
+            LbErrKind::Unexpected(format!("hmac missing for a document we just wrote {}", id))
+        })?;
+        self.docs.insert(id, Some(hmac), &encrypted_document).await?;
+        let bg_lb = self.clone();
+        tokio::spawn(async move {
+            bg_lb
+                .add_doc_event(activity::DocEvent::Write(id, get_time().0))
+                .await
+                .unwrap();
+            bg_lb.cleanup().await.unwrap();
+        });
+
+        Ok(hmac)
     }
 
     pub(crate) async fn cleanup(&self) -> LbResult<()> {

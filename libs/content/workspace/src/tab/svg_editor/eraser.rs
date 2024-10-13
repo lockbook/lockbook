@@ -33,7 +33,7 @@ impl Eraser {
         }
     }
 
-    pub fn handle_input(&mut self, ui: &mut egui::Ui, eraser_ctx: ToolContext) {
+    pub fn handle_input(&mut self, ui: &mut egui::Ui, eraser_ctx: &mut ToolContext) {
         if is_multi_touch(ui) {
             *eraser_ctx.allow_viewport_changes = true;
             return;
@@ -158,6 +158,8 @@ impl Eraser {
     ) {
         let stroke = egui::Stroke { width: 1.0, color: ui.visuals().text_color() };
         painter.circle_stroke(cursor_pos, self.radius, stroke);
-        ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::None);
+
+        // todo: apple integration doesn't support this correctly.
+        // ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::None);
     }
 }

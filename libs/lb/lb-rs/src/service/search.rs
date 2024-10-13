@@ -1,27 +1,19 @@
-use crate::logic::crypto::{DecryptedDocument, EncryptedDocument};
+use super::activity::RankingWeights;
 use crate::logic::file_like::FileLike;
 use crate::logic::filename::DocumentType;
 use crate::logic::tree_like::TreeLike;
-use crate::model::errors::{LbErr, LbResult, UnexpectedError};
-use crate::model::file::File;
+use crate::model::errors::{LbResult, UnexpectedError};
 use crate::Lb;
-use crossbeam::channel::{self, Receiver, Sender};
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
-
-use futures::future;
 use serde::Serialize;
-use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::thread::{self, available_parallelism};
 use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 use tokio::time::sleep;
 use uuid::Uuid;
-
-use super::activity::{RankingWeights, Stats};
 
 const CONTENT_SCORE_THRESHOLD: i64 = 170;
 const PATH_SCORE_THRESHOLD: i64 = 10;

@@ -1,6 +1,7 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use bezier_rs::{Bezier, Subpath};
+use egui::Pos2;
 use glam::DVec2;
 
 use super::parser::{Element, ManipulatorGroupId};
@@ -88,14 +89,6 @@ pub fn rect_to_bb(rect: egui::Rect) -> [DVec2; 2] {
     ]
 }
 
-pub fn get_event_touch_id(event: &egui::Event) -> Option<egui::TouchId> {
-    if let egui::Event::Touch { device_id: _, id, phase: _, pos: _, force: _ } = event {
-        Some(*id)
-    } else {
-        None
-    }
-}
-
 pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
     let mut custom_multi_touch = false;
     ui.input(|r| {
@@ -115,4 +108,17 @@ pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
         }
     });
     custom_multi_touch
+}
+
+pub fn get_touch_positions(ui: &mut egui::Ui) -> HashMap<u64, Pos2> {
+    ui.input(|r| {
+        let mut touch_positions = HashMap::new();
+        for e in r.events.iter() {
+            if let egui::Event::Touch { device_id: _, id, phase: _, pos, force: _ } = e {
+                touch_positions.insert(id.0, *pos);
+            }
+        }
+
+        touch_positions
+    })
 }

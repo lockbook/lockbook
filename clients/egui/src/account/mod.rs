@@ -127,7 +127,9 @@ impl AccountScreen {
             .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
             .min_width(300.0)
             .show_animated(ctx, is_expanded, |ui| {
-                ui.set_enabled(!self.is_any_modal_open());
+                if self.is_any_modal_open() {
+                    ui.disable();
+                }
 
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
                     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
@@ -163,7 +165,9 @@ impl AccountScreen {
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
             .show(ctx, |ui| {
-                ui.set_enabled(!self.is_any_modal_open());
+                if self.is_any_modal_open() {
+                    ui.disable();
+                }
                 let settings = self.settings.read().unwrap();
                 self.workspace.cfg.update(
                     settings.auto_save,

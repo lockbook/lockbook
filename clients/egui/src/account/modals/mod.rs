@@ -85,7 +85,6 @@ impl super::AccountScreen {
                 match inner {
                     SuccessfullyUpgraded => self.workspace.refresh_sync_status(),
                     ToggleToolbarVisibility(new_change) => {
-                        self.modals.settings = None;
                         self.refresh_toolbar_visibilities(new_change);
                         ctx.request_repaint();
                     }
@@ -238,7 +237,7 @@ fn show_modal<M: Modal>(
 
     let title = d.title();
 
-    let frame = egui::Frame::window(&ctx.style()).inner_margin(egui::style::Margin {
+    let frame = egui::Frame::window(&ctx.style()).inner_margin(egui::Margin {
         left: 0.0,
         bottom: 0.0,
         ..ctx.style().spacing.window_margin
