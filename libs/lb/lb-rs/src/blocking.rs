@@ -62,7 +62,7 @@ impl Lb {
     }
 
     pub fn export_account_qr(&self) -> LbResult<Vec<u8>> {
-        self.export_account_qr()
+        self.lb.export_account_qr()
     }
 
     pub fn get_account(&self) -> LbResult<&Account> {

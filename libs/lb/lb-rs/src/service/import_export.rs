@@ -82,7 +82,7 @@ impl Lb {
 
         match file_type {
             FileType::Document => {
-                let content = fs::read(&disk_path).map_err(LbErr::from)?;
+                let content = fs::read(disk_path).map_err(LbErr::from)?;
                 self.write_document(file.id, content.as_slice()).await?;
 
                 update_status(ImportStatus::FinishedItem(file));

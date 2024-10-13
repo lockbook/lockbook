@@ -1,10 +1,10 @@
 use std::{
-    ffi::{c_char, c_void},
+    ffi::c_char,
     ptr,
 };
 
 use ffi_utils::{bytes, cstring, mut_rlb, rlb, rstr, rstring};
-use lb_c_err::{LbEC, LbFfiErr};
+use lb_c_err::LbFfiErr;
 pub use lb_rs::{blocking::Lb, model::core_config::Config};
 
 #[repr(C)]

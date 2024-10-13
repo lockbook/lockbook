@@ -52,7 +52,7 @@ pub enum SearchResult {
 
 impl Lb {
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
-        if input == ""
+        if input.is_empty()
             && self
                 .search
                 .is_building_index
@@ -147,7 +147,7 @@ impl Lb {
             .collect::<Vec<Option<SearchResult>>>()
             .await
             .into_iter()
-            .filter_map(|res| res)
+            .flatten()
             .collect::<Vec<SearchResult>>())
     }
 
@@ -205,7 +205,7 @@ impl Lb {
             .collect::<Vec<Option<SearchResult>>>()
             .await
             .into_iter()
-            .filter_map(|res| res)
+            .flatten()
             .collect::<Vec<SearchResult>>())
     }
 
