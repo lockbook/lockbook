@@ -1,27 +1,19 @@
-use crate::logic::crypto::{DecryptedDocument, EncryptedDocument};
+use super::activity::RankingWeights;
 use crate::logic::file_like::FileLike;
 use crate::logic::filename::DocumentType;
 use crate::logic::tree_like::TreeLike;
-use crate::model::errors::{LbErr, LbResult, UnexpectedError};
-use crate::model::file::File;
-use crate::{Lb};
-use crossbeam::channel::{self, Receiver, Sender};
+use crate::model::errors::{LbResult, UnexpectedError};
+use crate::Lb;
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
-
-use futures::{future};
 use serde::Serialize;
-use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::thread::{self, available_parallelism};
 use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 use tokio::time::sleep;
 use uuid::Uuid;
-
-use super::activity::{RankingWeights, Stats};
 
 const CONTENT_SCORE_THRESHOLD: i64 = 170;
 const PATH_SCORE_THRESHOLD: i64 = 10;
@@ -60,7 +52,7 @@ pub enum SearchResult {
 
 impl Lb {
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
-        if input == ""
+        if input.is_empty()
             && self
                 .search
                 .is_building_index
@@ -76,7 +68,9 @@ impl Lb {
 
             tokio::spawn(async move {
                 lb.build_index().await.unwrap(); // TODO: remove unwrap
-                lb.search.is_building_index.store(false, std::sync::atomic::Ordering::SeqCst);
+                lb.search
+                    .is_building_index
+                    .store(false, std::sync::atomic::Ordering::SeqCst);
             });
 
             match cfg {
@@ -153,7 +147,7 @@ impl Lb {
             .collect::<Vec<Option<SearchResult>>>()
             .await
             .into_iter()
-            .filter_map(|res| res)
+            .flatten()
             .collect::<Vec<SearchResult>>())
     }
 
@@ -211,7 +205,7 @@ impl Lb {
             .collect::<Vec<Option<SearchResult>>>()
             .await
             .into_iter()
-            .filter_map(|res| res)
+            .flatten()
             .collect::<Vec<SearchResult>>())
     }
 

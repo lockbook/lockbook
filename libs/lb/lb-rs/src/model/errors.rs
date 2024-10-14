@@ -132,6 +132,9 @@ impl Display for LbErrKind {
             LbErrKind::AlreadySyncing => {
                 write!(f, "A sync is already in progress, cannot begin another sync at this time!")
             }
+            LbErrKind::ReReadRequired => {
+                write!(f, "This document changed since you last read it, please re-read it!")
+            }
         }
     }
 }
@@ -304,6 +307,7 @@ pub enum LbErrKind {
     UsernameNotFound,
     UsernamePublicKeyMismatch,
     UsernameTaken,
+    ReReadRequired,
     Unexpected(String),
 }
 

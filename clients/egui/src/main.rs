@@ -50,7 +50,7 @@ fn main() {
             ..Default::default()
         },
         Box::new(|cc: &eframe::CreationContext| {
-            Box::new(Lockbook::new(&cc.egui_ctx, settings, maybe_settings_err))
+            Ok(Box::new(Lockbook::new(&cc.egui_ctx, settings, maybe_settings_err)))
         }),
     )
     .unwrap();

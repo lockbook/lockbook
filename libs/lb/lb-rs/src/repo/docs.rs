@@ -92,7 +92,7 @@ impl AsyncDocs {
     }
 }
 
-pub fn namespace_path(writeable_path: &PathBuf) -> String {
+pub fn namespace_path(writeable_path: &Path) -> String {
     format!("{}/documents", writeable_path.to_str().unwrap())
 }
 

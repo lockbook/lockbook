@@ -1,6 +1,8 @@
-use std::ffi::{c_char, CString};
+use std::{ffi::{c_char, CString}, ptr};
 
 use lb_rs::model::errors::{LbErr, LbErrKind};
+
+use crate::ffi_utils::cstring;
 
 #[repr(C)]
 pub struct LbFfiErr {
@@ -59,6 +61,7 @@ pub enum LbEC {
     PathTaken,
     RootModificationInvalid,
     RootNonexistent,
+    ReReadRequired,
     ServerDisabled,
     ServerUnreachable,
     ShareAlreadyExists,
@@ -77,11 +80,11 @@ impl From<LbErr> for LbFfiErr {
         let msg = CString::new(msg).unwrap().into_raw();
 
         let trace = match value.backtrace {
-            Some(bt) => bt.to_string(),
-            None => todo!(),
+            Some(bt) => cstring(bt.to_string()),
+            None => ptr::null_mut(),
         };
 
-        Self { code, msg, trace: todo!() }
+        Self { code, msg, trace }
     }
 }
 
@@ -145,7 +148,8 @@ impl From<&LbErrKind> for LbEC {
             LbErrKind::UsernameNotFound => Self::UsernameNotFound,
             LbErrKind::UsernamePublicKeyMismatch => Self::UsernamePublicKeyMismatch,
             LbErrKind::UsernameTaken => Self::UsernameTaken,
-            LbErrKind::Unexpected(_) => Self::Unexpected,
+            LbErrKind::Unexpected(_) => Self::ReReadRequired,
+            LbErrKind::ReReadRequired => todo!(),
         }
     }
 }

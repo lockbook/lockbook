@@ -16,8 +16,8 @@ async fn admin_disappear_test() {
     let test2 = customer_core.create_at_path("test2.md").await.unwrap();
     customer_core.sync(None).await.unwrap();
 
-    let account_string = customer_core.export_account_private_key().await.unwrap();
-    let mut customer_core_2 = test_core().await;
+    let account_string = customer_core.export_account_private_key().unwrap();
+    let customer_core_2 = test_core().await;
     customer_core_2
         .import_account(&account_string, Some(&url()))
         .await
@@ -35,7 +35,7 @@ async fn admin_disappear_test() {
     admin_core.disappear_file(test2.id).await.unwrap();
 
     let account_string = customer_core.export_account_private_key().unwrap();
-    let mut customer_core_2 = test_core().await;
+    let customer_core_2 = test_core().await;
     customer_core_2
         .import_account(&account_string, Some(&url()))
         .await

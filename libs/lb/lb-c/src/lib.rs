@@ -102,7 +102,7 @@ pub extern "C" fn lb_delete_account(lb: *mut Lb) -> *mut LbFfiErr {
 
     match lb.delete_account() {
         Ok(_) => ptr::null_mut(),
-        Err(err) => Box::into_raw(Box::new(err.into()))
+        Err(err) => Box::into_raw(Box::new(err.into())),
     }
 }
 
@@ -191,13 +191,13 @@ pub struct LbUsageMetrics {
 #[repr(C)]
 pub struct LbFileUsage {
     file_id: *mut c_char,
-    size_bytes: u64
+    size_bytes: u64,
 }
 
 #[repr(C)]
 pub struct LbUsageItemMetric {
     exact: u64,
-    readable: *mut c_char
+    readable: *mut c_char,
 }
 
 #[no_mangle]
@@ -206,19 +206,19 @@ pub extern "C" fn lb_get_usage(lb: *mut Lb) -> LbUsageMetricsRes {
 
     match lb.get_usage() {
         Ok(metrics) => {
-            let usage = metrics.usages
-            .into_iter()
-            .map(|usage| LbFileUsage {
-                file_id: cstring(usage.file_id.to_string(),
-                size_bytes: usage.size_bytes
-            })
-            let metrics = LbUsageMetrics {
-                usage: 
-            }
-            LbUsageMetricsRes {
-                metrics: ,
-                err: ptr::null_mut()
-            }
+            // let usage = metrics.usages
+            // .into_iter()
+            // .map(|usage| LbFileUsage {
+            //     file_id: cstring(usage.file_id.to_string(),
+            //     size_bytes: usage.size_bytes
+            // })
+            // let metrics = LbUsageMetrics {
+            //     usage: 
+            // }
+            // LbUsageMetricsRes {
+            //     metrics: ,
+            //     err: ptr::null_mut()
+            // }
         }
         Err(err) => {
             let err = Box::into_raw(Box::new(err.into()));

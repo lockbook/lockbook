@@ -24,7 +24,7 @@ pub struct UsageItemMetric {
 impl Lb {
     pub async fn get_usage(&self) -> LbResult<UsageMetrics> {
         let acc = self.get_account()?;
-        let usage = self.client.request(&acc, GetUsageRequest {}).await?;
+        let usage = self.client.request(acc, GetUsageRequest {}).await?;
         Ok(get_usage(usage))
     }
 

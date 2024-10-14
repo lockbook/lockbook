@@ -9,8 +9,14 @@ use crate::{
 };
 
 use super::{
-    eraser::DEFAULT_ERASER_RADIUS, history::History, parser, pen::DEFAULT_PEN_STROKE_WIDTH,
-    selection::Selection, zoom::zoom_percentage_to_transform, Buffer, Eraser, Pen,
+    eraser::DEFAULT_ERASER_RADIUS,
+    gesture_handler::{zoom_percentage_to_transform, GestureHandler},
+    history::History,
+    parser,
+    pen::HIGHLIGHTER_STROKE_WIDTHS,
+    pen::PEN_STROKE_WIDTHS,
+    selection::Selection,
+    Buffer, Eraser, Pen,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
@@ -22,9 +28,11 @@ pub struct Toolbar {
     pub active_tool: Tool,
     right_tab_rect: Option<egui::Rect>,
     pub pen: Pen,
+    pub highlighter: Pen,
     pub eraser: Eraser,
     pub selection: Selection,
     pub previous_tool: Option<Tool>,
+    pub gesture_handler: GestureHandler,
 }
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug, Default)]
@@ -34,7 +42,6 @@ pub enum Tool {
     Eraser,
     Selection,
     Highlighter,
-    Brush,
 }
 
 pub struct ToolContext<'a> {
@@ -42,7 +49,6 @@ pub struct ToolContext<'a> {
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
     pub allow_viewport_changes: &'a mut bool,
-    pub is_viewport_changing: &'a mut bool,
     pub is_touch_frame: bool,
 }
 #[derive(Clone)]
@@ -56,10 +62,6 @@ macro_rules! set_tool {
         if $obj.active_tool != $new_tool {
             if (matches!($new_tool, Tool::Selection)) {
                 $obj.selection = Selection::default();
-            }
-            if (matches!($new_tool, Tool::Pen)) {
-                $obj.pen.active_opacity = 1.0;
-                $obj.pen.supports_pressure = false;
             }
             $obj.previous_tool = Some($obj.active_tool);
             $obj.active_tool = $new_tool;
@@ -85,14 +87,19 @@ impl Toolbar {
     }
 
     pub fn new() -> Self {
-        Toolbar {
+        let mut toolbar = Toolbar {
             active_tool: Tool::Pen,
             previous_tool: None,
             right_tab_rect: None,
-            pen: Pen::new(),
+            pen: Pen::new(ThemePalette::get_fg_color(), PEN_STROKE_WIDTHS[0]),
+            highlighter: Pen::new(get_highlighter_colors()[0], HIGHLIGHTER_STROKE_WIDTHS[0]),
             eraser: Eraser::new(),
             selection: Selection::default(),
-        }
+            gesture_handler: GestureHandler::default(),
+        };
+        toolbar.highlighter.active_opacity = 0.1;
+        toolbar.pen.active_opacity = 1.0;
+        toolbar
     }
 
     pub fn show(
@@ -121,31 +128,78 @@ impl Toolbar {
             history.undo(buffer);
         }
 
-        ScrollArea::both().show(ui, |ui| {
-            egui::Frame::default()
-                .inner_margin(egui::Margin::symmetric(15.0, 7.0))
+        ui.horizontal(|ui| {
+            let toolbar_margin = egui::vec2(15.0, 7.0);
+            let right_bar_rect = self.right_tab_rect.unwrap_or(egui::Rect::NOTHING);
+
+            ScrollArea::horizontal()
+                .auto_shrink(false)
+                .max_width(
+                    ui.available_rect_before_wrap().width()
+                        - right_bar_rect.width()
+                        - toolbar_margin.x,
+                )
+                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
                 .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        self.show_left_toolbar(ui, buffer, history);
+                    egui::Frame::default()
+                        .inner_margin(egui::Margin::symmetric(toolbar_margin.x, toolbar_margin.y))
+                        .show(ui, |ui| {
+                            self.show_left_toolbar(ui, buffer, history);
+                        })
+                });
 
-                        let right_bar_width =
-                            if let Some(r) = self.right_tab_rect { r.width() } else { 0.0 };
-                        ui.add_space(right_bar_width + 10.0);
+            egui::Frame::default()
+                .inner_margin(egui::Margin::symmetric(toolbar_margin.x, toolbar_margin.y))
+                .show(ui, |ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                        if let Some(transform) =
+                            self.show_zoom_controls(ui, buffer, skip_frame, inner_rect)
+                        {
+                            buffer.master_transform =
+                                buffer.master_transform.post_concat(transform);
 
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                            if let Some(transform) =
-                                self.show_right_toolbar(ui, buffer, skip_frame, inner_rect)
-                            {
-                                buffer.master_transform =
-                                    buffer.master_transform.post_concat(transform);
+                            buffer
+                                .elements
+                                .iter_mut()
+                                .for_each(|(_, el)| el.transform(transform));
+                        }
 
-                                buffer
-                                    .elements
-                                    .iter_mut()
-                                    .for_each(|(_, el)| el.transform(transform));
-                            }
-                        });
+                        let mut icon_style = (*ui.ctx().style()).clone();
+                        let icon_stroke = egui::Stroke {
+                            color: ui.visuals().text_color().gamma_multiply(
+                                if self.gesture_handler.is_zoom_locked { 1.0 } else { 0.5 },
+                            ),
+                            ..Default::default()
+                        };
+                        icon_style.visuals.widgets.inactive.fg_stroke = icon_stroke;
+                        icon_style.visuals.widgets.active.fg_stroke = icon_stroke;
+                        icon_style.visuals.widgets.hovered.fg_stroke = icon_stroke;
+
+                        let zoom_icon = if self.gesture_handler.is_zoom_locked {
+                            Icon::LOCK_CLOSED
+                        } else {
+                            Icon::LOCK_OPEN
+                        };
+                        let tooltip_text = if self.gesture_handler.is_zoom_locked {
+                            "allow zooming in the drawing"
+                        } else {
+                            "restrict zooming in the drawing"
+                        };
+
+                        let zoom_lock_btn = Button::default()
+                            .icon(&zoom_icon)
+                            .icon_style(icon_style)
+                            .show(ui);
+
+                        if zoom_lock_btn.clicked() {
+                            self.gesture_handler.is_zoom_locked =
+                                !self.gesture_handler.is_zoom_locked;
+                        }
+                        zoom_lock_btn.on_hover_text(tooltip_text);
+
+                        ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
                     });
+                    self.right_tab_rect = Some(ui.max_rect());
                 });
         });
 
@@ -190,29 +244,11 @@ impl Toolbar {
         let pen_btn = Button::default().icon(&Icon::PEN).show(ui);
         if pen_btn.clicked() {
             set_tool!(self, Tool::Pen);
-            self.pen.supports_pressure = false;
-            self.pen.active_opacity = 1.0;
-            self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH;
-            self.pen.active_color = None;
-        }
-
-        let brush = Button::default().icon(&Icon::BRUSH).show(ui);
-        if brush.clicked() {
-            set_tool!(self, Tool::Brush);
-            self.pen.supports_pressure = true;
-            self.pen.active_opacity = 1.0;
-            self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH;
-            self.pen.active_color = None;
         }
 
         let highlighter_btn = Button::default().icon(&Icon::HIGHLIGHTER).show(ui);
-        let highlighter_opacity = 0.3;
         if highlighter_btn.clicked() {
             set_tool!(self, Tool::Highlighter);
-            self.pen.active_opacity = highlighter_opacity;
-            self.pen.supports_pressure = false;
-            self.pen.active_stroke_width = DEFAULT_PEN_STROKE_WIDTH * 2.0;
-            self.pen.active_color = Some(get_highlighter_colors()[0]);
         }
 
         let eraser_btn = Button::default().icon(&Icon::ERASER).show(ui);
@@ -225,7 +261,6 @@ impl Toolbar {
             Tool::Eraser => eraser_btn.rect,
             Tool::Selection => selection_btn.rect,
             Tool::Highlighter => highlighter_btn.rect,
-            Tool::Brush => brush.rect,
         };
 
         ui.painter().rect_filled(
@@ -238,17 +273,15 @@ impl Toolbar {
         ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
         ui.add_space(4.0);
 
-        self.show_tool_inline_controls(ui);
+        self.show_tool_inline_controls(ui, buffer);
     }
 
-    fn show_tool_inline_controls(&mut self, ui: &mut egui::Ui) {
+    fn show_tool_inline_controls(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) {
         match self.active_tool {
-            Tool::Pen | Tool::Brush => {
-                if let Some(thickness) = self.show_thickness_pickers(
-                    ui,
-                    self.pen.active_stroke_width,
-                    vec![DEFAULT_PEN_STROKE_WIDTH, 4.0, 6.0],
-                ) {
+            Tool::Pen => {
+                if let Some(thickness) =
+                    self.show_thickness_pickers(ui, self.pen.active_stroke_width, PEN_STROKE_WIDTHS)
+                {
                     self.pen.active_stroke_width = thickness;
                 }
 
@@ -262,19 +295,23 @@ impl Toolbar {
                 if let Some(thickness) = self.show_thickness_pickers(
                     ui,
                     self.eraser.radius,
-                    vec![DEFAULT_ERASER_RADIUS, 30.0, 90.0],
+                    [DEFAULT_ERASER_RADIUS, 30.0, 90.0],
                 ) {
                     self.eraser.radius = thickness;
                 }
             }
-            Tool::Selection => {}
+            Tool::Selection => {
+                if !self.selection.selected_elements.is_empty() {
+                    self.show_selection_controls(ui, buffer);
+                }
+            }
             Tool::Highlighter => {
                 if let Some(thickness) = self.show_thickness_pickers(
                     ui,
-                    self.pen.active_stroke_width,
-                    vec![DEFAULT_PEN_STROKE_WIDTH * 2.0, 4.0 * 2.0, 6.0 * 2.0],
+                    self.highlighter.active_stroke_width,
+                    HIGHLIGHTER_STROKE_WIDTHS,
                 ) {
-                    self.pen.active_stroke_width = thickness;
+                    self.highlighter.active_stroke_width = thickness;
                 }
 
                 ui.add_space(4.0);
@@ -285,8 +322,10 @@ impl Toolbar {
 
                 highlighter_colors.iter().for_each(|theme_color| {
                     let color = ThemePalette::resolve_dynamic_color(*theme_color, ui);
-                    if self.show_color_btn(ui, color).clicked() {
-                        self.pen.active_color = Some(*theme_color);
+                    let active_color =
+                        ThemePalette::resolve_dynamic_color(self.highlighter.active_color, ui);
+                    if self.show_color_btn(ui, color, active_color).clicked() {
+                        self.highlighter.active_color = *theme_color;
                     }
                 });
             }
@@ -298,51 +337,151 @@ impl Toolbar {
 
         theme_colors.iter().for_each(|theme_color| {
             let color = ThemePalette::resolve_dynamic_color(*theme_color, ui);
-            if self.show_color_btn(ui, color).clicked() {
-                self.pen.active_color = Some(*theme_color);
+            let active_color = ThemePalette::resolve_dynamic_color(self.pen.active_color, ui);
+            if self.show_color_btn(ui, color, active_color).clicked() {
+                self.pen.active_color = *theme_color;
             }
         });
     }
 
-    fn show_color_btn(&self, ui: &mut egui::Ui, color: egui::Color32) -> egui::Response {
+    fn show_selection_controls(&self, ui: &mut egui::Ui, buffer: &mut Buffer) {
+        let mut max_current_index = 0;
+        let mut min_cureent_index = usize::MAX;
+        ui.label("layers: ");
+        self.selection
+            .selected_elements
+            .iter()
+            .for_each(|selected_element| {
+                if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
+                    max_current_index = el_id.max(max_current_index);
+                    min_cureent_index = el_id.min(min_cureent_index);
+                }
+            });
+
+        if Button::default()
+            .icon(&Icon::BRING_TO_BACK.color(if max_current_index == buffer.elements.len() - 1 {
+                ui.visuals().text_color().gamma_multiply(0.4)
+            } else {
+                ui.visuals().text_color()
+            }))
+            .show(ui)
+            .clicked()
+            && max_current_index != buffer.elements.len() - 1
+        {
+            self.selection
+                .selected_elements
+                .iter()
+                .for_each(|selected_element| {
+                    if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
+                        buffer.elements.move_index(el_id, buffer.elements.len() - 1);
+                    }
+                });
+        }
+
+        if Button::default()
+            .icon(&Icon::BRING_BACK.color(if max_current_index == buffer.elements.len() - 1 {
+                ui.visuals().text_color().gamma_multiply(0.4)
+            } else {
+                ui.visuals().text_color()
+            }))
+            .show(ui)
+            .clicked()
+            && max_current_index != buffer.elements.len() - 1
+        {
+            self.selection
+                .selected_elements
+                .iter()
+                .for_each(|selected_element| {
+                    if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
+                        if el_id < buffer.elements.len() - 1 {
+                            buffer.elements.swap_indices(el_id, el_id + 1);
+                        }
+                    }
+                });
+        }
+
+        if Button::default()
+            .icon(&Icon::BRING_FRONT.color(if min_cureent_index == 0 {
+                ui.visuals().text_color().gamma_multiply(0.4)
+            } else {
+                ui.visuals().text_color()
+            }))
+            .show(ui)
+            .clicked()
+            && min_cureent_index != 0
+        {
+            self.selection
+                .selected_elements
+                .iter()
+                .for_each(|selected_element| {
+                    if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
+                        if el_id > 0 {
+                            buffer.elements.swap_indices(el_id, el_id - 1);
+                        }
+                    }
+                });
+        }
+
+        if Button::default()
+            .icon(&Icon::BRING_TO_FRONT.color(if min_cureent_index == 0 {
+                ui.visuals().text_color().gamma_multiply(0.4)
+            } else {
+                ui.visuals().text_color()
+            }))
+            .show(ui)
+            .clicked()
+            && min_cureent_index != 0
+        {
+            self.selection
+                .selected_elements
+                .iter()
+                .for_each(|selected_element| {
+                    if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
+                        buffer.elements.move_index(el_id, 0);
+                    }
+                });
+        }
+    }
+
+    fn show_color_btn(
+        &self, ui: &mut egui::Ui, color: egui::Color32, active_color: egui::Color32,
+    ) -> egui::Response {
         let (response, painter) = ui.allocate_painter(
             egui::vec2(COLOR_SWATCH_BTN_RADIUS * PI, ui.available_height()),
             egui::Sense::click(),
         );
 
-        if let Some(active_color) = self.pen.active_color {
-            let active_color = if ui.visuals().dark_mode { active_color.1 } else { active_color.0 };
-            let opacity = if active_color.eq(&color) {
-                1.0
-            } else if response.hovered() {
-                0.9
-            } else {
-                0.5
-            };
+        if active_color.eq(&color) {
+            let darken_color_coeff = 30;
+            let dark_color = egui::Color32::from_rgb(
+                color.r().saturating_sub(darken_color_coeff),
+                color.g().saturating_sub(darken_color_coeff),
+                color.b().saturating_sub(darken_color_coeff),
+            );
 
-            if active_color.eq(&color) {
-                painter.rect_filled(
-                    response.rect,
-                    egui::Rounding::same(8.0),
-                    color.linear_multiply(0.2),
-                );
-            }
-            painter.circle_filled(
+            painter.circle_stroke(
                 response.rect.center(),
                 COLOR_SWATCH_BTN_RADIUS,
-                color.linear_multiply(opacity),
+                egui::Stroke { width: 3.0, color: dark_color },
             );
-        };
+
+            painter.rect_filled(
+                response.rect,
+                egui::Rounding::same(8.0),
+                color.gamma_multiply(0.3),
+            );
+        }
+        painter.circle_filled(response.rect.center(), COLOR_SWATCH_BTN_RADIUS, color);
         response
     }
 
     fn show_thickness_pickers(
-        &mut self, ui: &mut egui::Ui, active_thickness: f32, options: Vec<f32>,
+        &mut self, ui: &mut egui::Ui, active_thickness: f32, options: [f32; 3],
     ) -> Option<f32> {
         let mut chosen = None;
         options.iter().enumerate().for_each(|(i, t)| {
             ui.add_space(THICKNESS_BTN_X_MARGIN);
-            let (response, painter) = ui.allocate_painter(
+            let response = ui.allocate_response(
                 egui::vec2(THICKNESS_BTN_WIDTH, ui.available_height()),
                 egui::Sense::click(),
             );
@@ -359,14 +498,14 @@ impl Toolbar {
             };
 
             if t.eq(&active_thickness) {
-                painter.rect_filled(
+                ui.painter().rect_filled(
                     response.rect,
                     egui::Rounding::same(8.0),
                     egui::Color32::GRAY.linear_multiply(0.1),
                 );
             }
 
-            painter.rect_filled(
+            ui.painter().rect_filled(
                 rect,
                 egui::Rounding::same(2.0),
                 ui.visuals().text_color().linear_multiply(0.8),
@@ -381,21 +520,17 @@ impl Toolbar {
         chosen
     }
 
-    fn show_right_toolbar(
+    fn show_zoom_controls(
         &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, skip_frame: &mut bool,
         inner_rect: egui::Rect,
     ) -> Option<Transform> {
         let zoom_percentage =
             ((buffer.master_transform.sx + buffer.master_transform.sy) / 2.0 * 100.0).round();
 
-        if Button::default().icon(&Icon::ZOOM_IN).show(ui).clicked() {
-            return Some(zoom_percentage_to_transform(zoom_percentage + 10., buffer, ui));
-        };
-
         let mut selected = (zoom_percentage, false);
 
         let res = egui::ComboBox::from_id_source("zoom_percentage_combobox")
-            .selected_text(format!("{:?}%", zoom_percentage))
+            .selected_text(format!("{}%", zoom_percentage as i32))
             .show_ui(ui, |ui| {
                 let btns = [FIT_ZOOM, 50, 100, 200].iter().map(|&i| {
                     let label =
@@ -411,9 +546,6 @@ impl Toolbar {
             if r.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default())) {
                 *skip_frame = true;
             }
-        }
-        if Button::default().icon(&Icon::ZOOM_OUT).show(ui).clicked() {
-            return Some(zoom_percentage_to_transform(zoom_percentage - 10., buffer, ui));
         }
 
         if selected.1 {
@@ -449,7 +581,6 @@ impl Toolbar {
             }
         }
 
-        self.right_tab_rect = Some(ui.min_rect());
         None
     }
 }

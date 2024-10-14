@@ -14,6 +14,7 @@ use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
 use crate::model::file_metadata::{FileDiff, FileType, Owner};
 use crate::model::work_unit::WorkUnit;
+use crate::text::buffer::Buffer;
 use crate::Lb;
 use serde::Serialize;
 use std::collections::{hash_map, HashMap, HashSet};
@@ -550,18 +551,19 @@ impl Lb {
                                 match document_type {
                                     DocumentType::Text => {
                                         // 3-way merge
-                                        let merged_document = match diffy::merge_bytes(
-                                            &base_document,
-                                            &local_document,
-                                            &remote_document,
-                                        ) {
-                                            Ok(without_conflicts) => without_conflicts,
-                                            Err(with_conflicts) => with_conflicts,
-                                        };
+                                        // todo: a couple more clones than necessary
+                                        let base_document =
+                                            String::from_utf8_lossy(&base_document).to_string();
+                                        let remote_document =
+                                            String::from_utf8_lossy(&remote_document).to_string();
+                                        let local_document =
+                                            String::from_utf8_lossy(&local_document).to_string();
+                                        let merged_document = Buffer::from(base_document.as_str())
+                                            .merge(local_document, remote_document);
                                         let encrypted_document = merge
                                             .update_document_unvalidated(
                                                 &id,
-                                                &merged_document,
+                                                &merged_document.into_bytes(),
                                                 self.get_account()?,
                                             )?;
                                         let hmac = merge.find(&id)?.document_hmac().copied();

@@ -1,6 +1,8 @@
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 
+use egui::TextWrapMode;
+
 use crate::model::DocType;
 
 struct SearchResultItem {
@@ -121,15 +123,21 @@ impl SearchModal {
             .size(30.0)
             .color(ui.visuals().text_color().gamma_multiply(0.5)))
             .into();
-        let icon = icon.into_galley(ui, Some(true), wrap_width, egui::TextStyle::Body);
+        let icon =
+            icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
 
         let name_text: egui::WidgetText = (&res.name).into();
-        let name_text = name_text.into_galley(ui, Some(true), wrap_width, egui::TextStyle::Body);
+        let name_text = name_text.into_galley(
+            ui,
+            Some(TextWrapMode::Extend),
+            wrap_width,
+            egui::TextStyle::Body,
+        );
 
         let path_text: egui::WidgetText = (&res.path).into();
         let path_text = path_text
             .color(ui.visuals().text_color().gamma_multiply(0.7))
-            .into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
+            .into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
 
         let desired_size = egui::vec2(
             ui.available_size_before_wrap().x,
@@ -137,7 +145,9 @@ impl SearchModal {
         );
 
         let (rect, resp) = ui.allocate_at_least(desired_size, egui::Sense::click_and_drag());
-        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, name_text.text()));
+        resp.widget_info(|| {
+            egui::WidgetInfo::labeled(egui::WidgetType::Button, true, name_text.text())
+        });
 
         if ui.is_rect_visible(rect) {
             let visuals = ui.style().interact(&resp);

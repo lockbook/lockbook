@@ -120,7 +120,7 @@ async fn create_account_account_exists_case() {
 
 #[tokio::test]
 async fn import_account_account_exists() {
-    let mut core = test_core().await;
+    let core = test_core().await;
 
     core.create_account(&random_name(), &url(), false)
         .await
@@ -138,7 +138,7 @@ async fn import_account_account_exists() {
 
 #[tokio::test]
 async fn import_account_corrupted() {
-    let mut core = test_core().await;
+    let core = test_core().await;
 
     assert!(matches!(
         core.import_account("clearly a bad account string", Some(&url()))
@@ -151,7 +151,7 @@ async fn import_account_corrupted() {
 
 #[tokio::test]
 async fn import_account_corrupted_base64() {
-    let mut core = test_core().await;
+    let core = test_core().await;
 
     base64::decode("clearlyabadaccountstring").unwrap();
     assert!(matches!(

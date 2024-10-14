@@ -1,9 +1,8 @@
 use crate::tab::markdown_editor::appearance::{GRAY, YELLOW};
 use crate::tab::markdown_editor::bounds::RangesExt;
 use crate::tab::markdown_editor::images::ImageState;
-use crate::tab::markdown_editor::input::canonical::{Location, Modification, Region};
+use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::layouts::Annotation;
-use crate::tab::markdown_editor::offset_types::RangeExt;
 use crate::tab::markdown_editor::style::{
     BlockNode, InlineNode, ListItem, MarkdownNode, RenderStyle,
 };
@@ -11,10 +10,13 @@ use crate::tab::markdown_editor::Editor;
 use crate::tab::ExtendedInput;
 use egui::text::LayoutJob;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2};
+use lb_rs::text::offset_types::RangeExt;
 use pulldown_cmark::HeadingLevel;
 
+use super::input::cursor;
+
 impl Editor {
-    pub fn draw_text(&self, mut ui_size: Vec2, ui: &mut Ui, touch_mode: bool) {
+    pub fn draw_text(&self, ui: &mut Ui) {
         let bullet_radius = self.appearance.bullet_radius();
         for galley in &self.galleys.galleys {
             // draw annotations
@@ -54,13 +56,13 @@ impl Editor {
                         }
                         ListItem::Todo(checked) => {
                             ui.painter().rect_filled(
-                                galley.checkbox_bounds(touch_mode, &self.appearance),
+                                galley.checkbox_bounds(&self.appearance),
                                 self.appearance.checkbox_rounding(),
                                 self.appearance.checkbox_bg(),
                             );
                             if *checked {
                                 ui.painter().line_segment(
-                                    galley.checkbox_slash(touch_mode, &self.appearance),
+                                    galley.checkbox_slash(&self.appearance),
                                     Stroke {
                                         width: self.appearance.checkbox_slash_width(),
                                         color: self.appearance.text(),
@@ -70,25 +72,20 @@ impl Editor {
                         }
                     },
                     Annotation::HeadingRule => {
-                        let y = galley.galley_location.max.y - 7.0;
-                        let min = Pos2 { x: galley.galley_location.min.x, y };
-                        let max = Pos2 { x: galley.galley_location.max.x, y };
+                        let y = galley.rect.max.y - 7.0;
+                        let min = Pos2 { x: galley.rect.min.x, y };
+                        let max = Pos2 { x: galley.rect.max.x, y };
 
-                        ui.painter().line_segment(
-                            [min, max],
-                            Stroke::new(0.3, self.appearance.heading_line()),
-                        );
+                        ui.painter()
+                            .line_segment([min, max], Stroke::new(0.3, self.appearance.rule()));
                     }
                     Annotation::Rule => {
-                        let y =
-                            galley.galley_location.min.y + galley.galley_location.height() / 2.0;
-                        let min = Pos2 { x: galley.galley_location.min.x, y };
-                        let max = Pos2 { x: galley.galley_location.max.x, y };
+                        let y = galley.rect.min.y + galley.rect.height() / 2.0;
+                        let min = Pos2 { x: galley.rect.min.x, y };
+                        let max = Pos2 { x: galley.rect.max.x, y };
 
-                        ui.painter().line_segment(
-                            [min, max],
-                            Stroke::new(0.3, self.appearance.heading_line()),
-                        );
+                        ui.painter()
+                            .line_segment([min, max], Stroke::new(0.3, self.appearance.rule()));
                     }
                     _ => {}
                 }
@@ -123,14 +120,6 @@ impl Editor {
             ui.painter()
                 .galley(galley.text_location, galley.galley.clone(), Color32::TRANSPARENT);
         }
-
-        // draw end-of-text padding
-        ui_size.y -= self.galleys.galleys[self.galleys.len() - 1]
-            .galley
-            .rect
-            .size()
-            .y;
-        ui.allocate_exact_size(ui_size, Sense::hover());
     }
 
     pub fn draw_image_placeholder(
@@ -154,22 +143,29 @@ impl Editor {
 
     pub fn draw_cursor(&self, ui: &mut Ui, touch_mode: bool) {
         // determine cursor style
-        let cursor = self.buffer.current.cursor;
-        let selection_start_line =
-            cursor.start_line(&self.galleys, &self.bounds.text, &self.appearance);
-        let selection_end_line =
-            cursor.end_line(&self.galleys, &self.bounds.text, &self.appearance);
+        let selection_start_line = cursor::line(
+            self.buffer.current.selection.start(),
+            &self.galleys,
+            &self.bounds.text,
+            &self.appearance,
+        );
+        let selection_end_line = cursor::line(
+            self.buffer.current.selection.end(),
+            &self.galleys,
+            &self.bounds.text,
+            &self.appearance,
+        );
 
         let color = if touch_mode { self.appearance.cursor() } else { self.appearance.text() };
         let stroke = Stroke { width: 1.0, color };
 
-        let (selection_end_line, stroke) = if cursor.selection.is_empty() {
+        let (selection_end_line, stroke) = if self.buffer.current.selection.is_empty() {
             let mut selection_end_line = selection_end_line;
             let mut stroke = stroke;
 
             for style in self
                 .ast
-                .styles_at_offset(cursor.selection.1, &self.bounds.ast)
+                .styles_at_offset(self.buffer.current.selection.1, &self.bounds.ast)
             {
                 match style {
                     MarkdownNode::Inline(InlineNode::Bold)
@@ -200,7 +196,7 @@ impl Editor {
             if !self
                 .bounds
                 .links
-                .find_containing(cursor.selection.1, true, true)
+                .find_containing(self.buffer.current.selection.1, true, true)
                 .is_empty()
             {
                 stroke.color = self.appearance.link();
@@ -221,7 +217,7 @@ impl Editor {
             // draw selection handles
             // handles invisible but still draggable when selection is empty
             // we must allocate handles to check if they were dragged last frame
-            if !cursor.selection.is_empty() {
+            if !self.buffer.current.selection.is_empty() {
                 let selection_start_center =
                     Pos2 { x: selection_start_line[0].x, y: selection_start_line[0].y - 5.0 };
                 ui.painter()
@@ -248,19 +244,19 @@ impl Editor {
 
             // adjust cursor based on selection handle drag
             if start_response.dragged() {
-                ui.ctx().push_markdown_event(Modification::Select {
+                ui.ctx().push_markdown_event(Event::Select {
                     region: Region::BetweenLocations {
                         start: Location::Pos(ui.input(|i| {
                             i.pointer.interact_pos().unwrap_or_default() + Vec2 { x: 0.0, y: 10.0 }
                         })),
-                        end: Location::DocCharOffset(cursor.selection.1),
+                        end: Location::DocCharOffset(self.buffer.current.selection.1),
                     },
                 });
             }
             if end_response.dragged() {
-                ui.ctx().push_markdown_event(Modification::Select {
+                ui.ctx().push_markdown_event(Event::Select {
                     region: Region::BetweenLocations {
-                        start: Location::DocCharOffset(cursor.selection.0),
+                        start: Location::DocCharOffset(self.buffer.current.selection.0),
                         end: Location::Pos(ui.input(|i| {
                             i.pointer.interact_pos().unwrap_or_default() - Vec2 { x: 0.0, y: 10.0 }
                         })),
@@ -306,15 +302,13 @@ impl Editor {
 
         let cursor_info = format!(
             "selection: ({:?}, {:?}), byte: {:?}, x_target: {}",
-            self.buffer.current.cursor.selection.0,
-            self.buffer.current.cursor.selection.1,
+            self.buffer.current.selection.0,
+            self.buffer.current.selection.1,
             self.buffer
                 .current
                 .segs
-                .offset_to_byte(self.buffer.current.cursor.selection.1),
-            self.buffer
-                .current
-                .cursor
+                .offset_to_byte(self.buffer.current.selection.1),
+            self.cursor
                 .x_target
                 .map(|x| x.to_string())
                 .unwrap_or_else(|| "None".to_string()),

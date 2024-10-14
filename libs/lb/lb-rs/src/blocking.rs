@@ -8,10 +8,24 @@ use uuid::Uuid;
 use crate::{
     logic::{crypto::DecryptedDocument, path_ops::Filter},
     model::{
-        account::{Account, Username}, api::{AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo}, clock, core_config::Config, errors::{LbResult, TestRepoError, Warning}, file::{File, ShareMode}, file_metadata::FileType
+        account::{Account, Username},
+        api::{
+            AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse,
+            AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex,
+            StripeAccountTier, SubscriptionInfo,
+        },
+        clock,
+        core_config::Config,
+        errors::{LbResult, TestRepoError, Warning},
+        file::{File, ShareMode},
+        file_metadata::FileType,
     },
     service::{
-        activity::RankingWeights, import_export::{ExportFileInfo, ImportStatus}, search::{SearchConfig, SearchResult}, sync::{SyncProgress, SyncStatus}, usage::{UsageItemMetric, UsageMetrics}
+        activity::RankingWeights,
+        import_export::{ExportFileInfo, ImportStatus},
+        search::{SearchConfig, SearchResult},
+        sync::{SyncProgress, SyncStatus},
+        usage::{UsageItemMetric, UsageMetrics},
     },
 };
 
@@ -48,7 +62,7 @@ impl Lb {
     }
 
     pub fn export_account_qr(&self) -> LbResult<Vec<u8>> {
-        self.export_account_qr()
+        self.lb.export_account_qr()
     }
 
     pub fn get_account(&self) -> LbResult<&Account> {
@@ -173,62 +187,59 @@ impl Lb {
         });
 
         Ok(if last_synced != 0 {
-                Duration::milliseconds(clock::get_time().0 - last_synced)
+            Duration::milliseconds(clock::get_time().0 - last_synced)
                 .format_human()
                 .to_string()
-            } else {
-                "never".to_string()
+        } else {
+            "never".to_string()
         })
     }
 
     pub fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
-        self.rt
-            .block_on(self.lb.suggested_docs(settings))
+        self.rt.block_on(self.lb.suggested_docs(settings))
     }
 
     // TODO: examine why the old get_usage does a bunch of things
     pub fn get_usage(&self) -> LbResult<UsageMetrics> {
-        self.rt
-            .block_on(self.lb.get_usage())
+        self.rt.block_on(self.lb.get_usage())
     }
 
     pub fn get_uncompressed_usage_breakdown(&self) -> LbResult<HashMap<Uuid, usize>> {
-        self.rt
-            .block_on(self.lb.get_uncompressed_usage_breakdown())
+        self.rt.block_on(self.lb.get_uncompressed_usage_breakdown())
     }
 
     pub fn get_uncompressed_usage(&self) -> LbResult<UsageItemMetric> {
-        self.rt
-            .block_on(self.lb.get_uncompressed_usage())
+        self.rt.block_on(self.lb.get_uncompressed_usage())
     }
 
-    pub fn import_files<F: Fn(ImportStatus)>(&self, sources: &[PathBuf], dest: Uuid, update_status: &F) -> LbResult<()> {
+    pub fn import_files<F: Fn(ImportStatus)>(
+        &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
+    ) -> LbResult<()> {
         self.rt
             .block_on(self.lb.import_files(sources, dest, update_status))
     }
 
-    pub fn export_files<F: Fn(ExportFileInfo)>(&self, id: Uuid, dest: PathBuf, edit: bool, export_progress: &Option<F>) -> LbResult<()> {
+    pub fn export_files<F: Fn(ExportFileInfo)>(
+        &self, id: Uuid, dest: PathBuf, edit: bool, export_progress: &Option<F>,
+    ) -> LbResult<()> {
         self.rt
             .block_on(self.lb.export_file(id, dest, edit, export_progress))
     }
 
     pub fn search_file_paths(&self, input: &str) -> LbResult<Vec<SearchResult>> {
-        self.rt
-            .block_on(async {
-                let _ = self.lb.search("", SearchConfig::Paths).await?;
+        self.rt.block_on(async {
+            let _ = self.lb.search("", SearchConfig::Paths).await?;
 
-                self.lb.search(input, SearchConfig::Paths).await
-            })
+            self.lb.search(input, SearchConfig::Paths).await
+        })
     }
 
     pub fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
-        self.rt
-            .block_on(self.lb.search(input, cfg))
+        self.rt.block_on(self.lb.search(input, cfg))
     }
 
     pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
-        self.rt
-            .block_on(self.lb.test_repo_integrity())
+        self.rt.block_on(self.lb.test_repo_integrity())
     }
 
     pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> LbResult<()> {
@@ -236,74 +247,70 @@ impl Lb {
             .block_on(self.lb.upgrade_account_stripe(account_tier))
     }
 
-    pub fn upgrade_account_google_play(&self, purchase_token: &str, account_id: &str) -> LbResult<()> {
-        self.rt
-            .block_on(self.lb.upgrade_account_google_play(purchase_token, account_id))
+    pub fn upgrade_account_google_play(
+        &self, purchase_token: &str, account_id: &str,
+    ) -> LbResult<()> {
+        self.rt.block_on(
+            self.lb
+                .upgrade_account_google_play(purchase_token, account_id),
+        )
     }
 
-    pub fn upgrade_account_app_store(&self, original_transaction_id: String, app_account_token: String) -> LbResult<()> {
-        self.rt
-            .block_on(self.lb.upgrade_account_app_store(original_transaction_id, app_account_token))
+    pub fn upgrade_account_app_store(
+        &self, original_transaction_id: String, app_account_token: String,
+    ) -> LbResult<()> {
+        self.rt.block_on(
+            self.lb
+                .upgrade_account_app_store(original_transaction_id, app_account_token),
+        )
     }
 
     pub fn cancel_subscription(&self) -> LbResult<()> {
-        self.rt
-            .block_on(self.lb.cancel_subscription())
+        self.rt.block_on(self.lb.cancel_subscription())
     }
-    
+
     pub fn get_subscription_info(&self) -> LbResult<Option<SubscriptionInfo>> {
-        self.rt
-            .block_on(self.lb.get_subscription_info())
+        self.rt.block_on(self.lb.get_subscription_info())
     }
 
     pub fn delete_account(&self) -> LbResult<()> {
-        self.rt
-            .block_on(self.lb.delete_account())
+        self.rt.block_on(self.lb.delete_account())
     }
 
     pub fn admin_disappear_account(&self, username: &str) -> LbResult<()> {
-        self.rt
-            .block_on(self.lb.disappear_account(username))
+        self.rt.block_on(self.lb.disappear_account(username))
     }
 
     pub fn admin_disappear_file(&self, id: Uuid) -> LbResult<()> {
-        self.rt
-            .block_on(self.lb.disappear_file(id))
+        self.rt.block_on(self.lb.disappear_file(id))
     }
 
     pub fn admin_list_users(&self, filter: Option<AccountFilter>) -> LbResult<Vec<Username>> {
-        self.rt
-            .block_on(self.lb.list_users(filter))
+        self.rt.block_on(self.lb.list_users(filter))
     }
 
     pub fn admin_get_account_info(&self, identifier: AccountIdentifier) -> LbResult<AccountInfo> {
-        self.rt
-            .block_on(self.lb.get_account_info(identifier))
+        self.rt.block_on(self.lb.get_account_info(identifier))
     }
 
     pub fn admin_validate_account(&self, username: &str) -> LbResult<AdminValidateAccount> {
-        self.rt
-            .block_on(self.lb.validate_account(username))
+        self.rt.block_on(self.lb.validate_account(username))
     }
 
     pub fn admin_validate_server(&self) -> LbResult<AdminValidateServer> {
-        self.rt
-            .block_on(self.lb.validate_server())
+        self.rt.block_on(self.lb.validate_server())
     }
 
     pub fn admin_file_info(&self, id: Uuid) -> LbResult<AdminFileInfoResponse> {
-        self.rt
-            .block_on(self.lb.file_info(id))
+        self.rt.block_on(self.lb.file_info(id))
     }
 
     pub fn admin_rebuild_index(&self, index: ServerIndex) -> LbResult<()> {
-        self.rt
-            .block_on(self.lb.rebuild_index(index))
+        self.rt.block_on(self.lb.rebuild_index(index))
     }
 
     pub fn admin_set_user_tier(&self, username: &str, info: AdminSetUserTierInfo) -> LbResult<()> {
-        self.rt
-            .block_on(self.lb.set_user_tier(username, info))
+        self.rt.block_on(self.lb.set_user_tier(username, info))
     }
 
     pub fn debug_info(&self, os_info: String) -> String {

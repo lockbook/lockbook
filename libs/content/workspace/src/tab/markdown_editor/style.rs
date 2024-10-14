@@ -340,7 +340,10 @@ impl RenderStyle {
                     text_format.font_id.size = vis.font_size();
                     text_format.color = vis.text();
                 }
-                RenderStyle::Markdown(MarkdownNode::Paragraph) => {}
+                RenderStyle::Markdown(MarkdownNode::Paragraph) => {
+                    text_format.font_id.size = vis.font_size();
+                    text_format.color = vis.text();
+                }
                 RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Code)) => {
                     text_format.font_id.family = FontFamily::Monospace;
                     text_format.font_id.size *= 14.0 / 16.0;

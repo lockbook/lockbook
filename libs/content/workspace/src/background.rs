@@ -118,6 +118,8 @@ impl BackgroundWorker {
                     return;
                 }
                 BwIncomingMsg::EguiUpdate => {
+                    // todo: is this wrong? I suspect yes, as you're trying to observe events between when they're
+                    // submitted and processed
                     if !self.ctx.input(|inp| inp.raw.events.is_empty()) {
                         self.worker_state.user_last_seen = Instant::now();
                     }

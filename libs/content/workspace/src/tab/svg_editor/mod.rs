@@ -1,16 +1,16 @@
 mod clip;
 mod eraser;
+mod gesture_handler;
 mod history;
 mod parser;
+mod path_builder;
 mod pen;
 mod renderer;
 mod selection;
 mod toolbar;
 mod util;
-mod zoom;
 
 use self::history::History;
-use self::zoom::handle_zoom_input;
 use crate::tab::svg_editor::toolbar::Toolbar;
 pub use eraser::Eraser;
 pub use history::DeleteElement;
@@ -19,7 +19,7 @@ pub use history::InsertElement;
 use lb_rs::Uuid;
 pub use parser::Buffer;
 use parser::DiffState;
-pub use pen::CubicBezBuilder;
+pub use path_builder::PathBuilder;
 pub use pen::Pen;
 use renderer::Renderer;
 use resvg::usvg::ImageKind;
@@ -46,7 +46,6 @@ pub struct SVGEditor {
     has_queued_save_request: bool,
     /// don't allow zooming or panning
     allow_viewport_changes: bool,
-    is_viewport_changing: bool,
 }
 
 pub struct Response {
@@ -86,7 +85,6 @@ impl SVGEditor {
             renderer: Renderer::new(elements_count),
             has_queued_save_request: false,
             allow_viewport_changes: false,
-            is_viewport_changing: false,
         }
     }
 
@@ -95,8 +93,25 @@ impl SVGEditor {
         let span = span!(Level::TRACE, "showing canvas widget", frame);
         let _ = span.enter();
 
+        self.painter
+            .set_layer_id(egui::LayerId::new(egui::Order::Debug, "canvas_widgets".into()));
+
+        ui.vertical(|ui| {
+            egui::Frame::default().show(ui, |ui| {
+                self.toolbar.show(
+                    ui,
+                    &mut self.buffer,
+                    &mut self.history,
+                    &mut self.skip_frame,
+                    self.inner_rect,
+                );
+            })
+        });
+
         self.process_events(ui);
 
+        self.painter
+            .set_layer_id(egui::LayerId::new(egui::Order::Background, "canvas_elements".into()));
         self.show_canvas(ui);
 
         let global_diff = self.get_and_reset_diff_state();
@@ -158,7 +173,6 @@ impl SVGEditor {
             buffer: &mut self.buffer,
             history: &mut self.history,
             allow_viewport_changes: &mut self.allow_viewport_changes,
-            is_viewport_changing: &mut self.is_viewport_changing,
             is_touch_frame: ui.input(|r| {
                 r.events.iter().any(|e| {
                     matches!(
@@ -166,38 +180,32 @@ impl SVGEditor {
                         egui::Event::Touch { device_id: _, id: _, phase: _, pos: _, force: _ }
                     )
                 })
-            }),
+            }) || cfg!(target_os = "ios"),
         };
 
         match self.toolbar.active_tool {
-            Tool::Pen | Tool::Brush | Tool::Highlighter => {
+            Tool::Pen => {
                 self.toolbar.pen.handle_input(ui, &mut tool_context);
             }
+            Tool::Highlighter => {
+                self.toolbar.highlighter.handle_input(ui, &mut tool_context);
+            }
             Tool::Eraser => {
-                self.toolbar.eraser.handle_input(ui, tool_context);
+                self.toolbar.eraser.handle_input(ui, &mut tool_context);
             }
             Tool::Selection => {
-                self.toolbar.selection.handle_input(ui, tool_context);
+                self.toolbar.selection.handle_input(ui, &mut tool_context);
             }
         }
 
-        self.is_viewport_changing =
-            self.allow_viewport_changes && handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
-
-        self.handle_clip_input(ui);
+        self.toolbar
+            .gesture_handler
+            .handle_input(ui, &mut tool_context);
     }
 
     fn show_canvas(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             egui::Frame::default().show(ui, |ui| {
-                self.toolbar.show(
-                    ui,
-                    &mut self.buffer,
-                    &mut self.history,
-                    &mut self.skip_frame,
-                    self.inner_rect,
-                );
-
                 self.inner_rect = ui.available_rect_before_wrap();
                 self.painter = ui
                     .allocate_painter(

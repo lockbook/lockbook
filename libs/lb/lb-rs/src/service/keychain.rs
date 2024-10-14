@@ -29,9 +29,17 @@ impl Lb {
     }
 
     #[doc(hidden)]
-    pub async fn cache_account(&self, account: Account) {
+    pub async fn cache_account(&self, account: Account) -> LbResult<()> {
         let pk = account.public_key();
-        self.keychain.account.set(account);
-        self.keychain.public_key.set(pk);
+        self.keychain
+            .account
+            .set(account)
+            .map_err(|_| LbErrKind::AccountNonexistent)?;
+        self.keychain
+            .public_key
+            .set(pk)
+            .map_err(|_| LbErrKind::AccountNonexistent)?;
+
+        Ok(())
     }
 }

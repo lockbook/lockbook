@@ -35,7 +35,7 @@ impl Lb {
         }
 
         let account = Account::new(username.clone(), api_url.to_string());
-        self.cache_account(account.clone()).await;
+        self.cache_account(account.clone()).await?;
 
         let root = FileMetadata::create_root(&account)?.sign(&account)?;
         let root_id = *root.id();
@@ -107,7 +107,7 @@ impl Lb {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
         db.account.insert(account.clone())?;
-        self.cache_account(account.clone()).await;
+        self.cache_account(account.clone()).await?;
 
         Ok(account)
     }
@@ -128,7 +128,7 @@ impl Lb {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
         db.account.insert(account.clone())?;
-        self.cache_account(account.clone()).await;
+        self.cache_account(account.clone()).await?;
 
         Ok(account)
     }
