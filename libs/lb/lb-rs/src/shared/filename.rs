@@ -1,6 +1,6 @@
 use crate::shared::file::File;
 
-pub const MAX_FILENAME_LENGTH: usize = 64;
+pub const MAX_FILENAME_LENGTH: usize = 230;
 pub const MAX_ENCRYPTED_FILENAME_LENGTH: usize = MAX_FILENAME_LENGTH + 24;
 
 #[derive(Debug)]
