@@ -168,7 +168,7 @@ impl Lb {
             .map_err(|err| core_err_unexpected(err).into())
     }
 
-    pub async fn delete_account(&mut self) -> LbResult<()> {
+    pub async fn delete_account(&self) -> LbResult<()> {
         let account = self.get_account()?;
 
         self.client

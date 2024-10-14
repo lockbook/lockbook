@@ -1,9 +1,9 @@
 use std::{
-    ffi::{c_char, c_void},
+    ffi::{c_char, c_uchar, c_ulonglong, c_void},
     ptr,
 };
 
-use ffi_utils::{bytes, cstring, mut_rlb, rlb, rstr, rstring};
+use ffi_utils::{array_ptr, bytes, cstring, rlb, rstr, rstring};
 use lb_c_err::{LbEC, LbFfiErr};
 pub use lb_rs::{blocking::Lb, model::core_config::Config};
 
@@ -98,7 +98,7 @@ pub extern "C" fn lb_get_account(lb: *mut Lb) -> LbAccountRes {
 
 #[no_mangle]
 pub extern "C" fn lb_delete_account(lb: *mut Lb) -> *mut LbFfiErr {
-    let lb = mut_rlb(lb);
+    let lb = rlb(lb);
 
     match lb.delete_account() {
         Ok(_) => ptr::null_mut(),
@@ -115,9 +115,7 @@ pub extern "C" fn lb_logout_and_exit(lb: *mut Lb) {
 
 #[repr(C)]
 pub struct LbExportAccountRes {
-    account_key: *mut c_char,
-    account_phrase: *mut c_char,
-    account_qr: *mut u8,
+    account_string: *mut c_char,
     err: *mut LbFfiErr,
 }
 
@@ -127,12 +125,12 @@ pub extern "C" fn lb_export_account_private_key(lb: *mut Lb) -> LbExportAccountR
 
     match lb.export_account_private_key() {
         Ok(account_key) => {
-            let account_key = cstring(account_key);
-            LbExportAccountRes { account_key, account_phrase: ptr::null_mut(), account_qr: ptr::null_mut(), err: ptr::null_mut() }
+            let account_string = cstring(account_key);
+            LbExportAccountRes { account_string, err: ptr::null_mut() }
         }
         Err(err) => {
             let err = Box::into_raw(Box::new(err.into()));
-            LbExportAccountRes { account_key: ptr::null_mut(), account_phrase: ptr::null_mut(), account_qr: ptr::null_mut(), err }
+            LbExportAccountRes { account_string: ptr::null_mut(), err }
         }
     }
 }
@@ -143,40 +141,51 @@ pub extern "C" fn lb_export_account_phrase(lb: *mut Lb) -> LbExportAccountRes {
 
     match lb.export_account_phrase() {
         Ok(account_phrase) => {
-            let account_phrase = cstring(account_phrase);
-            LbExportAccountRes { account_key: ptr::null_mut(), account_phrase, account_qr: ptr::null_mut(), err: ptr::null_mut() }
+            let account_string = cstring(account_phrase);
+            LbExportAccountRes { account_string, err: ptr::null_mut() }
         }
         Err(err) => {
             let err = Box::into_raw(Box::new(err.into()));
-            LbExportAccountRes { account_key: ptr::null_mut(), account_phrase: ptr::null_mut(), account_qr: ptr::null_mut(), err }
+            LbExportAccountRes { account_string: ptr::null_mut(), err }
         }
     }
 }
 
+#[repr(C)]
+pub struct LbExportAccountQRRes {
+    qr: *mut c_uchar,
+    qr_size: usize,
+    err: *mut LbFfiErr,
+}
+
 #[no_mangle]
-pub extern "C" fn lb_export_account_qr(lb: *mut Lb) -> LbExportAccountRes {
+pub extern "C" fn lb_export_account_qr(lb: *mut Lb) -> LbExportAccountQRRes {
     let lb = rlb(lb);
 
     match lb.export_account_qr() {
         Ok(account_qr) => {
-            let account_qr = bytes(account_qr);
-            LbExportAccountRes { account_key: ptr::null_mut(), account_phrase: ptr::null_mut(), account_qr, err: ptr::null_mut() }
+            let (qr, qr_size) = array_ptr(account_qr);
+            LbExportAccountQRRes { qr, qr_size, err: ptr::null_mut() }
         }
         Err(err) => {
             let err = Box::into_raw(Box::new(err.into()));
-            LbExportAccountRes { account_key: ptr::null_mut(), account_phrase: ptr::null_mut(), account_qr: ptr::null_mut(), err }
+            LbExportAccountQRRes { qr: ptr::null_mut(), qr_size: 0, err }
         }
     }
 }
 
 #[repr(C)]
 pub struct LbUsageMetricsRes {
-    usages: *mut LbFileUsage,
-    usages_size: u64,
-
-    server_usage: *mut LbUsageItemMetric,
-    data_cap: *mut LbUsageItemMetric,
+    metrics: *mut LbUsageMetrics,
     err: *mut LbFfiErr,
+}
+
+pub struct LbUsageMetrics {
+    usage: *mut LbFileUsage,
+    usage_length: u64,
+
+    server_usage: LbUsageItemMetric,
+    data_cap: LbUsageItemMetric,
 }
 
 #[repr(C)]
@@ -191,25 +200,35 @@ pub struct LbUsageItemMetric {
     readable: *mut c_char
 }
 
-// #[no_mangle]
-// pub extern "C" fn lb_get_usage(lb: *mut Lb) -> LbUsageMetricsRes {
-//     let lb = rlb(lb);
+#[no_mangle]
+pub extern "C" fn lb_get_usage(lb: *mut Lb) -> LbUsageMetricsRes {
+    let lb = rlb(lb);
 
-//     match lb.get_usage() {
-//         Ok(account_qr) => {
-//             let account_qr = bytes(account_qr);
-//             LbExportAccountRes { account_key: ptr::null_mut(), account_phrase: ptr::null_mut(), account_qr, err: ptr::null_mut() }
-//         }
-//         Err(err) => {
-//             let err = Box::into_raw(Box::new(err.into()));
-//             LbUsageMetricsRes {
-//                 usages: ptr::null_mut(),
-//                 usages_size: 0,
-//                 server_usage: 
-//             }
-//         }
-//     }
-// }
+    match lb.get_usage() {
+        Ok(metrics) => {
+            let usage = metrics.usages
+            .into_iter()
+            .map(|usage| LbFileUsage {
+                file_id: cstring(usage.file_id.to_string(),
+                size_bytes: usage.size_bytes
+            })
+            let metrics = LbUsageMetrics {
+                usage: 
+            }
+            LbUsageMetricsRes {
+                metrics: ,
+                err: ptr::null_mut()
+            }
+        }
+        Err(err) => {
+            let err = Box::into_raw(Box::new(err.into()));
+            LbUsageMetricsRes {
+                metrics: ptr::null_mut(),
+                err
+            }
+        }
+    }
+}
 
 mod ffi_utils;
 mod lb_c_err;
