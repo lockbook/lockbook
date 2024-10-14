@@ -1,4 +1,7 @@
-use egui::{vec2, Context, EventFilter, Image, Key, Modifiers, TextWrapMode, ViewportCommand};
+use egui::os::OperatingSystem;
+use egui::{
+    vec2, Context, EventFilter, Id, Image, Key, Modifiers, Sense, TextWrapMode, ViewportCommand,
+};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -883,7 +886,7 @@ enum TabLabelResponse {
 fn tab_label(
     ui: &mut egui::Ui, t: &mut Tab, is_active: bool, active_tab_changed: bool,
 ) -> Option<TabLabelResponse> {
-    let mut lbl_resp = None;
+    let mut result = None;
 
     let padding = egui::vec2(15.0, 15.0);
     let wrap_width = ui.available_width();
@@ -896,142 +899,135 @@ fn tab_label(
     let w = text.size().x + padding.x * 3.0 + x_icon.size + 1.0;
     let h = text.size().y + padding.y * 2.0;
 
-    let (rect, resp) = ui.allocate_exact_size((w, h).into(), egui::Sense::hover());
+    let (tab_label_rect, tab_label_resp) =
+        ui.allocate_exact_size((w, h).into(), egui::Sense::click());
 
     if is_active && active_tab_changed {
-        resp.scroll_to_me(None);
+        tab_label_resp.scroll_to_me(None);
     }
 
-    if ui.is_rect_visible(rect) {
-        let text_color = ui.style().interact(&resp).text_color();
+    // renaming
+    if let Some(ref mut str) = t.rename {
+        let res = ui
+            .allocate_ui_at_rect(tab_label_rect, |ui| {
+                ui.add(
+                    egui::TextEdit::singleline(str)
+                        .frame(false)
+                        .id(egui::Id::new("rename_tab")),
+                )
+            })
+            .inner;
 
-        let close_btn_pos =
-            egui::pos2(rect.max.x - padding.x - x_icon.size, rect.center().y - x_icon.size / 2.0);
-
-        let close_btn_rect =
-            egui::Rect::from_min_size(close_btn_pos, egui::vec2(x_icon.size, x_icon.size))
-                .expand(2.0);
-
-        let mut close_hovered = false;
-        let pointer_pos = ui.input(|i| i.pointer.hover_pos());
-        if let Some(pos) = pointer_pos {
-            if close_btn_rect.contains(pos) {
-                close_hovered = true;
-            }
+        if !res.has_focus() && !res.lost_focus() {
+            // request focus on the first frame (todo: wrong but works)
+            res.request_focus();
+        }
+        if res.has_focus() {
+            // focus lock filter must be set every frame
+            ui.memory_mut(|m| {
+                m.set_focus_lock_filter(
+                    res.id,
+                    EventFilter {
+                        tab: true, // suppress 'tab' behavior
+                        horizontal_arrows: true,
+                        vertical_arrows: true,
+                        escape: false, // press 'esc' to release focus
+                    },
+                )
+            })
         }
 
-        let text_pos = egui::pos2(rect.min.x + padding.x, rect.center().y - 0.5 * text.size().y);
+        // submit
+        if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            result = Some(TabLabelResponse::Renamed(str.to_owned()));
+            // t.rename = None; is done by code processing this response
+        }
 
-        if let Some(ref mut str) = t.rename {
-            let res = ui
-                .allocate_ui_at_rect(rect, |ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(str)
-                            .frame(false)
-                            .id(egui::Id::new("rename_tab")),
-                    )
-                })
-                .inner;
+        // release focus to cancel ('esc' or click elsewhere)
+        if res.lost_focus() {
+            t.rename = None;
+        }
+    } else {
+        // interact with button rect whether it's shown or not
+        let close_button_pos = egui::pos2(
+            tab_label_rect.max.x - padding.x - x_icon.size,
+            tab_label_rect.center().y - x_icon.size / 2.0,
+        );
+        let close_button_rect =
+            egui::Rect::from_min_size(close_button_pos, egui::vec2(x_icon.size, x_icon.size))
+                .expand(2.0);
+        let close_button_resp = ui.interact(close_button_rect, Id::new(t.id), Sense::click());
 
-            if !res.has_focus() && !res.lost_focus() {
-                // request focus on the first frame (todo: wrong but works)
-                res.request_focus();
-            }
-            if res.has_focus() {
-                // focus lock filter must be set every frame
-                ui.memory_mut(|m| {
-                    m.set_focus_lock_filter(
-                        res.id,
-                        EventFilter {
-                            tab: true, // suppress 'tab' behavior
-                            horizontal_arrows: true,
-                            vertical_arrows: true,
-                            escape: false, // press 'esc' to release focus
-                        },
-                    )
-                })
-            }
+        // touch mode: always show close button
+        let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
+        let show_close_button =
+            touch_mode || tab_label_resp.hovered() || close_button_resp.hovered();
 
-            // submit
-            if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                lbl_resp = Some(TabLabelResponse::Renamed(str.to_owned()));
-                // t.rename = None; is done by code processing this response
-            }
+        // draw backgrounds and set cursor icon
+        if close_button_resp.hovered() {
+            ui.painter().rect(
+                close_button_rect,
+                0.0,
+                ui.visuals().widgets.hovered.bg_fill,
+                egui::Stroke::NONE,
+            );
+            ui.output_mut(|o: &mut egui::PlatformOutput| {
+                o.cursor_icon = egui::CursorIcon::PointingHand
+            });
+        } else if tab_label_resp.hovered() {
+            ui.output_mut(|o: &mut egui::PlatformOutput| {
+                o.cursor_icon = egui::CursorIcon::PointingHand
+            });
+        }
 
-            // release focus to cancel ('esc' or click elsewhere)
-            if res.lost_focus() {
-                t.rename = None;
-            }
-        } else {
-            if resp.hovered() {
-                ui.output_mut(|o: &mut egui::PlatformOutput| {
-                    o.cursor_icon = egui::CursorIcon::PointingHand
-                });
-            }
+        // draw text
+        let text_color = ui.style().interact(&tab_label_resp).text_color();
+        let text_pos = egui::pos2(
+            tab_label_rect.min.x + padding.x,
+            tab_label_rect.center().y - 0.5 * text.size().y,
+        );
+        ui.painter().galley(text_pos, text, text_color);
 
-            let bg = if resp.hovered() && !close_hovered {
-                ui.visuals().widgets.hovered.bg_fill
-            } else {
-                ui.visuals().widgets.noninteractive.bg_fill
-            };
-            ui.painter().rect(rect, 0.0, bg, egui::Stroke::NONE);
-
-            ui.painter().galley(text_pos, text, text_color);
-
-            if close_hovered {
-                ui.painter().rect(
-                    close_btn_rect,
-                    0.0,
-                    ui.visuals().widgets.hovered.bg_fill,
-                    egui::Stroke::NONE,
-                );
-            }
-
+        // draw close button icon
+        if show_close_button {
             // todo: use galley size of icon instead of icon.size for a more accurate reading.
             let icon_draw_pos = egui::pos2(
-                close_btn_rect.center().x - x_icon.size / 2.,
-                close_btn_rect.center().y - x_icon.size / 2.2,
+                close_button_rect.center().x - x_icon.size / 2.,
+                close_button_rect.center().y - x_icon.size / 2.2,
             );
-
             let icon: egui::WidgetText = (&x_icon).into();
             let icon =
                 icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
-
             ui.painter().galley(icon_draw_pos, icon, text_color);
-
-            // First, we check if the close button was clicked.
-            // Since egui 0.26.2, ui.interact(close_btn_rect, ..).clicked() is always false for unknown reasons
-            if ui.input(|i| i.pointer.primary_clicked()) && close_hovered {
-                lbl_resp = Some(TabLabelResponse::Closed);
-            } else {
-                // Then, we check if the tab label was clicked so that a close button click
-                // wouldn't also count here.
-                let resp = resp.interact(egui::Sense::click());
-                if resp.clicked() {
-                    lbl_resp = Some(TabLabelResponse::Clicked);
-                } else if resp.middle_clicked() {
-                    lbl_resp = Some(TabLabelResponse::Closed);
-                }
-            }
         }
 
-        if is_active {
-            ui.painter().hline(
-                rect.min.x + 0.5..=rect.max.x - 1.0,
-                rect.max.y - 2.0,
-                egui::Stroke::new(4.0, ui.visuals().widgets.active.bg_fill),
-            );
+        // respond to input
+        if close_button_resp.clicked() || tab_label_resp.middle_clicked() {
+            result = Some(TabLabelResponse::Closed);
+        } else if tab_label_resp.clicked() {
+            result = Some(TabLabelResponse::Clicked);
         }
-
-        let sep_stroke = if resp.hovered() && !close_hovered {
-            egui::Stroke::new(1.0, egui::Color32::TRANSPARENT)
-        } else {
-            ui.visuals().widgets.noninteractive.bg_stroke
-        };
-        ui.painter().vline(rect.max.x, rect.y_range(), sep_stroke);
     }
 
-    lbl_resp
+    // draw active tab indicator
+    if is_active {
+        ui.painter().hline(
+            tab_label_rect.min.x + 0.5..=tab_label_rect.max.x - 1.0,
+            tab_label_rect.max.y - 2.0,
+            egui::Stroke::new(4.0, ui.visuals().widgets.active.bg_fill),
+        );
+    }
+
+    // draw separator
+    let sep_stroke = if tab_label_resp.hovered() {
+        egui::Stroke::new(1.0, egui::Color32::TRANSPARENT)
+    } else {
+        ui.visuals().widgets.noninteractive.bg_stroke
+    };
+    ui.painter()
+        .vline(tab_label_rect.max.x, tab_label_rect.y_range(), sep_stroke);
+
+    result
 }
 
 // The only difference from count_and_consume_key is that here we use matches_exact instead of matches_logical,
