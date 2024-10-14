@@ -1,16 +1,16 @@
 use std::{
-    ffi::{c_char, c_uchar, c_ulonglong, c_void},
-    ptr,
+    ffi::{c_char, c_uchar},
+    fs, process, ptr,
 };
 
-use ffi_utils::{array_ptr, bytes, cstring, rlb, rstr, rstring};
-use lb_c_err::{LbEC, LbFfiErr};
+use ffi_utils::{array_ptr, cstring, rlb, rstr, rstring};
+use lb_c_err::LbFfiErr;
 pub use lb_rs::{blocking::Lb, model::core_config::Config};
 
 #[repr(C)]
 pub struct LbInitRes {
-    lb: *mut Lb,
     err: *mut LbFfiErr,
+    lb: *mut Lb,
 }
 
 #[no_mangle]
@@ -32,9 +32,9 @@ pub extern "C" fn lb_init(writeable_path: *const c_char, logs: bool) -> LbInitRe
 
 #[repr(C)]
 pub struct LbAccountRes {
+    err: *mut LbFfiErr,
     username: *mut c_char,
     api_url: *mut c_char,
-    err: *mut LbFfiErr,
 }
 
 #[no_mangle]
@@ -109,14 +109,14 @@ pub extern "C" fn lb_delete_account(lb: *mut Lb) -> *mut LbFfiErr {
 #[no_mangle]
 pub extern "C" fn lb_logout_and_exit(lb: *mut Lb) {
     let lb = rlb(lb);
-    std::fs::remove_dir_all(&lb.get_config().writeable_path).unwrap();
-    std::process::exit(0);
+    fs::remove_dir_all(&lb.get_config().writeable_path).unwrap();
+    process::exit(0);
 }
 
 #[repr(C)]
 pub struct LbExportAccountRes {
-    account_string: *mut c_char,
     err: *mut LbFfiErr,
+    account_string: *mut c_char,
 }
 
 #[no_mangle]
@@ -153,9 +153,9 @@ pub extern "C" fn lb_export_account_phrase(lb: *mut Lb) -> LbExportAccountRes {
 
 #[repr(C)]
 pub struct LbExportAccountQRRes {
+    err: *mut LbFfiErr,
     qr: *mut c_uchar,
     qr_size: usize,
-    err: *mut LbFfiErr,
 }
 
 #[no_mangle]
@@ -170,62 +170,6 @@ pub extern "C" fn lb_export_account_qr(lb: *mut Lb) -> LbExportAccountQRRes {
         Err(err) => {
             let err = Box::into_raw(Box::new(err.into()));
             LbExportAccountQRRes { qr: ptr::null_mut(), qr_size: 0, err }
-        }
-    }
-}
-
-#[repr(C)]
-pub struct LbUsageMetricsRes {
-    metrics: *mut LbUsageMetrics,
-    err: *mut LbFfiErr,
-}
-
-pub struct LbUsageMetrics {
-    usage: *mut LbFileUsage,
-    usage_length: u64,
-
-    server_usage: LbUsageItemMetric,
-    data_cap: LbUsageItemMetric,
-}
-
-#[repr(C)]
-pub struct LbFileUsage {
-    file_id: *mut c_char,
-    size_bytes: u64,
-}
-
-#[repr(C)]
-pub struct LbUsageItemMetric {
-    exact: u64,
-    readable: *mut c_char,
-}
-
-#[no_mangle]
-pub extern "C" fn lb_get_usage(lb: *mut Lb) -> LbUsageMetricsRes {
-    let lb = rlb(lb);
-
-    match lb.get_usage() {
-        Ok(metrics) => {
-            // let usage = metrics.usages
-            // .into_iter()
-            // .map(|usage| LbFileUsage {
-            //     file_id: cstring(usage.file_id.to_string(),
-            //     size_bytes: usage.size_bytes
-            // })
-            // let metrics = LbUsageMetrics {
-            //     usage: 
-            // }
-            // LbUsageMetricsRes {
-            //     metrics: ,
-            //     err: ptr::null_mut()
-            // }
-        }
-        Err(err) => {
-            let err = Box::into_raw(Box::new(err.into()));
-            LbUsageMetricsRes {
-                metrics: ptr::null_mut(),
-                err
-            }
         }
     }
 }
