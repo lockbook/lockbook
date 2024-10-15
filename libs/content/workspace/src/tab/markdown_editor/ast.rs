@@ -312,8 +312,8 @@ impl Ast {
                         code block
                         ~~~
                          */
-                        text_range.0 += 3;
-                        text_range.1 -= 3;
+                        text_range.0 += 4;
+                        text_range.1 -= 4;
                     } else {
                         /*
                             code block
