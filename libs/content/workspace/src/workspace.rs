@@ -181,6 +181,8 @@ impl Workspace {
             self.active_tab_changed = true;
         }
 
+        self.out.tabs_changed = true;
+
         // tab was created
         true
     }

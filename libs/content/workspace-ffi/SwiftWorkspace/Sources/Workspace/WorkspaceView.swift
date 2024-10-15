@@ -7,7 +7,7 @@ import Bridge
 #if os(iOS)
 import GameController
 
-public struct WorkspaceView: View, Equatable {
+public struct WorkspaceView: View {
     
     let workspaceState: WorkspaceState
     let coreHandle: UnsafeMutableRawPointer?
@@ -21,10 +21,6 @@ public struct WorkspaceView: View, Equatable {
     
     public var body: some View {
         UIWS(workspaceState, coreHandle)
-    }
-    
-    public static func == (lhs: WorkspaceView, rhs: WorkspaceView) -> Bool {
-        return true
     }
 }
 
@@ -121,7 +117,6 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
             mtkView.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
     }
-    
     
     public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         return gestureRecognizer is UIPanGestureRecognizer && touch.location(in: self).x < 40 && !mtkView.showTabs
