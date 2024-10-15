@@ -143,7 +143,7 @@ fn share_infos_table(infos: &[ShareInfo]) -> String {
 }
 
 pub fn pending_share_completor(
-    core: &lb::CoreLib<lb::service::api_service::Network, lb::OnDiskDocuments>, prompt: &str,
+    core: &lb::CoreLib<lb::service::api_service::NetworkOld, lb::OnDiskDocuments>, prompt: &str,
 ) -> Result<Vec<String>, CliError> {
     Ok(core
         .get_pending_shares()?

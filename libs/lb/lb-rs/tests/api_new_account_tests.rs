@@ -1,85 +1,89 @@
-use lb_rs::service::api_service::{ApiError, Network, Requester};
-use lb_rs::shared::account::{Account, MAX_USERNAME_LENGTH};
-use lb_rs::shared::api::*;
-use lb_rs::shared::file_metadata::FileMetadata;
-use lb_rs::shared::pubkey;
+use lb_rs::logic::pubkey;
+use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
+use lb_rs::model::api::*;
+use lb_rs::model::file_metadata::FileMetadata;
+use lb_rs::service::network::{ApiError, Network};
 use test_utils::*;
 
-fn random_account() -> Account {
+async fn random_account() -> Account {
     Account { username: random_name(), api_url: url(), private_key: pubkey::generate_key() }
 }
 
-fn test_account(account: &Account) -> Result<NewAccountResponse, ApiError<NewAccountError>> {
+async fn test_account(account: &Account) -> Result<NewAccountResponse, ApiError<NewAccountError>> {
     let root = FileMetadata::create_root(account)
         .unwrap()
         .sign(account)
         .unwrap();
-    Network::default().request(account, NewAccountRequest::new(account, &root))
-}
-#[test]
-fn new_account() {
-    test_account(&random_account()).unwrap();
+    Network::default()
+        .request(account, NewAccountRequest::new(account, &root))
+        .await
 }
 
-#[test]
-fn new_account_duplicate_pk() {
-    let first = random_account();
-    test_account(&first).unwrap();
+#[tokio::test]
+async fn new_account() {
+    test_account(&random_account().await).await.unwrap();
+}
 
-    let mut second = random_account();
+#[tokio::test]
+async fn new_account_duplicate_pk() {
+    let first = random_account().await;
+    test_account(&first).await.unwrap();
+
+    let mut second = random_account().await;
     second.private_key = first.private_key;
 
-    let result = test_account(&second);
+    let result = test_account(&second).await;
     assert_matches!(
         result,
         Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::PublicKeyTaken))
     );
 }
 
-#[test]
-fn new_account_duplicate_username() {
-    let account = random_account();
-    test_account(&account).unwrap();
+#[tokio::test]
+async fn new_account_duplicate_username() {
+    let account = random_account().await;
+    test_account(&account).await.unwrap();
 
-    let mut account2 = random_account();
+    let mut account2 = random_account().await;
     account2.username = account.username;
     assert_matches!(
-        test_account(&account2),
+        test_account(&account2).await,
         Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::UsernameTaken))
     );
 }
 
-#[test]
-fn new_account_invalid_username() {
-    let mut account = random_account();
+#[tokio::test]
+async fn new_account_invalid_username() {
+    let mut account = random_account().await;
     account.username += " ";
 
     assert_matches!(
-        test_account(&account),
+        test_account(&account).await,
         Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::InvalidUsername))
     );
 }
 
-#[test]
-fn new_account_username_too_long() {
-    let mut account = random_account();
+#[tokio::test]
+async fn new_account_username_too_long() {
+    let mut account = random_account().await;
     account.username = "l".repeat(MAX_USERNAME_LENGTH + 1);
 
     assert_matches!(
-        test_account(&account),
+        test_account(&account).await,
         Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::InvalidUsername))
     );
 }
-#[test]
-fn create_account_username_case() {
-    let core = test_core_with_account();
-    let mut account = core.get_account().unwrap();
+
+#[tokio::test]
+async fn create_account_username_case() {
+    let core = test_core_with_account().await;
+    let mut account = core.get_account().unwrap().clone();
 
     account.username = account.username.to_uppercase();
     account.private_key = pubkey::generate_key();
 
     assert_matches!(
-        test_account(&account),
+        test_account(&account).await,
         Err(ApiError::Endpoint(NewAccountError::UsernameTaken))
     );
 }

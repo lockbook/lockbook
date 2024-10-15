@@ -1,0 +1,45 @@
+use crate::{
+    model::account::Account,
+    model::errors::{LbErrKind, LbResult},
+    Lb,
+};
+use libsecp256k1::PublicKey;
+use tokio::sync::OnceCell;
+
+#[derive(Default, Clone)]
+pub struct Keychain {
+    account: OnceCell<Account>,
+    public_key: OnceCell<PublicKey>,
+}
+
+impl Lb {
+    pub fn get_account(&self) -> LbResult<&Account> {
+        self.keychain
+            .account
+            .get()
+            .ok_or_else(|| LbErrKind::AccountNonexistent.into())
+    }
+
+    pub fn get_pk(&self) -> LbResult<PublicKey> {
+        self.keychain
+            .public_key
+            .get()
+            .copied()
+            .ok_or_else(|| LbErrKind::AccountNonexistent.into())
+    }
+
+    #[doc(hidden)]
+    pub async fn cache_account(&self, account: Account) -> LbResult<()> {
+        let pk = account.public_key();
+        self.keychain
+            .account
+            .set(account)
+            .map_err(|_| LbErrKind::AccountNonexistent)?;
+        self.keychain
+            .public_key
+            .set(pk)
+            .map_err(|_| LbErrKind::AccountNonexistent)?;
+
+        Ok(())
+    }
+}
