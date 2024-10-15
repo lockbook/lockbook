@@ -12,27 +12,27 @@ use crate::ffi_utils::{carray, cstring};
 
 #[repr(C)]
 pub struct LbFileList {
-    list: *mut LbFile,
-    count: usize,
+    pub list: *mut LbFile,
+    pub count: usize,
 }
 
 #[repr(C)]
 pub struct LbFile {
-    id: Uuid,
-    parent: Uuid,
-    name: *mut c_char,
-    typ: LbFileType,
-    lastmod_by: *mut c_char,
-    lastmod: u64,
-    shares: LbShareList,
+    pub id: Uuid,
+    pub parent: Uuid,
+    pub name: *mut c_char,
+    pub typ: LbFileType,
+    pub lastmod_by: *mut c_char,
+    pub lastmod: u64,
+    pub shares: LbShareList,
 }
 
 /// The zero value represents a document.
 #[repr(C)]
 #[derive(Default)]
 pub struct LbFileType {
-    tag: LbFileTypeTag,
-    link_target: Uuid,
+    pub tag: LbFileTypeTag,
+    pub link_target: Uuid,
 }
 
 #[repr(C)]
@@ -46,15 +46,15 @@ pub enum LbFileTypeTag {
 
 #[repr(C)]
 pub struct LbShareList {
-    list: *mut LbShare,
-    count: usize,
+    pub list: *mut LbShare,
+    pub count: usize,
 }
 
 #[repr(C)]
 pub struct LbShare {
-    by: *mut c_char,
-    with: *mut c_char,
-    mode: ShareMode,
+    pub by: *mut c_char,
+    pub with: *mut c_char,
+    pub mode: ShareMode,
 }
 
 impl From<LbFileType> for FileType {
@@ -134,5 +134,28 @@ impl Default for LbFile {
 impl Default for LbShareList {
     fn default() -> Self {
         Self { count: Default::default(), list: ptr::null_mut() }
+    }
+}
+
+impl Default for LbFileList {
+    fn default() -> Self {
+        Self { list: ptr::null_mut(), count: Default::default() }
+    }
+}
+
+impl From<Vec<File>> for LbFileList {
+    fn from(files: Vec<File>) -> Self {
+        let mut new_vec = Vec::with_capacity(files.len());
+
+        for file in files {
+            new_vec.push(file.into());
+        }
+
+        let (list, count) = carray(new_vec);
+
+        Self {
+            list,
+            count,
+        }
     }
 }

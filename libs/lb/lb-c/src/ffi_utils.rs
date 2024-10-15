@@ -1,6 +1,11 @@
-use std::ffi::{c_char, CStr, CString};
+use std::{
+    ffi::{c_char, CStr, CString},
+    mem,
+};
 
-use lb_rs::blocking::Lb;
+use lb_rs::{blocking::Lb, model::errors::LbErr};
+
+use crate::lb_c_err::LbFfiErr;
 
 pub(crate) fn cstring(from: String) -> *mut c_char {
     CString::new(from)
@@ -8,9 +13,17 @@ pub(crate) fn cstring(from: String) -> *mut c_char {
         .into_raw()
 }
 
-pub(crate) fn carray<T>(from: Vec<T>) -> (*mut T, usize) {
+pub(crate) fn carray<T>(mut from: Vec<T>) -> (*mut T, usize) {
+    from.shrink_to_fit();
     let size = from.len();
-    (Box::into_raw(from.into_boxed_slice()) as *mut T, size)
+    let ptr = from.as_mut_ptr();
+    mem::forget(from);
+
+    (ptr, size)
+}
+
+pub(crate) fn rvec<T>(ptr: *mut T, length: usize) -> Vec<T> {
+    unsafe { Vec::from_raw_parts(ptr, length, length) }
 }
 
 pub(crate) fn rstr<'a>(s: *const c_char) -> &'a str {
@@ -30,3 +43,6 @@ pub(crate) fn rlb<'a>(clb: *mut Lb) -> &'a Lb {
     unsafe { clb.as_ref().unwrap() }
 }
 
+pub(crate) fn lb_err(err: LbErr) -> *mut LbFfiErr {
+    Box::into_raw(Box::new(err.into()))
+}

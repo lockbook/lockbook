@@ -3,9 +3,9 @@ use std::{
     fs, process, ptr,
 };
 
-use ffi_utils::{carray, cstring, rlb, rstr, rstring};
+use ffi_utils::{carray, cstring, lb_err, rlb, rstr, rstring, rvec};
 use lb_c_err::LbFfiErr;
-use lb_file::{LbFile, LbFileType};
+use lb_file::{LbFile, LbFileList, LbFileType};
 use lb_rs::Uuid;
 pub use lb_rs::{blocking::Lb, model::core_config::Config};
 
@@ -26,7 +26,7 @@ pub extern "C" fn lb_init(writeable_path: *const c_char, logs: bool) -> LbInitRe
             LbInitRes { lb, err: ptr::null_mut() }
         }
         Err(err) => {
-            let err = Box::into_raw(Box::new(err.into()));
+            let err = lb_err(err);
             LbInitRes { lb: ptr::null_mut(), err }
         }
     }
@@ -54,7 +54,7 @@ pub extern "C" fn lb_create_account(
             LbAccountRes { username, api_url, err: ptr::null_mut() }
         }
         Err(err) => {
-            let err = Box::into_raw(Box::new(err.into()));
+            let err = lb_err(err);
             LbAccountRes { username: ptr::null_mut(), api_url: ptr::null_mut(), err }
         }
     }
@@ -75,7 +75,7 @@ pub extern "C" fn lb_import_account(
             LbAccountRes { username, api_url, err: ptr::null_mut() }
         }
         Err(err) => {
-            let err = Box::into_raw(Box::new(err.into()));
+            let err = lb_err(err);
             LbAccountRes { username: ptr::null_mut(), api_url: ptr::null_mut(), err }
         }
     }
@@ -92,7 +92,7 @@ pub extern "C" fn lb_get_account(lb: *mut Lb) -> LbAccountRes {
             LbAccountRes { username, api_url, err: ptr::null_mut() }
         }
         Err(err) => {
-            let err = Box::into_raw(Box::new(err.into()));
+            let err = lb_err(err);
             LbAccountRes { username: ptr::null_mut(), api_url: ptr::null_mut(), err }
         }
     }
@@ -104,7 +104,7 @@ pub extern "C" fn lb_delete_account(lb: *mut Lb) -> *mut LbFfiErr {
 
     match lb.delete_account() {
         Ok(_) => ptr::null_mut(),
-        Err(err) => Box::into_raw(Box::new(err.into())),
+        Err(err) => lb_err(err),
     }
 }
 
@@ -131,7 +131,7 @@ pub extern "C" fn lb_export_account_private_key(lb: *mut Lb) -> LbExportAccountR
             LbExportAccountRes { account_string, err: ptr::null_mut() }
         }
         Err(err) => {
-            let err = Box::into_raw(Box::new(err.into()));
+            let err = lb_err(err);
             LbExportAccountRes { account_string: ptr::null_mut(), err }
         }
     }
@@ -147,7 +147,7 @@ pub extern "C" fn lb_export_account_phrase(lb: *mut Lb) -> LbExportAccountRes {
             LbExportAccountRes { account_string, err: ptr::null_mut() }
         }
         Err(err) => {
-            let err = Box::into_raw(Box::new(err.into()));
+            let err = lb_err(err);
             LbExportAccountRes { account_string: ptr::null_mut(), err }
         }
     }
@@ -170,7 +170,7 @@ pub extern "C" fn lb_export_account_qr(lb: *mut Lb) -> LbExportAccountQRRes {
             LbExportAccountQRRes { qr, qr_size, err: ptr::null_mut() }
         }
         Err(err) => {
-            let err = Box::into_raw(Box::new(err.into()));
+            let err = lb_err(err);
             LbExportAccountQRRes { qr: ptr::null_mut(), qr_size: 0, err }
         }
     }
@@ -193,9 +193,64 @@ pub extern "C" fn lb_create_file(
     match lb.create_file(name, &parent, file_type) {
         Ok(f) => LbFileRes { err: ptr::null_mut(), file: f.into() },
         Err(err) => {
-            let err = Box::into_raw(Box::new(err.into()));
+            let err = lb_err(err);
             LbFileRes { err, file: LbFile::default() }
         }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_write_document(
+    lb: *mut Lb, id: Uuid, ptr: *mut u8, len: usize,
+) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+    let data = rvec(ptr, len);
+    match lb.write_document(id, &data) {
+        Ok(()) => ptr::null_mut(),
+        Err(e) => lb_err(e),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_get_root(lb: *mut Lb) -> LbFileRes {
+    let lb = rlb(lb);
+
+    match lb.get_root() {
+        Ok(f) => LbFileRes { err: ptr::null_mut(), file: f.into() },
+        Err(err) => {
+            let err = lb_err(err);
+            LbFileRes { err, file: Default::default() }
+        }
+    }
+}
+
+#[repr(C)]
+pub struct LbFileListRes {
+    err: *mut LbFfiErr,
+    list: LbFileList,
+}
+
+#[no_mangle]
+pub extern "C" fn lb_get_children(lb: *mut Lb, id: Uuid) -> LbFileListRes {
+    let lb = rlb(lb);
+    match lb.get_children(&id) {
+        Ok(children) => {
+            let list = children.into();
+            LbFileListRes { err: ptr::null_mut(), list }
+        }
+        Err(e) => LbFileListRes { err: lb_err(e), list: Default::default() },
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_get_and_get_children_recursively(lb: *mut Lb, id: Uuid) -> LbFileListRes {
+    let lb = rlb(lb);
+    match lb.get_and_get_children_recursively(&id) {
+        Ok(children) => {
+            let list = children.into();
+            LbFileListRes { err: ptr::null_mut(), list }
+        }
+        Err(e) => LbFileListRes { err: lb_err(e), list: Default::default() },
     }
 }
 
