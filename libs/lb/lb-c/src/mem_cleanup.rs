@@ -1,7 +1,8 @@
 use std::ffi::CString;
 
 use crate::{
-    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, LbAccountRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbInitRes
+    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, LbAccountRes, LbExportAccountQRRes,
+    LbExportAccountRes, LbFileListRes, LbFileRes, LbInitRes,
 };
 
 #[no_mangle]

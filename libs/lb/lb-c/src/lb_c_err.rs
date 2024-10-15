@@ -1,4 +1,7 @@
-use std::{ffi::{c_char, CString}, ptr};
+use std::{
+    ffi::{c_char, CString},
+    ptr,
+};
 
 use lb_rs::model::errors::{LbErr, LbErrKind};
 
@@ -153,4 +156,3 @@ impl From<&LbErrKind> for LbEC {
         }
     }
 }
-

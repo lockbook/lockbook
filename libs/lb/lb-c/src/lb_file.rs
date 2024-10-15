@@ -153,9 +153,6 @@ impl From<Vec<File>> for LbFileList {
 
         let (list, count) = carray(new_vec);
 
-        Self {
-            list,
-            count,
-        }
+        Self { list, count }
     }
 }
