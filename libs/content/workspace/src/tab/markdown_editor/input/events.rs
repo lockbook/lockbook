@@ -10,6 +10,7 @@ use markdown_editor::input::{Event, Region};
 use markdown_editor::Editor;
 
 use super::canonical::translate_egui_keyboard_event;
+use super::mutation::pos_to_char_offset;
 use super::{mutation, Bound};
 
 impl Editor {
@@ -173,10 +174,29 @@ impl Editor {
                 } else if response.triple_clicked() {
                     Region::BoundAt { bound: Bound::Paragraph, location, backwards: true }
                 } else if response.double_clicked() {
+                    // android native context menu: double-tapped
+                    if cfg!(target_os = "android") {
+                        ctx.set_context_menu(pos);
+                    }
+
                     Region::BoundAt { bound: Bound::Word, location, backwards: true }
                 } else if response.clicked() && modifiers.shift {
                     Region::ToLocation(location)
                 } else if response.clicked() {
+                    // android native context menu: tapped selection
+                    if cfg!(target_os = "android") {
+                        let offset = pos_to_char_offset(
+                            pos,
+                            &self.galleys,
+                            &self.buffer.current.segs,
+                            &self.bounds.text,
+                        );
+                        if self.buffer.current.selection.contains(offset, true, true) {
+                            ctx.set_context_menu(pos);
+                            continue;
+                        }
+                    }
+
                     Region::Location(location)
                 } else if response.secondary_clicked() {
                     ctx.set_context_menu(pos);
@@ -202,7 +222,7 @@ impl Editor {
 
                 if cfg!(target_os = "ios") {
                     // iOS handles cursor placement using virtual keyboard FFI fn's
-                    return Vec::new();
+                    continue;
                 }
 
                 return vec![Event::Select { region }];
