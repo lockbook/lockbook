@@ -596,6 +596,8 @@ impl Editor {
                         }));
                     }
                 }
+
+                operations.push(Operation::Select(current_selection));
             }
             Event::Find { term, backwards } => {
                 if let Some(result) = self.find(term, backwards) {
