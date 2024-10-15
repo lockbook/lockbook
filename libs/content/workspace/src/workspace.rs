@@ -900,7 +900,7 @@ fn tab_label(
     let h = text.size().y + padding.y * 2.0;
 
     let (tab_label_rect, tab_label_resp) =
-        ui.allocate_exact_size((w, h).into(), egui::Sense::click());
+        ui.allocate_exact_size((w, h).into(), Sense { click: true, drag: false, focusable: false });
 
     if is_active && active_tab_changed {
         tab_label_resp.scroll_to_me(None);
@@ -956,7 +956,11 @@ fn tab_label(
         let close_button_rect =
             egui::Rect::from_min_size(close_button_pos, egui::vec2(x_icon.size, x_icon.size))
                 .expand(2.0);
-        let close_button_resp = ui.interact(close_button_rect, Id::new(t.id), Sense::click());
+        let close_button_resp = ui.interact(
+            close_button_rect,
+            Id::new("tab label close button").with(t.id),
+            Sense { click: true, drag: false, focusable: false },
+        );
 
         // touch mode: always show close button
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
