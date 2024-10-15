@@ -2,7 +2,7 @@ language = "C"
 
 [parse]
 parse_deps = true
-include = ["lb-rs"]
+include = ["lb-rs", "uuid"]
 
 [enum]
 rename_variants = "ScreamingSnakeCase"

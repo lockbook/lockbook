@@ -3,8 +3,10 @@ use std::{
     fs, process, ptr,
 };
 
-use ffi_utils::{array_ptr, cstring, rlb, rstr, rstring};
+use ffi_utils::{carray, cstring, rlb, rstr, rstring};
 use lb_c_err::LbFfiErr;
+use lb_file::{LbFile, LbFileType};
+use lb_rs::Uuid;
 pub use lb_rs::{blocking::Lb, model::core_config::Config};
 
 #[repr(C)]
@@ -164,7 +166,7 @@ pub extern "C" fn lb_export_account_qr(lb: *mut Lb) -> LbExportAccountQRRes {
 
     match lb.export_account_qr() {
         Ok(account_qr) => {
-            let (qr, qr_size) = array_ptr(account_qr);
+            let (qr, qr_size) = carray(account_qr);
             LbExportAccountQRRes { qr, qr_size, err: ptr::null_mut() }
         }
         Err(err) => {
@@ -174,6 +176,30 @@ pub extern "C" fn lb_export_account_qr(lb: *mut Lb) -> LbExportAccountQRRes {
     }
 }
 
+#[repr(C)]
+pub struct LbFileRes {
+    err: *mut LbFfiErr,
+    file: LbFile,
+}
+
+#[no_mangle]
+pub extern "C" fn lb_create_file(
+    lb: *mut Lb, name: *const c_char, parent: Uuid, file_type: LbFileType,
+) -> LbFileRes {
+    let lb = rlb(lb);
+    let name = rstr(name);
+    let file_type = file_type.into();
+
+    match lb.create_file(name, &parent, file_type) {
+        Ok(f) => LbFileRes { err: ptr::null_mut(), file: f.into() },
+        Err(err) => {
+            let err = Box::into_raw(Box::new(err.into()));
+            LbFileRes { err, file: LbFile::default() }
+        }
+    }
+}
+
 mod ffi_utils;
 mod lb_c_err;
+mod lb_file;
 mod mem_cleanup;

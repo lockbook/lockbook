@@ -1,6 +1,6 @@
 use std::ffi::CString;
 
-use crate::{lb_c_err::LbFfiErr, LbAccountRes, LbInitRes};
+use crate::{lb_c_err::LbFfiErr, LbAccountRes, LbExportAccountQRRes, LbExportAccountRes, LbInitRes};
 
 #[no_mangle]
 pub extern "C" fn lb_free_err(err: *mut LbFfiErr) {
@@ -41,4 +41,23 @@ pub extern "C" fn lb_free_account(acc: LbAccountRes) {
     if !acc.api_url.is_null() {
         unsafe { drop(CString::from_raw(acc.username)) }
     }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_free_export_account(acc: LbExportAccountRes) {
+    if !acc.err.is_null() {
+        lb_free_err(acc.err);
+    }
+
+    if !acc.account_string.is_null() {
+        unsafe { drop(CString::from_raw(acc.account_string)) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_free_export_account_qr(acc: LbExportAccountQRRes) {
+    if !acc.err.is_null() {
+        lb_free_err(acc.err);
+    }
+
 }

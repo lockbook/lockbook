@@ -1,4 +1,4 @@
-use std::ffi::{c_char, c_schar, CStr, CString};
+use std::ffi::{c_char, CStr, CString};
 
 use lb_rs::blocking::Lb;
 
@@ -8,7 +8,7 @@ pub(crate) fn cstring(from: String) -> *mut c_char {
         .into_raw()
 }
 
-pub(crate) fn array_ptr<T>(mut from: Vec<T>) -> (*mut T, usize) {
+pub(crate) fn carray<T>(from: Vec<T>) -> (*mut T, usize) {
     let size = from.len();
     (Box::into_raw(from.into_boxed_slice()) as *mut T, size)
 }
@@ -29,3 +29,4 @@ pub(crate) fn rstring(s: *const c_char) -> String {
 pub(crate) fn rlb<'a>(clb: *mut Lb) -> &'a Lb {
     unsafe { clb.as_ref().unwrap() }
 }
+

@@ -61,6 +61,7 @@ pub fn get_code_version() -> &'static str {
 pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub use uuid::Uuid;
 use crate::repo::CoreDb;
 use crate::service::logging;
 use db_rs::Db;
