@@ -162,7 +162,9 @@ class MenuOutlineView: NSOutlineView {
                 animator().expandItem(meta)
             }
             
-            DI.workspace.selectedFolder = meta.id
+            if meta.fileType == .Folder {
+                DI.workspace.selectedFolder = meta.id
+            }
         }
     }
 
