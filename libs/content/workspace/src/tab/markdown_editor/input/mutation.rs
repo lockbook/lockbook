@@ -451,6 +451,8 @@ impl Editor {
                     }
                 }
 
+                operations.push(Operation::Select(current_selection));
+
                 // numbered list item renumbering
                 // always iterate forwards when renumbering because numbers are based on prior numbers for both indent
                 // and deindent operations
@@ -596,8 +598,6 @@ impl Editor {
                         }));
                     }
                 }
-
-                operations.push(Operation::Select(current_selection));
             }
             Event::Find { term, backwards } => {
                 if let Some(result) = self.find(term, backwards) {
