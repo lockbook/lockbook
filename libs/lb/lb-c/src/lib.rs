@@ -1,13 +1,14 @@
 use std::{
     ffi::{c_char, c_uchar},
-    fs, process, ptr,
+    fs, process,
+    ptr::{self, null_mut},
 };
 
 use ffi_utils::{carray, cstring, lb_err, rlb, rstr, rstring, rvec};
 use lb_c_err::LbFfiErr;
 use lb_file::{LbFile, LbFileList, LbFileType};
-use lb_rs::Uuid;
 pub use lb_rs::{blocking::Lb, model::core_config::Config};
+use lb_rs::{model::file::ShareMode, Uuid};
 
 #[repr(C)]
 pub struct LbInitRes {
@@ -23,11 +24,11 @@ pub extern "C" fn lb_init(writeable_path: *const c_char, logs: bool) -> LbInitRe
     match Lb::init(config) {
         Ok(lb) => {
             let lb = Box::into_raw(Box::new(lb));
-            LbInitRes { lb, err: ptr::null_mut() }
+            LbInitRes { lb, err: null_mut() }
         }
         Err(err) => {
             let err = lb_err(err);
-            LbInitRes { lb: ptr::null_mut(), err }
+            LbInitRes { lb: null_mut(), err }
         }
     }
 }
@@ -51,11 +52,11 @@ pub extern "C" fn lb_create_account(
         Ok(account) => {
             let username = cstring(account.username);
             let api_url = cstring(account.api_url);
-            LbAccountRes { username, api_url, err: ptr::null_mut() }
+            LbAccountRes { username, api_url, err: null_mut() }
         }
         Err(err) => {
             let err = lb_err(err);
-            LbAccountRes { username: ptr::null_mut(), api_url: ptr::null_mut(), err }
+            LbAccountRes { username: null_mut(), api_url: null_mut(), err }
         }
     }
 }
@@ -72,11 +73,11 @@ pub extern "C" fn lb_import_account(
         Ok(account) => {
             let username = cstring(account.username);
             let api_url = cstring(account.api_url);
-            LbAccountRes { username, api_url, err: ptr::null_mut() }
+            LbAccountRes { username, api_url, err: null_mut() }
         }
         Err(err) => {
             let err = lb_err(err);
-            LbAccountRes { username: ptr::null_mut(), api_url: ptr::null_mut(), err }
+            LbAccountRes { username: null_mut(), api_url: null_mut(), err }
         }
     }
 }
@@ -89,11 +90,11 @@ pub extern "C" fn lb_get_account(lb: *mut Lb) -> LbAccountRes {
         Ok(account) => {
             let username = cstring(account.username.clone());
             let api_url = cstring(account.api_url.clone());
-            LbAccountRes { username, api_url, err: ptr::null_mut() }
+            LbAccountRes { username, api_url, err: null_mut() }
         }
         Err(err) => {
             let err = lb_err(err);
-            LbAccountRes { username: ptr::null_mut(), api_url: ptr::null_mut(), err }
+            LbAccountRes { username: null_mut(), api_url: null_mut(), err }
         }
     }
 }
@@ -103,7 +104,7 @@ pub extern "C" fn lb_delete_account(lb: *mut Lb) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
     match lb.delete_account() {
-        Ok(_) => ptr::null_mut(),
+        Ok(_) => null_mut(),
         Err(err) => lb_err(err),
     }
 }
@@ -128,11 +129,11 @@ pub extern "C" fn lb_export_account_private_key(lb: *mut Lb) -> LbExportAccountR
     match lb.export_account_private_key() {
         Ok(account_key) => {
             let account_string = cstring(account_key);
-            LbExportAccountRes { account_string, err: ptr::null_mut() }
+            LbExportAccountRes { account_string, err: null_mut() }
         }
         Err(err) => {
             let err = lb_err(err);
-            LbExportAccountRes { account_string: ptr::null_mut(), err }
+            LbExportAccountRes { account_string: null_mut(), err }
         }
     }
 }
@@ -144,11 +145,11 @@ pub extern "C" fn lb_export_account_phrase(lb: *mut Lb) -> LbExportAccountRes {
     match lb.export_account_phrase() {
         Ok(account_phrase) => {
             let account_string = cstring(account_phrase);
-            LbExportAccountRes { account_string, err: ptr::null_mut() }
+            LbExportAccountRes { account_string, err: null_mut() }
         }
         Err(err) => {
             let err = lb_err(err);
-            LbExportAccountRes { account_string: ptr::null_mut(), err }
+            LbExportAccountRes { account_string: null_mut(), err }
         }
     }
 }
@@ -167,11 +168,11 @@ pub extern "C" fn lb_export_account_qr(lb: *mut Lb) -> LbExportAccountQRRes {
     match lb.export_account_qr() {
         Ok(account_qr) => {
             let (qr, qr_size) = carray(account_qr);
-            LbExportAccountQRRes { qr, qr_size, err: ptr::null_mut() }
+            LbExportAccountQRRes { qr, qr_size, err: null_mut() }
         }
         Err(err) => {
             let err = lb_err(err);
-            LbExportAccountQRRes { qr: ptr::null_mut(), qr_size: 0, err }
+            LbExportAccountQRRes { qr: null_mut(), qr_size: 0, err }
         }
     }
 }
@@ -191,7 +192,7 @@ pub extern "C" fn lb_create_file(
     let file_type = file_type.into();
 
     match lb.create_file(name, &parent, file_type) {
-        Ok(f) => LbFileRes { err: ptr::null_mut(), file: f.into() },
+        Ok(f) => LbFileRes { err: null_mut(), file: f.into() },
         Err(err) => {
             let err = lb_err(err);
             LbFileRes { err, file: LbFile::default() }
@@ -206,7 +207,7 @@ pub extern "C" fn lb_write_document(
     let lb = rlb(lb);
     let data = rvec(ptr, len);
     match lb.write_document(id, &data) {
-        Ok(()) => ptr::null_mut(),
+        Ok(()) => null_mut(),
         Err(e) => lb_err(e),
     }
 }
@@ -216,7 +217,7 @@ pub extern "C" fn lb_get_root(lb: *mut Lb) -> LbFileRes {
     let lb = rlb(lb);
 
     match lb.get_root() {
-        Ok(f) => LbFileRes { err: ptr::null_mut(), file: f.into() },
+        Ok(f) => LbFileRes { err: null_mut(), file: f.into() },
         Err(err) => {
             let err = lb_err(err);
             LbFileRes { err, file: Default::default() }
@@ -236,7 +237,7 @@ pub extern "C" fn lb_get_children(lb: *mut Lb, id: Uuid) -> LbFileListRes {
     match lb.get_children(&id) {
         Ok(children) => {
             let list = children.into();
-            LbFileListRes { err: ptr::null_mut(), list }
+            LbFileListRes { err: null_mut(), list }
         }
         Err(e) => LbFileListRes { err: lb_err(e), list: Default::default() },
     }
@@ -248,11 +249,248 @@ pub extern "C" fn lb_get_and_get_children_recursively(lb: *mut Lb, id: Uuid) -> 
     match lb.get_and_get_children_recursively(&id) {
         Ok(children) => {
             let list = children.into();
-            LbFileListRes { err: ptr::null_mut(), list }
+            LbFileListRes { err: null_mut(), list }
         }
         Err(e) => LbFileListRes { err: lb_err(e), list: Default::default() },
     }
 }
+
+#[no_mangle]
+pub extern "C" fn lb_get_file(lb: *mut Lb, id: Uuid) -> LbFileRes {
+    let lb = rlb(lb);
+
+    match lb.get_file_by_id(id) {
+        Ok(f) => LbFileRes { err: null_mut(), file: f.into() },
+        Err(err) => {
+            let err = lb_err(err);
+            LbFileRes { err, file: Default::default() }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_delete_file(lb: *mut Lb, id: Uuid) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.delete_file(&id) {
+        Ok(_) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[repr(C)]
+pub struct LbDocRes {
+    err: *mut LbFfiErr,
+    doc: *mut u8,
+    len: usize,
+}
+
+#[no_mangle]
+pub extern "C" fn lb_read_doc(lb: *mut Lb, id: Uuid) -> LbDocRes {
+    let lb = rlb(lb);
+
+    match lb.read_document(id) {
+        Ok(doc) => {
+            let (doc, len) = carray(doc);
+            LbDocRes { err: null_mut(), doc, len }
+        }
+        Err(err) => {
+            let err = lb_err(err);
+            LbDocRes { err, doc: null_mut(), len: 0 }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_list_metadatas(lb: *mut Lb) -> LbFileListRes {
+    let lb = rlb(lb);
+
+    match lb.list_metadatas() {
+        Ok(children) => {
+            let list = children.into();
+            LbFileListRes { err: null_mut(), list }
+        }
+        Err(e) => LbFileListRes { err: lb_err(e), list: Default::default() },
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_rename_file(lb: *mut Lb, id: Uuid, new_name: *const c_char) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+    let new_name = rstr(new_name);
+
+    match lb.rename_file(&id, new_name) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_move_file(lb: *mut Lb, id: Uuid, new_parent: Uuid) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.move_file(&id, &new_parent) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_share_file(
+    lb: *mut Lb, id: Uuid, username: *const c_char, mode: ShareMode,
+) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+    let username = rstr(username);
+
+    match lb.share_file(id, username, mode) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_get_pending_shares(lb: *mut Lb) -> LbFileListRes {
+    let lb = rlb(lb);
+
+    match lb.get_pending_shares() {
+        Ok(shares) => LbFileListRes { err: null_mut(), list: shares.into() },
+        Err(err) => {
+            let err = lb_err(err);
+            LbFileListRes { err, list: LbFileList::default() }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_delete_pending_share(lb: *mut Lb, id: Uuid) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.delete_pending_share(&id) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_create_link_at_path(
+    lb: *mut Lb, path_and_name: *const c_char, target_id: Uuid,
+) -> LbFileRes {
+    let lb = rlb(lb);
+    let path_and_name = rstr(path_and_name);
+
+    match lb.create_link_at_path(path_and_name, target_id) {
+        Ok(f) => LbFileRes { err: null_mut(), file: f.into() },
+        Err(err) => LbFileRes { err: lb_err(err), file: Default::default() },
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_create_at_path(lb: *mut Lb, path_and_name: *const c_char) -> LbFileRes {
+    let lb = rlb(lb);
+    let path_and_name = rstr(path_and_name);
+
+    match lb.create_at_path(path_and_name) {
+        Ok(f) => LbFileRes { err: null_mut(), file: f.into() },
+        Err(err) => LbFileRes { err: lb_err(err), file: Default::default() },
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_get_by_path(lb: *mut Lb, path: *const c_char) -> LbFileRes {
+    let lb = rlb(lb);
+    let path = rstr(path);
+
+    match lb.get_by_path(path) {
+        Ok(f) => LbFileRes { err: null_mut(), file: f.into() },
+        Err(err) => LbFileRes { err: lb_err(err), file: Default::default() },
+    }
+}
+
+#[repr(C)]
+pub struct LbPathRes {
+    err: *mut LbFfiErr,
+    path: *const c_char,
+}
+
+#[no_mangle]
+pub extern "C" fn lb_get_path_by_id(lb: *mut Lb, id: Uuid) -> LbPathRes {
+    let lb = rlb(lb);
+
+    match lb.get_path_by_id(id) {
+        Ok(p) => LbPathRes { err: null_mut(), path: cstring(p) },
+        Err(err) => LbPathRes { err: lb_err(err), path: null_mut() },
+    }
+}
+
+#[repr(C)]
+pub struct LbLocalChangesRes {
+    err: *mut LbFfiErr,
+    ids: *mut Uuid,
+    len: usize,
+}
+
+#[no_mangle]
+pub extern "C" fn lb_get_local_changes(lb: *mut Lb) -> LbLocalChangesRes {
+    let lb = rlb(lb);
+
+    match lb.get_local_changes() {
+        Ok(ids) => {
+            let (ids, len) = carray(ids);
+            LbLocalChangesRes { err: null_mut(), ids, len }
+        }
+        Err(err) => LbLocalChangesRes { err: lb_err(err), ids: null_mut(), len: 0 },
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn debug_info(lb: *mut Lb, os_info: *const c_char) -> *const c_char {
+    let lb = rlb(lb);
+    let os_info = rstring(os_info);
+
+    cstring(lb.debug_info(os_info))
+}
+
+// todo: pub fn calculate_work(&self) -> Result<SyncStatus, LbError> {
+// todo:
+// todo: pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<SyncStatus, LbError> {
+// todo:
+// todo: pub fn get_last_synced(&self) -> Result<i64, UnexpectedError> {
+// todo:
+// todo: pub fn get_last_synced_human_string(&self) -> Result<String, UnexpectedError> {
+// todo:
+// todo: pub fn suggested_docs(&self, settings: RankingWeights) -> Result<Vec<Uuid>, UnexpectedError> {
+// todo:
+// todo: pub fn get_usage(&self) -> Result<UsageMetrics, LbError> {
+// todo:     let acc = self.get_account()?;
+// todo:     let s = self.inner.lock().unwrap();
+// todo:     let client = s.client.clone();
+// todo:     drop(s);
+// todo:     let usage = client.request(&acc, GetUsageRequest {})?;
+// todo:     self.in_tx(|s| s.get_usage(usage))
+// todo:         .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
+// todo: }
+// todo:
+// todo: pub fn get_uncompressed_usage_breakdown(
+// todo:
+// todo: pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, LbError> {
+// todo:
+// todo: pub fn import_files<F: Fn(ImportStatus)>(
+// todo:
+// todo: pub fn export_file(
+// todo:
+// todo: pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
+// todo:
+// todo: pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
+// todo:
+// todo: pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> Result<(), LbError> {
+// todo:
+// todo: pub fn upgrade_account_google_play(
+//
+// todo: pub fn upgrade_account_app_store(
+// todo:
+// todo: pub fn cancel_subscription(&self) -> Result<(), LbError> {
+// todo:
+// todo: pub fn get_subscription_info(&self) -> Result<Option<SubscriptionInfo>, LbError> {
 
 mod ffi_utils;
 mod lb_c_err;

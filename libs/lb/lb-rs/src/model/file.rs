@@ -6,6 +6,7 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy)]
+#[repr(C)]
 pub enum ShareMode {
     Write,
     Read,

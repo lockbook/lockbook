@@ -1,8 +1,7 @@
 use std::ffi::CString;
 
 use crate::{
-    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, LbAccountRes, LbExportAccountQRRes,
-    LbExportAccountRes, LbFileListRes, LbFileRes, LbInitRes,
+    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbInitRes
 };
 
 #[no_mangle]
@@ -104,4 +103,16 @@ pub extern "C" fn lb_free_file_list_res(files: LbFileListRes) {
             lb_free_file(file);
         }
     }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_free_doc_res(doc: LbDocRes) {
+    if !doc.err.is_null() {
+        lb_free_err(doc.err);
+    }
+
+    if !doc.doc.is_null() {
+        drop(rvec(doc.doc, doc.len));
+    }
+
 }
