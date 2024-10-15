@@ -356,14 +356,18 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             return
         }
          
+        inputDelegate?.selectionWillChange(self)
         inputDelegate?.textWillChange(self)
         insert_text(wsHandle, text)
         mtkView.drawImmediately()
         inputDelegate?.textDidChange(self)
+        inputDelegate?.selectionDidChange(self)
     }
 
     public func text(in range: UITextRange) -> String? {
-        let range = (range as! LBTextRange).c
+        guard let range = (range as? LBTextRange)?.c else {
+            return nil
+        }
         guard let result = text_in_range(wsHandle, range) else {
             return nil
         }
@@ -605,14 +609,16 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             return
         }
         
-        guard let rangeToReplace = (markedTextRange ?? selectedTextRange) as? LBTextRange else {
+        guard let _ = (markedTextRange ?? selectedTextRange) as? LBTextRange else {
             return
         }
         
+        inputDelegate?.selectionWillChange(self)
         inputDelegate?.textWillChange(self)
         backspace(wsHandle)
         mtkView.drawImmediately()
         inputDelegate?.textDidChange(self)
+        inputDelegate?.selectionDidChange(self)
     }
     
     public override func cut(_ sender: Any?) {
