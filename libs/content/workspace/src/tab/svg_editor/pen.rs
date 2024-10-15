@@ -15,7 +15,7 @@ use super::{
     InsertElement, PathBuilder,
 };
 
-pub const PEN_STROKE_WIDTHS: [f32; 3] = [3.0, 4.0, 6.0];
+pub const PEN_STROKE_WIDTHS: [f32; 3] = [3.0, 4.5, 6.0];
 pub const HIGHLIGHTER_STROKE_WIDTHS: [f32; 3] = [15.0, 20.0, 25.0];
 
 #[derive(Default)]
