@@ -4,6 +4,7 @@ import Bridge
 
 // todo can this go away enirely?
 public class WorkspaceState: ObservableObject {
+    public var workspaceViewId = UUID()
     
     var wsHandle: UnsafeMutableRawPointer? = nil
 
