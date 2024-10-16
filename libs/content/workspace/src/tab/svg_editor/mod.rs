@@ -121,6 +121,7 @@ impl SVGEditor {
             self.has_queued_save_request = true;
             if global_diff.transformed.is_none() {
                 self.toolbar.show_tool_controls = false;
+                self.toolbar.show_viewport_popover = false;
             }
         }
 
