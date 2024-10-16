@@ -705,7 +705,7 @@ pub unsafe extern "C" fn update_virtual_keyboard(obj: *mut c_void, showing: bool
         None => return,
     };
 
-    markdown.editor.is_virtual_keyboard_showing = showing;
+    markdown.editor.virtual_keyboard_shown = showing;
 }
 
 /// # Safety

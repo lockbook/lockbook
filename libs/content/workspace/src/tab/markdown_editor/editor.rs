@@ -25,6 +25,7 @@ use std::time::{Duration, Instant};
 use super::input::mutation::EventState;
 use super::input::{Location, Region};
 use super::widgets::find::Find;
+use super::widgets::toolbar::Toolbar;
 use super::Event;
 
 #[derive(Debug, Serialize, Default)]
@@ -59,11 +60,12 @@ pub struct Editor {
     pub bounds: Bounds,
     pub galleys: Galleys,
     pub capture: CaptureState,
+    pub toolbar: Toolbar,
     pub find: Find,
     pub event: EventState,
 
     // referenced by toolbar for keyboard toggle (todo: cleanup)
-    pub is_virtual_keyboard_showing: bool,
+    pub virtual_keyboard_shown: bool,
 
     // referenced by toolbar for layout (todo: cleanup)
     pub rect: Rect,
@@ -92,10 +94,11 @@ impl Editor {
             bounds: Default::default(),
             galleys: Default::default(),
             capture: Default::default(),
+            toolbar: Default::default(),
             find: Default::default(),
             event: Default::default(),
 
-            is_virtual_keyboard_showing: false,
+            virtual_keyboard_shown: false,
 
             rect: Rect::ZERO,
         }
@@ -142,6 +145,9 @@ impl Editor {
         });
 
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
+
+        // show toolbar
+        self.toolbar.show(self.virtual_keyboard_shown, ui);
 
         // show find toolbar
         let find_resp = self.find.show(&self.buffer, ui);

@@ -109,7 +109,7 @@ impl ToolBar {
                     if is_mobile { egui::vec2(0.0, 5.0) } else { egui::vec2(10.0, 20.0) };
 
                 if is_mobile {
-                    if editor.is_virtual_keyboard_showing {
+                    if editor.virtual_keyboard_shown {
                         self.process_mobile_components(
                             self.hide_keyboard_components.clone(),
                             ui,
