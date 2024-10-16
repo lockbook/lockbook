@@ -1,6 +1,4 @@
-use crate::widgets::{toolbar::MOBILE_TOOL_BAR_SIZE, ToolBar, ToolBarVisibility};
 use egui::{FontData, FontDefinitions, FontFamily};
-use lb_rs::{DocumentHmac, Uuid};
 use std::sync::Arc;
 
 pub mod appearance;
@@ -66,48 +64,4 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         .get_mut(&egui::FontFamily::Monospace)
         .unwrap()
         .push("material_icons".to_owned());
-}
-
-pub struct Markdown {
-    pub editor: Editor,
-    pub toolbar: ToolBar,
-}
-
-impl Markdown {
-    // todo: you eleminated the idea of an auto rename signal here, evaluate what to do with it
-    pub fn new(
-        core: lb_rs::Core, bytes: &[u8], toolbar_visibility: &ToolBarVisibility, needs_name: bool,
-        file_id: Uuid, hmac: Option<DocumentHmac>, plaintext_mode: bool,
-    ) -> Self {
-        let content = String::from_utf8_lossy(bytes);
-        let editor = Editor::new(core, &content, file_id, hmac, needs_name, plaintext_mode);
-        let toolbar = ToolBar::new(toolbar_visibility);
-
-        Self { editor, toolbar }
-    }
-
-    pub fn past_first_frame(&self) -> bool {
-        self.editor.debug.frame_count > 1
-    }
-
-    pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
-        ui.vertical(|ui| {
-            let mut res = if cfg!(target_os = "ios") || cfg!(target_os = "android") {
-                ui.allocate_ui(
-                    egui::vec2(ui.available_width(), ui.available_height() - MOBILE_TOOL_BAR_SIZE),
-                    |ui| self.editor.show(ui),
-                )
-                .inner
-            } else {
-                self.editor.show(ui)
-            };
-            if !self.editor.appearance.plaintext_mode
-                && self.toolbar.visibility != ToolBarVisibility::Disabled
-            {
-                self.toolbar.show(ui, &mut self.editor, &mut res);
-            }
-            res
-        })
-        .inner
-    }
 }

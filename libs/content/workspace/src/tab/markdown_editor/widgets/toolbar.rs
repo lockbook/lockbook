@@ -40,6 +40,7 @@ impl Toolbar {
             .inner
     }
 
+    #[allow(clippy::option_map_unit_fn)] // use of .map() reduces line wrapping, improving readability
     pub fn show_inner(
         &mut self, ast: &Ast, bounds: &Bounds, selection: (DocCharOffset, DocCharOffset),
         virtual_keyboard_shown: bool, ui: &mut Ui,
