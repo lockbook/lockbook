@@ -1,16 +1,17 @@
-use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _};
+use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::Location;
 use crate::tab::markdown_editor::layouts::Annotation;
 use crate::tab::markdown_editor::style::ListItem;
-use crate::tab::{self, markdown_editor, ClipContent, ExtendedInput as _};
-use egui::{Context, EventFilter};
+use crate::tab::{self, markdown_editor, ClipContent, ExtendedInput as _, ExtendedOutput as _};
+use egui::{Context, EventFilter, Pos2};
 use lb_rs::text::buffer;
-use lb_rs::text::offset_types::RangeExt as _;
+use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 use markdown_editor::input::{Event, Region};
 use markdown_editor::Editor;
 
 use super::canonical::translate_egui_keyboard_event;
-use super::{mutation, Bound};
+use super::mutation::pos_to_char_offset;
+use super::{cursor, mutation, Bound};
 
 impl Editor {
     pub fn process_events(&mut self, ctx: &Context) -> (bool, bool) {
@@ -174,13 +175,40 @@ impl Editor {
                 } else if response.triple_clicked() {
                     Region::BoundAt { bound: Bound::Paragraph, location, backwards: true }
                 } else if response.double_clicked() {
+                    // android native context menu: double-tapped
+                    if cfg!(target_os = "android") {
+                        // context menu position based on text range of word that will be selected
+                        let offset = self.location_to_char_offset(location);
+                        let range = offset
+                            .range_bound(Bound::Word, true, true, &self.bounds)
+                            .unwrap_or((offset, offset));
+                        ctx.set_context_menu(self.context_menu_pos(range).unwrap_or(pos));
+                    }
+
                     Region::BoundAt { bound: Bound::Word, location, backwards: true }
                 } else if response.clicked() && modifiers.shift {
                     Region::ToLocation(location)
                 } else if response.clicked() {
+                    // android native context menu: tapped selection
+                    if cfg!(target_os = "android") {
+                        let offset = pos_to_char_offset(
+                            pos,
+                            &self.galleys,
+                            &self.buffer.current.segs,
+                            &self.bounds.text,
+                        );
+                        if self.buffer.current.selection.contains(offset, true, true) {
+                            ctx.set_context_menu(
+                                self.context_menu_pos(self.buffer.current.selection)
+                                    .unwrap_or(pos),
+                            );
+                            continue;
+                        }
+                    }
+
                     Region::Location(location)
                 } else if response.secondary_clicked() {
-                    // todo: show context menu
+                    ctx.set_context_menu(pos);
                     continue;
                 } else if response.dragged() && modifiers.shift {
                     Region::ToLocation(location)
@@ -197,12 +225,30 @@ impl Editor {
 
                 if cfg!(target_os = "ios") {
                     // iOS handles cursor placement using virtual keyboard FFI fn's
-                    return Vec::new();
+                    continue;
                 }
 
                 return vec![Event::Select { region }];
             }
         }
         Vec::new()
+    }
+
+    fn context_menu_pos(&self, range: (DocCharOffset, DocCharOffset)) -> Option<Pos2> {
+        // find the first line of the selection
+        let lines = self.bounds.lines.find_intersecting(range, false);
+        let first_line = lines.iter().next()?;
+        let mut line = self.bounds.lines[first_line];
+        if line.0 < range.start() {
+            line.0 = range.start();
+        }
+        if line.1 > range.end() {
+            line.1 = range.end();
+        }
+
+        // open the context menu in the center of the top of the rect containing the line
+        let start_line = cursor::line(line.0, &self.galleys, &self.bounds.text, &self.appearance);
+        let end_line = cursor::line(line.1, &self.galleys, &self.bounds.text, &self.appearance);
+        Some(Pos2 { x: (start_line[1].x + end_line[1].x) / 2., y: start_line[0].y })
     }
 }
