@@ -9,7 +9,6 @@ pub mod bounds;
 pub mod debug;
 pub mod draw;
 pub mod editor;
-pub mod find;
 pub mod galleys;
 pub mod images;
 pub mod input;
@@ -17,6 +16,7 @@ pub mod layouts;
 pub mod output;
 pub mod style;
 pub mod test_input;
+pub mod widgets;
 
 pub use editor::{Editor, Response};
 pub use input::Event;

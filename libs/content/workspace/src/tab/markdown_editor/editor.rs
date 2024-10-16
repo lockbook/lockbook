@@ -22,9 +22,9 @@ use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
 use std::time::{Duration, Instant};
 
-use super::find::Find;
 use super::input::mutation::EventState;
 use super::input::{Location, Region};
+use super::widgets::find::Find;
 use super::Event;
 
 #[derive(Debug, Serialize, Default)]
