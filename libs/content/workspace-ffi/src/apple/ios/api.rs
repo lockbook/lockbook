@@ -77,7 +77,7 @@ pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    !markdown.editor.buffer.is_empty()
+    !markdown.buffer.is_empty()
 }
 
 /// # Safety
@@ -126,7 +126,7 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
 
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
     if let Some(range) = range {
-        CString::new(&markdown.editor.buffer[range])
+        CString::new(&markdown.buffer[range])
             .expect("Could not Rust String -> C String")
             .into_raw()
     } else {
@@ -149,7 +149,7 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
         None => return CTextRange::default(),
     };
 
-    let (start, end) = markdown.editor.buffer.current.selection;
+    let (start, end) = markdown.buffer.current.selection;
 
     CTextRange {
         none: false,
@@ -244,13 +244,7 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
         None => return CTextPosition::default(),
     };
 
-    markdown
-        .editor
-        .buffer
-        .current
-        .segs
-        .last_cursor_position()
-        .into()
+    markdown.buffer.current.segs.last_cursor_position().into()
 }
 
 /// # Safety
@@ -409,7 +403,7 @@ pub unsafe extern "C" fn position_offset(
 
     let start: Option<DocCharOffset> = start.into();
     if let Some(start) = start {
-        let last_cursor_position = markdown.editor.buffer.current.segs.last_cursor_position();
+        let last_cursor_position = markdown.buffer.current.segs.last_cursor_position();
 
         let result = if offset < 0 && -offset > start.0 as i32 {
             DocCharOffset::default()
@@ -441,8 +435,8 @@ pub unsafe extern "C" fn position_offset_in_direction(
         None => return CTextPosition::default(),
     };
 
-    let segs = &markdown.editor.buffer.current.segs;
-    let galleys = &markdown.editor.galleys;
+    let segs = &markdown.buffer.current.segs;
+    let galleys = &markdown.galleys;
 
     let offset_type =
         if matches!(direction, CTextLayoutDirection::Right | CTextLayoutDirection::Left) {
@@ -454,14 +448,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
 
     let mut result: DocCharOffset = start.pos.into();
     for _ in 0..offset {
-        result = result.advance(
-            &mut None,
-            offset_type,
-            backwards,
-            segs,
-            galleys,
-            &markdown.editor.bounds,
-        );
+        result = result.advance(&mut None, offset_type, backwards, segs, galleys, &markdown.bounds);
     }
 
     CTextPosition { none: start.none, pos: result.0 }
@@ -485,7 +472,6 @@ pub unsafe extern "C" fn is_position_at_bound(
     let at_boundary = granularity.into();
 
     markdown
-        .editor
         .bounds
         .is_position_at_boundary(text_position, at_boundary, backwards)
 }
@@ -508,7 +494,6 @@ pub unsafe extern "C" fn is_position_within_bound(
     let at_boundary = granularity.into();
 
     markdown
-        .editor
         .bounds
         .is_position_within_text_unit(text_position, at_boundary, backwards)
 }
@@ -531,7 +516,6 @@ pub unsafe extern "C" fn bound_from_position(
     let to_boundary = granularity.into();
 
     markdown
-        .editor
         .bounds
         .position_from(text_position, to_boundary, backwards)
         .into()
@@ -556,7 +540,6 @@ pub unsafe extern "C" fn bound_at_position(
 
     let result =
         markdown
-            .editor
             .bounds
             .range_enclosing_position(text_position, with_granularity, backwards);
 
@@ -575,10 +558,10 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         None => return CRect::default(),
     };
 
-    let segs = &markdown.editor.buffer.current.segs;
-    let galleys = &markdown.editor.galleys;
-    let text = &markdown.editor.bounds.text;
-    let appearance = &markdown.editor.appearance;
+    let segs = &markdown.buffer.current.segs;
+    let galleys = &markdown.galleys;
+    let text = &markdown.bounds.text;
+    let appearance = &markdown.appearance;
 
     let selection_representing_rect = {
         let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
@@ -597,7 +580,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
             false,
             segs,
             galleys,
-            &markdown.editor.bounds,
+            &markdown.bounds,
         );
         let end_of_selection_start_line = selection_start;
         let end_of_rect = cmp::min(selection_end, end_of_selection_start_line);
@@ -641,9 +624,9 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
         None => return CTextPosition::default(),
     };
 
-    let segs = &markdown.editor.buffer.current.segs;
-    let galleys = &markdown.editor.galleys;
-    let text = &markdown.editor.bounds.text;
+    let segs = &markdown.buffer.current.segs;
+    let galleys = &markdown.galleys;
+    let text = &markdown.bounds.text;
 
     let offset = mutation::pos_to_char_offset(
         Pos2 { x: point.x as f32, y: point.y as f32 },
@@ -664,7 +647,7 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
         None => return null(),
     };
 
-    let value = markdown.editor.buffer.current.text.as_str();
+    let value = markdown.buffer.current.text.as_str();
 
     CString::new(value)
         .expect("Could not Rust String -> C String")
@@ -681,9 +664,9 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
         None => return CRect::default(),
     };
 
-    let galleys = &markdown.editor.galleys;
-    let text = &markdown.editor.bounds.text;
-    let appearance = &markdown.editor.appearance;
+    let galleys = &markdown.galleys;
+    let text = &markdown.bounds.text;
+    let appearance = &markdown.appearance;
 
     let line = cursor::line(pos.pos.into(), galleys, text, appearance);
 
@@ -705,7 +688,7 @@ pub unsafe extern "C" fn update_virtual_keyboard(obj: *mut c_void, showing: bool
         None => return,
     };
 
-    markdown.editor.virtual_keyboard_shown = showing;
+    markdown.virtual_keyboard_shown = showing;
 }
 
 /// # Safety
@@ -720,10 +703,10 @@ pub unsafe extern "C" fn selection_rects(
         None => return UITextSelectionRects::default(),
     };
 
-    let galleys = &markdown.editor.galleys;
-    let text = &markdown.editor.bounds.text;
-    let appearance = &markdown.editor.appearance;
-    let bounds = &markdown.editor.bounds;
+    let galleys = &markdown.galleys;
+    let text = &markdown.bounds.text;
+    let appearance = &markdown.appearance;
+    let bounds = &markdown.bounds;
 
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
     let range = match range {
@@ -822,7 +805,7 @@ pub unsafe extern "C" fn can_undo(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    markdown.editor.buffer.can_undo()
+    markdown.buffer.can_undo()
 }
 
 /// # Safety
@@ -835,7 +818,7 @@ pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    markdown.editor.buffer.can_redo()
+    markdown.buffer.can_redo()
 }
 
 /// # Safety
