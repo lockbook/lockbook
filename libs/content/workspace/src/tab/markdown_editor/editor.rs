@@ -147,7 +147,13 @@ impl Editor {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
         // show toolbar
-        self.toolbar.show(self.virtual_keyboard_shown, ui);
+        self.toolbar.show(
+            &self.ast,
+            &self.bounds,
+            self.buffer.current.selection,
+            self.virtual_keyboard_shown,
+            ui,
+        );
 
         // show find toolbar
         let find_resp = self.find.show(&self.buffer, ui);
