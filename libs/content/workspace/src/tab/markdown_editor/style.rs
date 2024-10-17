@@ -1,5 +1,5 @@
 use crate::tab::markdown_editor::appearance::Appearance;
-use egui::{FontFamily, Stroke, TextFormat};
+use egui::{FontFamily, Stroke, TextFormat, Visuals};
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::hash::Hash;
 use std::sync::Arc;
@@ -306,7 +306,7 @@ pub type Title = String;
 pub type IndentLevel = u8;
 
 impl RenderStyle {
-    pub fn apply_style(&self, text_format: &mut TextFormat, vis: &Appearance) {
+    pub fn apply_style(&self, text_format: &mut TextFormat, vis: &Appearance, visuals: &Visuals) {
         if vis.plaintext_mode {
             match self {
                 RenderStyle::Selection => {
@@ -345,6 +345,7 @@ impl RenderStyle {
                     text_format.color = vis.text();
                 }
                 RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Code)) => {
+                    text_format.background = visuals.code_bg_color;
                     text_format.font_id.family = FontFamily::Monospace;
                     text_format.font_id.size *= 14.0 / 16.0;
                     text_format.color = vis.code();
