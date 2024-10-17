@@ -181,7 +181,7 @@ impl Editor {
 
                                 Frame::canvas(ui.style())
                                     .stroke(Stroke::NONE)
-                                    .inner_margin(Margin::same(15.))
+                                    .inner_margin(Margin::same(30.))
                                     .show(ui, |ui| self.show_inner(ui, touch_mode))
                                     .inner
                             })
