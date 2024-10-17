@@ -15,6 +15,7 @@ use tracing::warn;
 use crate::theme::palette::ThemePalette;
 
 use super::selection::u_transform_to_bezier;
+use super::toolbar::{get_highlighter_colors, get_pen_colors};
 use super::SVGEditor;
 
 const ZOOM_G_ID: &str = "lb_master_transform";
@@ -179,8 +180,11 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer) {
             if let Some(s) = path.stroke() {
                 if let Paint::Color(c) = s.paint() {
                     let parsed_color = egui::Color32::from_rgb(c.red, c.green, c.blue);
-                    let theme_colors = ThemePalette::as_array();
-                    let maybe_dynamic_color = if let Some(dynamic_color) = theme_colors
+
+                    let mut pen_colors = get_pen_colors();
+                    pen_colors.append(&mut get_highlighter_colors());
+
+                    let maybe_dynamic_color = if let Some(dynamic_color) = pen_colors
                         .iter()
                         .find(|c| c.0.eq(&parsed_color) || c.1.eq(&parsed_color))
                     {
