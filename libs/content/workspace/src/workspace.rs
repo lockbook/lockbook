@@ -901,13 +901,10 @@ fn tab_label(
 ) -> Option<TabLabelResponse> {
     let mut result = None;
 
-    let wrap_width = ui.available_width();
-    let text: egui::WidgetText = (&t.name).into();
-    let text = text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Small);
     let x_icon = Icon::CLOSE.size(16.0);
 
-    let padding_x = 15.;
-    let w = text.size().x + padding_x * 3.0 + x_icon.size + 1.0;
+    let padding_x = 10.;
+    let w = 160.;
     let h = 40.;
 
     let (tab_label_rect, tab_label_resp) =
@@ -1005,6 +1002,15 @@ fn tab_label(
         }
 
         // draw text
+        let text: egui::WidgetText = (&t.name).into();
+        let wrap_width = if show_close_button {
+            w - (padding_x * 3. + x_icon.size + 1.)
+        } else {
+            w - (padding_x * 2.)
+        };
+        let text =
+            text.into_galley(ui, Some(TextWrapMode::Truncate), wrap_width, egui::TextStyle::Small);
+
         let text_color = ui.style().interact(&tab_label_resp).text_color();
         let text_pos = egui::pos2(
             tab_label_rect.min.x + padding_x,
