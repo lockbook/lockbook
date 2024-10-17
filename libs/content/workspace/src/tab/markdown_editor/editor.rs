@@ -232,7 +232,6 @@ impl Editor {
 
         // remember state for change detection
         let prior_suggested_title = self.get_suggested_title();
-        let prior_selection = self.buffer.current.selection;
 
         // process events
         let (text_updated, selection_updated) = if self.initialized {
