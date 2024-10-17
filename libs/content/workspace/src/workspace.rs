@@ -991,8 +991,8 @@ fn tab_label(
         if close_button_resp.hovered() {
             ui.painter().rect(
                 close_button_rect,
-                0.0,
-                ui.visuals().widgets.hovered.bg_fill,
+                2.0,
+                ui.visuals().code_bg_color,
                 egui::Stroke::NONE,
             );
             ui.output_mut(|o: &mut egui::PlatformOutput| {
