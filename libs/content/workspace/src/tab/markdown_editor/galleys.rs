@@ -88,15 +88,18 @@ pub fn calc(
             // construct text format using styles for all ancestor nodes
             let mut text_format = TextFormat::default();
             for &node_idx in &text_range.ancestors[0..text_range.ancestors.len()] {
-                RenderStyle::Markdown(ast.nodes[node_idx].node_type.clone())
-                    .apply_style(&mut text_format, appearance);
+                RenderStyle::Markdown(ast.nodes[node_idx].node_type.clone()).apply_style(
+                    &mut text_format,
+                    appearance,
+                    ui.visuals(),
+                );
             }
             if in_selection && !cfg!(target_os = "ios") {
                 // iOS draws its own selection rects
-                RenderStyle::Selection.apply_style(&mut text_format, appearance);
+                RenderStyle::Selection.apply_style(&mut text_format, appearance, ui.visuals());
             }
             if maybe_link_range.is_some() {
-                RenderStyle::PlaintextLink.apply_style(&mut text_format, appearance);
+                RenderStyle::PlaintextLink.apply_style(&mut text_format, appearance, ui.visuals());
             }
 
             let mut is_annotation = false;
@@ -123,7 +126,7 @@ pub fn calc(
                         layout.append("", 0.0, text_format);
                     } else {
                         // uncaptured syntax characters have syntax style applied on top of node style
-                        RenderStyle::Syntax.apply_style(&mut text_format, appearance);
+                        RenderStyle::Syntax.apply_style(&mut text_format, appearance, ui.visuals());
                         layout.append(text, 0.0, text_format);
                     }
 
@@ -137,7 +140,7 @@ pub fn calc(
                         layout.append("", 0.0, text_format);
                     } else {
                         // uncaptured syntax characters have syntax style applied on top of node style
-                        RenderStyle::Syntax.apply_style(&mut text_format, appearance);
+                        RenderStyle::Syntax.apply_style(&mut text_format, appearance, ui.visuals());
                         layout.append(text, 0.0, text_format);
                     }
                 }
@@ -152,8 +155,11 @@ pub fn calc(
             if layout.is_empty() {
                 // dummy text with document style
                 let mut text_format = Default::default();
-                RenderStyle::Markdown(MarkdownNode::Document)
-                    .apply_style(&mut text_format, appearance);
+                RenderStyle::Markdown(MarkdownNode::Document).apply_style(
+                    &mut text_format,
+                    appearance,
+                    ui.visuals(),
+                );
                 layout.append("", 0.0, text_format);
             }
             let layout_info = LayoutJobInfo {

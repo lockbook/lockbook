@@ -45,7 +45,7 @@ impl Editor {
                             let mut text_format = galley.annotation_text_format.clone();
                             let style =
                                 RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Bold));
-                            style.apply_style(&mut text_format, &self.appearance);
+                            style.apply_style(&mut text_format, &self.appearance, ui.visuals());
 
                             job.append(&(num.to_string() + "."), 0.0, text_format);
                             let pos = galley.bullet_bounds(&self.appearance);
@@ -117,7 +117,7 @@ impl Editor {
                         ui.painter().rect(
                             Rect { min: top_left_corner, max: galley.rect.max }
                                 .expand2(egui::vec2(15., 0.)),
-                            5.,
+                            2.,
                             ui.style().visuals.code_bg_color,
                             Stroke::NONE,
                         );
