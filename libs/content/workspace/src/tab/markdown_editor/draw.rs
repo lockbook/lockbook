@@ -18,6 +18,7 @@ use super::input::cursor;
 impl Editor {
     pub fn draw_text(&self, ui: &mut Ui) {
         let bullet_radius = self.appearance.bullet_radius();
+        let mut current_code_block = None;
         for galley in &self.galleys.galleys {
             // draw annotations
             if let Some(annotation) = &galley.annotation {
@@ -95,13 +96,33 @@ impl Editor {
                             Stroke { width: 2., color: ui.style().visuals.widgets.active.bg_fill },
                         );
                     }
-                    Annotation::CodeBlock => {
+                    Annotation::CodeBlock { start } => {
+                        let (start, top_left_corner) =
+                            if let Some((current_start, current_top_left_corner)) =
+                                current_code_block.take()
+                            {
+                                if start == current_start {
+                                    // extend existing code block
+                                    (current_start, current_top_left_corner)
+                                } else {
+                                    // create a new code block: bordering the previous
+                                    (start, galley.rect.min)
+                                }
+                            } else {
+                                // create a new code block: standalone
+                                (start, galley.rect.min)
+                            };
+
+                        // when extending, this covers the smaller already-drawn portion of the code block
                         ui.painter().rect(
-                            galley.rect.expand2(egui::vec2(5., -5.)),
+                            Rect { min: top_left_corner, max: galley.rect.max }
+                                .expand2(egui::vec2(15., 0.)),
                             5.,
-                            ui.style().visuals.window_fill,
+                            ui.style().visuals.code_bg_color,
                             Stroke::NONE,
                         );
+
+                        current_code_block = Some((start, top_left_corner));
                     }
                 }
             }
@@ -130,8 +151,10 @@ impl Editor {
                     }
                 }
             }
+        }
 
-            // draw text
+        // draw text
+        for galley in &self.galleys.galleys {
             ui.painter()
                 .galley(galley.text_location, galley.galley.clone(), Color32::TRANSPARENT);
         }

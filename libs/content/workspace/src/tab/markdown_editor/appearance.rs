@@ -129,7 +129,7 @@ impl Appearance {
     }
 
     pub fn code(&self) -> Color32 {
-        self.code.unwrap_or(PINK).get(self.current_theme)
+        self.code.unwrap_or(BLACK).get(self.current_theme)
     }
 
     pub fn bold(&self) -> Color32 {

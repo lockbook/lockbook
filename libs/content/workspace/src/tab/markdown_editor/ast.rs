@@ -563,7 +563,8 @@ impl AstTextRange {
     }
 
     pub fn annotation(&self, ast: &Ast) -> Option<Annotation> {
-        match self.node(ast) {
+        let node = &ast.nodes[self.ancestors.last().copied().unwrap_or_default()];
+        match node.node_type.clone() {
             MarkdownNode::Block(BlockNode::Heading(HeadingLevel::H1)) => {
                 Some(Annotation::HeadingRule)
             }
@@ -575,7 +576,9 @@ impl AstTextRange {
             }
             MarkdownNode::Block(BlockNode::Rule) => Some(Annotation::Rule),
             MarkdownNode::Block(BlockNode::Quote) => Some(Annotation::BlockQuote),
-            MarkdownNode::Block(BlockNode::Code) => Some(Annotation::CodeBlock),
+            MarkdownNode::Block(BlockNode::Code) => {
+                Some(Annotation::CodeBlock { start: node.range.start() })
+            }
             _ => None,
         }
     }
