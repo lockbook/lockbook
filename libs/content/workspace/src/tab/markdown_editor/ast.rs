@@ -5,7 +5,9 @@ use crate::tab::markdown_editor::style::{
 };
 use crate::tab::markdown_editor::Editor;
 use lb_rs::text::buffer::Buffer;
-use lb_rs::text::offset_types::{DocCharOffset, RangeExt, RangeIterExt, RelCharOffset};
+use lb_rs::text::offset_types::{
+    DocCharOffset, RangeExt, RangeIterExt, RelByteOffset, RelCharOffset,
+};
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
 
 #[derive(Default, Debug, PartialEq)]
@@ -208,7 +210,7 @@ impl Ast {
             return None;
         }
 
-        let range = {
+        let mut range = {
             let mut range = cmark_range;
 
             // trim trailing whitespace from range
@@ -228,11 +230,12 @@ impl Ast {
                 }
             }
 
-            // capture up to one trailing space for list items and headings
+            // capture up to one trailing space for list items, headings, and block quotes
             if matches!(
                 markdown_node,
                 MarkdownNode::Block(BlockNode::ListItem(..))
                     | MarkdownNode::Block(BlockNode::Heading(..))
+                    | MarkdownNode::Block(BlockNode::Quote)
             ) && range.1 < buffer.current.segs.last_cursor_position()
                 && buffer[(range.0, range.1 + 1)].ends_with(' ')
             {
@@ -291,6 +294,24 @@ impl Ast {
                     }
                 }
                 MarkdownNode::Block(BlockNode::Quote) => {
+                    // >quote
+                    // > block
+                    if let Some((match_offset_bytes, _)) =
+                        buffer[text_range].match_indices('>').skip(1).last()
+                    {
+                        let text_range_start_byte = buffer.current.segs.range_to_byte(text_range).0;
+                        let match_byte = text_range_start_byte + RelByteOffset(match_offset_bytes);
+                        let match_char = buffer.current.segs.offset_to_char(match_byte);
+                        self.push_child(
+                            parent_idx,
+                            markdown_node.clone(),
+                            (text_range.0, match_char),
+                            buffer,
+                        );
+                        range.0 = match_char;
+                        text_range.0 = match_char;
+                    }
+
                     // >quote block
                     // > quote block
                     if buffer[text_range].starts_with("> ") {
@@ -553,6 +574,8 @@ impl AstTextRange {
                 Some(Annotation::Item(item_type, indent_level))
             }
             MarkdownNode::Block(BlockNode::Rule) => Some(Annotation::Rule),
+            MarkdownNode::Block(BlockNode::Quote) => Some(Annotation::BlockQuote),
+            MarkdownNode::Block(BlockNode::Code) => Some(Annotation::CodeBlock),
             _ => None,
         }
     }

@@ -102,7 +102,7 @@ pub fn calc(
             // only the first portion of a head text range gets that range's annotation
             let mut is_annotation = false;
             if text_range.range_type == AstTextRangeType::Head
-                && text_range.range.start() == text_range_portion.start()
+                // && text_range.range.start() == text_range_portion.start()
                 && (captured
                     || matches!(text_range.annotation(ast), Some(Annotation::HeadingRule | Annotation::Image(..)))) // heading rules and images drawn reglardless of capture
                 && annotation.is_none()
@@ -276,14 +276,16 @@ impl Galleys {
 // text
 pub fn annotation_offset(annotation: &Option<Annotation>, appearance: &Appearance) -> Vec2 {
     let mut offset = Vec2::ZERO;
-    if let Some(Annotation::Item(_, indent_level)) = annotation {
-        offset.x = *indent_level as f32 * 20.0 + 30.0
+    match annotation {
+        Some(Annotation::Item(_, indent_level)) => offset.x = *indent_level as f32 * 20.0 + 30.0,
+        Some(Annotation::HeadingRule) => {
+            offset.y = appearance.rule_height();
+        }
+        Some(Annotation::BlockQuote) => {
+            offset.x = 30.0;
+        }
+        _ => {}
     }
-
-    if let Some(Annotation::HeadingRule) = annotation {
-        offset.y = appearance.rule_height();
-    }
-
     offset
 }
 

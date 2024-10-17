@@ -87,7 +87,22 @@ impl Editor {
                         ui.painter()
                             .line_segment([min, max], Stroke::new(0.3, self.appearance.rule()));
                     }
-                    _ => {}
+                    Annotation::Image(_, _, _) => {} // todo: draw image here
+                    Annotation::BlockQuote => {
+                        ui.painter().vline(
+                            galley.bullet_center().x,
+                            galley.rect.y_range(),
+                            Stroke { width: 2., color: ui.style().visuals.widgets.active.bg_fill },
+                        );
+                    }
+                    Annotation::CodeBlock => {
+                        ui.painter().rect(
+                            galley.rect.expand2(egui::vec2(5., -5.)),
+                            5.,
+                            ui.style().visuals.window_fill,
+                            Stroke::NONE,
+                        );
+                    }
                 }
             }
 
