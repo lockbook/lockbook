@@ -577,7 +577,7 @@ impl AstTextRange {
             MarkdownNode::Block(BlockNode::Rule) => Some(Annotation::Rule),
             MarkdownNode::Block(BlockNode::Quote) => Some(Annotation::BlockQuote),
             MarkdownNode::Block(BlockNode::Code) => {
-                Some(Annotation::CodeBlock { start: node.range.start() })
+                Some(Annotation::CodeBlock { text_range: node.text_range })
             }
             _ => None,
         }

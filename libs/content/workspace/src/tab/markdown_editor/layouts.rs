@@ -22,7 +22,7 @@ pub enum Annotation {
     Item(ListItem, IndentLevel),
     Image(LinkType, Url, Title),
     BlockQuote,
-    CodeBlock { start: DocCharOffset },
+    CodeBlock { text_range: (DocCharOffset, DocCharOffset) },
     HeadingRule,
     Rule,
 }
