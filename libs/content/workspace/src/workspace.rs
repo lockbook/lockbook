@@ -1020,9 +1020,14 @@ fn tab_label(
                 close_button_rect.center().y - x_icon.size / 2.2,
             );
             let icon: egui::WidgetText = (&x_icon).into();
+            let icon_color = if close_button_resp.is_pointer_button_down_on() {
+                ui.visuals().widgets.active.bg_fill
+            } else {
+                ui.visuals().text_color()
+            };
             let icon =
                 icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
-            ui.painter().galley(icon_draw_pos, icon, text_color);
+            ui.painter().galley(icon_draw_pos, icon, icon_color);
         }
 
         // respond to input
