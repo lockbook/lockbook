@@ -88,24 +88,30 @@ pub fn calc(
             // construct text format using styles for all ancestor nodes
             let mut text_format = TextFormat::default();
             for &node_idx in &text_range.ancestors[0..text_range.ancestors.len()] {
-                RenderStyle::Markdown(ast.nodes[node_idx].node_type.clone())
-                    .apply_style(&mut text_format, appearance);
+                RenderStyle::Markdown(ast.nodes[node_idx].node_type.clone()).apply_style(
+                    &mut text_format,
+                    appearance,
+                    ui.visuals(),
+                );
             }
             if in_selection && !cfg!(target_os = "ios") {
                 // iOS draws its own selection rects
-                RenderStyle::Selection.apply_style(&mut text_format, appearance);
+                RenderStyle::Selection.apply_style(&mut text_format, appearance, ui.visuals());
             }
             if maybe_link_range.is_some() {
-                RenderStyle::PlaintextLink.apply_style(&mut text_format, appearance);
+                RenderStyle::PlaintextLink.apply_style(&mut text_format, appearance, ui.visuals());
             }
 
-            // only the first portion of a head text range gets that range's annotation
             let mut is_annotation = false;
-            if text_range.range_type == AstTextRangeType::Head
-                && text_range.range.start() == text_range_portion.start()
-                && (captured
-                    || matches!(text_range.annotation(ast), Some(Annotation::HeadingRule | Annotation::Image(..)))) // heading rules and images drawn reglardless of capture
-                && annotation.is_none()
+            let annotate_text_ranges =
+                matches!(text_range.annotation(ast), Some(Annotation::CodeBlock { .. }));
+            let capture_unnecessary = matches!(
+                text_range.annotation(ast),
+                Some(Annotation::HeadingRule | Annotation::Image(..))
+            );
+            if (text_range.range_type == AstTextRangeType::Head || annotate_text_ranges) // code blocks annotate multiple paragraphs
+                && (captured || capture_unnecessary || annotate_text_ranges) // heading rules, images, and code blocks drawn regardless of capture
+                && (annotation.is_none())
             {
                 annotation = text_range.annotation(ast);
                 annotation_text_format = text_format.clone();
@@ -120,7 +126,7 @@ pub fn calc(
                         layout.append("", 0.0, text_format);
                     } else {
                         // uncaptured syntax characters have syntax style applied on top of node style
-                        RenderStyle::Syntax.apply_style(&mut text_format, appearance);
+                        RenderStyle::Syntax.apply_style(&mut text_format, appearance, ui.visuals());
                         layout.append(text, 0.0, text_format);
                     }
 
@@ -134,7 +140,7 @@ pub fn calc(
                         layout.append("", 0.0, text_format);
                     } else {
                         // uncaptured syntax characters have syntax style applied on top of node style
-                        RenderStyle::Syntax.apply_style(&mut text_format, appearance);
+                        RenderStyle::Syntax.apply_style(&mut text_format, appearance, ui.visuals());
                         layout.append(text, 0.0, text_format);
                     }
                 }
@@ -149,8 +155,11 @@ pub fn calc(
             if layout.is_empty() {
                 // dummy text with document style
                 let mut text_format = Default::default();
-                RenderStyle::Markdown(MarkdownNode::Document)
-                    .apply_style(&mut text_format, appearance);
+                RenderStyle::Markdown(MarkdownNode::Document).apply_style(
+                    &mut text_format,
+                    appearance,
+                    ui.visuals(),
+                );
                 layout.append("", 0.0, text_format);
             }
             let layout_info = LayoutJobInfo {
@@ -276,14 +285,16 @@ impl Galleys {
 // text
 pub fn annotation_offset(annotation: &Option<Annotation>, appearance: &Appearance) -> Vec2 {
     let mut offset = Vec2::ZERO;
-    if let Some(Annotation::Item(_, indent_level)) = annotation {
-        offset.x = *indent_level as f32 * 20.0 + 30.0
+    match annotation {
+        Some(Annotation::Item(_, indent_level)) => offset.x = *indent_level as f32 * 20.0 + 30.0,
+        Some(Annotation::HeadingRule) => {
+            offset.y = appearance.rule_height();
+        }
+        Some(Annotation::BlockQuote) => {
+            offset.x = 15.0;
+        }
+        _ => {}
     }
-
-    if let Some(Annotation::HeadingRule) = annotation {
-        offset.y = appearance.rule_height();
-    }
-
     offset
 }
 
