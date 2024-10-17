@@ -232,6 +232,7 @@ impl Editor {
 
         // remember state for change detection
         let prior_suggested_title = self.get_suggested_title();
+        let prior_selection = self.buffer.current.selection;
 
         // process events
         let (text_updated, selection_updated) = if self.initialized {
@@ -315,13 +316,13 @@ impl Editor {
         };
         if selection_updated && self.buffer.current.selection != all_selection {
             let cursor_end_line = cursor::line(
-                self.buffer.current.selection.end(),
+                self.buffer.current.selection.1,
                 &self.galleys,
                 &self.bounds.text,
                 &self.appearance,
             );
             let rect = Rect { min: cursor_end_line[0], max: cursor_end_line[1] };
-            ui.scroll_to_rect(rect, None);
+            ui.scroll_to_rect(rect.expand(rect.height()), None);
         }
 
         let suggested_title = self.get_suggested_title();
