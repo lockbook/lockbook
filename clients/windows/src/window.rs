@@ -364,7 +364,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                                 window_title
                             };
 
-                            if let Err(_) = output::clipboard_copy::handle(copied_text.clone()) {
+                            if output::clipboard_copy::handle(copied_text.clone()).is_err() {
                                 // windows clipboard sometimes has transient errors
                                 app.context.output_mut(|o| o.copied_text = copied_text);
                             }

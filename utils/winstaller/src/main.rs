@@ -152,7 +152,7 @@ fn main() {
     eframe::run_native(
         "Lockbook Installer",
         eframe::NativeOptions { ..Default::default() },
-        Box::new(|cc: &eframe::CreationContext| Box::new(Winstaller::new(&cc.egui_ctx))),
+        Box::new(|cc: &eframe::CreationContext| Ok(Box::new(Winstaller::new(&cc.egui_ctx)))),
     )
     .unwrap()
 }
