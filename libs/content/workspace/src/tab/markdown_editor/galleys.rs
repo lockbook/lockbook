@@ -99,13 +99,16 @@ pub fn calc(
                 RenderStyle::PlaintextLink.apply_style(&mut text_format, appearance);
             }
 
-            // only the first portion of a head text range gets that range's annotation
             let mut is_annotation = false;
-            if text_range.range_type == AstTextRangeType::Head
-                // && text_range.range.start() == text_range_portion.start()
-                && (captured
-                    || matches!(text_range.annotation(ast), Some(Annotation::HeadingRule | Annotation::Image(..)))) // heading rules and images drawn reglardless of capture
-                && annotation.is_none()
+            let annotate_text_ranges =
+                matches!(text_range.annotation(ast), Some(Annotation::CodeBlock { .. }));
+            let capture_unnecessary = matches!(
+                text_range.annotation(ast),
+                Some(Annotation::HeadingRule | Annotation::Image(..))
+            );
+            if (text_range.range_type == AstTextRangeType::Head || annotate_text_ranges) // code blocks annotate multiple paragraphs
+                && (captured || capture_unnecessary || annotate_text_ranges) // heading rules, images, and code blocks drawn regardless of capture
+                && (annotation.is_none())
             {
                 annotation = text_range.annotation(ast);
                 annotation_text_format = text_format.clone();
