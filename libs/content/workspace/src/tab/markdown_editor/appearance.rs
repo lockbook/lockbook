@@ -181,9 +181,9 @@ impl Appearance {
             return CaptureCondition::Never;
         }
         match node_type {
-            MarkdownNodeType::Block(BlockNodeType::ListItem(_)) => CaptureCondition::Always,
+            MarkdownNodeType::Block(BlockNodeType::ListItem(_))
+            | MarkdownNodeType::Block(BlockNodeType::Quote) => CaptureCondition::Always,
             MarkdownNodeType::Block(BlockNodeType::Heading(_))
-            | MarkdownNodeType::Block(BlockNodeType::Quote)
             | MarkdownNodeType::Block(BlockNodeType::Code)
             | MarkdownNodeType::Block(BlockNodeType::Rule)
             | MarkdownNodeType::Inline(InlineNodeType::Code)

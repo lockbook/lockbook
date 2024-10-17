@@ -142,17 +142,20 @@ impl Editor {
                     }
 
                     // insert new list item, remove current list item, or insert newline before current list item
-                    if matches!(galley.annotation, Some(Annotation::Item(..))) && after_galley_head
+                    if matches!(
+                        galley.annotation,
+                        Some(Annotation::Item(..) | Annotation::BlockQuote)
+                    ) && after_galley_head
                     {
-                        // cursor at end of list item
+                        // cursor at end of galley
                         if galley.size() - galley.head_size - galley.tail_size == 0 {
-                            // empty list item -> delete current annotation
+                            // empty galley -> delete current annotation
                             let range =
                                 (galley.range.start(), galley.range.start() + galley.size());
                             let text = "".into();
                             operations.push(Operation::Replace(Replace { range, text }));
                         } else {
-                            // nonempty list item -> insert new list item
+                            // nonempty galley -> insert new item with same annotation
                             operations.push(Operation::Replace(Replace {
                                 range: current_selection,
                                 text: "\n".into(),
@@ -218,10 +221,13 @@ impl Editor {
                                         text: head[0..head.len() - 6].to_string() + "* [ ] ",
                                     }));
                                 }
-                                Some(Annotation::Image(_, _, _)) => {}
-                                Some(Annotation::HeadingRule) => {}
-                                Some(Annotation::Rule) => {}
-                                None => {}
+                                Some(Annotation::BlockQuote) => {
+                                    operations.push(Operation::Replace(Replace {
+                                        range: current_selection,
+                                        text: "> ".into(),
+                                    }));
+                                }
+                                _ => {}
                             }
 
                             operations.push(Operation::Select(current_selection));
