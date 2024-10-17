@@ -1008,9 +1008,22 @@ fn tab_label(
         } else {
             w - (padding_x * 2.)
         };
+
+        // tooltip contains unelided text
+        ui.ctx()
+            .style_mut(|s| s.visuals.menu_rounding = (2.).into());
+        let tab_label_resp = tab_label_resp.on_hover_ui(|ui| {
+            let text = text.clone().into_galley(
+                ui,
+                Some(TextWrapMode::Extend),
+                wrap_width,
+                egui::TextStyle::Small,
+            );
+            ui.add(egui::Label::new(text));
+        });
+
         let text =
             text.into_galley(ui, Some(TextWrapMode::Truncate), wrap_width, egui::TextStyle::Small);
-
         let text_color = ui.style().interact(&tab_label_resp).text_color();
         let text_pos = egui::pos2(
             tab_label_rect.min.x + padding_x,
