@@ -1,11 +1,11 @@
-arguments=--init-script /var/folders/0k/nw31h5ws7d99d5776nt9dfnm0000gn/T/db3b08fc4a9ef609cb16b96b200fa13e563f396e9bb1ed0905fdab7bc3bc513b.gradle --init-script /var/folders/0k/nw31h5ws7d99d5776nt9dfnm0000gn/T/52cde0cfcf3e28b8b7510e992210d9614505e0911af0c190bd590d7158574963.gradle
+arguments=--init-script /Users/parth/.cache/jdtls/config/org.eclipse.osgi/56/0/.cp/gradle/init/init.gradle
 auto.sync=false
 build.scans.enabled=false
 connection.gradle.distribution=GRADLE_DISTRIBUTION(WRAPPER)
 connection.project.dir=
 eclipse.preferences.version=1
 gradle.user.home=
-java.home=/Users/smailbarkouch/Library/Java/JavaVirtualMachines/corretto-17.0.5/Contents/Home
+java.home=/opt/homebrew/Cellar/openjdk/23/libexec/openjdk.jdk/Contents/Home
 jvm.arguments=
 offline.mode=false
 override.workspace.settings=true

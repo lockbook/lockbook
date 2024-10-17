@@ -1,14 +1,15 @@
 use std::{
     ffi::{c_char, c_uchar},
     fs, process,
-    ptr::{self, null_mut},
+    ptr::null_mut,
 };
 
 use ffi_utils::{carray, cstring, lb_err, rlb, rstr, rstring, rvec};
 use lb_c_err::LbFfiErr;
 use lb_file::{LbFile, LbFileList, LbFileType};
 pub use lb_rs::{blocking::Lb, model::core_config::Config};
-use lb_rs::{model::file::ShareMode, Uuid};
+use lb_rs::{model::file::ShareMode, service::activity::RankingWeights, Uuid};
+use lb_work::LbSyncRes;
 
 #[repr(C)]
 pub struct LbInitRes {
@@ -443,44 +444,151 @@ pub extern "C" fn lb_get_local_changes(lb: *mut Lb) -> LbLocalChangesRes {
 }
 
 #[no_mangle]
-pub extern "C" fn debug_info(lb: *mut Lb, os_info: *const c_char) -> *const c_char {
+pub extern "C" fn lb_debug_info(lb: *mut Lb, os_info: *const c_char) -> *const c_char {
     let lb = rlb(lb);
     let os_info = rstring(os_info);
 
     cstring(lb.debug_info(os_info))
 }
 
-// todo: pub fn calculate_work(&self) -> Result<SyncStatus, LbError> {
-// todo:
-// todo: pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<SyncStatus, LbError> {
-// todo:
-// todo: pub fn get_last_synced(&self) -> Result<i64, UnexpectedError> {
-// todo:
-// todo: pub fn get_last_synced_human_string(&self) -> Result<String, UnexpectedError> {
-// todo:
-// todo: pub fn suggested_docs(&self, settings: RankingWeights) -> Result<Vec<Uuid>, UnexpectedError> {
-// todo:
-// todo: pub fn get_usage(&self) -> Result<UsageMetrics, LbError> {
-// todo:     let acc = self.get_account()?;
-// todo:     let s = self.inner.lock().unwrap();
-// todo:     let client = s.client.clone();
-// todo:     drop(s);
-// todo:     let usage = client.request(&acc, GetUsageRequest {})?;
-// todo:     self.in_tx(|s| s.get_usage(usage))
-// todo:         .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
-// todo: }
-// todo:
-// todo: pub fn get_uncompressed_usage_breakdown(
-// todo:
-// todo: pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, LbError> {
-// todo:
+#[no_mangle]
+pub extern "C" fn lb_calculate_work(lb: *mut Lb) -> LbSyncRes {
+    let lb = rlb(lb);
+    lb.calculate_work().into()
+}
+
+#[no_mangle]
+pub extern "C" fn lb_sync(lb: *mut Lb) -> LbSyncRes {
+    let lb = rlb(lb);
+    lb.sync(None).into()
+}
+
+#[repr(C)]
+pub struct LbLastSyncedi64 {
+    err: *mut LbFfiErr,
+    last: i64,
+}
+
+#[repr(C)]
+pub struct LbLastSyncedHuman {
+    err: *mut LbFfiErr,
+    last: *mut c_char,
+}
+
+#[no_mangle]
+pub extern "C" fn lb_get_last_synced(lb: *mut Lb) -> LbLastSyncedi64 {
+    let lb = rlb(lb);
+
+    match lb.get_last_synced() {
+        Ok(last) => LbLastSyncedi64 { err: null_mut(), last },
+        Err(err) => LbLastSyncedi64 { err: lb_err(err), last: 0 },
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_get_last_synced_human_string(lb: *mut Lb) -> LbLastSyncedHuman {
+    let lb = rlb(lb);
+
+    match lb.get_last_synced_human_string() {
+        Ok(last) => {
+            let last = cstring(last);
+            LbLastSyncedHuman { err: null_mut(), last }
+        }
+        Err(err) => LbLastSyncedHuman { err: lb_err(err), last: null_mut() },
+    }
+}
+
+#[repr(C)]
+pub struct LbIdListRes {
+    err: *mut LbFfiErr,
+    ids: *mut Uuid,
+    len: usize,
+}
+
+#[no_mangle]
+pub extern "C" fn lb_suggested_docs(lb: *mut Lb) -> LbIdListRes {
+    let lb = rlb(lb);
+
+    match lb.suggested_docs(RankingWeights::default()) {
+        Ok(docs) => {
+            let (ids, len) = carray(docs);
+            LbIdListRes { err: null_mut(), ids, len }
+        }
+        Err(err) => LbIdListRes { err: lb_err(err), ids: null_mut(), len: 0 },
+    }
+}
+
+#[repr(C)]
+pub struct LbUsageMetricsRes {
+    err: *mut LbFfiErr,
+    usages: LbUsageMetrics,
+}
+
+#[repr(C)]
+pub struct LbUsageMetrics {
+    server_used_exact: u64,
+    server_used_human: *mut c_char,
+
+    server_cap_exact: u64,
+    server_cap_human: *mut c_char,
+}
+
+#[no_mangle]
+pub extern "C" fn get_usage(lb: *mut Lb) -> LbUsageMetricsRes {
+    let lb = rlb(lb);
+
+    match lb.get_usage() {
+        Ok(usage) => LbUsageMetricsRes {
+            err: null_mut(),
+            usages: LbUsageMetrics {
+                server_used_exact: usage.server_usage.exact,
+                server_used_human: cstring(usage.server_usage.readable),
+                server_cap_exact: usage.data_cap.exact,
+                server_cap_human: cstring(usage.data_cap.readable),
+            },
+        },
+        Err(err) => LbUsageMetricsRes {
+            err: lb_err(err),
+            usages: LbUsageMetrics {
+                server_used_exact: 0,
+                server_used_human: null_mut(),
+                server_cap_exact: 0,
+                server_cap_human: null_mut(),
+            },
+        },
+    }
+}
+
+#[repr(C)]
+pub struct LbUncompressedRes {
+    err: *mut LbFfiErr,
+    uncompressed_exact: u64,
+    uncompressed_human: *mut c_char,
+}
+
+#[no_mangle]
+pub extern "C" fn get_uncompressed_usage(lb: *mut Lb) -> LbUncompressedRes {
+    let lb = rlb(lb);
+
+    match lb.get_uncompressed_usage() {
+        Ok(usage) => LbUncompressedRes {
+            err: null_mut(),
+            uncompressed_exact: usage.exact,
+            uncompressed_human: cstring(usage.readable),
+        },
+        Err(err) => LbUncompressedRes {
+            err: lb_err(err),
+            uncompressed_exact: 0,
+            uncompressed_human: null_mut(),
+        },
+    }
+}
+
 // todo: pub fn import_files<F: Fn(ImportStatus)>(
 // todo:
 // todo: pub fn export_file(
 // todo:
 // todo: pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
-// todo:
-// todo: pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
 // todo:
 // todo: pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> Result<(), LbError> {
 // todo:
@@ -495,4 +603,5 @@ pub extern "C" fn debug_info(lb: *mut Lb, os_info: *const c_char) -> *const c_ch
 mod ffi_utils;
 mod lb_c_err;
 mod lb_file;
+mod lb_work;
 mod mem_cleanup;
