@@ -100,9 +100,9 @@ impl Editor {
                     Annotation::Image(_, _, _) => {} // todo: draw image here
                     Annotation::BlockQuote => {
                         ui.painter().vline(
-                            galley.bullet_center().x,
+                            galley.rect.min.x,
                             galley.rect.y_range(),
-                            Stroke { width: 2., color: ui.style().visuals.widgets.active.bg_fill },
+                            Stroke { width: 3., color: self.appearance.checkbox_bg() },
                         );
                     }
                     Annotation::CodeBlock { text_range: range } => {

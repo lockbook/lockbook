@@ -291,7 +291,7 @@ pub fn annotation_offset(annotation: &Option<Annotation>, appearance: &Appearanc
             offset.y = appearance.rule_height();
         }
         Some(Annotation::BlockQuote) => {
-            offset.x = 30.0;
+            offset.x = 15.0;
         }
         _ => {}
     }
