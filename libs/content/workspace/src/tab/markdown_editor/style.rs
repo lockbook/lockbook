@@ -375,9 +375,7 @@ impl RenderStyle {
                     text_format.color = vis.heading();
                     text_format.font_id.size = vis.heading_size(level);
                 }
-                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Quote)) => {
-                    text_format.italics = true;
-                }
+                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Quote)) => {}
                 RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Code)) => {
                     text_format.color = vis.code();
                     text_format.font_id.family = FontFamily::Monospace;
