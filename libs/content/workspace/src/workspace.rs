@@ -903,7 +903,7 @@ fn tab_label(
 
     let wrap_width = ui.available_width();
     let text: egui::WidgetText = (&t.name).into();
-    let text = text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
+    let text = text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Small);
     let x_icon = Icon::CLOSE.size(16.0);
 
     let padding_x = 15.;
