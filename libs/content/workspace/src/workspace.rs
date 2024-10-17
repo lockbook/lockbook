@@ -11,12 +11,12 @@ use std::{mem, thread};
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
 use crate::output::{DirtynessMsg, Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
-use crate::tab::markdown_editor::Markdown;
+use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{SaveRequest, Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
-use crate::widgets::{separator, Button, ToolBarVisibility};
+use crate::widgets::{separator, Button};
 use lb_rs::{
     CoreError, DecryptedDocument, DocumentHmac, File, FileType, LbError, NameComponents,
     SyncProgress, SyncStatus, Uuid,
@@ -508,7 +508,7 @@ impl Workspace {
                                     let id = self.current_tab().unwrap().id;
                                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                                         if let Some(TabContent::Markdown(md)) = &mut tab.content {
-                                            md.editor.needs_name = false;
+                                            md.needs_name = false;
                                         }
                                     }
                                     self.rename_file((id, name.clone()));
@@ -756,18 +756,17 @@ impl Workspace {
                             if tab_created {
                                 tab.content = Some(TabContent::Markdown(Markdown::new(
                                     core.clone(),
-                                    &bytes,
-                                    &ToolBarVisibility::Maximized,
-                                    is_new_file,
+                                    &String::from_utf8_lossy(&bytes),
                                     id,
                                     maybe_hmac,
+                                    is_new_file,
                                     ext != "md",
                                 )));
                             } else {
                                 match tab.content.as_mut() {
                                     Some(TabContent::Markdown(md)) => {
-                                        md.editor.reload(String::from_utf8_lossy(&bytes).into());
-                                        md.editor.hmac = maybe_hmac;
+                                        md.reload(String::from_utf8_lossy(&bytes).into());
+                                        md.hmac = maybe_hmac;
                                     }
                                     _ => unreachable!(),
                                 };
@@ -798,8 +797,8 @@ impl Workspace {
                             Ok((content, hmac, time_saved, seq)) => {
                                 tab.last_saved = time_saved;
                                 if let TabContent::Markdown(md) = tab.content.as_mut().unwrap() {
-                                    md.editor.hmac = hmac;
-                                    md.editor.buffer.saved(seq, content);
+                                    md.hmac = hmac;
+                                    md.buffer.saved(seq, content);
                                 }
                             }
                             Err(err) => {

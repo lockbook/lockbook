@@ -1,6 +1,5 @@
 use std::fs;
 use std::io;
-use workspace_rs::widgets::ToolBarVisibility;
 
 use crate::util::data_dir;
 
@@ -9,7 +8,6 @@ use crate::util::data_dir;
 pub struct Settings {
     pub theme_mode: ThemeMode,
     pub theme_color: lb::ColorAlias,
-    pub toolbar_visibility: ToolBarVisibility,
     pub window_maximize: bool,
     pub open_new_files: bool,
     pub auto_save: bool,
@@ -48,7 +46,6 @@ impl Default for Settings {
         Self {
             theme_mode: ThemeMode::System,
             theme_color: lb::ColorAlias::Blue,
-            toolbar_visibility: ToolBarVisibility::Maximized,
             window_maximize: false,
             open_new_files: true,
             auto_save: true,
