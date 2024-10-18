@@ -8,7 +8,7 @@ use std::sync::{mpsc, Arc, RwLock};
 use eframe::egui;
 use egui_extras::{Size, StripBuilder};
 use workspace_rs::theme::icons::Icon;
-use workspace_rs::widgets::{separator, ToolBarVisibility};
+use workspace_rs::widgets::separator;
 
 use crate::settings::Settings;
 
@@ -34,7 +34,6 @@ pub struct SettingsModal {
 
 pub enum SettingsResponse {
     SuccessfullyUpgraded,
-    ToggleToolbarVisibility(ToolBarVisibility),
 }
 
 impl SettingsModal {
@@ -201,7 +200,7 @@ impl super::Modal for SettingsModal {
                             resp = self.show_usage_tab(ui);
                         }
                         SettingsTab::Appearance => {
-                            resp = self.show_appearance_tab(ui);
+                            self.show_appearance_tab(ui);
                         }
                         SettingsTab::General => self.show_general_tab(ui),
                     }

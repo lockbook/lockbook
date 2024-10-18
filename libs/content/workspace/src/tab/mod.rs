@@ -1,5 +1,5 @@
 use crate::tab::image_viewer::ImageViewer;
-use crate::tab::markdown_editor::Markdown;
+use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use chrono::DateTime;
@@ -41,9 +41,9 @@ impl Tab {
         let mut result = SaveRequest { id: self.id, ..Default::default() };
         match tab_content {
             TabContent::Markdown(md) => {
-                result.old_hmac = md.editor.hmac;
-                result.seq = md.editor.buffer.current.seq;
-                result.content = md.editor.buffer.current.text.clone();
+                result.old_hmac = md.hmac;
+                result.seq = md.buffer.current.seq;
+                result.content = md.buffer.current.text.clone();
                 result.safe_write = true;
             }
             TabContent::Svg(svg) => result.content = svg.get_minimal_content(),

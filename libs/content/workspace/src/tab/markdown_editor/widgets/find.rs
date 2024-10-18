@@ -1,10 +1,10 @@
 use egui::{Button, EventFilter, Frame, Id, Key, Label, Margin, Stroke, TextEdit, Ui, Widget as _};
 use lb_rs::text::{
     buffer::Buffer,
-    offset_types::{DocByteOffset, DocCharOffset, RangeExt},
+    offset_types::{DocByteOffset, DocCharOffset, RangeExt as _},
 };
 
-use super::Editor;
+use super::super::Editor;
 
 pub struct Find {
     pub id: egui::Id,

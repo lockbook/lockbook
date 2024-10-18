@@ -23,8 +23,6 @@ pub use settings::{SettingsModal, SettingsResponse};
 
 use super::OpenModal;
 use eframe::egui;
-use workspace_rs::tab::TabContent;
-use workspace_rs::widgets::ToolBarVisibility;
 
 #[derive(Default)]
 pub struct Modals {
@@ -84,10 +82,6 @@ impl super::AccountScreen {
                 use SettingsResponse::*;
                 match inner {
                     SuccessfullyUpgraded => self.workspace.refresh_sync_status(),
-                    ToggleToolbarVisibility(new_change) => {
-                        self.refresh_toolbar_visibilities(new_change);
-                        ctx.request_repaint();
-                    }
                 }
             }
         }
@@ -135,14 +129,6 @@ impl super::AccountScreen {
                 }
             }
         }
-    }
-
-    fn refresh_toolbar_visibilities(&mut self, visibility: ToolBarVisibility) {
-        self.workspace.tabs.iter_mut().for_each(|t| {
-            if let Some(TabContent::Markdown(ref mut md)) = &mut t.content {
-                md.toolbar.visibility = visibility;
-            }
-        });
     }
 
     pub fn is_any_modal_open(&self) -> bool {
