@@ -168,11 +168,6 @@ impl SVGEditor {
             return;
         }
 
-        if self.skip_frame {
-            self.skip_frame = false;
-            return;
-        }
-
         let mut tool_context = ToolContext {
             painter: &self.painter,
             buffer: &mut self.buffer,
@@ -187,6 +182,12 @@ impl SVGEditor {
                 })
             }) || cfg!(target_os = "ios"),
         };
+
+        if self.skip_frame {
+            self.skip_frame = false;
+            self.toolbar.pen.end_path(&mut tool_context, false);
+            return;
+        }
 
         match self.toolbar.active_tool {
             Tool::Pen => {
