@@ -1,3 +1,5 @@
+use core::f32;
+use egui::emath::easing;
 use egui::os::OperatingSystem;
 use egui::{
     vec2, Context, EventFilter, Id, Image, Key, Modifiers, Sense, TextWrapMode, ViewportCommand,
@@ -437,9 +439,14 @@ impl Workspace {
         });
     }
 
-    fn show_tab_strip(&mut self, ui: &mut egui::Ui) {
+    fn show_tab_strip(&mut self, parent_ui: &mut egui::Ui) {
         let active_tab_changed = self.active_tab_changed;
         self.active_tab_changed = false;
+
+        let mut ui =
+            parent_ui.child_ui(parent_ui.painter().clip_rect(), egui::Layout::default(), None);
+
+        let is_tab_strip_visible = self.tabs.len() > 1;
         let cursor = ui
             .horizontal(|ui| {
                 egui::ScrollArea::horizontal()
@@ -450,7 +457,11 @@ impl Workspace {
                             .iter_mut()
                             .enumerate()
                             .map(|(i, t)| {
-                                tab_label(ui, t, self.active_tab == i, active_tab_changed)
+                                if is_tab_strip_visible {
+                                    tab_label(ui, t, self.active_tab == i, active_tab_changed)
+                                } else {
+                                    None
+                                }
                             })
                             .collect::<Vec<Option<TabLabelResponse>>>()
                             .iter()
@@ -525,14 +536,26 @@ impl Workspace {
             })
             .inner;
 
-        let end_of_tabs = cursor.min.x;
-        let available_width = ui.available_width();
-        let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
-        ui.painter().hline(
-            egui::Rangef { min: end_of_tabs, max: end_of_tabs + available_width },
-            cursor.max.y,
-            sep_stroke,
+        ui.style_mut().animation_time = 2.0;
+
+        let how_on = ui.ctx().animate_bool_with_easing(
+            "toolbar_height".into(),
+            is_tab_strip_visible,
+            easing::cubic_in_out,
         );
+        parent_ui.add_space(cursor.height() * how_on);
+        ui.set_opacity(how_on);
+
+        if is_tab_strip_visible {
+            let end_of_tabs = cursor.min.x;
+            let available_width = ui.available_width();
+            let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+            ui.painter().hline(
+                egui::Rangef { min: end_of_tabs, max: end_of_tabs + available_width },
+                cursor.max.y,
+                sep_stroke,
+            );
+        }
     }
 
     pub fn save_all_tabs(&mut self) {
