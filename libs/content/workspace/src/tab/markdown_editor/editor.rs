@@ -8,8 +8,8 @@ use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
 use lb_rs::{DocumentHmac, Uuid};
 
-use crate::tab::markdown_editor;
 use crate::tab::ExtendedInput as _;
+use crate::tab::{markdown_editor, ExtendedOutput as _};
 use markdown_editor::appearance::Appearance;
 use markdown_editor::ast::{Ast, AstTextRangeType};
 use markdown_editor::bounds::BoundExt as _;
@@ -262,6 +262,10 @@ impl Editor {
 
                 self.rect = scroll_area_output.inner_rect;
                 resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
+
+                if resp.scroll_updated {
+                    ui.ctx().set_virtual_keyboard_shown(false);
+                }
 
                 resp
             })
