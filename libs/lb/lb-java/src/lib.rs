@@ -1,6 +1,6 @@
 mod java_utils;
 
-use java_utils::{jni_string, rlb, rstring, throw_err};
+use java_utils::{byte_array, jni_string, rlb, rstring, throw_err};
 use jni::{
     objects::{JClass, JObject, JString, JValue},
     sys::{jboolean, jbyteArray, jlong, jobject, jstring},
@@ -100,8 +100,39 @@ pub extern "system" fn Java_net_lockbook_Lb_getAccount<'local>(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_exportAccount(env: JNIEnv, _: JClass) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_exportAccountPrivateKey<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jstring {
+    let lb = rlb(&mut env, &class);
+
+    match lb.export_account_private_key() {
+        Ok(account) => jni_string(&mut env, account).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_net_lockbook_Lb_exportAccountPhrase<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jstring {
+    let lb = rlb(&mut env, &class);
+
+    match lb.export_account_phrase() {
+        Ok(account) => jni_string(&mut env, account).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_net_lockbook_Lb_exportAccountQR<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jbyteArray {
+    let lb = rlb(&mut env, &class);
+
+    match lb.export_account_qr() {
+        Ok(qr) => byte_array(&mut env, qr).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
 }
 
 #[no_mangle]

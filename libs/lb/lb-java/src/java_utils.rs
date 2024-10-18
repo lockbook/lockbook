@@ -1,6 +1,5 @@
 use jni::{
-    objects::{JClass, JObject, JString, JThrowable, JValue},
-    JNIEnv,
+    objects::{JByteArray, JClass, JObject, JString, JThrowable, JValue}, sys::{jbyte, jbyteArray}, JNIEnv
 };
 use lb_rs::{
     blocking::Lb,
@@ -21,6 +20,15 @@ pub(crate) fn rlb<'local>(env: &mut JNIEnv<'local>, class: &JClass<'local>) -> &
     let ptr = ptr as *mut Lb;
     let ptr = unsafe { ptr.as_mut().unwrap() };
     ptr
+}
+
+pub(crate) fn byte_array<'local>(env: &mut JNIEnv<'local>, bytes: Vec<u8>) -> JByteArray<'local> {
+    let bytes: Vec<i8> = bytes.into_iter().map(|byte| byte as i8).collect();
+    let jbytes = env.new_byte_array(bytes.len() as i32).unwrap();
+    
+    env.set_byte_array_region(&jbytes, 0, &bytes).unwrap();
+
+    jbytes
 }
 
 pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject<'local> {

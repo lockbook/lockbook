@@ -15,6 +15,6 @@ public class Lb {
     public static native Account getAccount() throws Err;
 
     static {
-        System.load("/Users/parth/Documents/lockbook/lockbook/target/debug/liblb_java.dylib");
+        System.load("/Users/smailbarkouch/Documents/coding/work/lockbook/target/debug/liblb_java.dylib");
     }
 }

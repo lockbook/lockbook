@@ -4,4 +4,3 @@ public class Account {
     String uname;
     String apiUrl;
 }
-
