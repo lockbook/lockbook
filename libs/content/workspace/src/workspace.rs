@@ -438,6 +438,10 @@ impl Workspace {
     }
 
     fn show_tab_strip(&mut self, ui: &mut egui::Ui) {
+        if self.tabs.len() <= 1 {
+            return;
+        }
+
         let active_tab_changed = self.active_tab_changed;
         self.active_tab_changed = false;
         let cursor = ui
