@@ -459,8 +459,19 @@ impl Ast {
             let text_range = &bounds[text_range];
             for &ancestor_node_idx in &text_range.ancestors {
                 let ancestor_node = &self.nodes[ancestor_node_idx];
-                // offset must be in text range (not head/tail syntax chars) to apply
-                if ancestor_node.text_range.contains_inclusive(offset) {
+                let range = match ancestor_node.node_type.node_type() {
+                    MarkdownNodeType::Document => continue,
+                    MarkdownNodeType::Paragraph => continue,
+                    MarkdownNodeType::Inline(_) => {
+                        // inline nodes: offset must be in text range (not head/tail syntax chars) to apply
+                        ancestor_node.text_range
+                    }
+                    MarkdownNodeType::Block(_) => {
+                        // block nodes: offset can be in head/tail syntax chars to apply
+                        ancestor_node.range
+                    }
+                };
+                if range.contains_inclusive(offset) {
                     result.push(ancestor_node.node_type.clone());
                 }
             }
