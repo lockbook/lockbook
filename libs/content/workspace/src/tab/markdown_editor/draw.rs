@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::tab::markdown_editor::appearance::{GRAY, YELLOW};
 use crate::tab::markdown_editor::bounds::RangesExt;
 use crate::tab::markdown_editor::images::ImageState;
@@ -8,8 +10,12 @@ use crate::tab::markdown_editor::style::{
 };
 use crate::tab::markdown_editor::Editor;
 use crate::tab::ExtendedInput;
+use crate::theme::icons::Icon;
 use egui::text::LayoutJob;
-use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2};
+use egui::{
+    Align2, Color32, CursorIcon, FontId, PlatformOutput, Pos2, Rect, Rounding, Sense, Stroke,
+    TextStyle, TextWrapMode, Ui, Vec2, WidgetText,
+};
 use lb_rs::text::offset_types::RangeExt;
 use pulldown_cmark::HeadingLevel;
 
@@ -18,7 +24,11 @@ use super::input::cursor;
 impl Editor {
     pub fn draw_text(&self, ui: &mut Ui) {
         let bullet_radius = self.appearance.bullet_radius();
-        for galley in &self.galleys.galleys {
+        let mut current_code_block = None;
+        let mut code_block_copy_buttons = HashMap::new();
+        for galley_idx in 0..self.galleys.galleys.len() {
+            let galley = &self.galleys.galleys[galley_idx];
+
             // draw annotations
             if let Some(annotation) = &galley.annotation {
                 match annotation {
@@ -44,7 +54,7 @@ impl Editor {
                             let mut text_format = galley.annotation_text_format.clone();
                             let style =
                                 RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Bold));
-                            style.apply_style(&mut text_format, &self.appearance);
+                            style.apply_style(&mut text_format, &self.appearance, ui.visuals());
 
                             job.append(&(num.to_string() + "."), 0.0, text_format);
                             let pos = galley.bullet_bounds(&self.appearance);
@@ -87,7 +97,68 @@ impl Editor {
                         ui.painter()
                             .line_segment([min, max], Stroke::new(0.3, self.appearance.rule()));
                     }
-                    _ => {}
+                    Annotation::Image(_, _, _) => {} // todo: draw image here
+                    Annotation::BlockQuote => {
+                        ui.painter().vline(
+                            galley.rect.min.x,
+                            galley.rect.y_range(),
+                            Stroke { width: 3., color: self.appearance.checkbox_bg() },
+                        );
+                    }
+                    Annotation::CodeBlock { text_range: range } => {
+                        let code_block_galley_idx = if let Some((
+                            current_code_block_range,
+                            current_code_block_galley_idx,
+                        )) = current_code_block.take()
+                        {
+                            if range == current_code_block_range {
+                                // extend existing code block
+                                current_code_block_galley_idx
+                            } else {
+                                // create a new code block: bordering the previous
+                                galley_idx
+                            }
+                        } else {
+                            // create a new code block: standalone
+                            galley_idx
+                        };
+
+                        // copy button
+                        if !code_block_copy_buttons.contains_key(range) {
+                            let code_block_galley = &self.galleys.galleys[code_block_galley_idx];
+                            let top_right =
+                                self.galleys.galleys[code_block_galley_idx].rect.right_top()
+                                    + egui::vec2(15., 0.);
+                            let padding = 5.;
+                            let l = (code_block_galley.cursor_height() - padding) * 2.;
+                            let top_left = top_right + egui::vec2(-l - padding, padding);
+                            let button_rect = Rect::from_min_size(top_left, egui::vec2(l, l));
+                            let copy_button_response = ui.allocate_rect(
+                                button_rect,
+                                Sense { click: true, drag: false, focusable: false },
+                            );
+
+                            let show_code_block_button = galley.response.hovered()
+                                || copy_button_response.hovered()
+                                || cfg!(target_os = "ios")
+                                || cfg!(target_os = "android");
+                            if show_code_block_button {
+                                code_block_copy_buttons.insert(*range, copy_button_response);
+                            }
+                        }
+
+                        // when extending, this covers the smaller already-drawn portion of the code block
+                        let top_left = self.galleys.galleys[code_block_galley_idx].rect.left_top();
+                        ui.painter().rect(
+                            Rect { min: top_left, max: galley.rect.max }
+                                .expand2(egui::vec2(15., 0.)),
+                            2.,
+                            ui.style().visuals.code_bg_color,
+                            Stroke::NONE,
+                        );
+
+                        current_code_block = Some((range, code_block_galley_idx));
+                    }
                 }
             }
 
@@ -115,10 +186,47 @@ impl Editor {
                     }
                 }
             }
+        }
 
-            // draw text
+        // draw text
+        for galley in &self.galleys.galleys {
             ui.painter()
                 .galley(galley.text_location, galley.galley.clone(), Color32::TRANSPARENT);
+        }
+
+        // draw code block copy buttons
+        for (range, response) in code_block_copy_buttons {
+            if response.hovered() {
+                ui.painter().rect(
+                    response.rect,
+                    2.,
+                    ui.style().visuals.extreme_bg_color,
+                    Stroke::NONE,
+                );
+                ui.output_mut(|o: &mut PlatformOutput| o.cursor_icon = CursorIcon::PointingHand);
+            }
+            if response.clicked() {
+                ui.output_mut(|o| o.copied_text = self.buffer[range].to_string())
+            }
+
+            let x_icon = Icon::CONTENT_COPY.size(16.0);
+            let icon_draw_pos = egui::pos2(
+                response.rect.center().x - x_icon.size / 2.,
+                response.rect.center().y - x_icon.size / 2.2,
+            );
+            let icon: WidgetText = (&x_icon).into();
+            let icon = icon.into_galley(
+                ui,
+                Some(TextWrapMode::Extend),
+                response.rect.width(),
+                TextStyle::Body,
+            );
+            let icon_color = if response.is_pointer_button_down_on() {
+                ui.visuals().widgets.active.bg_fill
+            } else {
+                ui.visuals().text_color()
+            };
+            ui.painter().galley(icon_draw_pos, icon, icon_color);
         }
     }
 
@@ -172,13 +280,12 @@ impl Editor {
                     | MarkdownNode::Block(BlockNode::Heading(HeadingLevel::H1)) => {
                         stroke.width = 2.0;
                     }
-                    MarkdownNode::Inline(InlineNode::Italic)
-                    | MarkdownNode::Block(BlockNode::Quote) => {
+                    MarkdownNode::Inline(InlineNode::Italic) => {
                         if !touch_mode {
                             // iOS draws its own cursor based on a rectangle we return
                             // a slanted line cannot be represented as a rectangle
                             // todo: don't double-draw cursor
-                            selection_end_line[0].x += 5.0;
+                            selection_end_line[0].x += 4.0;
                         }
                     }
                     MarkdownNode::Inline(InlineNode::Code)
