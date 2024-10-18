@@ -16,7 +16,7 @@ use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{SaveRequest, Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
-use crate::widgets::{Button, ToolBarVisibility};
+use crate::widgets::Button;
 use lb_rs::{
     CoreError, DecryptedDocument, DocumentHmac, File, FileType, LbError, NameComponents,
     SyncProgress, SyncStatus, Uuid,
