@@ -1,8 +1,0 @@
-language = "C"
-cpp_compat = true
-pragma_once = true
-documentation_style = "c99"
-
-[enum]
-rename_variants = "ScreamingSnakeCase"
-prefix_with_name = true
