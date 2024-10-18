@@ -58,17 +58,10 @@ impl<'window> WgpuWorkspace<'window> {
         self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
         self.context.begin_frame(self.raw_input.take());
 
-        let workspace_response = {
-            let fill = if self.context.style().visuals.dark_mode {
-                egui::Color32::BLACK
-            } else {
-                egui::Color32::WHITE
-            };
-            egui::CentralPanel::default()
-                .frame(egui::Frame::default().fill(fill))
-                .show(&self.context, |ui| self.workspace.show(ui))
-                .inner
-        };
+        let workspace_response = egui::CentralPanel::default()
+            .frame(egui::Frame::default().fill(self.context.style().visuals.window_fill))
+            .show(&self.context, |ui| self.workspace.show(ui))
+            .inner;
 
         let full_output = self.context.end_frame();
 
