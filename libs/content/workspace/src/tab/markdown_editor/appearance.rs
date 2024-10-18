@@ -129,7 +129,7 @@ impl Appearance {
     }
 
     pub fn code(&self) -> Color32 {
-        self.code.unwrap_or(PINK).get(self.current_theme)
+        self.code.unwrap_or(BLACK).get(self.current_theme)
     }
 
     pub fn bold(&self) -> Color32 {
@@ -181,9 +181,9 @@ impl Appearance {
             return CaptureCondition::Never;
         }
         match node_type {
-            MarkdownNodeType::Block(BlockNodeType::ListItem(_)) => CaptureCondition::Always,
+            MarkdownNodeType::Block(BlockNodeType::ListItem(_))
+            | MarkdownNodeType::Block(BlockNodeType::Quote) => CaptureCondition::Always,
             MarkdownNodeType::Block(BlockNodeType::Heading(_))
-            | MarkdownNodeType::Block(BlockNodeType::Quote)
             | MarkdownNodeType::Block(BlockNodeType::Code)
             | MarkdownNodeType::Block(BlockNodeType::Rule)
             | MarkdownNodeType::Inline(InlineNodeType::Code)

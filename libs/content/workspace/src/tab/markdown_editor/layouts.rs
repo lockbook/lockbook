@@ -21,6 +21,8 @@ pub struct LayoutJobInfo {
 pub enum Annotation {
     Item(ListItem, IndentLevel),
     Image(LinkType, Url, Title),
+    BlockQuote,
+    CodeBlock { text_range: (DocCharOffset, DocCharOffset) },
     HeadingRule,
     Rule,
 }
