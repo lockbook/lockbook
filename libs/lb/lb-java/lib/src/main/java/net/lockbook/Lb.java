@@ -4,7 +4,15 @@
 package net.lockbook;
 
 public class Lb {
-    public static native InitRes init(String path);
+    public static long lb = 0;
+
+    public static native void init(String path) throws Err;
+
+    public static native Account createAccount(String userName, String apiUrl, boolean welcomeDoc) throws Err;
+
+    public static native Account importAccount(String key) throws Err;
+
+    public static native Account getAccount() throws Err;
 
     static {
         System.load("/Users/parth/Documents/lockbook/lockbook/target/debug/liblb_java.dylib");

@@ -25,7 +25,7 @@ pub async fn test_core() -> Lb {
 
 pub async fn test_core_from(core: &Lb) -> Lb {
     let account_string = core.export_account_private_key().unwrap();
-    let mut core = test_core().await;
+    let core = test_core().await;
     core.import_account(&account_string, Some(&url()))
         .await
         .unwrap();
@@ -137,7 +137,7 @@ pub fn doc_repo_get_all(config: &Config) -> Vec<EncryptedDocument> {
 }
 
 fn list_files(db: &Config) -> Vec<String> {
-    let path = lb_rs::repo::docs::namespace_path(&db.writeable_path.clone().into());
+    let path = lb_rs::repo::docs::namespace_path(&PathBuf::from(db.writeable_path.clone()));
     let path = Path::new(&path);
 
     match fs::read_dir(path) {

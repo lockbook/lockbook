@@ -1,8 +1,6 @@
 package net.lockbook;
 
-public enum ECode {
-    Success,
-    Unexpected,
+public enum EKind {
     AccountExists,
     AccountNonexistent,
     AccountStringCorrupted,
@@ -58,4 +56,6 @@ public enum ECode {
     UsernameNotFound,
     UsernamePublicKeyMismatch,
     UsernameTaken,
+    ReReadRequired,
+    Unexpected,
 }

@@ -35,7 +35,6 @@ impl Lb {
         }
 
         let account = Account::new(username.clone(), api_url.to_string());
-        self.cache_account(account.clone()).await?;
 
         let root = FileMetadata::create_root(&account)?.sign(&account)?;
         let root_id = *root.id();
@@ -50,6 +49,9 @@ impl Lb {
         db.base_metadata.insert(root_id, root)?;
         db.last_synced.insert(last_synced as i64)?;
         db.root.insert(root_id)?;
+
+        self.cache_account(account.clone()).await?;
+
         tx.end();
 
         if welcome_doc {

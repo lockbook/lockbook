@@ -34,11 +34,11 @@ impl Lb {
         self.keychain
             .account
             .set(account)
-            .map_err(|_| LbErrKind::AccountNonexistent)?;
+            .map_err(|_| LbErrKind::AccountExists)?;
         self.keychain
             .public_key
             .set(pk)
-            .map_err(|_| LbErrKind::AccountNonexistent)?;
+            .map_err(|_| LbErrKind::AccountExists)?;
 
         Ok(())
     }
