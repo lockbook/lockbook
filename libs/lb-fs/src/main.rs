@@ -8,12 +8,12 @@ fn main() {
         .subcommand(
             Command::name("import")
                 .description("sign in and sync a lockbook account")
-                .handler(|| Drive::init().import()),
+                .handler(|| Drive::import()),
         )
         .subcommand(
             Command::name("mount")
                 .description("start an NFS server and mount it to /tmp/lockbook")
-                .handler(|| Drive::init().mount()),
+                .handler(|| Drive::mount()),
         )
         .parse();
 }
