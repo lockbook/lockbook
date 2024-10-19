@@ -1,15 +1,15 @@
 mod java_utils;
 
-use java_utils::{byte_array, jni_string, rlb, rstring, throw_err};
+use std::str::FromStr;
+
+use java_utils::{jbyte_array, jfile, jfiles, jni_string, rlb, rstring, throw_err};
 use jni::{
     objects::{JClass, JObject, JString, JValue},
-    sys::{jboolean, jbyteArray, jlong, jobject, jstring},
+    sys::{jboolean, jbyteArray, jlong, jobject, jobjectArray, jstring},
     JNIEnv,
 };
 use lb_rs::{
-    blocking::Lb,
-    model::{account::Account, core_config::Config},
-    DEFAULT_API_LOCATION,
+    blocking::Lb, model::{account::Account, core_config::Config}, Uuid, DEFAULT_API_LOCATION
 };
 
 #[no_mangle]
@@ -130,36 +130,80 @@ pub extern "system" fn Java_net_lockbook_Lb_exportAccountQR<'local>(
     let lb = rlb(&mut env, &class);
 
     match lb.export_account_qr() {
-        Ok(qr) => byte_array(&mut env, qr).into_raw(),
+        Ok(qr) => jbyte_array(&mut env, qr).into_raw(),
         Err(err) => throw_err(&mut env, err).into_raw(),
     }
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_getRoot(env: JNIEnv, _: JClass) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_getRoot<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jobject {
+    let lb = rlb(&mut env, &class);
+
+    match lb.get_root() {
+        Ok(file) => jfile(&mut env, file),
+        Err(err) => throw_err(&mut env, err),
+    }
+    .into_raw()
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_getChildren(
-    env: JNIEnv, _: JClass, jid: JString,
-) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_getChildren<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, id: JString<'local>
+) -> jobjectArray {
+    let lb = rlb(&mut env, &class);
+    let id = Uuid::from_str(&rstring(&mut env, id)).unwrap();
+
+    match lb.get_children(&id) {
+        Ok(files) => jfiles(&mut env, files).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_getFileById(
-    env: JNIEnv, _: JClass, jid: JString,
-) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_getFileById<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>
+) -> jobject {
+    let lb = rlb(&mut env, &class);
+
+    let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
+
+    match lb.get_file_by_id(id) {
+        Ok(file) => jfile(&mut env, file),
+        Err(err) => throw_err(&mut env, err),
+    }
+    .into_raw()
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_renameFile(
-    env: JNIEnv, _: JClass, jid: JString, jname: JString,
-) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_renameFile<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>, jname: JString<'local>,
+) {
+    let lb = rlb(&mut env, &class);
+
+    let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
+    let name = rstring(&mut env, jname);
+    
+    if let Err(err) = lb.rename_file(&id, &name) {
+        throw_err(&mut env, err);
+    }
 }
+
+#[no_mangle]
+pub extern "system" fn Java_net_lockbook_Lb_createFile<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jname: JString<'local>, jparent: JString<'local>, jfiletype: JString<'local>,
+) {
+    let lb = rlb(&mut env, &class);
+
+    let parent = Uuid::from_str(&rstring(&mut env, jparent)).unwrap();
+    let name = rstring(&mut env, jname);
+    
+    if let Err(err) = lb.create_file(&id, &name) {
+        throw_err(&mut env, err);
+    }
+}
+
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_createFile(
