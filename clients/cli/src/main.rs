@@ -21,7 +21,6 @@ use cli_rs::{
 };
 
 use input::FileInput;
-use lb::{Core, CoreError, Filter, Uuid};
 
 fn run() -> CliResult<()> {
     let core = &core()?;

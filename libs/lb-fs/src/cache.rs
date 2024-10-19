@@ -1,5 +1,5 @@
 use crate::fs_impl::Drive;
-use lb_rs::{File, WorkUnit};
+use lb_rs::model::{file::File, work_unit::WorkUnit};
 use nfsserve::nfs::{fattr3, ftype3, nfstime3};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::info;
@@ -58,11 +58,11 @@ impl Drive {
     // todo: probably need a variant of this that is more suitable post sync cache updates
     pub async fn prepare_caches(&self) {
         info!("performing startup sync");
-        self.ac.sync().await;
+        self.lb.sync(None).await.unwrap();
 
         info!("preparing cache, are you release build?");
-        let sizes = self.ac.get_sizes().await;
-        let files = self.ac.list_metadata().await;
+        let sizes = self.lb.get_uncompressed_usage_breakdown().await.unwrap();
+        let files = self.lb.list_metadatas().await.unwrap();
 
         let mut data = self.data.lock().await;
         for file in files {
@@ -75,14 +75,14 @@ impl Drive {
     }
 
     pub async fn sync(&self) {
-        let status = self.ac.sync().await;
+        let status = self.lb.sync(None).await.unwrap();
         let mut data = self.data.lock().await;
 
         for unit in status.work_units {
             if let WorkUnit::ServerChange(dirty_id) = unit {
-                let file = self.ac.get_file_by_id(dirty_id).await;
+                let file = self.lb.get_file_by_id(dirty_id).await.unwrap();
                 let size = if file.is_document() {
-                    self.ac.read_document(dirty_id).await.len()
+                    self.lb.read_document(dirty_id).await.unwrap().len()
                 } else {
                     0
                 };
