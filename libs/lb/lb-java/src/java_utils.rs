@@ -3,7 +3,7 @@ use jni::{
 };
 use lb_rs::{
     blocking::Lb,
-    model::errors::{LbErr, LbErrKind},
+    model::{errors::{LbErr, LbErrKind}, file::File},
 };
 
 pub(crate) fn rstring<'local>(env: &mut JNIEnv<'local>, input: JString<'local>) -> String {
@@ -29,6 +29,15 @@ pub(crate) fn byte_array<'local>(env: &mut JNIEnv<'local>, bytes: Vec<u8>) -> JB
     env.set_byte_array_region(&jbytes, 0, &bytes).unwrap();
 
     jbytes
+}
+
+pub(crate) fn file<'local>(env: &mut JNIEnv<'local>, file: File) -> JObject<'local> {
+    let file = env.find_class("Lnet/lockbook/File;").unwrap();
+
+    let obj = env.alloc_object(file).unwrap();
+    
+
+    JObject::null()
 }
 
 pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject<'local> {
