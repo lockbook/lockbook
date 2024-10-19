@@ -58,7 +58,7 @@ impl Drive {
     // todo: probably need a variant of this that is more suitable post sync cache updates
     pub async fn prepare_caches(&self) {
         info!("performing startup sync");
-        self.lb.sync(None).await.unwrap();
+        self.lb.sync(Self::progress()).await.unwrap();
 
         info!("preparing cache, are you release build?");
         let sizes = self.lb.get_uncompressed_usage_breakdown().await.unwrap();
