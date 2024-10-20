@@ -169,7 +169,7 @@ fn tesselate_element(
                     return Some((*id, RenderOp::Delete));
                 }
                 let stroke_color = if dark_mode { stroke.color.1 } else { stroke.color.0 }
-                    .linear_multiply(p.opacity);
+                    .gamma_multiply(p.opacity);
 
                 let mut builder = lyon::path::BuilderWithAttributes::new(1);
 
@@ -184,6 +184,7 @@ fn tesselate_element(
                     if first.is_none() {
                         first = Some(start);
                         builder.begin(start, &[thickness]);
+                        builder.line_to(start, &[thickness]);
                     } else if seg.handle_end().is_some() && seg.handle_start().is_some() {
                         let handle_start = devc_to_point(seg.handle_start().unwrap());
                         let handle_end = devc_to_point(seg.handle_end().unwrap());

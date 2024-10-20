@@ -1,4 +1,4 @@
-use egui::{Rounding, TextWrapMode};
+use egui::{Rounding, TextStyle, TextWrapMode};
 
 use crate::theme::icons::Icon;
 
@@ -33,6 +33,10 @@ impl<'a> Button<'a> {
 
     pub fn text(self, text: &'a str) -> Self {
         Self { text: Some(text), ..self }
+    }
+
+    pub fn text_style(self, text_style: TextStyle) -> Self {
+        Self { text_style: Some(text_style), ..self }
     }
 
     pub fn icon_style(self, icon_style: egui::Style) -> Self {
@@ -88,7 +92,7 @@ impl<'a> Button<'a> {
 
         let desired_size = egui::vec2(width, text_height + padding.y * 2.0);
 
-        let (rect, resp) = ui.allocate_at_least(desired_size, egui::Sense::click());
+        let (rect, resp) = ui.allocate_at_least(desired_size, egui::Sense::click_and_drag());
 
         if ui.is_rect_visible(rect) {
             let text_visuals = ui.style().interact(&resp).to_owned();
