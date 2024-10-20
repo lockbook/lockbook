@@ -93,11 +93,13 @@ impl SVGEditor {
         let span = span!(Level::TRACE, "showing canvas widget", frame);
         let _ = span.enter();
 
-        self.painter
-            .set_layer_id(egui::LayerId::new(egui::Order::Debug, "canvas_widgets".into()));
+        self.inner_rect = ui.available_rect_before_wrap();
 
-        ui.vertical(|ui| {
-            egui::Frame::default().show(ui, |ui| {
+        self.painter = ui.painter_at(self.inner_rect);
+
+        ui.with_layer_id(
+            egui::LayerId { order: egui::Order::Middle, id: egui::Id::from("canvas_ui_overlay") },
+            |ui| {
                 self.toolbar.show(
                     ui,
                     &mut self.buffer,
@@ -105,19 +107,21 @@ impl SVGEditor {
                     &mut self.skip_frame,
                     self.inner_rect,
                 );
-            })
-        });
+            },
+        );
 
         self.process_events(ui);
 
-        self.painter
-            .set_layer_id(egui::LayerId::new(egui::Order::Background, "canvas_elements".into()));
         self.show_canvas(ui);
 
         let global_diff = self.get_and_reset_diff_state();
 
         if global_diff.is_dirty() {
             self.has_queued_save_request = true;
+            if global_diff.transformed.is_none() {
+                self.toolbar.show_tool_controls = false;
+                self.toolbar.show_viewport_popover = false;
+            }
         }
 
         let needs_save_and_frame_is_cheap =
@@ -163,11 +167,6 @@ impl SVGEditor {
             return;
         }
 
-        if self.skip_frame {
-            self.skip_frame = false;
-            return;
-        }
-
         let mut tool_context = ToolContext {
             painter: &self.painter,
             buffer: &mut self.buffer,
@@ -182,6 +181,12 @@ impl SVGEditor {
                 })
             }) || cfg!(target_os = "ios"),
         };
+
+        if self.skip_frame {
+            self.skip_frame = false;
+            self.toolbar.pen.end_path(&mut tool_context, false);
+            return;
+        }
 
         match self.toolbar.active_tool {
             Tool::Pen => {
@@ -205,18 +210,8 @@ impl SVGEditor {
 
     fn show_canvas(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
-            egui::Frame::default().show(ui, |ui| {
-                self.inner_rect = ui.available_rect_before_wrap();
-                self.painter = ui
-                    .allocate_painter(
-                        ui.available_rect_before_wrap().size(),
-                        egui::Sense::click_and_drag(),
-                    )
-                    .1;
-
-                self.renderer
-                    .render_svg(ui, &mut self.buffer, &mut self.painter);
-            });
+            self.renderer
+                .render_svg(ui, &mut self.buffer, &mut self.painter);
         });
     }
 

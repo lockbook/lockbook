@@ -153,7 +153,7 @@ impl Eraser {
         }
     }
 
-    fn draw_eraser_cursor(
+    pub fn draw_eraser_cursor(
         &mut self, ui: &mut egui::Ui, painter: &egui::Painter, cursor_pos: egui::Pos2,
     ) {
         let stroke = egui::Stroke { width: 1.0, color: ui.visuals().text_color() };

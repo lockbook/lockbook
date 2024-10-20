@@ -24,7 +24,10 @@ pub unsafe extern "C" fn init_ws(
         .create_surface_unsafe(SurfaceTargetUnsafe::CoreAnimationLayer(metal_layer))
         .unwrap();
     let (adapter, device, queue) = pollster::block_on(request_device(&instance, &surface));
-    let format = surface.get_capabilities(&adapter).formats[0];
+
+    let avail_formats = surface.get_capabilities(&adapter).formats;
+    let format = *avail_formats.get(1).unwrap_or(&avail_formats[0]);
+
     let screen =
         ScreenDescriptor { physical_width: 1000, physical_height: 1000, scale_factor: 1.0 };
     let surface_config = wgpu::SurfaceConfiguration {

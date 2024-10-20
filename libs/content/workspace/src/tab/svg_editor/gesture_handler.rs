@@ -11,6 +11,8 @@ use super::{toolbar::ToolContext, util::get_touch_positions, Buffer};
 pub struct GestureHandler {
     current_gesture: Option<Gesture>,
     pub is_zoom_locked: bool,
+    pub is_pan_x_locked: bool,
+    pub is_pan_y_locked: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -165,7 +167,10 @@ impl GestureHandler {
 
         let mut t = Transform::identity();
         if let Some(p) = pan {
-            t = t.post_translate(p.x, p.y);
+            t = t.post_translate(
+                if !self.is_pan_x_locked { p.x } else { 0.0 },
+                if !self.is_pan_y_locked { p.y } else { 0.0 },
+            );
         }
         if is_zooming && !self.is_zoom_locked {
             // apply zoom
@@ -176,12 +181,7 @@ impl GestureHandler {
         }
 
         if pan.is_some() || is_zooming {
-            gesture_ctx.buffer.master_transform =
-                gesture_ctx.buffer.master_transform.post_concat(t);
-
-            for el in gesture_ctx.buffer.elements.values_mut() {
-                el.transform(t);
-            }
+            transform_canvas(gesture_ctx.buffer, t);
         }
 
         if let Some(current_gesture) = &mut self.current_gesture {
@@ -219,6 +219,66 @@ impl GestureHandler {
         };
         current_gesture.last_applied_shortcut = Some((intended_shortcut, Instant::now()));
         trace!(current_gesture.num_touches, "applied gesture");
+    }
+}
+
+pub fn transform_canvas(buffer: &mut Buffer, t: Transform) {
+    let new_transform = buffer.master_transform.post_concat(t);
+    if new_transform.sx == 0.0 || new_transform.sy == 0.0 {
+        return;
+    }
+    buffer.master_transform = new_transform;
+    for el in buffer.elements.values_mut() {
+        el.transform(t);
+    }
+}
+
+pub fn get_zoom_fit_transform(buffer: &mut Buffer, ui: &mut egui::Ui) -> Option<Transform> {
+    let elements_bound = match calc_elements_bounds(buffer) {
+        Some(rect) => rect,
+        None => return None,
+    };
+    let inner_rect = ui.painter().clip_rect();
+    let is_width_smaller = elements_bound.width() < elements_bound.height();
+    let padding_coeff = 0.7;
+    let zoom_delta = if is_width_smaller {
+        inner_rect.height() * padding_coeff / elements_bound.height()
+    } else {
+        inner_rect.width() * padding_coeff / elements_bound.width()
+    };
+    let center_x =
+        inner_rect.center().x - zoom_delta * (elements_bound.left() + elements_bound.width() / 2.0);
+    let center_y =
+        inner_rect.center().y - zoom_delta * (elements_bound.top() + elements_bound.height() / 2.0);
+    Some(
+        Transform::identity()
+            .post_scale(zoom_delta, zoom_delta)
+            .post_translate(center_x, center_y),
+    )
+}
+
+fn calc_elements_bounds(buffer: &mut Buffer) -> Option<egui::Rect> {
+    let mut elements_bound =
+        egui::Rect { min: egui::pos2(f32::MAX, f32::MAX), max: egui::pos2(f32::MIN, f32::MIN) };
+    let mut dirty_bound = false;
+    for (_, el) in buffer.elements.iter() {
+        if el.deleted() {
+            continue;
+        }
+
+        let el_rect = el.bounding_box();
+        dirty_bound = true;
+
+        elements_bound.min.x = elements_bound.min.x.min(el_rect.min.x);
+        elements_bound.min.y = elements_bound.min.y.min(el_rect.min.y);
+
+        elements_bound.max.x = elements_bound.max.x.max(el_rect.max.x);
+        elements_bound.max.y = elements_bound.max.y.max(el_rect.max.y);
+    }
+    if !dirty_bound {
+        None
+    } else {
+        Some(elements_bound)
     }
 }
 

@@ -9,6 +9,7 @@ name = "workspace_rs"
 [dependencies]
 bezier-rs = "0.2.0"
 egui = "0.28.1"
+egui_animation = "0.5.0"
 epaint = "0.28.1"
 glam = "0.22.0"
 image = "0.24"
