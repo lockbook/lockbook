@@ -2,6 +2,7 @@ use crate::fs_impl::Drive;
 use crate::mount::{mount, umount};
 use cli_rs::cli_error::{CliError, CliResult};
 use lb_rs::model::core_config::Config;
+use lb_rs::service::sync::SyncProgress;
 use lb_rs::{Lb, Uuid};
 use nfsserve::tcp::{NFSTcp, NFSTcpListener};
 use std::io;
@@ -21,7 +22,9 @@ impl Drive {
     pub async fn init() -> Self {
         let writeable_path = format!("{}/.lockbook/drive", std::env::var("HOME").unwrap());
 
-        let lb = Lb::init(Config { writeable_path, logs: false, colored_logs: true }).await.unwrap();
+        let lb = Lb::init(Config { writeable_path, logs: false, colored_logs: true })
+            .await
+            .unwrap();
 
         let root = lb.root().await.map(|file| file.id).unwrap_or(Uuid::nil());
 
@@ -45,9 +48,13 @@ impl Drive {
         account_string.retain(|c| !c.is_whitespace());
 
         println!("importing account...");
-        drive.lb.import_account(&account_string, None).await.unwrap();
+        drive
+            .lb
+            .import_account(&account_string, None)
+            .await
+            .unwrap();
 
-        drive.lb.sync(None).await.unwrap();
+        drive.lb.sync(Self::progress()).await.unwrap();
 
         Ok(())
     }
@@ -79,7 +86,9 @@ impl Drive {
 
         // todo have a better port selection strategy
         info!("creating server");
-        let listener = NFSTcpListener::bind("127.0.0.1:11111", drive).await.unwrap();
+        let listener = NFSTcpListener::bind("127.0.0.1:11111", drive)
+            .await
+            .unwrap();
 
         info!("mounting");
         mount();
@@ -87,5 +96,9 @@ impl Drive {
         info!("ready");
         listener.handle_forever().await.unwrap();
         Ok(())
+    }
+
+    pub fn progress() -> Option<Box<dyn Fn(SyncProgress) + Send>> {
+        Some(Box::new(|status| println!("{status}")))
     }
 }

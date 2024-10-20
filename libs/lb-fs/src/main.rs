@@ -5,6 +5,7 @@ use lb_fs::logger;
 fn main() {
     logger::init();
     Command::name("lb-fs")
+        .version(env!("CARGO_PKG_VERSION"))
         .subcommand(
             Command::name("import")
                 .description("sign in and sync a lockbook account")

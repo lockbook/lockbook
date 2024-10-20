@@ -45,11 +45,12 @@ impl Lb {
 
         let db = CoreDb::init(db_rs::Config::in_folder(&config.writeable_path))
             .map_err(|err| LbErrKind::Unexpected(format!("{:#?}", err)))?;
+        let keychain = Keychain::from(db.account.get());
         let db = Arc::new(RwLock::new(db));
         let docs = AsyncDocs::from(&config);
         let client = Network::default();
-        let keychain = Keychain::default();
         let search = SearchIndex::default();
+
         Ok(Self { config, keychain, db, docs, client, search })
     }
 }

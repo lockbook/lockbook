@@ -12,6 +12,20 @@ pub struct Keychain {
     public_key: OnceCell<PublicKey>,
 }
 
+impl From<Option<&Account>> for Keychain {
+    fn from(value: Option<&Account>) -> Self {
+        match value {
+            Some(account) => {
+                let account = account.clone();
+                let pk = account.public_key();
+
+                Self { account: OnceCell::from(account), public_key: OnceCell::from(pk) }
+            }
+            None => Self::default(),
+        }
+    }
+}
+
 impl Lb {
     pub fn get_account(&self) -> LbResult<&Account> {
         self.keychain
