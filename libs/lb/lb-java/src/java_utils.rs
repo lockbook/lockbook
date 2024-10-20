@@ -33,94 +33,14 @@ pub(crate) fn jbyte_array<'local>(env: &mut JNIEnv<'local>, bytes: Vec<u8>) -> J
     jbytes
 }
 
-pub(crate) fn jfiles<'local>(env: &mut JNIEnv<'local>, rust_files: Vec<File>) -> JObjectArray<'local> {
-    let file_class = env.find_class("Lnet/lockbook/File;").unwrap();
-    let obj = env.new_object_array(rust_files.len() as i32, file_class, JObject::null()).unwrap();
+pub(crate) fn rbyte_array(env: &JNIEnv, bytes: JByteArray) -> Vec<u8> {
+    let len = env.get_array_length(&bytes).unwrap();
+    let mut rbytes = vec![0i8; len as usize];
 
-    for (i, rust_file) in rust_files.iter().enumerate() {
-        // file
-        let file = jfile(env, rust_file.clone());
-        env.set_object_array_element(&obj, i as i32, file).unwrap();
-    }
-
-    obj
+    env.get_byte_array_region(bytes, 0, &mut rbytes).unwrap();
+    rbytes.into_iter().map(|b| b as u8).collect()
 }
 
-pub(crate) fn jfile<'local>(env: &mut JNIEnv<'local>, file: File) -> JObject<'local> {
-    let file_class = env.find_class("Lnet/lockbook/File;").unwrap();
-    let obj = env.alloc_object(file_class).unwrap();
-    
-    // id
-    let id = jni_string(env, file.id.to_string());
-    env.set_field(&obj, "id", "Ljava/lang/String;", JValue::Object(&id)).unwrap();
-
-    // parent
-    let parent = jni_string(env, file.parent.to_string());
-    env.set_field(&obj, "parent", "Ljava/lang/String;", JValue::Object(&parent)).unwrap();
-
-    // name
-    let name = jni_string(env, file.name);
-    env.set_field(&obj, "name", "Ljava/lang/String;", JValue::Object(&name)).unwrap();
-    
-    // file type
-    let enum_class = env.find_class("Lnet/lockbook/File$FileType;").unwrap();
-    let filetype_name = match file.file_type {
-        FileType::Document => "Document",
-        FileType::Folder => "Folder",
-        FileType::Link { .. } => panic!("did not expect link file type!")
-    };
-    let enum_constant = env
-        .get_static_field(enum_class, filetype_name, "Lnet/lockbook/File$FileType;")
-        .unwrap()
-        .l()
-        .unwrap();
-
-    env.set_field(&obj, "fileType", "Lnet/lockbook/File$FileType;", JValue::Object(&enum_constant))
-        .unwrap();
-
-    // last modified
-    env.set_field(&obj, "lastModified", "J", JValue::Long(file.last_modified as jlong)).unwrap();
-
-    // last modified by
-    let last_modified_by = jni_string(env, file.last_modified_by);
-    env.set_field(&obj, "lastModifiedBy", "Ljava/lang/String;", JValue::Object(&last_modified_by)).unwrap();
-
-    let share_class = env.find_class("Lnet/lockbook/File$Share;").unwrap();
-    let share_mode_class = env.find_class("Lnet/lockbook/File$ShareMode;").unwrap();
-
-    // shares
-    let shares_array = env.new_object_array(file.shares.len() as i32, &share_class, JObject::null()).unwrap();
-
-    for (i, share) in file.shares.iter().enumerate() {
-        // Allocate Share object
-        let jshare = env.alloc_object(&share_class).unwrap();
-
-        // mode
-        let mode_name = match share.mode {
-            ShareMode::Write => "Write",
-            ShareMode::Read => "Read",
-        };
-        let mode_constant = env
-            .get_static_field(&share_mode_class, mode_name, "Lnet/lockbook/File$ShareMode;")
-            .unwrap()
-            .l()
-            .unwrap();
-        env.set_field(&jshare, "mode", "Lnet/lockbook/File$ShareMode;", JValue::Object(&mode_constant)).unwrap();
-
-        // shared by
-        let shared_by = jni_string(env, share.shared_by.clone());
-        env.set_field(&jshare, "sharedBy", "Ljava/lang/String;", JValue::Object(&shared_by)).unwrap();
-
-        // shared with
-        let shared_with = jni_string(env, share.shared_with.clone());
-        env.set_field(&jshare, "sharedWith", "Ljava/lang/String;", JValue::Object(&shared_with)).unwrap();
-        env.set_object_array_element(&shares_array, i as i32, jshare).unwrap();
-    }
-
-    env.set_field(&obj, "shares", "[Lnet/lockbook/File$Share;", JValue::Object(&shares_array)).unwrap();
-
-    obj
-}
 
 pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject<'local> {
     let j_err = env.find_class("Lnet/lockbook/Err;").unwrap();
