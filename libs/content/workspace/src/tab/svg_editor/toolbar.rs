@@ -624,7 +624,6 @@ impl Toolbar {
         }
     }
 
-    // todo: move this into a selection tooltip
     fn show_selection_controls(&self, ui: &mut egui::Ui, buffer: &mut Buffer) {
         let mut max_current_index = 0;
         let mut min_cureent_index = usize::MAX;
@@ -909,7 +908,6 @@ fn show_thickness_slider(ui: &mut egui::Ui, value: &mut f32, value_range: RangeI
     let slider_rect = ui
         .add(
             egui::Slider::new(value, value_range.clone())
-                // .step_by(1.0)
                 .show_value(false)
                 .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
         )
