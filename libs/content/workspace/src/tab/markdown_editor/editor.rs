@@ -1,15 +1,18 @@
-use crate::tab::markdown_editor::bounds::BoundExt as _;
-use crate::tab::{markdown_editor, ExtendedInput};
 use egui::os::OperatingSystem;
 use egui::{
     scroll_area, Context, CursorIcon, EventFilter, Frame, Id, Margin, Rect, ScrollArea, Sense,
     Stroke, Ui, Vec2,
 };
+
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
 use lb_rs::{DocumentHmac, Uuid};
+
+use crate::tab::ExtendedInput as _;
+use crate::tab::{markdown_editor, ExtendedOutput as _};
 use markdown_editor::appearance::Appearance;
 use markdown_editor::ast::{Ast, AstTextRangeType};
+use markdown_editor::bounds::BoundExt as _;
 use markdown_editor::bounds::Bounds;
 use markdown_editor::debug::DebugInfo;
 use markdown_editor::galleys::Galleys;
@@ -17,15 +20,16 @@ use markdown_editor::images::ImageCache;
 use markdown_editor::input::capture::CaptureState;
 use markdown_editor::input::cursor;
 use markdown_editor::input::cursor::CursorState;
+use markdown_editor::input::mutation::EventState;
 use markdown_editor::input::Bound;
+use markdown_editor::input::{Location, Region};
+use markdown_editor::widgets::find::Find;
+use markdown_editor::widgets::toolbar::{Toolbar, MOBILE_TOOL_BAR_SIZE};
+use markdown_editor::Event;
 use markdown_editor::{ast, bounds, galleys, images};
+
 use serde::Serialize;
 use std::time::{Duration, Instant};
-
-use super::find::Find;
-use super::input::mutation::EventState;
-use super::input::{Location, Region};
-use super::Event;
 
 #[derive(Debug, Serialize, Default)]
 pub struct Response {
@@ -59,11 +63,12 @@ pub struct Editor {
     pub bounds: Bounds,
     pub galleys: Galleys,
     pub capture: CaptureState,
+    pub toolbar: Toolbar,
     pub find: Find,
     pub event: EventState,
 
     // referenced by toolbar for keyboard toggle (todo: cleanup)
-    pub is_virtual_keyboard_showing: bool,
+    pub virtual_keyboard_shown: bool,
 
     // referenced by toolbar for layout (todo: cleanup)
     pub rect: Rect,
@@ -92,13 +97,18 @@ impl Editor {
             bounds: Default::default(),
             galleys: Default::default(),
             capture: Default::default(),
+            toolbar: Default::default(),
             find: Default::default(),
             event: Default::default(),
 
-            is_virtual_keyboard_showing: false,
+            virtual_keyboard_shown: false,
 
             rect: Rect::ZERO,
         }
+    }
+
+    pub fn past_first_frame(&self) -> bool {
+        self.debug.frame_count > 1
     }
 
     pub fn reload(&mut self, text: String) {
@@ -134,6 +144,50 @@ impl Editor {
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
+        let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
+        ui.vertical(|ui| {
+            // show find toolbar
+            let find_resp = self.find.show(&self.buffer, ui);
+            if let Some(term) = find_resp.term {
+                ui.ctx()
+                    .push_markdown_event(Event::Find { term, backwards: find_resp.backwards });
+            }
+
+            if touch_mode {
+                // touch devices: show toolbar at the bottom
+                let resp = ui
+                    .allocate_ui(
+                        egui::vec2(
+                            ui.available_width(),
+                            ui.available_height() - MOBILE_TOOL_BAR_SIZE,
+                        ),
+                        |ui| self.show_inner(touch_mode, ui),
+                    )
+                    .inner;
+                self.toolbar.show(
+                    &self.ast,
+                    &self.bounds,
+                    self.buffer.current.selection,
+                    self.virtual_keyboard_shown,
+                    ui,
+                );
+                resp
+            } else {
+                // non-touch devices: show toolbar at the top
+                self.toolbar.show(
+                    &self.ast,
+                    &self.bounds,
+                    self.buffer.current.selection,
+                    self.virtual_keyboard_shown,
+                    ui,
+                );
+                self.show_inner(touch_mode, ui)
+            }
+        })
+        .inner
+    }
+
+    pub fn show_inner(&mut self, touch_mode: bool, ui: &mut Ui) -> Response {
         let scroll_area_id = ui.id().with("child").with(egui::Id::new(self.file_id));
         let prev_scroll_area_offset = ui.data_mut(|d| {
             d.get_persisted(scroll_area_id)
@@ -141,16 +195,6 @@ impl Editor {
                 .unwrap_or_default()
         });
 
-        let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
-
-        // show find toolbar
-        let find_resp = self.find.show(&self.buffer, ui);
-        if let Some(term) = find_resp.term {
-            ui.ctx()
-                .push_markdown_event(Event::Find { term, backwards: find_resp.backwards });
-        }
-
-        // show ui
         if touch_mode {
             ui.ctx().style_mut(|style| {
                 style.spacing.scroll = egui::style::ScrollStyle::solid();
@@ -182,7 +226,7 @@ impl Editor {
                                 Frame::canvas(ui.style())
                                     .stroke(Stroke::NONE)
                                     .inner_margin(Margin::same(15.))
-                                    .show(ui, |ui| self.show_inner(ui, touch_mode))
+                                    .show(ui, |ui| self.show_inner_inner(ui, touch_mode))
                                     .inner
                             })
                             .inner;
@@ -219,12 +263,16 @@ impl Editor {
                 self.rect = scroll_area_output.inner_rect;
                 resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
 
+                if resp.scroll_updated {
+                    ui.ctx().set_virtual_keyboard_shown(false);
+                }
+
                 resp
             })
             .inner
     }
 
-    fn show_inner(&mut self, ui: &mut Ui, touch_mode: bool) -> Response {
+    fn show_inner_inner(&mut self, ui: &mut Ui, touch_mode: bool) -> Response {
         self.debug.frame_start();
 
         // update theme
@@ -315,13 +363,13 @@ impl Editor {
         };
         if selection_updated && self.buffer.current.selection != all_selection {
             let cursor_end_line = cursor::line(
-                self.buffer.current.selection.end(),
+                self.buffer.current.selection.1,
                 &self.galleys,
                 &self.bounds.text,
                 &self.appearance,
             );
             let rect = Rect { min: cursor_end_line[0], max: cursor_end_line[1] };
-            ui.scroll_to_rect(rect, None);
+            ui.scroll_to_rect(rect.expand(rect.height()), None);
         }
 
         let suggested_title = self.get_suggested_title();

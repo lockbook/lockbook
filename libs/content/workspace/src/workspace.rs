@@ -11,12 +11,12 @@ use std::{mem, thread};
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
 use crate::output::{DirtynessMsg, Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
-use crate::tab::markdown_editor::Markdown;
+use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{SaveRequest, Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
-use crate::widgets::{separator, Button, ToolBarVisibility};
+use crate::widgets::Button;
 use lb_rs::{
     CoreError, DecryptedDocument, DocumentHmac, File, FileType, LbError, NameComponents,
     SyncProgress, SyncStatus, Uuid,
@@ -351,8 +351,6 @@ impl Workspace {
                 }
             }
 
-            separator(ui);
-
             ui.centered_and_justified(|ui| {
                 let mut rename_req = None;
                 if let Some(tab) = self.tabs.get_mut(self.active_tab) {
@@ -442,83 +440,99 @@ impl Workspace {
     fn show_tab_strip(&mut self, ui: &mut egui::Ui) {
         let active_tab_changed = self.active_tab_changed;
         self.active_tab_changed = false;
-        ui.horizontal(|ui| {
-            egui::ScrollArea::horizontal()
-                .max_width(ui.available_width())
-                .show(ui, |ui| {
-                    for (i, maybe_resp) in self
-                        .tabs
-                        .iter_mut()
-                        .enumerate()
-                        .map(|(i, t)| tab_label(ui, t, self.active_tab == i, active_tab_changed))
-                        .collect::<Vec<Option<TabLabelResponse>>>()
-                        .iter()
-                        .enumerate()
-                    {
-                        if let Some(resp) = maybe_resp {
-                            match resp {
-                                TabLabelResponse::Clicked => {
-                                    if self.active_tab == i {
-                                        // we should rename the file.
+        let cursor = ui
+            .horizontal(|ui| {
+                egui::ScrollArea::horizontal()
+                    .max_width(ui.available_width())
+                    .show(ui, |ui| {
+                        for (i, maybe_resp) in self
+                            .tabs
+                            .iter_mut()
+                            .enumerate()
+                            .map(|(i, t)| {
+                                tab_label(ui, t, self.active_tab == i, active_tab_changed)
+                            })
+                            .collect::<Vec<Option<TabLabelResponse>>>()
+                            .iter()
+                            .enumerate()
+                        {
+                            if let Some(resp) = maybe_resp {
+                                match resp {
+                                    TabLabelResponse::Clicked => {
+                                        if self.active_tab == i {
+                                            // we should rename the file.
 
-                                        self.out.tab_title_clicked = true;
-                                        let active_name = self.tabs[i].name.clone();
+                                            self.out.tab_title_clicked = true;
+                                            let active_name = self.tabs[i].name.clone();
 
-                                        let mut rename_edit_state =
-                                            egui::text_edit::TextEditState::default();
-                                        rename_edit_state.cursor.set_char_range(Some(
-                                            egui::text::CCursorRange {
-                                                primary: egui::text::CCursor::new(
-                                                    active_name
-                                                        .rfind('.')
-                                                        .unwrap_or(active_name.len()),
-                                                ),
-                                                secondary: egui::text::CCursor::new(0),
-                                            },
-                                        ));
-                                        egui::TextEdit::store_state(
-                                            ui.ctx(),
-                                            egui::Id::new("rename_tab"),
-                                            rename_edit_state,
-                                        );
-                                        self.tabs[i].rename = Some(active_name);
-                                    } else {
-                                        self.tabs[i].rename = None;
-                                        self.active_tab = i;
-                                        self.active_tab_changed = true;
-                                        self.ctx.send_viewport_cmd(ViewportCommand::Title(
-                                            self.tabs[i].name.clone(),
-                                        ));
-                                        self.out.selected_file = Some(self.tabs[i].id);
-                                    }
-                                }
-                                TabLabelResponse::Closed => {
-                                    self.close_tab(i);
-
-                                    let title = match self.current_tab() {
-                                        Some(tab) => tab.name.clone(),
-                                        None => "Lockbook".to_owned(),
-                                    };
-                                    self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
-
-                                    self.out.selected_file = self.current_tab().map(|tab| tab.id);
-                                }
-                                TabLabelResponse::Renamed(name) => {
-                                    self.tabs[i].rename = None;
-                                    let id = self.current_tab().unwrap().id;
-                                    if let Some(tab) = self.get_mut_tab_by_id(id) {
-                                        if let Some(TabContent::Markdown(md)) = &mut tab.content {
-                                            md.editor.needs_name = false;
+                                            let mut rename_edit_state =
+                                                egui::text_edit::TextEditState::default();
+                                            rename_edit_state.cursor.set_char_range(Some(
+                                                egui::text::CCursorRange {
+                                                    primary: egui::text::CCursor::new(
+                                                        active_name
+                                                            .rfind('.')
+                                                            .unwrap_or(active_name.len()),
+                                                    ),
+                                                    secondary: egui::text::CCursor::new(0),
+                                                },
+                                            ));
+                                            egui::TextEdit::store_state(
+                                                ui.ctx(),
+                                                egui::Id::new("rename_tab"),
+                                                rename_edit_state,
+                                            );
+                                            self.tabs[i].rename = Some(active_name);
+                                        } else {
+                                            self.tabs[i].rename = None;
+                                            self.active_tab = i;
+                                            self.active_tab_changed = true;
+                                            self.ctx.send_viewport_cmd(ViewportCommand::Title(
+                                                self.tabs[i].name.clone(),
+                                            ));
+                                            self.out.selected_file = Some(self.tabs[i].id);
                                         }
                                     }
-                                    self.rename_file((id, name.clone()));
+                                    TabLabelResponse::Closed => {
+                                        self.close_tab(i);
+
+                                        let title = match self.current_tab() {
+                                            Some(tab) => tab.name.clone(),
+                                            None => "Lockbook".to_owned(),
+                                        };
+                                        self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
+
+                                        self.out.selected_file =
+                                            self.current_tab().map(|tab| tab.id);
+                                    }
+                                    TabLabelResponse::Renamed(name) => {
+                                        self.tabs[i].rename = None;
+                                        let id = self.current_tab().unwrap().id;
+                                        if let Some(tab) = self.get_mut_tab_by_id(id) {
+                                            if let Some(TabContent::Markdown(md)) = &mut tab.content
+                                            {
+                                                md.needs_name = false;
+                                            }
+                                        }
+                                        self.rename_file((id, name.clone()));
+                                    }
                                 }
+                                ui.ctx().request_repaint();
                             }
-                            ui.ctx().request_repaint();
                         }
-                    }
-                });
-        });
+                    });
+                ui.cursor()
+            })
+            .inner;
+
+        let end_of_tabs = cursor.min.x;
+        let available_width = ui.available_width();
+        let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+        ui.painter().hline(
+            egui::Rangef { min: end_of_tabs, max: end_of_tabs + available_width },
+            cursor.max.y,
+            sep_stroke,
+        );
     }
 
     pub fn save_all_tabs(&mut self) {
@@ -756,18 +770,17 @@ impl Workspace {
                             if tab_created {
                                 tab.content = Some(TabContent::Markdown(Markdown::new(
                                     core.clone(),
-                                    &bytes,
-                                    &ToolBarVisibility::Maximized,
-                                    is_new_file,
+                                    &String::from_utf8_lossy(&bytes),
                                     id,
                                     maybe_hmac,
+                                    is_new_file,
                                     ext != "md",
                                 )));
                             } else {
                                 match tab.content.as_mut() {
                                     Some(TabContent::Markdown(md)) => {
-                                        md.editor.reload(String::from_utf8_lossy(&bytes).into());
-                                        md.editor.hmac = maybe_hmac;
+                                        md.reload(String::from_utf8_lossy(&bytes).into());
+                                        md.hmac = maybe_hmac;
                                     }
                                     _ => unreachable!(),
                                 };
@@ -798,8 +811,8 @@ impl Workspace {
                             Ok((content, hmac, time_saved, seq)) => {
                                 tab.last_saved = time_saved;
                                 if let TabContent::Markdown(md) = tab.content.as_mut().unwrap() {
-                                    md.editor.hmac = hmac;
-                                    md.editor.buffer.saved(seq, content);
+                                    md.hmac = hmac;
+                                    md.buffer.saved(seq, content);
                                 }
                             }
                             Err(err) => {
@@ -888,19 +901,23 @@ fn tab_label(
 ) -> Option<TabLabelResponse> {
     let mut result = None;
 
-    let padding = egui::vec2(15.0, 15.0);
-    let wrap_width = ui.available_width();
-
-    let text: egui::WidgetText = (&t.name).into();
-    let text = text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
-
     let x_icon = Icon::CLOSE.size(16.0);
 
-    let w = text.size().x + padding.x * 3.0 + x_icon.size + 1.0;
-    let h = text.size().y + padding.y * 2.0;
+    let padding_x = 10.;
+    let w = 160.;
+    let h = 40.;
 
     let (tab_label_rect, tab_label_resp) =
-        ui.allocate_exact_size((w, h).into(), egui::Sense::click());
+        ui.allocate_exact_size((w, h).into(), Sense { click: true, drag: false, focusable: false });
+
+    if is_active {
+        ui.painter().rect(
+            tab_label_rect,
+            0.,
+            ui.style().visuals.extreme_bg_color,
+            egui::Stroke::NONE,
+        );
+    };
 
     if is_active && active_tab_changed {
         tab_label_resp.scroll_to_me(None);
@@ -950,13 +967,17 @@ fn tab_label(
     } else {
         // interact with button rect whether it's shown or not
         let close_button_pos = egui::pos2(
-            tab_label_rect.max.x - padding.x - x_icon.size,
+            tab_label_rect.max.x - padding_x - x_icon.size,
             tab_label_rect.center().y - x_icon.size / 2.0,
         );
         let close_button_rect =
             egui::Rect::from_min_size(close_button_pos, egui::vec2(x_icon.size, x_icon.size))
                 .expand(2.0);
-        let close_button_resp = ui.interact(close_button_rect, Id::new(t.id), Sense::click());
+        let close_button_resp = ui.interact(
+            close_button_rect,
+            Id::new("tab label close button").with(t.id),
+            Sense { click: true, drag: false, focusable: false },
+        );
 
         // touch mode: always show close button
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
@@ -967,8 +988,8 @@ fn tab_label(
         if close_button_resp.hovered() {
             ui.painter().rect(
                 close_button_rect,
-                0.0,
-                ui.visuals().widgets.hovered.bg_fill,
+                2.0,
+                ui.visuals().code_bg_color,
                 egui::Stroke::NONE,
             );
             ui.output_mut(|o: &mut egui::PlatformOutput| {
@@ -981,9 +1002,31 @@ fn tab_label(
         }
 
         // draw text
+        let text: egui::WidgetText = (&t.name).into();
+        let wrap_width = if show_close_button {
+            w - (padding_x * 3. + x_icon.size + 1.)
+        } else {
+            w - (padding_x * 2.)
+        };
+
+        // tooltip contains unelided text
+        ui.ctx()
+            .style_mut(|s| s.visuals.menu_rounding = (2.).into());
+        let tab_label_resp = tab_label_resp.on_hover_ui(|ui| {
+            let text = text.clone().into_galley(
+                ui,
+                Some(TextWrapMode::Extend),
+                wrap_width,
+                egui::TextStyle::Small,
+            );
+            ui.add(egui::Label::new(text));
+        });
+
+        let text =
+            text.into_galley(ui, Some(TextWrapMode::Truncate), wrap_width, egui::TextStyle::Small);
         let text_color = ui.style().interact(&tab_label_resp).text_color();
         let text_pos = egui::pos2(
-            tab_label_rect.min.x + padding.x,
+            tab_label_rect.min.x + padding_x,
             tab_label_rect.center().y - 0.5 * text.size().y,
         );
         ui.painter().galley(text_pos, text, text_color);
@@ -996,9 +1039,14 @@ fn tab_label(
                 close_button_rect.center().y - x_icon.size / 2.2,
             );
             let icon: egui::WidgetText = (&x_icon).into();
+            let icon_color = if close_button_resp.is_pointer_button_down_on() {
+                ui.visuals().widgets.active.bg_fill
+            } else {
+                ui.visuals().text_color()
+            };
             let icon =
                 icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
-            ui.painter().galley(icon_draw_pos, icon, text_color);
+            ui.painter().galley(icon_draw_pos, icon, icon_color);
         }
 
         // respond to input
@@ -1009,21 +1057,12 @@ fn tab_label(
         }
     }
 
-    // draw active tab indicator
-    if is_active {
-        ui.painter().hline(
-            tab_label_rect.min.x + 0.5..=tab_label_rect.max.x - 1.0,
-            tab_label_rect.max.y - 2.0,
-            egui::Stroke::new(4.0, ui.visuals().widgets.active.bg_fill),
-        );
+    // draw separators
+    let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+    if !is_active {
+        ui.painter()
+            .hline(tab_label_rect.x_range(), tab_label_rect.max.y, sep_stroke);
     }
-
-    // draw separator
-    let sep_stroke = if tab_label_resp.hovered() {
-        egui::Stroke::new(1.0, egui::Color32::TRANSPARENT)
-    } else {
-        ui.visuals().widgets.noninteractive.bg_stroke
-    };
     ui.painter()
         .vline(tab_label_rect.max.x, tab_label_rect.y_range(), sep_stroke);
 

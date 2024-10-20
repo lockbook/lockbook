@@ -142,17 +142,20 @@ impl Editor {
                     }
 
                     // insert new list item, remove current list item, or insert newline before current list item
-                    if matches!(galley.annotation, Some(Annotation::Item(..))) && after_galley_head
+                    if matches!(
+                        galley.annotation,
+                        Some(Annotation::Item(..) | Annotation::BlockQuote)
+                    ) && after_galley_head
                     {
-                        // cursor at end of list item
+                        // cursor at end of galley
                         if galley.size() - galley.head_size - galley.tail_size == 0 {
-                            // empty list item -> delete current annotation
+                            // empty galley -> delete current annotation
                             let range =
                                 (galley.range.start(), galley.range.start() + galley.size());
                             let text = "".into();
                             operations.push(Operation::Replace(Replace { range, text }));
                         } else {
-                            // nonempty list item -> insert new list item
+                            // nonempty galley -> insert new item with same annotation
                             operations.push(Operation::Replace(Replace {
                                 range: current_selection,
                                 text: "\n".into(),
@@ -218,10 +221,13 @@ impl Editor {
                                         text: head[0..head.len() - 6].to_string() + "* [ ] ",
                                     }));
                                 }
-                                Some(Annotation::Image(_, _, _)) => {}
-                                Some(Annotation::HeadingRule) => {}
-                                Some(Annotation::Rule) => {}
-                                None => {}
+                                Some(Annotation::BlockQuote) => {
+                                    operations.push(Operation::Replace(Replace {
+                                        range: current_selection,
+                                        text: "> ".into(),
+                                    }));
+                                }
+                                _ => {}
                             }
 
                             operations.push(Operation::Select(current_selection));
@@ -340,41 +346,19 @@ impl Editor {
                 }
             }
             Event::Indent { deindent } => {
-                // if we're in a list item, tab/shift+tab will indent/de-indent
-                // otherwise, tab will insert a tab and shift tab will do nothing
-                let mut indentation_processed_galleys = HashSet::new();
                 let mut renumbering_processed_galleys = HashSet::new();
                 let mut indented_galleys = HashMap::new();
                 let mut renumbered_galleys = HashMap::new();
 
-                // determine galleys to (de)indent
-                let ast_text_ranges = self.bounds.ast.find_intersecting(current_selection, true);
-                for ast_text_range in ast_text_ranges.iter() {
-                    let ast_node = self.bounds.ast[ast_text_range]
-                        .ancestors
-                        .last()
-                        .copied()
-                        .unwrap(); // ast text ranges always have themselves as the last ancestor
-                    let galley_idx = self
-                        .galleys
-                        .galley_at_char(self.ast.nodes[ast_node].text_range.start());
-
-                    if self.bounds.ast[ast_text_range].range.start() >= current_selection.end() {
-                        continue;
-                    }
-
-                    let cur_indent_level =
-                        if let MarkdownNode::Block(BlockNode::ListItem(_, indent_level)) =
-                            self.ast.nodes[ast_node].node_type
-                        {
-                            indent_level
-                        } else {
-                            continue; // only process list items
-                        };
-                    if !indentation_processed_galleys.insert(galley_idx) {
-                        continue; // only process each galley once
-                    }
-
+                // determine indent level of galleys to (de)indent
+                let start_galley = self.galleys.galley_at_char(current_selection.start());
+                let end_galley = self.galleys.galley_at_char(current_selection.end());
+                for galley_idx in start_galley..=end_galley {
+                    let galley = &self.galleys.galleys[galley_idx];
+                    let cur_indent_level = match galley.annotation {
+                        Some(Annotation::Item(_, indent_level)) => indent_level,
+                        _ => indent_level(&self.buffer[galley.range]),
+                    };
                     indented_galleys.insert(galley_idx, cur_indent_level);
                 }
 
@@ -395,28 +379,20 @@ impl Editor {
                     let galley = &self.galleys[galley_idx];
                     let cur_indent_level = indented_galleys[&galley_idx];
 
-                    // todo: this needs more attention e.g. list items doubly indented using 2-space indents
-                    // tracked by https://github.com/lockbook/lockbook/issues/1842
                     let galley_text = &(&self.buffer)[(galley.range.start(), galley.range.end())];
-                    let indent_seq = if galley_text.starts_with('\t') {
-                        "\t"
-                    } else if galley_text.starts_with("    ") {
-                        "    "
-                    } else if galley_text.starts_with("  ") {
-                        "  "
-                    } else {
-                        "\t"
-                    };
+                    let indent_seq = indent_seq(galley_text);
 
                     // indent or de-indent if able
                     let new_indent_level = if deindent {
                         let mut can_deindent = true;
                         if cur_indent_level == 0 {
-                            can_deindent = false; // cannot de-indent un-indented list item
+                            can_deindent = false; // cannot de-indent if not indented
                         } else if galley_idx != self.galleys.len() - 1 {
                             let next_galley = &self.galleys[galley_idx + 1];
-                            if let Some(Annotation::Item(.., next_indent_level)) =
-                                &next_galley.annotation
+                            if let (
+                                Some(Annotation::Item(..)),
+                                Some(Annotation::Item(.., next_indent_level)),
+                            ) = (&galley.annotation, &next_galley.annotation)
                             {
                                 let next_indent_level = indented_galleys
                                     .get(&(galley_idx + 1))
@@ -443,22 +419,24 @@ impl Editor {
                         }
                     } else {
                         let mut can_indent = true;
-                        if galley_idx == 0 {
-                            can_indent = false; // first galley cannot be indented
-                        } else {
-                            let prior_galley = &self.galleys[galley_idx - 1];
-                            if let Some(Annotation::Item(_, prior_indent_level)) =
-                                &prior_galley.annotation
-                            {
-                                let prior_indent_level = indented_galleys
-                                    .get(&(galley_idx - 1))
-                                    .copied()
-                                    .unwrap_or(*prior_indent_level);
-                                if prior_indent_level < cur_indent_level {
-                                    can_indent = false; // list item cannot be indented if already indented more than prior item
-                                }
+                        if matches!(galley.annotation, Some(Annotation::Item(..))) {
+                            if galley_idx == 0 {
+                                can_indent = false; // first galley cannot be indented
                             } else {
-                                can_indent = false; // first list item of a list cannot be indented
+                                let prior_galley = &self.galleys[galley_idx - 1];
+                                if let Some(Annotation::Item(_, prior_indent_level)) =
+                                    &prior_galley.annotation
+                                {
+                                    let prior_indent_level = indented_galleys
+                                        .get(&(galley_idx - 1))
+                                        .copied()
+                                        .unwrap_or(*prior_indent_level);
+                                    if prior_indent_level < cur_indent_level {
+                                        can_indent = false; // list item cannot be indented if already indented more than prior item
+                                    }
+                                } else {
+                                    can_indent = false; // first list item of a list cannot be indented
+                                }
                             }
                         }
 
@@ -479,8 +457,12 @@ impl Editor {
                     }
                 }
 
+                operations.push(Operation::Select(current_selection));
+
+                // numbered list item renumbering
                 // always iterate forwards when renumbering because numbers are based on prior numbers for both indent
                 // and deindent operations
+                let ast_text_ranges = self.bounds.ast.find_intersecting(current_selection, true);
                 for ast_text_range in ast_text_ranges.iter() {
                     let ast_node = self.bounds.ast[ast_text_range]
                         .ancestors
@@ -621,14 +603,6 @@ impl Editor {
                             text: new_number.to_string() + ". ",
                         }));
                     }
-                }
-
-                if indentation_processed_galleys.is_empty() && !deindent {
-                    operations.push(Operation::Replace(Replace {
-                        range: current_selection,
-                        text: "\t".into(),
-                    }));
-                    operations.push(Operation::Select(current_selection));
                 }
             }
             Event::Find { term, backwards } => {
@@ -1228,5 +1202,59 @@ fn insert_tail(offset: DocCharOffset, style: MarkdownNode, operations: &mut Vec<
             .push(Operation::Replace(Replace { range: offset.to_range(), text: text[2..].into() }));
     } else {
         operations.push(Operation::Replace(Replace { range: offset.to_range(), text }));
+    }
+}
+
+// todo: this needs more attention e.g. list items indented using 4-space indents
+// tracked by https://github.com/lockbook/lockbook/issues/1842
+fn indent_seq(s: &str) -> String {
+    if s.starts_with('\t') {
+        "\t"
+    } else if s.starts_with(' ') {
+        "  "
+    } else {
+        "\t"
+    }
+    .into()
+}
+
+fn indent_level(s: &str) -> u8 {
+    (if s.starts_with('\t') {
+        s.chars().take_while(|c| c == &'\t').count()
+    } else if s.starts_with(' ') {
+        s.chars().take_while(|c| c == &' ').count() / 2
+    } else {
+        0
+    }) as _
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn indent_seq() {
+        assert_eq!(super::indent_seq(""), "\t");
+        assert_eq!(super::indent_seq("text"), "\t");
+        assert_eq!(super::indent_seq("\ttext"), "\t");
+        assert_eq!(super::indent_seq("  text"), "  ");
+        assert_eq!(super::indent_seq("    text"), "  ");
+        assert_eq!(super::indent_seq("\t  text"), "\t");
+        assert_eq!(super::indent_seq("  \ttext"), "  ");
+        assert_eq!(super::indent_seq("\t\ttext"), "\t");
+        assert_eq!(super::indent_seq("  \t  text"), "  ");
+        assert_eq!(super::indent_seq("\t  \ttext"), "\t");
+    }
+
+    #[test]
+    fn indent_level() {
+        assert_eq!(super::indent_level(""), 0);
+        assert_eq!(super::indent_level("text"), 0);
+        assert_eq!(super::indent_level("\ttext"), 1);
+        assert_eq!(super::indent_level("  text"), 1);
+        assert_eq!(super::indent_level("    text"), 2);
+        assert_eq!(super::indent_level("\t  text"), 1);
+        assert_eq!(super::indent_level("  \ttext"), 1);
+        assert_eq!(super::indent_level("\t\ttext"), 2);
+        assert_eq!(super::indent_level("  \t  text"), 1);
+        assert_eq!(super::indent_level("\t  \ttext"), 1);
     }
 }

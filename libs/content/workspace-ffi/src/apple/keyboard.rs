@@ -203,6 +203,7 @@ impl NSKeys {
             113 => F15,
             115 => Home,
             116 => PageUp,
+            117 => Delete,
             118 => F4,
             119 => End,
             120 => F2,
