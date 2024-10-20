@@ -26,7 +26,6 @@ use resvg::usvg::ImageKind;
 pub use toolbar::Tool;
 use toolbar::ToolContext;
 use tracing::span;
-use tracing::warn;
 use tracing::Level;
 use usvg_parser::Options;
 

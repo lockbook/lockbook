@@ -2,7 +2,6 @@ use std::ops::RangeInclusive;
 
 use egui::{emath::RectTransform, Color32, InnerResponse, Response};
 use egui_animation::{animate_eased, easing};
-use resvg::usvg::Transform;
 
 use crate::{
     theme::{icons::Icon, palette::ThemePalette},
@@ -22,13 +21,11 @@ use super::{
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
-const THICKNESS_BTN_X_MARGIN: f32 = 5.0;
 const THICKNESS_BTN_WIDTH: f32 = 25.0;
 
 #[derive(Default)]
 pub struct Toolbar {
     pub active_tool: Tool,
-    right_tab_rect: Option<egui::Rect>,
     pub pen: Pen,
     pub highlighter: Pen,
     pub eraser: Eraser,
@@ -89,8 +86,6 @@ macro_rules! set_tool {
     };
 }
 
-const FIT_ZOOM: i32 = -1;
-
 impl Toolbar {
     pub fn set_tool(&mut self, new_tool: Tool) {
         set_tool!(self, new_tool);
@@ -137,7 +132,7 @@ impl Toolbar {
             ui.visuals_mut().window_shadow = egui::Shadow::NONE;
         } else {
             ui.visuals_mut().window_stroke =
-                egui::Stroke::new(0.5, egui::Color32::from_rgb(220, 220, 220));
+                egui::Stroke::new(0.5, egui::Color32::from_rgb(240, 240, 240));
             ui.visuals_mut().window_shadow = egui::Shadow {
                 offset: egui::vec2(1.0, 8.0),
                 blur: 20.0,
@@ -223,28 +218,28 @@ impl Toolbar {
                     let selection_btn = Button::default()
                         .icon(&Icon::HAND.size(tool_icon_size))
                         .show(ui);
-                    if selection_btn.clicked() {
+                    if selection_btn.clicked() || selection_btn.drag_started() {
                         set_tool!(self, Tool::Selection);
                     }
 
                     let pen_btn = Button::default()
                         .icon(&Icon::BRUSH.size(tool_icon_size))
                         .show(ui);
-                    if pen_btn.clicked() {
+                    if pen_btn.clicked() || pen_btn.drag_started() {
                         set_tool!(self, Tool::Pen);
                     }
 
                     let highlighter_btn = Button::default()
                         .icon(&Icon::HIGHLIGHTER.size(tool_icon_size))
                         .show(ui);
-                    if highlighter_btn.clicked() {
+                    if highlighter_btn.clicked() || highlighter_btn.drag_started() {
                         set_tool!(self, Tool::Highlighter);
                     }
 
                     let eraser_btn = Button::default()
                         .icon(&Icon::ERASER.size(tool_icon_size))
                         .show(ui);
-                    if eraser_btn.clicked() {
+                    if eraser_btn.clicked() || eraser_btn.drag_started() {
                         set_tool!(self, Tool::Eraser);
                     }
 
@@ -270,16 +265,23 @@ impl Toolbar {
                         0.5,
                         easing::cubic_in_out,
                     );
+                    ui.style_mut().animation_time = 2.0;
+
+                    let color = if self.active_tool == Tool::Pen {
+                        ThemePalette::resolve_dynamic_color(self.pen.active_color, ui)
+                            .gamma_multiply(0.2)
+                    } else if self.active_tool == Tool::Highlighter {
+                        ThemePalette::resolve_dynamic_color(self.highlighter.active_color, ui)
+                    } else {
+                        ui.visuals().text_color().gamma_multiply(0.2)
+                    };
 
                     ui.painter().line_segment(
                         [
                             egui::pos2(min_x, active_rect.bottom() + 6.0),
                             egui::pos2(max_x, active_rect.bottom() + 6.0),
                         ],
-                        egui::Stroke {
-                            width: 3.0,
-                            color: ui.visuals().text_color().gamma_multiply(0.2),
-                        },
+                        egui::Stroke { width: 3.0, color },
                     );
                 })
             })
@@ -365,10 +367,14 @@ impl Toolbar {
 
                             ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
 
-                            let more_btn =
-                                Button::default().icon(&Icon::MORE_VERT.size(17.0)).show(ui);
+                            let icon = if self.show_viewport_popover {
+                                Icon::ARROW_UP
+                            } else {
+                                Icon::ARROW_DOWN
+                            };
+                            let more_btn = Button::default().icon(&icon).show(ui);
 
-                            if more_btn.clicked() {
+                            if more_btn.clicked() || more_btn.drag_started() {
                                 self.show_viewport_popover = !self.show_viewport_popover;
                             }
                             toggle_popver_btn = Some(more_btn)
@@ -439,28 +445,39 @@ impl Toolbar {
                             ui.add_space(15.0);
 
                             ui.horizontal(|ui| {
-                                ui.label("Zoom lock");
+                                ui.label("Panorama Mode");
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| switch(ui, &mut self.gesture_handler.is_zoom_locked),
+                                    |ui| {
+                                        if switch(ui, &mut self.gesture_handler.is_pan_y_locked)
+                                            .changed()
+                                        {
+                                            if self.gesture_handler.is_pan_x_locked {
+                                                self.gesture_handler.is_pan_x_locked = false;
+                                            }
+                                            self.gesture_handler.is_zoom_locked =
+                                                self.gesture_handler.is_pan_y_locked;
+                                        }
+                                    },
                                 );
                             });
                             ui.add_space(10.0);
 
                             ui.horizontal(|ui| {
-                                ui.label("Horizonal pan lock");
+                                ui.label("Page Mode");
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| switch(ui, &mut self.gesture_handler.is_pan_x_locked),
-                                );
-                            });
-                            ui.add_space(10.0);
-
-                            ui.horizontal(|ui| {
-                                ui.label("Vertical pan lock");
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| switch(ui, &mut self.gesture_handler.is_pan_y_locked),
+                                    |ui| {
+                                        if switch(ui, &mut self.gesture_handler.is_pan_x_locked)
+                                            .changed()
+                                        {
+                                            if self.gesture_handler.is_pan_y_locked {
+                                                self.gesture_handler.is_pan_y_locked = false;
+                                            }
+                                            self.gesture_handler.is_zoom_locked =
+                                                self.gesture_handler.is_pan_x_locked;
+                                        }
+                                    },
                                 );
                             });
                             ui.add_space(10.0)
@@ -499,7 +516,8 @@ impl Toolbar {
                 .show(ui, |ui| {
                     let icon =
                         if self.hide_overlay { Icon::FULLSCREEN_EXIT } else { Icon::FULLSCREEN };
-                    if Button::default().icon(&icon).show(ui).clicked() {
+                    let toggle_btn = Button::default().icon(&icon).show(ui);
+                    if toggle_btn.clicked() || toggle_btn.drag_started() {
                         self.hide_overlay = !self.hide_overlay;
                     }
                 })
@@ -509,10 +527,7 @@ impl Toolbar {
         overlay_toggle.response
     }
 
-    fn show_tool_controls(&mut self, ui: &mut egui::Ui, buffer: &Buffer) -> Option<Response> {
-        if self.active_tool == Tool::Selection {
-            return None;
-        }
+    fn show_tool_controls(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) -> Option<Response> {
         let tools_island_rect = match self.layout.tools_island {
             Some(val) => val,
             None => return None,
@@ -546,7 +561,11 @@ impl Toolbar {
                         Tool::Highlighter => {
                             show_highlighter_controls(ui, &mut self.highlighter, buffer)
                         }
-                        Tool::Selection => {}
+                        Tool::Selection => {
+                            ui.horizontal(|ui| {
+                                self.show_selection_controls(ui, buffer);
+                            });
+                        }
                     };
                 })
             });
@@ -609,7 +628,6 @@ impl Toolbar {
     fn show_selection_controls(&self, ui: &mut egui::Ui, buffer: &mut Buffer) {
         let mut max_current_index = 0;
         let mut min_cureent_index = usize::MAX;
-        ui.label("layers: ");
         self.selection
             .selected_elements
             .iter()
@@ -722,23 +740,22 @@ impl Toolbar {
                 .inner_margin(egui::Margin::symmetric(7.5, 3.5))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        if ui
+                        let undo_btn = ui
                             .add_enabled_ui(history.has_undo(), |ui| {
                                 Button::default().icon(&Icon::UNDO).show(ui)
                             })
-                            .inner
-                            .clicked()
-                        {
+                            .inner;
+                        if undo_btn.clicked() || undo_btn.drag_started() {
                             history.undo(buffer);
                         }
 
-                        if ui
+                        let redo_btn = ui
                             .add_enabled_ui(history.has_redo(), |ui| {
                                 Button::default().icon(&Icon::REDO).show(ui)
                             })
-                            .inner
-                            .clicked()
-                        {
+                            .inner;
+
+                        if redo_btn.clicked() || redo_btn.drag_started() {
                             history.redo(buffer);
                         }
                     })
@@ -798,7 +815,8 @@ fn show_color_swatches(
     colors.iter().for_each(|c| {
         let color = ThemePalette::resolve_dynamic_color(*c, ui);
         let active_color = ThemePalette::resolve_dynamic_color(pen.active_color, ui);
-        if show_color_btn(ui, color, active_color).clicked() {
+        let color_btn = show_color_btn(ui, color, active_color);
+        if color_btn.clicked() || color_btn.drag_started() {
             pen.active_color = *c;
         }
     });
@@ -829,7 +847,7 @@ fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
     let preview_stroke = egui::Stroke {
         width: pen.active_stroke_width * buffer.master_transform.sx,
         color: ThemePalette::resolve_dynamic_color(pen.active_color, ui)
-            .linear_multiply(pen.active_opacity),
+            .gamma_multiply(pen.active_opacity),
     };
 
     let bez1 = epaint::CubicBezierShape::from_points_stroke(
@@ -912,14 +930,10 @@ fn show_thickness_slider(ui: &mut egui::Ui, value: &mut f32, value_range: RangeI
             + i as f32 * (THICKNESS_BTN_WIDTH + spacing_between);
 
         let rect = match i {
-            0 => {
-                let rect = egui::Rect {
-                    min: egui::pos2(slider_rect.left() + margin.x, slider_rect.top() - margin.y),
-                    max: egui::pos2(slider_rect.left() + margin.x + THICKNESS_BTN_WIDTH, end_y),
-                };
-                // thickness_pickers_rect = rect;
-                rect
-            }
+            0 => egui::Rect {
+                min: egui::pos2(slider_rect.left() + margin.x, slider_rect.top() - margin.y),
+                max: egui::pos2(slider_rect.left() + margin.x + THICKNESS_BTN_WIDTH, end_y),
+            },
             1 => egui::Rect {
                 min: egui::pos2(rect_start_x, slider_rect.top() - margin.y),
                 max: egui::pos2(rect_start_x + THICKNESS_BTN_WIDTH, end_y),

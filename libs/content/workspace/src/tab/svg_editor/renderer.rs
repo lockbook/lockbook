@@ -169,7 +169,7 @@ fn tesselate_element(
                     return Some((*id, RenderOp::Delete));
                 }
                 let stroke_color = if dark_mode { stroke.color.1 } else { stroke.color.0 }
-                    .linear_multiply(p.opacity);
+                    .gamma_multiply(p.opacity);
 
                 let mut builder = lyon::path::BuilderWithAttributes::new(1);
 

@@ -12,8 +12,6 @@ use resvg::usvg::{
 };
 use tracing::warn;
 
-use crate::theme::palette::ThemePalette;
-
 use super::selection::u_transform_to_bezier;
 use super::toolbar::{get_highlighter_colors, get_pen_colors};
 use super::SVGEditor;

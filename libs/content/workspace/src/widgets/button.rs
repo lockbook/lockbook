@@ -92,7 +92,7 @@ impl<'a> Button<'a> {
 
         let desired_size = egui::vec2(width, text_height + padding.y * 2.0);
 
-        let (rect, resp) = ui.allocate_at_least(desired_size, egui::Sense::click());
+        let (rect, resp) = ui.allocate_at_least(desired_size, egui::Sense::click_and_drag());
 
         if ui.is_rect_visible(rect) {
             let text_visuals = ui.style().interact(&resp).to_owned();
