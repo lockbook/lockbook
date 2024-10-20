@@ -33,7 +33,6 @@ impl Drive {
         Self { lb, root, data }
     }
 
-    #[tokio::main]
     pub async fn import() -> CliResult<()> {
         let drive = Self::init().await;
 
@@ -59,7 +58,6 @@ impl Drive {
         Ok(())
     }
 
-    #[tokio::main]
     pub async fn mount() -> CliResult<()> {
         let drive = Self::init().await;
         drive.prepare_caches().await;

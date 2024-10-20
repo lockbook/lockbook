@@ -5,11 +5,13 @@ use std::{
 };
 
 use cli_rs::cli_error::{CliError, CliResult};
-use lb::{Core, File, Filter};
+use lb_rs::{logic::path_ops::Filter, model::file::File, Lb, Uuid};
+
+use crate::core;
 
 #[derive(Clone, Debug)]
 pub enum FileInput {
-    Id(lb::Uuid),
+    Id(Uuid),
     Path(String),
 }
 
@@ -23,10 +25,10 @@ impl Display for FileInput {
 }
 
 impl FileInput {
-    pub fn find(&self, core: &Core) -> CliResult<File> {
+    pub async fn find(&self, lb: &Lb) -> CliResult<File> {
         let f = match self {
-            FileInput::Id(id) => core.get_file_by_id(*id)?,
-            FileInput::Path(path) => core.get_by_path(path)?,
+            FileInput::Id(id) => lb.get_file_by_id(*id).await?,
+            FileInput::Path(path) => lb.get_by_path(path).await?,
         };
 
         Ok(f)
@@ -37,16 +39,18 @@ impl FromStr for FileInput {
     type Err = core::convert::Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match lb::Uuid::from_str(s) {
+        match Uuid::from_str(s) {
             Ok(id) => Ok(FileInput::Id(id)),
             Err(_) => Ok(FileInput::Path(s.to_string())),
         }
     }
 }
 
-pub fn file_completor(core: &Core, prompt: &str, filter: Option<Filter>) -> CliResult<Vec<String>> {
+#[tokio::main]
+pub async fn file_completor(prompt: &str, filter: Option<Filter>) -> CliResult<Vec<String>> {
+    let lb = &core().await?;
     if !prompt.is_empty() && prompt.chars().all(|c| c == '-' || c.is_ascii_hexdigit()) {
-        return id_completor(core, prompt, filter);
+        return id_completor(lb, prompt, filter);
     }
 
     let working_dir = prompt
@@ -54,10 +58,10 @@ pub fn file_completor(core: &Core, prompt: &str, filter: Option<Filter>) -> CliR
         .map(|last| &prompt[..last + 1])
         .unwrap_or("");
 
-    let parent = core.get_by_path(working_dir)?;
+    let parent = lb.get_by_path(working_dir).await?;
 
-    let candidates = core
-        .get_children(parent.id)?
+    let candidates = lb
+        .get_children(&parent.id).await?
         .into_iter()
         .filter(|f| match filter {
             Some(Filter::FoldersOnly) => f.is_folder(),
@@ -79,10 +83,11 @@ pub fn file_completor(core: &Core, prompt: &str, filter: Option<Filter>) -> CliR
     Ok(candidates)
 }
 
-pub fn id_completor(core: &Core, prompt: &str, filter: Option<Filter>) -> CliResult<Vec<String>> {
-    // todo: potential optimization opportunity inside core
-    Ok(core
-        .list_metadatas()?
+#[tokio::main]
+pub async fn id_completor(lb: &Lb, prompt: &str, filter: Option<Filter>) -> CliResult<Vec<String>> {
+    // todo: potential optimization opportunity inside lb
+    Ok(lb
+        .list_metadatas().await?
         .into_iter()
         .filter(|f| match filter {
             Some(Filter::FoldersOnly) => f.is_folder(),

@@ -1,7 +1,5 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use basic_human_duration::ChronoHumanDuration;
-use time::Duration;
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
@@ -14,7 +12,6 @@ use crate::{
             AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex,
             StripeAccountTier, SubscriptionInfo,
         },
-        clock,
         core_config::Config,
         errors::{LbResult, TestRepoError, Warning},
         file::{File, ShareMode},
@@ -129,8 +126,7 @@ impl Lb {
 
     pub fn delete_pending_share(&self, id: &Uuid) -> LbResult<()> {
         self.rt.block_on(async {
-            let pk = self.lb.get_pk()?;
-            self.lb.delete_share(id, Some(pk)).await
+            self.lb.reject_share(id).await
         })
     }
 
@@ -180,19 +176,7 @@ impl Lb {
     }
 
     pub fn get_last_synced_human_string(&self) -> LbResult<String> {
-        let last_synced = self.rt.block_on(async {
-            let tx = self.lb.ro_tx().await;
-            let db = tx.db();
-            db.last_synced.get().copied().unwrap_or(0)
-        });
-
-        Ok(if last_synced != 0 {
-            Duration::milliseconds(clock::get_time().0 - last_synced)
-                .format_human()
-                .to_string()
-        } else {
-            "never".to_string()
-        })
+        self.rt.block_on(self.lb.get_last_synced_human())
     }
 
     pub fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {

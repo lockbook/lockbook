@@ -10,15 +10,18 @@ use crate::model::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
     GetUsernameError, GetUsernameRequest, UpsertRequest,
 };
+use crate::model::clock;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
 use crate::model::file_metadata::{FileDiff, FileType, Owner};
 use crate::model::work_unit::WorkUnit;
 use crate::text::buffer::Buffer;
 use crate::Lb;
+use basic_human_duration::ChronoHumanDuration;
 use serde::Serialize;
 use std::collections::{hash_map, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
+use time::Duration;
 use uuid::Uuid;
 
 pub struct SyncContext {
@@ -1020,6 +1023,20 @@ impl Lb {
         }
 
         Ok(())
+    }
+
+    pub async fn get_last_synced_human(&self) -> LbResult<String> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+        let last_synced = db.last_synced.get().copied().unwrap_or(0);
+
+        Ok(if last_synced != 0 {
+            Duration::milliseconds(clock::get_time().0 - last_synced)
+                .format_human()
+                .to_string()
+        } else {
+            "never".to_string()
+        })
     }
 }
 

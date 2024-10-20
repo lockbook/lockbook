@@ -4104,6 +4104,7 @@ dependencies = [
  "is-terminal",
  "lb-fs",
  "lb-rs",
+ "tokio",
 ]
 
 [[package]]
