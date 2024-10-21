@@ -50,14 +50,28 @@ pub struct Workspace {
 
 pub enum WsMsg {
     FileCreated(Result<File, String>),
-    FileLoaded(Uuid, bool, bool, Result<(Option<DocumentHmac>, DecryptedDocument), TabFailure>),
-    SaveResult(Uuid, Result<(String, Option<DocumentHmac>, Instant, usize), LbError>),
+    FileLoaded(FileLoadedMsg),
+    SaveResult(Uuid, Result<SaveResult, LbError>),
     FileRenamed { id: Uuid, new_name: String },
 
     BgSignal(Signal),
     SyncMsg(SyncProgress),
     SyncDone(Result<SyncStatus, LbError>),
     Dirtyness(DirtynessMsg),
+}
+
+pub struct FileLoadedMsg {
+    id: Uuid,
+    is_new_file: bool,
+    tab_created: bool,
+    content: Result<(Option<DocumentHmac>, DecryptedDocument), TabFailure>,
+}
+
+pub struct SaveResult {
+    content: String,
+    new_hmac: Option<DocumentHmac>,
+    completed_at: Instant,
+    seq: usize,
 }
 
 #[derive(Clone)]
@@ -577,10 +591,20 @@ impl Workspace {
 
                         let result = if safe_write {
                             core.safe_write(id, old_hmac, content.clone().into())
-                                .map(|new_hmac| (content, Some(new_hmac), Instant::now(), seq))
+                                .map(|new_hmac| SaveResult {
+                                    content,
+                                    new_hmac: Some(new_hmac),
+                                    completed_at: Instant::now(),
+                                    seq,
+                                })
                         } else {
                             core.write_document(id, content.as_bytes())
-                                .map(|_| (content, None, Instant::now(), seq))
+                                .map(|_| SaveResult {
+                                    content,
+                                    new_hmac: None,
+                                    completed_at: Instant::now(),
+                                    seq,
+                                })
                         };
 
                         // re-read
@@ -645,7 +669,7 @@ impl Workspace {
                 .read_document_with_hmac(id)
                 .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))); // todo(steve)
             update_tx
-                .send(WsMsg::FileLoaded(id, is_new_file, tab_created, content))
+                .send(WsMsg::FileLoaded(FileLoadedMsg { id, is_new_file, tab_created, content }))
                 .unwrap();
             ctx.request_repaint();
         });
@@ -745,7 +769,12 @@ impl Workspace {
     pub fn process_updates(&mut self) {
         while let Ok(update) = self.updates_rx.try_recv() {
             match update {
-                WsMsg::FileLoaded(id, is_new_file, tab_created, load_result) => {
+                WsMsg::FileLoaded(FileLoadedMsg {
+                    id,
+                    is_new_file,
+                    tab_created,
+                    content: load_result,
+                }) => {
                     if let Some((name, id)) =
                         self.current_tab().map(|tab| (tab.name.clone(), tab.id))
                     {
@@ -831,7 +860,12 @@ impl Workspace {
                     let mut reopen = false;
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         match result {
-                            Ok((content, hmac, time_saved, seq)) => {
+                            Ok(SaveResult {
+                                content,
+                                new_hmac: hmac,
+                                completed_at: time_saved,
+                                seq,
+                            }) => {
                                 tab.last_saved = time_saved;
                                 if let TabContent::Markdown(md) = tab.content.as_mut().unwrap() {
                                     md.hmac = hmac;
