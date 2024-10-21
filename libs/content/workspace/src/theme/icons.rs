@@ -16,6 +16,8 @@ const fn ic(c: &'static str) -> Icon {
 impl Icon {
     pub const ACCOUNT: Self = ic("\u{e7ff}"); // Person Outline
     pub const ARROW_CIRCLE_DOWN: Self = ic("\u{f181}"); // Arrow Circle Down
+    pub const ARROW_DOWN: Self = ic("\u{e5c5}"); // Arrow Circle Down
+    pub const ARROW_UP: Self = ic("\u{e5c7}"); // Arrow Circle Down
     pub const BRING_BACK: Self = ic("\u{e5cb}");
     pub const BRING_TO_BACK: Self = ic("\u{e5dc}");
     pub const BRING_TO_FRONT: Self = ic("\u{e5dd}");
@@ -39,6 +41,8 @@ impl Icon {
     pub const DELETE: Self = ic("\u{e872}"); // Delete
     pub const FOLDER: Self = ic("\u{e2c7}"); // Folder
     pub const FOLDER_OPEN: Self = ic("\u{e2c8}"); // Folder Open
+    pub const FULLSCREEN: Self = ic("\u{e5d0}");
+    pub const FULLSCREEN_EXIT: Self = ic("\u{e5d1}");
     pub const GROUP: Self = ic("\u{e7ef}"); // Group
     pub const HISTORY: Self = ic("\u{e889}"); // History
     pub const HIGHLIGHTER: Self = ic("\u{e6d1}");
@@ -51,9 +55,8 @@ impl Icon {
     pub const ITALIC: Self = ic("\u{e23f}");
     pub const KEYBOARD_HIDE: Self = ic("\u{e31a}");
     pub const LINK: Self = ic("\u{e157}");
-    pub const LOCK_OPEN: Self = ic("\u{e898}");
-    pub const LOCK_CLOSED: Self = ic("\u{e897}");
     pub const MONEY: Self = ic("\u{e263}"); // Monetization On
+    pub const MORE_VERT: Self = ic("\u{e5d4}");
     pub const NUMBER_LIST: Self = ic("\u{e242}"); // Number List
     pub const PLACE_ITEM: Self = ic("\u{f1f0}"); // Place Item
     pub const PEN: Self = ic("\u{e150}"); // Pencil

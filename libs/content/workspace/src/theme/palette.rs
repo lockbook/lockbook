@@ -35,18 +35,6 @@ impl ThemePalette {
         white: Color32::from_rgb(255, 255, 255),
     };
 
-    pub fn as_array() -> Vec<(Color32, Color32)> {
-        vec![
-            (ThemePalette::LIGHT.magenta, ThemePalette::DARK.magenta),
-            (ThemePalette::LIGHT.blue, ThemePalette::DARK.blue),
-            (ThemePalette::LIGHT.cyan, ThemePalette::DARK.cyan),
-            (ThemePalette::LIGHT.green, ThemePalette::DARK.green),
-            (ThemePalette::LIGHT.yellow, ThemePalette::DARK.yellow),
-            (ThemePalette::LIGHT.red, ThemePalette::DARK.red),
-            Self::get_fg_color(),
-        ]
-    }
-
     pub fn get_fg_color() -> (Color32, Color32) {
         (ThemePalette::LIGHT.black, ThemePalette::DARK.white)
     }

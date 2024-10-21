@@ -1428,6 +1428,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "concat-idents"
+version = "1.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f76990911f2267d837d9d0ad060aa63aaad170af40904b29461734c339030d4d"
+dependencies = [
+ "quote",
+ "syn 2.0.65",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2079,6 +2089,17 @@ dependencies = [
  "web-time",
  "webbrowser",
  "winit",
+]
+
+[[package]]
+name = "egui_animation"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de03cb7a84fa23cc4ff54b29740c83adc3dac68448d5282a967b52aaa3f4960e"
+dependencies = [
+ "egui",
+ "hello_egui_utils",
+ "simple-easing",
 ]
 
 [[package]]
@@ -3161,6 +3182,16 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
+name = "hello_egui_utils"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d37ead3094debbbba23dfeeb5afd02eab8f3c92c85e717711e7cf8dfd9e4aa5"
+dependencies = [
+ "concat-idents",
+ "egui",
+]
 
 [[package]]
 name = "hermit-abi"
@@ -6489,6 +6520,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "simple-easing"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "832ddd7df0d98d6fd93b973c330b7c8e0742d5cb8f1afc7dea89dba4d2531aa1"
+
+[[package]]
 name = "simple_asn1"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8620,6 +8657,7 @@ dependencies = [
  "bezier-rs",
  "chrono",
  "egui",
+ "egui_animation",
  "epaint",
  "glam",
  "image 0.24.9",
