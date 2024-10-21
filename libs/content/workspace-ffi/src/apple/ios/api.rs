@@ -1,5 +1,5 @@
 use egui::{Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
-use lb_external_interface::lb_rs::text::offset_types::{
+use lb_c::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt, RelCharOffset,
 };
 use std::cmp;

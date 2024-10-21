@@ -8,8 +8,9 @@ use ffi_utils::{carray, cstring, lb_err, rlb, rstr, rstring, rvec};
 use lb_c_err::LbFfiErr;
 use lb_file::{LbFile, LbFileList, LbFileType};
 pub use lb_rs::{blocking::Lb, model::core_config::Config};
-use lb_rs::{model::file::ShareMode, service::activity::RankingWeights, Uuid};
+use lb_rs::{model::file::ShareMode, service::activity::RankingWeights};
 use lb_work::LbSyncRes;
+pub use lb_rs::*;
 
 #[repr(C)]
 pub struct LbInitRes {
