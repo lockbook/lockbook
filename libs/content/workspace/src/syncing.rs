@@ -9,8 +9,6 @@ impl Workspace {
     // todo should anyone outside workspace ever call this? Or should they call something more
     // general that would allow workspace to determine if a sync is needed
     pub fn perform_sync(&mut self) {
-        // todo: save all dirty tabs
-
         if self.status.syncing {
             return;
         }

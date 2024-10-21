@@ -871,6 +871,7 @@ impl Workspace {
                                     md.hmac = hmac;
                                     md.buffer.saved(seq, content);
                                 }
+                                self.perform_sync(); // todo: sync once when saving multiple tabs
                             }
                             Err(err) => {
                                 if err.kind == CoreError::ReReadRequired {
