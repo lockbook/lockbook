@@ -4,9 +4,6 @@ use std::time::{Duration, Instant};
 
 use crate::workspace::WsMsg;
 
-const AUTO_SAVE_INTERVAL: Duration = Duration::from_secs(2);
-const SYNC_STATUS_INTERVAL: Duration = Duration::from_secs(1);
-
 pub enum BwIncomingMsg {
     EguiUpdate,
     Tick,
@@ -33,8 +30,6 @@ struct WorkerState {
     last_auto_save: Instant,
     last_auto_sync: Instant,
     last_sync_stat: Instant,
-
-    user_last_seen: Instant,
 }
 
 impl Default for WorkerState {
@@ -42,7 +37,6 @@ impl Default for WorkerState {
         Self {
             last_auto_save: Instant::now(),
             last_auto_sync: Instant::now(),
-            user_last_seen: Instant::now(),
             last_sync_stat: Instant::now(),
         }
     }
@@ -73,33 +67,24 @@ impl BackgroundWorker {
         back_tx
     }
 
-    fn target_sync_frequency(&self, now: &Instant) -> Duration {
-        match now
-            .duration_since(self.worker_state.user_last_seen)
-            .as_secs()
-        {
-            0..=59 => Duration::from_secs(30),
-            60..=3600 => Duration::from_secs(240),
-            _ => Duration::from_secs(3600),
-        }
-    }
-
     fn tick(&mut self) {
         let now = Instant::now();
 
-        if now.duration_since(self.worker_state.last_auto_sync) > self.target_sync_frequency(&now) {
+        if now.duration_since(self.worker_state.last_auto_sync) > Duration::from_secs(60) {
             self.worker_state.last_auto_sync = now;
             self.updates.send(WsMsg::BgSignal(Signal::Sync)).unwrap();
             self.ctx.request_repaint();
         }
 
-        if now.duration_since(self.worker_state.last_auto_save) > AUTO_SAVE_INTERVAL {
+        // note: saving all files is a no-op for files that aren't dirty so this is cheap to do often
+        // note: saving a dirty file triggers a sync, so this controls the latency for pushing local changes
+        if now.duration_since(self.worker_state.last_auto_save) > Duration::from_secs(1) {
             self.worker_state.last_auto_save = now;
             self.updates.send(WsMsg::BgSignal(Signal::SaveAll)).unwrap();
             self.ctx.request_repaint();
         }
 
-        if now.duration_since(self.worker_state.last_sync_stat) > SYNC_STATUS_INTERVAL {
+        if now.duration_since(self.worker_state.last_sync_stat) > Duration::from_secs(1) {
             self.worker_state.last_sync_stat = now;
             self.updates
                 .send(WsMsg::BgSignal(Signal::UpdateStatus))
@@ -118,11 +103,8 @@ impl BackgroundWorker {
                     return;
                 }
                 BwIncomingMsg::EguiUpdate => {
-                    // todo: is this wrong? I suspect yes, as you're trying to observe events between when they're
-                    // submitted and processed
-                    if !self.ctx.input(|inp| inp.raw.events.is_empty()) {
-                        self.worker_state.user_last_seen = Instant::now();
-                    }
+                    // todo: reintroduce user_last_seen in a way that works
+                    // can't concurrently read self.ctx.input(|inp| inp.raw.events.is_empty()) and expect to see events
                 }
             }
         }
