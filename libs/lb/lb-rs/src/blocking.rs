@@ -15,7 +15,7 @@ use crate::{
         core_config::Config,
         errors::{LbResult, TestRepoError, Warning},
         file::{File, ShareMode},
-        file_metadata::FileType,
+        file_metadata::{DocumentHmac, FileType},
     },
     service::{
         activity::RankingWeights,
@@ -75,6 +75,12 @@ impl Lb {
             .block_on(self.lb.create_file(name, parent, file_type))
     }
 
+    pub fn safe_write(
+        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>,
+    ) -> LbResult<DocumentHmac> {
+        self.rt.block_on(self.lb.safe_write(id, old_hmac, content))
+    }
+
     pub fn write_document(&self, id: Uuid, content: &[u8]) -> LbResult<()> {
         self.rt.block_on(self.lb.write_document(id, content))
     }
@@ -102,6 +108,12 @@ impl Lb {
 
     pub fn read_document(&self, id: Uuid) -> LbResult<DecryptedDocument> {
         self.rt.block_on(self.lb.read_document(id))
+    }
+
+    pub fn read_document_with_hmac(
+        &self, id: Uuid,
+    ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
+        self.rt.block_on(self.lb.read_document_with_hmac(id))
     }
 
     pub fn list_metadatas(&self) -> LbResult<Vec<File>> {

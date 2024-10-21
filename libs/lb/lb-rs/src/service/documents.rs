@@ -63,7 +63,7 @@ impl Lb {
     }
 
     pub async fn read_document_with_hmac(
-        &mut self, id: Uuid,
+        &self, id: Uuid,
     ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
         let tx = self.ro_tx().await;
         let db = tx.db();

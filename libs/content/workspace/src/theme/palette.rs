@@ -50,11 +50,23 @@ impl ThemePalette {
     }
 }
 
-impl std::ops::Index<lb_rs::ColorAlias> for ThemePalette {
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum ColorAlias {
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+}
+
+impl std::ops::Index<ColorAlias> for ThemePalette {
     type Output = Color32;
 
-    fn index(&self, alias: lb_rs::ColorAlias) -> &Self::Output {
-        use lb_rs::ColorAlias::*;
+    fn index(&self, alias: ColorAlias) -> &Self::Output {
+        use ColorAlias::*;
         match alias {
             Black => &self.black,
             Red => &self.red,
