@@ -1,5 +1,6 @@
 use dark_light::Mode::Dark;
 use eframe::egui;
+use workspace_rs::theme::palette::ColorAlias;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
@@ -54,7 +55,7 @@ fn poll_system_theme(
     });
 }
 
-pub fn egui_visuals(m: dark_light::Mode, primary: lb::ColorAlias) -> egui::Visuals {
+pub fn egui_visuals(m: dark_light::Mode, primary: ColorAlias) -> egui::Visuals {
     match m {
         dark_light::Mode::Default | dark_light::Mode::Dark => visuals::dark(primary),
         dark_light::Mode::Light => visuals::light(primary),

@@ -2,11 +2,13 @@ use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 
 use egui::TextWrapMode;
+use lb::blocking::Lb;
+use lb::Uuid;
 
 use crate::model::DocType;
 
 struct SearchResultItem {
-    id: lb::Uuid,
+    id: Uuid,
     path: String,
     name: String,
 }
@@ -23,7 +25,7 @@ pub struct SearchModal {
 }
 
 impl SearchModal {
-    pub fn new(core: &lb::Core, etx: &egui::Context) -> Self {
+    pub fn new(core: &Lb, etx: &egui::Context) -> Self {
         let (request_tx, request_rx) = mpsc::channel::<String>();
         let (response_tx, response_rx) = mpsc::channel();
 
@@ -311,6 +313,6 @@ impl super::Modal for SearchModal {
 }
 
 pub struct SearchItemSelection {
-    pub id: lb::Uuid,
+    pub id: Uuid,
     pub close: bool,
 }

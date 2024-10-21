@@ -7,6 +7,7 @@ use std::sync::{mpsc, Arc, RwLock};
 
 use eframe::egui;
 use egui_extras::{Size, StripBuilder};
+use lb::blocking::Lb;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::separator;
 
@@ -24,7 +25,7 @@ enum SettingsTab {
 }
 
 pub struct SettingsModal {
-    core: lb::Core,
+    core: Lb,
     settings: Arc<RwLock<Settings>>,
     account: AccountSettings,
     usage: UsageSettings,
@@ -37,7 +38,7 @@ pub enum SettingsResponse {
 }
 
 impl SettingsModal {
-    pub fn new(core: &lb::Core, s: &Arc<RwLock<Settings>>) -> Self {
+    pub fn new(core: &Lb, s: &Arc<RwLock<Settings>>) -> Self {
         let export_result = core
             .export_account_private_key()
             .map_err(|err| format!("{:?}", err)); // TODO

@@ -1,6 +1,7 @@
 use std::{sync::mpsc, thread};
 
 use eframe::egui;
+use lb::{blocking::Lb, service::activity::RankingWeights, Uuid};
 
 use crate::model::DocType;
 enum SuggestedUpdate {
@@ -18,27 +19,27 @@ pub struct SuggestedDocs {
 struct SuggestedFile {
     name: String,
     path: String,
-    id: lb::Uuid,
+    id: Uuid,
 }
 
 impl SuggestedDocs {
-    pub fn new(core: &lb::Core) -> Self {
+    pub fn new(core: &Lb) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
         Self::calc(core, &update_tx);
         Self { update_tx, update_rx, recs: vec![], err_msg: None }
     }
 
-    pub fn recalc_and_redraw(&mut self, ctx: &egui::Context, core: &lb::Core) {
+    pub fn recalc_and_redraw(&mut self, ctx: &egui::Context, core: &Lb) {
         Self::calc(core, &self.update_tx);
         ctx.request_repaint();
     }
 
-    fn calc(core: &lb::Core, update_tx: &mpsc::Sender<SuggestedUpdate>) {
+    fn calc(core: &Lb, update_tx: &mpsc::Sender<SuggestedUpdate>) {
         let core = core.clone();
         let update_tx = update_tx.clone();
 
         thread::spawn(move || {
-            let suggested_docs = core.suggested_docs(lb::RankingWeights::default());
+            let suggested_docs = core.suggested_docs(RankingWeights::default());
 
             if suggested_docs.is_err() {
                 update_tx

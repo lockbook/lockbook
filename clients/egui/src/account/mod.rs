@@ -11,7 +11,11 @@ use std::time::Duration;
 use std::{path, thread};
 
 use eframe::egui;
-use lb::{FileType, Uuid};
+use lb::blocking::Lb;
+use lb::model::file::File;
+use lb::model::file_metadata::FileType;
+use lb::service::import_export::ImportStatus;
+use lb::Uuid;
 use workspace_rs::background::BwIncomingMsg;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
@@ -30,7 +34,7 @@ use self::tree::{FileTree, TreeNode};
 
 pub struct AccountScreen {
     settings: Arc<RwLock<Settings>>,
-    pub core: lb::Core,
+    pub core: Lb,
     toasts: egui_notify::Toasts,
 
     update_tx: mpsc::Sender<AccountUpdate>,
@@ -49,9 +53,10 @@ pub struct AccountScreen {
 
 impl AccountScreen {
     pub fn new(
-        settings: Arc<RwLock<Settings>>, core: lb::Core, acct_data: AccountScreenInitData,
+        settings: Arc<RwLock<Settings>>, core: &Lb, acct_data: AccountScreenInitData,
         ctx: &egui::Context, is_new_user: bool,
     ) -> Self {
+        let core = core.clone();
         let (update_tx, update_rx) = mpsc::channel();
 
         let AccountScreenInitData { sync_status, files, usage } = acct_data;
@@ -221,13 +226,13 @@ impl AccountScreen {
                     }
                     OpenModal::PickShareParent(target) => {
                         self.modals.file_picker = Some(FilePicker::new(
-                            self.core.clone(),
+                            &self.core,
                             FilePickerAction::AcceptShare(target),
                         ));
                     }
                     OpenModal::PickDropParent(drops) => {
                         self.modals.file_picker = Some(FilePicker::new(
-                            self.core.clone(),
+                            &self.core,
                             FilePickerAction::DroppedFiles(drops),
                         ));
                     }
@@ -475,7 +480,7 @@ impl AccountScreen {
         });
     }
 
-    fn open_new_folder_modal(&mut self, maybe_parent: Option<lb::File>) {
+    fn open_new_folder_modal(&mut self, maybe_parent: Option<File>) {
         let parent_id = match maybe_parent {
             Some(f) => {
                 if f.is_folder() {
@@ -491,7 +496,7 @@ impl AccountScreen {
         self.modals.new_folder = Some(NewFolderModal::new(parent_path));
     }
 
-    fn open_share_modal(&mut self, target: lb::File) {
+    fn open_share_modal(&mut self, target: File) {
         self.modals.create_share = Some(CreateShareModal::new(target));
     }
 
@@ -502,7 +507,7 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
         thread::spawn(move || {
             let result = core
-                .create_file(&params.name, parent.id, params.ftype)
+                .create_file(&params.name, &parent.id, params.ftype)
                 .map_err(|err| format!("{:?}", err));
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
         });
@@ -529,14 +534,14 @@ impl AccountScreen {
         });
     }
 
-    fn move_selected_files_to(&mut self, ctx: &egui::Context, target: lb::Uuid) {
+    fn move_selected_files_to(&mut self, ctx: &egui::Context, target: Uuid) {
         let files = self.tree.get_selected_files();
 
         for f in files {
             if f.parent == target {
                 continue;
             }
-            if let Err(err) = self.core.move_file(f.id, target) {
+            if let Err(err) = self.core.move_file(&f.id, &target) {
                 println!("{:?}", err);
                 return;
             } else {
@@ -554,14 +559,14 @@ impl AccountScreen {
         ctx.request_repaint();
     }
 
-    fn accept_share(&self, ctx: &egui::Context, target: lb::File, parent: lb::File) {
+    fn accept_share(&self, ctx: &egui::Context, target: File, parent: File) {
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
         thread::spawn(move || {
             let result = core
-                .create_file(&target.name, parent.id, FileType::Link { target: target.id })
+                .create_file(&target.name, &parent.id, FileType::Link { target: target.id })
                 .map_err(|err| format!("{:?}", err));
 
             update_tx
@@ -572,17 +577,17 @@ impl AccountScreen {
         });
     }
 
-    fn delete_share(&self, target: lb::File) {
+    fn delete_share(&self, target: File) {
         let core = self.core.clone();
 
         thread::spawn(move || {
-            core.delete_pending_share(target.id)
+            core.delete_pending_share(&target.id)
                 .map_err(|err| format!("{:?}", err))
                 .unwrap();
         });
     }
 
-    fn dropped_files(&self, ctx: &egui::Context, drops: Vec<egui::DroppedFile>, parent: lb::File) {
+    fn dropped_files(&self, ctx: &egui::Context, drops: Vec<egui::DroppedFile>, parent: File) {
         let core = self.core.clone();
         let ctx = ctx.clone();
         let update_tx = self.update_tx.clone();
@@ -593,13 +598,13 @@ impl AccountScreen {
 
         thread::spawn(move || {
             let result = core.import_files(&paths, parent.id, &|status| match status {
-                lb::ImportStatus::CalculatedTotal(count) => {
+                ImportStatus::CalculatedTotal(count) => {
                     println!("importing {} files", count);
                 }
-                lb::ImportStatus::StartingItem(item) => {
+                ImportStatus::StartingItem(item) => {
                     println!("starting import: {}", item);
                 }
-                lb::ImportStatus::FinishedItem(item) => {
+                ImportStatus::FinishedItem(item) => {
                     println!("finished import of {} as lb://{}", item.name, item.id);
                 }
             });
@@ -614,7 +619,7 @@ impl AccountScreen {
         });
     }
 
-    fn delete_files(&mut self, ctx: &egui::Context, files: Vec<lb::File>) {
+    fn delete_files(&mut self, ctx: &egui::Context, files: Vec<File>) {
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
@@ -631,7 +636,7 @@ impl AccountScreen {
 
         thread::spawn(move || {
             for f in &files {
-                core.delete_file(f.id).unwrap(); // TODO
+                core.delete_file(&f.id).unwrap(); // TODO
                 update_tx
                     .send(AccountUpdate::FileDeleted(f.clone()))
                     .unwrap();
@@ -641,7 +646,7 @@ impl AccountScreen {
         });
     }
 
-    fn file_created(&mut self, ctx: &egui::Context, result: Result<lb::File, String>) {
+    fn file_created(&mut self, ctx: &egui::Context, result: Result<File, String>) {
         match result {
             Ok(f) => {
                 let (id, is_doc) = (f.id, f.is_document());
@@ -669,14 +674,14 @@ pub enum AccountUpdate {
     /// modal) don't automatically close the modal during the same frame.
     OpenModal(OpenModal),
 
-    FileCreated(Result<lb::File, String>),
+    FileCreated(Result<File, String>),
     FileShared(Result<(), String>),
-    FileDeleted(lb::File),
+    FileDeleted(File),
 
     /// if a file has been imported successfully refresh the tree, otherwise show what went wrong
     FileImported(Result<TreeNode, String>),
 
-    ShareAccepted(Result<lb::File, String>),
+    ShareAccepted(Result<File, String>),
 
     DoneDeleting,
 
@@ -686,13 +691,13 @@ pub enum AccountUpdate {
 }
 
 pub enum OpenModal {
-    NewFolder(Option<lb::File>),
-    InitiateShare(lb::File),
+    NewFolder(Option<File>),
+    InitiateShare(File),
     Settings,
     AcceptShare,
-    PickShareParent(lb::File),
+    PickShareParent(File),
     PickDropParent(Vec<egui::DroppedFile>),
-    ConfirmDelete(Vec<lb::File>),
+    ConfirmDelete(Vec<File>),
 }
 
 impl From<OpenModal> for AccountUpdate {

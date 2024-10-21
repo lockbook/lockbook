@@ -4,11 +4,7 @@ use std::{
 };
 
 use eframe::egui;
-use lb::service::search::{SearchRequest, SearchResult, SearchType};
-use lb::{
-    service::search::{ContentMatch, SearchResult::*},
-    StartSearchInfo,
-};
+use lb::{blocking::Lb, service::search::SearchResult};
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 
@@ -40,7 +36,7 @@ impl FullDocSearch {
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<&lb::Uuid> {
+    pub fn show(&mut self, ui: &mut egui::Ui, core: &Lb) -> Option<&Lb> {
         while let Ok(res) = self.results_rx.try_recv() {
             match res {
                 SearchResult::StartOfSearch => {

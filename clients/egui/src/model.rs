@@ -1,8 +1,9 @@
+use lb::{logic::usage::bytes_to_human, model::file::File, service::usage::UsageMetrics};
 use workspace_rs::theme::icons::Icon;
 
 pub struct AccountScreenInitData {
     pub sync_status: Result<String, String>,
-    pub files: Vec<lb::File>,
+    pub files: Vec<File>,
     pub usage: Result<Usage, String>,
 }
 
@@ -12,14 +13,14 @@ pub struct Usage {
     pub percent: f32,
 }
 
-impl From<lb::UsageMetrics> for Usage {
-    fn from(metrics: lb::UsageMetrics) -> Self {
+impl From<UsageMetrics> for Usage {
+    fn from(metrics: UsageMetrics) -> Self {
         let used = metrics.server_usage.exact;
         let available = metrics.data_cap.exact;
 
         Self {
-            used: lb::bytes_to_human(used),
-            available: lb::bytes_to_human(available),
+            used: bytes_to_human(used),
+            available: bytes_to_human(available),
             percent: used as f32 / available as f32,
         }
     }

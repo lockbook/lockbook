@@ -5,15 +5,16 @@ use std::{
 };
 
 use eframe::egui;
+use lb::{model::file::File, Uuid};
 
 #[derive(Debug)]
 pub struct TreeState {
     pub id: egui::Id,
     pub max_node_width: f32,
-    pub selected: HashSet<lb::Uuid>,
-    pub expanded: HashSet<lb::Uuid>,
+    pub selected: HashSet<Uuid>,
+    pub expanded: HashSet<Uuid>,
     pub renaming: NodeRenamingState,
-    pub request_scroll: Option<lb::Uuid>,
+    pub request_scroll: Option<Uuid>,
     pub dnd: TreeDragAndDropState,
     pub update_tx: Sender<TreeUpdate>,
     pub update_rx: Receiver<TreeUpdate>,
@@ -37,11 +38,11 @@ impl Default for TreeState {
 }
 
 pub enum TreeUpdate {
-    ExportFile((lb::File, PathBuf)),
+    ExportFile((File, PathBuf)),
 }
 
 impl TreeState {
-    pub fn toggle_selected(&mut self, id: lb::Uuid) {
+    pub fn toggle_selected(&mut self, id: Uuid) {
         if !self.selected.remove(&id) {
             self.selected.insert(id);
         }
@@ -109,12 +110,12 @@ pub struct TreeDragAndDropState {
 
 #[derive(Default, Debug)]
 pub struct NodeRenamingState {
-    pub id: Option<lb::Uuid>,
+    pub id: Option<Uuid>,
     pub tmp_name: String,
 }
 
 impl NodeRenamingState {
-    pub fn new(f: &lb::File) -> Self {
+    pub fn new(f: &File) -> Self {
         Self { id: Some(f.id), tmp_name: f.name.clone() }
     }
 }

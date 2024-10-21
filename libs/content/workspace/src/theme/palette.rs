@@ -1,4 +1,5 @@
 use egui::Color32;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct ThemePalette {
@@ -50,7 +51,7 @@ impl ThemePalette {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum ColorAlias {
     Black,
     Red,

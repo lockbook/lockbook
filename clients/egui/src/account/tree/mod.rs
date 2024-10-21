@@ -5,6 +5,9 @@ mod state;
 pub use self::node::TreeNode;
 
 use eframe::egui;
+use lb::blocking::Lb;
+use lb::model::file::File;
+use lb::Uuid;
 
 use self::response::NodeResponse;
 use self::state::*;
@@ -12,11 +15,11 @@ use self::state::*;
 pub struct FileTree {
     pub root: TreeNode,
     pub state: TreeState,
-    core: lb::Core,
+    core: Lb,
 }
 
 impl FileTree {
-    pub fn new(all_metas: Vec<lb::File>, core: &lb::Core) -> Self {
+    pub fn new(all_metas: Vec<File>, core: &Lb) -> Self {
         let root = create_root_node(all_metas);
 
         let mut state = TreeState::default();
@@ -72,7 +75,7 @@ impl FileTree {
                 TreeUpdate::ExportFile((exported_file, dest)) => {
                     match self
                         .core
-                        .export_file(exported_file.id, dest.clone(), true, None)
+                        .export_files(exported_file.id, dest.clone(), true, &Some(|info| println!("{:?}", info)))
                     {
                         Ok(_) => {
                             r.inner.export_file = Some(Ok((exported_file, dest)));
@@ -109,7 +112,7 @@ impl FileTree {
         });
     }
 
-    pub fn remove(&mut self, f: &lb::File) {
+    pub fn remove(&mut self, f: &File) {
         if let Some(node) = self.root.find_mut(f.parent) {
             if let Some(mut removed) = node.remove(f.id) {
                 clear_children(&mut self.state, &mut removed);
@@ -117,7 +120,7 @@ impl FileTree {
         }
     }
 
-    pub fn get_selected_files(&self) -> Vec<lb::File> {
+    pub fn get_selected_files(&self) -> Vec<File> {
         self.state
             .selected
             .iter()
@@ -126,7 +129,7 @@ impl FileTree {
     }
 
     /// expand the parents of the file and select it
-    pub fn reveal_file(&mut self, id: lb::Uuid, ctx: &egui::Context) {
+    pub fn reveal_file(&mut self, id: Uuid, ctx: &egui::Context) {
         self.state.selected.clear();
         self.state.selected.insert(id);
         self.state.request_scroll = Some(id);
@@ -145,7 +148,7 @@ impl FileTree {
     }
 }
 
-pub fn create_root_node(all_metas: Vec<lb::File>) -> TreeNode {
+pub fn create_root_node(all_metas: Vec<File>) -> TreeNode {
     let mut all_metas = all_metas;
 
     let root_meta = match all_metas.iter().position(|fm| fm.parent == fm.id) {
