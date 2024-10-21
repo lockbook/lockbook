@@ -5,7 +5,6 @@ use std::time::{Duration, Instant};
 use crate::workspace::WsMsg;
 
 pub enum BwIncomingMsg {
-    EguiUpdate,
     Tick,
     Shutdown,
 }
@@ -70,7 +69,7 @@ impl BackgroundWorker {
     fn tick(&mut self) {
         let now = Instant::now();
 
-        if now.duration_since(self.worker_state.last_auto_sync) > Duration::from_secs(60) {
+        if now.duration_since(self.worker_state.last_auto_sync) > Duration::from_secs(1) {
             self.worker_state.last_auto_sync = now;
             self.updates.send(WsMsg::BgSignal(Signal::Sync)).unwrap();
             self.ctx.request_repaint();
@@ -101,10 +100,6 @@ impl BackgroundWorker {
                     self.updates.send(WsMsg::BgSignal(Signal::BwDone)).unwrap();
                     self.ctx.request_repaint();
                     return;
-                }
-                BwIncomingMsg::EguiUpdate => {
-                    // todo: reintroduce user_last_seen in a way that works
-                    // can't concurrently read self.ctx.input(|inp| inp.raw.events.is_empty()) and expect to see events
                 }
             }
         }

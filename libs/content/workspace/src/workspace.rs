@@ -29,7 +29,9 @@ pub struct Workspace {
 
     pub tabs: Vec<Tab>,
     pub active_tab: usize,
-    active_tab_changed: bool,
+    pub active_tab_changed: bool,
+    pub user_last_seen: Instant,
+    pub last_sync: Instant,
     pub backdrop: Image<'static>,
 
     pub ctx: Context,
@@ -121,6 +123,8 @@ impl Workspace {
             tabs: vec![],
             active_tab: 0,
             active_tab_changed: false,
+            user_last_seen: Instant::now(),
+            last_sync: Instant::now(),
             backdrop: Image::new(egui::include_image!("../lockbook-backdrop.png")),
             ctx: ctx.clone(),
             core: core.clone(),
@@ -259,6 +263,10 @@ impl Workspace {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
+            self.user_last_seen = Instant::now();
+        }
+
         self.set_tooltip_visibility(ui);
 
         self.process_updates();
@@ -767,7 +775,7 @@ impl Workspace {
     }
 
     pub fn process_updates(&mut self) {
-        while let Ok(update) = self.updates_rx.try_recv() {
+        'updates: while let Ok(update) = self.updates_rx.try_recv() {
             match update {
                 WsMsg::FileLoaded(FileLoadedMsg {
                     id,
@@ -893,9 +901,24 @@ impl Workspace {
                     // }
                 }
                 WsMsg::BgSignal(Signal::Sync) => {
-                    if self.cfg.auto_sync.load(Ordering::Relaxed) {
-                        self.perform_sync();
+                    if !self.cfg.auto_sync.load(Ordering::Relaxed) {
+                        // auto sync disabled
+                        continue;
                     }
+                    if !self.ctx.input(|i| i.focused) {
+                        // native window not focused
+                        continue;
+                    }
+                    for (threshold_secs, sync_period_secs) in [(60, 60), (3600, 3600)] {
+                        if self.user_last_seen.elapsed() > Duration::from_secs(threshold_secs)
+                            && self.last_sync.elapsed() < Duration::from_secs(sync_period_secs)
+                        {
+                            // reduce sync frequency when user is inactive
+                            continue 'updates;
+                        }
+                    }
+
+                    self.perform_sync();
                 }
                 WsMsg::BgSignal(Signal::UpdateStatus) => {
                     self.refresh_sync_status();
