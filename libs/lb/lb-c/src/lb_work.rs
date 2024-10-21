@@ -1,8 +1,15 @@
 use std::ptr::null_mut;
 
-use lb_rs::{model::{errors::LbResult, work_unit::WorkUnit}, service::sync::SyncStatus, Uuid};
+use lb_rs::{
+    model::{errors::LbResult, work_unit::WorkUnit},
+    service::sync::SyncStatus,
+    Uuid,
+};
 
-use crate::{ffi_utils::{carray, lb_err}, lb_c_err::LbFfiErr};
+use crate::{
+    ffi_utils::{carray, lb_err},
+    lb_c_err::LbFfiErr,
+};
 
 #[repr(C)]
 pub struct LbSyncRes {

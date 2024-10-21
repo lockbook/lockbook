@@ -3,7 +3,10 @@ use std::{io, str::FromStr};
 use cli_rs::cli_error::{CliError, CliResult};
 
 use is_terminal::IsTerminal;
-use lb_rs::model::{api::{PaymentMethod, PaymentPlatform, StripeAccountTier}, work_unit::WorkUnit};
+use lb_rs::model::{
+    api::{PaymentMethod, PaymentPlatform, StripeAccountTier},
+    work_unit::WorkUnit,
+};
 
 use crate::{core, ensure_account, input};
 
@@ -71,7 +74,8 @@ pub async fn subscribe() -> Result<(), CliError> {
 
     println!("checking for existing payment methods...");
     let existing_card =
-        lb.get_subscription_info().await?
+        lb.get_subscription_info()
+            .await?
             .and_then(|info| match info.payment_platform {
                 PaymentPlatform::Stripe { card_last_4_digits } => Some(card_last_4_digits),
                 PaymentPlatform::GooglePlay { .. } => None,
@@ -99,7 +103,8 @@ pub async fn subscribe() -> Result<(), CliError> {
         }
     };
 
-    lb.upgrade_account_stripe(StripeAccountTier::Premium(payment_method)).await?;
+    lb.upgrade_account_stripe(StripeAccountTier::Premium(payment_method))
+        .await?;
     println!("subscribed!");
     Ok(())
 }

@@ -1,11 +1,17 @@
 use std::panic;
 
 use jni::{
-    objects::{JByteArray, JClass, JObject, JObjectArray, JString, JThrowable, JValue}, sys::{jbyte, jbyteArray, jlong}, JNIEnv
+    objects::{JByteArray, JClass, JObject, JObjectArray, JString, JThrowable, JValue},
+    sys::{jbyte, jbyteArray, jlong},
+    JNIEnv,
 };
 use lb_rs::{
     blocking::Lb,
-    model::{errors::{LbErr, LbErrKind}, file::{File, ShareMode}, file_metadata::FileType},
+    model::{
+        errors::{LbErr, LbErrKind},
+        file::{File, ShareMode},
+        file_metadata::FileType,
+    },
 };
 
 pub(crate) fn rstring<'local>(env: &mut JNIEnv<'local>, input: JString<'local>) -> String {
@@ -27,7 +33,7 @@ pub(crate) fn rlb<'local>(env: &mut JNIEnv<'local>, class: &JClass<'local>) -> &
 pub(crate) fn jbyte_array<'local>(env: &mut JNIEnv<'local>, bytes: Vec<u8>) -> JByteArray<'local> {
     let bytes: Vec<i8> = bytes.into_iter().map(|byte| byte as i8).collect();
     let jbytes = env.new_byte_array(bytes.len() as i32).unwrap();
-    
+
     env.set_byte_array_region(&jbytes, 0, &bytes).unwrap();
 
     jbytes
@@ -40,7 +46,6 @@ pub(crate) fn rbyte_array(env: &JNIEnv, bytes: JByteArray) -> Vec<u8> {
     env.get_byte_array_region(bytes, 0, &mut rbytes).unwrap();
     rbytes.into_iter().map(|b| b as u8).collect()
 }
-
 
 pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject<'local> {
     let j_err = env.find_class("Lnet/lockbook/Err;").unwrap();

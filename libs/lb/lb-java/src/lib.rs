@@ -9,7 +9,19 @@ use jni::{
     JNIEnv,
 };
 use lb_rs::{
-    blocking::{ChronoHumanDuration, Duration, Lb}, model::{account::Account, clock, core_config::Config, file::{File, ShareMode}, file_metadata::FileType}, service::{sync::SyncProgress, usage::{UsageItemMetric, UsageMetrics}}, Uuid, DEFAULT_API_LOCATION
+    blocking::{ChronoHumanDuration, Duration, Lb},
+    model::{
+        account::Account,
+        clock,
+        core_config::Config,
+        file::{File, ShareMode},
+        file_metadata::FileType,
+    },
+    service::{
+        sync::SyncProgress,
+        usage::{UsageItemMetric, UsageMetrics},
+    },
+    Uuid, DEFAULT_API_LOCATION,
 };
 
 #[no_mangle]
@@ -138,25 +150,28 @@ pub extern "system" fn Java_net_lockbook_Lb_exportAccountQR<'local>(
 fn jfile<'local>(env: &mut JNIEnv<'local>, file: File) -> JObject<'local> {
     let file_class = env.find_class("Lnet/lockbook/File;").unwrap();
     let obj = env.alloc_object(file_class).unwrap();
-    
+
     // id
     let id = jni_string(env, file.id.to_string());
-    env.set_field(&obj, "id", "Ljava/lang/String;", JValue::Object(&id)).unwrap();
+    env.set_field(&obj, "id", "Ljava/lang/String;", JValue::Object(&id))
+        .unwrap();
 
     // parent
     let parent = jni_string(env, file.parent.to_string());
-    env.set_field(&obj, "parent", "Ljava/lang/String;", JValue::Object(&parent)).unwrap();
+    env.set_field(&obj, "parent", "Ljava/lang/String;", JValue::Object(&parent))
+        .unwrap();
 
     // name
     let name = jni_string(env, file.name);
-    env.set_field(&obj, "name", "Ljava/lang/String;", JValue::Object(&name)).unwrap();
-    
+    env.set_field(&obj, "name", "Ljava/lang/String;", JValue::Object(&name))
+        .unwrap();
+
     // file type
     let enum_class = env.find_class("Lnet/lockbook/File$FileType;").unwrap();
     let filetype_name = match file.file_type {
         FileType::Document => "Document",
         FileType::Folder => "Folder",
-        FileType::Link { .. } => panic!("did not expect link file type!")
+        FileType::Link { .. } => panic!("did not expect link file type!"),
     };
     let enum_constant = env
         .get_static_field(enum_class, filetype_name, "Lnet/lockbook/File$FileType;")
@@ -168,17 +183,21 @@ fn jfile<'local>(env: &mut JNIEnv<'local>, file: File) -> JObject<'local> {
         .unwrap();
 
     // last modified
-    env.set_field(&obj, "lastModified", "J", JValue::Long(file.last_modified as jlong)).unwrap();
+    env.set_field(&obj, "lastModified", "J", JValue::Long(file.last_modified as jlong))
+        .unwrap();
 
     // last modified by
     let last_modified_by = jni_string(env, file.last_modified_by);
-    env.set_field(&obj, "lastModifiedBy", "Ljava/lang/String;", JValue::Object(&last_modified_by)).unwrap();
+    env.set_field(&obj, "lastModifiedBy", "Ljava/lang/String;", JValue::Object(&last_modified_by))
+        .unwrap();
 
     let share_class = env.find_class("Lnet/lockbook/File$Share;").unwrap();
     let share_mode_class = env.find_class("Lnet/lockbook/File$ShareMode;").unwrap();
 
     // shares
-    let shares_array = env.new_object_array(file.shares.len() as i32, &share_class, JObject::null()).unwrap();
+    let shares_array = env
+        .new_object_array(file.shares.len() as i32, &share_class, JObject::null())
+        .unwrap();
 
     for (i, share) in file.shares.iter().enumerate() {
         // Allocate Share object
@@ -194,19 +213,29 @@ fn jfile<'local>(env: &mut JNIEnv<'local>, file: File) -> JObject<'local> {
             .unwrap()
             .l()
             .unwrap();
-        env.set_field(&jshare, "mode", "Lnet/lockbook/File$ShareMode;", JValue::Object(&mode_constant)).unwrap();
+        env.set_field(
+            &jshare,
+            "mode",
+            "Lnet/lockbook/File$ShareMode;",
+            JValue::Object(&mode_constant),
+        )
+        .unwrap();
 
         // shared by
         let shared_by = jni_string(env, share.shared_by.clone());
-        env.set_field(&jshare, "sharedBy", "Ljava/lang/String;", JValue::Object(&shared_by)).unwrap();
+        env.set_field(&jshare, "sharedBy", "Ljava/lang/String;", JValue::Object(&shared_by))
+            .unwrap();
 
         // shared with
         let shared_with = jni_string(env, share.shared_with.clone());
-        env.set_field(&jshare, "sharedWith", "Ljava/lang/String;", JValue::Object(&shared_with)).unwrap();
-        env.set_object_array_element(&shares_array, i as i32, jshare).unwrap();
+        env.set_field(&jshare, "sharedWith", "Ljava/lang/String;", JValue::Object(&shared_with))
+            .unwrap();
+        env.set_object_array_element(&shares_array, i as i32, jshare)
+            .unwrap();
     }
 
-    env.set_field(&obj, "shares", "[Lnet/lockbook/File$Share;", JValue::Object(&shares_array)).unwrap();
+    env.set_field(&obj, "shares", "[Lnet/lockbook/File$Share;", JValue::Object(&shares_array))
+        .unwrap();
 
     obj
 }
@@ -226,7 +255,9 @@ pub extern "system" fn Java_net_lockbook_Lb_getRoot<'local>(
 
 fn jfiles<'local>(env: &mut JNIEnv<'local>, rust_files: Vec<File>) -> JObjectArray<'local> {
     let file_class = env.find_class("Lnet/lockbook/File;").unwrap();
-    let obj = env.new_object_array(rust_files.len() as i32, file_class, JObject::null()).unwrap();
+    let obj = env
+        .new_object_array(rust_files.len() as i32, file_class, JObject::null())
+        .unwrap();
 
     for (i, rust_file) in rust_files.iter().enumerate() {
         let file = jfile(env, rust_file.clone());
@@ -238,7 +269,7 @@ fn jfiles<'local>(env: &mut JNIEnv<'local>, rust_files: Vec<File>) -> JObjectArr
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_getChildren<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, id: JString<'local>
+    mut env: JNIEnv<'local>, class: JClass<'local>, id: JString<'local>,
 ) -> jobjectArray {
     let lb = rlb(&mut env, &class);
     let id = Uuid::from_str(&rstring(&mut env, id)).unwrap();
@@ -251,7 +282,7 @@ pub extern "system" fn Java_net_lockbook_Lb_getChildren<'local>(
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_getFileById<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
 ) -> jobject {
     let lb = rlb(&mut env, &class);
 
@@ -272,7 +303,7 @@ pub extern "system" fn Java_net_lockbook_Lb_renameFile<'local>(
 
     let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
     let name = rstring(&mut env, jname);
-    
+
     if let Err(err) = lb.rename_file(&id, &name) {
         throw_err(&mut env, err);
     }
@@ -280,28 +311,26 @@ pub extern "system" fn Java_net_lockbook_Lb_renameFile<'local>(
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_createFile<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, jname: JString<'local>, jparent_id: JString<'local>, jis_doc: jboolean,
+    mut env: JNIEnv<'local>, class: JClass<'local>, jname: JString<'local>,
+    jparent_id: JString<'local>, jis_doc: jboolean,
 ) -> jobject {
     let lb = rlb(&mut env, &class);
 
     let name = rstring(&mut env, jname);
     let parent_id = Uuid::from_str(&rstring(&mut env, jparent_id)).unwrap();
-    let file_type = if jis_doc == 1 {
-        FileType::Document
-    } else {
-        FileType::Folder
-    };
-    
+    let file_type = if jis_doc == 1 { FileType::Document } else { FileType::Folder };
+
     match lb.create_file(&name, &parent_id, file_type) {
         Ok(file) => jfile(&mut env, file),
-        Err(err) => throw_err(&mut env, err)
+        Err(err) => throw_err(&mut env, err),
     }
     .into_raw()
 }
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_createLink<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, jname: JString<'local>, jtarget_id: JString<'local>, jparent_id: JString<'local>,
+    mut env: JNIEnv<'local>, class: JClass<'local>, jname: JString<'local>,
+    jtarget_id: JString<'local>, jparent_id: JString<'local>,
 ) -> jobject {
     let lb = rlb(&mut env, &class);
 
@@ -309,10 +338,10 @@ pub extern "system" fn Java_net_lockbook_Lb_createLink<'local>(
     let target = Uuid::from_str(&rstring(&mut env, jtarget_id)).unwrap();
     let parent_id = Uuid::from_str(&rstring(&mut env, jparent_id)).unwrap();
     let file_type = FileType::Link { target };
-    
+
     match lb.create_file(&name, &parent_id, file_type) {
         Ok(file) => jfile(&mut env, file),
-        Err(err) => throw_err(&mut env, err)
+        Err(err) => throw_err(&mut env, err),
     }
     .into_raw()
 }
@@ -333,32 +362,47 @@ pub extern "system" fn Java_net_lockbook_Lb_convertToHumanDuration(
 }
 
 fn jusage_item_metric<'local>(env: &mut JNIEnv<'local>, usage: UsageItemMetric) -> JObject<'local> {
-    let item_metric_class = env.find_class("Lnet/lockbook/Usage$UsageItemMetric;").unwrap();
+    let item_metric_class = env
+        .find_class("Lnet/lockbook/Usage$UsageItemMetric;")
+        .unwrap();
     let obj = env.alloc_object(item_metric_class).unwrap();
-    
-    env.set_field(&obj, "exact", "J", JValue::Long(usage.exact as i64)).unwrap();
-    
+
+    env.set_field(&obj, "exact", "J", JValue::Long(usage.exact as i64))
+        .unwrap();
+
     let readable = jni_string(env, usage.readable);
-    env.set_field(&obj, "readable", "Ljava/lang/String;", JValue::Object(&readable)).unwrap();
+    env.set_field(&obj, "readable", "Ljava/lang/String;", JValue::Object(&readable))
+        .unwrap();
 
     obj
 }
 
 fn jusage_metrics<'local>(env: &mut JNIEnv<'local>, usage: UsageMetrics) -> JObject<'local> {
-    let usage_class = env.find_class("Lnet/lockbook/Usage$UsageItemMetric;").unwrap();
+    let usage_class = env
+        .find_class("Lnet/lockbook/Usage$UsageItemMetric;")
+        .unwrap();
     let obj = env.alloc_object(usage_class).unwrap();
-    
+
     let server_usage = jusage_item_metric(env, usage.server_usage);
-    env.set_field(&obj, "serverUsage", "Lnet/lockbook/File$ShareMode;", JValue::Object(&server_usage)).unwrap();
-    
+    env.set_field(
+        &obj,
+        "serverUsage",
+        "Lnet/lockbook/File$ShareMode;",
+        JValue::Object(&server_usage),
+    )
+    .unwrap();
+
     let data_cap = jusage_item_metric(env, usage.data_cap);
-    env.set_field(&obj, "dataCap", "Lnet/lockbook/File$ShareMode;", JValue::Object(&data_cap)).unwrap();
+    env.set_field(&obj, "dataCap", "Lnet/lockbook/File$ShareMode;", JValue::Object(&data_cap))
+        .unwrap();
 
     obj
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_getUsage<'local>(mut env: JNIEnv<'local>, class: JClass<'local>) -> jstring {
+pub extern "system" fn Java_net_lockbook_Lb_getUsage<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jstring {
     let lb = rlb(&mut env, &class);
 
     match lb.get_usage() {
@@ -369,7 +413,9 @@ pub extern "system" fn Java_net_lockbook_Lb_getUsage<'local>(mut env: JNIEnv<'lo
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_getUncompressedUsage<'local>(mut env: JNIEnv<'local>, class: JClass<'local>) -> jstring {
+pub extern "system" fn Java_net_lockbook_Lb_getUncompressedUsage<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jstring {
     let lb = rlb(&mut env, &class);
 
     match lb.get_uncompressed_usage() {
@@ -381,7 +427,7 @@ pub extern "system" fn Java_net_lockbook_Lb_getUncompressedUsage<'local>(mut env
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_deleteFile<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
 ) {
     let lb = rlb(&mut env, &class);
 
@@ -394,7 +440,7 @@ pub extern "system" fn Java_net_lockbook_Lb_deleteFile<'local>(
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_readDocument<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
 ) -> jstring {
     let lb = rlb(&mut env, &class);
 
@@ -408,7 +454,7 @@ pub extern "system" fn Java_net_lockbook_Lb_readDocument<'local>(
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_readDocumentBytes<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
 ) -> jbyteArray {
     let lb = rlb(&mut env, &class);
 
@@ -422,7 +468,7 @@ pub extern "system" fn Java_net_lockbook_Lb_readDocumentBytes<'local>(
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_writeDocument<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>, jcontent: JString<'local>
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>, jcontent: JString<'local>,
 ) {
     let lb = rlb(&mut env, &class);
 
@@ -436,7 +482,8 @@ pub extern "system" fn Java_net_lockbook_Lb_writeDocument<'local>(
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_writeDocumentBytes<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>, jcontent: JByteArray<'local>
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
+    jcontent: JByteArray<'local>,
 ) {
     let lb = rlb(&mut env, &class);
 
@@ -450,7 +497,8 @@ pub extern "system" fn Java_net_lockbook_Lb_writeDocumentBytes<'local>(
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_moveFile<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>, jparent_id: JString<'local>,
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
+    jparent_id: JString<'local>,
 ) {
     let lb = rlb(&mut env, &class);
 

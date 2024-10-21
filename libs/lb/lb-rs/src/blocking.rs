@@ -125,9 +125,7 @@ impl Lb {
     }
 
     pub fn delete_pending_share(&self, id: &Uuid) -> LbResult<()> {
-        self.rt.block_on(async {
-            self.lb.reject_share(id).await
-        })
+        self.rt.block_on(async { self.lb.reject_share(id).await })
     }
 
     pub fn create_link_at_path(&self, path_and_name: &str, target_id: Uuid) -> LbResult<File> {

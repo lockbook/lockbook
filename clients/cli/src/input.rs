@@ -61,7 +61,8 @@ pub async fn file_completor(prompt: &str, filter: Option<Filter>) -> CliResult<V
     let parent = lb.get_by_path(working_dir).await?;
 
     let candidates = lb
-        .get_children(&parent.id).await?
+        .get_children(&parent.id)
+        .await?
         .into_iter()
         .filter(|f| match filter {
             Some(Filter::FoldersOnly) => f.is_folder(),
@@ -87,7 +88,8 @@ pub async fn file_completor(prompt: &str, filter: Option<Filter>) -> CliResult<V
 pub async fn id_completor(lb: &Lb, prompt: &str, filter: Option<Filter>) -> CliResult<Vec<String>> {
     // todo: potential optimization opportunity inside lb
     Ok(lb
-        .list_metadatas().await?
+        .list_metadatas()
+        .await?
         .into_iter()
         .filter(|f| match filter {
             Some(Filter::FoldersOnly) => f.is_folder(),
