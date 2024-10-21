@@ -1,5 +1,6 @@
 use crate::{
     output::DirtynessMsg,
+    tab::TabContent,
     workspace::{Workspace, WsMsg},
 };
 use lb_rs::{CoreError, LbError, SyncProgress, SyncStatus};
@@ -92,8 +93,12 @@ impl Workspace {
         });
 
         for id in server_ids {
-            if self.tabs.iter().any(|t| t.id == id) {
-                self.open_file(id, false, false);
+            for i in 0..self.tabs.len() {
+                if self.tabs[i].id == id
+                    && !matches!(self.tabs[i].content, Some(TabContent::Svg(_)))
+                {
+                    self.open_file(id, false, false);
+                }
             }
         }
     }
