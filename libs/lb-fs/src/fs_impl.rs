@@ -1,10 +1,9 @@
 use crate::{
     cache::FileEntry,
-    core::AsyncCore,
     utils::{fmt, get_string},
 };
 use async_trait::async_trait;
-use lb_rs::FileType;
+use lb_rs::{model::file_metadata::FileType, Lb, Uuid};
 use nfsserve::{
     nfs::{
         fattr3, fileid3, filename3, nfspath3, nfsstat3, nfsstring, sattr3, set_atime, set_gid3,
@@ -18,7 +17,10 @@ use tracing::{info, instrument, warn};
 
 #[derive(Clone)]
 pub struct Drive {
-    pub ac: AsyncCore,
+    pub lb: Lb,
+
+    /// must be not-nil before NFSFIlesSystem is mounted
+    pub root: Uuid,
 
     /// probably this doesn't need to have a global lock, but interactions here are generally
     /// speedy, and for now we'll go for robustness over performance. Hopefully this accomplishes
@@ -35,7 +37,7 @@ pub struct Drive {
 impl NFSFileSystem for Drive {
     #[instrument(skip(self))]
     fn root_dir(&self) -> fileid3 {
-        let root = self.ac.get_root().id;
+        let root = self.root;
         let half = root.as_u64_pair().0;
 
         info!("ret={root}");
@@ -54,7 +56,7 @@ impl NFSFileSystem for Drive {
         let entry = data.get_mut(&id).unwrap();
         let id = entry.file.id;
 
-        let mut doc = self.ac.read_document(id).await;
+        let mut doc = self.lb.read_document(id).await.unwrap();
         let mut expanded = false;
         if offset + buffer.len() > doc.len() {
             doc.resize(offset + buffer.len(), 0);
@@ -66,7 +68,7 @@ impl NFSFileSystem for Drive {
             }
         }
         let doc_size = doc.len();
-        self.ac.write_document(id, doc).await;
+        self.lb.write_document(id, &doc).await.unwrap();
 
         entry.fattr.size = doc_size as u64;
 
@@ -83,9 +85,10 @@ impl NFSFileSystem for Drive {
         let filename = get_string(filename);
         let parent = self.data.lock().await.get(&dirid).unwrap().file.id;
         let file = self
-            .ac
-            .create_file(parent, FileType::Document, filename)
-            .await;
+            .lb
+            .create_file(&filename, &parent, FileType::Document)
+            .await
+            .unwrap();
 
         let entry = FileEntry::from_file(file, 0);
         let id = entry.fattr.fileid;
@@ -103,7 +106,7 @@ impl NFSFileSystem for Drive {
     ) -> Result<fileid3, nfsstat3> {
         let filename = get_string(filename);
         let dirid = self.data.lock().await.get(&dirid).unwrap().file.id;
-        let children = self.ac.get_children(dirid).await;
+        let children = self.lb.get_children(&dirid).await.unwrap();
         for child in children {
             if child.name == filename {
                 warn!("exists already");
@@ -112,9 +115,10 @@ impl NFSFileSystem for Drive {
         }
 
         let file = self
-            .ac
-            .create_file(dirid, FileType::Document, filename)
-            .await;
+            .lb
+            .create_file(&filename, &dirid, FileType::Document)
+            .await
+            .unwrap();
 
         let entry = FileEntry::from_file(file, 0);
         let id = entry.fattr.fileid;
@@ -145,7 +149,7 @@ impl NFSFileSystem for Drive {
             return Ok(dir.parent.as_u64_pair().0);
         }
 
-        let children = self.ac.get_children(dir.id).await;
+        let children = self.lb.get_children(&dir.id).await.unwrap();
         let file_name = String::from_utf8(filename.0.clone()).unwrap();
 
         for child in children {
@@ -176,9 +180,9 @@ impl NFSFileSystem for Drive {
             set_size3::Void => {}
             set_size3::size(new) => {
                 if entry.fattr.size != new {
-                    let mut doc = self.ac.read_document(entry.file.id).await;
+                    let mut doc = self.lb.read_document(entry.file.id).await.unwrap();
                     doc.resize(new as usize, 0);
-                    self.ac.write_document(entry.file.id, doc).await;
+                    self.lb.write_document(entry.file.id, &doc).await.unwrap();
                     entry.fattr.mtime = FileEntry::ts_from_u64(now);
                     entry.fattr.ctime = FileEntry::ts_from_u64(now);
                 }
@@ -244,7 +248,7 @@ impl NFSFileSystem for Drive {
         let count = count as usize;
         let id = self.data.lock().await.get(&id).unwrap().file.id;
 
-        let doc = self.ac.read_document(id).await;
+        let doc = self.lb.read_document(id).await.unwrap();
 
         if offset >= doc.len() {
             info!("[] EOF");
@@ -267,7 +271,7 @@ impl NFSFileSystem for Drive {
     ) -> Result<ReadDirResult, nfsstat3> {
         let data = self.data.lock().await;
         let dirid = data.get(&dirid).unwrap().file.id;
-        let mut children = self.ac.get_children(dirid).await;
+        let mut children = self.lb.get_children(&dirid).await.unwrap();
 
         children.sort_by(|a, b| a.id.cmp(&b.id));
 
@@ -318,13 +322,13 @@ impl NFSFileSystem for Drive {
         let mut data = self.data.lock().await;
         let dirid = data.get(&dirid).unwrap().file.id;
 
-        let children = self.ac.get_children(dirid).await;
+        let children = self.lb.get_children(&dirid).await.unwrap();
         let file_name = String::from_utf8(filename.0.clone()).unwrap();
 
         for child in children {
             if file_name == child.name {
                 info!("deleted");
-                self.ac.remove(child.id).await;
+                self.lb.delete(&child.id).await;
                 data.remove(&child.id.as_u64_pair().0);
                 return Ok(());
             }
@@ -349,7 +353,7 @@ impl NFSFileSystem for Drive {
         let from_dirid = data.get(&from_dirid).unwrap().file.id;
         let to_dirid = data.get(&to_dirid).unwrap().file.id;
 
-        let src_children = self.ac.get_children(from_dirid).await;
+        let src_children = self.lb.get_children(&from_dirid).await.unwrap();
 
         let mut from_id = None;
         let mut to_id = None;
@@ -364,7 +368,7 @@ impl NFSFileSystem for Drive {
         }
 
         if to_dirid != from_dirid {
-            let dst_children = self.ac.get_children(to_dirid).await;
+            let dst_children = self.lb.get_children(&to_dirid).await.unwrap();
             for child in dst_children {
                 if child.name == to_filename {
                     to_id = Some(child.id);
@@ -378,11 +382,11 @@ impl NFSFileSystem for Drive {
             // we are overwriting a file
             Some(id) => {
                 info!("overwrite {from_id} -> {id}");
-                let from_doc = self.ac.read_document(from_id).await;
+                let from_doc = self.lb.read_document(from_id).await.unwrap();
                 info!("|{}|", from_doc.len());
                 let doc_len = from_doc.len() as u64;
-                self.ac.write_document(id, from_doc).await;
-                self.ac.remove(from_id).await;
+                self.lb.write_document(id, &from_doc).await.unwrap();
+                self.lb.delete(&from_id).await.unwrap();
 
                 let mut entry = data.get_mut(&id.as_u64_pair().0).unwrap();
                 entry.fattr.size = doc_len;
@@ -394,17 +398,17 @@ impl NFSFileSystem for Drive {
             None => {
                 if from_dirid != to_dirid {
                     info!("move {} -> {}\t", from_id, to_dirid);
-                    self.ac.move_file(from_id, to_dirid).await;
+                    self.lb.move_file(&from_id, &to_dirid).await.unwrap();
                 }
 
                 if from_filename != to_filename {
                     info!("rename {} -> {}\t", from_id, to_filename);
-                    self.ac.rename_file(from_id, to_filename).await;
+                    self.lb.rename_file(&from_id, &to_filename).await.unwrap();
                 }
 
                 let mut entry = data.get_mut(&from_id.as_u64_pair().0).unwrap();
 
-                let file = self.ac.get_file_by_id(from_id).await;
+                let file = self.lb.get_file_by_id(from_id).await.unwrap();
                 entry.file = file;
 
                 info!("ok");
@@ -422,9 +426,10 @@ impl NFSFileSystem for Drive {
         let filename = get_string(dirname);
         let parent = self.data.lock().await.get(&dirid).unwrap().file.id;
         let file = self
-            .ac
-            .create_file(parent, FileType::Folder, filename)
-            .await;
+            .lb
+            .create_file(&filename, &parent, FileType::Folder)
+            .await
+            .unwrap();
 
         let entry = FileEntry::from_file(file, 0);
         let id = entry.fattr.fileid;

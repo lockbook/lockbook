@@ -6,14 +6,16 @@ use std::{
 };
 
 use cli_rs::cli_error::CliResult;
-use lb::{Core, ImportStatus};
+use lb_rs::service::import_export::ImportStatus;
 
-use crate::{ensure_account_and_root, input::FileInput};
+use crate::{core, ensure_account_and_root, input::FileInput};
 
-pub fn copy(core: &Core, disk: PathBuf, parent: FileInput) -> CliResult<()> {
-    ensure_account_and_root(core)?;
+#[tokio::main]
+pub async fn copy(disk: PathBuf, parent: FileInput) -> CliResult<()> {
+    let lb = &core().await?;
+    ensure_account_and_root(lb).await?;
 
-    let parent = parent.find(core)?.id;
+    let parent = parent.find(lb).await?.id;
 
     let total = Cell::new(0);
     let nth_file = Cell::new(0);
@@ -27,21 +29,32 @@ pub fn copy(core: &Core, disk: PathBuf, parent: FileInput) -> CliResult<()> {
         ImportStatus::FinishedItem(_meta) => println!("done."),
     };
 
-    core.import_files(&[disk], parent, &update_status)?;
+    lb.import_files(&[disk], parent, &update_status).await?;
 
     Ok(())
 }
 
-pub fn export(core: &Core, target: FileInput, dest: PathBuf) -> CliResult<()> {
-    ensure_account_and_root(core)?;
+#[tokio::main]
+pub async fn export(target: FileInput, dest: PathBuf) -> CliResult<()> {
+    let lb = &core().await?;
+    ensure_account_and_root(lb).await?;
 
-    let target_file = target.find(core)?;
+    let target_file = target.find(lb).await?;
 
     println!("exporting '{}'...", target_file.name);
     if !dest.exists() {
         fs::create_dir(&dest)?;
     }
 
-    core.export_file(target_file.id, dest, false, None)?;
+    // todo this is possibly ugly
+    lb.export_file(
+        target_file.id,
+        dest,
+        false,
+        &Some(|i| {
+            println!("{:?}", i);
+        }),
+    )
+    .await?;
     Ok(())
 }
