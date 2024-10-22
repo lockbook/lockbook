@@ -423,11 +423,11 @@ impl Workspace {
 
     fn show_mobile_title(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            let selectable_label = egui::widgets::Button::new(
-                egui::RichText::new(self.tabs[0].name.clone()).size(30.0),
-            )
-            .frame(false)
-            .fill(egui::Color32::TRANSPARENT);
+            let selectable_label =
+                egui::widgets::Button::new(egui::RichText::new(self.tabs[0].name.clone()))
+                    .frame(false)
+                    .wrap_mode(TextWrapMode::Truncate)
+                    .fill(egui::Color32::BLACK); // matches iOS native toolbar
 
             ui.allocate_ui(ui.available_size(), |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
