@@ -237,7 +237,7 @@ impl Editor {
             let mut job = LayoutJob::default();
             let mut text_format = TextFormat::default();
             RenderStyle::Syntax.apply_style(&mut text_format, &self.appearance, ui.visuals());
-            job.append(&language, 0., text_format);
+            job.append(language, 0., text_format);
             let pos = badge_response.rect.left_top();
 
             let galley = ui.ctx().fonts(|f| f.layout_job(job));
