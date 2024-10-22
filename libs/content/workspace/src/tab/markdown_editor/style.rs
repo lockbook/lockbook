@@ -192,11 +192,11 @@ impl Hash for InlineNode {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum BlockNode {
     Heading(HeadingLevel),
     Quote,
-    Code,
+    Code(String), // language
     ListItem(ListItem, IndentLevel),
     Rule,
 }
@@ -206,7 +206,7 @@ impl BlockNode {
         match self {
             Self::Heading(level) => BlockNodeType::Heading(*level),
             Self::Quote => BlockNodeType::Quote,
-            Self::Code => BlockNodeType::Code,
+            Self::Code(..) => BlockNodeType::Code,
             Self::ListItem(item, ..) => BlockNodeType::ListItem(item.item_type()),
             Self::Rule => BlockNodeType::Rule,
         }
@@ -218,7 +218,7 @@ impl PartialEq for BlockNode {
         match (self, other) {
             (Self::Heading(level), Self::Heading(other_level)) => level == other_level,
             (Self::Quote, Self::Quote) => true,
-            (Self::Code, Self::Code) => true,
+            (Self::Code(..), Self::Code(..)) => true,
             (
                 Self::ListItem(item, indent_level),
                 Self::ListItem(other_item, other_indent_level),
@@ -240,7 +240,7 @@ impl Hash for BlockNode {
             Self::Quote => {
                 BlockNodeType::Quote.hash(state);
             }
-            Self::Code => {
+            Self::Code(..) => {
                 BlockNodeType::Code.hash(state);
             }
             Self::ListItem(item, indent_level) => {
@@ -377,7 +377,7 @@ impl RenderStyle {
                     text_format.font_id.size = vis.heading_size(level);
                 }
                 RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Quote)) => {}
-                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Code)) => {
+                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Code(..))) => {
                     text_format.color = vis.code();
                     text_format.font_id.family = FontFamily::Monospace;
                     text_format.font_id.size *= 14.0 / 16.0;
@@ -438,8 +438,8 @@ impl Display for BlockNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Heading(..) => write!(f, "Heading"),
-            Self::Quote => write!(f, "Quote"),
-            Self::Code => write!(f, "Code"),
+            Self::Quote => write!(f, "Block Quote"),
+            Self::Code(..) => write!(f, "Code Block"),
             Self::ListItem(ListItem::Bulleted, ..) => write!(f, "Bulleted List"),
             Self::ListItem(ListItem::Numbered(..), ..) => write!(f, "Numbered List"),
             Self::ListItem(ListItem::Todo(..), ..) => write!(f, "Todo List"),

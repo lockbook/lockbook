@@ -9,6 +9,7 @@ use lb_rs::text::offset_types::{
     DocCharOffset, RangeExt, RangeIterExt, RelByteOffset, RelCharOffset,
 };
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Default, Debug, PartialEq)]
 pub struct Ast {
@@ -109,7 +110,7 @@ impl Ast {
                         Tag::Paragraph => MarkdownNode::Paragraph,
                         Tag::Heading(level, _, _) => MarkdownNode::Block(BlockNode::Heading(level)),
                         Tag::BlockQuote => MarkdownNode::Block(BlockNode::Quote),
-                        Tag::CodeBlock(_) => MarkdownNode::Block(BlockNode::Code),
+                        Tag::CodeBlock(_) => MarkdownNode::Block(BlockNode::Code("".into())),
                         Tag::Item => {
                             let item_type = Self::item_type(&buffer[range]);
                             let mut indent_level = 0;
@@ -220,7 +221,8 @@ impl Ast {
             // capture leading whitespace for list items and code blocks (affects non-fenced code blocks only)
             if matches!(
                 markdown_node,
-                MarkdownNode::Block(BlockNode::ListItem(..)) | MarkdownNode::Block(BlockNode::Code)
+                MarkdownNode::Block(BlockNode::ListItem(..))
+                    | MarkdownNode::Block(BlockNode::Code(..))
             ) {
                 while range.0 > 0
                     && buffer[(range.0 - 1, range.1)]
@@ -320,19 +322,34 @@ impl Ast {
                         text_range.0 += 1;
                     }
                 }
-                MarkdownNode::Block(BlockNode::Code) => {
+                MarkdownNode::Block(BlockNode::Code(..)) => {
                     if (buffer[range].starts_with("```") && buffer[range].ends_with("```")
                         || buffer[range].starts_with("~~~") && buffer[range].ends_with("~~~"))
                         && range.len() > 3
                     {
                         /*
-                        ```
+                        ```lang
                         code block
                         ```
-                        ~~~
+                        ~~~lang
                         code block
                         ~~~
                          */
+
+                        let text = &buffer[text_range];
+                        let lang = text
+                            .lines()
+                            .next()
+                            .and_then(|line| {
+                                line.strip_prefix("```")
+                                    .or_else(|| line.strip_prefix("~~~"))
+                            })
+                            .map(|line| line.trim())
+                            .unwrap_or("");
+
+                        markdown_node = MarkdownNode::Block(BlockNode::Code(lang.to_string()));
+
+                        text_range.0 += lang.graphemes(true).count();
                         text_range.0 += 4;
                         text_range.1 -= 4;
                     } else {
@@ -342,9 +359,9 @@ impl Ast {
                     }
                     if text_range.1 < text_range.0 {
                         /*
+                        ```lang
                         ```
-                        ```
-                        ~~~
+                        ~~~lang
                         ~~~
                         single newline gets captured in head and not tail
                          */
@@ -562,7 +579,7 @@ impl AstTextRange {
             .clone()
     }
 
-    pub fn annotation(&self, ast: &Ast) -> Option<Annotation> {
+    pub fn annotation(&self, ast: &Ast, captured: bool) -> Option<Annotation> {
         let node = &ast.nodes[self.ancestors.last().copied().unwrap_or_default()];
         match node.node_type.clone() {
             MarkdownNode::Block(BlockNode::Heading(HeadingLevel::H1)) => {
@@ -576,9 +593,12 @@ impl AstTextRange {
             }
             MarkdownNode::Block(BlockNode::Rule) => Some(Annotation::Rule),
             MarkdownNode::Block(BlockNode::Quote) => Some(Annotation::BlockQuote),
-            MarkdownNode::Block(BlockNode::Code) => {
-                Some(Annotation::CodeBlock { text_range: node.text_range })
-            }
+            MarkdownNode::Block(BlockNode::Code(language)) => Some(Annotation::CodeBlock {
+                range: node.range,
+                text_range: node.text_range,
+                language,
+                captured,
+            }),
             _ => None,
         }
     }

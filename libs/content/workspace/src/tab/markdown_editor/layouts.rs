@@ -22,7 +22,18 @@ pub enum Annotation {
     Item(ListItem, IndentLevel),
     Image(LinkType, Url, Title),
     BlockQuote,
-    CodeBlock { text_range: (DocCharOffset, DocCharOffset) },
+    CodeBlock {
+        range: (DocCharOffset, DocCharOffset),
+        text_range: (DocCharOffset, DocCharOffset),
+        language: String,
+        captured: bool, // background & copy button drawn regardless of capture; language badge only drawn if captured
+    },
     HeadingRule,
     Rule,
+}
+
+impl LayoutJobInfo {
+    pub fn text_range(&self) -> (DocCharOffset, DocCharOffset) {
+        (self.range.0 + self.head_size, self.range.1 - self.tail_size)
+    }
 }

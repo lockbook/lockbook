@@ -134,7 +134,7 @@ pub fn translate_egui_keyboard_event(event: egui::Event) -> Option<Event> {
                     style: MarkdownNode::Inline(InlineNode::Code),
                 })
             } else {
-                Some(Event::toggle_block_style(BlockNode::Code))
+                Some(Event::toggle_block_style(BlockNode::Code("".into())))
             }
         }
         egui::Event::Key { key: Key::X, pressed: true, modifiers, .. }
