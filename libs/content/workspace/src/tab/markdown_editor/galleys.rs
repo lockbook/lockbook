@@ -47,6 +47,8 @@ pub fn calc(
     ast: &Ast, buffer: &Buffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
     touch_mode: bool, ui: &mut Ui,
 ) -> Galleys {
+    let max_rect = ui.max_rect();
+
     let mut result: Galleys = Default::default();
 
     let mut head_size: RelCharOffset = 0.into();
@@ -150,6 +152,7 @@ pub fn calc(
             }
         }
 
+        let last_galley = text_range_portion.end() == buffer.current.segs.last_cursor_position();
         if text_range_portion.end() == paragraph.end() {
             // emit a galley
             if layout.is_empty() {
@@ -170,10 +173,16 @@ pub fn calc(
                 tail_size: 0.into(),
                 annotation_text_format: mem::take(&mut annotation_text_format),
             };
-            result
-                .galleys
-                .push(GalleyInfo::from(layout_info, images, appearance, touch_mode, ui));
-        }
+            result.galleys.push(GalleyInfo::from(
+                layout_info,
+                images,
+                appearance,
+                touch_mode,
+                last_galley,
+                max_rect,
+                ui,
+            ));
+        };
     }
 
     result
@@ -304,7 +313,7 @@ pub fn annotation_offset(annotation: &Option<Annotation>, appearance: &Appearanc
 impl GalleyInfo {
     pub fn from(
         mut job: LayoutJobInfo, images: &ImageCache, appearance: &Appearance, touch_mode: bool,
-        ui: &mut Ui,
+        last_galley: bool, max_rect: Rect, ui: &mut Ui,
     ) -> Self {
         let offset = annotation_offset(&job.annotation, appearance);
         let text_width = ui.available_width().min(800.);
@@ -339,9 +348,24 @@ impl GalleyInfo {
 
         let galley = ui.ctx().fonts(|f| f.layout_job(job.job));
 
-        // allocate space for text and non-image annotations
-        let desired_size =
+        // allocate space for text and non-image annotations, including end-of-text padding for the last galley
+        let mut desired_size =
             Vec2::new(ui.available_width(), galley.size().y + (offset.min.y + offset.max.y));
+        let padding_height = if last_galley {
+            let min_rect = ui.min_rect();
+            let height_to_fill = if min_rect.height() < max_rect.height() {
+                // fill available space
+                max_rect.height() - min_rect.height()
+            } else {
+                // end of text padding
+                max_rect.height() / 2.
+            };
+            let padding_height = height_to_fill - desired_size.y;
+            desired_size.y = height_to_fill;
+            padding_height
+        } else {
+            0.
+        };
         let response = ui.allocate_response(
             desired_size,
             Sense { click: true, drag: !touch_mode, focusable: false },
@@ -354,7 +378,7 @@ impl GalleyInfo {
         text_rect.min.x += offset.min.x + padding_width;
         text_rect.min.y += offset.min.y;
         text_rect.max.x -= offset.max.x + padding_width;
-        text_rect.max.y -= offset.max.y;
+        text_rect.max.y -= offset.max.y + padding_height;
 
         Self {
             range: job.range,
