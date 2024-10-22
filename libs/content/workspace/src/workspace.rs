@@ -29,7 +29,9 @@ pub struct Workspace {
 
     pub tabs: Vec<Tab>,
     pub active_tab: usize,
-    active_tab_changed: bool,
+    pub active_tab_changed: bool,
+    pub user_last_seen: Instant,
+    pub last_sync: Instant,
     pub backdrop: Image<'static>,
 
     pub ctx: Context,
@@ -50,14 +52,28 @@ pub struct Workspace {
 
 pub enum WsMsg {
     FileCreated(Result<File, String>),
-    FileLoaded(Uuid, bool, bool, Result<(Option<DocumentHmac>, DecryptedDocument), TabFailure>),
-    SaveResult(Uuid, Result<(String, Option<DocumentHmac>, Instant, usize), LbError>),
+    FileLoaded(FileLoadedMsg),
+    SaveResult(Uuid, Result<SaveResult, LbError>),
     FileRenamed { id: Uuid, new_name: String },
 
     BgSignal(Signal),
     SyncMsg(SyncProgress),
     SyncDone(Result<SyncStatus, LbError>),
     Dirtyness(DirtynessMsg),
+}
+
+pub struct FileLoadedMsg {
+    id: Uuid,
+    is_new_file: bool,
+    tab_created: bool,
+    content: Result<(Option<DocumentHmac>, DecryptedDocument), TabFailure>,
+}
+
+pub struct SaveResult {
+    content: String,
+    new_hmac: Option<DocumentHmac>,
+    completed_at: Instant,
+    seq: usize,
 }
 
 #[derive(Clone)]
@@ -107,6 +123,8 @@ impl Workspace {
             tabs: vec![],
             active_tab: 0,
             active_tab_changed: false,
+            user_last_seen: Instant::now(),
+            last_sync: Instant::now(),
             backdrop: Image::new(egui::include_image!("../lockbook-backdrop.png")),
             ctx: ctx.clone(),
             core: core.clone(),
@@ -245,6 +263,10 @@ impl Workspace {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
+            self.user_last_seen = Instant::now();
+        }
+
         self.set_tooltip_visibility(ui);
 
         self.process_updates();
@@ -577,10 +599,20 @@ impl Workspace {
 
                         let result = if safe_write {
                             core.safe_write(id, old_hmac, content.clone().into())
-                                .map(|new_hmac| (content, Some(new_hmac), Instant::now(), seq))
+                                .map(|new_hmac| SaveResult {
+                                    content,
+                                    new_hmac: Some(new_hmac),
+                                    completed_at: Instant::now(),
+                                    seq,
+                                })
                         } else {
                             core.write_document(id, content.as_bytes())
-                                .map(|_| (content, None, Instant::now(), seq))
+                                .map(|_| SaveResult {
+                                    content,
+                                    new_hmac: None,
+                                    completed_at: Instant::now(),
+                                    seq,
+                                })
                         };
 
                         // re-read
@@ -645,7 +677,7 @@ impl Workspace {
                 .read_document_with_hmac(id)
                 .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))); // todo(steve)
             update_tx
-                .send(WsMsg::FileLoaded(id, is_new_file, tab_created, content))
+                .send(WsMsg::FileLoaded(FileLoadedMsg { id, is_new_file, tab_created, content }))
                 .unwrap();
             ctx.request_repaint();
         });
@@ -743,9 +775,14 @@ impl Workspace {
     }
 
     pub fn process_updates(&mut self) {
-        while let Ok(update) = self.updates_rx.try_recv() {
+        'updates: while let Ok(update) = self.updates_rx.try_recv() {
             match update {
-                WsMsg::FileLoaded(id, is_new_file, tab_created, load_result) => {
+                WsMsg::FileLoaded(FileLoadedMsg {
+                    id,
+                    is_new_file,
+                    tab_created,
+                    content: load_result,
+                }) => {
                     if let Some((name, id)) =
                         self.current_tab().map(|tab| (tab.name.clone(), tab.id))
                     {
@@ -831,12 +868,18 @@ impl Workspace {
                     let mut reopen = false;
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         match result {
-                            Ok((content, hmac, time_saved, seq)) => {
+                            Ok(SaveResult {
+                                content,
+                                new_hmac: hmac,
+                                completed_at: time_saved,
+                                seq,
+                            }) => {
                                 tab.last_saved = time_saved;
                                 if let TabContent::Markdown(md) = tab.content.as_mut().unwrap() {
                                     md.hmac = hmac;
                                     md.buffer.saved(seq, content);
                                 }
+                                self.perform_sync(); // todo: sync once when saving multiple tabs
                             }
                             Err(err) => {
                                 if err.kind == CoreError::ReReadRequired {
@@ -858,9 +901,24 @@ impl Workspace {
                     // }
                 }
                 WsMsg::BgSignal(Signal::Sync) => {
-                    if self.cfg.auto_sync.load(Ordering::Relaxed) {
-                        self.perform_sync();
+                    if !self.cfg.auto_sync.load(Ordering::Relaxed) {
+                        // auto sync disabled
+                        continue;
                     }
+                    if !self.ctx.input(|i| i.focused) {
+                        // native window not focused
+                        continue;
+                    }
+                    for (threshold_secs, sync_period_secs) in [(60, 60), (3600, 3600)] {
+                        if self.user_last_seen.elapsed() > Duration::from_secs(threshold_secs)
+                            && self.last_sync.elapsed() < Duration::from_secs(sync_period_secs)
+                        {
+                            // reduce sync frequency when user is inactive
+                            continue 'updates;
+                        }
+                    }
+
+                    self.perform_sync();
                 }
                 WsMsg::BgSignal(Signal::UpdateStatus) => {
                     self.refresh_sync_status();
