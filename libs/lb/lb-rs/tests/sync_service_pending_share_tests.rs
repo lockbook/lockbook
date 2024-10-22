@@ -83,3 +83,26 @@ fn edited_document() {
     assert_stuff(&cores[0], &cores[1]);
     assert::all_pending_shares(&cores[1], &["document"]);
 }
+
+#[test]
+fn preview_pending_share() {
+    let cores = [test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0].create_at_path("document").unwrap();
+    cores[0]
+        .write_document(document.id, b"document content")
+        .unwrap();
+    cores[0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+
+    assert_stuff(&cores[0], &cores[1]);
+    assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content");
+}
