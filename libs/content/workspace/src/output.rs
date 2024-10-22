@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use lb_rs::{File, SyncStatus, Uuid};
 
 // todo: dirty docs
@@ -33,7 +35,7 @@ pub struct Response {
 #[derive(Default, Clone)]
 pub struct WsStatus {
     pub error: Option<String>,
-    pub syncing: bool,
+    pub sync_started: Option<Instant>, // Some if there is a sync in progress
     pub offline: bool,
     pub update_req: bool,
     pub out_of_space: bool,
@@ -61,7 +63,7 @@ impl WsStatus {
             self.message = "You're out of space, buy more in settings!".to_string();
         }
 
-        if self.syncing {
+        if self.syncing() {
             if let Some(msg) = &self.sync_message {
                 self.message = msg.to_string();
                 return;
@@ -79,6 +81,12 @@ impl WsStatus {
         }
 
         self.message = format!("Last synced: {}", self.dirtyness.last_synced);
+    }
+
+    pub fn syncing(&self) -> bool {
+        self.sync_started
+            .map(|s| s.elapsed().as_millis() > 300)
+            .unwrap_or(false)
     }
 }
 

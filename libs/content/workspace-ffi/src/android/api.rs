@@ -193,7 +193,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getStatus(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     let status = WsStatus {
-        syncing: obj.workspace.status.syncing,
+        syncing: obj.workspace.status.syncing(),
         msg: obj.workspace.status.message.clone(),
     };
 
