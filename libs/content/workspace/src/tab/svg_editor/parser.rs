@@ -4,6 +4,7 @@ use bezier_rs::{Bezier, Identifier, Subpath};
 use egui::TextureHandle;
 use glam::{DAffine2, DMat2, DVec2};
 use indexmap::IndexMap;
+use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
 use resvg::tiny_skia::Point;
 use resvg::usvg::{
@@ -102,7 +103,7 @@ pub struct Image {
 }
 
 impl Buffer {
-    pub fn new(svg: &str, core: &lb_rs::Core, open_file: Uuid) -> Self {
+    pub fn new(svg: &str, core: &Lb, open_file: Uuid) -> Self {
         let fontdb = usvg::fontdb::Database::default();
 
         let lb_local_resolver = ImageHrefResolver {
@@ -225,7 +226,7 @@ fn get_internal_id(svg_id: &str, buffer: &mut Buffer) -> Uuid {
     id
 }
 
-fn lb_local_resolver(core: &lb_rs::Core, open_file: Uuid) -> ImageHrefStringResolverFn {
+fn lb_local_resolver(core: &Lb, open_file: Uuid) -> ImageHrefStringResolverFn {
     let core = core.clone();
     Box::new(move |href: &str, _opts: &Options, _db: &Database| {
         let id = if let Some(id) = href.strip_prefix("lb://") {

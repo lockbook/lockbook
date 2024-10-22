@@ -1,4 +1,4 @@
-use lb_rs::{File, SyncStatus, Uuid};
+use lb_rs::{model::file::File, service::sync::SyncStatus, Uuid};
 
 // todo: dirty docs
 #[derive(Debug, Default, Clone)]

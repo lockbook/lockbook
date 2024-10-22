@@ -1,6 +1,6 @@
 use crate::WgpuWorkspace;
 use egui::{vec2, Event, MouseWheelUnit, Pos2};
-use lb_external_interface::lb_rs::Uuid;
+use lb_c::Uuid;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::path::PathBuf;
 use workspace_rs::tab::{ClipContent, ExtendedInput as _};

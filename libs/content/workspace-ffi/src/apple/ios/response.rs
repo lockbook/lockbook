@@ -1,4 +1,4 @@
-use lb_external_interface::lb_rs::{
+use lb_c::{
     text::offset_types::{DocCharOffset, RangeExt as _},
     Uuid,
 };

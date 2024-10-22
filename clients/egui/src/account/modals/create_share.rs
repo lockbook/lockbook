@@ -1,22 +1,22 @@
 use eframe::egui;
-use lb::{Share, ShareMode, Uuid};
+use lb::{model::file::{File, Share, ShareMode}, Uuid};
 use workspace_rs::widgets::switch;
 
 pub struct CreateShareParams {
     pub id: Uuid,
     pub username: String,
-    pub mode: lb::ShareMode,
+    pub mode: ShareMode,
 }
 
 pub struct CreateShareModal {
-    file: lb::File,
+    file: File,
     sharee_username: String,
     is_editor: bool,
     pub err_msg: Option<String>,
 }
 
 impl CreateShareModal {
-    pub fn new(target: lb::File) -> Self {
+    pub fn new(target: File) -> Self {
         Self { file: target, sharee_username: "".to_string(), is_editor: true, err_msg: None }
     }
 }
@@ -105,8 +105,8 @@ fn sharee_info(ui: &mut egui::Ui, share: &Share) {
                 ui.label(share.shared_with.to_string());
                 ui.add_space(60.0);
                 let mode = match share.mode {
-                    lb::ShareMode::Write => "Editor",
-                    lb::ShareMode::Read => "Viewer",
+                    ShareMode::Write => "Editor",
+                    ShareMode::Read => "Viewer",
                 };
                 ui.label(
                     egui::RichText::new(mode)

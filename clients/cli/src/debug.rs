@@ -1,13 +1,15 @@
 use cli_rs::cli_error::{CliError, CliResult};
-use lb::Core;
 
-use crate::{ensure_account, input::FileInput};
+use crate::{core, ensure_account, input::FileInput};
 
-pub fn validate(core: &Core) -> CliResult<()> {
-    ensure_account(core)?;
+#[tokio::main]
+pub async fn validate() -> CliResult<()> {
+    let lb = core().await?;
+    ensure_account(&lb)?;
 
-    let warnings = core
-        .validate()
+    let warnings = lb
+        .test_repo_integrity()
+        .await
         .map_err(|err| CliError::from(format!("validating: {:?}", err)))?;
     if warnings.is_empty() {
         return Ok(());
@@ -18,26 +20,32 @@ pub fn validate(core: &Core) -> CliResult<()> {
     Err(CliError::from(format!("{} warnings found", warnings.len())))
 }
 
-pub fn info(core: &Core, target: FileInput) -> Result<(), CliError> {
-    ensure_account(core)?;
+#[tokio::main]
+pub async fn info(target: FileInput) -> Result<(), CliError> {
+    let lb = &core().await?;
+    ensure_account(lb)?;
 
-    let f = target.find(core)?;
+    let f = target.find(lb).await?;
     println!("{:#?}", f);
     Ok(())
 }
 
-pub fn whoami(core: &Core) -> Result<(), CliError> {
-    ensure_account(core)?;
+#[tokio::main]
+pub async fn whoami() -> Result<(), CliError> {
+    let lb = &core().await?;
+    ensure_account(lb)?;
 
-    println!("{}", core.get_account()?.username);
+    println!("{}", lb.get_account()?.username);
     Ok(())
 }
 
-pub fn whereami(core: &Core) -> Result<(), CliError> {
-    ensure_account(core)?;
+#[tokio::main]
+pub async fn whereami() -> Result<(), CliError> {
+    let lb = &core().await?;
+    ensure_account(lb)?;
 
-    let account = core.get_account()?;
-    let config = &core.get_config()?;
+    let account = lb.get_account()?;
+    let config = &lb.config;
     println!("Server: {}", account.api_url);
     println!("Core: {}", config.writeable_path);
     Ok(())

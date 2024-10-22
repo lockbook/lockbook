@@ -1,4 +1,4 @@
-use lb_external_interface::lb_rs::Uuid;
+use lb_c::Uuid;
 
 #[repr(C)]
 #[derive(Debug, Default, Clone)]

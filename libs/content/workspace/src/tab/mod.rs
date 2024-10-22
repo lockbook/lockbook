@@ -4,7 +4,11 @@ use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use chrono::DateTime;
 use egui::Id;
-use lb_rs::{DocumentHmac, File, FileType, Uuid};
+use lb_rs::blocking::Lb;
+use lb_rs::model::errors::{LbErr, LbErrKind};
+use lb_rs::model::file::File;
+use lb_rs::model::file_metadata::{DocumentHmac, FileType};
+use lb_rs::Uuid;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -82,10 +86,10 @@ pub enum TabFailure {
     Unexpected(String),
 }
 
-impl From<lb_rs::LbError> for TabFailure {
-    fn from(err: lb_rs::LbError) -> Self {
+impl From<LbErr> for TabFailure {
+    fn from(err: LbErr) -> Self {
         match err.kind {
-            lb_rs::CoreError::Unexpected(msg) => Self::Unexpected(msg),
+            LbErrKind::Unexpected(msg) => Self::Unexpected(msg),
             _ => Self::SimpleMisc(format!("{:?}", err)),
         }
     }
@@ -173,12 +177,12 @@ impl ExtendedInput for egui::Context {
 
 // todo: use background thread
 // todo: refresh file tree view
-pub fn import_image(core: &lb_rs::Core, file_id: Uuid, data: &[u8]) -> File {
+pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> File {
     let file = core
         .get_file_by_id(file_id)
         .expect("get lockbook file for image");
     let siblings = core
-        .get_children(file.parent)
+        .get_children(&file.parent)
         .expect("get lockbook siblings for image");
 
     let imports_folder = {
@@ -190,7 +194,7 @@ pub fn import_image(core: &lb_rs::Core, file_id: Uuid, data: &[u8]) -> File {
             }
         }
         imports_folder.unwrap_or_else(|| {
-            core.create_file("imports", file.parent, FileType::Folder)
+            core.create_file("imports", &file.parent, FileType::Folder)
                 .expect("create lockbook folder for image")
         })
     };
@@ -210,7 +214,7 @@ pub fn import_image(core: &lb_rs::Core, file_id: Uuid, data: &[u8]) -> File {
     let file = core
         .create_file(
             &format!("pasted_image_{}.{}", human_readable_time, file_extension),
-            imports_folder.id,
+            &imports_folder.id,
             FileType::Document,
         )
         .expect("create lockbook file for image");
@@ -220,7 +224,7 @@ pub fn import_image(core: &lb_rs::Core, file_id: Uuid, data: &[u8]) -> File {
     file
 }
 
-pub fn core_get_relative_path(core: &lb_rs::Core, from: Uuid, to: Uuid) -> String {
+pub fn core_get_relative_path(core: &Lb, from: Uuid, to: Uuid) -> String {
     let from_path = core
         .get_path_by_id(from)
         .expect("get source file path for relative link");
@@ -281,7 +285,7 @@ pub fn canonicalize_path(path: &str) -> String {
 }
 
 pub fn core_get_by_relative_path(
-    core: &lb_rs::Core, from: Uuid, path: &Path,
+    core: &Lb, from: Uuid, path: &Path,
 ) -> Result<File, String> {
     let target_path = if path.is_relative() {
         let mut open_file_path =

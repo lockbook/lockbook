@@ -3,6 +3,9 @@ use std::thread;
 
 use eframe::egui;
 use egui::TextWrapMode;
+use lb::model::file::File;
+use lb::model::file_metadata::FileType;
+use lb::Uuid;
 use rfd::FileDialog;
 use workspace_rs::theme::icons::Icon;
 
@@ -12,7 +15,7 @@ use super::response::*;
 use super::state::*;
 
 pub struct TreeNode {
-    pub file: lb::File,
+    pub file: File,
     pub doc_type: Option<DocType>,
     pub children: Vec<TreeNode>,
 
@@ -21,12 +24,12 @@ pub struct TreeNode {
     hovering_drop: bool,
 }
 
-impl From<(lb::File, u8)> for TreeNode {
-    fn from(data: (lb::File, u8)) -> Self {
+impl From<(File, u8)> for TreeNode {
+    fn from(data: (File, u8)) -> Self {
         let (file, depth) = data;
         let doc_type = match file.file_type {
-            lb::FileType::Folder => None,
-            lb::FileType::Document | lb::FileType::Link { .. } => {
+            FileType::Folder => None,
+            FileType::Document | FileType::Link { .. } => {
                 Some(DocType::from_name(&file.name))
             }
         };
@@ -43,7 +46,7 @@ impl From<(lb::File, u8)> for TreeNode {
 }
 
 impl TreeNode {
-    pub fn populate_from(&mut self, all_metas: &Vec<lb::File>) {
+    pub fn populate_from(&mut self, all_metas: &Vec<File>) {
         self.children = all_metas
             .iter()
             .filter_map(|f| {
@@ -357,7 +360,7 @@ impl TreeNode {
         }
     }
 
-    pub fn insert(&mut self, meta: lb::File) -> bool {
+    pub fn insert(&mut self, meta: File) -> bool {
         if let Some(parent) = self.find_mut(meta.parent) {
             let node = TreeNode::from((meta, parent.depth + 1));
             for (i, child) in parent.children.iter().enumerate() {
@@ -387,7 +390,7 @@ impl TreeNode {
         self.children.push(node);
     }
 
-    pub fn remove(&mut self, id: lb::Uuid) -> Option<TreeNode> {
+    pub fn remove(&mut self, id: Uuid) -> Option<TreeNode> {
         for (i, node) in self.children.iter().enumerate() {
             if node.file.id == id {
                 return Some(self.children.remove(i));
@@ -396,7 +399,7 @@ impl TreeNode {
         None
     }
 
-    pub fn find(&self, id: lb::Uuid) -> Option<&TreeNode> {
+    pub fn find(&self, id: Uuid) -> Option<&TreeNode> {
         if self.file.id == id {
             return Some(self);
         }
@@ -408,7 +411,7 @@ impl TreeNode {
         None
     }
 
-    pub fn find_mut(&mut self, id: lb::Uuid) -> Option<&mut TreeNode> {
+    pub fn find_mut(&mut self, id: Uuid) -> Option<&mut TreeNode> {
         if self.file.id == id {
             return Some(self);
         }

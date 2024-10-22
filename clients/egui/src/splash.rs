@@ -1,6 +1,9 @@
 use std::sync::{mpsc, Arc, RwLock};
 
 use eframe::egui;
+use lb::blocking::Lb;
+use lb::model::core_config::Config;
+use lb::model::errors::LbErrKind;
 
 use crate::model::AccountScreenInitData;
 use crate::settings::Settings;
@@ -8,14 +11,14 @@ use crate::util::data_dir;
 
 pub struct SplashHandOff {
     pub settings: Arc<RwLock<Settings>>,
-    pub core: lb::Core,
+    pub core: Lb,
     pub maybe_acct_data: Option<AccountScreenInitData>,
 }
 
 enum SplashUpdate {
     Status(String),
     Error(String),
-    Done((lb::Core, Option<AccountScreenInitData>)),
+    Done((Lb, Option<AccountScreenInitData>)),
 }
 
 pub struct SplashScreen {
@@ -52,12 +55,12 @@ impl SplashScreen {
                 }
             };
 
-            let cfg = lb::Config { logs: true, colored_logs: true, writeable_path };
+            let cfg = Config { logs: true, colored_logs: true, writeable_path };
 
             tx.send(SplashUpdate::Status("Loading core...".to_string()))
                 .unwrap();
 
-            let core = match lb::Core::init(&cfg) {
+            let core = match Lb::init(cfg) {
                 Ok(core) => core,
                 Err(err) => {
                     tx.send(SplashUpdate::Error(format!("{:?}", err))).unwrap();
@@ -155,11 +158,11 @@ impl SplashScreen {
     }
 }
 
-fn is_signed_in(core: &lb::Core) -> Result<bool, String> {
+fn is_signed_in(core: &Lb) -> Result<bool, String> {
     match core.get_account() {
         Ok(_acct) => Ok(true),
         Err(err) => match err.kind {
-            lb::CoreError::AccountNonexistent => Ok(false),
+            LbErrKind::AccountNonexistent => Ok(false),
             _ => Err(format!("{:?}", err)), // todo(steve): display
         },
     }
