@@ -1056,7 +1056,6 @@ fn tab_label(
 
         // draw close button icon
         if show_close_button {
-            // todo: use galley size of icon instead of icon.size for a more accurate reading.
             let icon_draw_pos = egui::pos2(
                 close_button_rect.center().x - x_icon.size / 2.,
                 close_button_rect.center().y - x_icon.size / 2.2,
