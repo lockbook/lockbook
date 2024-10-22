@@ -105,13 +105,13 @@ impl Editor {
                             Stroke { width: 3., color: self.appearance.checkbox_bg() },
                         );
                     }
-                    Annotation::CodeBlock { text_range: range, language, captured } => {
+                    Annotation::CodeBlock { text_range, language, captured, .. } => {
                         let code_block_galley_idx = if let Some((
                             current_code_block_range,
                             current_code_block_galley_idx,
                         )) = current_code_block.take()
                         {
-                            if range == current_code_block_range {
+                            if text_range == current_code_block_range {
                                 // extend existing code block
                                 current_code_block_galley_idx
                             } else {
@@ -126,7 +126,7 @@ impl Editor {
                         // language badge
                         if *captured
                             && !language.is_empty()
-                            && !code_block_language_badges.contains_key(range)
+                            && !code_block_language_badges.contains_key(text_range)
                         {
                             let code_block_galley = &self.galleys.galleys[code_block_galley_idx];
                             let top_left =
@@ -141,11 +141,12 @@ impl Editor {
                                 badge_rect,
                                 Sense { click: true, drag: false, focusable: false },
                             );
-                            code_block_language_badges.insert(*range, (badge_response, language));
+                            code_block_language_badges
+                                .insert(*text_range, (badge_response, language));
                         }
 
                         // copy button
-                        if !code_block_copy_buttons.contains_key(range) {
+                        if !code_block_copy_buttons.contains_key(text_range) {
                             let code_block_galley = &self.galleys.galleys[code_block_galley_idx];
                             let mut top_right =
                                 self.galleys.galleys[code_block_galley_idx].rect.right_top()
@@ -176,7 +177,7 @@ impl Editor {
                                 || cfg!(target_os = "ios")
                                 || cfg!(target_os = "android");
                             if show_code_block_button {
-                                code_block_copy_buttons.insert(*range, copy_button_response);
+                                code_block_copy_buttons.insert(*text_range, copy_button_response);
                             }
                         }
 
@@ -188,13 +189,13 @@ impl Editor {
                         }
                         ui.painter().rect(
                             Rect { min: top_left, max: galley.rect.max }
-                                .expand2(egui::vec2(15., 0.)),
+                                .expand2(egui::vec2(15. - 1., 0. - 1.)),
                             2.,
                             ui.style().visuals.code_bg_color,
                             Stroke::NONE,
                         );
 
-                        current_code_block = Some((range, code_block_galley_idx));
+                        current_code_block = Some((text_range, code_block_galley_idx));
                     }
                 }
             }
@@ -254,7 +255,7 @@ impl Editor {
         }
 
         // draw code block copy buttons
-        for (range, response) in code_block_copy_buttons {
+        for (text_range, response) in code_block_copy_buttons {
             if response.hovered() {
                 ui.painter().rect(
                     response.rect,
@@ -265,7 +266,7 @@ impl Editor {
                 ui.output_mut(|o: &mut PlatformOutput| o.cursor_icon = CursorIcon::PointingHand);
             }
             if response.clicked() {
-                ui.output_mut(|o| o.copied_text = self.buffer[range].to_string())
+                ui.output_mut(|o| o.copied_text = self.buffer[text_range].to_string())
             }
 
             let x_icon = Icon::CONTENT_COPY.size(16.0);

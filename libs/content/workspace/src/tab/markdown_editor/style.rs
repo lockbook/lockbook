@@ -438,8 +438,8 @@ impl Display for BlockNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Heading(..) => write!(f, "Heading"),
-            Self::Quote => write!(f, "Quote"),
-            Self::Code => write!(f, "Code"),
+            Self::Quote => write!(f, "Block Quote"),
+            Self::Code(..) => write!(f, "Code Block"),
             Self::ListItem(ListItem::Bulleted, ..) => write!(f, "Bulleted List"),
             Self::ListItem(ListItem::Numbered(..), ..) => write!(f, "Numbered List"),
             Self::ListItem(ListItem::Todo(..), ..) => write!(f, "Todo List"),

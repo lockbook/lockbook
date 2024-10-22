@@ -593,9 +593,12 @@ impl AstTextRange {
             }
             MarkdownNode::Block(BlockNode::Rule) => Some(Annotation::Rule),
             MarkdownNode::Block(BlockNode::Quote) => Some(Annotation::BlockQuote),
-            MarkdownNode::Block(BlockNode::Code(language)) => {
-                Some(Annotation::CodeBlock { text_range: node.text_range, language, captured })
-            }
+            MarkdownNode::Block(BlockNode::Code(language)) => Some(Annotation::CodeBlock {
+                range: node.range,
+                text_range: node.text_range,
+                language,
+                captured,
+            }),
             _ => None,
         }
     }

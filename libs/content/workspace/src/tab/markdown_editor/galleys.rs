@@ -169,7 +169,7 @@ pub fn calc(
                 range: bounds.paragraphs[paragraph_idx],
                 job: mem::take(&mut layout),
                 annotation: mem::take(&mut annotation),
-                head_size: mem::take(&mut head_size),
+                head_size: mem::take(&mut head_size).min(bounds.paragraphs[paragraph_idx].len()),
                 tail_size: 0.into(),
                 annotation_text_format: mem::take(&mut annotation_text_format),
             };
@@ -315,7 +315,7 @@ impl GalleyInfo {
         mut job: LayoutJobInfo, images: &ImageCache, appearance: &Appearance, touch_mode: bool,
         last_galley: bool, max_rect: Rect, ui: &mut Ui,
     ) -> Self {
-        let offset = annotation_offset(&job.annotation, appearance);
+        let mut offset = annotation_offset(&job.annotation, appearance);
         let text_width = ui.available_width().min(800.);
         let padding_width = (ui.available_width() - text_width) / 2.;
         job.job.wrap.max_width = text_width - (offset.min.x + offset.max.x);
@@ -349,6 +349,12 @@ impl GalleyInfo {
         let galley = ui.ctx().fonts(|f| f.layout_job(job.job));
 
         // allocate space for text and non-image annotations, including end-of-text padding for the last galley
+        if let Some(Annotation::CodeBlock { range, language, .. }) = &job.annotation {
+            if range.start() == job.range.start() && !language.is_empty() {
+                // the first galley in a code block with a language badge gets extra height for the badge
+                offset.min.y += 10.
+            }
+        }
         let mut desired_size =
             Vec2::new(ui.available_width(), galley.size().y + (offset.min.y + offset.max.y));
         let padding_height = if last_galley {
@@ -366,19 +372,18 @@ impl GalleyInfo {
         } else {
             0.
         };
-        if let Some(Annotation::CodeBlock { text_range, language, .. }) = &job.annotation {
-            if text_range == &job.range && !language.is_empty() {
-                // the first galley in a code block with a language badge gets extra height for the badge
-                desired_size.y += 100.
-            }
-        }
+
+        // println!("allocating desired size {:?}", desired_size);
+
         let response = ui.allocate_response(
             desired_size,
             Sense { click: true, drag: !touch_mode, focusable: false },
         );
 
-        let text_location =
-            Pos2::new(padding_width + response.rect.min.x + offset.min.x, response.rect.min.y);
+        let text_location = Pos2::new(
+            padding_width + response.rect.min.x + offset.min.x,
+            response.rect.min.y + offset.min.y,
+        );
 
         let mut text_rect = response.rect;
         text_rect.min.x += offset.min.x + padding_width;
