@@ -137,7 +137,12 @@ impl Editor {
                                 Sense { click: true, drag: false, focusable: false },
                             );
 
-                            let show_code_block_button = galley.response.hovered()
+                            let galley_text_hovered = galley
+                                .response
+                                .hover_pos()
+                                .map(|pos| galley.rect.contains(pos))
+                                .unwrap_or_default();
+                            let show_code_block_button = galley_text_hovered
                                 || copy_button_response.hovered()
                                 || cfg!(target_os = "ios")
                                 || cfg!(target_os = "android");
