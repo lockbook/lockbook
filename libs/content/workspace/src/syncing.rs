@@ -1,16 +1,15 @@
 use crate::{
     output::DirtynessMsg,
+    tab::TabContent,
     workspace::{Workspace, WsMsg},
 };
 use lb_rs::{CoreError, LbError, SyncProgress, SyncStatus};
-use std::thread;
+use std::{thread, time::Instant};
 
 impl Workspace {
     // todo should anyone outside workspace ever call this? Or should they call something more
     // general that would allow workspace to determine if a sync is needed
     pub fn perform_sync(&mut self) {
-        // todo: save all dirty tabs
-
         if self.status.syncing {
             return;
         }
@@ -52,6 +51,7 @@ impl Workspace {
     pub fn sync_done(&mut self, outcome: Result<SyncStatus, LbError>) {
         self.out.status_updated = true;
         self.status.syncing = false;
+        self.last_sync = Instant::now();
         match outcome {
             Ok(done) => {
                 self.status.error = None;
@@ -94,8 +94,12 @@ impl Workspace {
         });
 
         for id in server_ids {
-            if self.tabs.iter().any(|t| t.id == id) {
-                self.open_file(id, false, false);
+            for i in 0..self.tabs.len() {
+                if self.tabs[i].id == id
+                    && !matches!(self.tabs[i].content, Some(TabContent::Svg(_)))
+                {
+                    self.open_file(id, false, false);
+                }
             }
         }
     }

@@ -115,11 +115,6 @@ impl AccountScreen {
             return Default::default();
         }
 
-        self.workspace
-            .background_tx
-            .send(BwIncomingMsg::EguiUpdate)
-            .unwrap();
-
         let is_expanded = !self.settings.read().unwrap().zen_mode;
         self.show_any_modals(ctx, 0.0);
 
