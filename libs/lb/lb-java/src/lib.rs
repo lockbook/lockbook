@@ -9,17 +9,16 @@ use jni::{
     JNIEnv,
 };
 use lb_rs::{
-    blocking::{ChronoHumanDuration, Duration, Lb},
+    blocking::Lb,
     model::{
         account::Account,
         clock,
         core_config::Config,
         file::{File, ShareMode},
-        file_metadata::FileType,
+        file_metadata::FileType, work_unit::WorkUnit,
     },
     service::{
-        sync::SyncProgress,
-        usage::{UsageItemMetric, UsageMetrics},
+        import_export::ExportFileInfo, sync::{SyncProgress, SyncStatus}, usage::{UsageItemMetric, UsageMetrics}
     },
     Uuid, DEFAULT_API_LOCATION,
 };
@@ -346,20 +345,22 @@ pub extern "system" fn Java_net_lockbook_Lb_createLink<'local>(
     .into_raw()
 }
 
-#[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_convertToHumanDuration(
-    mut env: JNIEnv, _: JClass, time_stamp: jlong,
-) -> jstring {
-    let msg = if time_stamp != 0 {
-        Duration::milliseconds(clock::get_time().0 - time_stamp)
-            .format_human()
-            .to_string()
-    } else {
-        "never".to_string()
-    };
+// #[no_mangle]
+// pub extern "system" fn Java_net_lockbook_Lb_convertToHumanDuration<'local>(
+//     mut env: JNIEnv<'local>, class: JClass<'local>, time_stamp: jlong,
+// ) -> jstring {
+//     let lb = rlb(&mut env, &class);
 
-    jni_string(&mut env, msg).into_raw()
-}
+//     let msg = if time_stamp != 0 {
+//         Duration::milliseconds(clock::get_time().0 - time_stamp)
+//             .format_human()
+//             .to_string()
+//     } else {
+//         "never".to_string()
+//     };
+
+//     jni_string(&mut env, msg).into_raw()
+// }
 
 fn jusage_item_metric<'local>(env: &mut JNIEnv<'local>, usage: UsageItemMetric) -> JObject<'local> {
     let item_metric_class = env
@@ -511,58 +512,141 @@ pub extern "system" fn Java_net_lockbook_Lb_moveFile<'local>(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
-    mut env: JNIEnv<'static>, class: JClass, jsync_progress: JObject<'static>,
+pub unsafe extern "system" fn Java_app_lockbook_core_CoreKt_syncAll<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jsync_progress: JObject<'local>,
 ) {
-    // let lb: &mut Lb = rlb(&mut env, &class);
+    let lb: &mut Lb = rlb(&mut env, &class);
 
-    // let env_c = env.unsafe_clone();
-    // let closure = move |sync_progress: SyncProgress| {
-    //     let msg = jni_string(&mut env_c, sync_progress.msg);
-    //     let args = [
-    //         JValue::Int(sync_progress.total as i32),
-    //         JValue::Int(sync_progress.progress as i32),
-    //         JValue::Object(&msg),
-    //     ]
-    //     .to_vec();
+    let jvm = env.get_java_vm().unwrap();
+    let jsync_progress = env.new_global_ref(jsync_progress).unwrap();
 
-    //     env_c
-    //         .call_method(
-    //             jsync_progress,
-    //             "updateSyncProgressAndTotal",
-    //             "(IILjava/lang/String;)V",
-    //             args.as_slice(),
-    //         )
-    //         .unwrap();
-    // };
+    let closure = move |sync_progress: SyncProgress| {
+        let mut env = jvm.attach_current_thread().unwrap();
+        
+        let msg = jni_string(&mut env, sync_progress.msg);
+        let args = [
+            JValue::Int(sync_progress.total as i32),
+            JValue::Int(sync_progress.progress as i32),
+            JValue::Object(&msg),
+        ]
+        .to_vec();
 
-    // if let Err(err) = lb.sync(Some(Box::new(closure))) {
-    //     throw_err(&mut env, err);
-    // }
+        env
+            .call_method(
+                jsync_progress.as_obj(),
+                "updateSyncProgressAndTotal",
+                "(IILjava/lang/String;)V",
+                args.as_slice(),
+            )
+            .unwrap();
+    };
+
+    if let Err(err) = lb.sync(Some(Box::new(closure))) {
+        throw_err(&mut env, err);
+    }
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_backgroundSync(env: JNIEnv, _: JClass) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_backgroundSync<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>
+) {
+    let lb: &mut Lb = rlb(&mut env, &class);
+
+    if let Err(err) = lb.sync(None) {
+        throw_err(&mut env, err);
+    }
+}
+
+pub(crate) fn jsync_status<'local>(env: &mut JNIEnv<'local>, sync_status: SyncStatus) -> JObject<'local> {
+    let sync_status_class = env.find_class("Lnet/lockbook/SyncStatus;").unwrap();
+    let sync_status_obj = env.alloc_object(sync_status_class).unwrap();
+
+    // latest server ts
+    env.set_field(
+        &sync_status_obj,
+        "latestServerTS",
+        "J",
+        JValue::Long(sync_status.latest_server_ts as jlong),
+    )
+    .unwrap();
+
+    // work units
+    let work_unit_class = env.find_class("Lnet/lockbook/SyncStatus$WorkUnit;").unwrap();
+
+    let work_units_array = env
+        .new_object_array(sync_status.work_units.len() as i32, &work_unit_class, JObject::null())
+        .unwrap();
+
+    for (i, work_unit) in sync_status.work_units.iter().enumerate() {
+        let work_unit_obj = env.alloc_object(&work_unit_class).unwrap();
+
+        let (id, is_local_change) = match work_unit {
+            WorkUnit::LocalChange(id) => (id, 1),
+            WorkUnit::ServerChange(id) => (id, 0),
+        };
+
+        // id
+        let id = jni_string(env, id.to_string());
+        env.set_field(&work_unit_obj, "id", "Ljava/lang/String;", JValue::Object(&id))
+            .unwrap();
+
+        // is local change
+        env.set_field(&work_unit_obj, "isLocalChange", "Z", JValue::Bool(is_local_change)).unwrap();
+
+        env.set_object_array_element(&work_units_array, i as i32, work_unit_obj)
+            .unwrap();
+    }
+
+    env.set_field(
+        &sync_status_obj,
+        "workUnits",
+        "[Lnet/lockbook/SyncStatus$WorkUnit;",
+        JValue::Object(&work_units_array),
+    )
+    .unwrap();
+
+    sync_status_obj
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_calculateWork(env: JNIEnv, _: JClass) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_calculateWork<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>
+) -> jobject {
+    let lb: &mut Lb = rlb(&mut env, &class);
+
+    match lb.calculate_work() {
+        Ok(sync_status) => jsync_status(&mut env, sync_status),
+        Err(err) => throw_err(&mut env, err),
+    }.into_raw()
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_exportFile(
-    env: JNIEnv, _: JClass, jid: JString, jdestination: JString, jedit: jboolean,
-) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_exportFile<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>, jdest: JString<'local>, jedit: jboolean,
+) {
+    let lb = rlb(&mut env, &class);
+
+    let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
+    let dest = rstring(&mut env, jdest).parse().unwrap();
+    let edit = jedit == 1;
+
+    if let Err(err) = lb.export_files(id, dest, edit, &None) {
+        throw_err(&mut env, err);
+    }
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_upgradeAccountGooglePlay(
-    env: JNIEnv, _: JClass, jpurchase_token: JString, jaccount_id: JString,
-) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_upgradeAccountGooglePlay<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jpurchase_token: JString<'local>, jaccount_id: JString<'local>, jedit: jboolean,
+) {
+    let lb = rlb(&mut env, &class);
+
+    let purchase_token = rstring(&mut env, jpurchase_token);
+    let account_id = rstring(&mut env, jaccount_id);
+
+    if let Err(err) = lb.upgrade_account_google_play(&purchase_token, &account_id) {
+        throw_err(&mut env, err);
+    }
 }
 
 #[no_mangle]

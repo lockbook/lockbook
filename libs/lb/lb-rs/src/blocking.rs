@@ -213,8 +213,8 @@ impl Lb {
             .block_on(self.lb.import_files(sources, dest, update_status))
     }
 
-    pub fn export_files<F: Fn(ExportFileInfo)>(
-        &self, id: Uuid, dest: PathBuf, edit: bool, export_progress: &Option<F>,
+    pub fn export_files(
+        &self, id: Uuid, dest: PathBuf, edit: bool, export_progress: &Option<Box<dyn Fn(ExportFileInfo)>>,
     ) -> LbResult<()> {
         self.rt
             .block_on(self.lb.export_file(id, dest, edit, export_progress))

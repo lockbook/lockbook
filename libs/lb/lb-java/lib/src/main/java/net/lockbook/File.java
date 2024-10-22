@@ -5,8 +5,8 @@ public class File {
     String parent;
     String name;
     FileType fileType;
-    Long lastModified;
-    Long lastModifiedBy;
+    long lastModified;
+    long lastModifiedBy;
     Share[] shares;
 
     public enum FileType {
