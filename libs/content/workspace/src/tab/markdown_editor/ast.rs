@@ -9,6 +9,7 @@ use lb_rs::text::offset_types::{
     DocCharOffset, RangeExt, RangeIterExt, RelByteOffset, RelCharOffset,
 };
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Default, Debug, PartialEq)]
 pub struct Ast {
@@ -326,13 +327,26 @@ impl Ast {
                         && range.len() > 3
                     {
                         /*
-                        ```
+                        ```lang
                         code block
                         ```
-                        ~~~
+                        ~~~lang
                         code block
                         ~~~
                          */
+
+                        let text = &buffer[text_range];
+                        let lang = text
+                            .lines()
+                            .next()
+                            .and_then(|line| {
+                                line.strip_prefix("```")
+                                    .or_else(|| line.strip_prefix("~~~"))
+                            })
+                            .map(|line| line.trim())
+                            .unwrap_or("");
+
+                        text_range.0 += lang.graphemes(true).count();
                         text_range.0 += 4;
                         text_range.1 -= 4;
                     } else {
@@ -342,9 +356,9 @@ impl Ast {
                     }
                     if text_range.1 < text_range.0 {
                         /*
+                        ```lang
                         ```
-                        ```
-                        ~~~
+                        ~~~lang
                         ~~~
                         single newline gets captured in head and not tail
                          */
