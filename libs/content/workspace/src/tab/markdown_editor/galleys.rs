@@ -106,16 +106,16 @@ pub fn calc(
 
             let mut is_annotation = false;
             let annotate_text_ranges =
-                matches!(text_range.annotation(ast), Some(Annotation::CodeBlock { .. }));
+                matches!(text_range.annotation(ast, false), Some(Annotation::CodeBlock { .. }));
             let capture_unnecessary = matches!(
-                text_range.annotation(ast),
+                text_range.annotation(ast, false),
                 Some(Annotation::HeadingRule | Annotation::Image(..))
             );
             if (text_range.range_type == AstTextRangeType::Head || annotate_text_ranges) // code blocks annotate multiple paragraphs
                 && (captured || capture_unnecessary || annotate_text_ranges) // heading rules, images, and code blocks drawn regardless of capture
                 && (annotation.is_none())
             {
-                annotation = text_range.annotation(ast);
+                annotation = text_range.annotation(ast, captured);
                 annotation_text_format = text_format.clone();
                 is_annotation = annotation.is_some();
             }

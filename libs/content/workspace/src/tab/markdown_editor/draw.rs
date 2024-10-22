@@ -14,7 +14,7 @@ use crate::theme::icons::Icon;
 use egui::text::LayoutJob;
 use egui::{
     Align2, Color32, CursorIcon, FontId, PlatformOutput, Pos2, Rect, Rounding, Sense, Stroke,
-    TextStyle, TextWrapMode, Ui, Vec2, WidgetText,
+    TextFormat, TextStyle, TextWrapMode, Ui, Vec2, WidgetText,
 };
 use lb_rs::text::offset_types::RangeExt;
 use pulldown_cmark::HeadingLevel;
@@ -26,6 +26,7 @@ impl Editor {
         let bullet_radius = self.appearance.bullet_radius();
         let mut current_code_block = None;
         let mut code_block_copy_buttons = HashMap::new();
+        let mut code_block_language_badges = HashMap::new();
         for galley_idx in 0..self.galleys.galleys.len() {
             let galley = &self.galleys.galleys[galley_idx];
 
@@ -104,7 +105,7 @@ impl Editor {
                             Stroke { width: 3., color: self.appearance.checkbox_bg() },
                         );
                     }
-                    Annotation::CodeBlock { text_range: range } => {
+                    Annotation::CodeBlock { text_range: range, language, captured } => {
                         let code_block_galley_idx = if let Some((
                             current_code_block_range,
                             current_code_block_galley_idx,
@@ -122,6 +123,24 @@ impl Editor {
                             galley_idx
                         };
 
+                        // language badge
+                        if *captured && !code_block_language_badges.contains_key(range) {
+                            let code_block_galley = &self.galleys.galleys[code_block_galley_idx];
+                            let top_left =
+                                self.galleys.galleys[code_block_galley_idx].rect.left_top()
+                                    - egui::vec2(15., 0.);
+                            let padding = 2.;
+                            let badge_height = code_block_galley.cursor_height() - padding * 2.;
+                            let top_left = top_left + egui::vec2(padding, padding);
+                            let badge_rect =
+                                Rect::from_min_size(top_left, egui::vec2(69., badge_height));
+                            let badge_response = ui.allocate_rect(
+                                badge_rect,
+                                Sense { click: true, drag: false, focusable: false },
+                            );
+                            code_block_language_badges.insert(*range, (badge_response, language));
+                        }
+
                         // copy button
                         if !code_block_copy_buttons.contains_key(range) {
                             let code_block_galley = &self.galleys.galleys[code_block_galley_idx];
@@ -129,9 +148,13 @@ impl Editor {
                                 self.galleys.galleys[code_block_galley_idx].rect.right_top()
                                     + egui::vec2(15., 0.);
                             let padding = 5.;
-                            let l = (code_block_galley.cursor_height() - padding) * 2.;
-                            let top_left = top_right + egui::vec2(-l - padding, padding);
-                            let button_rect = Rect::from_min_size(top_left, egui::vec2(l, l));
+                            let button_height = (code_block_galley.cursor_height() - padding) * 2.;
+                            let top_left =
+                                top_right + egui::vec2(-button_height - padding, padding);
+                            let button_rect = Rect::from_min_size(
+                                top_left,
+                                egui::vec2(button_height, button_height),
+                            );
                             let copy_button_response = ui.allocate_rect(
                                 button_rect,
                                 Sense { click: true, drag: false, focusable: false },
@@ -196,6 +219,28 @@ impl Editor {
         for galley in &self.galleys.galleys {
             ui.painter()
                 .galley(galley.text_location, galley.galley.clone(), Color32::TRANSPARENT);
+        }
+
+        // draw code block language badges
+        for (.., (badge_response, language)) in code_block_language_badges {
+            let space = 2.;
+
+            let mut job = LayoutJob::default();
+            let mut text_format = TextFormat::default();
+            RenderStyle::Syntax.apply_style(&mut text_format, &self.appearance, ui.visuals());
+            job.append(&language, space, text_format);
+            let pos = badge_response.rect.left_top();
+
+            let galley = ui.ctx().fonts(|f| f.layout_job(job));
+            let rect = Align2::LEFT_TOP
+                .anchor_rect(Rect::from_min_size(pos, galley.size() + egui::vec2(space * 2., 0.)));
+            ui.painter().galley(rect.min, galley, Color32::TRANSPARENT);
+            ui.painter().rect(
+                rect,
+                2.,
+                Color32::TRANSPARENT,
+                Stroke::new(1., self.appearance.syntax()),
+            );
         }
 
         // draw code block copy buttons
@@ -293,7 +338,7 @@ impl Editor {
                         }
                     }
                     MarkdownNode::Inline(InlineNode::Code)
-                    | MarkdownNode::Block(BlockNode::Code) => {
+                    | MarkdownNode::Block(BlockNode::Code(..)) => {
                         stroke.color = self.appearance.code();
                     }
                     MarkdownNode::Inline(InlineNode::Link(..))

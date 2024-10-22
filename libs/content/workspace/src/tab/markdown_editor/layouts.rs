@@ -22,7 +22,11 @@ pub enum Annotation {
     Item(ListItem, IndentLevel),
     Image(LinkType, Url, Title),
     BlockQuote,
-    CodeBlock { text_range: (DocCharOffset, DocCharOffset) },
+    CodeBlock {
+        text_range: (DocCharOffset, DocCharOffset), // each line of code block is its own galley
+        language: String,
+        captured: bool, // background & copy button drawn regardless of capture; language badge only drawn if captured
+    },
     HeadingRule,
     Rule,
 }
