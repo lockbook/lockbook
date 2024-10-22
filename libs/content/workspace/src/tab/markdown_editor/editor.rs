@@ -203,56 +203,51 @@ impl Editor {
                     .drag_to_scroll(touch_mode)
                     .id_source(self.file_id)
                     .show(ui, |ui| {
-                        ui.spacing_mut().item_spacing = Vec2::ZERO;
-                        let max_rect = ui.max_rect();
+                        ui.vertical_centered(|ui| {
+                            ui.spacing_mut().item_spacing = Vec2::ZERO;
+                            let max_rect = ui.max_rect();
 
-                        let resp = ui
-                            .vertical_centered(|ui| {
-                                // clip elements width
-                                let max_width = 800.0;
-                                if ui.max_rect().width() > max_width {
-                                    ui.set_max_width(max_width);
-                                } else {
-                                    ui.set_max_width(ui.max_rect().width());
-                                }
+                            let resp = ui
+                                .vertical_centered(|ui| {
+                                    // register widget id
+                                    ui.ctx().check_for_id_clash(self.id(), Rect::NOTHING, "");
 
-                                // register widget id
-                                ui.ctx().check_for_id_clash(self.id(), Rect::NOTHING, "");
+                                    Frame::canvas(ui.style())
+                                        .stroke(Stroke::NONE)
+                                        .inner_margin(Margin::same(15.))
+                                        .show(ui, |ui| self.show_inner_inner(ui, touch_mode))
+                                        .inner
+                                })
+                                .inner;
 
-                                Frame::canvas(ui.style())
-                                    .stroke(Stroke::NONE)
-                                    .inner_margin(Margin::same(15.))
-                                    .show(ui, |ui| self.show_inner_inner(ui, touch_mode))
-                                    .inner
-                            })
-                            .inner;
+                            // fill available space / end of text padding
+                            let min_rect = ui.min_rect();
+                            let padding_height = if min_rect.height() < max_rect.height() {
+                                // fill available space
+                                max_rect.height() - min_rect.height()
+                            } else {
+                                // end of text padding
+                                max_rect.height() / 2.
+                            };
+                            let padding_response = ui.allocate_response(
+                                Vec2::new(max_rect.width(), padding_height),
+                                Sense { click: true, drag: false, focusable: false },
+                            );
+                            if padding_response.clicked() {
+                                ui.ctx().push_markdown_event(Event::Select {
+                                    region: Region::Location(Location::DocCharOffset(
+                                        self.buffer.current.segs.last_cursor_position(),
+                                    )),
+                                });
+                                ui.ctx().request_repaint();
+                            }
+                            if padding_response.hovered() {
+                                ui.ctx().set_cursor_icon(CursorIcon::Text);
+                            }
 
-                        // fill available space / end of text padding
-                        let min_rect = ui.min_rect();
-                        let padding_height = if min_rect.height() < max_rect.height() {
-                            // fill available space
-                            max_rect.height() - min_rect.height()
-                        } else {
-                            // end of text padding
-                            max_rect.height() / 2.
-                        };
-                        let padding_response = ui.allocate_response(
-                            Vec2::new(max_rect.width(), padding_height),
-                            Sense { click: true, drag: false, focusable: false },
-                        );
-                        if padding_response.clicked() {
-                            ui.ctx().push_markdown_event(Event::Select {
-                                region: Region::Location(Location::DocCharOffset(
-                                    self.buffer.current.segs.last_cursor_position(),
-                                )),
-                            });
-                            ui.ctx().request_repaint();
-                        }
-                        if padding_response.hovered() {
-                            ui.ctx().set_cursor_icon(CursorIcon::Text);
-                        }
-
-                        resp
+                            resp
+                        })
+                        .inner
                     });
                 let mut resp = scroll_area_output.inner;
 

@@ -281,17 +281,20 @@ impl Galleys {
     }
 }
 
-// todo: weird thing here, x dim refers to area before the text, y dim refers to area after the
-// text
-pub fn annotation_offset(annotation: &Option<Annotation>, appearance: &Appearance) -> Vec2 {
-    let mut offset = Vec2::ZERO;
+// okay, it's not a rect in the literal sense, but it represents how much padding is around the text on the four sides
+pub fn annotation_offset(annotation: &Option<Annotation>, appearance: &Appearance) -> Rect {
+    let mut offset = Rect::ZERO;
     match annotation {
-        Some(Annotation::Item(_, indent_level)) => offset.x = *indent_level as f32 * 20.0 + 30.0,
+        Some(Annotation::Item(_, indent_level)) => offset.min.x = *indent_level as f32 * 20. + 30.,
         Some(Annotation::HeadingRule) => {
-            offset.y = appearance.rule_height();
+            offset.max.y = appearance.rule_height();
         }
         Some(Annotation::BlockQuote) => {
-            offset.x = 15.0;
+            offset.min.x = 15.;
+        }
+        Some(Annotation::CodeBlock { .. }) => {
+            offset.min.x = 15.;
+            offset.max.x = 15.;
         }
         _ => {}
     }
@@ -304,7 +307,9 @@ impl GalleyInfo {
         ui: &mut Ui,
     ) -> Self {
         let offset = annotation_offset(&job.annotation, appearance);
-        job.job.wrap.max_width = ui.available_width() - offset.x;
+        let text_width = ui.available_width().min(800.);
+        let padding_width = (ui.available_width() - text_width) / 2.;
+        job.job.wrap.max_width = text_width - (offset.min.x + offset.max.x);
 
         // allocate space for image
         let image = if let Some(Annotation::Image(_, url, _)) = &job.annotation {
@@ -335,13 +340,21 @@ impl GalleyInfo {
         let galley = ui.ctx().fonts(|f| f.layout_job(job.job));
 
         // allocate space for text and non-image annotations
-        let desired_size = Vec2::new(ui.available_width(), galley.size().y + offset.y);
+        let desired_size =
+            Vec2::new(ui.available_width(), galley.size().y + (offset.min.y + offset.max.y));
         let response = ui.allocate_response(
             desired_size,
             Sense { click: true, drag: !touch_mode, focusable: false },
         );
 
-        let text_location = Pos2::new(offset.x + response.rect.min.x, response.rect.min.y);
+        let text_location =
+            Pos2::new(padding_width + response.rect.min.x + offset.min.x, response.rect.min.y);
+
+        let mut text_rect = response.rect;
+        text_rect.min.x += offset.min.x + padding_width;
+        text_rect.min.y += offset.min.y;
+        text_rect.max.x -= offset.max.x + padding_width;
+        text_rect.max.y -= offset.max.y;
 
         Self {
             range: job.range,
@@ -350,7 +363,7 @@ impl GalleyInfo {
             head_size: job.head_size,
             tail_size: job.tail_size,
             text_location,
-            rect: response.rect,
+            rect: text_rect,
             response,
             image,
             annotation_text_format: job.annotation_text_format,
