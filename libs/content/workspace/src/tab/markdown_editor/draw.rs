@@ -82,9 +82,8 @@ impl Editor {
                         }
                     },
                     Annotation::HeadingRule => {
-                        let y = galley.rect.max.y - 7.0;
-                        let min = Pos2 { x: galley.rect.min.x, y };
-                        let max = Pos2 { x: galley.rect.max.x, y };
+                        let min = Pos2 { x: galley.rect.min.x, y: galley.rect.max.y };
+                        let max = Pos2 { x: galley.rect.max.x, y: galley.rect.max.y };
 
                         ui.painter()
                             .line_segment([min, max], Stroke::new(0.3, self.appearance.rule()));
@@ -100,7 +99,7 @@ impl Editor {
                     Annotation::Image(_, _, _) => {} // todo: draw image here
                     Annotation::BlockQuote => {
                         ui.painter().vline(
-                            galley.rect.min.x,
+                            galley.rect.min.x - 15.,
                             galley.rect.y_range(),
                             Stroke { width: 3., color: self.appearance.checkbox_bg() },
                         );
@@ -138,7 +137,12 @@ impl Editor {
                                 Sense { click: true, drag: false, focusable: false },
                             );
 
-                            let show_code_block_button = galley.response.hovered()
+                            let galley_text_hovered = galley
+                                .response
+                                .hover_pos()
+                                .map(|pos| galley.rect.contains(pos))
+                                .unwrap_or_default();
+                            let show_code_block_button = galley_text_hovered
                                 || copy_button_response.hovered()
                                 || cfg!(target_os = "ios")
                                 || cfg!(target_os = "android");

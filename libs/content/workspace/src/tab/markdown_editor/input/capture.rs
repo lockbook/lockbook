@@ -52,11 +52,20 @@ impl CaptureState {
         }
         self.now = now;
 
-        if let Some(pos) = pointer_pos {
-            let pointer = mutation::pos_to_char_offset(pos, galleys, segs, &bounds.text);
+        let Some(pos) = pointer_pos else { return };
 
+        let mut hovering_text = false;
+        for galley in &galleys.galleys {
+            if galley.rect.contains(pos) {
+                hovering_text = true;
+                break;
+            }
+        }
+
+        let mut revealed_ranges = HashSet::new();
+        let pointer = mutation::pos_to_char_offset(pos, galleys, segs, &bounds.text);
+        if hovering_text {
             // revealed ranges are those whose ast nodes are hovered
-            let mut revealed_ranges = HashSet::new();
             for ast_range_idx in bounds.ast.find_containing(pointer, true, true).iter() {
                 let ast_text_range = &bounds.ast[ast_range_idx];
                 for &ancestor_ast_node_idx in ast_text_range.ancestors.iter() {
@@ -75,26 +84,26 @@ impl CaptureState {
                 }
             }
             revealed_ranges.retain(|&range| bounds.ast[range].range_type != AstTextRangeType::Text);
+        }
 
-            // remove ranges that are no longer hovered
-            let pre_count = self.hovered_at_by_ast_text_range.len();
+        // remove ranges that are no longer hovered
+        let pre_count = self.hovered_at_by_ast_text_range.len();
+        self.hovered_at_by_ast_text_range
+            .retain(|ast_range_idx, _| revealed_ranges.contains(ast_range_idx));
+        if pre_count != self.hovered_at_by_ast_text_range.len() {
+            self.unprocessed_changes |= true;
+        }
+
+        // add ranges that are newly hovered
+        for ast_range_idx in revealed_ranges {
+            let ast_text_range = &bounds.ast[ast_range_idx];
+            if ast_text_range.range_type == AstTextRangeType::Text {
+                continue; // only head and tail ranges are ever captured
+            }
+
             self.hovered_at_by_ast_text_range
-                .retain(|ast_range_idx, _| revealed_ranges.contains(ast_range_idx));
-            if pre_count != self.hovered_at_by_ast_text_range.len() {
-                self.unprocessed_changes |= true;
-            }
-
-            // add ranges that are newly hovered
-            for ast_range_idx in revealed_ranges {
-                let ast_text_range = &bounds.ast[ast_range_idx];
-                if ast_text_range.range_type == AstTextRangeType::Text {
-                    continue; // only head and tail ranges are ever captured
-                }
-
-                self.hovered_at_by_ast_text_range
-                    .entry(ast_range_idx)
-                    .or_insert(now);
-            }
+                .entry(ast_range_idx)
+                .or_insert(now);
         }
     }
 
