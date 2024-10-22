@@ -124,16 +124,19 @@ impl Editor {
                         };
 
                         // language badge
-                        if *captured && !code_block_language_badges.contains_key(range) {
+                        if *captured
+                            && !language.is_empty()
+                            && !code_block_language_badges.contains_key(range)
+                        {
                             let code_block_galley = &self.galleys.galleys[code_block_galley_idx];
                             let top_left =
                                 self.galleys.galleys[code_block_galley_idx].rect.left_top()
-                                    - egui::vec2(15., 0.);
-                            let padding = 2.;
-                            let badge_height = code_block_galley.cursor_height() - padding * 2.;
+                                    - egui::vec2(15., 15. - 10. / 2.);
+                            let padding = 5.;
+                            let badge_height = code_block_galley.cursor_height() * 2.;
                             let top_left = top_left + egui::vec2(padding, padding);
                             let badge_rect =
-                                Rect::from_min_size(top_left, egui::vec2(69., badge_height));
+                                Rect::from_min_size(top_left, egui::vec2(0., badge_height));
                             let badge_response = ui.allocate_rect(
                                 badge_rect,
                                 Sense { click: true, drag: false, focusable: false },
@@ -144,9 +147,12 @@ impl Editor {
                         // copy button
                         if !code_block_copy_buttons.contains_key(range) {
                             let code_block_galley = &self.galleys.galleys[code_block_galley_idx];
-                            let top_right =
+                            let mut top_right =
                                 self.galleys.galleys[code_block_galley_idx].rect.right_top()
                                     + egui::vec2(15., 0.);
+                            if !language.is_empty() {
+                                top_right.y -= 10.;
+                            }
                             let padding = 5.;
                             let button_height = (code_block_galley.cursor_height() - padding) * 2.;
                             let top_left =
@@ -175,7 +181,11 @@ impl Editor {
                         }
 
                         // when extending, this covers the smaller already-drawn portion of the code block
-                        let top_left = self.galleys.galleys[code_block_galley_idx].rect.left_top();
+                        let mut top_left =
+                            self.galleys.galleys[code_block_galley_idx].rect.left_top();
+                        if !language.is_empty() {
+                            top_left.y -= 10.;
+                        }
                         ui.painter().rect(
                             Rect { min: top_left, max: galley.rect.max }
                                 .expand2(egui::vec2(15., 0.)),
@@ -223,18 +233,18 @@ impl Editor {
 
         // draw code block language badges
         for (.., (badge_response, language)) in code_block_language_badges {
-            let space = 2.;
-
             let mut job = LayoutJob::default();
             let mut text_format = TextFormat::default();
             RenderStyle::Syntax.apply_style(&mut text_format, &self.appearance, ui.visuals());
-            job.append(&language, space, text_format);
+            job.append(&language, 0., text_format);
             let pos = badge_response.rect.left_top();
 
             let galley = ui.ctx().fonts(|f| f.layout_job(job));
+            let space = 5.;
             let rect = Align2::LEFT_TOP
                 .anchor_rect(Rect::from_min_size(pos, galley.size() + egui::vec2(space * 2., 0.)));
-            ui.painter().galley(rect.min, galley, Color32::TRANSPARENT);
+            ui.painter()
+                .galley(rect.min + egui::vec2(space, 0.), galley, Color32::TRANSPARENT);
             ui.painter().rect(
                 rect,
                 2.,

@@ -366,6 +366,12 @@ impl GalleyInfo {
         } else {
             0.
         };
+        if let Some(Annotation::CodeBlock { text_range, language, .. }) = &job.annotation {
+            if text_range == &job.range && !language.is_empty() {
+                // the first galley in a code block with a language badge gets extra height for the badge
+                desired_size.y += 100.
+            }
+        }
         let response = ui.allocate_response(
             desired_size,
             Sense { click: true, drag: !touch_mode, focusable: false },
