@@ -67,11 +67,8 @@ pub struct Editor {
     pub find: Find,
     pub event: EventState,
 
-    // referenced by toolbar for keyboard toggle (todo: cleanup)
     pub virtual_keyboard_shown: bool,
-
-    // referenced by toolbar for layout (todo: cleanup)
-    pub rect: Rect,
+    pub started_scrolling: Option<Instant>,
 }
 
 impl Editor {
@@ -102,8 +99,7 @@ impl Editor {
             event: Default::default(),
 
             virtual_keyboard_shown: false,
-
-            rect: Rect::ZERO,
+            started_scrolling: None,
         }
     }
 
@@ -260,10 +256,18 @@ impl Editor {
                     });
                 let mut resp = scroll_area_output.inner;
 
-                self.rect = scroll_area_output.inner_rect;
                 resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
 
                 if resp.scroll_updated {
+                    if self.started_scrolling.is_none() {
+                        self.started_scrolling = Some(Instant::now());
+                    }
+                } else {
+                    self.started_scrolling = None;
+                }
+                if self.started_scrolling.unwrap_or(Instant::now()).elapsed()
+                    > Duration::from_millis(300)
+                {
                     ui.ctx().set_virtual_keyboard_shown(false);
                 }
 
