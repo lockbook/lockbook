@@ -191,7 +191,7 @@ fn button(
     icon: &'static Icon, style: MarkdownNode, styles_at_cursor: &[MarkdownNode], ui: &mut Ui,
 ) -> Option<Event> {
     let applied = styles_at_cursor.iter().any(|s| s == &style);
-    let resp = IconButton::new(&icon)
+    let resp = IconButton::new(icon)
         .colored(applied)
         .tooltip(format!("{}", style))
         .show(ui);
