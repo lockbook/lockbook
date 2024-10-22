@@ -1,6 +1,7 @@
 use crate::tab::markdown_editor::appearance::Appearance;
 use egui::{FontFamily, Stroke, TextFormat, Visuals};
 use pulldown_cmark::{HeadingLevel, LinkType};
+use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -405,6 +406,44 @@ impl MarkdownNode {
             "\t".repeat(*indent as usize) + type_head
         } else {
             type_head.to_string()
+        }
+    }
+}
+
+impl Display for MarkdownNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Document => write!(f, "Document"),
+            Self::Paragraph => write!(f, "Paragraph"),
+            Self::Inline(inline_node) => write!(f, "{}", inline_node),
+            Self::Block(block_node) => write!(f, "{}", block_node),
+        }
+    }
+}
+
+impl Display for InlineNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Code => write!(f, "Code"),
+            Self::Bold => write!(f, "Bold"),
+            Self::Italic => write!(f, "Italic"),
+            Self::Strikethrough => write!(f, "Strikethrough"),
+            Self::Link(..) => write!(f, "Link"),
+            Self::Image(..) => write!(f, "Image"),
+        }
+    }
+}
+
+impl Display for BlockNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Heading(..) => write!(f, "Heading"),
+            Self::Quote => write!(f, "Quote"),
+            Self::Code => write!(f, "Code"),
+            Self::ListItem(ListItem::Bulleted, ..) => write!(f, "Bulleted List"),
+            Self::ListItem(ListItem::Numbered(..), ..) => write!(f, "Numbered List"),
+            Self::ListItem(ListItem::Todo(..), ..) => write!(f, "Todo List"),
+            Self::Rule => write!(f, "Rule"),
         }
     }
 }
