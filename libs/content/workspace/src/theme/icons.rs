@@ -16,8 +16,8 @@ const fn ic(c: &'static str) -> Icon {
 impl Icon {
     pub const ACCOUNT: Self = ic("\u{e7ff}"); // Person Outline
     pub const ARROW_CIRCLE_DOWN: Self = ic("\u{f181}"); // Arrow Circle Down
-    pub const ARROW_DOWN: Self = ic("\u{e5c5}"); // Arrow Circle Down
-    pub const ARROW_UP: Self = ic("\u{e5c7}"); // Arrow Circle Down
+    pub const ARROW_DOWN: Self = ic("\u{e5c5}"); // Arrow Down
+    pub const ARROW_UP: Self = ic("\u{e5c7}"); // Arrow Up
     pub const BRING_BACK: Self = ic("\u{e5cb}");
     pub const BRING_TO_BACK: Self = ic("\u{e5dc}");
     pub const BRING_TO_FRONT: Self = ic("\u{e5dd}");
@@ -28,6 +28,8 @@ impl Icon {
     pub const CANCEL: Self = ic("\u{e5c9}"); // Cancel
     pub const CANCEL_PRESENTATION: Self = ic("\u{e0e9}"); // Cancel Presentation
     pub const CIRCLE: Self = ic("\u{ef4a}"); // Circle
+    pub const CHEVRON_LEFT: Self = ic("\u{e5cb}"); // Chevron Left
+    pub const CHEVRON_RIGHT: Self = ic("\u{e5cc}"); // Chevron Right
     pub const CLOSE: Self = ic("\u{e5cd}"); // Close
     pub const CODE: Self = ic("\u{e86f}"); // Code
     pub const CONTENT_COPY: Self = ic("\u{e14d}"); // Content Copy

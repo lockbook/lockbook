@@ -1,8 +1,10 @@
-use egui::{Button, EventFilter, Frame, Id, Key, Label, Margin, Stroke, TextEdit, Ui, Widget as _};
+use egui::{EventFilter, Frame, Id, Key, Label, Margin, Stroke, TextEdit, Ui, Widget as _};
 use lb_rs::text::{
     buffer::Buffer,
     offset_types::{DocByteOffset, DocCharOffset, RangeExt as _},
 };
+
+use crate::{theme::icons::Icon, widgets::IconButton};
 
 use super::super::Editor;
 
@@ -64,57 +66,68 @@ impl Find {
     }
 
     pub fn show_inner(&mut self, text: &str, ui: &mut Ui) -> Response {
-        let mut result = Response::default();
         ui.horizontal(|ui| {
-            let resp = if let Some(term) = &mut self.term {
-                let before_term = term.clone();
-                let resp = TextEdit::singleline(term)
-                    .return_key(None)
-                    .id(self.id)
-                    .desired_width(300.)
-                    .hint_text("Search")
-                    .ui(ui);
-                if term != &before_term {
-                    if term.is_empty() {
-                        self.match_count = 0;
-                    } else {
-                        self.match_count = text
-                            .to_lowercase()
-                            .matches(term.to_lowercase().as_str())
-                            .count();
-                    }
-                }
-                ui.add_space(5.);
-
-                if Button::new("↑").small().ui(ui).clicked()
-                    || ui.input(|i| i.key_pressed(Key::Enter) && i.modifiers.shift)
-                {
-                    result.term = Some(term.clone());
-                    result.backwards = true;
-                }
-                ui.add_space(5.);
-                if Button::new("↓").small().ui(ui).clicked()
-                    || ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift)
-                {
-                    result.term = Some(term.clone());
-                }
-                ui.add_space(5.);
-
-                Label::new(format!("Matches: {:?}", self.match_count))
-                    .selectable(false)
-                    .ui(ui);
-                ui.add_space(ui.available_width());
-
-                resp
-            } else {
-                unreachable!()
+            let mut result = Response::default();
+            let Some(term) = &mut self.term else {
+                return result;
             };
+
+            ui.spacing_mut().button_padding = egui::vec2(5., 5.);
+            ui.set_min_height(30.);
+
+            let before_term = term.clone();
+            let resp = TextEdit::singleline(term)
+                .return_key(None)
+                .id(self.id)
+                .desired_width(300.)
+                .hint_text("Search")
+                .ui(ui);
+            if term != &before_term {
+                if term.is_empty() {
+                    self.match_count = 0;
+                } else {
+                    self.match_count = text
+                        .to_lowercase()
+                        .matches(term.to_lowercase().as_str())
+                        .count();
+                }
+            }
+            ui.add_space(5.);
+
+            if IconButton::new(&Icon::CHEVRON_LEFT)
+                .tooltip("Previous")
+                .show(ui)
+                .clicked()
+                || ui.input(|i| i.key_pressed(Key::Enter) && i.modifiers.shift)
+            {
+                result.term = Some(term.clone());
+                result.backwards = true;
+            }
+            ui.add_space(5.);
+            if IconButton::new(&Icon::CHEVRON_RIGHT)
+                .tooltip("Next")
+                .show(ui)
+                .clicked()
+                || ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift)
+            {
+                result.term = Some(term.clone());
+            }
+            ui.add_space(5.);
+
+            Label::new(format!("{:?} matches", self.match_count))
+                .selectable(false)
+                .ui(ui);
+
+            ui.add_space(ui.available_width());
+
             if ui.input(|i| i.key_pressed(Key::Escape)) && resp.has_focus() {
                 self.term = None;
                 ui.ctx().request_repaint();
             }
-        });
-        result
+
+            result
+        })
+        .inner
     }
 }
 

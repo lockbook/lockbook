@@ -142,15 +142,15 @@ impl Editor {
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
         ui.vertical(|ui| {
-            // show find toolbar
-            let find_resp = self.find.show(&self.buffer, ui);
-            if let Some(term) = find_resp.term {
-                ui.ctx()
-                    .push_markdown_event(Event::Find { term, backwards: find_resp.backwards });
-            }
-
             if touch_mode {
-                // touch devices: show toolbar at the bottom
+                // touch devices: show find...
+                let find_resp = self.find.show(&self.buffer, ui);
+                if let Some(term) = find_resp.term {
+                    ui.ctx()
+                        .push_markdown_event(Event::Find { term, backwards: find_resp.backwards });
+                }
+
+                // ...then show editor content...
                 let resp = ui
                     .allocate_ui(
                         egui::vec2(
@@ -160,6 +160,8 @@ impl Editor {
                         |ui| self.show_inner(touch_mode, ui),
                     )
                     .inner;
+
+                // ...then show toolbar at the bottom
                 self.toolbar.show(
                     &self.ast,
                     &self.bounds,
@@ -169,7 +171,7 @@ impl Editor {
                 );
                 resp
             } else {
-                // non-touch devices: show toolbar at the top
+                // non-touch devices: show toolbar...
                 self.toolbar.show(
                     &self.ast,
                     &self.bounds,
@@ -177,6 +179,15 @@ impl Editor {
                     self.virtual_keyboard_shown,
                     ui,
                 );
+
+                // ...then show find...
+                let find_resp = self.find.show(&self.buffer, ui);
+                if let Some(term) = find_resp.term {
+                    ui.ctx()
+                        .push_markdown_event(Event::Find { term, backwards: find_resp.backwards });
+                }
+
+                // ...then show editor content
                 self.show_inner(touch_mode, ui)
             }
         })
