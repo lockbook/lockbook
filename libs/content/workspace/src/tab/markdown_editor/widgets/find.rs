@@ -94,14 +94,20 @@ impl Find {
             }
             ui.add_space(5.);
 
-            if IconButton::new(&Icon::CHEVRON_LEFT).show(ui).clicked()
+            if IconButton::new(&Icon::CHEVRON_LEFT)
+                .tooltip("Previous")
+                .show(ui)
+                .clicked()
                 || ui.input(|i| i.key_pressed(Key::Enter) && i.modifiers.shift)
             {
                 result.term = Some(term.clone());
                 result.backwards = true;
             }
             ui.add_space(5.);
-            if IconButton::new(&Icon::CHEVRON_RIGHT).show(ui).clicked()
+            if IconButton::new(&Icon::CHEVRON_RIGHT)
+                .tooltip("Next")
+                .show(ui)
+                .clicked()
                 || ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift)
             {
                 result.term = Some(term.clone());
