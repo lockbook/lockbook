@@ -280,14 +280,16 @@ impl Editor {
 
         // remember state for change detection
         let prior_suggested_title = self.get_suggested_title();
+        let prior_selection = self.buffer.current.selection;
 
         // process events
-        let (text_updated, selection_updated) = if self.initialized {
+        let text_updated = if self.initialized {
             self.process_events(ui.ctx())
         } else {
             self.initialized = true;
-            (true, true)
+            true
         };
+        let selection_updated = prior_selection != self.buffer.current.selection;
 
         // recalculate dependent state
         if text_updated {
