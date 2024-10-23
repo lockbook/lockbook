@@ -73,10 +73,12 @@ impl FileTree {
         while let Ok(update) = self.state.update_rx.try_recv() {
             match update {
                 TreeUpdate::ExportFile((exported_file, dest)) => {
-                    match self
-                        .core
-                        .export_files(exported_file.id, dest.clone(), true, &Some(|info| println!("{:?}", info)))
-                    {
+                    match self.core.export_files(
+                        exported_file.id,
+                        dest.clone(),
+                        true,
+                        &Some(Box::new(|info| println!("{:?}", info))),
+                    ) {
                         Ok(_) => {
                             r.inner.export_file = Some(Ok((exported_file, dest)));
                         }

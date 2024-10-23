@@ -21,7 +21,7 @@ impl AcceptShareModal {
     pub fn new(core: &Lb) -> Self {
         Self {
             requests: core.get_pending_shares().unwrap_or_default(),
-            username: core.get_account().unwrap().username,
+            username: core.get_account().unwrap().username.clone(),
         }
     }
 }

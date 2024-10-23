@@ -151,7 +151,7 @@ impl AccountScreen {
 
                     ui.vertical(|ui| {
                         ui.add_space(15.0);
-                        if let Some(&file) = self.full_search_doc.show(ui, &self.core) {
+                        if let Some(file) = self.full_search_doc.show(ui, &self.core) {
                             self.workspace.open_file(file, false, true);
                         }
                         ui.add_space(15.0);
@@ -316,7 +316,7 @@ impl AccountScreen {
             if let Some(search) = &mut self.modals.search {
                 search.focus_select_all();
             } else {
-                self.modals.search = Some(SearchModal::new(&self.core, ctx));
+                self.modals.search = Some(SearchModal::new(self.core.clone()));
             }
         }
 

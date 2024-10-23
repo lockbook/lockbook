@@ -50,6 +50,28 @@ pub enum SearchResult {
     PathMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
 }
 
+impl SearchResult {
+    pub fn id(&self) -> Uuid {
+        match self {
+            SearchResult::DocumentMatch { id, .. } | SearchResult::PathMatch { id, .. } => *id,
+        }
+    }
+
+    pub fn path(&self) -> &str {
+        match self {
+            SearchResult::DocumentMatch { path, .. } | SearchResult::PathMatch { path, .. } => path,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        match self {
+            SearchResult::DocumentMatch { path, .. } | SearchResult::PathMatch { path, .. } => {
+                path.split('/').last().unwrap_or_default()
+            }
+        }
+    }
+}
+
 impl Lb {
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
         if input.is_empty()

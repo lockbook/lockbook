@@ -1,73 +1,26 @@
-use std::sync::{mpsc, Arc, RwLock};
-use std::thread;
-
 use egui::TextWrapMode;
 use lb::blocking::Lb;
+use lb::service::search::SearchResult;
 use lb::Uuid;
 
 use crate::model::DocType;
 
-struct SearchResultItem {
-    id: Uuid,
-    path: String,
-    name: String,
-}
 pub struct SearchModal {
-    requests: mpsc::Sender<String>,
-    responses: mpsc::Receiver<Result<Vec<SearchResultItem>, String>>,
+    core: Lb,
     input: String,
     field_needs_focus: bool,
-    is_searching: Arc<RwLock<bool>>,
-    results: Vec<SearchResultItem>,
+    results: Vec<SearchResult>,
     errors: Vec<String>,
     arrow_index: Option<usize>,
     arrowed_path: String,
 }
 
 impl SearchModal {
-    pub fn new(core: &Lb, etx: &egui::Context) -> Self {
-        let (request_tx, request_rx) = mpsc::channel::<String>();
-        let (response_tx, response_rx) = mpsc::channel();
-
-        let is_searching = Arc::new(RwLock::new(false));
-
-        thread::spawn({
-            let is_searching = is_searching.clone();
-            let core = core.clone();
-            let etx = etx.clone();
-
-            move || {
-                while let Ok(input) = request_rx.recv() {
-                    *is_searching.write().unwrap() = true;
-                    etx.request_repaint();
-
-                    let res = core
-                        .search_file_paths(&input)
-                        .map_err(|err| format!("{:?}", err))
-                        .map(|search_results| {
-                            search_results
-                                .iter()
-                                .map(|sr| SearchResultItem {
-                                    id: sr.id,
-                                    path: sr.path.clone(),
-                                    name: core.get_file_by_id(sr.id).unwrap().name,
-                                })
-                                .collect()
-                        });
-                    response_tx.send(res).unwrap();
-
-                    *is_searching.write().unwrap() = false;
-                    etx.request_repaint();
-                }
-            }
-        });
-
+    pub fn new(core: Lb) -> Self {
         Self {
-            requests: request_tx,
-            responses: response_rx,
+            core,
             input: String::new(),
             field_needs_focus: true,
-            is_searching,
             results: Vec::new(),
             errors: Vec::new(),
             arrow_index: None,
@@ -109,18 +62,18 @@ impl SearchModal {
             self.arrowed_path = self
                 .results
                 .get(i)
-                .map(|res| res.path.clone())
+                .map(|res| res.path().to_string())
                 .unwrap_or_default();
         }
     }
 
     fn show_search_result(
-        &self, ui: &mut egui::Ui, res: &SearchResultItem, index: usize,
+        &self, ui: &mut egui::Ui, res: &SearchResult, index: usize,
     ) -> egui::Response {
         let padding = egui::vec2(10.0, 20.0);
         let wrap_width = ui.available_width();
 
-        let icon: egui::WidgetText = (&DocType::from_name(res.path.as_str())
+        let icon: egui::WidgetText = (&DocType::from_name(res.path())
             .to_icon()
             .size(30.0)
             .color(ui.visuals().text_color().gamma_multiply(0.5)))
@@ -128,7 +81,7 @@ impl SearchModal {
         let icon =
             icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
 
-        let name_text: egui::WidgetText = (&res.name).into();
+        let name_text: egui::WidgetText = res.name().into();
         let name_text = name_text.into_galley(
             ui,
             Some(TextWrapMode::Extend),
@@ -136,7 +89,7 @@ impl SearchModal {
             egui::TextStyle::Body,
         );
 
-        let path_text: egui::WidgetText = (&res.path).into();
+        let path_text: egui::WidgetText = res.path().into();
         let path_text = path_text
             .color(ui.visuals().text_color().gamma_multiply(0.7))
             .into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
@@ -216,16 +169,6 @@ impl super::Modal for SearchModal {
     }
 
     fn show(&mut self, ui: &mut egui::Ui) -> Option<SearchItemSelection> {
-        while let Ok(res) = self.responses.try_recv() {
-            match res {
-                Ok(results) => {
-                    self.arrow_index = None;
-                    self.results = results;
-                }
-                Err(msg) => self.errors.push(msg),
-            }
-        }
-
         if ui.input(|i| {
             i.events
                 .iter()
@@ -257,7 +200,7 @@ impl super::Modal for SearchModal {
             && !self.results.is_empty()
         {
             let item = &self.results[self.arrow_index.unwrap_or(0)];
-            resp = Some(SearchItemSelection { id: item.id, close: true });
+            resp = Some(SearchItemSelection { id: item.id(), close: true });
         } else {
             self.field_needs_focus = true;
         }
@@ -269,7 +212,15 @@ impl super::Modal for SearchModal {
         }
 
         if self.arrow_index.is_none() && out.response.changed() {
-            self.requests.send(self.input.clone()).unwrap();
+            match self
+                .core
+                .search_file_paths(&self.input)
+                .map_err(|err| format!("{:?}", err))
+            {
+                Ok(results) => self.results = results,
+                Err(err) => self.errors.push(err),
+            }
+
             self.arrow_index = None;
         }
 
@@ -291,21 +242,12 @@ impl super::Modal for SearchModal {
                                 let m = ui.input(|i| i.modifiers);
                                 m.command && !m.alt && !m.shift
                             };
-                            resp = Some(SearchItemSelection { id: res.id, close: !keep_open });
+                            resp = Some(SearchItemSelection { id: res.id(), close: !keep_open });
                             self.field_needs_focus = true;
                             ui.ctx().request_repaint();
                         }
                     }
                 });
-        }
-
-        if *self.is_searching.read().unwrap() {
-            ui.allocate_ui_at_rect(out.response.rect, |ui| {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(10.0);
-                    ui.spinner();
-                })
-            });
         }
 
         resp
