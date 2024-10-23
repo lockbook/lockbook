@@ -2,7 +2,7 @@ public class SyncStatus {
     WorkUnit workUnits;
     long latestServerTS;
 
-    public class WorkUnit {
+    public static class WorkUnit {
         boolean isLocalChange;
         String id;
     }

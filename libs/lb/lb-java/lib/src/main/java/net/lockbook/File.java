@@ -9,18 +9,18 @@ public class File {
     long lastModifiedBy;
     Share[] shares;
 
-    public enum FileType {
+    public static enum FileType {
         Document,
         Folder
     }
 
-    public class Share {
+    public static class Share {
         ShareMode mode;
         String sharedBy;
         String sharedWith;
     }
 
-    public enum ShareMode {
+    public static enum ShareMode {
         Write,
         Read
     }

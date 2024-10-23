@@ -2,7 +2,7 @@ public class Usage {
     UsageItemMetric serverUsage;
     UsageItemMetric dataCap;
     
-    public class UsageItemMetric {
+    public static class UsageItemMetric {
         Long exact;
         String readable;
     }

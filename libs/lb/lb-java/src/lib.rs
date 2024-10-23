@@ -1,24 +1,20 @@
 mod java_utils;
 
-use std::str::FromStr;
+use std::{fs, process, str::FromStr};
 
 use java_utils::{jbyte_array, jni_string, rbyte_array, rlb, rstring, throw_err};
 use jni::{
     objects::{JByteArray, JClass, JObject, JObjectArray, JString, JValue},
-    sys::{jboolean, jbyteArray, jlong, jobject, jobjectArray, jstring},
+    sys::{jarray, jboolean, jbyteArray, jlong, jobject, jobjectArray, jstring},
     JNIEnv,
 };
 use lb_rs::{
     blocking::Lb,
     model::{
-        account::Account,
-        clock,
-        core_config::Config,
-        file::{File, ShareMode},
-        file_metadata::FileType, work_unit::WorkUnit,
+        account::Account, api::{AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo}, clock, core_config::Config, file::{File, ShareMode}, file_metadata::FileType, work_unit::WorkUnit
     },
     service::{
-        import_export::ExportFileInfo, sync::{SyncProgress, SyncStatus}, usage::{UsageItemMetric, UsageMetrics}
+        activity::RankingWeights, import_export::ExportFileInfo, search::{SearchConfig, SearchResult}, sync::{SyncProgress, SyncStatus}, usage::{UsageItemMetric, UsageMetrics}
     },
     Uuid, DEFAULT_API_LOCATION,
 };
@@ -252,13 +248,13 @@ pub extern "system" fn Java_net_lockbook_Lb_getRoot<'local>(
     .into_raw()
 }
 
-fn jfiles<'local>(env: &mut JNIEnv<'local>, rust_files: Vec<File>) -> JObjectArray<'local> {
+fn jfiles<'local>(env: &mut JNIEnv<'local>, files: Vec<File>) -> JObjectArray<'local> {
     let file_class = env.find_class("Lnet/lockbook/File;").unwrap();
     let obj = env
-        .new_object_array(rust_files.len() as i32, file_class, JObject::null())
+        .new_object_array(files.len() as i32, file_class, JObject::null())
         .unwrap();
 
-    for (i, rust_file) in rust_files.iter().enumerate() {
+    for (i, rust_file) in files.iter().enumerate() {
         let file = jfile(env, rust_file.clone());
         env.set_object_array_element(&obj, i as i32, file).unwrap();
     }
@@ -557,7 +553,7 @@ pub extern "system" fn Java_net_lockbook_Lb_backgroundSync<'local>(
     }
 }
 
-pub(crate) fn jsync_status<'local>(env: &mut JNIEnv<'local>, sync_status: SyncStatus) -> JObject<'local> {
+fn jsync_status<'local>(env: &mut JNIEnv<'local>, sync_status: SyncStatus) -> JObject<'local> {
     let sync_status_class = env.find_class("Lnet/lockbook/SyncStatus;").unwrap();
     let sync_status_obj = env.alloc_object(sync_status_class).unwrap();
 
@@ -650,62 +646,344 @@ pub extern "system" fn Java_net_lockbook_Lb_upgradeAccountGooglePlay<'local>(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_cancelSubscription(env: JNIEnv, _: JClass) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_cancelSubscription<'local>(mut env: JNIEnv<'local>, class: JClass<'local>) {
+    let lb = rlb(&mut env, &class);
+
+    if let Err(err) = lb.cancel_subscription() {
+        throw_err(&mut env, err);
+    }
+}
+
+fn jsubscription_info<'local>(env: &mut JNIEnv<'local>, sub_info: Option<SubscriptionInfo>) -> JObject<'local> {
+    let sub_info = match sub_info {
+        Some(sub_info) => sub_info,
+        None => return JObject::null(),
+    };
+
+    let subscription_info_class = env.find_class("Lnet/lockbook/SubscriptionInfo;").unwrap();
+    let obj = env.alloc_object(subscription_info_class).unwrap();
+
+    env.set_field(
+        &obj,
+        "periodEnd",
+        "J",
+        JValue::Long(sub_info.period_end as jlong),
+    )
+    .unwrap();
+
+    match sub_info.payment_platform {
+        PaymentPlatform::Stripe { card_last_4_digits } => {
+            let stripe_class = env.find_class("Lnet/lockbook/SubscriptionInfo$Stripe;").unwrap();
+            let stripe_obj = env.alloc_object(stripe_class).unwrap();
+
+            let card_last_4_digits = jni_string(env, card_last_4_digits);
+            env.set_field(
+                &stripe_obj,
+                "cardLast4Digits",
+                "Ljava/lang/String;",
+                JValue::Object(&card_last_4_digits),
+            )
+            .unwrap();
+
+            env.set_field(
+                &obj,
+                "paymentPlatform",
+                "Lnet/lockbook/SubscriptionInfo$PaymentPlatform;",
+                JValue::Object(&stripe_obj),
+            )
+            .unwrap();
+        }
+        PaymentPlatform::GooglePlay { account_state } => {
+            let google_play_class = env.find_class("Lnet/lockbook/SubscriptionInfo$GooglePlay;").unwrap();
+            let google_play_obj = env.alloc_object(google_play_class).unwrap();
+
+            let google_play_enum_class = env.find_class("Lnet/lockbook/SubscriptionInfo$GooglePlay$GooglePlayAccountState;").unwrap();
+            let account_state_str = match account_state {
+                GooglePlayAccountState::Ok => "Ok",
+                GooglePlayAccountState::Canceled => "Canceled",
+                GooglePlayAccountState::GracePeriod => "GracePeriod",
+                GooglePlayAccountState::OnHold => "OnHold",
+            };
+            let account_state_enum = env
+                .get_static_field(
+                    google_play_enum_class,
+                    account_state_str,
+                    "Lnet/lockbook/SubscriptionInfo$GooglePlay$GooglePlayAccountState;",
+                )
+                .unwrap()
+                .l()
+                .unwrap();
+
+            env.set_field(
+                &google_play_obj,
+                "accountState",
+                "Lnet/lockbook/SubscriptionInfo$GooglePlay$GooglePlayAccountState;",
+                JValue::Object(&account_state_enum),
+            )
+            .unwrap();
+
+            env.set_field(
+                &obj,
+                "paymentPlatform",
+                "Lnet/lockbook/SubscriptionInfo$PaymentPlatform;",
+                JValue::Object(&google_play_obj),
+            )
+            .unwrap();
+        }
+        PaymentPlatform::AppStore { account_state } => {
+            let app_store_class = env.find_class("Lnet/lockbook/SubscriptionInfo$AppStore;").unwrap();
+            let app_store_obj = env.alloc_object(app_store_class).unwrap();
+
+            let app_store_enum_class = env.find_class("Lnet/lockbook/SubscriptionInfo$AppStore$AppStoreAccountState;").unwrap();
+            let account_state_str = match account_state {
+                AppStoreAccountState::Ok => "Ok",
+                AppStoreAccountState::GracePeriod => "GracePeriod",
+                AppStoreAccountState::FailedToRenew => "FailedToRenew",
+                AppStoreAccountState::Expired => "Expired",
+            };
+            let account_state_enum = env
+                .get_static_field(
+                    app_store_enum_class,
+                    account_state_str,
+                    "Lnet/lockbook/SubscriptionInfo$AppStore$AppStoreAccountState;",
+                )
+                .unwrap()
+                .l()
+                .unwrap();
+
+            env.set_field(
+                &app_store_obj,
+                "accountState",
+                "Lnet/lockbook/SubscriptionInfo$AppStore$AppStoreAccountState;",
+                JValue::Object(&account_state_enum),
+            )
+            .unwrap();
+
+            env.set_field(
+                &obj,
+                "paymentPlatform",
+                "Lnet/lockbook/SubscriptionInfo$PaymentPlatform;",
+                JValue::Object(&app_store_obj),
+            )
+            .unwrap();
+        }
+    }
+
+    obj
+}
+
+
+#[no_mangle]
+pub extern "system" fn Java_net_lockbook_Lb_getSubscriptionInfo<'local>(mut env: JNIEnv<'local>, class: JClass<'local>) -> jobject {
+    let lb = rlb(&mut env, &class);
+
+    match lb.get_subscription_info() {
+        Ok(sub_info) => jsubscription_info(&mut env, sub_info),
+        Err(err) => throw_err(&mut env, err)
+    }.into_raw()
+}
+
+fn jids<'local>(env: &mut JNIEnv<'local>, ids: Vec<Uuid>) -> JObjectArray<'local> {
+    let string_class = env.find_class("java/lang/String").unwrap();
+
+    let arr = env.new_object_array(ids.len() as i32, string_class, JObject::null()).unwrap();
+
+    for (i, id) in ids.iter().enumerate() {
+        let id = env.new_string(id.to_string()).unwrap();
+        env.set_object_array_element(&arr, i as i32, JObject::from(id)).unwrap();
+    }
+
+    arr
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_getSubscriptionInfo(env: JNIEnv, _: JClass) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_getLocalChanges<'local>(mut env: JNIEnv<'local>, class: JClass<'local>) -> jarray {
+    let lb = rlb(&mut env, &class);
+
+    match lb.get_local_changes() {
+        Ok(local_changes) => jids(&mut env, local_changes).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw()
+    }
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_getLocalChanges(env: JNIEnv, _: JClass) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_listMetadatas<'local>(mut env: JNIEnv<'local>, class: JClass<'local>) -> jobjectArray {
+    let lb = rlb(&mut env, &class);
+
+    match lb.list_metadatas() {
+        Ok(files) => jfiles(&mut env, files).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw()
+    }
 }
 
-#[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_listMetadatas(env: JNIEnv, _: JClass) -> jstring {
-    todo!()
+fn jsearch_results<'local>(env: &mut JNIEnv<'local>, search_results: Vec<SearchResult>) -> JObjectArray<'local> {
+    let search_result_class = env.find_class("net/lockbook/SearchResult").unwrap();
+    let document_match_class = env.find_class("net/lockbook/SearchResult$DocumentMatch").unwrap();
+    let path_match_class = env.find_class("net/lockbook/SearchResult$PathMatch").unwrap();
+    let content_match_class = env.find_class("net/lockbook/SearchResult$DocumentMatch$ContentMatch").unwrap();
+
+    let arr = env
+        .new_object_array(search_results.len() as i32, search_result_class, JObject::null())
+        .unwrap();
+
+    for (i, search_result) in search_results.iter().enumerate() {
+        let obj = match search_result {
+            SearchResult::DocumentMatch {
+                id,
+                path,
+                content_matches,
+            } => {
+                let jdoc_match = env.alloc_object(document_match_class).unwrap();
+
+                // id
+                let jid = env.new_string(id.to_string()).unwrap();
+                env.set_field(&jdoc_match, "id", "Ljava/lang/String;", JValue::Object(&jid))
+                    .unwrap();
+
+                // path
+                let jpath = env.new_string(path.clone()).unwrap();
+                env.set_field(&jdoc_match, "path", "Ljava/lang/String;", JValue::Object(&jpath))
+                    .unwrap();
+
+                // content matches
+                let jcontent_matches = env
+                    .new_object_array(content_matches.len() as i32, content_match_class, JObject::null())
+                    .unwrap();
+
+                for (j, content_match) in content_matches.iter().enumerate() {
+                    let jcontent_match = env.alloc_object(content_match_class).unwrap();
+
+                    // paragraph
+                    let jparagraph = env.new_string(content_match.paragraph.clone()).unwrap();
+                    env.set_field(&jcontent_match, "paragraph", "Ljava/lang/String;", JValue::Object(&jparagraph))
+                        .unwrap();
+
+                    // matched indices
+                    let jmatched_indices = env.new_int_array(content_match.matched_indices.len() as i32).unwrap();
+                    let matched_indices: Vec<i32> = content_match.matched_indices.iter().map(|&x| x as i32).collect();
+                    env.set_int_array_region(jmatched_indices, 0, &matched_indices).unwrap();
+                    env.set_field(&jcontent_match, "matchedIndicies", "[I", JValue::Object(&jmatched_indices))
+                        .unwrap();
+
+                    // score
+                    env.set_field(&jcontent_match, "score", "I", JValue::Int(content_match.score as i32))
+                        .unwrap();
+
+                    env.set_object_array_element(&jcontent_matches, j as i32, JObject::from(jcontent_match))
+                        .unwrap();
+                }
+
+                env.set_field(&jdoc_match, "contentMatches", "[Lnet/lockbook/SearchResult$DocumentMatch$ContentMatch;", JValue::Object(&jcontent_matches))
+                    .unwrap();
+
+                jdoc_match
+            }
+            SearchResult::PathMatch { id, path, .. } => {
+                let jpath_match = env.alloc_object(path_match_class).unwrap();
+
+                // id
+                let jid = env.new_string(id.to_string()).unwrap();
+                env.set_field(&jpath_match, "id", "Ljava/lang/String;", JValue::Object(&jid))
+                    .unwrap();
+
+                // path
+                let jpath = env.new_string(path.clone()).unwrap();
+                env.set_field(&jpath_match, "path", "Ljava/lang/String;", JValue::Object(&jpath))
+                    .unwrap();
+
+                jpath_match
+            }
+        };
+
+        env.set_object_array_element(&arr, i as i32, JObject::from(obj))
+            .unwrap();
+    }
+
+    arr
 }
 
+
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_search(
-    env: JNIEnv, _: JClass, jquery: JString,
+pub extern "system" fn Java_net_lockbook_Lb_search<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jinput: JString<'local>,
 ) -> jstring {
-    todo!()
+    let lb = rlb(&mut env, &class);
+    let query = rstring(&mut env, jinput);
+
+    match lb.search(&query, SearchConfig::PathsAndDocuments) {
+        Ok(search_results) => jsearch_results(&mut env, search_results).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw()
+    }
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_shareFile(
-    env: JNIEnv, _: JClass, jid: JString, jusername: JString, jmode: JString,
-) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_shareFile<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>, jusername: JString<'local>, jis_write_mode: jboolean,
+) {
+    let lb = rlb(&mut env, &class);
+
+    let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
+    let username = rstring(&mut env, jusername);
+    let mode = if jis_write_mode == 1 {
+        ShareMode::Write
+    } else {
+        ShareMode::Read
+    };
+
+    if let Err(err) = lb.share_file(id, &username, mode) {
+        throw_err(&mut env, err);
+    }
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_getPendingShares(env: JNIEnv, _: JClass) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_getPendingShares<'local>(mut env: JNIEnv<'local>, class: JClass<'local>) -> jobjectArray {
+    let lb = rlb(&mut env, &class);
+
+    match lb.get_pending_shares() {
+        Ok(files) => jfiles(&mut env, files).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw()
+    }
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_deletePendingShare(
-    env: JNIEnv, _: JClass, jid: JString,
-) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_deletePendingShare<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>
+) {
+    let lb = rlb(&mut env, &class);
+
+    let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
+
+    if let Err(err) = lb.delete_pending_share(&id) {
+        throw_err(&mut env, err);
+    }
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_suggestedDocs(env: JNIEnv, _: JClass) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_suggestedDocs<'local>(mut env: JNIEnv<'local>, class: JClass<'local>) -> jarray {
+    let lb = rlb(&mut env, &class);
+
+    match lb.suggested_docs(RankingWeights::default()) {
+        Ok(suggested_docs) => jids(&mut env, suggested_docs).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw()
+    }
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_logout(_env: JNIEnv, _: JClass) {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_logoutAndExit<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>
+) {
+    let lb = rlb(&mut env, &class);
+    fs::remove_dir_all(&lb.get_config().writeable_path).unwrap();
+    process::exit(0);
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_deleteAccount(env: JNIEnv, _: JClass) -> jstring {
-    todo!()
+pub extern "system" fn Java_net_lockbook_Lb_deleteAccount<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>
+) {
+    let lb = rlb(&mut env, &class);
+
+    if let Err(err) = lb.delete_account() {
+        throw_err(&mut env, err);
+    }
 }
