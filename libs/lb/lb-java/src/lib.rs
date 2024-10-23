@@ -833,7 +833,7 @@ fn jsearch_results<'local>(env: &mut JNIEnv<'local>, search_results: Vec<SearchR
                 path,
                 content_matches,
             } => {
-                let jdoc_match = env.alloc_object(document_match_class).unwrap();
+                let jdoc_match = env.alloc_object(&document_match_class).unwrap();
 
                 // id
                 let jid = env.new_string(id.to_string()).unwrap();
@@ -847,11 +847,11 @@ fn jsearch_results<'local>(env: &mut JNIEnv<'local>, search_results: Vec<SearchR
 
                 // content matches
                 let jcontent_matches = env
-                    .new_object_array(content_matches.len() as i32, content_match_class, JObject::null())
+                    .new_object_array(content_matches.len() as i32, &content_match_class, JObject::null())
                     .unwrap();
 
                 for (j, content_match) in content_matches.iter().enumerate() {
-                    let jcontent_match = env.alloc_object(content_match_class).unwrap();
+                    let jcontent_match = env.alloc_object(&content_match_class).unwrap();
 
                     // paragraph
                     let jparagraph = env.new_string(content_match.paragraph.clone()).unwrap();
@@ -861,7 +861,7 @@ fn jsearch_results<'local>(env: &mut JNIEnv<'local>, search_results: Vec<SearchR
                     // matched indices
                     let jmatched_indices = env.new_int_array(content_match.matched_indices.len() as i32).unwrap();
                     let matched_indices: Vec<i32> = content_match.matched_indices.iter().map(|&x| x as i32).collect();
-                    env.set_int_array_region(jmatched_indices, 0, &matched_indices).unwrap();
+                    env.set_int_array_region(&jmatched_indices, 0, &matched_indices).unwrap();
                     env.set_field(&jcontent_match, "matchedIndicies", "[I", JValue::Object(&jmatched_indices))
                         .unwrap();
 
@@ -879,7 +879,7 @@ fn jsearch_results<'local>(env: &mut JNIEnv<'local>, search_results: Vec<SearchR
                 jdoc_match
             }
             SearchResult::PathMatch { id, path, .. } => {
-                let jpath_match = env.alloc_object(path_match_class).unwrap();
+                let jpath_match = env.alloc_object(&path_match_class).unwrap();
 
                 // id
                 let jid = env.new_string(id.to_string()).unwrap();
