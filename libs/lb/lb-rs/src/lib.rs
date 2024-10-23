@@ -266,7 +266,7 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
             .expected_errs(&[CoreError::FileNonexistent, CoreError::FileNotFolder])
     }
 
-    #[instrument(level = "debug", skip(self), err(Debug))]
+    #[instrument(level = "trace", skip(self), err(Debug))]
     pub fn get_file_by_id(&self, id: Uuid) -> Result<File, LbError> {
         self.in_tx(|s| s.get_file_by_id(&id))
             .expected_errs(&[CoreError::FileNonexistent])
