@@ -83,7 +83,7 @@ impl AccountScreen {
             is_new_user,
             tree: FileTree::new(files, &core_clone),
             suggested: SuggestedDocs::new(&core_clone),
-            full_search_doc: FullDocSearch::new(),
+            full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(ws_cfg, &core_clone, &ctx.clone()),
@@ -156,7 +156,13 @@ impl AccountScreen {
                         }
                         ui.add_space(15.0);
 
-                        if self.full_search_doc.results.is_empty() {
+                        let full_doc_search_results_empty = self
+                            .full_search_doc
+                            .results
+                            .lock()
+                            .map(|r| r.is_empty())
+                            .unwrap_or(true);
+                        if full_doc_search_results_empty {
                             if let Some(file) = self.suggested.show(ui) {
                                 self.workspace.open_file(file, false, true);
                             }

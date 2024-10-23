@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 const CONTENT_SCORE_THRESHOLD: i64 = 170;
 const PATH_SCORE_THRESHOLD: i64 = 10;
+const CONTENT_MAX_LEN: usize = 128 * 1024; // 128kb
 
 const MAX_CONTENT_MATCH_LENGTH: usize = 400;
 const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
@@ -218,7 +219,6 @@ impl Lb {
                         });
                     }
                 }
-
                 None
             });
         }
@@ -271,9 +271,15 @@ impl Lb {
         for id in all_valid_ids {
             let content = if let Some(hmac) = doc_ids.get(&id) {
                 let doc = self.docs.get(id, *hmac).await?;
-                let doc = tree.decrypt_document(&id, &doc, account)?;
 
-                Some(String::from_utf8_lossy(doc.as_slice()).into_owned())
+                if doc.value.len() > CONTENT_MAX_LEN {
+                    println!("skipped indexing file that's too large: ");
+                    None
+                } else {
+                    let doc = tree.decrypt_document(&id, &doc, account)?;
+
+                    Some(String::from_utf8_lossy(doc.as_slice()).into_owned())
+                }
             } else {
                 None
             };

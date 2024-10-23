@@ -1,3 +1,8 @@
+use std::ops::{Deref, DerefMut as _};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::{mem, thread};
+
 use eframe::egui;
 use lb::blocking::Lb;
 use lb::model::file::File;
@@ -8,21 +13,22 @@ use workspace_rs::widgets::Button;
 
 use crate::model::DocType;
 
+#[derive(Default)]
 pub struct FullDocSearch {
-    pub query: String,
-    pub results: Vec<SearchResult>,
+    pub is_searching: Arc<AtomicBool>,
+    pub query: Arc<Mutex<String>>,
+    pub results: Arc<Mutex<Vec<SearchResult>>>,
 }
 
 impl FullDocSearch {
     const X_MARGIN: f32 = 15.0;
 
-    pub fn new() -> Self {
-        Self { query: String::new(), results: Vec::new() }
-    }
-
     pub fn show(&mut self, ui: &mut egui::Ui, core: &Lb) -> Option<Uuid> {
         ui.vertical_centered(|ui| {
-            let output = egui::TextEdit::singleline(&mut self.query)
+            // draw the UI, get the query, possibly clear the query & search results
+            let Ok(mut query) = self.query.lock() else { return None };
+
+            let output = egui::TextEdit::singleline(query.deref_mut())
                 .desired_width(ui.available_size_before_wrap().x - 5.0)
                 .hint_text("Search")
                 .margin(egui::vec2(Self::X_MARGIN, 9.0))
@@ -38,23 +44,59 @@ impl FullDocSearch {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.add_space(10.0);
 
-                        if self.query.is_empty() {
+                        if query.is_empty() {
                             Icon::SEARCH.color(egui::Color32::GRAY).show(ui);
                         } else {
                             ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
                             if Button::default().icon(&Icon::CLOSE).show(ui).clicked() {
-                                self.query = "".to_string();
-                                self.results = vec![];
+                                if let Ok(mut results) = self.results.lock() {
+                                    // note: at this point both locks held simultaneously with order query -> results
+                                    query.clear();
+                                    results.clear();
+                                }
                             }
                         }
                     });
                 });
             };
 
+            mem::drop(query);
+
+            // show spinner while searching
+            if self.is_searching.load(Ordering::Relaxed) {
+                ui.add_space(20.0);
+                ui.spinner();
+            }
+
+            // launch search if query changed
             if output.response.changed() {
-                self.results = core
-                    .search(&self.query, SearchConfig::PathsAndDocuments)
-                    .unwrap_or_default();
+                let core = core.clone();
+                let is_searching = self.is_searching.clone();
+                let query = self.query.clone();
+                let results = self.results.clone();
+                thread::spawn(move || {
+                    // get the query
+                    let this_query = query.lock().unwrap().clone();
+
+                    // run the search (no locks held)
+                    println!("searching...");
+                    is_searching.store(true, Ordering::Relaxed);
+                    let start = std::time::Instant::now();
+                    let these_results = core
+                        .search(&this_query, SearchConfig::PathsAndDocuments)
+                        .unwrap_or_default();
+
+                    // update the results only if they are for the current query
+                    // note: locks acquired in same order as above to prevent deadlock
+                    let query = query.lock().unwrap();
+                    let mut results = results.lock().unwrap();
+
+                    if query.deref() == &this_query {
+                        println!("search completed in {:?}", start.elapsed());
+                        is_searching.store(false, Ordering::Relaxed);
+                        *results = these_results;
+                    }
+                });
             }
 
             egui::ScrollArea::vertical()
@@ -67,7 +109,9 @@ impl FullDocSearch {
     pub fn show_results(&mut self, ui: &mut egui::Ui, core: &Lb) -> Option<Uuid> {
         ui.add_space(20.0);
 
-        for sr in self.results.iter() {
+        let Ok(results) = self.results.lock() else { return None };
+
+        for sr in results.iter() {
             let sr_res = ui.vertical(|ui| {
                 match sr {
                     SearchResult::DocumentMatch { id, path, content_matches } => {
