@@ -12,3 +12,7 @@
 "target_vendor = apple" = "__APPLE__"
 "target_os = ios" = "__APPLE__"
 "target_os = android" = "__ANDROID__"
+
+[parse]
+parse_deps = true
+include = ["lb-rs", "lb-c", "uuid"]
