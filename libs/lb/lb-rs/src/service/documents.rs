@@ -130,6 +130,7 @@ impl Lb {
     }
 
     pub(crate) async fn cleanup(&self) -> LbResult<()> {
+        // there is a risk that dont_delete is set to true after we check it
         if self.docs.dont_delete.load(Ordering::SeqCst) {
             debug!("skipping doc cleanup due to active sync");
             return Ok(());
@@ -145,8 +146,10 @@ impl Lb {
 
         let file_hmacs = base_files
             .chain(local_files)
-            .filter_map(|f| f.document_hmac().map(|hmac| (f.id(), hmac)))
+            .filter_map(|f| f.document_hmac().map(|hmac| (*f.id(), *hmac)))
             .collect::<HashSet<_>>();
+
+        drop(tx);
 
         self.docs.retain(file_hmacs).await?;
 

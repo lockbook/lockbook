@@ -94,7 +94,7 @@ impl AsyncDocs {
         Ok(())
     }
 
-    pub(crate) async fn retain(&self, file_hmacs: HashSet<(&Uuid, &[u8; 32])>) -> SharedResult<()> {
+    pub(crate) async fn retain(&self, file_hmacs: HashSet<(Uuid, [u8; 32])>) -> SharedResult<()> {
         let dir_path = namespace_path(&self.location);
         fs::create_dir_all(&dir_path).await?;
         let mut entries = fs::read_dir(&dir_path).await?;
@@ -122,7 +122,7 @@ impl AsyncDocs {
                 .try_into()
                 .map_err(|_| SharedErrorKind::Unexpected("document disk file name malformed"))?;
 
-            if !file_hmacs.contains(&(&id, &hmac)) {
+            if !file_hmacs.contains(&(id, hmac)) {
                 self.delete(id, Some(hmac)).await?;
             }
         }

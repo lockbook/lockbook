@@ -21,7 +21,7 @@ pub use basic_human_duration::ChronoHumanDuration;
 use serde::Serialize;
 use std::collections::{hash_map, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use time::Duration;
 use uuid::Uuid;
@@ -84,6 +84,7 @@ impl Lb {
             self.prune().await?;
             self.fetch_meta(&mut ctx).await?;
             self.populate_pk_cache(&mut ctx).await?;
+            self.docs.dont_delete.store(true, Ordering::SeqCst);
             self.fetch_docs(&mut ctx).await?;
             self.merge(&mut ctx).await?;
             self.push_meta(&mut ctx).await?;
@@ -91,6 +92,8 @@ impl Lb {
             Ok(())
         }
         .await;
+
+        self.docs.dont_delete.store(false, Ordering::SeqCst);
 
         if pipeline.is_ok() {
             pipeline = self.commit_last_synced(&mut ctx).await;
