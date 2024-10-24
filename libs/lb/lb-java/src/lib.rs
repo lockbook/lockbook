@@ -480,7 +480,7 @@ pub extern "system" fn Java_net_lockbook_Lb_writeDocument<'local>(
     let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
     let content = rstring(&mut env, jcontent);
 
-    if let Err(err) = lb.write_document(id, &content.as_bytes()) {
+    if let Err(err) = lb.write_document(id, content.as_bytes()) {
         throw_err(&mut env, err);
     }
 }
@@ -493,7 +493,7 @@ pub extern "system" fn Java_net_lockbook_Lb_writeDocumentBytes<'local>(
     let lb = rlb(&mut env, &class);
 
     let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
-    let content = rbyte_array(&mut env, jcontent);
+    let content = rbyte_array(&env, jcontent);
 
     if let Err(err) = lb.write_document(id, &content) {
         throw_err(&mut env, err);
@@ -516,7 +516,7 @@ pub extern "system" fn Java_net_lockbook_Lb_moveFile<'local>(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn Java_app_lockbook_core_CoreKt_syncAll<'local>(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jsync_progress: JObject<'local>,
 ) {
     let lb: &mut Lb = rlb(&mut env, &class);
@@ -933,7 +933,7 @@ fn jsearch_results<'local>(
                     env.set_object_array_element(
                         &jcontent_matches,
                         j as i32,
-                        JObject::from(jcontent_match),
+                        jcontent_match,
                     )
                     .unwrap();
                 }
@@ -965,7 +965,7 @@ fn jsearch_results<'local>(
             }
         };
 
-        env.set_object_array_element(&arr, i as i32, JObject::from(obj))
+        env.set_object_array_element(&arr, i as i32, obj)
             .unwrap();
     }
 
@@ -1043,7 +1043,7 @@ pub extern "system" fn Java_net_lockbook_Lb_logoutAndExit<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) {
     let lb = rlb(&mut env, &class);
-    fs::remove_dir_all(&lb.get_config().writeable_path).unwrap();
+    fs::remove_dir_all(lb.get_config().writeable_path).unwrap();
     process::exit(0);
 }
 

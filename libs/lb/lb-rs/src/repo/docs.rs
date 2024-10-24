@@ -134,7 +134,7 @@ pub fn namespace_path(writeable_path: &Path) -> String {
     format!("{}/documents", writeable_path.to_str().unwrap())
 }
 
-pub fn key_path(writeable_path: &PathBuf, key: Uuid, hmac: DocumentHmac) -> String {
+pub fn key_path(writeable_path: &Path, key: Uuid, hmac: DocumentHmac) -> String {
     let hmac = base64::encode_config(hmac, base64::URL_SAFE);
     format!("{}/{}-{}", namespace_path(writeable_path), key, hmac)
 }

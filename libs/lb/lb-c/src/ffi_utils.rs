@@ -1,6 +1,7 @@
 use std::{
     ffi::{c_char, CStr, CString},
     mem,
+    path::PathBuf,
 };
 
 use lb_rs::{blocking::Lb, model::errors::LbErr};
@@ -39,10 +40,22 @@ pub(crate) fn rstring(s: *const c_char) -> String {
     }
 }
 
+pub(crate) fn r_opt_str<'a>(s: *const c_char) -> Option<&'a str> {
+    unsafe { s.as_ref().map(|s| rstr(s)) }
+}
+
 pub(crate) fn rlb<'a>(clb: *mut Lb) -> &'a Lb {
     unsafe { clb.as_ref().unwrap() }
 }
 
 pub(crate) fn lb_err(err: LbErr) -> *mut LbFfiErr {
     Box::into_raw(Box::new(err.into()))
+}
+
+pub(crate) fn r_paths(paths: *const *const c_char, len: usize) -> Vec<PathBuf> {
+    unsafe {
+        (0..len)
+            .map(|i| PathBuf::from(rstr(*paths.add(i))))
+            .collect()
+    }
 }

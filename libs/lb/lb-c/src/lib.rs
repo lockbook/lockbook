@@ -6,7 +6,7 @@ use std::{
     ptr::null_mut,
 };
 
-use ffi_utils::{carray, cstring, lb_err, rlb, rstr, rstring, rvec};
+use ffi_utils::{carray, cstring, lb_err, r_opt_str, r_paths, rlb, rstr, rstring, rvec};
 use lb_c_err::LbFfiErr;
 use lb_file::{LbFile, LbFileList, LbFileType};
 pub use lb_rs::*;
@@ -79,7 +79,7 @@ pub extern "C" fn lb_import_account(
 ) -> LbAccountRes {
     let lb = rlb(lb);
     let key = rstr(key);
-    let api_url = unsafe { api_url.as_ref().map(|url| rstr(url)) };
+    let api_url = r_opt_str(api_url);
 
     match lb.import_account(key, api_url) {
         Ok(account) => {
@@ -124,7 +124,7 @@ pub extern "C" fn lb_delete_account(lb: *mut Lb) -> *mut LbFfiErr {
 #[no_mangle]
 pub extern "C" fn lb_logout_and_exit(lb: *mut Lb) {
     let lb = rlb(lb);
-    fs::remove_dir_all(&lb.get_config().writeable_path).unwrap();
+    fs::remove_dir_all(lb.get_config().writeable_path).unwrap();
     process::exit(0);
 }
 
@@ -601,11 +601,7 @@ pub extern "C" fn import_files(
 ) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
-    let sources: Vec<PathBuf> = unsafe {
-        (0..sources_len)
-            .map(|i| PathBuf::from(rstr(*sources.add(i))))
-            .collect()
-    };
+    let sources = r_paths(sources, sources_len);
 
     match lb.import_files(&sources, dest, &|_status: ImportStatus| println!("imported one file")) {
         Ok(()) => null_mut(),

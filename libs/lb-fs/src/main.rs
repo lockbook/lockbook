@@ -10,12 +10,12 @@ fn main() {
         .subcommand(
             Command::name("import")
                 .description("sign in and sync a lockbook account")
-                .handler(|| import()),
+                .handler(import),
         )
         .subcommand(
             Command::name("mount")
                 .description("start an NFS server and mount it to /tmp/lockbook")
-                .handler(|| mount()),
+                .handler(mount),
         )
         .parse();
 }

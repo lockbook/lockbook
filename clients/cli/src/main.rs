@@ -187,7 +187,7 @@ fn run() -> CliResult<()> {
                 .subcommand(
                     Command::name("accept").description("accept a pending share by adding it to your file tree")
                         .input(Arg::<Uuid>::name("pending-share-id").description("ID of pending share")
-                                    .completor(|prompt| share::pending_share_completor(prompt)))
+                                    .completor(share::pending_share_completor))
                         .input(Arg::<FileInput>::name("target").description("lockbook file path or ID of the folder you want to place this shared file")
                             .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly))))
                         .handler(|id, dest| share::accept(&id.get(), dest.get()))
@@ -195,7 +195,7 @@ fn run() -> CliResult<()> {
                 .subcommand(
                     Command::name("delete").description("delete a pending share")
                         .input(Arg::<Uuid>::name("share-id").description("ID of pending share to delete")
-                               .completor(|prompt| share::pending_share_completor(prompt)))
+                               .completor(share::pending_share_completor))
                         .handler(|target| share::delete(target.get()))
                 )
         )
