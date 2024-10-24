@@ -127,9 +127,14 @@ impl Lb {
             SearchConfig::Documents => Self::search_content(&self.search.docs, input).await,
             SearchConfig::PathsAndDocuments => {
                 let docs = &self.search.docs;
-                let mut results = Self::search_paths(docs, input).await?;
 
-                results.extend(Self::search_content(docs, input).await?);
+                let (paths, content) = tokio::join!(
+                    Self::search_paths(docs, input),
+                    Self::search_content(docs, input)
+                );
+
+                let mut results = paths?;
+                results.extend(content?);
 
                 Ok(results)
             }
@@ -232,6 +237,7 @@ impl Lb {
     }
 
     async fn build_index(&self) -> LbResult<()> {
+        println!("building index");
         let account = self.get_account()?;
 
         let tx = self.ro_tx().await;
@@ -273,7 +279,8 @@ impl Lb {
                 let doc = self.docs.get(id, *hmac).await?;
 
                 if doc.value.len() > CONTENT_MAX_LEN {
-                    println!("skipped indexing file that's too large: ");
+                    let name = tree.name(&id, self.get_account()?)?;
+                    println!("skipped indexing file that's too large: {name}");
                     None
                 } else {
                     let doc = tree.decrypt_document(&id, &doc, account)?;
