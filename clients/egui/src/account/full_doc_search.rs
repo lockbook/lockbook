@@ -74,6 +74,7 @@ impl FullDocSearch {
                 let is_searching = self.is_searching.clone();
                 let query = self.query.clone();
                 let results = self.results.clone();
+                let ctx = ui.ctx().clone();
                 thread::spawn(move || {
                     // get the query
                     let this_query = query.lock().unwrap().clone();
@@ -95,6 +96,7 @@ impl FullDocSearch {
                         println!("search completed in {:?}", start.elapsed());
                         is_searching.store(false, Ordering::Relaxed);
                         *results = these_results;
+                        ctx.request_repaint();
                     }
                 });
             }
