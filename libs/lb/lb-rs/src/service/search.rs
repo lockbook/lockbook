@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 const CONTENT_SCORE_THRESHOLD: i64 = 170;
 const PATH_SCORE_THRESHOLD: i64 = 10;
-const CONTENT_MAX_LEN: usize = 128 * 1024; // 128kb
+const CONTENT_MAX_LEN_BYTES: usize = 128 * 1024; // 128kb
 
 const MAX_CONTENT_MATCH_LENGTH: usize = 400;
 const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
@@ -106,8 +106,6 @@ impl Lb {
     }
 
     pub async fn build_index(&self) -> LbResult<()> {
-        return Ok(());
-
         println!("build index start");
         let start = std::time::Instant::now();
 
