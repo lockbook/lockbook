@@ -412,18 +412,4 @@ where
         self.stage_validate_and_promote(Some(op), Owner(account.public_key()))?;
         Ok(document)
     }
-
-    pub fn delete_unreferenced_file_versions(
-        &self, //, docs: &impl DocumentService,
-    ) -> SharedResult<()> {
-        todo!();
-        // let base_files = self.tree.base().all_files()?.into_iter();
-        // let local_files = self.tree.all_files()?.into_iter();
-        // let file_hmacs = base_files
-        //     .chain(local_files)
-        //     .filter_map(|f| f.document_hmac().map(|hmac| (f.id(), hmac)))
-        //     .collect::<HashSet<_>>();
-        // docs.retain(file_hmacs)
-        Ok(())
-    }
 }

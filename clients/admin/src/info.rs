@@ -1,11 +1,19 @@
-use lb::{AccountIdentifier, Duration};
 use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::Res;
-use lb::{ChronoHumanDuration, Core, FileLike, LazyTree, ServerFile, TreeLike, Uuid};
+use basic_human_duration::ChronoHumanDuration;
+use lb::blocking::Lb;
+use lb::logic::file_like::FileLike;
+use lb::logic::lazy::LazyTree;
+use lb::logic::server_file::ServerFile;
+use lb::logic::tree_like::TreeLike;
+use lb::model::api::AccountIdentifier;
+use lb::Uuid;
+use time::Duration;
 
-pub fn file(core: &Core, id: Uuid) -> Res<()> {
+use crate::Res;
+
+pub fn file(core: &Lb, id: Uuid) -> Res<()> {
     let info = core.admin_file_info(id)?;
     println!("id:\t\t\t{}", info.file.id());
     println!("file_type:\t\t{:?}", info.file.file_type());

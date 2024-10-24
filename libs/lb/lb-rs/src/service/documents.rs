@@ -1,3 +1,6 @@
+use std::collections::HashSet;
+use std::sync::atomic::Ordering;
+
 use crate::logic::crypto::DecryptedDocument;
 use crate::logic::file_like::FileLike;
 use crate::logic::lazy::LazyTree;
@@ -112,6 +115,8 @@ impl Lb {
         self.docs
             .insert(id, Some(hmac), &encrypted_document)
             .await?;
+        tx.end();
+
         let bg_lb = self.clone();
         tokio::spawn(async move {
             bg_lb
@@ -125,18 +130,26 @@ impl Lb {
     }
 
     pub(crate) async fn cleanup(&self) -> LbResult<()> {
-        if false {
-            // todo need to think out this business now
+        if self.docs.dont_delete.load(Ordering::SeqCst) {
             debug!("skipping doc cleanup due to active sync");
             return Ok(());
         }
 
-        // todo
-        // self.db
-        //     .base_metadata
-        //     .stage(&mut self.db.local_metadata)
-        //     .to_lazy()
-        //     .delete_unreferenced_file_versions(&self.docs)?;
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+
+        let tree = db.base_metadata.stage(&db.local_metadata);
+
+        let base_files = tree.base.all_files()?.into_iter();
+        let local_files = tree.staged.all_files()?.into_iter();
+
+        let file_hmacs = base_files
+            .chain(local_files)
+            .filter_map(|f| f.document_hmac().map(|hmac| (f.id(), hmac)))
+            .collect::<HashSet<_>>();
+
+        self.docs.retain(file_hmacs).await?;
+
         Ok(())
     }
 

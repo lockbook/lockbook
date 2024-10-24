@@ -1,10 +1,14 @@
-use lb_rs::{logic::usage::bytes_to_human, model::api::{AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo}, service::usage::{UsageItemMetric, UsageMetrics}};
+use lb_rs::{
+    logic::usage::bytes_to_human,
+    model::api::{AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo},
+    service::usage::{UsageItemMetric, UsageMetrics},
+};
 
 use crate::widgets::ProgressBar;
 
 pub fn subscription(
-    ui: &mut egui::Ui, maybe_sub_info: &Option<SubscriptionInfo>,
-    metrics: &UsageMetrics, maybe_uncompressed: Option<&UsageItemMetric>,
+    ui: &mut egui::Ui, maybe_sub_info: &Option<SubscriptionInfo>, metrics: &UsageMetrics,
+    maybe_uncompressed: Option<&UsageItemMetric>,
 ) -> Option<SubscriptionResponse> {
     let stroke_color = ui.visuals().extreme_bg_color;
     let bg = ui.visuals().faint_bg_color;
@@ -65,8 +69,7 @@ fn draw_app_store(
 }
 
 fn usage_bar(
-    ui: &mut egui::Ui, metrics: &UsageMetrics,
-    maybe_uncompressed: Option<&UsageItemMetric>,
+    ui: &mut egui::Ui, metrics: &UsageMetrics, maybe_uncompressed: Option<&UsageItemMetric>,
 ) {
     let used = metrics.server_usage.exact as f32;
     let available = metrics.data_cap.exact as f32;

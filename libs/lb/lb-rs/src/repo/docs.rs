@@ -3,8 +3,10 @@ use crate::{
     model::{core_config::Config, file_metadata::DocumentHmac},
 };
 use std::{
+    collections::HashSet,
     io::ErrorKind,
     path::{Path, PathBuf},
+    sync::{atomic::AtomicBool, Arc},
 };
 use tokio::{
     fs::{self, File, OpenOptions},
@@ -14,6 +16,7 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct AsyncDocs {
+    pub(crate) dont_delete: Arc<AtomicBool>,
     location: PathBuf,
 }
 
@@ -90,6 +93,41 @@ impl AsyncDocs {
 
         Ok(())
     }
+
+    pub(crate) async fn retain(&self, file_hmacs: HashSet<(&Uuid, &[u8; 32])>) -> SharedResult<()> {
+        let dir_path = namespace_path(&self.location);
+        fs::create_dir_all(&dir_path).await?;
+        let mut entries = fs::read_dir(&dir_path).await?;
+
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            let file_name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or(SharedErrorKind::Unexpected("document disk file name malformed"))?;
+
+            let (id_str, hmac_str) = file_name.split_at(36); // UUIDs are 36 characters long in string form
+
+            let id = Uuid::parse_str(id_str)
+                .map_err(|_| SharedErrorKind::Unexpected("document disk file name malformed"))?;
+
+            let hmac_base64 = hmac_str
+                .strip_prefix('-')
+                .ok_or(SharedErrorKind::Unexpected("document disk file name malformed"))?;
+
+            let hmac_bytes = base64::decode_config(hmac_base64, base64::URL_SAFE)
+                .map_err(|_| SharedErrorKind::Unexpected("document disk file name malformed"))?;
+
+            let hmac: DocumentHmac = hmac_bytes
+                .try_into()
+                .map_err(|_| SharedErrorKind::Unexpected("document disk file name malformed"))?;
+
+            if !file_hmacs.contains(&(&id, &hmac)) {
+                self.delete(id, Some(hmac)).await?;
+            }
+        }
+        Ok(())
+    }
 }
 
 pub fn namespace_path(writeable_path: &Path) -> String {
@@ -103,6 +141,6 @@ pub fn key_path(writeable_path: &PathBuf, key: Uuid, hmac: DocumentHmac) -> Stri
 
 impl From<&Config> for AsyncDocs {
     fn from(cfg: &Config) -> Self {
-        Self { location: PathBuf::from(&cfg.writeable_path) }
+        Self { location: PathBuf::from(&cfg.writeable_path), dont_delete: Default::default() }
     }
 }

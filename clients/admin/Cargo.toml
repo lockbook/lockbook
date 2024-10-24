@@ -7,3 +7,7 @@ edition = "2021"
 clap = { version = "4.1.4", features = ["derive"] }
 lb = { package="lb-rs", path = "../../libs/lb/lb-rs" }
 dialoguer = { version = "0.10.1", features = ["fuzzy-select"] }
+basic-human-duration = "0.2.0"
+time = "0.3.20"
+libsecp256k1 = "0.7.1"
+base64 = "0.13.0"

@@ -1,7 +1,6 @@
 use crate::Res;
 use clap::Subcommand;
-
-use lb::{Core, ServerIndex};
+use lb::{blocking::Lb, model::api::ServerIndex};
 
 #[derive(Debug, PartialEq, Eq, Subcommand)]
 pub enum CliIndex {
@@ -10,11 +9,11 @@ pub enum CliIndex {
     FileChildren,
 }
 
-pub fn rebuild(core: &Core, index: CliIndex) -> Res<()> {
+pub fn rebuild(lb: &Lb, index: CliIndex) -> Res<()> {
     match index {
-        CliIndex::OwnedFiles => core.admin_rebuild_index(ServerIndex::OwnedFiles)?,
-        CliIndex::SharedFiles => core.admin_rebuild_index(ServerIndex::SharedFiles)?,
-        CliIndex::FileChildren => core.admin_rebuild_index(ServerIndex::FileChildren)?,
+        CliIndex::OwnedFiles => lb.admin_rebuild_index(ServerIndex::OwnedFiles)?,
+        CliIndex::SharedFiles => lb.admin_rebuild_index(ServerIndex::SharedFiles)?,
+        CliIndex::FileChildren => lb.admin_rebuild_index(ServerIndex::FileChildren)?,
     }
 
     Ok(())

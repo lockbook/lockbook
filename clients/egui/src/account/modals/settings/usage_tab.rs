@@ -87,9 +87,7 @@ impl super::SettingsModal {
                         let update_tx = u.update_tx.clone();
                         let ctx = ui.ctx().clone();
                         std::thread::spawn(move || {
-                            match core
-                                .upgrade_account_stripe(StripeAccountTier::Premium(method))
-                            {
+                            match core.upgrade_account_stripe(StripeAccountTier::Premium(method)) {
                                 Ok(()) => {
                                     let sub_info_result = core
                                         .get_subscription_info()

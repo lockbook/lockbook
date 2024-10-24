@@ -1,4 +1,10 @@
-use lb_rs::{model::{errors::{LbErr, LbErrKind}, work_unit::WorkUnit}, service::sync::{SyncProgress, SyncStatus}};
+use lb_rs::{
+    model::{
+        errors::{LbErr, LbErrKind},
+        work_unit::WorkUnit,
+    },
+    service::sync::{SyncProgress, SyncStatus},
+};
 
 use crate::{
     output::DirtynessMsg,

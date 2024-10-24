@@ -1,6 +1,9 @@
 use std::{collections::HashSet, path::PathBuf};
 
-use lb::{model::{errors::LbErr, file::File}, Uuid};
+use lb::{
+    model::{errors::LbErr, file::File},
+    Uuid,
+};
 
 #[derive(Default)]
 pub struct NodeResponse {

@@ -1,5 +1,8 @@
 use eframe::egui;
-use lb::{model::file::{File, Share, ShareMode}, Uuid};
+use lb::{
+    model::file::{File, Share, ShareMode},
+    Uuid,
+};
 use workspace_rs::widgets::switch;
 
 pub struct CreateShareParams {

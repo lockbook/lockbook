@@ -17,12 +17,16 @@ use crate::model::file_metadata::{FileDiff, FileType, Owner};
 use crate::model::work_unit::WorkUnit;
 use crate::text::buffer::Buffer;
 use crate::Lb;
-use basic_human_duration::ChronoHumanDuration;
+pub use basic_human_duration::ChronoHumanDuration;
 use serde::Serialize;
 use std::collections::{hash_map, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use time::Duration;
 use uuid::Uuid;
+
+pub type SyncFlag = Arc<AtomicBool>;
 
 pub struct SyncContext {
     progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
@@ -893,7 +897,7 @@ impl Lb {
         let mut updates = vec![];
         let mut local_changes_digests_only = vec![];
 
-        let mut tx = self.begin_tx().await;
+        let tx = self.ro_tx().await;
         let db = tx.db();
 
         let local = db.base_metadata.stage(&db.local_metadata).to_lazy();
@@ -917,7 +921,7 @@ impl Lb {
             local_changes_digests_only.push(local_change);
         }
 
-        tx.end();
+        drop(tx);
 
         // todo: parallelize
         let docs_count = updates.len();

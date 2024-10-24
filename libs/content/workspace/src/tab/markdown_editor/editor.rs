@@ -78,8 +78,8 @@ pub struct Editor {
 
 impl Editor {
     pub fn new(
-        core: Lb, content: &str, file_id: Uuid, hmac: Option<DocumentHmac>,
-        needs_name: bool, plaintext_mode: bool,
+        core: Lb, content: &str, file_id: Uuid, hmac: Option<DocumentHmac>, needs_name: bool,
+        plaintext_mode: bool,
     ) -> Self {
         Self {
             core,

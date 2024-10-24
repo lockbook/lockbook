@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 const CONTENT_SCORE_THRESHOLD: i64 = 170;
 const PATH_SCORE_THRESHOLD: i64 = 10;
-const CONTENT_MAX_LEN_BYTES: usize = 64 * 1024; // 64kb
+const CONTENT_MAX_LEN: usize = 128 * 1024; // 128kb
 
 const MAX_CONTENT_MATCH_LENGTH: usize = 400;
 const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
@@ -75,6 +75,7 @@ impl SearchResult {
 
 impl Lb {
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
+        // todo: build indexes at the right point async
         if input.is_empty()
             && self
                 .search
@@ -114,12 +115,12 @@ impl Lb {
             }
         }
 
+        // todo: block on index availability don't sleep, don't poll
         while self
             .search
             .is_building_index
             .load(std::sync::atomic::Ordering::SeqCst)
         {
-            println!("zzz");
             sleep(Duration::from_millis(100)).await;
         }
 
@@ -238,6 +239,7 @@ impl Lb {
     }
 
     async fn build_index(&self) -> LbResult<()> {
+        println!("building index");
         let account = self.get_account()?;
 
         let tx = self.ro_tx().await;
@@ -278,7 +280,9 @@ impl Lb {
             let content = if let Some(hmac) = doc_ids.get(&id) {
                 let doc = self.docs.get(id, *hmac).await?;
 
-                if doc.value.len() > CONTENT_MAX_LEN_BYTES {
+                if doc.value.len() > CONTENT_MAX_LEN {
+                    let name = tree.name(&id, self.get_account()?)?;
+                    println!("skipped indexing file that's too large: {name}");
                     None
                 } else {
                     let doc = tree.decrypt_document(&id, &doc, account)?;

@@ -29,9 +29,7 @@ impl From<(File, u8)> for TreeNode {
         let (file, depth) = data;
         let doc_type = match file.file_type {
             FileType::Folder => None,
-            FileType::Document | FileType::Link { .. } => {
-                Some(DocType::from_name(&file.name))
-            }
+            FileType::Document | FileType::Link { .. } => Some(DocType::from_name(&file.name)),
         };
 
         Self {

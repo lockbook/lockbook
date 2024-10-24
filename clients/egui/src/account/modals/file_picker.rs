@@ -46,11 +46,7 @@ impl FilePicker {
             FilePickerAction::DroppedFiles(drops) => {
                 for drop in drops {
                     if let Some(path) = &drop.path {
-                        return if path.is_dir() {
-                            FileType::Folder
-                        } else {
-                            FileType::Document
-                        };
+                        return if path.is_dir() { FileType::Folder } else { FileType::Document };
                     }
                 }
 

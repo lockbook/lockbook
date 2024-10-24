@@ -1,9 +1,9 @@
 use dark_light::Mode::Dark;
 use eframe::egui;
-use workspace_rs::theme::palette::ColorAlias;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
+use workspace_rs::theme::palette::ColorAlias;
 use workspace_rs::theme::visuals;
 
 use crate::settings::{Settings, ThemeMode};

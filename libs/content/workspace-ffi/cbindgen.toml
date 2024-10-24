@@ -16,3 +16,4 @@
 [parse]
 parse_deps = true
 include = ["lb-rs", "lb-c", "uuid"]
+extra_bindings = ["lb-c"]
