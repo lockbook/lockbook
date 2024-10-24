@@ -626,7 +626,7 @@ pub extern "system" fn Java_net_lockbook_Lb_exportFile<'local>(
     let dest = rstring(&mut env, jdest).parse().unwrap();
     let edit = jedit == 1;
 
-    if let Err(err) = lb.export_files(id, dest, edit, &None) {
+    if let Err(err) = lb.export_file(id, dest, edit, &None) {
         throw_err(&mut env, err);
     }
 }

@@ -73,7 +73,7 @@ impl FileTree {
         while let Ok(update) = self.state.update_rx.try_recv() {
             match update {
                 TreeUpdate::ExportFile((exported_file, dest)) => {
-                    match self.core.export_files(
+                    match self.core.export_file(
                         exported_file.id,
                         dest.clone(),
                         true,

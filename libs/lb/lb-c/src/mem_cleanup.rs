@@ -65,7 +65,7 @@ pub extern "C" fn lb_free_export_account_qr(acc: LbExportAccountQRRes) {
     }
 
     if !acc.qr.is_null() {
-        drop(rvec(acc.qr, acc.qr_size));
+        drop(rvec(acc.qr, acc.qr_len));
     }
 }
 
