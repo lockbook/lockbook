@@ -51,7 +51,9 @@ impl Lb {
         let client = Network::default();
         let search = SearchIndex::default();
 
-        Ok(Self { config, keychain, db, docs, client, search })
+        let result = Self { config, keychain, db, docs, client, search };
+        result.spawn_build_index();
+        Ok(result)
     }
 }
 

@@ -244,7 +244,6 @@ impl super::Modal for SearchModal {
                     .unwrap_or_default();
 
                 // update the results only if they are for the current query
-                // note: locks acquired in same order as above to prevent deadlock
                 let query = query.lock().unwrap();
                 let mut results = results.lock().unwrap();
 

@@ -105,6 +105,8 @@ impl Lb {
         cleanup?;
         ctx.done_msg();
 
+        self.spawn_build_index();
+
         Ok(ctx.summarize())
     }
 

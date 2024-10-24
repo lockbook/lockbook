@@ -31,6 +31,8 @@ impl Lb {
 
         tree.add_share(id, sharee, mode, account)?;
 
+        self.spawn_build_index();
+
         Ok(())
     }
 
@@ -69,7 +71,7 @@ impl Lb {
         Ok(result)
     }
 
-    pub async fn delete_share(
+    async fn delete_share(
         &self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>,
     ) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
@@ -81,11 +83,18 @@ impl Lb {
         let account = self.get_account()?;
 
         tree.delete_share(id, maybe_encrypted_for, account)?;
+
+        self.spawn_build_index();
+
         Ok(())
     }
 
     pub async fn reject_share(&self, id: &Uuid) -> Result<(), LbErr> {
         let pk = self.get_account()?.public_key();
-        self.delete_share(id, Some(pk)).await
+        let result = self.delete_share(id, Some(pk)).await;
+
+        self.spawn_build_index();
+
+        result
     }
 }

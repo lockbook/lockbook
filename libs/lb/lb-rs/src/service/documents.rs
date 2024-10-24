@@ -62,6 +62,8 @@ impl Lb {
             bg_lb.cleanup().await.unwrap();
         });
 
+        self.spawn_build_index();
+
         Ok(())
     }
 
@@ -125,6 +127,8 @@ impl Lb {
                 .unwrap();
             bg_lb.cleanup().await.unwrap();
         });
+
+        self.spawn_build_index();
 
         Ok(hmac)
     }

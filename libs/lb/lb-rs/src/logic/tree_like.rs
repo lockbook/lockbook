@@ -2,7 +2,7 @@ use crate::logic::file_like::FileLike;
 use crate::logic::lazy::LazyTree;
 use crate::logic::staged::StagedTree;
 use crate::logic::{SharedErrorKind, SharedResult};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use uuid::Uuid;
 
@@ -164,5 +164,37 @@ where
     fn clear(&mut self) -> SharedResult<()> {
         self.clear();
         Ok(())
+    }
+}
+
+impl<F> TreeLike for HashMap<Uuid, F>
+where
+    F: FileLike,
+{
+    type F = F;
+
+    fn ids(&self) -> HashSet<&Uuid> {
+        self.keys().collect()
+    }
+
+    fn maybe_find(&self, id: &Uuid) -> Option<&F> {
+        self.get(id)
+    }
+}
+
+impl<F> TreeLikeMut for HashMap<Uuid, F>
+where
+    F: FileLike,
+{
+    fn insert(&mut self, f: F) -> SharedResult<Option<F>> {
+        Ok(self.insert(f.id().clone(), f))
+    }
+
+    fn remove(&mut self, id: Uuid) -> SharedResult<Option<F>> {
+        Ok(self.remove(&id))
+    }
+
+    fn clear(&mut self) -> SharedResult<()> {
+        Ok(self.clear())
     }
 }

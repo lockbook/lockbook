@@ -22,6 +22,8 @@ impl Lb {
 
         let ui_file = tree.decrypt(account, &id, &db.pub_key_lookup)?;
 
+        self.spawn_build_index();
+
         Ok(ui_file)
     }
 
@@ -40,6 +42,8 @@ impl Lb {
         let id = tree.create_at_path(path, root, account, &pub_key)?;
 
         let ui_file = tree.decrypt(account, &id, &db.pub_key_lookup)?;
+
+        self.spawn_build_index();
 
         Ok(ui_file)
     }

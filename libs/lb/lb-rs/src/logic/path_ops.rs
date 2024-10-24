@@ -1,6 +1,7 @@
 use crate::logic::file_like::FileLike;
-use crate::logic::lazy::LazyStaged1;
+use crate::logic::lazy::{LazyStaged1, LazyTree};
 use crate::logic::signed_file::SignedFile;
+use crate::logic::staged::StagedTreeLike;
 use crate::logic::tree_like::{TreeLike, TreeLikeMut};
 use crate::logic::{symkey, validate, SharedErrorKind, SharedResult};
 use crate::model::access_info::UserAccessMode;
@@ -10,10 +11,11 @@ use libsecp256k1::PublicKey;
 use std::collections::HashSet;
 use uuid::Uuid;
 
-impl<Base, Local> LazyStaged1<Base, Local>
+impl<Base, Local, Staged> LazyTree<Staged>
 where
     Base: TreeLike<F = SignedFile>,
     Local: TreeLike<F = Base::F>,
+    Staged: StagedTreeLike<Base = Base, Staged = Local>,
 {
     pub fn path_to_id(&mut self, path: &str, root: &Uuid, account: &Account) -> SharedResult<Uuid> {
         let mut current = *root;

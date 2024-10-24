@@ -1,6 +1,7 @@
 //! Members of this module comprise the endpoints exposed by the lb crate
 //! Members of this module are generally handling concurrency primitives, caches, and pay special
 //! attention to the needs of people consuming lb - UI developers and integration engineers.
+//! On locking: in general, it is okay to hold a lock for reading a file, but not for multiple files or network I/O
 
 pub mod account;
 pub mod activity;
