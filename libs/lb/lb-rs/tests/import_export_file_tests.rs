@@ -60,7 +60,7 @@ async fn import_file_successfully() {
 
 #[tokio::test]
 async fn export_file_successfully() {
-    let mut core = test_core_with_account().await;
+    let core = test_core_with_account().await;
     let root = core.root().await.unwrap();
 
     let tmp = tempfile::tempdir().unwrap();
@@ -86,7 +86,8 @@ async fn export_file_successfully() {
         .await
         .unwrap();
     // todo(parth): fix clippy warning await_holding_lock
-    for info in paths.lock().unwrap().iter() {
+    let paths = paths.lock().unwrap().clone();
+    for info in paths.iter() {
         core.get_by_path(&info.lockbook_path).await.unwrap();
         assert!(info.disk_path.exists());
     }

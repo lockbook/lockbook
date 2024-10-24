@@ -178,11 +178,11 @@ async fn import_account_nonexistent() {
 
     let mut tx = core2.begin_tx().await;
     tx.db().account.insert(account.clone()).unwrap();
-    core2.cache_account(account).await;
+    core2.cache_account(account).await.unwrap();
 
     let account_string = core2.export_account_private_key().unwrap();
 
-    let mut core3 = test_core().await;
+    let core3 = test_core().await;
     assert!(matches!(
         core3
             .import_account(&account_string, Some(&url()))
@@ -211,11 +211,11 @@ async fn import_account_public_key_mismatch() {
             .unwrap();
         account2.username = account1.username;
 
-        core3.cache_account(account2).await;
+        core3.cache_account(account2).await.unwrap();
         core3.export_account_private_key().unwrap()
     };
 
-    let mut core4 = test_core().await;
+    let core4 = test_core().await;
 
     assert!(matches!(
         core4
@@ -246,7 +246,7 @@ async fn import_account_phrases() {
         .unwrap();
     let account_phrase = core1.export_account_phrase().unwrap();
 
-    let mut core2 = test_core().await;
+    let core2 = test_core().await;
     let account2 = core2
         .import_account(&account_phrase, Some(&account1.api_url))
         .await

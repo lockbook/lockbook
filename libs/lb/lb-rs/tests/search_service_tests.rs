@@ -1,5 +1,4 @@
-use crossbeam::channel::{Receiver, Sender};
-use lb_rs::model::file::{self, ShareMode};
+use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::service::search::{SearchConfig, SearchResult};
 use std::collections::HashSet;

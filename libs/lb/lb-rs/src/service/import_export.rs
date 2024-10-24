@@ -227,7 +227,7 @@ fn get_child_count(path: &Path) -> LbResult<usize> {
     Ok(count)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExportFileInfo {
     pub disk_path: PathBuf,
     pub lockbook_path: String,
