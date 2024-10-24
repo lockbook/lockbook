@@ -1,17 +1,12 @@
-use std::panic;
-
 use jni::{
-    objects::{JByteArray, JClass, JObject, JObjectArray, JString, JThrowable, JValue},
-    sys::{jbyte, jbyteArray, jlong},
+    objects::{JByteArray, JClass, JObject, JString, JThrowable, JValue},
     JNIEnv,
 };
 use lb_rs::{
     blocking::Lb,
-    model::{
-        errors::{LbErr, LbErrKind},
-        file::{File, ShareMode},
-        file_metadata::FileType,
-    },
+    model::
+        errors::{LbErr, LbErrKind}
+    ,
 };
 
 pub(crate) fn rstring<'local>(env: &mut JNIEnv<'local>, input: JString<'local>) -> String {

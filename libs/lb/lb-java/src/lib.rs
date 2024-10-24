@@ -13,7 +13,6 @@ use lb_rs::{
     model::{
         account::Account,
         api::{AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo},
-        clock,
         core_config::Config,
         file::{File, ShareMode},
         file_metadata::FileType,
@@ -21,7 +20,6 @@ use lb_rs::{
     },
     service::{
         activity::RankingWeights,
-        import_export::ExportFileInfo,
         search::{SearchConfig, SearchResult},
         sync::{SyncProgress, SyncStatus},
         usage::{UsageItemMetric, UsageMetrics},
@@ -648,7 +646,7 @@ pub extern "system" fn Java_net_lockbook_Lb_exportFile<'local>(
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_upgradeAccountGooglePlay<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jpurchase_token: JString<'local>,
-    jaccount_id: JString<'local>, jedit: jboolean,
+    jaccount_id: JString<'local>,
 ) {
     let lb = rlb(&mut env, &class);
 
