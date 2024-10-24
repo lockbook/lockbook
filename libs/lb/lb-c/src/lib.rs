@@ -1,6 +1,8 @@
 use std::{
     ffi::{c_char, c_uchar},
-    fs, process,
+    fs,
+    path::PathBuf,
+    process,
     ptr::null_mut,
 };
 
@@ -11,6 +13,14 @@ pub use lb_rs::*;
 pub use lb_rs::{blocking::Lb, model::core_config::Config};
 use lb_rs::{model::file::ShareMode, service::activity::RankingWeights};
 use lb_work::LbSyncRes;
+use model::api::{
+    AppStoreAccountState, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
+    StripeAccountTier, UnixTimeMillis,
+};
+use service::{
+    import_export::ImportStatus,
+    search::{SearchConfig, SearchResult},
+};
 
 #[repr(C)]
 pub struct LbInitRes {
@@ -160,7 +170,7 @@ pub extern "C" fn lb_export_account_phrase(lb: *mut Lb) -> LbExportAccountRes {
 pub struct LbExportAccountQRRes {
     err: *mut LbFfiErr,
     qr: *mut c_uchar,
-    qr_size: usize,
+    qr_len: usize,
 }
 
 #[no_mangle]
@@ -169,12 +179,12 @@ pub extern "C" fn lb_export_account_qr(lb: *mut Lb) -> LbExportAccountQRRes {
 
     match lb.export_account_qr() {
         Ok(account_qr) => {
-            let (qr, qr_size) = carray(account_qr);
-            LbExportAccountQRRes { qr, qr_size, err: null_mut() }
+            let (qr, qr_len) = carray(account_qr);
+            LbExportAccountQRRes { qr, qr_len, err: null_mut() }
         }
         Err(err) => {
             let err = lb_err(err);
-            LbExportAccountQRRes { qr: null_mut(), qr_size: 0, err }
+            LbExportAccountQRRes { qr: null_mut(), qr_len: 0, err }
         }
     }
 }
@@ -585,20 +595,293 @@ pub extern "C" fn get_uncompressed_usage(lb: *mut Lb) -> LbUncompressedRes {
     }
 }
 
-// todo: pub fn import_files<F: Fn(ImportStatus)>(
-// todo:
-// todo: pub fn export_file(
-// todo:
-// todo: pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
-// todo:
-// todo: pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> Result<(), LbError> {
-// todo:
-// todo: pub fn upgrade_account_google_play(
-//
-// todo: pub fn upgrade_account_app_store(
-// todo:
-// todo: pub fn cancel_subscription(&self) -> Result<(), LbError> {
-// todo:
+#[no_mangle]
+pub extern "C" fn import_files(
+    lb: *mut Lb, sources: *const *const c_char, sources_len: usize, dest: Uuid,
+) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    let sources: Vec<PathBuf> = unsafe {
+        (0..sources_len)
+            .map(|i| PathBuf::from(rstr(*sources.add(i))))
+            .collect()
+    };
+
+    match lb.import_files(&sources, dest, &|_status: ImportStatus| println!("imported one file")) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn export_file(
+    lb: *mut Lb, source_id: Uuid, dest: *const c_char, edit: bool,
+) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    let dest = PathBuf::from(rstr(dest));
+
+    match lb.export_files(source_id, dest, edit, &None) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[repr(C)]
+pub struct LbSearchRes {
+    err: *mut LbFfiErr,
+    path_results: *mut LbPathSearchResult,
+    path_results_len: usize,
+    document_results: *mut LbDocumentSearchResult,
+    document_results_len: usize,
+}
+
+#[repr(C)]
+pub struct LbPathSearchResult {
+    id: Uuid,
+    path: *mut c_char,
+    score: i64,
+    matched_indicies: *mut usize,
+    matched_indicies_len: usize,
+}
+
+#[repr(C)]
+pub struct LbDocumentSearchResult {
+    id: Uuid,
+    path: *mut c_char,
+    content_matches: *mut LbContentMatch,
+    content_matches_len: usize,
+}
+
+#[repr(C)]
+pub struct LbContentMatch {
+    paragraph: *mut c_char,
+    score: i64,
+    matched_indicies: *mut usize,
+    matched_indicies_len: usize,
+}
+
+#[no_mangle]
+pub extern "C" fn search(
+    lb: *mut Lb, input: *const c_char, search_paths: bool, search_docs: bool,
+) -> LbSearchRes {
+    let lb = rlb(lb);
+
+    let input = rstr(input);
+    let config = if search_paths && search_docs {
+        SearchConfig::PathsAndDocuments
+    } else if search_docs {
+        SearchConfig::Documents
+    } else {
+        SearchConfig::Paths
+    };
+
+    match lb.search(input, config) {
+        Ok(search_results) => {
+            let mut path_results = Vec::new();
+            let mut document_results = Vec::new();
+
+            for result in search_results {
+                match result {
+                    SearchResult::PathMatch { id, path, matched_indices, score } => {
+                        let (matched_indicies, matched_indicies_len) = carray(matched_indices);
+
+                        path_results.push(LbPathSearchResult {
+                            id,
+                            path: cstring(path),
+                            score,
+                            matched_indicies,
+                            matched_indicies_len,
+                        });
+                    }
+                    SearchResult::DocumentMatch { id, path, content_matches } => {
+                        let mut c_content_matches = Vec::new();
+
+                        for content_match in content_matches {
+                            let (matched_indicies, matched_indicies_len) =
+                                carray(content_match.matched_indices);
+
+                            c_content_matches.push(LbContentMatch {
+                                paragraph: cstring(content_match.paragraph),
+                                score: content_match.score,
+                                matched_indicies,
+                                matched_indicies_len,
+                            });
+                        }
+
+                        let (content_matches, content_matches_len) = carray(c_content_matches);
+
+                        document_results.push(LbDocumentSearchResult {
+                            id,
+                            path: cstring(path),
+                            content_matches,
+                            content_matches_len,
+                        });
+                    }
+                }
+            }
+
+            let (path_results, path_results_len) =
+                if path_results.is_empty() { (null_mut(), 0) } else { carray(path_results) };
+
+            let (document_results, document_results_len) = if document_results.is_empty() {
+                (null_mut(), 0)
+            } else {
+                carray(document_results)
+            };
+
+            LbSearchRes {
+                err: null_mut(),
+                path_results,
+                path_results_len,
+                document_results,
+                document_results_len,
+            }
+        }
+        Err(err) => LbSearchRes {
+            err: lb_err(err),
+            path_results: null_mut(),
+            path_results_len: 0,
+            document_results: null_mut(),
+            document_results_len: 0,
+        },
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn upgrade_account_stripe(
+    lb: *mut Lb, is_old_card: bool, number: *const c_char, exp_year: i32, exp_month: i32,
+    cvc: *const c_char,
+) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    let payment_method = if is_old_card {
+        PaymentMethod::OldCard
+    } else {
+        PaymentMethod::NewCard { number: rstring(number), exp_year, exp_month, cvc: rstring(cvc) }
+    };
+
+    match lb.upgrade_account_stripe(StripeAccountTier::Premium(payment_method)) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn upgrade_account_app_store(
+    lb: *mut Lb, original_transaction_id: *const c_char, app_account_token: *const c_char,
+) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    let original_transaction_id = rstring(original_transaction_id);
+    let app_account_token = rstring(app_account_token);
+
+    match lb.upgrade_account_app_store(original_transaction_id, app_account_token) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn cancel_subscription(lb: *mut Lb) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.cancel_subscription() {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[repr(C)]
+pub struct LbSubscriptionInfoRes {
+    err: *mut LbFfiErr,
+    info: *mut LbSubscriptionInfo,
+}
+
+#[repr(C)]
+pub struct LbSubscriptionInfo {
+    period_end: UnixTimeMillis,
+    stripe: *mut LbStripeSubscriptionInfo,
+    app_store: *mut LbAppStoreSubscriptionInfo,
+    google_play: *mut LbGooglePlaySubscriptionInfo,
+}
+
+#[repr(C)]
+pub struct LbStripeSubscriptionInfo {
+    card_last_4_digits: *mut c_char,
+}
+
+#[repr(C)]
+pub struct LbGooglePlaySubscriptionInfo {
+    is_state_ok: bool,
+    is_state_canceled: bool,
+    is_state_grace_period: bool,
+    is_state_on_hold: bool,
+}
+
+#[repr(C)]
+pub struct LbAppStoreSubscriptionInfo {
+    is_state_ok: bool,
+    is_state_grace_period: bool,
+    is_state_failed_to_renew: bool,
+    is_state_expired: bool,
+}
+
+#[no_mangle]
+pub extern "C" fn get_subscription_info(lb: *mut Lb) -> LbSubscriptionInfoRes {
+    let lb = rlb(lb);
+
+    match lb.get_subscription_info() {
+        Ok(info) => match info {
+            Some(info) => {
+                let (stripe, app_store, google_play) = match info.payment_platform {
+                    PaymentPlatform::AppStore { account_state } => (
+                        null_mut(),
+                        Box::into_raw(Box::new(LbAppStoreSubscriptionInfo {
+                            is_state_ok: account_state == AppStoreAccountState::Ok,
+                            is_state_grace_period: account_state
+                                == AppStoreAccountState::GracePeriod,
+                            is_state_failed_to_renew: account_state
+                                == AppStoreAccountState::FailedToRenew,
+                            is_state_expired: account_state == AppStoreAccountState::Expired,
+                        })),
+                        null_mut(),
+                    ),
+                    PaymentPlatform::Stripe { card_last_4_digits } => (
+                        Box::into_raw(Box::new(LbStripeSubscriptionInfo {
+                            card_last_4_digits: cstring(card_last_4_digits),
+                        })),
+                        null_mut(),
+                        null_mut(),
+                    ),
+                    PaymentPlatform::GooglePlay { account_state } => (
+                        null_mut(),
+                        null_mut(),
+                        Box::into_raw(Box::new(LbGooglePlaySubscriptionInfo {
+                            is_state_ok: account_state == GooglePlayAccountState::Ok,
+                            is_state_canceled: account_state == GooglePlayAccountState::Canceled,
+                            is_state_grace_period: account_state
+                                == GooglePlayAccountState::GracePeriod,
+                            is_state_on_hold: account_state == GooglePlayAccountState::OnHold,
+                        })),
+                    ),
+                };
+
+                let c_info = LbSubscriptionInfo {
+                    period_end: info.period_end,
+                    stripe,
+                    app_store,
+                    google_play,
+                };
+
+                LbSubscriptionInfoRes { err: null_mut(), info: Box::into_raw(Box::new(c_info)) }
+            }
+            None => LbSubscriptionInfoRes { err: null_mut(), info: null_mut() },
+        },
+        Err(err) => LbSubscriptionInfoRes { err: lb_err(err), info: null_mut() },
+    }
+}
+
 // todo: pub fn get_subscription_info(&self) -> Result<Option<SubscriptionInfo>, LbError> {
 
 mod ffi_utils;

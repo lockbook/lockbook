@@ -80,7 +80,7 @@ pub async fn rename_path(c: &Lb, path: &str, new_name: &str) -> Result<(), Strin
 
 pub async fn another_client(c: &Lb) -> Lb {
     let account_string = c.export_account_private_key().unwrap();
-    let mut new_core = test_core().await;
+    let new_core = test_core().await;
     new_core
         .import_account(&account_string, Some(&url()))
         .await

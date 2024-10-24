@@ -1,3 +1,10 @@
+language = "C"
+
+[parse]
+parse_deps = true
+include = ["lb-rs", "lb-c", "uuid"]
+extra_bindings = ["lb-c"]
+
 # A list of substitutions for converting cfg's to ifdefs. cfgs which aren't
 # defined here will just be discarded.
 #
@@ -12,8 +19,3 @@
 "target_vendor = apple" = "__APPLE__"
 "target_os = ios" = "__APPLE__"
 "target_os = android" = "__ANDROID__"
-
-[parse]
-parse_deps = true
-include = ["lb-rs", "lb-c", "uuid"]
-extra_bindings = ["lb-c"]
