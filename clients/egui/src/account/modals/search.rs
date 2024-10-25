@@ -237,8 +237,6 @@ impl super::Modal for SearchModal {
 
                 // run the search (no locks held)
                 is_searching.store(true, Ordering::Relaxed);
-                println!("searching...");
-                let start = std::time::Instant::now();
                 let these_results = core
                     .search(&this_query, SearchConfig::Paths)
                     .unwrap_or_default();
@@ -248,7 +246,6 @@ impl super::Modal for SearchModal {
                 let mut results = results.lock().unwrap();
 
                 if query.deref() == &this_query {
-                    println!("search completed in {:?}", start.elapsed());
                     is_searching.store(false, Ordering::Relaxed);
                     *results = these_results;
                     ctx.request_repaint();
