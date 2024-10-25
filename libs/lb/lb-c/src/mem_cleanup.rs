@@ -1,9 +1,7 @@
 use std::ffi::CString;
 
 use crate::{
-    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, LbAccountRes, LbDocRes,
-    LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbInitRes,
-    LbLastSyncedHuman, LbLastSyncedi64, LbUncompressedRes, LbUsageMetricsRes,
+    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbSearchRes, LbSubscriptionInfoRes, LbUncompressedRes, LbUsageMetricsRes
 };
 
 #[no_mangle]
@@ -159,5 +157,63 @@ pub extern "C" fn lb_free_uncompressed_usage(usage: LbUncompressedRes) {
 
     if !usage.uncompressed_human.is_null() {
         unsafe { drop(CString::from_raw(usage.uncompressed_human)) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_free_search_results(search_results: LbSearchRes) {
+    if !search_results.err.is_null() {
+        lb_free_err(search_results.err);
+    }
+
+    if !search_results.document_results.is_null() {
+        let document_results = rvec(search_results.document_results, search_results.document_results_len);
+
+        for result in document_results {
+            let content_matches = rvec(result.content_matches, result.content_matches_len);
+
+            for content_match in content_matches {
+                let _ = rvec(content_match.matched_indicies, content_match.matched_indicies_len);
+                
+                unsafe { drop(CString::from_raw(content_match.paragraph)) }
+            }
+
+            unsafe { drop(CString::from_raw(result.path)) }
+        }
+    }
+
+    if !search_results.path_results.is_null() {
+        let path_results = rvec(search_results.path_results, search_results.path_results_len);
+
+        for result in path_results {
+            let _ = rvec(result.matched_indicies, result.matched_indicies_len);
+
+            unsafe { drop(CString::from_raw(result.path)) }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_free_sub_info(sub_info: LbSubscriptionInfoRes) {
+    if !sub_info.err.is_null() {
+        lb_free_err(sub_info.err);
+    }
+
+    if !sub_info.info.is_null() {
+        let sub_info = unsafe { Box::from_raw(sub_info.info) };
+        
+        if !sub_info.stripe.is_null() {
+            let stripe = unsafe { Box::from_raw(sub_info.stripe) };
+
+            unsafe { drop(CString::from_raw(stripe.card_last_4_digits)) }
+        }
+
+        if !sub_info.app_store.is_null() {
+            unsafe { drop(Box::from_raw(sub_info.app_store)) };
+        }
+
+        if !sub_info.google_play.is_null() {
+            unsafe { drop(Box::from_raw(sub_info.google_play)) };
+        }
     }
 }
