@@ -10,7 +10,7 @@ pub enum BwIncomingMsg {
 }
 
 pub enum Signal {
-    Sync,
+    MaybeSync,
     SaveAll,
     UpdateStatus,
     BwDone,
@@ -71,7 +71,7 @@ impl BackgroundWorker {
 
         if now.duration_since(self.worker_state.last_auto_sync) > Duration::from_secs(1) {
             self.worker_state.last_auto_sync = now;
-            self.updates.send(WsMsg::BgSignal(Signal::Sync)).unwrap();
+            self.updates.send(WsMsg::BgSignal(Signal::MaybeSync)).unwrap();
             self.ctx.request_repaint();
         }
 
