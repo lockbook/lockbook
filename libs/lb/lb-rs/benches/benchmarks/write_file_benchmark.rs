@@ -1,7 +1,8 @@
 use criterion::{black_box, criterion_group, BenchmarkId, Criterion, Throughput};
-use lb_rs::logic::file_metadata::FileType;
-use test_utils::test_core_with_account;
+use lb_rs::model::file_metadata::FileType;
 use uuid::Uuid;
+
+use crate::blocking_core;
 
 const BYTES_LEN_1: u64 = 100;
 const BYTES_LEN_2: u64 = BYTES_LEN_1 * 10;
@@ -15,7 +16,7 @@ fn write_file_benchmark(c: &mut Criterion) {
     for size in
         [BYTES_LEN_1, BYTES_LEN_2, BYTES_LEN_3, BYTES_LEN_4, BYTES_LEN_5, BYTES_LEN_6].iter()
     {
-        let core = test_core_with_account();
+        let core = blocking_core();
         let root = core.get_root().unwrap();
 
         write_file_group.throughput(Throughput::Elements(*size));
@@ -24,7 +25,7 @@ fn write_file_benchmark(c: &mut Criterion) {
                 let id = core
                     .create_file(
                         black_box(&Uuid::new_v4().to_string()),
-                        black_box(root.id),
+                        black_box(&root.id),
                         black_box(FileType::Document),
                     )
                     .unwrap()
