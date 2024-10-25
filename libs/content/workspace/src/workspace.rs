@@ -7,7 +7,7 @@ use egui::{
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::{mem, thread};
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
@@ -20,7 +20,7 @@ use crate::tab::{SaveRequest, Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use lb_rs::{
-    CoreError, DecryptedDocument, DocumentHmac, File, FileType, LbError, NameComponents,
+    CoreError, DecryptedDocument, DocumentHmac, Duration, File, FileType, LbError, NameComponents,
     SyncProgress, SyncStatus, Uuid,
 };
 
@@ -312,7 +312,7 @@ impl Workspace {
         }
 
         if let Some(last_touch_event) = self.last_touch_event {
-            if Instant::now() - last_touch_event > Duration::from_secs(5) {
+            if Instant::now() - last_touch_event > Duration::seconds(5) {
                 self.ctx
                     .style_mut(|style| style.interaction.tooltip_delay = 0.0);
                 self.last_touch_event = None;
@@ -775,7 +775,7 @@ impl Workspace {
     }
 
     pub fn process_updates(&mut self) {
-        'updates: while let Ok(update) = self.updates_rx.try_recv() {
+        while let Ok(update) = self.updates_rx.try_recv() {
             match update {
                 WsMsg::FileLoaded(FileLoadedMsg {
                     id,
@@ -900,25 +900,26 @@ impl Workspace {
                     //     self.perform_final_sync(ctx);
                     // }
                 }
-                WsMsg::BgSignal(Signal::Sync) => {
+                WsMsg::BgSignal(Signal::MaybeSync) => {
                     if !self.cfg.auto_sync.load(Ordering::Relaxed) {
                         // auto sync disabled
                         continue;
                     }
-                    if !self.ctx.input(|i| i.focused) {
-                        // native window not focused
-                        continue;
-                    }
-                    for (threshold_secs, sync_period_secs) in [(60, 60), (3600, 3600)] {
-                        if self.user_last_seen.elapsed() > Duration::from_secs(threshold_secs)
-                            && self.last_sync.elapsed() < Duration::from_secs(sync_period_secs)
-                        {
-                            // reduce sync frequency when user is inactive
-                            continue 'updates;
-                        }
-                    }
 
-                    self.perform_sync();
+                    let focused = self.ctx.input(|i| i.focused);
+
+                    if self.user_last_seen.elapsed() < Duration::seconds(10)
+                        && focused
+                        && self.last_sync.elapsed() > Duration::seconds(5)
+                    {
+                        // the user is active if the app is in the foreground and they've done
+                        // something in the last 10 seconds.
+                        // during this time sync every 5 seconds
+                        self.perform_sync();
+                    } else if self.last_sync.elapsed() > Duration::hours(1) {
+                        // sync every hour while the user is inactive
+                        self.perform_sync()
+                    }
                 }
                 WsMsg::BgSignal(Signal::UpdateStatus) => {
                     self.refresh_sync_status();
