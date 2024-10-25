@@ -33,6 +33,8 @@ impl Lb {
 
         info!("created {:?} with id {id}", file_type);
 
+        self.spawn_build_index();
+
         Ok(ui_file)
     }
 
@@ -52,6 +54,8 @@ impl Lb {
 
         tree.rename(id, new_name, account)?;
 
+        self.spawn_build_index();
+
         Ok(())
     }
 
@@ -68,6 +72,8 @@ impl Lb {
 
         tree.move_file(id, new_parent, account)?;
 
+        self.spawn_build_index();
+
         Ok(())
     }
 
@@ -83,6 +89,8 @@ impl Lb {
         let id = &tree.linked_by(id)?.unwrap_or(*id);
 
         tree.delete(id, account)?;
+
+        self.spawn_build_index();
 
         Ok(())
     }

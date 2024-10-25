@@ -1,3 +1,4 @@
+use crate::logic::tree_like::TreeLike;
 use crate::model::errors::LbResult;
 use crate::Lb;
 use serde::Deserialize;
@@ -17,7 +18,19 @@ impl Lb {
 
         scores.sort_unstable_by_key(|b| cmp::Reverse(b.score(settings)));
 
-        Ok(scores.iter().map(|f| f.id).collect())
+        let mut result = Vec::new();
+        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+        for score in scores {
+            if tree.calculate_deleted(&score.id)? {
+                continue;
+            }
+            if tree.in_pending_share(&score.id)? {
+                continue;
+            }
+            result.push(score.id);
+        }
+
+        Ok(result)
     }
 
     pub async fn add_doc_event(&self, event: DocEvent) -> LbResult<()> {

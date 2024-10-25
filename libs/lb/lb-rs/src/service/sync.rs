@@ -79,10 +79,11 @@ impl Lb {
     pub async fn sync(&self, f: Option<Box<dyn Fn(SyncProgress) + Send>>) -> LbResult<SyncStatus> {
         let mut ctx = self.setup_sync(f).await?;
 
+        let mut got_updates = false;
         let mut pipeline: LbResult<()> = async {
             ctx.msg("Preparing Sync...");
             self.prune().await?;
-            self.fetch_meta(&mut ctx).await?;
+            got_updates = self.fetch_meta(&mut ctx).await?;
             self.populate_pk_cache(&mut ctx).await?;
             self.docs.dont_delete.store(true, Ordering::SeqCst);
             self.fetch_docs(&mut ctx).await?;
@@ -104,6 +105,10 @@ impl Lb {
         pipeline?;
         cleanup?;
         ctx.done_msg();
+
+        if got_updates {
+            self.spawn_build_index();
+        }
 
         Ok(ctx.summarize())
     }
@@ -178,7 +183,8 @@ impl Lb {
         Ok(())
     }
 
-    async fn fetch_meta(&self, ctx: &mut SyncContext) -> LbResult<()> {
+    /// Returns true if there were any updates
+    async fn fetch_meta(&self, ctx: &mut SyncContext) -> LbResult<bool> {
         ctx.msg("Fetching tree updates...");
         let updates = self
             .client
@@ -188,12 +194,13 @@ impl Lb {
             )
             .await?;
 
+        let empty = updates.file_metadata.is_empty();
         let (remote, as_of, root) = self.dedup(updates).await?;
         ctx.remote_changes = remote;
         ctx.update_as_of = as_of;
         ctx.root = root;
 
-        Ok(())
+        Ok(!empty)
     }
 
     async fn populate_pk_cache(&self, ctx: &mut SyncContext) -> LbResult<()> {

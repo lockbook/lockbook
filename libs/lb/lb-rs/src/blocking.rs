@@ -222,11 +222,8 @@ impl Lb {
     }
 
     pub fn search_file_paths(&self, input: &str) -> LbResult<Vec<SearchResult>> {
-        self.rt.block_on(async {
-            let _ = self.lb.search("", SearchConfig::Paths).await?;
-
-            self.lb.search(input, SearchConfig::Paths).await
-        })
+        self.rt
+            .block_on(async { self.lb.search(input, SearchConfig::Paths).await })
     }
 
     pub fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {

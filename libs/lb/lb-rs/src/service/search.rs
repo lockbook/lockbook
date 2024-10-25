@@ -6,18 +6,14 @@ use crate::model::errors::{LbResult, UnexpectedError};
 use crate::Lb;
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 use serde::Serialize;
-use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use tokio::sync::RwLock;
-use tokio::time::sleep;
 use uuid::Uuid;
 
 const CONTENT_SCORE_THRESHOLD: i64 = 170;
 const PATH_SCORE_THRESHOLD: i64 = 10;
-const CONTENT_MAX_LEN: usize = 128 * 1024; // 128kb
+const CONTENT_MAX_LEN_BYTES: usize = 128 * 1024; // 128kb
 
 const MAX_CONTENT_MATCH_LENGTH: usize = 400;
 const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
@@ -27,9 +23,7 @@ const FUZZY_WEIGHT: f32 = 0.8;
 
 #[derive(Clone, Default)]
 pub struct SearchIndex {
-    pub is_building_index: Arc<AtomicBool>,
-    pub index_built_at: u128,
-    pub docs: Arc<RwLock<Vec<Arc<SearchIndexEntry>>>>,
+    pub docs: Arc<RwLock<Vec<SearchIndexEntry>>>,
 }
 
 pub struct SearchIndexEntry {
@@ -75,28 +69,11 @@ impl SearchResult {
 
 impl Lb {
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
-        // todo: build indexes at the right point async
-        if input.is_empty()
-            && self
-                .search
-                .is_building_index
-                .compare_exchange(
-                    false,
-                    true,
-                    std::sync::atomic::Ordering::SeqCst,
-                    std::sync::atomic::Ordering::SeqCst,
-                )
-                .is_ok()
-        {
-            let lb = self.clone();
+        if self.search.docs.read().await.is_empty() {
+            self.build_index().await?;
+        }
 
-            tokio::spawn(async move {
-                lb.build_index().await.unwrap(); // TODO: remove unwrap
-                lb.search
-                    .is_building_index
-                    .store(false, std::sync::atomic::Ordering::SeqCst);
-            });
-
+        if input.is_empty() {
             match cfg {
                 SearchConfig::Paths | SearchConfig::PathsAndDocuments => {
                     return stream::iter(self.suggested_docs(RankingWeights::default()).await?)
@@ -115,83 +92,123 @@ impl Lb {
             }
         }
 
-        // todo: block on index availability don't sleep, don't poll
-        while self
-            .search
-            .is_building_index
-            .load(std::sync::atomic::Ordering::SeqCst)
-        {
-            sleep(Duration::from_millis(100)).await;
-        }
-
         match cfg {
-            SearchConfig::Paths => Self::search_paths(&self.search.docs, input).await,
-            SearchConfig::Documents => Self::search_content(&self.search.docs, input).await,
+            SearchConfig::Paths => self.search.search_paths(input).await,
+            SearchConfig::Documents => self.search.search_content(input).await,
             SearchConfig::PathsAndDocuments => {
-                let docs = &self.search.docs;
-
                 let (paths, content) = tokio::join!(
-                    Self::search_paths(docs, input),
-                    Self::search_content(docs, input)
+                    self.search.search_paths(input),
+                    self.search.search_content(input)
                 );
-
-                let mut results = paths?;
-                results.extend(content?);
-
-                Ok(results)
+                Ok(paths?.into_iter().chain(content?.into_iter()).collect())
             }
         }
     }
 
-    async fn search_paths(
-        docs: &Arc<RwLock<Vec<Arc<SearchIndexEntry>>>>, input: &str,
-    ) -> LbResult<Vec<SearchResult>> {
-        let search_futures = FuturesUnordered::new();
+    pub async fn build_index(&self) -> LbResult<()> {
+        // fetch metadata once; use single lazy tree to re-use key decryption work for all files (lb lock)
+        let account = self.get_account()?;
+        let mut tree = {
+            let tx = self.ro_tx().await;
+            let db = tx.db();
 
-        for doc in docs.read().await.iter() {
-            let doc = doc.clone();
+            let base = db.base_metadata.get().clone();
+            let local = db.local_metadata.get().clone();
+            let staged = base.to_staged(local);
+            staged.to_lazy()
+        };
 
-            search_futures.push(async move {
-                if let Some(p_match) = FuzzySearch::new(input, &doc.path)
-                    .case_insensitive()
-                    .score_with(&Scoring::emphasize_distance())
-                    .best_match()
-                {
-                    let score = (p_match.score().min(600) as f32 * FUZZY_WEIGHT) as i64;
+        // construct replacement index
+        let mut replacement_index = Vec::new();
+        for id in tree.owned_ids() {
+            if tree.calculate_deleted(&id)? {
+                continue;
+            }
+            if tree.in_pending_share(&id)? {
+                continue;
+            }
+            let name = tree.name_using_links(&id, account)?;
+            if DocumentType::from_file_name_using_extension(&name) != DocumentType::Text {
+                continue;
+            }
+            let path = tree.id_to_path(&id, account)?;
 
-                    if score > PATH_SCORE_THRESHOLD {
-                        return Some(SearchResult::PathMatch {
-                            id: doc.id,
-                            path: doc.path.clone(),
-                            matched_indices: p_match.matched_indices().cloned().collect(),
-                            score,
-                        });
-                    }
-                }
+            // once per file, re-lock lb to read document using up-to-date hmac (lb lock)
+            // because lock has been dropped in the meantime, original `tree` is now arbitrarily out-of-date
+            let tx = self.ro_tx().await;
+            let db = tx.db();
+            let hmac_tree = (&db.base_metadata).stage(&db.local_metadata); // not lazy bc no decryption uses this one
 
+            let Some(file) = hmac_tree.maybe_find(&id) else { continue }; // file maybe deleted since we started
+            let Some(&hmac) = file.document_hmac() else { continue }; // file maybe contentless
+            let encrypted_content = self.docs.get(id, Some(hmac)).await?; // present bc hmac from this tx
+
+            let content = if encrypted_content.value.len() <= CONTENT_MAX_LEN_BYTES {
+                // use the original tree to decrypt the content
+                let decrypted_content = tree.decrypt_document(&id, &encrypted_content, account)?;
+                Some(String::from_utf8_lossy(&decrypted_content).into_owned())
+            } else {
                 None
-            });
+            };
+
+            replacement_index.push(SearchIndexEntry { id, path, content })
         }
 
-        Ok(search_futures
-            .collect::<Vec<Option<SearchResult>>>()
-            .await
-            .into_iter()
-            .flatten()
-            .collect::<Vec<SearchResult>>())
+        // swap in replacement index (index lock)
+        *self.search.docs.write().await = replacement_index;
+
+        Ok(())
     }
 
-    async fn search_content(
-        docs: &Arc<RwLock<Vec<Arc<SearchIndexEntry>>>>, input: &str,
-    ) -> LbResult<Vec<SearchResult>> {
+    pub fn spawn_build_index(&self) {
+        tokio::spawn({
+            let lb = self.clone();
+            async move {
+                if let Err(e) = lb.build_index().await {
+                    error!("Error building search index: {:?}", e)
+                }
+            }
+        });
+    }
+}
+
+impl SearchIndex {
+    async fn search_paths(&self, input: &str) -> LbResult<Vec<SearchResult>> {
+        let docs_guard = self.docs.read().await; // read lock held for the whole fn
+
+        let mut results = Vec::new();
+        for doc in docs_guard.iter() {
+            if let Some(p_match) = FuzzySearch::new(input, &doc.path)
+                .case_insensitive()
+                .score_with(&Scoring::emphasize_distance())
+                .best_match()
+            {
+                let score = (p_match.score().min(600) as f32 * FUZZY_WEIGHT) as i64;
+
+                if score > PATH_SCORE_THRESHOLD {
+                    results.push(SearchResult::PathMatch {
+                        id: doc.id,
+                        path: doc.path.clone(),
+                        matched_indices: p_match.matched_indices().cloned().collect(),
+                        score,
+                    });
+                }
+            }
+        }
+        Ok(results)
+    }
+
+    async fn search_content(&self, input: &str) -> LbResult<Vec<SearchResult>> {
+        // read lock held while constructing futures (data cloned into futures)
         let search_futures = FuturesUnordered::new();
-
-        for doc in docs.read().await.iter() {
-            let doc = doc.clone();
-
+        let docs = self.docs.read().await;
+        for doc in docs.iter() {
+            let id = doc.id;
+            let path = doc.path.clone();
+            let content = doc.content.clone();
             search_futures.push(async move {
-                if let Some(content) = &doc.content {
-                    let mut sub_results = Vec::new();
+                if let Some(content) = content {
+                    let mut content_matches = Vec::new();
 
                     for paragraph in content.split("\n\n") {
                         if let Some(c_match) = FuzzySearch::new(input, paragraph)
@@ -209,7 +226,7 @@ impl Lb {
                             };
 
                             if score > CONTENT_SCORE_THRESHOLD {
-                                sub_results.push(ContentMatch {
+                                content_matches.push(ContentMatch {
                                     paragraph,
                                     matched_indices,
                                     score,
@@ -218,89 +235,21 @@ impl Lb {
                         }
                     }
 
-                    if !sub_results.is_empty() {
-                        return Some(SearchResult::DocumentMatch {
-                            id: doc.id,
-                            path: doc.path.clone(),
-                            content_matches: sub_results,
-                        });
+                    if !content_matches.is_empty() {
+                        return Some(SearchResult::DocumentMatch { id, path, content_matches });
                     }
                 }
                 None
             });
         }
 
+        // lock released while executing futures
         Ok(search_futures
             .collect::<Vec<Option<SearchResult>>>()
             .await
             .into_iter()
             .flatten()
             .collect::<Vec<SearchResult>>())
-    }
-
-    async fn build_index(&self) -> LbResult<()> {
-        println!("building index");
-        let account = self.get_account()?;
-
-        let tx = self.ro_tx().await;
-        let db = tx.db();
-
-        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let all_ids = tree.owned_ids();
-        let mut all_valid_ids = Vec::with_capacity(all_ids.len());
-        let mut doc_ids = HashMap::with_capacity(all_ids.len());
-        let mut cache = self.search.docs.write().await;
-        cache.clear();
-
-        for id in all_ids {
-            if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
-                let file = tree.find(&id)?;
-                let is_document = file.is_document();
-                let hmac = file.document_hmac().copied();
-                let has_content = hmac.is_some();
-
-                if is_document {
-                    all_valid_ids.push(id);
-
-                    if has_content {
-                        if let DocumentType::Text = DocumentType::from_file_name_using_extension(
-                            &tree.name_using_links(&id, self.get_account()?)?,
-                        ) {
-                            doc_ids.insert(id, hmac);
-                        }
-                    }
-                }
-            }
-        }
-
-        // we could consider releasing the lock here and not hold on to it across the file io.
-        // this may become needed in a future where files are fetched from the network
-
-        for id in all_valid_ids {
-            let content = if let Some(hmac) = doc_ids.get(&id) {
-                let doc = self.docs.get(id, *hmac).await?;
-
-                if doc.value.len() > CONTENT_MAX_LEN {
-                    let name = tree.name(&id, self.get_account()?)?;
-                    println!("skipped indexing file that's too large: {name}");
-                    None
-                } else {
-                    let doc = tree.decrypt_document(&id, &doc, account)?;
-
-                    Some(String::from_utf8_lossy(doc.as_slice()).into_owned())
-                }
-            } else {
-                None
-            };
-
-            cache.push(Arc::new(SearchIndexEntry {
-                id,
-                path: tree.id_to_path(&id, account)?,
-                content,
-            }));
-        }
-
-        Ok(())
     }
 
     fn optimize_searched_text(
