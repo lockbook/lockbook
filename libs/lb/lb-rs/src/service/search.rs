@@ -137,7 +137,7 @@ impl Lb {
             // because lock has been dropped in the meantime, original `tree` is now arbitrarily out-of-date
             let tx = self.ro_tx().await;
             let db = tx.db();
-            let hmac_tree = (&db.base_metadata).stage(&db.local_metadata); // not lazy bc no decryption uses this one
+            let hmac_tree = db.base_metadata.stage(&db.local_metadata); // not lazy bc no decryption uses this one
 
             let Some(file) = hmac_tree.maybe_find(&id) else { continue }; // file maybe deleted since we started
             let Some(&hmac) = file.document_hmac() else { continue }; // file maybe contentless

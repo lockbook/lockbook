@@ -187,7 +187,7 @@ where
     F: FileLike,
 {
     fn insert(&mut self, f: F) -> SharedResult<Option<F>> {
-        Ok(self.insert(f.id().clone(), f))
+        Ok(self.insert(*f.id(), f))
     }
 
     fn remove(&mut self, id: Uuid) -> SharedResult<Option<F>> {
@@ -195,6 +195,7 @@ where
     }
 
     fn clear(&mut self) -> SharedResult<()> {
-        Ok(self.clear())
+        self.clear();
+        Ok(())
     }
 }
