@@ -106,108 +106,56 @@ impl Lb {
     }
 
     pub async fn build_index(&self) -> LbResult<()> {
-        println!("build index start");
-        let start = std::time::Instant::now();
-
         // fetch metadata once; use single lazy tree to re-use key decryption work for all files (lb lock)
         let account = self.get_account()?;
-        let (ids, keys, tree) = {
+        let mut tree = {
             let tx = self.ro_tx().await;
             let db = tx.db();
 
             let base = db.base_metadata.get().clone();
             let local = db.local_metadata.get().clone();
             let staged = base.to_staged(local);
-            let mut lazy = (&staged).to_lazy();
-
-            // populate and grab the tree's internal keycache so we don't need to share write access among workers
-            let ids = lazy.owned_ids();
-            for id in &ids {
-                let _ = lazy.decrypt_key(id, &account);
-            }
-
-            (ids, lazy.key, Arc::new(staged))
+            staged.to_lazy()
         };
 
         // construct replacement index
-        let search_futures = FuturesUnordered::new();
-        for (i, id) in ids.into_iter().enumerate() {
-            let tree = tree.clone();
-            let keys = keys.clone();
-            search_futures.push(async move {
-                let start = std::time::Instant::now();
+        let mut replacement_index = Vec::new();
+        for id in tree.owned_ids() {
+            if tree.calculate_deleted(&id)? {
+                continue;
+            }
+            if tree.in_pending_share(&id)? {
+                continue;
+            }
+            let name = tree.name_using_links(&id, account)?;
+            if DocumentType::from_file_name_using_extension(&name) != DocumentType::Text {
+                continue;
+            }
+            let path = tree.id_to_path(&id, account)?;
 
-                let mut tree = (&*tree).to_lazy();
-                tree.key = keys;
+            // once per file, re-lock lb to read document using up-to-date hmac (lb lock)
+            // because lock has been dropped in the meantime, original `tree` is now arbitrarily out-of-date
+            let tx = self.ro_tx().await;
+            let db = tx.db();
+            let hmac_tree = (&db.base_metadata).stage(&db.local_metadata); // not lazy bc no decryption uses this one
 
-                if tree.calculate_deleted(&id).ok()? {
-                    return None;
-                }
-                if tree.in_pending_share(&id).ok()? {
-                    return None;
-                }
-                let name = tree.name_using_links(&id, account).ok()?;
-                if DocumentType::from_file_name_using_extension(&name) != DocumentType::Text {
-                    return None;
-                }
-                let path = tree.id_to_path(&id, account).ok()?;
+            let Some(file) = hmac_tree.maybe_find(&id) else { continue }; // file maybe deleted since we started
+            let Some(&hmac) = file.document_hmac() else { continue }; // file maybe contentless
+            let encrypted_content = self.docs.get(id, Some(hmac)).await?; // present bc hmac from this tx
 
-                // once per file, re-lock lb to read document using up-to-date hmac (lb lock)
-                // because lock has been dropped in the meantime, original `tree` is now arbitrarily out-of-date
-                let tx = self.ro_tx().await;
-                let db = tx.db();
-                let hmac_tree = (&db.base_metadata).stage(&db.local_metadata); // not lazy bc no decryption uses this one
+            let content = if encrypted_content.value.len() <= CONTENT_MAX_LEN_BYTES {
+                // use the original tree to decrypt the content
+                let decrypted_content = tree.decrypt_document(&id, &encrypted_content, account)?;
+                Some(String::from_utf8_lossy(&decrypted_content).into_owned())
+            } else {
+                None
+            };
 
-                let cum1 = start.elapsed();
-
-                let Some(file) = hmac_tree.maybe_find(&id) else { return None }; // file maybe deleted since we started
-
-                let cum2 = start.elapsed();
-
-                let Some(&hmac) = file.document_hmac() else { return None }; // file maybe contentless
-
-                let cum3 = start.elapsed();
-
-                let encrypted_content = self.docs.get(id, Some(hmac)).await.ok()?; // present bc hmac from this tx
-
-                let cum4 = start.elapsed();
-
-                let content = if encrypted_content.value.len() <= CONTENT_MAX_LEN_BYTES {
-                    // use the original tree to decrypt the content
-                    let decrypted_content = tree
-                        .decrypt_document(&id, &encrypted_content, account)
-                        .ok()?;
-                    Some(String::from_utf8_lossy(&decrypted_content).into_owned())
-                } else {
-                    None
-                };
-
-                println!(
-                    "  indexed file {} in {:?}\t({:?}/{:?}/{:?}/{:?}",
-                    i,
-                    start.elapsed(),
-                    cum1,
-                    cum2,
-                    cum3,
-                    cum4
-                );
-
-                Some(SearchIndexEntry { id, path, content })
-            });
+            replacement_index.push(SearchIndexEntry { id, path, content })
         }
-
-        // lock released while executing futures
-        let replacement_index = search_futures
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
 
         // swap in replacement index (index lock)
         *self.search.docs.write().await = replacement_index;
-
-        println!("built index in {:?}", start.elapsed());
 
         Ok(())
     }
@@ -215,7 +163,11 @@ impl Lb {
     pub fn spawn_build_index(&self) {
         tokio::spawn({
             let lb = self.clone();
-            async move { lb.build_index().await }
+            async move {
+                if let Err(e) = lb.build_index().await {
+                    error!("Error building search index: {:?}", e)
+                }
+            }
         });
     }
 }
