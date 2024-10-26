@@ -930,12 +930,8 @@ fn jsearch_results<'local>(
                     )
                     .unwrap();
 
-                    env.set_object_array_element(
-                        &jcontent_matches,
-                        j as i32,
-                        jcontent_match,
-                    )
-                    .unwrap();
+                    env.set_object_array_element(&jcontent_matches, j as i32, jcontent_match)
+                        .unwrap();
                 }
 
                 env.set_field(
@@ -965,8 +961,7 @@ fn jsearch_results<'local>(
             }
         };
 
-        env.set_object_array_element(&arr, i as i32, obj)
-            .unwrap();
+        env.set_object_array_element(&arr, i as i32, obj).unwrap();
     }
 
     arr

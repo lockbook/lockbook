@@ -1,7 +1,10 @@
 use std::ffi::CString;
 
 use crate::{
-    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbSearchRes, LbSubscriptionInfoRes, LbUncompressedRes, LbUsageMetricsRes
+    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, LbAccountRes, LbDocRes,
+    LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbInitRes,
+    LbLastSyncedHuman, LbLastSyncedi64, LbSearchRes, LbSubscriptionInfoRes, LbUncompressedRes,
+    LbUsageMetricsRes,
 };
 
 #[no_mangle]
@@ -167,14 +170,15 @@ pub extern "C" fn lb_free_search_results(search_results: LbSearchRes) {
     }
 
     if !search_results.document_results.is_null() {
-        let document_results = rvec(search_results.document_results, search_results.document_results_len);
+        let document_results =
+            rvec(search_results.document_results, search_results.document_results_len);
 
         for result in document_results {
             let content_matches = rvec(result.content_matches, result.content_matches_len);
 
             for content_match in content_matches {
                 let _ = rvec(content_match.matched_indicies, content_match.matched_indicies_len);
-                
+
                 unsafe { drop(CString::from_raw(content_match.paragraph)) }
             }
 
@@ -201,7 +205,7 @@ pub extern "C" fn lb_free_sub_info(sub_info: LbSubscriptionInfoRes) {
 
     if !sub_info.info.is_null() {
         let sub_info = unsafe { Box::from_raw(sub_info.info) };
-        
+
         if !sub_info.stripe.is_null() {
             let stripe = unsafe { Box::from_raw(sub_info.stripe) };
 

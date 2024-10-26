@@ -13,9 +13,7 @@ fn open_app_benchmark(c: &mut Criterion) {
 fn get_state_benchmark(c: &mut Criterion) {
     let core = blocking_core();
 
-    c.bench_function("open_app_get_state", |b| {
-        b.iter(|| Lb::init(core.get_config()).unwrap())
-    });
+    c.bench_function("open_app_get_state", |b| b.iter(|| Lb::init(core.get_config()).unwrap()));
 }
 
 fn get_account_benchmark(c: &mut Criterion) {

@@ -4,9 +4,7 @@ use jni::{
 };
 use lb_rs::{
     blocking::Lb,
-    model::
-        errors::{LbErr, LbErrKind}
-    ,
+    model::errors::{LbErr, LbErrKind},
 };
 
 pub(crate) fn rstring<'local>(env: &mut JNIEnv<'local>, input: JString<'local>) -> String {

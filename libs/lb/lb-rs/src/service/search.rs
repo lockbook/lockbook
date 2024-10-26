@@ -255,7 +255,11 @@ impl SearchIndex {
                     }
 
                     if !content_matches.is_empty() {
-                        return Some(SearchResult::DocumentMatch { id, path: path.clone(), content_matches });
+                        return Some(SearchResult::DocumentMatch {
+                            id,
+                            path: path.clone(),
+                            content_matches,
+                        });
                     }
                 }
                 None
