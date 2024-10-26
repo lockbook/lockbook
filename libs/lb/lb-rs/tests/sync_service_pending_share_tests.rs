@@ -89,25 +89,27 @@ async fn edited_document() {
     assert::all_pending_shares(&cores[1], &["document"]).await;
 }
 
-#[test]
-fn preview_pending_share() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn preview_pending_share() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
 
-    let document = cores[0].create_at_path("document").unwrap();
+    let document = cores[0].create_at_path("document").await.unwrap();
     cores[0]
         .write_document(document.id, b"document content")
+        .await
         .unwrap();
     cores[0]
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .await
         .unwrap();
-    cores[0].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
 
-    cores[1].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    assert_stuff(&cores[0], &cores[1]);
-    assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content");
+    assert_stuff(&cores[0], &cores[1]).await;
+    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content");
 }
