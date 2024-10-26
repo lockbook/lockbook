@@ -66,6 +66,17 @@ impl SearchResult {
             }
         }
     }
+
+    pub fn score(&self) -> i64 {
+        match self {
+            SearchResult::DocumentMatch { content_matches, .. } => content_matches
+                .iter()
+                .map(|m| m.score)
+                .max()
+                .unwrap_or_default(),
+            SearchResult::PathMatch { score, .. } => *score,
+        }
+    }
 }
 
 impl Lb {
@@ -94,17 +105,21 @@ impl Lb {
             }
         }
 
-        match cfg {
-            SearchConfig::Paths => self.search.search_paths(input).await,
-            SearchConfig::Documents => self.search.search_content(input).await,
+        let mut results = match cfg {
+            SearchConfig::Paths => self.search.search_paths(input).await?,
+            SearchConfig::Documents => self.search.search_content(input).await?,
             SearchConfig::PathsAndDocuments => {
                 let (paths, content) = tokio::join!(
                     self.search.search_paths(input),
                     self.search.search_content(input)
                 );
-                Ok(paths?.into_iter().chain(content?.into_iter()).collect())
+                paths?.into_iter().chain(content?.into_iter()).collect()
             }
-        }
+        };
+
+        results.sort_unstable_by_key(|r| -r.score());
+
+        Ok(results)
     }
 
     pub async fn build_index(&self) -> LbResult<()> {
