@@ -46,6 +46,8 @@ async fn search_paths_successfully() {
         core.create_at_path(file_path).await.unwrap();
     }
 
+    core.build_index().await.unwrap();
+
     let search1 = core.search("", SearchConfig::Paths).await.unwrap();
     assert_eq!(search1.len(), 0);
 
@@ -94,6 +96,8 @@ async fn search_content_successfully() {
     core.write_document(file.id, CONTENT.as_bytes())
         .await
         .unwrap();
+
+    core.build_index().await.unwrap();
 
     let search1 = core
         .search("", SearchConfig::PathsAndDocuments)
@@ -162,6 +166,9 @@ async fn search_exclude_pending_share() {
         )
         .await
         .unwrap();
+
+    core1.build_index().await.unwrap();
+    core2.build_index().await.unwrap();
 
     let search1 = core2
         .search("", SearchConfig::PathsAndDocuments)
