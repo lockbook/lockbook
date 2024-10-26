@@ -43,7 +43,6 @@ impl AsyncDocs {
         }
     }
 
-    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn get(
         &self, id: Uuid, hmac: Option<DocumentHmac>,
     ) -> SharedResult<EncryptedDocument> {
@@ -52,7 +51,6 @@ impl AsyncDocs {
             .ok_or_else(|| SharedErrorKind::FileNonexistent.into())
     }
 
-    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn maybe_get(
         &self, id: Uuid, hmac: Option<DocumentHmac>,
     ) -> SharedResult<Option<EncryptedDocument>> {

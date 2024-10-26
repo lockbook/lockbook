@@ -7,6 +7,7 @@ use crate::Lb;
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 use serde::Serialize;
 use std::sync::Arc;
+use std::time::Instant;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -32,7 +33,7 @@ pub struct SearchIndexEntry {
     pub content: Option<String>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum SearchConfig {
     Paths,
     Documents,
@@ -68,6 +69,7 @@ impl SearchResult {
 }
 
 impl Lb {
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
         if self.search.docs.read().await.is_empty() {
             self.build_index().await?;
@@ -106,6 +108,7 @@ impl Lb {
     }
 
     pub async fn build_index(&self) -> LbResult<()> {
+        let start = Instant::now();
         // fetch metadata once; use single lazy tree to re-use key decryption work for all files (lb lock)
         let account = self.get_account()?;
         let mut tree = {
@@ -156,10 +159,12 @@ impl Lb {
 
         // swap in replacement index (index lock)
         *self.search.docs.write().await = replacement_index;
+        info!("Search index built in {:?}", start.elapsed());
 
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self))]
     pub fn spawn_build_index(&self) {
         tokio::spawn({
             let lb = self.clone();
