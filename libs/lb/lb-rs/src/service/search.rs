@@ -202,11 +202,13 @@ impl SearchIndex {
         // read lock held while constructing futures (data cloned into futures)
         let search_futures = FuturesUnordered::new();
         let docs = self.docs.read().await;
-        for doc in docs.iter() {
-            let id = doc.id;
-            let path = doc.path.clone();
-            let content = doc.content.clone();
+
+        for (idx, _) in docs.iter().enumerate() {
             search_futures.push(async move {
+                let doc = &self.docs.read().await[idx];
+                let id = doc.id;
+                let path = &doc.path;
+                let content = &doc.content;
                 if let Some(content) = content {
                     let mut content_matches = Vec::new();
 
@@ -236,14 +238,13 @@ impl SearchIndex {
                     }
 
                     if !content_matches.is_empty() {
-                        return Some(SearchResult::DocumentMatch { id, path, content_matches });
+                        return Some(SearchResult::DocumentMatch { id, path: path.clone(), content_matches });
                     }
                 }
                 None
             });
         }
 
-        // lock released while executing futures
         Ok(search_futures
             .collect::<Vec<Option<SearchResult>>>()
             .await

@@ -76,46 +76,46 @@ where
     }
 }
 
-impl<T> StagedTreeLike for &T
-where
-    T: StagedTreeLike,
-{
-    type Base = T::Base;
-    type Staged = T::Staged;
-
-    fn base(&self) -> &Self::Base {
-        T::base(self)
-    }
-    fn staged(&self) -> &Self::Staged {
-        T::staged(self)
-    }
-}
-
-impl<T> StagedTreeLike for &mut T
-where
-    T: StagedTreeLike,
-{
-    type Base = T::Base;
-    type Staged = T::Staged;
-
-    fn base(&self) -> &Self::Base {
-        T::base(self)
-    }
-    fn staged(&self) -> &Self::Staged {
-        T::staged(self)
-    }
-}
-
-impl<Base, Staged, T> StagedTreeLikeMut<Base, Staged> for &mut T
-where
-    Base: TreeLike<F = T::F>,
-    Staged: TreeLikeMut<F = T::F>,
-    T: StagedTreeLikeMut<Base, Staged>,
-{
-    fn staged_mut(&mut self) -> &mut Self::Staged {
-        T::staged_mut(self)
-    }
-}
+// impl<T> StagedTreeLike for &T
+// where
+//     T: StagedTreeLike,
+// {
+//     type Base = T::Base;
+//     type Staged = T::Staged;
+// 
+//     fn base(&self) -> &Self::Base {
+//         T::base(self)
+//     }
+//     fn staged(&self) -> &Self::Staged {
+//         T::staged(self)
+//     }
+// }
+// 
+// impl<T> StagedTreeLike for &mut T
+// where
+//     T: StagedTreeLike,
+// {
+//     type Base = T::Base;
+//     type Staged = T::Staged;
+// 
+//     fn base(&self) -> &Self::Base {
+//         T::base(self)
+//     }
+//     fn staged(&self) -> &Self::Staged {
+//         T::staged(self)
+//     }
+// }
+// 
+// impl<Base, Staged, T> StagedTreeLikeMut<Base, Staged> for &mut T
+// where
+//     Base: TreeLike<F = T::F>,
+//     Staged: TreeLikeMut<F = T::F>,
+//     T: StagedTreeLikeMut<Base, Staged>,
+// {
+//     fn staged_mut(&mut self) -> &mut Self::Staged {
+//         T::staged_mut(self)
+//     }
+// }
 
 impl<Base, Staged> TreeLike for StagedTree<Base, Staged>
 where

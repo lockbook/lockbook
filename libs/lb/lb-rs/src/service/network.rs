@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use reqwest::Client;
+use tokio::time::sleep;
 
 use crate::get_code_version;
 use crate::logic::pubkey;
@@ -63,18 +66,30 @@ impl Network {
             client_version: client_version.clone(),
         })
         .map_err(|err| ApiError::Serialize(err.to_string()))?;
-        let a = self
-            .client
-            .request(T::METHOD, format!("{}{}", account.api_url, T::ROUTE).as_str())
-            .body(serialized_request)
-            .header("Accept-Version", client_version)
-            .send()
-            .await
-            .map_err(|err| {
-                warn!("Send failed: {:#?}", err);
-                ApiError::SendFailed(err.to_string())
-            })?;
-        let serialized_response = a
+        let mut retries = 0;
+        let sent = loop {
+            match self
+                .client
+                .request(T::METHOD, format!("{}{}", account.api_url, T::ROUTE).as_str())
+                .body(serialized_request.clone())
+                .header("Accept-Version", client_version.clone())
+                .send()
+                .await
+            {
+                Ok(o) => break o,
+                Err(e) => {
+                    if retries < 3 {
+                        warn!("send failed retrying after {}ms", retries * 100);
+                        sleep(Duration::from_millis(retries * 100)).await;
+                        retries += 1;
+                        continue;
+                    } else {
+                        return Err(ApiError::SendFailed(e.to_string()));
+                    }
+                }
+            }
+        };
+        let serialized_response = sent
             .bytes()
             .await
             .map_err(|err| ApiError::ReceiveFailed(err.to_string()))?;
