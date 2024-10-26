@@ -2,14 +2,17 @@ use super::activity::RankingWeights;
 use crate::logic::file_like::FileLike;
 use crate::logic::filename::DocumentType;
 use crate::logic::tree_like::TreeLike;
+use crate::model::clock;
 use crate::model::errors::{LbResult, UnexpectedError};
 use crate::Lb;
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 use serde::Serialize;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use tokio::sync::RwLock;
+use tokio::time::sleep;
 use uuid::Uuid;
 
 const CONTENT_SCORE_THRESHOLD: i64 = 170;
@@ -24,6 +27,8 @@ const FUZZY_WEIGHT: f32 = 0.8;
 
 #[derive(Clone, Default)]
 pub struct SearchIndex {
+    pub scheduled_build: Arc<AtomicBool>,
+    pub last_built: Arc<AtomicU64>,
     pub docs: Arc<RwLock<Vec<SearchIndexEntry>>>,
 }
 
@@ -122,7 +127,8 @@ impl Lb {
     }
 
     pub async fn build_index(&self) -> LbResult<()> {
-        let start = Instant::now();
+        let ts = clock::get_time().0 as u64;
+        self.search.last_built.store(ts, Ordering::SeqCst);
         // fetch metadata once; use single lazy tree to re-use key decryption work for all files (lb lock)
         let account = self.get_account()?;
         let mut tree = {
@@ -173,15 +179,33 @@ impl Lb {
 
         // swap in replacement index (index lock)
         *self.search.docs.write().await = replacement_index;
-        info!("Search index built in {:?}", start.elapsed());
 
         Ok(())
     }
 
+    /// ensure the index is not built more frequently than every 5s
     pub fn spawn_build_index(&self) {
         tokio::spawn({
             let lb = self.clone();
             async move {
+                let ts = clock::get_time().0 as u64;
+                let since_last = ts - lb.search.last_built.load(Ordering::SeqCst);
+                if since_last < 5000 {
+                    if lb.search.scheduled_build.load(Ordering::SeqCst) {
+                        // index is pretty fresh, and there is a build scheduled in the future, do
+                        // nothing
+                        return;
+                    } else {
+                        // wait until about 5s since last build and then try the whole routine
+                        // again
+                        lb.search.scheduled_build.store(true, Ordering::SeqCst);
+                        sleep(Duration::from_millis(5001 - since_last)).await;
+                        lb.spawn_build_index();
+                    }
+                }
+
+                // if we make it here there are no scheduled builds reset that flag
+                lb.search.scheduled_build.store(false, Ordering::SeqCst);
                 if let Err(e) = lb.build_index().await {
                     error!("Error building search index: {:?}", e)
                 }
