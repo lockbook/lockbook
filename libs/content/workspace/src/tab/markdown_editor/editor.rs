@@ -1,7 +1,6 @@
 use egui::os::OperatingSystem;
 use egui::{
-    scroll_area, Context, CursorIcon, EventFilter, Frame, Id, Margin, Rect, ScrollArea, Sense,
-    Stroke, Ui, Vec2,
+    scroll_area, Context, EventFilter, Frame, Id, Margin, Rect, ScrollArea, Stroke, Ui, Vec2,
 };
 
 use lb_rs::blocking::Lb;
@@ -24,7 +23,6 @@ use markdown_editor::input::cursor;
 use markdown_editor::input::cursor::CursorState;
 use markdown_editor::input::mutation::EventState;
 use markdown_editor::input::Bound;
-use markdown_editor::input::{Location, Region};
 use markdown_editor::widgets::find::Find;
 use markdown_editor::widgets::toolbar::{Toolbar, MOBILE_TOOL_BAR_SIZE};
 use markdown_editor::Event;
@@ -69,11 +67,8 @@ pub struct Editor {
     pub find: Find,
     pub event: EventState,
 
-    // referenced by toolbar for keyboard toggle (todo: cleanup)
     pub virtual_keyboard_shown: bool,
-
-    // referenced by toolbar for layout (todo: cleanup)
-    pub rect: Rect,
+    pub started_scrolling: Option<Instant>,
 }
 
 impl Editor {
@@ -104,8 +99,7 @@ impl Editor {
             event: Default::default(),
 
             virtual_keyboard_shown: false,
-
-            rect: Rect::ZERO,
+            started_scrolling: None,
         }
     }
 
@@ -148,15 +142,15 @@ impl Editor {
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
         ui.vertical(|ui| {
-            // show find toolbar
-            let find_resp = self.find.show(&self.buffer, ui);
-            if let Some(term) = find_resp.term {
-                ui.ctx()
-                    .push_markdown_event(Event::Find { term, backwards: find_resp.backwards });
-            }
-
             if touch_mode {
-                // touch devices: show toolbar at the bottom
+                // touch devices: show find...
+                let find_resp = self.find.show(&self.buffer, ui);
+                if let Some(term) = find_resp.term {
+                    ui.ctx()
+                        .push_markdown_event(Event::Find { term, backwards: find_resp.backwards });
+                }
+
+                // ...then show editor content...
                 let resp = ui
                     .allocate_ui(
                         egui::vec2(
@@ -166,6 +160,8 @@ impl Editor {
                         |ui| self.show_inner(touch_mode, ui),
                     )
                     .inner;
+
+                // ...then show toolbar at the bottom
                 self.toolbar.show(
                     &self.ast,
                     &self.bounds,
@@ -175,7 +171,7 @@ impl Editor {
                 );
                 resp
             } else {
-                // non-touch devices: show toolbar at the top
+                // non-touch devices: show toolbar...
                 self.toolbar.show(
                     &self.ast,
                     &self.bounds,
@@ -183,6 +179,15 @@ impl Editor {
                     self.virtual_keyboard_shown,
                     ui,
                 );
+
+                // ...then show find...
+                let find_resp = self.find.show(&self.buffer, ui);
+                if let Some(term) = find_resp.term {
+                    ui.ctx()
+                        .push_markdown_event(Event::Find { term, backwards: find_resp.backwards });
+                }
+
+                // ...then show editor content
                 self.show_inner(touch_mode, ui)
             }
         })
@@ -210,62 +215,32 @@ impl Editor {
                     .id_source(self.file_id)
                     .show(ui, |ui| {
                         ui.spacing_mut().item_spacing = Vec2::ZERO;
-                        let max_rect = ui.max_rect();
+                        ui.vertical_centered(|ui| {
+                            // register widget id
+                            ui.ctx().check_for_id_clash(self.id(), Rect::NOTHING, "");
 
-                        let resp = ui
-                            .vertical_centered(|ui| {
-                                // clip elements width
-                                let max_width = 800.0;
-                                if ui.max_rect().width() > max_width {
-                                    ui.set_max_width(max_width);
-                                } else {
-                                    ui.set_max_width(ui.max_rect().width());
-                                }
-
-                                // register widget id
-                                ui.ctx().check_for_id_clash(self.id(), Rect::NOTHING, "");
-
-                                Frame::canvas(ui.style())
-                                    .stroke(Stroke::NONE)
-                                    .inner_margin(Margin::same(15.))
-                                    .show(ui, |ui| self.show_inner_inner(ui, touch_mode))
-                                    .inner
-                            })
-                            .inner;
-
-                        // fill available space / end of text padding
-                        let min_rect = ui.min_rect();
-                        let padding_height = if min_rect.height() < max_rect.height() {
-                            // fill available space
-                            max_rect.height() - min_rect.height()
-                        } else {
-                            // end of text padding
-                            max_rect.height() / 2.
-                        };
-                        let padding_response = ui.allocate_response(
-                            Vec2::new(max_rect.width(), padding_height),
-                            Sense { click: true, drag: false, focusable: false },
-                        );
-                        if padding_response.clicked() {
-                            ui.ctx().push_markdown_event(Event::Select {
-                                region: Region::Location(Location::DocCharOffset(
-                                    self.buffer.current.segs.last_cursor_position(),
-                                )),
-                            });
-                            ui.ctx().request_repaint();
-                        }
-                        if padding_response.hovered() {
-                            ui.ctx().set_cursor_icon(CursorIcon::Text);
-                        }
-
-                        resp
+                            Frame::canvas(ui.style())
+                                .stroke(Stroke::NONE)
+                                .inner_margin(Margin::same(15.))
+                                .show(ui, |ui| self.show_inner_inner(ui, touch_mode))
+                                .inner
+                        })
+                        .inner
                     });
                 let mut resp = scroll_area_output.inner;
 
-                self.rect = scroll_area_output.inner_rect;
                 resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
 
                 if resp.scroll_updated {
+                    if self.started_scrolling.is_none() {
+                        self.started_scrolling = Some(Instant::now());
+                    }
+                } else {
+                    self.started_scrolling = None;
+                }
+                if self.started_scrolling.unwrap_or(Instant::now()).elapsed()
+                    > Duration::from_millis(300)
+                {
                     ui.ctx().set_virtual_keyboard_shown(false);
                 }
 
@@ -282,14 +257,16 @@ impl Editor {
 
         // remember state for change detection
         let prior_suggested_title = self.get_suggested_title();
+        let prior_selection = self.buffer.current.selection;
 
         // process events
-        let (text_updated, selection_updated) = if self.initialized {
+        let text_updated = if self.initialized {
             self.process_events(ui.ctx())
         } else {
             self.initialized = true;
-            (true, true)
+            true
         };
+        let selection_updated = prior_selection != self.buffer.current.selection;
 
         // recalculate dependent state
         if text_updated {

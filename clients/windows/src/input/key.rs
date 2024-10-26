@@ -105,8 +105,11 @@ pub fn handle(
 
     // todo: something feels weird about this
     if let Some(key) = egui_key(key) {
-        if pressed && key == egui::Key::V && modifiers.command {
-            // ctrl + v
+        if pressed && key == egui::Key::X && modifiers.command {
+            app.raw_input.events.push(egui::Event::Cut);
+        } else if pressed && key == egui::Key::C && modifiers.command {
+            app.raw_input.events.push(egui::Event::Copy);
+        } else if pressed && key == egui::Key::V && modifiers.command {
             clipboard_paste::handle(app);
         } else {
             // other egui keys

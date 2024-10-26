@@ -14,7 +14,7 @@ use super::mutation::pos_to_char_offset;
 use super::{cursor, mutation, Bound};
 
 impl Editor {
-    pub fn process_events(&mut self, ctx: &Context) -> (bool, bool) {
+    pub fn process_events(&mut self, ctx: &Context) -> bool {
         let mut ops = Vec::new();
         let mut response = buffer::Response::default();
         for event in self.get_cursor_fix_events() {

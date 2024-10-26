@@ -137,24 +137,25 @@ impl Pen {
                     self.cancel_path(pen_ctx);
                 }
 
+                let path_stroke =
+                    Stroke { color: self.active_color, width: self.active_stroke_width };
+
                 if let Some(parser::Element::Path(p)) =
                     pen_ctx.buffer.elements.get_mut(&self.current_id)
                 {
                     p.diff_state.data_changed = true;
+                    p.stroke = Some(path_stroke);
 
                     self.path_builder.line_to(payload.pos, &mut p.data);
                     event!(Level::TRACE, "drawing");
                 } else {
-                    let stroke =
-                        Stroke { color: self.active_color, width: self.active_stroke_width };
-
                     event!(Level::TRACE, "starting a new path");
 
                     let el = parser::Element::Path(Path {
                         data: Subpath::new(vec![], false),
                         visibility: resvg::usvg::Visibility::Visible,
                         fill: None,
-                        stroke: Some(stroke),
+                        stroke: Some(path_stroke),
                         transform: Transform::identity().post_scale(
                             pen_ctx.buffer.master_transform.sx,
                             pen_ctx.buffer.master_transform.sy,
