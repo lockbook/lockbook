@@ -80,7 +80,6 @@ impl SearchResult {
 }
 
 impl Lb {
-    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
         if self.search.docs.read().await.is_empty() {
             self.build_index().await?;
@@ -179,7 +178,6 @@ impl Lb {
         Ok(())
     }
 
-    #[instrument(level = "debug", skip(self))]
     pub fn spawn_build_index(&self) {
         tokio::spawn({
             let lb = self.clone();
@@ -219,7 +217,6 @@ impl SearchIndex {
     }
 
     async fn search_content(&self, input: &str) -> LbResult<Vec<SearchResult>> {
-        // read lock held while constructing futures (data cloned into futures)
         let search_futures = FuturesUnordered::new();
         let docs = self.docs.read().await;
 

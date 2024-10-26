@@ -20,3 +20,6 @@ members = [
 	"utils/winstaller",
     "libs/lb/lb-c", "libs/lb/lb-java",
 ]
+
+[profile.release]
+debug = true
