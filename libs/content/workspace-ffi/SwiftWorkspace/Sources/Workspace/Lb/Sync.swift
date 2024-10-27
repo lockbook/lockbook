@@ -2,8 +2,8 @@ import Foundation
 import Bridge
 
 public struct SyncStatus {
-    let latestServerTS: UInt64
-    let work: [WorkUnit]
+    public let latestServerTS: UInt64
+    public let work: [WorkUnit]
     
     init(_ res: LbSyncRes) {
         self.latestServerTS = res.latest_server_ts
@@ -24,8 +24,8 @@ extension Array<LbWorkUnit> {
 }
 
 public struct WorkUnit {
-    let id: UUID
-    let local: Bool
+    public let id: UUID
+    public let local: Bool
     
     init(_ workUnit: LbWorkUnit) {
         self.id = workUnit.id.toUUID()
@@ -34,11 +34,11 @@ public struct WorkUnit {
 }
 
 public struct UsageMetrics {
-    let serverUsedExact: UInt64
-    let serverUsedHuman: String
+    public let serverUsedExact: UInt64
+    public let serverUsedHuman: String
     
-    let serverCapExact: UInt64
-    let serverCapHuman: String
+    public let serverCapExact: UInt64
+    public let serverCapHuman: String
     
     init(_ res: LbUsageMetrics) {
         self.serverUsedExact = res.server_used_exact
@@ -49,11 +49,11 @@ public struct UsageMetrics {
 }
 
 public struct UncompressedUsageMetric {
-    let uncompressedExact: UInt64
-    let uncompressedHuman: String
+    public let exact: UInt64
+    public let humanMsg: String
     
     init(_ res: LbUncompressedRes) {
-        self.uncompressedExact = res.uncompressed_exact
-        self.uncompressedHuman = String(cString: res.uncompressed_human)
+        self.exact = res.uncompressed_exact
+        self.humanMsg = String(cString: res.uncompressed_human)
     }
 }

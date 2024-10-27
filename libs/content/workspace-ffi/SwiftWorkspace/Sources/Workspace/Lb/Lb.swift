@@ -3,6 +3,13 @@ import Foundation
 
 public class Lb {
     public var lb: OpaquePointer? = nil
+    
+    public init(writablePath: String, logs: Bool) {
+        print("Starting core at \(writablePath) and logs=\(logs)")
+        
+        let res = start(writablePath: writablePath, logs: logs)
+        print("Lb init result: \(res)")
+    }
             
     public func start(writablePath: String, logs: Bool) -> Result<Void, LbError> {
         let res = lb_init(writablePath, logs)
@@ -288,7 +295,7 @@ public class Lb {
 
         return .success(String(cString: res.path))
     }
-    
+        
     public func getLocalChanges() -> Result<[UUID], LbError> {
         let res = lb_get_local_changes(lb)
         defer { lb_free_id_list_res(res) }
@@ -309,6 +316,25 @@ public class Lb {
     
     public func calculateWork() -> Result<SyncStatus, LbError> {
         let res = lb_calculate_work(lb)
+        defer { lb_free_sync_res(res) }
+        
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(SyncStatus(res))
+    }
+        
+    public func sync(updateStatus: (@convention(c) (UInt, UInt, UUID, String) -> Void)?) -> Result<SyncStatus, LbError> {
+        var lbUpdateStatus: UnsafePointer<(@convention(c) (UInt, UInt, LbUuid, UnsafePointer<CChar>?) -> Void)?>? = nil
+        
+        if let updateStatus = updateStatus {
+            lbUpdateStatus = unsafeBitCast({ (total: UInt, progress: UInt, id: LbUuid, msg: UnsafePointer<CChar>?) in
+                updateStatus(total, progress, id.toUUID(), String(cString: msg!))
+            }, to: UnsafePointer<(@convention(c) (UInt, UInt, LbUuid, UnsafePointer<CChar>?) -> Void)?>?.self)
+        }
+        
+        let res = lb_sync(lb, lbUpdateStatus)
         defer { lb_free_sync_res(res) }
         
         guard res.err == nil else {
@@ -404,7 +430,7 @@ public class Lb {
         return .success(())
     }
     
-    func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<([PathSearchResult], [DocumentSearchResult]), LbError> {
+    public func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<([PathSearchResult], [DocumentSearchResult]), LbError> {
         let res = lb_search(lb, input, searchPaths, searchDocs)
         defer { lb_free_search_results(res) }
         
@@ -415,7 +441,7 @@ public class Lb {
         return .success((Array(UnsafeBufferPointer(start: res.path_results, count: Int(res.path_results_len))).toPathSearchResults(), Array(UnsafeBufferPointer(start: res.document_results, count: Int(res.document_results_len))).toDocumentSearchResults()))
     }
     
-    func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError> {
+    public func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError> {
         let err = lb_upgrade_account_stripe(lb, isOldCard, number, expYear, expMonth, cvc)
         defer { lb_free_err(err) }
         
@@ -426,7 +452,7 @@ public class Lb {
         return .success(())
     }
     
-    func upgradeAccountStripe(originalTransactionId: String, appAccountToken: String) -> Result<Void, LbError> {
+    public func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String) -> Result<Void, LbError> {
         let err = lb_upgrade_account_app_store(lb, originalTransactionId, appAccountToken)
         defer { lb_free_err(err) }
         
@@ -437,7 +463,7 @@ public class Lb {
         return .success(())
     }
     
-    func upgradeAccountStripe() -> Result<Void, LbError> {
+    public func cancelSubscription() -> Result<Void, LbError> {
         let err = lb_cancel_subscription(lb)
         defer { lb_free_err(err) }
         
@@ -448,7 +474,7 @@ public class Lb {
         return .success(())
     }
     
-    func getSubscriptionInfo() -> Result<SubscriptionInfo?, LbError> {
+    public func getSubscriptionInfo() -> Result<SubscriptionInfo?, LbError> {
         let res = lb_get_subscription_info(lb)
         defer { lb_free_sub_info(res) }
         

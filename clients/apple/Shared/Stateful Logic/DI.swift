@@ -1,9 +1,8 @@
 import SwiftUI
 import SwiftWorkspace
-import SwiftLockbookCore
 
 class DI {
-    static let core = CoreApi(ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location, logs: true)
+    static let core = Lb(writablePath: ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location, logs: true)
 
     static let coreService: CoreService = CoreService(core)
     static let errors: UnexpectedErrorService = UnexpectedErrorService()

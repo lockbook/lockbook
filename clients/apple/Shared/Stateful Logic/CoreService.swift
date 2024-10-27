@@ -1,9 +1,8 @@
 import Foundation
-import SwiftLockbookCore
-import CLockbookCore
+import SwiftWorkspace
 
 class CoreService: ObservableObject {
-    let core: LockbookApi
+    let core: Lb
     let corePtr: UnsafeMutableRawPointer
     
     

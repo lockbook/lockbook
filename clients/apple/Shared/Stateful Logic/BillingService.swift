@@ -1,4 +1,4 @@
-import SwiftLockbookCore
+import SwiftWorkspace
 import SwiftUI
 import StoreKit
 
@@ -23,7 +23,7 @@ public enum CancelSubscriptionResult {
 let MONTHLY_SUBSCRIPTION_PRODUCT_ID = "basic.premium"
 
 class BillingService: ObservableObject {
-    let core: LockbookApi
+    let core: Lb
     
     var pendingTransactionsListener: Task<Void, Error>? = nil
 
@@ -35,7 +35,7 @@ class BillingService: ObservableObject {
     
     @Published var showManageSubscriptionView: Bool = false
     
-    init(_ core: LockbookApi) {
+    init(_ core: Lb) {
         self.core = core
     }
     
@@ -66,13 +66,13 @@ class BillingService: ObservableObject {
                             return
                         }
                             
-                        let result = self.core.newAppleSub(originalTransactionId: String(transaction.originalID), appAccountToken: appAccountToken.uuidString.lowercased())
+                        let result = self.core.upgradeAccountAppStore(originalTransactionId: String(transaction.originalID), appAccountToken: appAccountToken.uuidString.lowercased())
                                 
                         switch result {
                         case .success(_):
                             await transaction.finish()
                         case .failure(let error):
-                            if error.kind == .UiError(.AppStoreAccountAlreadyLinked) {
+                            if error.code == .appStoreAccountAlreadyLinked {
                                 await transaction.finish()
                                 self.purchaseResult = .success
                             }
@@ -119,7 +119,7 @@ class BillingService: ObservableObject {
                     return
                 }
                     
-                let result = self.core.newAppleSub(originalTransactionId: String(transaction.originalID), appAccountToken: accountToken.lowercased())
+                let result = self.core.upgradeAccountAppStore(originalTransactionId: String(transaction.originalID), appAccountToken: accountToken.lowercased())
                     
                 switch result {
                 case .success(_):
@@ -172,21 +172,16 @@ class BillingService: ObservableObject {
     
     func cancelSubscription() {
         DispatchQueue.global(qos: .userInteractive).async {
-            let result = self.core.cancelSub()
+            let result = self.core.cancelSubscription()
             
             DispatchQueue.main.async {
                 switch result {
                 case .success(_):
                     self.cancelSubscriptionResult = .success
                 case .failure(let err):
-                    switch err.kind {
-                    case .UiError(let errorVariant):
-                        if errorVariant == .CannotCancelForAppStore {
-                            self.cancelSubscriptionResult = .appstoreActionRequired
-                        } else {
-                            DI.errors.handleError(err)
-                        }
-                    case .Unexpected:
+                    if err.code == .cannotCancelSubscriptionForAppStore {
+                        self.cancelSubscriptionResult = .appstoreActionRequired
+                    } else {
                         DI.errors.handleError(err)
                     }
                 }

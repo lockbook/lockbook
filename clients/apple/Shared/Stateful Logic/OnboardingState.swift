@@ -1,4 +1,4 @@
-import SwiftLockbookCore
+import SwiftWorkspace
 import SwiftUI
 
 class OnboardingService: ObservableObject {

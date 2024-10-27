@@ -5,7 +5,7 @@ import SwiftWorkspace
 import Combine
 
 class FileService: ObservableObject {
-    let core: LockbookApi
+    let core: Lb
 
     @Published var root: File? = nil
     @Published var idsAndFiles: [UUID:File] = [:]
@@ -76,7 +76,7 @@ class FileService: ObservableObject {
     
     private var cancellables: Set<AnyCancellable> = []
 
-    init(_ core: LockbookApi) {
+    init(_ core: Lb) {
         self.core = core
 
         if DI.accounts.account != nil {
@@ -105,16 +105,11 @@ class FileService: ObservableObject {
                     self.successfulAction = .move
                     self.refresh()
                 case .failure(let error):
-                    switch error.kind {
-                    case .UiError(let uiError):
-                        switch uiError {
-                        case .FolderMovedIntoItself:
-                            DI.errors.errorWithTitle("Move Error", "Cannot move a folder into itself or one of it's children")
-                        case .TargetParentHasChildNamedThat:
-                            DI.errors.errorWithTitle("Move Error", "Target folder has a child named that")
-                        default:
-                            DI.errors.handleError(error)
-                        }
+                    switch error.code {
+                    case .folderMovedIntoSelf:
+                        DI.errors.errorWithTitle("Move Error", "Cannot move a folder into itself or one of it's children")
+                    case .pathTaken:
+                        DI.errors.errorWithTitle("Move Error", "Target folder has a child named that")
                     default:
                         DI.errors.handleError(error)
                     }
@@ -182,9 +177,8 @@ class FileService: ObservableObject {
                 let res = self.core.deleteFile(id: id)
                 
                 if case .failure(let error) = res {
-                    if error.kind != .UiError(.FileDoesNotExist) {
+                    if error.code != .fileNonexistent {
                         DI.errors.handleError(error)
-                        return
                     }
                 }
                 
@@ -253,11 +247,11 @@ class FileService: ObservableObject {
                 var suggestedDocs: [File] = []
                     
                 for id in ids.filter({ self.idsAndFiles[$0] != nil }) {
-                    switch self.core.getFileById(id: id) {
+                    switch self.core.getFile(id: id) {
                     case .success(let meta):
                         suggestedDocs.append(meta)
                     case .failure(let error):
-                        if error.kind != .UiError(.NoFileWithThatId) {
+                        if error.code != .fileNonexistent {
                             DI.errors.handleError(error)
                         }
                     }
@@ -324,8 +318,8 @@ class FileService: ObservableObject {
             
             while(true) {
                 let name: String = attempt != 0 ? "untitled-\(attempt)\(fileExt)" : "untitled\(fileExt)"
-                
-                switch self.core.createFile(name: name, dirId: parent, isFolder: false) {
+
+                switch self.core.createFile(name: name, parent: parent, fileType: .document) {
                 case .success(let meta):
                     self.refresh()
                     DispatchQueue.main.sync {
@@ -336,7 +330,8 @@ class FileService: ObservableObject {
                     }
                     
                     return
-                case .failure(let err):
+                case .failure(let error):
+                    
                     switch err.kind {
                     case .UiError(.FileNameNotAvailable):
                         attempt += 1

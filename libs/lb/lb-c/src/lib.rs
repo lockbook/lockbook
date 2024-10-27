@@ -19,7 +19,7 @@ use model::api::{
 };
 use service::{
     import_export::ImportStatus,
-    search::{SearchConfig, SearchResult},
+    search::{SearchConfig, SearchResult}, sync::SyncProgress,
 };
 
 #[repr(C)]
@@ -481,10 +481,27 @@ pub extern "C" fn lb_calculate_work(lb: *mut Lb) -> LbSyncRes {
     lb.calculate_work().into()
 }
 
+pub type UpdateSyncStatus = extern "C" fn(usize, usize, LbUuid, *const c_char);
+
 #[no_mangle]
-pub extern "C" fn lb_sync(lb: *mut Lb) -> LbSyncRes {
+pub extern "C" fn lb_sync(lb: *mut Lb, update_status: *const UpdateSyncStatus) -> LbSyncRes {
     let lb = rlb(lb);
-    lb.sync(None).into()
+    let f: Option<Box<dyn Fn(SyncProgress) + Send>> = if !update_status.is_null() {
+        let update_status = unsafe { *update_status };
+
+        Some(Box::new(move |sync_progress: SyncProgress| {
+            update_status(
+                sync_progress.total,
+                sync_progress.progress,
+                sync_progress.file_being_processed.unwrap_or_else(Uuid::nil).into(),
+                cstring(sync_progress.msg),
+            );
+        }))
+    } else {
+        None
+    };
+
+    lb.sync(f).into()
 }
 
 #[repr(C)]

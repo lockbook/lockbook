@@ -35,28 +35,20 @@ struct AppView: View {
             }
         }
             .alert(isPresented: Binding(get: { errors.globalError != nil }, set: { _ in errors.globalError = nil })) {
-                // TODO: Improve the UX of this
-                switch errors.globalError {
-                case let update as FfiError<CreateAccountError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let update as FfiError<ImportError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let update as FfiError<CalculateWorkError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let update as FfiError<SyncAllError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let update as FfiError<GetUsageError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let error as ErrorWithTitle:
+                if let error = errors.globalError {
+                    if error.code == .clientUpdateRequired {
+                        return updateAlert
+                    } else {
+                        return Alert(
+                            title: Text("Error"),
+                            message: Text(error.msg),
+                            dismissButton: .default(Text("Dismiss"))
+                        )
+                    }
+                } else {
                     return Alert(
-                        title: Text(error.title),
-                        message: Text(error.message),
-                        dismissButton: .default(Text("Dismiss"))
-                    )
-                default:
-                    return Alert(
-                        title: Text("Core Error!"),
-                        message: errors.globalError.map({ Text($0.message) }),
+                        title: Text("Error"),
+                        message: "An unknown error has occurred.",
                         dismissButton: .default(Text("Dismiss"))
                     )
                 }

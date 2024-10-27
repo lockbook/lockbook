@@ -1,4 +1,4 @@
-import SwiftLockbookCore
+import SwiftWorkspace
 import SwiftUI
 
 enum Tier {
@@ -12,10 +12,10 @@ let FREE_TIER_USAGE_CAP = 1000000
 
 class SettingsService: ObservableObject {
     
-    let core: LockbookApi
+    let core: Lb
+    
     @Published var offline: Bool = false
     @Published var usages: PrerequisiteInformation?
-    
     @Published var showView: Bool = false
 
     var usageProgress: Double {
@@ -65,7 +65,7 @@ class SettingsService: ObservableObject {
         }
     }
     
-    init(_ core: LockbookApi) {
+    init(_ core: Lb) {
         self.core = core
     }
     
@@ -97,15 +97,12 @@ class SettingsService: ObservableObject {
                             self.usages = PrerequisiteInformation(serverUsages: usages, uncompressedUsage: uncompressedUsage)
                         }
                     case .failure(let err):
-                        switch err.kind {
-                        case .UiError(let uiError):
-                            switch uiError {
-                            case .ClientUpdateRequired:
-                                DI.errors.errorWithTitle("Update Required", "You need to update to view your usage")
-                                self.offline = false
-                            case .CouldNotReachServer:
-                                self.offline = true
-                            }
+                        switch err.code {
+                        case .clientUpdateRequired:
+                            DI.errors.errorWithTitle("Update Required", "You need to update to view your usage")
+                            self.offline = false
+                        case .serverUnreachable:
+                            self.offline = true
                         default:
                             DI.errors.handleError(err)
                         }
@@ -116,9 +113,10 @@ class SettingsService: ObservableObject {
                     }
                 }
             case .failure(let err):
-                if(err.kind == .UiError(.CouldNotReachServer)) {
+                switch err.code {
+                case .serverUnreachable:
                     self.offline = true
-                } else {
+                default:
                     DI.errors.handleError(err)
                 }
             }
@@ -147,11 +145,11 @@ class SettingsService: ObservableObject {
 
 struct PrerequisiteInformation {
     let serverUsages: UsageMetrics
-    let uncompressedUsage: UsageItemMetric?
+    let uncompressedUsage: UncompressedUsageMetric?
     var compressionRatio: String {
         if let uncompressedUsage = uncompressedUsage {
-            let ratio = Double(uncompressedUsage.exact) / Double(serverUsages.serverUsage.exact)
-            return "\( round(ratio*10) / 10.0 )x"
+            let ratio = Double(uncompressedUsage.uncompressedExact) / Double(serverUsages.serverUsedExact)
+            return "\( round(ratio * 10) / 10.0 )x"
         } else {
             return "..."
         }

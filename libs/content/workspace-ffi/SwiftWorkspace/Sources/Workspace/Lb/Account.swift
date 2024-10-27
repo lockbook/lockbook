@@ -1,8 +1,8 @@
 import Bridge
 
 public struct Account {
-    let username: String
-    let apiUrl: String
+    public let username: String
+    public let apiUrl: String
         
     init(_ res: LbAccountRes) {
         self.username = String(cString: res.username)

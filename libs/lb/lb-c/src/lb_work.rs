@@ -3,7 +3,6 @@ use std::ptr::null_mut;
 use lb_rs::{
     model::{errors::LbResult, work_unit::WorkUnit},
     service::sync::SyncStatus,
-    Uuid,
 };
 
 use crate::{
