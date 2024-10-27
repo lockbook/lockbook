@@ -131,7 +131,14 @@ impl Buffer {
             .children()
             .iter()
             .enumerate()
-            .for_each(|(_, u_el)| parse_child(u_el, &mut buffer));
+            .for_each(|(_, u_el)| {
+                parse_child(
+                    u_el,
+                    &mut buffer.elements,
+                    &mut buffer.master_transform,
+                    &mut buffer.id_map,
+                )
+            });
 
         buffer.elements.iter_mut().for_each(|(_, el)| {
             el.transform(buffer.master_transform);
@@ -143,13 +150,97 @@ impl Buffer {
     pub fn reload(&mut self, content: &[u8], hmac: Option<DocumentHmac>) {
         // construct diff from buffer.opened_content to content
 
-        let base_content = self.opened_content;
-        let local_content = todo!(); // probably parse the other values into buffers
-        let remote_content = content.to_string();
+        //
+        // CONSTRCUT THE ELS FROM BASE MAP
+        //
+        let maybe_tree =
+            usvg::Tree::from_str(&self.opened_content, &Options::default(), &Database::default());
+        if let Err(err) = maybe_tree {
+            println!("{:#?}", err);
+            panic!("couldn't parse the base content");
+        }
 
-        let base_hmac = self.open_file_hmac;
-        let remote_hmac = hmac;
-        let local_hmac = todo!(); // todo: hash the current content of the svg
+        let utree = maybe_tree.unwrap();
+
+        let mut base_eles = IndexMap::default();
+        let mut base_master_transform = Transform::identity();
+        let mut base_id_map = HashMap::default();
+
+        utree
+            .root()
+            .children()
+            .iter()
+            .enumerate()
+            .for_each(|(_, u_el)| {
+                parse_child(u_el, &mut base_eles, &mut base_master_transform, &mut base_id_map)
+            });
+
+        base_eles.iter_mut().for_each(|(_, el)| {
+            el.transform(base_master_transform);
+        });
+
+        //
+        // CONSTRCUT THE ELS FROM REMOTE
+        //
+        let maybe_tree = usvg::Tree::from_str(
+            String::from_utf8_lossy(content).to_string().as_str(),
+            &Options::default(),
+            &Database::default(),
+        );
+        if let Err(err) = maybe_tree {
+            println!("{:#?}", err);
+            panic!("couldn't parse the base content");
+        }
+
+        let utree = maybe_tree.unwrap();
+
+        let mut remote_eles = IndexMap::default();
+        let mut remote_master_transform = Transform::identity();
+        let mut remote_id_map = HashMap::default();
+
+        utree
+            .root()
+            .children()
+            .iter()
+            .enumerate()
+            .for_each(|(_, u_el)| {
+                parse_child(
+                    u_el,
+                    &mut remote_eles,
+                    &mut remote_master_transform,
+                    &mut remote_id_map,
+                )
+            });
+
+        // remote_eles.iter_mut().for_each(|(_, el)| {
+        //     el.transform(remote_master_transform);
+        // });
+
+        for (id, base_el) in base_eles.iter() {
+            if let Some(remote_el) = remote_eles.get(id) {
+                if let Element::Path(remote_path) = remote_el {
+                    if let Element::Path(base_path) = base_el {
+                        let first_remote_mg = &remote_path.data.manipulator_groups()[0].anchor;
+                        let first_base_mg = &base_path.data.manipulator_groups()[0].anchor;
+
+                        if first_base_mg != first_remote_mg {
+                            // this was changed remotly
+                            self.elements.insert(*id, remote_el.clone());
+                        }
+                    }
+                }
+            } else {
+                // this was deletd remotly
+                self.elements.shift_remove(id);
+            }
+        }
+
+        for (id, remote_el) in remote_eles.iter() {
+            if !base_eles.contains_key(id) {
+                // this was created remotly
+                self.elements.insert(*id, remote_el.clone());
+            }
+        }
 
         self.open_file_hmac = hmac;
     }
@@ -161,25 +252,28 @@ impl SVGEditor {
     }
 }
 
-fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer) {
+fn parse_child(
+    u_el: &usvg::Node, elements: &mut IndexMap<Uuid, Element>, master_transform: &mut Transform,
+    id_map: &mut HashMap<Uuid, String>,
+) {
     match &u_el {
         usvg::Node::Group(group) => {
             if group.id().eq(ZOOM_G_ID) {
-                buffer.master_transform = group.transform();
+                *master_transform = group.transform();
             }
             group
                 .children()
                 .iter()
                 .enumerate()
-                .for_each(|(_, u_el)| parse_child(u_el, buffer));
+                .for_each(|(_, u_el)| parse_child(u_el, elements, master_transform, id_map));
         }
 
         usvg::Node::Image(img) => {
             let diff_state = DiffState { data_changed: true, ..Default::default() };
 
-            let id = get_internal_id(img.id(), buffer);
+            let id = get_internal_id(img.id(), id_map);
 
-            buffer.elements.insert(
+            elements.insert(
                 id,
                 Element::Image(Image {
                     data: img.kind().clone(),
@@ -219,8 +313,8 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer) {
             }
             let diff_state = DiffState { data_changed: true, ..Default::default() };
 
-            let id = get_internal_id(path.id(), buffer);
-            buffer.elements.insert(
+            let id = get_internal_id(path.id(), id_map);
+            elements.insert(
                 id,
                 Element::Path(Path {
                     data: usvg_d_to_subpath(path),
@@ -238,10 +332,10 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer) {
     }
 }
 
-fn get_internal_id(svg_id: &str, buffer: &mut Buffer) -> Uuid {
+fn get_internal_id(svg_id: &str, id_map: &mut HashMap<Uuid, String>) -> Uuid {
     let id: Uuid = svg_id.parse().unwrap_or(Uuid::new_v4());
 
-    if buffer.id_map.insert(id, svg_id.to_owned()).is_some() {
+    if id_map.insert(id, svg_id.to_owned()).is_some() {
         warn!(id = svg_id, "found elements  with duplicate id");
     }
     id
