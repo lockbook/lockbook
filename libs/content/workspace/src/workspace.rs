@@ -820,12 +820,22 @@ impl Workspace {
                                 !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         } else if ext == "svg" {
-                            tab.content = Some(TabContent::Svg(SVGEditor::new(
-                                &bytes,
-                                &ctx,
-                                core.clone(),
-                                id,
-                            )));
+                            if tab_created {
+                                tab.content = Some(TabContent::Svg(SVGEditor::new(
+                                    &bytes,
+                                    &ctx,
+                                    core.clone(),
+                                    id,
+                                    maybe_hmac,
+                                )));
+                            } else {
+                                match tab.content.as_mut() {
+                                    Some(TabContent::Svg(svg)) => {
+                                        svg.buffer.reload(&bytes, maybe_hmac);
+                                    }
+                                    _ => unreachable!(),
+                                };
+                            }
                         } else if ext == "md" || ext == "txt" {
                             if tab_created {
                                 tab.content = Some(TabContent::Markdown(Markdown::new(
@@ -875,9 +885,16 @@ impl Workspace {
                                 seq,
                             }) => {
                                 tab.last_saved = time_saved;
-                                if let TabContent::Markdown(md) = tab.content.as_mut().unwrap() {
-                                    md.hmac = hmac;
-                                    md.buffer.saved(seq, content);
+                                match tab.content.as_mut() {
+                                    Some(TabContent::Markdown(md)) => {
+                                        md.hmac = hmac;
+                                        md.buffer.saved(seq, content);
+                                    }
+                                    Some(TabContent::Svg(svg)) => {
+                                        svg.buffer.open_file_hmac = hmac;
+                                        svg.buffer.opened_content = content;
+                                    }
+                                    _ => {}
                                 }
                                 self.perform_sync(); // todo: sync once when saving multiple tabs
                             }

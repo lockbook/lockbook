@@ -16,6 +16,7 @@ pub use eraser::Eraser;
 pub use history::DeleteElement;
 pub use history::Event;
 pub use history::InsertElement;
+use lb_rs::DocumentHmac;
 use lb_rs::Uuid;
 pub use parser::Buffer;
 use parser::DiffState;
@@ -33,7 +34,7 @@ use usvg_parser::Options;
 pub type ImageHrefStringResolverFn = Box<dyn Fn(&str, &Options) -> Option<ImageKind> + Send + Sync>;
 
 pub struct SVGEditor {
-    buffer: parser::Buffer,
+    pub buffer: parser::Buffer,
     history: History,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
@@ -59,10 +60,13 @@ pub enum CanvasOp {
     Idle,
 }
 impl SVGEditor {
-    pub fn new(bytes: &[u8], ctx: &egui::Context, core: lb_rs::Core, open_file: Uuid) -> Self {
+    pub fn new(
+        bytes: &[u8], ctx: &egui::Context, core: lb_rs::Core, open_file: Uuid,
+        hmac: Option<DocumentHmac>,
+    ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
-        let buffer = parser::Buffer::new(content, &core, open_file);
+        let buffer = parser::Buffer::new(content, &core, open_file, hmac);
 
         let toolbar = Toolbar::new();
 

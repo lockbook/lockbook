@@ -4,7 +4,7 @@ use bezier_rs::{Bezier, Identifier, Subpath};
 use egui::TextureHandle;
 use glam::{DAffine2, DMat2, DVec2};
 use indexmap::IndexMap;
-use lb_rs::Uuid;
+use lb_rs::{DocumentHmac, Uuid};
 use resvg::tiny_skia::Point;
 use resvg::usvg::{
     self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, Options, Paint, Text, Transform,
@@ -34,6 +34,9 @@ pub struct ManipulatorGroupId {
 
 #[derive(Default)]
 pub struct Buffer {
+    pub open_file_hmac: Option<DocumentHmac>,
+    pub opened_content: String,
+
     pub elements: IndexMap<Uuid, Element>,
     pub master_transform: Transform,
     pub needs_path_map_update: bool,
@@ -102,7 +105,7 @@ pub struct Image {
 }
 
 impl Buffer {
-    pub fn new(svg: &str, core: &lb_rs::Core, open_file: Uuid) -> Self {
+    pub fn new(svg: &str, core: &lb_rs::Core, open_file: Uuid, hmac: Option<DocumentHmac>) -> Self {
         let fontdb = usvg::fontdb::Database::default();
 
         let lb_local_resolver = ImageHrefResolver {
@@ -120,7 +123,8 @@ impl Buffer {
         }
         let utree = maybe_tree.unwrap();
 
-        let mut buffer = Buffer::default();
+        let mut buffer =
+            Buffer { open_file_hmac: hmac, opened_content: svg.to_string(), ..Default::default() };
 
         utree
             .root()
@@ -134,6 +138,20 @@ impl Buffer {
         });
 
         buffer
+    }
+
+    pub fn reload(&mut self, content: &[u8], hmac: Option<DocumentHmac>) {
+        // construct diff from buffer.opened_content to content
+
+        let base_content = self.opened_content;
+        let local_content = todo!(); // probably parse the other values into buffers
+        let remote_content = content.to_string();
+
+        let base_hmac = self.open_file_hmac;
+        let remote_hmac = hmac;
+        let local_hmac = todo!(); // todo: hash the current content of the svg
+
+        self.open_file_hmac = hmac;
     }
 }
 

@@ -46,7 +46,11 @@ impl Tab {
                 result.content = md.buffer.current.text.clone();
                 result.safe_write = true;
             }
-            TabContent::Svg(svg) => result.content = svg.get_minimal_content(),
+            TabContent::Svg(svg) => {
+                result.old_hmac = svg.open_file_hmac;
+                result.content = svg.get_minimal_content();
+                result.safe_write = true;
+            }
             _ => return None,
         };
         Some(result)
