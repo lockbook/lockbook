@@ -98,6 +98,7 @@ impl Selection {
             }
         });
 
+        let mut ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
         ui.with_layer_id(
             egui::LayerId { order: egui::Order::PanelResizeLine, id: "selection_overlay".into() },
             |ui| {
@@ -452,8 +453,6 @@ impl Selection {
             self.show_selection_container(ui, container);
         }
 
-        // let mut ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
-
         ui.visuals_mut().window_rounding = egui::Rounding::same(10.0);
         ui.style_mut().spacing.window_margin = egui::Margin::symmetric(7.0, 3.0);
         ui.style_mut()
@@ -480,12 +479,16 @@ impl Selection {
             ui.visuals_mut().window_fill = ui.visuals().extreme_bg_color;
         }
 
+        if let SelectionOperation::LasoBuild(_) = self.current_op {
+            return;
+        }
+
         let opacity = animate_bool_eased(
             ui.ctx(),
             "selection_tooltip",
             self.current_op == SelectionOperation::Idle,
             easing::cubic_out,
-            0.3,
+            0.2,
         );
 
         ui.set_opacity(opacity);
@@ -501,8 +504,8 @@ impl Selection {
                     .height()
                     + gap_between_btn_and_rect,
             );
-        let tooltip_rect = egui::Rect { min, max: min };
 
+        let tooltip_rect = egui::Rect { min, max: min };
         let res = ui.allocate_ui_at_rect(tooltip_rect, |ui| {
             egui::Frame::window(ui.style())
                 .show(ui, |ui| ui.horizontal(|ui| self.show_tooltip(ui, selection_ctx)))
