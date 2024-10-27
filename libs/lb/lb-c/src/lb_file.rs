@@ -8,7 +8,7 @@ use lb_rs::{
     Uuid,
 };
 
-use crate::ffi_utils::{carray, cstring};
+use crate::{ffi_utils::{carray, cstring}, LbUuid};
 
 #[repr(C)]
 pub struct LbFileList {
@@ -18,8 +18,8 @@ pub struct LbFileList {
 
 #[repr(C)]
 pub struct LbFile {
-    pub id: Uuid,
-    pub parent: Uuid,
+    pub id: LbUuid,
+    pub parent: LbUuid,
     pub name: *mut c_char,
     pub typ: LbFileType,
     pub lastmod_by: *mut c_char,
@@ -32,16 +32,16 @@ pub struct LbFile {
 #[derive(Default)]
 pub struct LbFileType {
     pub tag: LbFileTypeTag,
-    pub link_target: Uuid,
+    pub link_target: LbUuid,
 }
 
 #[repr(C)]
 #[derive(Default)]
 pub enum LbFileTypeTag {
     #[default]
-    Document,
-    Folder,
-    Link,
+    LbDocument,
+    LbFolder,
+    LbLink,
 }
 
 #[repr(C)]
@@ -60,23 +60,23 @@ pub struct LbShare {
 impl From<LbFileType> for FileType {
     fn from(value: LbFileType) -> Self {
         match value.tag {
-            LbFileTypeTag::Document => Self::Document,
-            LbFileTypeTag::Folder => Self::Folder,
-            LbFileTypeTag::Link => Self::Link { target: value.link_target },
+            LbFileTypeTag::LbDocument => Self::Document,
+            LbFileTypeTag::LbFolder => Self::Folder,
+            LbFileTypeTag::LbLink => Self::Link { target: value.link_target.into() },
         }
     }
 }
 
 impl From<FileType> for LbFileType {
     fn from(value: FileType) -> Self {
-        let mut ret = Self { tag: LbFileTypeTag::Document, link_target: Uuid::nil() };
+        let mut ret = Self { tag: LbFileTypeTag::LbDocument, link_target: Uuid::nil().into() };
 
         match value {
-            FileType::Document => ret.tag = LbFileTypeTag::Document,
-            FileType::Folder => ret.tag = LbFileTypeTag::Folder,
+            FileType::Document => ret.tag = LbFileTypeTag::LbDocument,
+            FileType::Folder => ret.tag = LbFileTypeTag::LbFolder,
             FileType::Link { target } => {
-                ret.tag = LbFileTypeTag::Link;
-                ret.link_target = target;
+                ret.tag = LbFileTypeTag::LbLink;
+                ret.link_target = target.into();
             }
         }
 
@@ -106,8 +106,8 @@ impl From<Vec<Share>> for LbShareList {
 impl From<File> for LbFile {
     fn from(value: File) -> Self {
         Self {
-            id: value.id,
-            parent: value.parent,
+            id: value.id.into(),
+            parent: value.parent.into(),
             name: cstring(value.name),
             typ: value.file_type.into(),
             lastmod_by: cstring(value.last_modified_by),

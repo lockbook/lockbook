@@ -195,15 +195,35 @@ pub struct LbFileRes {
     file: LbFile,
 }
 
+#[repr(C)]
+#[derive(Default, Clone, Copy)]
+pub struct LbUuid {
+    bytes: [u8; 16],
+}
+
+impl From<Uuid> for LbUuid {
+    fn from(uuid: Uuid) -> Self {
+        LbUuid {
+            bytes: uuid.as_bytes().clone(),
+        }
+    }
+}
+
+impl From<LbUuid> for Uuid {
+    fn from(c_uuid: LbUuid) -> Self {
+        Uuid::from_slice(&c_uuid.bytes).unwrap()
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn lb_create_file(
-    lb: *mut Lb, name: *const c_char, parent: Uuid, file_type: LbFileType,
+    lb: *mut Lb, name: *const c_char, parent: LbUuid, file_type: LbFileType,
 ) -> LbFileRes {
     let lb = rlb(lb);
     let name = rstr(name);
     let file_type = file_type.into();
 
-    match lb.create_file(name, &parent, file_type) {
+    match lb.create_file(name, &parent.into(), file_type) {
         Ok(f) => LbFileRes { err: null_mut(), file: f.into() },
         Err(err) => {
             let err = lb_err(err);
@@ -214,11 +234,11 @@ pub extern "C" fn lb_create_file(
 
 #[no_mangle]
 pub extern "C" fn lb_write_document(
-    lb: *mut Lb, id: Uuid, ptr: *mut u8, len: usize,
+    lb: *mut Lb, id: LbUuid, ptr: *mut u8, len: usize,
 ) -> *mut LbFfiErr {
     let lb = rlb(lb);
     let data = rvec(ptr, len);
-    match lb.write_document(id, &data) {
+    match lb.write_document(id.into(), &data) {
         Ok(()) => null_mut(),
         Err(e) => lb_err(e),
     }
@@ -244,9 +264,9 @@ pub struct LbFileListRes {
 }
 
 #[no_mangle]
-pub extern "C" fn lb_get_children(lb: *mut Lb, id: Uuid) -> LbFileListRes {
+pub extern "C" fn lb_get_children(lb: *mut Lb, id: LbUuid) -> LbFileListRes {
     let lb = rlb(lb);
-    match lb.get_children(&id) {
+    match lb.get_children(&id.into()) {
         Ok(children) => {
             let list = children.into();
             LbFileListRes { err: null_mut(), list }
@@ -256,9 +276,9 @@ pub extern "C" fn lb_get_children(lb: *mut Lb, id: Uuid) -> LbFileListRes {
 }
 
 #[no_mangle]
-pub extern "C" fn lb_get_and_get_children_recursively(lb: *mut Lb, id: Uuid) -> LbFileListRes {
+pub extern "C" fn lb_get_and_get_children_recursively(lb: *mut Lb, id: LbUuid) -> LbFileListRes {
     let lb = rlb(lb);
-    match lb.get_and_get_children_recursively(&id) {
+    match lb.get_and_get_children_recursively(&id.into()) {
         Ok(children) => {
             let list = children.into();
             LbFileListRes { err: null_mut(), list }
@@ -268,10 +288,10 @@ pub extern "C" fn lb_get_and_get_children_recursively(lb: *mut Lb, id: Uuid) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn lb_get_file(lb: *mut Lb, id: Uuid) -> LbFileRes {
+pub extern "C" fn lb_get_file(lb: *mut Lb, id: LbUuid) -> LbFileRes {
     let lb = rlb(lb);
 
-    match lb.get_file_by_id(id) {
+    match lb.get_file_by_id(id.into()) {
         Ok(f) => LbFileRes { err: null_mut(), file: f.into() },
         Err(err) => {
             let err = lb_err(err);
@@ -281,10 +301,10 @@ pub extern "C" fn lb_get_file(lb: *mut Lb, id: Uuid) -> LbFileRes {
 }
 
 #[no_mangle]
-pub extern "C" fn lb_delete_file(lb: *mut Lb, id: Uuid) -> *mut LbFfiErr {
+pub extern "C" fn lb_delete_file(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
-    match lb.delete_file(&id) {
+    match lb.delete_file(&id.into()) {
         Ok(_) => null_mut(),
         Err(err) => lb_err(err),
     }
@@ -298,10 +318,10 @@ pub struct LbDocRes {
 }
 
 #[no_mangle]
-pub extern "C" fn lb_read_doc(lb: *mut Lb, id: Uuid) -> LbDocRes {
+pub extern "C" fn lb_read_doc(lb: *mut Lb, id: LbUuid) -> LbDocRes {
     let lb = rlb(lb);
 
-    match lb.read_document(id) {
+    match lb.read_document(id.into()) {
         Ok(doc) => {
             let (doc, len) = carray(doc);
             LbDocRes { err: null_mut(), doc, len }
@@ -327,21 +347,21 @@ pub extern "C" fn lb_list_metadatas(lb: *mut Lb) -> LbFileListRes {
 }
 
 #[no_mangle]
-pub extern "C" fn lb_rename_file(lb: *mut Lb, id: Uuid, new_name: *const c_char) -> *mut LbFfiErr {
+pub extern "C" fn lb_rename_file(lb: *mut Lb, id: LbUuid, new_name: *const c_char) -> *mut LbFfiErr {
     let lb = rlb(lb);
     let new_name = rstr(new_name);
 
-    match lb.rename_file(&id, new_name) {
+    match lb.rename_file(&id.into(), new_name) {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
     }
 }
 
 #[no_mangle]
-pub extern "C" fn lb_move_file(lb: *mut Lb, id: Uuid, new_parent: Uuid) -> *mut LbFfiErr {
+pub extern "C" fn lb_move_file(lb: *mut Lb, id: LbUuid, new_parent: LbUuid) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
-    match lb.move_file(&id, &new_parent) {
+    match lb.move_file(&id.into(), &new_parent.into()) {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
     }
@@ -349,12 +369,12 @@ pub extern "C" fn lb_move_file(lb: *mut Lb, id: Uuid, new_parent: Uuid) -> *mut 
 
 #[no_mangle]
 pub extern "C" fn lb_share_file(
-    lb: *mut Lb, id: Uuid, username: *const c_char, mode: ShareMode,
+    lb: *mut Lb, id: LbUuid, username: *const c_char, mode: ShareMode,
 ) -> *mut LbFfiErr {
     let lb = rlb(lb);
     let username = rstr(username);
 
-    match lb.share_file(id, username, mode) {
+    match lb.share_file(id.into(), username, mode) {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
     }
@@ -374,10 +394,10 @@ pub extern "C" fn lb_get_pending_shares(lb: *mut Lb) -> LbFileListRes {
 }
 
 #[no_mangle]
-pub extern "C" fn lb_delete_pending_share(lb: *mut Lb, id: Uuid) -> *mut LbFfiErr {
+pub extern "C" fn lb_delete_pending_share(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
-    match lb.delete_pending_share(&id) {
+    match lb.delete_pending_share(&id.into()) {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
     }
@@ -385,12 +405,12 @@ pub extern "C" fn lb_delete_pending_share(lb: *mut Lb, id: Uuid) -> *mut LbFfiEr
 
 #[no_mangle]
 pub extern "C" fn lb_create_link_at_path(
-    lb: *mut Lb, path_and_name: *const c_char, target_id: Uuid,
+    lb: *mut Lb, path_and_name: *const c_char, target_id: LbUuid,
 ) -> LbFileRes {
     let lb = rlb(lb);
     let path_and_name = rstr(path_and_name);
 
-    match lb.create_link_at_path(path_and_name, target_id) {
+    match lb.create_link_at_path(path_and_name, target_id.into()) {
         Ok(f) => LbFileRes { err: null_mut(), file: f.into() },
         Err(err) => LbFileRes { err: lb_err(err), file: Default::default() },
     }
@@ -421,41 +441,34 @@ pub extern "C" fn lb_get_by_path(lb: *mut Lb, path: *const c_char) -> LbFileRes 
 #[repr(C)]
 pub struct LbPathRes {
     err: *mut LbFfiErr,
-    path: *const c_char,
+    path: *mut c_char,
 }
 
 #[no_mangle]
-pub extern "C" fn lb_get_path_by_id(lb: *mut Lb, id: Uuid) -> LbPathRes {
+pub extern "C" fn lb_get_path_by_id(lb: *mut Lb, id: LbUuid) -> LbPathRes {
     let lb = rlb(lb);
 
-    match lb.get_path_by_id(id) {
+    match lb.get_path_by_id(id.into()) {
         Ok(p) => LbPathRes { err: null_mut(), path: cstring(p) },
         Err(err) => LbPathRes { err: lb_err(err), path: null_mut() },
     }
 }
 
-#[repr(C)]
-pub struct LbLocalChangesRes {
-    err: *mut LbFfiErr,
-    ids: *mut Uuid,
-    len: usize,
-}
-
 #[no_mangle]
-pub extern "C" fn lb_get_local_changes(lb: *mut Lb) -> LbLocalChangesRes {
+pub extern "C" fn lb_get_local_changes(lb: *mut Lb) -> LbIdListRes {
     let lb = rlb(lb);
 
     match lb.get_local_changes() {
         Ok(ids) => {
-            let (ids, len) = carray(ids);
-            LbLocalChangesRes { err: null_mut(), ids, len }
+            let (ids, len) = carray(ids.into_iter().map(|id| LbUuid::from(id)).collect());
+            LbIdListRes { err: null_mut(), ids, len }
         }
-        Err(err) => LbLocalChangesRes { err: lb_err(err), ids: null_mut(), len: 0 },
+        Err(err) => LbIdListRes { err: lb_err(err), ids: null_mut(), len: 0 },
     }
 }
 
 #[no_mangle]
-pub extern "C" fn lb_debug_info(lb: *mut Lb, os_info: *const c_char) -> *const c_char {
+pub extern "C" fn lb_debug_info(lb: *mut Lb, os_info: *const c_char) -> *mut c_char {
     let lb = rlb(lb);
     let os_info = rstring(os_info);
 
@@ -512,7 +525,7 @@ pub extern "C" fn lb_get_last_synced_human_string(lb: *mut Lb) -> LbLastSyncedHu
 #[repr(C)]
 pub struct LbIdListRes {
     err: *mut LbFfiErr,
-    ids: *mut Uuid,
+    ids: *mut LbUuid,
     len: usize,
 }
 
@@ -521,8 +534,8 @@ pub extern "C" fn lb_suggested_docs(lb: *mut Lb) -> LbIdListRes {
     let lb = rlb(lb);
 
     match lb.suggested_docs(RankingWeights::default()) {
-        Ok(docs) => {
-            let (ids, len) = carray(docs);
+        Ok(ids) => {
+            let (ids, len) = carray(ids.into_iter().map(|id| LbUuid::from(id)).collect());
             LbIdListRes { err: null_mut(), ids, len }
         }
         Err(err) => LbIdListRes { err: lb_err(err), ids: null_mut(), len: 0 },
@@ -545,7 +558,7 @@ pub struct LbUsageMetrics {
 }
 
 #[no_mangle]
-pub extern "C" fn get_usage(lb: *mut Lb) -> LbUsageMetricsRes {
+pub extern "C" fn lb_get_usage(lb: *mut Lb) -> LbUsageMetricsRes {
     let lb = rlb(lb);
 
     match lb.get_usage() {
@@ -578,7 +591,7 @@ pub struct LbUncompressedRes {
 }
 
 #[no_mangle]
-pub extern "C" fn get_uncompressed_usage(lb: *mut Lb) -> LbUncompressedRes {
+pub extern "C" fn lb_get_uncompressed_usage(lb: *mut Lb) -> LbUncompressedRes {
     let lb = rlb(lb);
 
     match lb.get_uncompressed_usage() {
@@ -596,28 +609,28 @@ pub extern "C" fn get_uncompressed_usage(lb: *mut Lb) -> LbUncompressedRes {
 }
 
 #[no_mangle]
-pub extern "C" fn import_files(
-    lb: *mut Lb, sources: *const *const c_char, sources_len: usize, dest: Uuid,
+pub extern "C" fn lb_import_files(
+    lb: *mut Lb, sources: *const *const c_char, sources_len: usize, dest: LbUuid,
 ) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
     let sources = r_paths(sources, sources_len);
 
-    match lb.import_files(&sources, dest, &|_status: ImportStatus| println!("imported one file")) {
+    match lb.import_files(&sources, dest.into(), &|_status: ImportStatus| println!("imported one file")) {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
     }
 }
 
 #[no_mangle]
-pub extern "C" fn export_file(
-    lb: *mut Lb, source_id: Uuid, dest: *const c_char, edit: bool,
+pub extern "C" fn lb_export_file(
+    lb: *mut Lb, source_id: LbUuid, dest: *const c_char, edit: bool,
 ) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
     let dest = PathBuf::from(rstr(dest));
 
-    match lb.export_files(source_id, dest, edit, &None) {
+    match lb.export_files(source_id.into(), dest, edit, &None) {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
     }
@@ -634,7 +647,7 @@ pub struct LbSearchRes {
 
 #[repr(C)]
 pub struct LbPathSearchResult {
-    id: Uuid,
+    id: LbUuid,
     path: *mut c_char,
     score: i64,
     matched_indicies: *mut usize,
@@ -643,7 +656,7 @@ pub struct LbPathSearchResult {
 
 #[repr(C)]
 pub struct LbDocumentSearchResult {
-    id: Uuid,
+    id: LbUuid,
     path: *mut c_char,
     content_matches: *mut LbContentMatch,
     content_matches_len: usize,
@@ -658,7 +671,7 @@ pub struct LbContentMatch {
 }
 
 #[no_mangle]
-pub extern "C" fn search(
+pub extern "C" fn lb_search(
     lb: *mut Lb, input: *const c_char, search_paths: bool, search_docs: bool,
 ) -> LbSearchRes {
     let lb = rlb(lb);
@@ -683,7 +696,7 @@ pub extern "C" fn search(
                         let (matched_indicies, matched_indicies_len) = carray(matched_indices);
 
                         path_results.push(LbPathSearchResult {
-                            id,
+                            id: id.into(),
                             path: cstring(path),
                             score,
                             matched_indicies,
@@ -708,7 +721,7 @@ pub extern "C" fn search(
                         let (content_matches, content_matches_len) = carray(c_content_matches);
 
                         document_results.push(LbDocumentSearchResult {
-                            id,
+                            id: id.into(),
                             path: cstring(path),
                             content_matches,
                             content_matches_len,
@@ -745,7 +758,7 @@ pub extern "C" fn search(
 }
 
 #[no_mangle]
-pub extern "C" fn upgrade_account_stripe(
+pub extern "C" fn lb_upgrade_account_stripe(
     lb: *mut Lb, is_old_card: bool, number: *const c_char, exp_year: i32, exp_month: i32,
     cvc: *const c_char,
 ) -> *mut LbFfiErr {
@@ -764,7 +777,7 @@ pub extern "C" fn upgrade_account_stripe(
 }
 
 #[no_mangle]
-pub extern "C" fn upgrade_account_app_store(
+pub extern "C" fn lb_upgrade_account_app_store(
     lb: *mut Lb, original_transaction_id: *const c_char, app_account_token: *const c_char,
 ) -> *mut LbFfiErr {
     let lb = rlb(lb);
@@ -779,7 +792,7 @@ pub extern "C" fn upgrade_account_app_store(
 }
 
 #[no_mangle]
-pub extern "C" fn cancel_subscription(lb: *mut Lb) -> *mut LbFfiErr {
+pub extern "C" fn lb_cancel_subscription(lb: *mut Lb) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
     match lb.cancel_subscription() {
@@ -824,7 +837,7 @@ pub struct LbAppStoreSubscriptionInfo {
 }
 
 #[no_mangle]
-pub extern "C" fn get_subscription_info(lb: *mut Lb) -> LbSubscriptionInfoRes {
+pub extern "C" fn lb_get_subscription_info(lb: *mut Lb) -> LbSubscriptionInfoRes {
     let lb = rlb(lb);
 
     match lb.get_subscription_info() {
@@ -877,8 +890,6 @@ pub extern "C" fn get_subscription_info(lb: *mut Lb) -> LbSubscriptionInfoRes {
         Err(err) => LbSubscriptionInfoRes { err: lb_err(err), info: null_mut() },
     }
 }
-
-// todo: pub fn get_subscription_info(&self) -> Result<Option<SubscriptionInfo>, LbError> {
 
 mod ffi_utils;
 mod lb_c_err;

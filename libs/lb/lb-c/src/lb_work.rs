@@ -8,26 +8,26 @@ use lb_rs::{
 
 use crate::{
     ffi_utils::{carray, lb_err},
-    lb_c_err::LbFfiErr,
+    lb_c_err::LbFfiErr, LbUuid,
 };
 
 #[repr(C)]
 pub struct LbSyncRes {
-    err: *mut LbFfiErr,
-    latest_server_ts: u64,
-    work: LbWorkUnits,
+    pub(crate) err: *mut LbFfiErr,
+    pub(crate) latest_server_ts: u64,
+    pub(crate) work: LbWorkUnits,
 }
 
 #[repr(C)]
 pub struct LbWorkUnits {
-    work: *mut LbWorkUnit,
-    len: usize,
+    pub(crate) work: *mut LbWorkUnit,
+    pub(crate) len: usize,
 }
 
 #[repr(C)]
 pub struct LbWorkUnit {
-    id: Uuid,
-    local: bool,
+    pub(crate) id: LbUuid,
+    pub(crate) local: bool,
 }
 
 impl From<LbResult<SyncStatus>> for LbSyncRes {
@@ -43,7 +43,7 @@ impl From<LbResult<SyncStatus>> for LbSyncRes {
                         WorkUnit::ServerChange(_) => false,
                     };
 
-                    new_work.push(LbWorkUnit { id: work.id(), local });
+                    new_work.push(LbWorkUnit { id: work.id().into(), local });
                 }
 
                 let (work, len) = carray(new_work);

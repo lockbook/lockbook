@@ -1,8 +1,15 @@
-use std::ffi::CString;
+use std::ffi::{c_char, CString};
+
+use lb_rs::Uuid;
 
 use crate::{
-    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbSearchRes, LbSubscriptionInfoRes, LbUncompressedRes, LbUsageMetricsRes
+    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, lb_work::LbSyncRes, LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbSearchRes, LbSubscriptionInfoRes, LbUncompressedRes, LbUsageMetricsRes
 };
+
+#[no_mangle]
+pub extern "C" fn lb_free_str(str: *mut c_char) {
+    unsafe { drop(CString::from_raw(str)) };
+}
 
 #[no_mangle]
 pub extern "C" fn lb_free_err(err: *mut LbFfiErr) {
@@ -68,6 +75,17 @@ pub extern "C" fn lb_free_export_account_qr(acc: LbExportAccountQRRes) {
 }
 
 #[no_mangle]
+pub extern "C" fn lb_free_path_res(path: LbPathRes) {
+    if !path.err.is_null() {
+        lb_free_err(path.err);
+    }
+
+    if !path.path.is_null() {
+        unsafe { drop(CString::from_raw(path.path)) };
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn lb_free_file(file: LbFile) {
     unsafe {
         drop(CString::from_raw(file.name));
@@ -86,7 +104,7 @@ pub extern "C" fn lb_free_file_res(file_res: LbFileRes) {
         lb_free_err(file_res.err);
     }
 
-    if !file_res.file.id.is_nil() {
+    if !Uuid::from(file_res.file.id).is_nil() {
         lb_free_file(file_res.file);
     }
 }
@@ -102,6 +120,17 @@ pub extern "C" fn lb_free_file_list_res(files: LbFileListRes) {
         for file in files {
             lb_free_file(file);
         }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_free_sync_res(sync_res: LbSyncRes) {
+    if !sync_res.err.is_null() {
+        lb_free_err(sync_res.err);
+    }
+
+    if !sync_res.work.work.is_null() {
+        drop(rvec(sync_res.work.work, sync_res.work.len));
     }
 }
 
@@ -131,6 +160,17 @@ pub extern "C" fn lb_free_last_synced_human(last: LbLastSyncedHuman) {
 
     if !last.last.is_null() {
         unsafe { drop(CString::from_raw(last.last)) };
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_free_id_list_res(ids: LbIdListRes) {
+    if !ids.err.is_null() {
+        lb_free_err(ids.err);
+    }
+
+    if !ids.ids.is_null() {
+        drop(rvec(ids.ids, ids.len));
     }
 }
 

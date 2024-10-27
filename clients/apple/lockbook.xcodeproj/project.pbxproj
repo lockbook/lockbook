@@ -120,8 +120,6 @@
 		EA831A552534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA831A562534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA9079C32569960A00E04F5D /* ListFileCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9079C22569960A00E04F5D /* ListFileCell.swift */; };
-		EA9EEFD225FC058100E8C790 /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA8C627B25EF091900330E27 /* SwiftLockbookCore */; };
-		EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E81E2516655B00B9158C /* SwiftLockbookCore */; };
 		EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
 		EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
 		EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
@@ -265,7 +263,6 @@
 				47B041F32905BFB100A02DA7 /* AlertToast in Frameworks */,
 				47FCC5B12C1A33A9001AB7ED /* GameController.framework in Frameworks */,
 				471C788D2B4910A80022B3B2 /* SwiftWorkspace in Frameworks */,
-				EA9EEFD225FC058100E8C790 /* SwiftLockbookCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -278,7 +275,6 @@
 				B2A3AB342B27A1E800C2319E /* workspace in Frameworks */,
 				B2A3AB322B27A1E800C2319E /* SwiftWorkspace in Frameworks */,
 				B2ADC2492835451000DB8D3D /* Introspect in Frameworks */,
-				EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */,
 				47F0983A2BCDA94800F66CED /* SystemConfiguration.framework in Frameworks */,
 				47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */,
 			);
@@ -512,7 +508,6 @@
 			);
 			name = "Lockbook (iOS)";
 			packageProductDependencies = (
-				EA8C627B25EF091900330E27 /* SwiftLockbookCore */,
 				EA82B20B262652F700EE82B9 /* Introspect */,
 				47B041F22905BFB100A02DA7 /* AlertToast */,
 				471C788C2B4910A80022B3B2 /* SwiftWorkspace */,
@@ -536,7 +531,6 @@
 			);
 			name = "Lockbook (macOS)";
 			packageProductDependencies = (
-				EA14E81E2516655B00B9158C /* SwiftLockbookCore */,
 				B2ADC2482835451000DB8D3D /* Introspect */,
 				47B041F42905BFF100A02DA7 /* AlertToast */,
 				47159F4529CFA05B00969DDF /* DSFQuickActionBar */,
@@ -1379,18 +1373,10 @@
 			package = EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
 			productName = Introspect;
 		};
-		EA14E81E2516655B00B9158C /* SwiftLockbookCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SwiftLockbookCore;
-		};
 		EA82B20B262652F700EE82B9 /* Introspect */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
 			productName = Introspect;
-		};
-		EA8C627B25EF091900330E27 /* SwiftLockbookCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SwiftLockbookCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
