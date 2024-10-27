@@ -83,7 +83,9 @@ impl Renderer {
                 }
 
                 if let Some(transform) = el.transformed() {
-                    return Some((*id, RenderOp::Transform(transform)));
+                    if self.mesh_cache.contains_key(id) {
+                        return Some((*id, RenderOp::Transform(transform)));
+                    }
                 }
 
                 tesselate_element(el, id, ui.visuals().dark_mode, frame, buffer.master_transform)

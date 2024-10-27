@@ -129,6 +129,10 @@ impl Buffer {
             .enumerate()
             .for_each(|(_, u_el)| parse_child(u_el, &mut buffer));
 
+        buffer.elements.iter_mut().for_each(|(_, el)| {
+            el.transform(buffer.master_transform);
+        });
+
         buffer
     }
 }
@@ -299,7 +303,7 @@ fn usvg_d_to_subpath(path: &usvg::Path) -> Subpath<ManipulatorGroupId> {
     subpath
 }
 
-impl ToString for Buffer {
+impl Buffer {
     fn to_string(&self) -> String {
         let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
         for el in self.elements.iter() {
@@ -320,9 +324,13 @@ impl ToString for Buffer {
                             self.id_map.get(el.0).unwrap_or(&el.0.to_string())
                         );
                     }
-                    if p.data.len() > 1 {
-                        p.data
-                            .to_svg(&mut root, curv_attrs, "".into(), "".into(), "".into())
+                    let transform =
+                        u_transform_to_bezier(&p.transform.invert().unwrap_or_default());
+                    let mut data = p.data.clone();
+                    data.apply_transform(transform);
+
+                    if data.len() > 1 {
+                        data.to_svg(&mut root, curv_attrs, "".into(), "".into(), "".into())
                     }
                 }
                 Element::Image(img) => {
