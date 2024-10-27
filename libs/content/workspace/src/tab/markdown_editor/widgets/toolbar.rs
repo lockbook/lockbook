@@ -1,13 +1,12 @@
-use std::mem;
 use std::time::{Duration, Instant};
 
 use egui::{Frame, Margin, Separator, Stroke, Ui};
 use lb_rs::text::offset_types::DocCharOffset;
-use pulldown_cmark::LinkType;
+use pulldown_cmark::{HeadingLevel, LinkType};
 
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::icons::Icon;
-use crate::widgets::Button;
+use crate::widgets::IconButton;
 
 use crate::tab::markdown_editor;
 use markdown_editor::ast::Ast;
@@ -50,47 +49,62 @@ impl Toolbar {
                 let is_mobile = cfg!(target_os = "ios") || cfg!(target_os = "android");
                 let s = ast.styles_at_offset(selection.1, &bounds.ast);
 
-                ui.spacing_mut().button_padding = egui::vec2(10., 5.);
+                ui.spacing_mut().button_padding = egui::vec2(5., 5.);
 
                 let mut events = Vec::new();
 
                 if is_mobile && virtual_keyboard_shown {
-                    let resp = Button::default().icon(&Icon::KEYBOARD_HIDE).show(ui);
+                    let resp = IconButton::new(&Icon::KEYBOARD_HIDE).show(ui);
                     if resp.clicked() {
                         ui.ctx().set_virtual_keyboard_shown(false);
                     }
                     add_seperator(ui);
                 }
 
-                if Button::default().icon(&Icon::UNDO).show(ui).clicked() {
+                if IconButton::new(&Icon::UNDO)
+                    .tooltip("Undo")
+                    .show(ui)
+                    .clicked()
+                {
                     events.push(Event::Undo);
                 }
-                if Button::default().icon(&Icon::REDO).show(ui).clicked() {
+                ui.add_space(5.);
+                if IconButton::new(&Icon::REDO)
+                    .tooltip("Redo")
+                    .show(ui)
+                    .clicked()
+                {
                     events.push(Event::Redo);
                 }
 
                 add_seperator(ui);
 
                 self.heading_button(&s, ui).map(|e| events.push(e));
-                inline_btn(Icon::BOLD, InlineNode::Bold, &s, ui).map(|e| events.push(e));
-                inline_btn(Icon::ITALIC, InlineNode::Italic, &s, ui).map(|e| events.push(e));
-                inline_btn(Icon::CODE, InlineNode::Code, &s, ui).map(|e| events.push(e));
-                inline_btn(Icon::STRIKETHROUGH, InlineNode::Strikethrough, &s, ui)
+                ui.add_space(5.);
+                inline(&Icon::BOLD, InlineNode::Bold, &s, ui).map(|e| events.push(e));
+                ui.add_space(5.);
+                inline(&Icon::ITALIC, InlineNode::Italic, &s, ui).map(|e| events.push(e));
+                ui.add_space(5.);
+                inline(&Icon::CODE, InlineNode::Code, &s, ui).map(|e| events.push(e));
+                ui.add_space(5.);
+                inline(&Icon::STRIKETHROUGH, InlineNode::Strikethrough, &s, ui)
                     .map(|e| events.push(e));
 
                 add_seperator(ui);
 
-                block_btn(Icon::NUMBER_LIST, BlockNode::ListItem(ListItem::Numbered(1), 0), &s, ui)
+                block(&Icon::NUMBER_LIST, BlockNode::ListItem(ListItem::Numbered(1), 0), &s, ui)
                     .map(|e| events.push(e));
-                block_btn(Icon::BULLET_LIST, BlockNode::ListItem(ListItem::Bulleted, 0), &s, ui)
+                ui.add_space(5.);
+                block(&Icon::BULLET_LIST, BlockNode::ListItem(ListItem::Bulleted, 0), &s, ui)
                     .map(|e| events.push(e));
-                block_btn(Icon::TODO_LIST, BlockNode::ListItem(ListItem::Todo(false), 0), &s, ui)
+                ui.add_space(5.);
+                block(&Icon::TODO_LIST, BlockNode::ListItem(ListItem::Todo(false), 0), &s, ui)
                     .map(|e| events.push(e));
 
                 add_seperator(ui);
 
-                inline_btn(
-                    Icon::LINK,
+                inline(
+                    &Icon::LINK,
                     InlineNode::Link(LinkType::Inline, "".into(), "".into()),
                     &s,
                     ui,
@@ -99,10 +113,19 @@ impl Toolbar {
 
                 add_seperator(ui);
 
-                if Button::default().icon(&Icon::INDENT).show(ui).clicked() {
+                if IconButton::new(&Icon::INDENT)
+                    .tooltip("Indent")
+                    .show(ui)
+                    .clicked()
+                {
                     events.push(Event::Indent { deindent: false });
                 }
-                if Button::default().icon(&Icon::DEINDENT).show(ui).clicked() {
+                ui.add_space(5.);
+                if IconButton::new(&Icon::DEINDENT)
+                    .tooltip("De-indent")
+                    .show(ui)
+                    .clicked()
+                {
                     events.push(Event::Indent { deindent: true });
                 }
 
@@ -129,47 +152,49 @@ impl Toolbar {
                 break;
             }
         }
-        let mut icon = Icon::HEADER_1;
-        if applied {
-            icon = icon.color(ui.visuals().widgets.active.bg_fill)
-        }
 
-        let resp = Button::default().icon(&icon).show(ui);
+        let level = if self.heading_last_click_at.elapsed() > Duration::from_secs(1) {
+            1
+        } else {
+            current_heading_level.min(5) + 1
+        };
+        let style = MarkdownNode::Block(BlockNode::Heading(
+            HeadingLevel::try_from(level).unwrap_or(HeadingLevel::H1),
+        ));
+
+        let resp = IconButton::new(&Icon::HEADER_1)
+            .colored(applied)
+            .tooltip(format!("{}", style))
+            .show(ui);
         if resp.clicked() {
-            if mem::replace(&mut self.heading_last_click_at, Instant::now()).elapsed()
-                > Duration::from_secs(1)
-            {
-                return Some(Event::toggle_heading_style(1));
-            } else {
-                current_heading_level = current_heading_level.min(5) + 1;
-                return Some(Event::toggle_heading_style(current_heading_level));
-            }
+            self.heading_last_click_at = Instant::now();
+            Some(Event::ToggleStyle { region: Region::Selection, style })
+        } else {
+            None
         }
-
-        None
     }
 }
 
-fn inline_btn(
-    icon: Icon, style: InlineNode, styles_at_cursor: &[MarkdownNode], ui: &mut Ui,
+fn inline(
+    icon: &'static Icon, style: InlineNode, styles_at_cursor: &[MarkdownNode], ui: &mut Ui,
 ) -> Option<Event> {
     button(icon, MarkdownNode::Inline(style), styles_at_cursor, ui)
 }
 
-fn block_btn(
-    icon: Icon, style: BlockNode, styles_at_cursor: &[MarkdownNode], ui: &mut Ui,
+fn block(
+    icon: &'static Icon, style: BlockNode, styles_at_cursor: &[MarkdownNode], ui: &mut Ui,
 ) -> Option<Event> {
     button(icon, MarkdownNode::Block(style), styles_at_cursor, ui)
 }
 
 fn button(
-    mut icon: Icon, style: MarkdownNode, styles_at_cursor: &[MarkdownNode], ui: &mut Ui,
+    icon: &'static Icon, style: MarkdownNode, styles_at_cursor: &[MarkdownNode], ui: &mut Ui,
 ) -> Option<Event> {
     let applied = styles_at_cursor.iter().any(|s| s == &style);
-    if applied {
-        icon = icon.color(ui.visuals().widgets.active.bg_fill)
-    }
-    let resp = Button::default().icon(&icon).show(ui);
+    let resp = IconButton::new(icon)
+        .colored(applied)
+        .tooltip(format!("{}", style))
+        .show(ui);
     if resp.clicked() {
         Some(Event::ToggleStyle { region: Region::Selection, style })
     } else {

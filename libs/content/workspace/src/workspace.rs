@@ -33,7 +33,9 @@ pub struct Workspace {
 
     pub tabs: Vec<Tab>,
     pub active_tab: usize,
-    active_tab_changed: bool,
+    pub active_tab_changed: bool,
+    pub user_last_seen: Instant,
+    pub last_sync: Instant,
     pub backdrop: Image<'static>,
 
     pub ctx: Context,
@@ -54,14 +56,28 @@ pub struct Workspace {
 
 pub enum WsMsg {
     FileCreated(Result<File, String>),
-    FileLoaded(Uuid, bool, bool, Result<(Option<DocumentHmac>, DecryptedDocument), TabFailure>),
-    SaveResult(Uuid, Result<(String, Option<DocumentHmac>, Instant, usize), LbErr>),
+    FileLoaded(FileLoadedMsg),
+    SaveResult(Uuid, Result<SaveResult, LbErr>),
     FileRenamed { id: Uuid, new_name: String },
 
     BgSignal(Signal),
     SyncMsg(SyncProgress),
     SyncDone(Result<SyncStatus, LbErr>),
     Dirtyness(DirtynessMsg),
+}
+
+pub struct FileLoadedMsg {
+    id: Uuid,
+    is_new_file: bool,
+    tab_created: bool,
+    content: Result<(Option<DocumentHmac>, DecryptedDocument), TabFailure>,
+}
+
+pub struct SaveResult {
+    content: String,
+    new_hmac: Option<DocumentHmac>,
+    completed_at: Instant,
+    seq: usize,
 }
 
 #[derive(Clone)]
@@ -111,6 +127,8 @@ impl Workspace {
             tabs: vec![],
             active_tab: 0,
             active_tab_changed: false,
+            user_last_seen: Instant::now(),
+            last_sync: Instant::now(),
             backdrop: Image::new(egui::include_image!("../lockbook-backdrop.png")),
             ctx: ctx.clone(),
             core: core.clone(),
@@ -249,6 +267,10 @@ impl Workspace {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
+            self.user_last_seen = Instant::now();
+        }
+
         self.set_tooltip_visibility(ui);
 
         self.process_updates();
@@ -427,11 +449,11 @@ impl Workspace {
 
     fn show_mobile_title(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            let selectable_label = egui::widgets::Button::new(
-                egui::RichText::new(self.tabs[0].name.clone()).size(30.0),
-            )
-            .frame(false)
-            .fill(egui::Color32::TRANSPARENT);
+            let selectable_label =
+                egui::widgets::Button::new(egui::RichText::new(self.tabs[0].name.clone()))
+                    .frame(false)
+                    .wrap_mode(TextWrapMode::Truncate)
+                    .fill(egui::Color32::BLACK); // matches iOS native toolbar
 
             ui.allocate_ui(ui.available_size(), |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
@@ -581,10 +603,20 @@ impl Workspace {
 
                         let result = if safe_write {
                             core.safe_write(id, old_hmac, content.clone().into())
-                                .map(|new_hmac| (content, Some(new_hmac), Instant::now(), seq))
+                                .map(|new_hmac| SaveResult {
+                                    content,
+                                    new_hmac: Some(new_hmac),
+                                    completed_at: Instant::now(),
+                                    seq,
+                                })
                         } else {
                             core.write_document(id, content.as_bytes())
-                                .map(|_| (content, None, Instant::now(), seq))
+                                .map(|_| SaveResult {
+                                    content,
+                                    new_hmac: None,
+                                    completed_at: Instant::now(),
+                                    seq,
+                                })
                         };
 
                         // re-read
@@ -649,7 +681,7 @@ impl Workspace {
                 .read_document_with_hmac(id)
                 .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))); // todo(steve)
             update_tx
-                .send(WsMsg::FileLoaded(id, is_new_file, tab_created, content))
+                .send(WsMsg::FileLoaded(FileLoadedMsg { id, is_new_file, tab_created, content }))
                 .unwrap();
             ctx.request_repaint();
         });
@@ -749,7 +781,12 @@ impl Workspace {
     pub fn process_updates(&mut self) {
         while let Ok(update) = self.updates_rx.try_recv() {
             match update {
-                WsMsg::FileLoaded(id, is_new_file, tab_created, load_result) => {
+                WsMsg::FileLoaded(FileLoadedMsg {
+                    id,
+                    is_new_file,
+                    tab_created,
+                    content: load_result,
+                }) => {
                     if let Some((name, id)) =
                         self.current_tab().map(|tab| (tab.name.clone(), tab.id))
                     {
@@ -835,12 +872,18 @@ impl Workspace {
                     let mut reopen = false;
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         match result {
-                            Ok((content, hmac, time_saved, seq)) => {
+                            Ok(SaveResult {
+                                content,
+                                new_hmac: hmac,
+                                completed_at: time_saved,
+                                seq,
+                            }) => {
                                 tab.last_saved = time_saved;
                                 if let TabContent::Markdown(md) = tab.content.as_mut().unwrap() {
                                     md.hmac = hmac;
                                     md.buffer.saved(seq, content);
                                 }
+                                self.perform_sync(); // todo: sync once when saving multiple tabs
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
@@ -861,9 +904,25 @@ impl Workspace {
                     //     self.perform_final_sync(ctx);
                     // }
                 }
-                WsMsg::BgSignal(Signal::Sync) => {
-                    if self.cfg.auto_sync.load(Ordering::Relaxed) {
+                WsMsg::BgSignal(Signal::MaybeSync) => {
+                    if !self.cfg.auto_sync.load(Ordering::Relaxed) {
+                        // auto sync disabled
+                        continue;
+                    }
+
+                    let focused = self.ctx.input(|i| i.focused);
+
+                    if self.user_last_seen.elapsed() < Duration::from_secs(10)
+                        && focused
+                        && self.last_sync.elapsed() > Duration::from_secs(5)
+                    {
+                        // the user is active if the app is in the foreground and they've done
+                        // something in the last 10 seconds.
+                        // during this time sync every 5 seconds
                         self.perform_sync();
+                    } else if self.last_sync.elapsed() > Duration::from_secs(60 * 60) {
+                        // sync every hour while the user is inactive
+                        self.perform_sync()
                     }
                 }
                 WsMsg::BgSignal(Signal::UpdateStatus) => {
@@ -1060,7 +1119,6 @@ fn tab_label(
 
         // draw close button icon
         if show_close_button {
-            // todo: use galley size of icon instead of icon.size for a more accurate reading.
             let icon_draw_pos = egui::pos2(
                 close_button_rect.center().x - x_icon.size / 2.,
                 close_button_rect.center().y - x_icon.size / 2.2,

@@ -96,6 +96,9 @@ impl SVGEditor {
 
         self.inner_rect = ui.available_rect_before_wrap();
 
+        ui.painter()
+            .rect_filled(self.inner_rect, 0., ui.style().visuals.extreme_bg_color);
+
         self.painter = ui.painter_at(self.inner_rect);
 
         ui.with_layer_id(

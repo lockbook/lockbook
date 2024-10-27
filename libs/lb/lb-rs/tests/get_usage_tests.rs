@@ -217,16 +217,17 @@ async fn upsert_meta_over_data_cap() {
 
     core.sync(None).await.unwrap();
 
-    let hmac = core
-        .begin_tx()
-        .await
-        .db()
-        .base_metadata
-        .get()
-        .get(&document.id)
-        .unwrap()
-        .document_hmac()
-        .cloned();
+    let hmac = {
+        core.ro_tx()
+            .await
+            .db()
+            .base_metadata
+            .get()
+            .get(&document.id)
+            .unwrap()
+            .document_hmac()
+            .cloned()
+    };
     let docs = AsyncDocs::from(&core.config);
     let local_encrypted = docs.get(document.id, hmac).await.unwrap().value;
 

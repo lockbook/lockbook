@@ -34,7 +34,7 @@ pub struct CoreV3 {
     pub doc_events: List<DocEvent>,
 }
 
-pub(crate) struct LbRO<'a> {
+pub struct LbRO<'a> {
     guard: RwLockReadGuard<'a, CoreDb>,
 }
 
@@ -60,7 +60,7 @@ impl<'a> LbTx<'a> {
 }
 
 impl Lb {
-    pub(crate) async fn ro_tx(&self) -> LbRO<'_> {
+    pub async fn ro_tx(&self) -> LbRO<'_> {
         // let guard = time::timeout(Duration::from_secs(1), self.db.read())
         //     .await
         //     .unwrap();

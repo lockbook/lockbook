@@ -13,16 +13,20 @@ use crate::model::api::{
 use crate::model::clock;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
-use crate::model::file_metadata::{FileDiff, FileType, Owner};
+use crate::model::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
 use crate::model::work_unit::WorkUnit;
 use crate::text::buffer::Buffer;
 use crate::Lb;
 pub use basic_human_duration::ChronoHumanDuration;
+use futures::stream;
+use futures::StreamExt;
 use serde::Serialize;
 use std::collections::{hash_map, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::thread;
 use time::Duration;
 use uuid::Uuid;
 
@@ -248,7 +252,7 @@ impl Lb {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
-        let mut remote = db.base_metadata.stage(&ctx.remote_changes).to_lazy(); // this used to be owned remote changes
+        let mut remote = db.base_metadata.stage(ctx.remote_changes.clone()).to_lazy(); // this used to be owned remote changes
         for id in remote.tree.staged.owned_ids() {
             if remote.calculate_deleted(&id)? {
                 continue;
@@ -273,21 +277,39 @@ impl Lb {
         let num_docs = docs_to_pull.len();
         ctx.total += num_docs;
 
-        // todo: parallelize
-        for (idx, (id, hmac)) in docs_to_pull.iter().enumerate() {
-            let id = *id;
-            let hmac = *hmac;
-            ctx.file_msg(id, &format!("Downloading file {idx} of {num_docs}.")); // todo: add name
-            let remote_document = self
-                .client
-                .request(self.get_account()?, GetDocRequest { id, hmac })
-                .await?;
-            self.docs
-                .insert(id, Some(hmac), &remote_document.content)
-                .await?;
-        }
+        let futures = docs_to_pull
+            .into_iter()
+            .map(|(id, hmac)| self.fetch_doc(id, hmac));
 
+        let mut stream = stream::iter(futures).buffer_unordered(
+            thread::available_parallelism()
+                .unwrap_or(NonZeroUsize::new(4).unwrap())
+                .into(),
+        );
+
+        let mut idx = 0;
+        println!("polling");
+        while let Some(fut) = stream.next().await {
+            println!("{:?}", fut);
+            let id = fut?;
+            ctx.file_msg(id, &format!("Downloaded file {idx} of {num_docs}."));
+            idx += 1;
+        }
         Ok(())
+    }
+
+    async fn fetch_doc(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<Uuid> {
+        println!("fetching doc");
+        let remote_document = self
+            .client
+            .request(self.get_account()?, GetDocRequest { id, hmac })
+            .await?;
+        self.docs
+            .insert(id, Some(hmac), &remote_document.content)
+            .await?;
+        println!("fetched doc");
+
+        Ok(id)
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.

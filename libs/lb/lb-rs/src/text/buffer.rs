@@ -78,7 +78,7 @@ pub struct Snapshot {
 impl Snapshot {
     fn apply_select(&mut self, range: (DocCharOffset, DocCharOffset)) -> Response {
         self.selection = range;
-        Response { text_updated: false, selection_updated: true }
+        Response { text_updated: false }
     }
 
     fn apply_replace(&mut self, replace: &Replace) -> Response {
@@ -95,7 +95,7 @@ impl Snapshot {
             &mut self.selection,
         );
 
-        Response { text_updated: true, selection_updated: true }
+        Response { text_updated: true }
     }
 
     fn invert(&self, op: &Operation) -> InverseOperation {
@@ -186,19 +186,17 @@ struct External {
 #[derive(Default)]
 pub struct Response {
     text_updated: bool,
-    selection_updated: bool,
 }
 
 impl std::ops::BitOrAssign for Response {
     fn bitor_assign(&mut self, other: Response) {
         self.text_updated |= other.text_updated;
-        self.selection_updated |= other.selection_updated;
     }
 }
 
-impl From<Response> for (bool, bool) {
+impl From<Response> for bool {
     fn from(value: Response) -> Self {
-        (value.text_updated, value.selection_updated)
+        value.text_updated
     }
 }
 
@@ -321,6 +319,18 @@ impl Buffer {
                 text: preceding_replacement_text,
             }) = preceding_op
             {
+                if let Operation::Replace(Replace { range: transformed_range, text }) = op {
+                    if preceding_replaced_range.intersects(transformed_range, true)
+                        && !preceding_replaced_range.is_empty()
+                        && !transformed_range.is_empty()
+                    {
+                        // concurrent replacements to intersecting ranges choose the first/local edit as the winner
+                        // this doesn't create self-conflicts during merge because merge combines adjacent replacements
+                        // this doesn't create self-conflicts for same-frame editor changes because it happens not to
+                        *text = "".into();
+                    }
+                }
+
                 match op {
                     Operation::Replace(Replace { range: transformed_range, .. })
                     | Operation::Select(transformed_range) => {
@@ -565,26 +575,95 @@ mod test {
     use super::Buffer;
 
     #[test]
-    fn buffer_merge_prefix() {
+    fn buffer_merge_nonintersecting_replace() {
+        let base_content = "base content base";
+        let local_content = "local content base";
+        let remote_content = "base content remote";
+
+        assert_eq!(
+            Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
+            "local content remote"
+        );
+        assert_eq!(
+            Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
+            "local content remote"
+        );
+    }
+
+    #[test]
+    fn buffer_merge_prefix_replace() {
         let base_content = "base content";
         let local_content = "local content";
         let remote_content = "remote content";
 
         assert_eq!(
             Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
-            "localremote content"
+            "local content"
         );
     }
 
     #[test]
-    fn buffer_merge_postfix() {
+    fn buffer_merge_infix_replace() {
+        let base_content = "con base tent";
+        let local_content = "con local tent";
+        let remote_content = "con remote tent";
+
+        assert_eq!(
+            Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
+            "con local tent"
+        );
+        assert_eq!(
+            Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
+            "con remote tent"
+        );
+    }
+
+    #[test]
+    fn buffer_merge_postfix_replace() {
         let base_content = "content base";
         let local_content = "content local";
         let remote_content = "content remote";
 
         assert_eq!(
             Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
-            "content localremote"
+            "content local"
+        );
+        assert_eq!(
+            Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
+            "content remote"
+        );
+    }
+
+    #[test]
+    fn buffer_merge_insert() {
+        let base_content = "content";
+        let local_content = "content local";
+        let remote_content = "content remote";
+
+        assert_eq!(
+            Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
+            "content local remote"
+        );
+        assert_eq!(
+            Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
+            "content remote local"
+        );
+    }
+
+    #[test]
+    // this test case documents behavior moreso than asserting target state
+    fn buffer_merge_insert_replace() {
+        let base_content = "content";
+        let local_content = "content local";
+        let remote_content = "remote";
+
+        assert_eq!(
+            Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
+            "remote"
+        );
+        assert_eq!(
+            Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
+            "remote local"
         );
     }
 }
