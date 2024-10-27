@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 
 use bezier_rs::{Bezier, Subpath};
 use egui::Pos2;
-use glam::DVec2;
 
 use super::parser::{Element, ManipulatorGroupId};
 
@@ -74,19 +73,6 @@ pub fn pointer_intersects_outline(
         .is_empty();
 
     intersects_delete_brush || is_inside_delete_brush
-}
-
-pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
-    egui::Rect {
-        min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
-        max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
-    }
-}
-pub fn rect_to_bb(rect: egui::Rect) -> [DVec2; 2] {
-    [
-        DVec2 { x: rect.left().into(), y: rect.top().into() },
-        DVec2 { x: rect.right().into(), y: rect.bottom().into() },
-    ]
 }
 
 pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {

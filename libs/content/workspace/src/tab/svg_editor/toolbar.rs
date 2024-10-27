@@ -528,6 +528,10 @@ impl Toolbar {
     }
 
     fn show_tool_controls(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) -> Option<Response> {
+        if self.active_tool == Tool::Selection {
+            return None;
+        }
+
         let tools_island_rect = match self.layout.tools_island {
             Some(val) => val,
             None => return None,
@@ -561,11 +565,7 @@ impl Toolbar {
                         Tool::Highlighter => {
                             show_highlighter_controls(ui, &mut self.highlighter, buffer)
                         }
-                        Tool::Selection => {
-                            ui.horizontal(|ui| {
-                                self.show_selection_controls(ui, buffer);
-                            });
-                        }
+                        Tool::Selection => {}
                     };
                 })
             });
@@ -621,104 +621,6 @@ impl Toolbar {
 
         if ui.input_mut(|r| r.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
             history.undo(buffer);
-        }
-    }
-
-    fn show_selection_controls(&self, ui: &mut egui::Ui, buffer: &mut Buffer) {
-        let mut max_current_index = 0;
-        let mut min_cureent_index = usize::MAX;
-        self.selection
-            .selected_elements
-            .iter()
-            .for_each(|selected_element| {
-                if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
-                    max_current_index = el_id.max(max_current_index);
-                    min_cureent_index = el_id.min(min_cureent_index);
-                }
-            });
-
-        if Button::default()
-            .icon(&Icon::BRING_TO_BACK.color(if max_current_index == buffer.elements.len() - 1 {
-                ui.visuals().text_color().gamma_multiply(0.4)
-            } else {
-                ui.visuals().text_color()
-            }))
-            .show(ui)
-            .clicked()
-            && max_current_index != buffer.elements.len() - 1
-        {
-            self.selection
-                .selected_elements
-                .iter()
-                .for_each(|selected_element| {
-                    if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
-                        buffer.elements.move_index(el_id, buffer.elements.len() - 1);
-                    }
-                });
-        }
-
-        if Button::default()
-            .icon(&Icon::BRING_BACK.color(if max_current_index == buffer.elements.len() - 1 {
-                ui.visuals().text_color().gamma_multiply(0.4)
-            } else {
-                ui.visuals().text_color()
-            }))
-            .show(ui)
-            .clicked()
-            && max_current_index != buffer.elements.len() - 1
-        {
-            self.selection
-                .selected_elements
-                .iter()
-                .for_each(|selected_element| {
-                    if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
-                        if el_id < buffer.elements.len() - 1 {
-                            buffer.elements.swap_indices(el_id, el_id + 1);
-                        }
-                    }
-                });
-        }
-
-        if Button::default()
-            .icon(&Icon::BRING_FRONT.color(if min_cureent_index == 0 {
-                ui.visuals().text_color().gamma_multiply(0.4)
-            } else {
-                ui.visuals().text_color()
-            }))
-            .show(ui)
-            .clicked()
-            && min_cureent_index != 0
-        {
-            self.selection
-                .selected_elements
-                .iter()
-                .for_each(|selected_element| {
-                    if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
-                        if el_id > 0 {
-                            buffer.elements.swap_indices(el_id, el_id - 1);
-                        }
-                    }
-                });
-        }
-
-        if Button::default()
-            .icon(&Icon::BRING_TO_FRONT.color(if min_cureent_index == 0 {
-                ui.visuals().text_color().gamma_multiply(0.4)
-            } else {
-                ui.visuals().text_color()
-            }))
-            .show(ui)
-            .clicked()
-            && min_cureent_index != 0
-        {
-            self.selection
-                .selected_elements
-                .iter()
-                .for_each(|selected_element| {
-                    if let Some((el_id, _, _)) = buffer.elements.get_full(&selected_element.id) {
-                        buffer.elements.move_index(el_id, 0);
-                    }
-                });
         }
     }
 
