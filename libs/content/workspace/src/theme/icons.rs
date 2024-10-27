@@ -51,7 +51,7 @@ impl Icon {
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
     pub const HEADER_1: Self = ic("\u{e262}"); // Header 11
     pub const TOGGLE_SIDEBAR: Self = ic("\u{f7e4}");
-    pub const HAND: Self = ic("\u{eb03}"); // Selection tool
+    pub const HAND: Self = ic("\u{f82f}"); // Selection tool
     pub const IMAGE: Self = ic("\u{e3f4}"); // Image
     pub const INFO: Self = ic("\u{e88e}");
     pub const ITALIC: Self = ic("\u{e23f}");

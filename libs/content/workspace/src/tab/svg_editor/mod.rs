@@ -103,8 +103,9 @@ impl SVGEditor {
         ui.with_layer_id(
             egui::LayerId { order: egui::Order::Middle, id: egui::Id::from("canvas_ui_overlay") },
             |ui| {
+                let mut ui = ui.child_ui(ui.painter().clip_rect(), egui::Layout::default(), None);
                 self.toolbar.show(
-                    ui,
+                    &mut ui,
                     &mut self.buffer,
                     &mut self.history,
                     &mut self.skip_frame,
@@ -112,7 +113,6 @@ impl SVGEditor {
                 );
             },
         );
-
         self.process_events(ui);
 
         self.show_canvas(ui);
