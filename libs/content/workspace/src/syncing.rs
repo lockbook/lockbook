@@ -97,9 +97,7 @@ impl Workspace {
 
         for id in server_ids {
             for i in 0..self.tabs.len() {
-                if self.tabs[i].id == id
-                    && !matches!(self.tabs[i].content, Some(TabContent::Svg(_)))
-                {
+                if self.tabs[i].id == id {
                     self.open_file(id, false, false);
                 }
             }
