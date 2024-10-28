@@ -55,6 +55,7 @@ impl From<crate::Response> for IOSResponse {
             cursor: _,
             virtual_keyboard_shown,
             window_title: _,
+            request_paste: _,
             context_menu: _,
         } = value;
 
