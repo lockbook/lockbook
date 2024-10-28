@@ -313,7 +313,7 @@ impl Buffer {
     fn transform(&self, op: &mut Operation, meta: &OpMeta) {
         let base_idx = meta.base - self.base.seq;
         for transforming_idx in base_idx..self.ops.processed_seq {
-            let preceding_op = &self.ops.all[transforming_idx];
+            let preceding_op = &self.ops.transformed[transforming_idx];
             if let Operation::Replace(Replace {
                 range: preceding_replaced_range,
                 text: preceding_replacement_text,
@@ -321,13 +321,15 @@ impl Buffer {
             {
                 if let Operation::Replace(Replace { range: transformed_range, text }) = op {
                     if preceding_replaced_range.intersects(transformed_range, true)
-                        && !preceding_replaced_range.is_empty()
-                        && !transformed_range.is_empty()
+                        && !(preceding_replaced_range.is_empty() && transformed_range.is_empty())
                     {
                         // concurrent replacements to intersecting ranges choose the first/local edit as the winner
                         // this doesn't create self-conflicts during merge because merge combines adjacent replacements
-                        // this doesn't create self-conflicts for same-frame editor changes because it happens not to
+                        // this doesn't create self-conflicts for same-frame editor changes because our final condition
+                        // is that we don't simultaneously insert text for both operations, which creates un-ideal
+                        // behavior (see test buffer_merge_insert)
                         *text = "".into();
+                        transformed_range.1 = transformed_range.0;
                     }
                 }
 
@@ -659,11 +661,22 @@ mod test {
 
         assert_eq!(
             Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
-            "remote"
+            "content local"
         );
         assert_eq!(
             Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
-            "remote local"
+            "remote"
         );
+    }
+
+    #[test]
+    // this test case used to crash `merge`
+    fn buffer_merge_crash() {
+        let base_content = "con tent";
+        let local_content = "cont tent locallocal";
+        let remote_content = "cont remote tent";
+
+        let _ = Buffer::from(base_content).merge(local_content.into(), remote_content.into());
+        let _ = Buffer::from(base_content).merge(remote_content.into(), local_content.into());
     }
 }
