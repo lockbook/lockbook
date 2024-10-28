@@ -28,7 +28,8 @@ pub fn line(
     if offset < galley.text_range().start() {
         // draw cursor before offset if that's where it is
         let annotation_offset = galleys::annotation_offset(&galley.annotation, appearance);
-        [min - annotation_offset.min.to_vec2(), max - annotation_offset.min.to_vec2()]
+        let annotation_min_x = egui::vec2(annotation_offset.min.x, 0.);
+        [min - annotation_min_x, max - annotation_min_x]
     } else {
         [min, max]
     }
