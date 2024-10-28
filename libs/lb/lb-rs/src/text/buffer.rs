@@ -256,6 +256,9 @@ impl Buffer {
         let ops_a = diff(&self.external.text, &external_text_a);
         let ops_b = diff(&self.external.text, &external_text_b);
 
+        println!("ops_a: {:?}", ops_a);
+        println!("ops_b: {:?}", ops_b);
+
         let timestamp = Instant::now();
         let base = self.external.seq;
         self.ops
@@ -297,9 +300,12 @@ impl Buffer {
         // transform & apply
         let mut result = Response::default();
         for idx in self.current_idx()..self.current_idx() + queue_len {
+            println!("\nidx: {}", idx);
             let mut op = self.ops.all[idx].clone();
+            println!("op: {:?}", op);
             let meta = &self.ops.meta[idx];
             self.transform(&mut op, meta);
+            println!("transformed op: {:?}", op);
             self.ops.transformed_inverted.push(self.current.invert(&op));
             self.ops.transformed.push(op.clone());
             self.ops.processed_seq += 1;
@@ -313,21 +319,29 @@ impl Buffer {
     fn transform(&self, op: &mut Operation, meta: &OpMeta) {
         let base_idx = meta.base - self.base.seq;
         for transforming_idx in base_idx..self.ops.processed_seq {
-            let preceding_op = &self.ops.all[transforming_idx];
+            println!("\ttransforming_idx: {}", transforming_idx);
+            let preceding_op = &self.ops.transformed[transforming_idx];
             if let Operation::Replace(Replace {
                 range: preceding_replaced_range,
                 text: preceding_replacement_text,
             }) = preceding_op
             {
                 if let Operation::Replace(Replace { range: transformed_range, text }) = op {
-                    if preceding_replaced_range.intersects(transformed_range, true)
-                        && !preceding_replaced_range.is_empty()
-                        && !transformed_range.is_empty()
-                    {
+                    println!("\tpreceding_op: {:?}", preceding_op);
+                    println!(
+                        "\tpreceding_op intersects: {:?}",
+                        preceding_replaced_range.intersects(transformed_range, true)
+                    );
+                    println!("\tpreceding_op is_empty: {:?}", preceding_replaced_range.is_empty());
+                    println!("\top is_empty: {:?}", transformed_range.is_empty());
+                    if preceding_replaced_range.intersects(transformed_range, true) {
+                        println!("\t\tignored");
+
                         // concurrent replacements to intersecting ranges choose the first/local edit as the winner
                         // this doesn't create self-conflicts during merge because merge combines adjacent replacements
                         // this doesn't create self-conflicts for same-frame editor changes because it happens not to
                         *text = "".into();
+                        transformed_range.1 = transformed_range.0;
                     }
                 }
 
@@ -642,11 +656,11 @@ mod test {
 
         assert_eq!(
             Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
-            "content local remote"
+            "content local"
         );
         assert_eq!(
             Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
-            "content remote local"
+            "content remote"
         );
     }
 
@@ -659,11 +673,27 @@ mod test {
 
         assert_eq!(
             Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
-            "remote"
+            "content local"
         );
         assert_eq!(
             Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
-            "remote local"
+            "remote"
+        );
+    }
+
+    #[test]
+    fn buffer_merge_conflict_plus() {
+        let base_content = "content content";
+        let local_content = "content local content local";
+        let remote_content = "content remote content remote";
+
+        assert_eq!(
+            Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
+            "content local content local"
+        );
+        assert_eq!(
+            Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
+            "content remote content remote"
         );
     }
 }
