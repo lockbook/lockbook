@@ -110,7 +110,7 @@ impl Snapshot {
         let Replace { range, text } = replace;
         let byte_range = self.segs.range_to_byte(*range);
         let replaced_text = self[byte_range].into();
-        let replacement_range = (range.start(), range.start() + text.len());
+        let replacement_range = (range.start(), range.start() + text.graphemes(true).count());
         Replace { range: replacement_range, text: replaced_text }
     }
 }
