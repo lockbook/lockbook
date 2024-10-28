@@ -94,7 +94,7 @@ impl Editor {
                                 Stroke { width: 1., color: self.appearance.checkbox_bg() },
                             );
 
-                            let icon = &Icon::CHECK;
+                            let icon = &Icon::CHECK.size(16.);
                             let icon_text: WidgetText = icon.into();
                             let galley = icon_text.into_galley(
                                 ui,
