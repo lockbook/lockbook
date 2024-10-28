@@ -114,7 +114,7 @@ impl Editor {
                         }
                     },
                     Annotation::HeadingRule => {
-                        let y = (galley.rect.max.y + galley.response.rect.max.y) / 2.;
+                        let y = galley.rect.max.y + 2.;
                         let min = Pos2 { x: galley.rect.min.x, y };
                         let max = Pos2 { x: galley.rect.max.x, y };
 
@@ -133,7 +133,7 @@ impl Editor {
                     Annotation::BlockQuote => {
                         ui.painter().vline(
                             galley.rect.min.x - 15.,
-                            galley.response.rect.y_range(),
+                            galley.rect.y_range().expand(4.),
                             Stroke { width: 3., color: self.appearance.checkbox_bg() },
                         );
                     }
