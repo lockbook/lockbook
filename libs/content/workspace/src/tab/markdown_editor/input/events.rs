@@ -116,43 +116,45 @@ impl Editor {
                 ctx.style_mut(|s| s.visuals.window_fill = s.visuals.extreme_bg_color);
                 ctx.style_mut(|s| s.visuals.window_stroke = Stroke::NONE);
 
-                let mut context_menu_events = Vec::new();
-                response.context_menu(|ui| {
-                    ui.horizontal(|ui| {
-                        ui.set_min_height(30.);
-                        ui.style_mut().spacing.button_padding = egui::vec2(5.0, 5.0);
+                if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {
+                    let mut context_menu_events = Vec::new();
+                    response.context_menu(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.set_min_height(30.);
+                            ui.style_mut().spacing.button_padding = egui::vec2(5.0, 5.0);
 
-                        if IconButton::new(&Icon::CONTENT_CUT)
-                            .tooltip("Cut")
-                            .show(ui)
-                            .clicked()
-                        {
-                            context_menu_events.push(Event::Cut);
-                            ui.close_menu();
-                        }
-                        ui.add_space(5.);
-                        if IconButton::new(&Icon::CONTENT_COPY)
-                            .tooltip("Copy")
-                            .show(ui)
-                            .clicked()
-                        {
-                            context_menu_events.push(Event::Copy);
-                            ui.close_menu();
-                        }
-                        ui.add_space(5.);
-                        if IconButton::new(&Icon::CONTENT_PASTE)
-                            .tooltip("Paste")
-                            .show(ui)
-                            .clicked()
-                        {
-                            // paste must go through the window because we don't yet have the clipboard content
-                            ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
-                            ui.close_menu();
-                        }
+                            if IconButton::new(&Icon::CONTENT_CUT)
+                                .tooltip("Cut")
+                                .show(ui)
+                                .clicked()
+                            {
+                                context_menu_events.push(Event::Cut);
+                                ui.close_menu();
+                            }
+                            ui.add_space(5.);
+                            if IconButton::new(&Icon::CONTENT_COPY)
+                                .tooltip("Copy")
+                                .show(ui)
+                                .clicked()
+                            {
+                                context_menu_events.push(Event::Copy);
+                                ui.close_menu();
+                            }
+                            ui.add_space(5.);
+                            if IconButton::new(&Icon::CONTENT_PASTE)
+                                .tooltip("Paste")
+                                .show(ui)
+                                .clicked()
+                            {
+                                // paste must go through the window because we don't yet have the clipboard content
+                                ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
+                                ui.close_menu();
+                            }
+                        });
                     });
-                });
-                if !context_menu_events.is_empty() {
-                    return context_menu_events;
+                    if !context_menu_events.is_empty() {
+                        return context_menu_events;
+                    }
                 }
 
                 // hover-based cursor icons
