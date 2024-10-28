@@ -24,6 +24,7 @@ impl Icon {
     pub const BRING_FRONT: Self = ic("\u{e5cc}");
     pub const BRUSH: Self = ic("\u{e3ae}");
     pub const BOLD: Self = ic("\u{e238}"); // Bold Text
+    pub const CHECK: Self = ic("\u{e5ca}");
     pub const CHECK_CIRCLE: Self = ic("\u{e86c}"); // Check Circle
     pub const CANCEL: Self = ic("\u{e5c9}"); // Cancel
     pub const CANCEL_PRESENTATION: Self = ic("\u{e0e9}"); // Cancel Presentation

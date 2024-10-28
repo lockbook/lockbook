@@ -157,11 +157,11 @@ impl Appearance {
     }
 
     pub fn checkbox_dim(&self) -> f32 {
-        self.checkbox_dim.unwrap_or(12.0)
+        self.checkbox_dim.unwrap_or(15.0)
     }
 
     pub fn checkbox_rounding(&self) -> f32 {
-        self.checkbox_dim.unwrap_or(1.0)
+        self.checkbox_dim.unwrap_or(2.0)
     }
 
     pub fn checkbox_slash_width(&self) -> f32 {
