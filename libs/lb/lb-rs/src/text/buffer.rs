@@ -325,7 +325,9 @@ impl Buffer {
                     {
                         // concurrent replacements to intersecting ranges choose the first/local edit as the winner
                         // this doesn't create self-conflicts during merge because merge combines adjacent replacements
-                        // this doesn't create self-conflicts for same-frame editor changes because it happens not to
+                        // this doesn't create self-conflicts for same-frame editor changes because our final condition
+                        // is that we don't simultaneously insert text for both operations, which creates un-ideal
+                        // behavior (see test buffer_merge_insert)
                         *text = "".into();
                         transformed_range.1 = transformed_range.0;
                     }
