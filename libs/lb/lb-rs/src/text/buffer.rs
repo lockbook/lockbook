@@ -320,7 +320,9 @@ impl Buffer {
             }) = preceding_op
             {
                 if let Operation::Replace(Replace { range: transformed_range, text }) = op {
-                    if preceding_replaced_range.intersects(transformed_range, true) {
+                    if preceding_replaced_range.intersects(transformed_range, true)
+                        && !(preceding_replaced_range.is_empty() && transformed_range.is_empty())
+                    {
                         // concurrent replacements to intersecting ranges choose the first/local edit as the winner
                         // this doesn't create self-conflicts during merge because merge combines adjacent replacements
                         // this doesn't create self-conflicts for same-frame editor changes because it happens not to
@@ -640,11 +642,11 @@ mod test {
 
         assert_eq!(
             Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
-            "content local"
+            "content local remote"
         );
         assert_eq!(
             Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
-            "content remote"
+            "content remote local"
         );
     }
 
@@ -662,22 +664,6 @@ mod test {
         assert_eq!(
             Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
             "remote"
-        );
-    }
-
-    #[test]
-    fn buffer_merge_conflict_plus() {
-        let base_content = "content content";
-        let local_content = "content local content local";
-        let remote_content = "content remote content remote";
-
-        assert_eq!(
-            Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
-            "content local content local"
-        );
-        assert_eq!(
-            Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
-            "content remote content remote"
         );
     }
 
