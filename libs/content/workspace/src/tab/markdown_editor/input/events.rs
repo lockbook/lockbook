@@ -1,7 +1,5 @@
 use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::Location;
-use crate::tab::markdown_editor::layouts::Annotation;
-use crate::tab::markdown_editor::style::ListItem;
 use crate::tab::{self, markdown_editor, ClipContent, ExtendedInput as _, ExtendedOutput as _};
 use egui::{Context, EventFilter, Pos2};
 use lb_rs::text::buffer;
@@ -115,7 +113,7 @@ impl Editor {
                 let hovering_clickable = ctx
                     .input(|r| r.pointer.latest_pos())
                     .map(|pos| {
-                        if modifiers.command
+                        modifiers.command
                             && mutation::pos_to_link(
                                 pos,
                                 &self.galleys,
@@ -124,15 +122,6 @@ impl Editor {
                                 &self.ast,
                             )
                             .is_some()
-                        {
-                            return true;
-                        }
-                        if let Some(Annotation::Item(ListItem::Todo(_), ..)) = galley.annotation {
-                            if galley.checkbox_bounds(&self.appearance).contains(pos) {
-                                return true;
-                            }
-                        }
-                        false
                     })
                     .unwrap_or_default();
                 if response.hovered() && hovering_clickable {
@@ -153,16 +142,6 @@ impl Editor {
                 } else {
                     None
                 };
-                let clicked_checkbox =
-                    if let Some(Annotation::Item(ListItem::Todo(_), ..)) = galley.annotation {
-                        let mut checkbox_bounds = galley.checkbox_bounds(&self.appearance);
-                        if cfg!(target_os = "ios") || cfg!(target_os = "android") {
-                            checkbox_bounds = checkbox_bounds.expand(16.);
-                        }
-                        checkbox_bounds.contains(pos)
-                    } else {
-                        false
-                    };
 
                 // note: deliberate order; a double click is also a click
                 let region = if response.clicked() && maybe_clicked_link.is_some() {
@@ -170,8 +149,6 @@ impl Editor {
                     let url = if !url.contains("://") { format!("https://{}", url) } else { url };
                     ctx.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
                     continue;
-                } else if response.clicked() && clicked_checkbox {
-                    return vec![Event::ToggleCheckbox(i)];
                 } else if response.triple_clicked() {
                     Region::BoundAt { bound: Bound::Paragraph, location, backwards: true }
                 } else if response.double_clicked() {
