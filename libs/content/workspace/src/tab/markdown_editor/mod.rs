@@ -8,6 +8,7 @@ pub mod debug;
 pub mod draw;
 pub mod editor;
 pub mod galleys;
+pub mod grammar;
 pub mod images;
 pub mod input;
 pub mod layouts;

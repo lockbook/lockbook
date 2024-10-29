@@ -3,7 +3,11 @@ use crate::tab::markdown_editor::input::Location;
 use crate::tab::{self, markdown_editor, ClipContent, ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
-use egui::{Context, EventFilter, Pos2, Stroke, ViewportCommand};
+use egui::{
+    Button, Context, EventFilter, FontFamily, FontId, Pos2, Separator, Stroke, TextStyle,
+    TextWrapMode, ViewportCommand,
+};
+use harper_core::linting::Suggestion;
 use lb_rs::text::buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 use markdown_editor::input::{Event, Region};
@@ -105,7 +109,7 @@ impl Editor {
         }
     }
 
-    fn get_pointer_events(&self, ctx: &Context) -> Vec<Event> {
+    fn get_pointer_events(&mut self, ctx: &Context) -> Vec<Event> {
         for i in 0..self.galleys.galleys.len() {
             let galley = &self.galleys.galleys[i];
             if let Some(response) = ctx.read_response(galley.response.id) {
@@ -115,6 +119,10 @@ impl Editor {
                 ctx.style_mut(|s| s.visuals.menu_rounding = (2.).into());
                 ctx.style_mut(|s| s.visuals.window_fill = s.visuals.extreme_bg_color);
                 ctx.style_mut(|s| s.visuals.window_stroke = Stroke::NONE);
+                ctx.style_mut(|s| {
+                    s.text_styles
+                        .insert(TextStyle::Button, FontId::new(16.0, FontFamily::Proportional));
+                });
 
                 if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {
                     let mut context_menu_events = Vec::new();
@@ -151,6 +159,57 @@ impl Editor {
                                 ui.close_menu();
                             }
                         });
+
+                        let offset = pos_to_char_offset(
+                            self.event.prev_click_pos,
+                            &self.galleys,
+                            &self.buffer.current.segs,
+                            &self.bounds.text,
+                        );
+                        if let Some(lint) = self
+                            .grammar
+                            .lints
+                            .iter()
+                            .find(|lint| lint.span.contains(offset.0))
+                        {
+                            ui.add(Separator::default().shrink(10.).spacing(10.));
+
+                            let max_suggestions = 5;
+                            for (i, suggestion) in lint.suggestions.iter().enumerate() {
+                                if i >= max_suggestions {
+                                    break;
+                                }
+
+                                let span_range =
+                                    (DocCharOffset(lint.span.start), DocCharOffset(lint.span.end));
+                                let span_text = self.buffer[span_range].to_string();
+                                let replacement_text: String = match suggestion {
+                                    Suggestion::ReplaceWith(char_vec) => {
+                                        char_vec.into_iter().collect()
+                                    }
+                                    Suggestion::Remove => "".to_string(),
+                                };
+                                let msg = if replacement_text.is_empty() {
+                                    format!("Remove ‘{}’", span_text)
+                                } else {
+                                    format!("Replace ‘{}’ with ‘{}’", span_text, replacement_text)
+                                };
+
+                                if ui
+                                    .add(Button::new(msg).wrap_mode(TextWrapMode::Extend))
+                                    .clicked()
+                                {
+                                    context_menu_events.push(Event::Replace {
+                                        region: Region::BetweenLocations {
+                                            start: Location::DocCharOffset(span_range.start()),
+                                            end: Location::DocCharOffset(span_range.end()),
+                                        },
+                                        text: replacement_text,
+                                    });
+                                    ui.close_menu();
+                                }
+                            }
+                        }
                     });
                     if !context_menu_events.is_empty() {
                         return context_menu_events;
@@ -181,6 +240,7 @@ impl Editor {
                 // note: early continue here unless response has a pointer interaction
                 let pos =
                     if let Some(pos) = response.interact_pointer_pos() { pos } else { continue };
+                self.event.prev_click_pos = pos;
                 let location = Location::Pos(pos);
 
                 let maybe_clicked_link = if modifiers.command
