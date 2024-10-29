@@ -27,6 +27,7 @@ use super::Bound;
 #[derive(Default)]
 pub struct EventState {
     prev_event: Option<Event>,
+    pub prev_click_pos: Pos2,
 }
 
 impl Editor {

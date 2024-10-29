@@ -1,5 +1,5 @@
 use crate::tab::markdown_editor::appearance::Appearance;
-use egui::{FontFamily, Stroke, TextFormat, Visuals};
+use egui::{Color32, FontFamily, Stroke, TextFormat, Visuals};
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
@@ -114,6 +114,7 @@ pub enum RenderStyle {
     Selection,
     PlaintextLink,
     Syntax,
+    Grammar,
     Markdown(MarkdownNode),
 }
 
@@ -318,6 +319,7 @@ impl RenderStyle {
                     text_format.underline = Stroke { width: 1.5, color: vis.link() };
                 }
                 RenderStyle::Syntax => {}
+                RenderStyle::Grammar => {}
                 RenderStyle::Markdown(MarkdownNode::Document) => {
                     text_format.font_id.family = FontFamily::Monospace;
                     text_format.font_id.size = vis.font_size();
@@ -336,6 +338,9 @@ impl RenderStyle {
                 }
                 RenderStyle::Syntax => {
                     text_format.color = vis.syntax();
+                }
+                RenderStyle::Grammar => {
+                    text_format.underline = Stroke { width: 1., color: Color32::RED };
                 }
                 RenderStyle::Markdown(MarkdownNode::Document) => {
                     text_format.font_id.size = vis.font_size();

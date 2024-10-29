@@ -31,6 +31,8 @@ use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
 use std::time::{Duration, Instant};
 
+use super::grammar::{self, Grammar};
+
 #[derive(Debug, Serialize, Default)]
 pub struct Response {
     // state changes
@@ -66,6 +68,7 @@ pub struct Editor {
     pub toolbar: Toolbar,
     pub find: Find,
     pub event: EventState,
+    pub grammar: Grammar,
 
     pub virtual_keyboard_shown: bool,
 }
@@ -96,6 +99,7 @@ impl Editor {
             toolbar: Default::default(),
             find: Default::default(),
             event: Default::default(),
+            grammar: Default::default(),
 
             virtual_keyboard_shown: false,
         }
@@ -267,6 +271,7 @@ impl Editor {
             self.bounds.words =
                 bounds::calc_words(&self.buffer, &self.ast, &self.bounds.ast, &self.appearance);
             self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer);
+            self.grammar = grammar::calc(&self.buffer.current.text);
         }
         let cursor_screen_postition_updated =
             text_updated || selection_updated || self.capture.mark_changes_processed();
@@ -290,6 +295,7 @@ impl Editor {
             &self.ast,
             &self.buffer,
             &self.bounds,
+            &self.grammar,
             &self.images,
             &self.appearance,
             touch_mode,
