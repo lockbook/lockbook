@@ -1,22 +1,16 @@
 pub mod docs;
 
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
-use std::time::Duration;
-
-use db_rs::{Db, List, LookupTable, Single, TxHandle};
-use db_rs_derive::Schema;
-use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-use tokio::time;
-
 use crate::logic::signed_file::SignedFile;
 use crate::model::account::Account;
 use crate::model::file_metadata::Owner;
-use crate::Lb;
-
-use uuid::Uuid;
-
 use crate::service::activity::DocEvent;
+use crate::Lb;
+use db_rs::{Db, List, LookupTable, Single, TxHandle};
+use db_rs_derive::Schema;
+use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
+use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use uuid::Uuid;
 
 pub(crate) type LbDb = Arc<RwLock<CoreV3>>;
 // todo: limit visibility
@@ -71,9 +65,11 @@ impl Lb {
     }
 
     pub async fn begin_tx(&self) -> LbTx<'_> {
-        let mut guard = time::timeout(Duration::from_secs(1), self.db.write())
-            .await
-            .unwrap();
+        // let mut guard = time::timeout(Duration::from_secs(1), self.db.write())
+        //     .await
+        //     .unwrap();
+
+        let mut guard = self.db.write().await;
         let tx = guard.begin_transaction().unwrap();
 
         LbTx { guard, tx }
