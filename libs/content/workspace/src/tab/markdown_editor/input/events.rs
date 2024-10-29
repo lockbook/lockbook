@@ -184,9 +184,7 @@ impl Editor {
                                     (DocCharOffset(lint.span.start), DocCharOffset(lint.span.end));
                                 let span_text = self.buffer[span_range].to_string();
                                 let replacement_text: String = match suggestion {
-                                    Suggestion::ReplaceWith(char_vec) => {
-                                        char_vec.into_iter().collect()
-                                    }
+                                    Suggestion::ReplaceWith(char_vec) => char_vec.iter().collect(),
                                     Suggestion::Remove => "".to_string(),
                                 };
                                 let msg = if replacement_text.is_empty() {
