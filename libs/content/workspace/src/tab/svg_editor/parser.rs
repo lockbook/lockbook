@@ -50,6 +50,17 @@ pub enum Element {
     Text(Text),
 }
 
+impl PartialEq for Element {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Path(l0), Self::Path(r0)) => l0 == r0,
+            (Self::Image(_), Self::Image(_)) => todo!(),
+            (Self::Text(_), Self::Text(_)) => todo!(),
+            _ => false,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Path {
     pub data: Subpath<ManipulatorGroupId>,
@@ -62,7 +73,18 @@ pub struct Path {
     pub deleted: bool,
 }
 
-#[derive(Clone, Default, Debug)]
+impl PartialEq for Path {
+    fn eq(&self, other: &Self) -> bool {
+        self.data == other.data
+            && self.visibility == other.visibility
+            && self.transform == other.transform
+            && self.opacity == other.opacity
+            && self.diff_state == other.diff_state
+            && self.deleted == other.deleted
+    }
+}
+
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct DiffState {
     pub opacity_changed: bool,
     pub transformed: Option<Transform>,
@@ -148,40 +170,39 @@ impl Buffer {
     }
 
     pub fn reload(&mut self, content: &[u8], hmac: Option<DocumentHmac>) {
-        // construct diff from buffer.opened_content to content
-
         //
         // CONSTRCUT THE ELS FROM BASE MAP
         //
-        let maybe_tree =
-            usvg::Tree::from_str(&self.opened_content, &Options::default(), &Database::default());
-        if let Err(err) = maybe_tree {
-            println!("{:#?}", err);
-            panic!("couldn't parse the base content");
-        }
-
-        let utree = maybe_tree.unwrap();
 
         let mut base_eles = IndexMap::default();
         let mut base_master_transform = Transform::identity();
         let mut base_id_map = HashMap::default();
 
-        utree
-            .root()
-            .children()
-            .iter()
-            .enumerate()
-            .for_each(|(_, u_el)| {
-                parse_child(u_el, &mut base_eles, &mut base_master_transform, &mut base_id_map)
-            });
+        let maybe_tree =
+            usvg::Tree::from_str(&self.opened_content, &Options::default(), &Database::default());
+        if let Err(err) = maybe_tree {
+            println!("{:#?}", err);
+            println!("couldn't parse the base content");
+        } else {
+            let utree = maybe_tree.unwrap();
 
-        base_eles.iter_mut().for_each(|(_, el)| {
-            el.transform(base_master_transform);
-        });
+            utree
+                .root()
+                .children()
+                .iter()
+                .enumerate()
+                .for_each(|(_, u_el)| {
+                    parse_child(u_el, &mut base_eles, &mut base_master_transform, &mut base_id_map)
+                });
+        }
 
         //
         // CONSTRCUT THE ELS FROM REMOTE
         //
+        let mut remote_eles = IndexMap::default();
+        let mut remote_master_transform = Transform::identity();
+        let mut remote_id_map = HashMap::default();
+
         let maybe_tree = usvg::Tree::from_str(
             String::from_utf8_lossy(content).to_string().as_str(),
             &Options::default(),
@@ -189,60 +210,80 @@ impl Buffer {
         );
         if let Err(err) = maybe_tree {
             println!("{:#?}", err);
-            panic!("couldn't parse the base content");
+            println!("couldn't parse the remote content");
+        } else {
+            let utree = maybe_tree.unwrap();
+
+            utree
+                .root()
+                .children()
+                .iter()
+                .enumerate()
+                .for_each(|(_, u_el)| {
+                    parse_child(
+                        u_el,
+                        &mut remote_eles,
+                        &mut remote_master_transform,
+                        &mut remote_id_map,
+                    )
+                });
         }
-
-        let utree = maybe_tree.unwrap();
-
-        let mut remote_eles = IndexMap::default();
-        let mut remote_master_transform = Transform::identity();
-        let mut remote_id_map = HashMap::default();
-
-        utree
-            .root()
-            .children()
-            .iter()
-            .enumerate()
-            .for_each(|(_, u_el)| {
-                parse_child(
-                    u_el,
-                    &mut remote_eles,
-                    &mut remote_master_transform,
-                    &mut remote_id_map,
-                )
-            });
-
-        // remote_eles.iter_mut().for_each(|(_, el)| {
-        //     el.transform(remote_master_transform);
-        // });
 
         for (id, base_el) in base_eles.iter() {
             if let Some(remote_el) = remote_eles.get(id) {
-                if let Element::Path(remote_path) = remote_el {
-                    if let Element::Path(base_path) = base_el {
-                        let first_remote_mg = &remote_path.data.manipulator_groups()[0].anchor;
-                        let first_base_mg = &base_path.data.manipulator_groups()[0].anchor;
-
-                        if first_base_mg != first_remote_mg {
-                            // this was changed remotly
-                            self.elements.insert(*id, remote_el.clone());
-                        }
-                    }
+                if remote_el != base_el {
+                    // todo: apply local master transform before adding this to local
+                    // this element was changed remotly
+                    self.elements.insert(*id, remote_el.clone());
+                    println!("remote changed element {:#?}", id);
                 }
             } else {
                 // this was deletd remotly
-                self.elements.shift_remove(id);
+                println!("remote delte element {:#?}", id);
+                self.hard_remove(*id);
             }
         }
 
         for (id, remote_el) in remote_eles.iter() {
             if !base_eles.contains_key(id) {
+                // todo: apply local master transform before adding this to local
                 // this was created remotly
-                self.elements.insert(*id, remote_el.clone());
+                println!("remote created element {:#?}", id);
+                self.insert(*id, remote_el.clone());
             }
         }
 
         self.open_file_hmac = hmac;
+    }
+
+    pub fn insert(&mut self, id: Uuid, mut el: Element) {
+        match el {
+            Element::Path(ref mut path) => path.diff_state.data_changed = true,
+            Element::Image(ref mut image) => image.diff_state.data_changed = true,
+            _ => {}
+        }
+        self.elements.insert_before(0, id, el);
+    }
+
+    pub fn hard_remove(&mut self, id: Uuid) {
+        self.elements.shift_remove(&id);
+    }
+
+    /// soft remove that marks the element as deleted but retains it in memeory
+    pub fn remove(&mut self, id: Uuid) {
+        if let Some(el) = self.elements.get_mut(&id) {
+            match el {
+                Element::Path(ref mut path) => {
+                    path.deleted = true;
+                    path.diff_state.delete_changed = true;
+                }
+                Element::Image(ref mut image) => {
+                    image.deleted = true;
+                    image.diff_state.delete_changed = true;
+                }
+                _ => {}
+            }
+        }
     }
 }
 
