@@ -6,7 +6,9 @@ use std::{
     ptr::null_mut,
 };
 
-use ffi_utils::{carray, cstring, cstring_array, lb_err, r_opt_str, r_paths, rlb, rstr, rstring, rvec};
+use ffi_utils::{
+    carray, cstring, cstring_array, lb_err, r_opt_str, r_paths, rlb, rstr, rstring, rvec,
+};
 use lb_c_err::LbFfiErr;
 use lb_file::{LbFile, LbFileList, LbFileType};
 pub use lb_rs::*;
@@ -19,7 +21,8 @@ use model::api::{
 };
 use service::{
     import_export::ImportStatus,
-    search::{SearchConfig, SearchResult}, sync::SyncProgress,
+    search::{SearchConfig, SearchResult},
+    sync::SyncProgress,
 };
 
 #[repr(C)]
@@ -203,9 +206,7 @@ pub struct LbUuid {
 
 impl From<Uuid> for LbUuid {
     fn from(uuid: Uuid) -> Self {
-        LbUuid {
-            bytes: uuid.as_bytes().clone(),
-        }
+        LbUuid { bytes: uuid.as_bytes().clone() }
     }
 }
 
@@ -347,7 +348,9 @@ pub extern "C" fn lb_list_metadatas(lb: *mut Lb) -> LbFileListRes {
 }
 
 #[no_mangle]
-pub extern "C" fn lb_rename_file(lb: *mut Lb, id: LbUuid, new_name: *const c_char) -> *mut LbFfiErr {
+pub extern "C" fn lb_rename_file(
+    lb: *mut Lb, id: LbUuid, new_name: *const c_char,
+) -> *mut LbFfiErr {
     let lb = rlb(lb);
     let new_name = rstr(new_name);
 
@@ -470,7 +473,7 @@ pub extern "C" fn lb_list_folder_paths(lb: *mut Lb) -> LbPathsRes {
             let (paths, len) = cstring_array(paths);
 
             LbPathsRes { err: null_mut(), paths, len }
-        },
+        }
         Err(err) => LbPathsRes { err: lb_err(err), paths: null_mut(), len: 0 },
     }
 }
@@ -514,7 +517,10 @@ pub extern "C" fn lb_sync(lb: *mut Lb, update_status: *const UpdateSyncStatus) -
             update_status(
                 sync_progress.total,
                 sync_progress.progress,
-                sync_progress.file_being_processed.unwrap_or_else(Uuid::nil).into(),
+                sync_progress
+                    .file_being_processed
+                    .unwrap_or_else(Uuid::nil)
+                    .into(),
                 cstring(sync_progress.msg),
             );
         }))
@@ -661,7 +667,9 @@ pub extern "C" fn lb_import_files(
 
     let sources = r_paths(sources, sources_len);
 
-    match lb.import_files(&sources, dest.into(), &|_status: ImportStatus| println!("imported one file")) {
+    match lb
+        .import_files(&sources, dest.into(), &|_status: ImportStatus| println!("imported one file"))
+    {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
     }

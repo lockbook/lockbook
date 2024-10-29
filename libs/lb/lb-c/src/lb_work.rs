@@ -7,7 +7,8 @@ use lb_rs::{
 
 use crate::{
     ffi_utils::{carray, lb_err},
-    lb_c_err::LbFfiErr, LbUuid,
+    lb_c_err::LbFfiErr,
+    LbUuid,
 };
 
 #[repr(C)]

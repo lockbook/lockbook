@@ -3,7 +3,10 @@ use std::ffi::{c_char, CString};
 use lb_rs::Uuid;
 
 use crate::{
-    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, lb_work::LbSyncRes, LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathsRes, LbSearchRes, LbSubscriptionInfoRes, LbUncompressedRes, LbUsageMetricsRes
+    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, lb_work::LbSyncRes, LbAccountRes,
+    LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbIdListRes,
+    LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathsRes, LbSearchRes,
+    LbSubscriptionInfoRes, LbUncompressedRes, LbUsageMetricsRes,
 };
 
 #[no_mangle]

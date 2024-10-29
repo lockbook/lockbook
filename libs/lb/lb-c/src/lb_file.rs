@@ -8,7 +8,10 @@ use lb_rs::{
     Uuid,
 };
 
-use crate::{ffi_utils::{carray, cstring}, LbUuid};
+use crate::{
+    ffi_utils::{carray, cstring},
+    LbUuid,
+};
 
 #[repr(C)]
 pub struct LbFileList {
