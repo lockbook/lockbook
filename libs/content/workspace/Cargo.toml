@@ -8,12 +8,15 @@ name = "workspace_rs"
 
 [dependencies]
 bezier-rs = "0.2.0"
+chrono = "0.4"
 egui = "0.28.1"
 egui_animation = "0.5.0"
 epaint = "0.28.1"
 glam = "0.22.0"
 image = "0.24"
-lb-fonts = { git = "https://github.com/lockbook/lb-fonts" }
+indexmap = { version = "2.5.0", features = ["rayon"] }
+lb-fonts = { path = "../../../../lb-fonts" }
+# lb-fonts = { git = "https://github.com/lockbook/lb-fonts" }
 lb-pdf = { git = "https://github.com/lockbook/lb-pdf" }
 linkify = "0.10.0"
 lyon = "1.0.1"
@@ -23,14 +26,13 @@ rayon = "1.10.0"
 resvg = "0.41.0"
 serde = { version = "1.0.171", features = ["derive"] }
 svgtypes = "0.13.0"
-unicode-segmentation = "1.10.0"
-usvg-parser = "0.36.0"
-chrono = "0.4"
 tld = "2.35.0"
 tldextract = "0.6.0"
 tracing = "0.1.5"
 tracing-test = "0.2.5"
-indexmap = { version = "2.5.0", features = ["rayon"] }
+twemoji-assets = { version = "1.0", features = ["svg", "names"] }
+unicode-segmentation = "1.10.0"
+usvg-parser = "0.36.0"
 
 # todo: maybe move this switch into lb itself
 [target.'cfg(not(target_os = "android"))'.dependencies]
