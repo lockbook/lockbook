@@ -449,7 +449,11 @@ impl Workspace {
                 egui::widgets::Button::new(egui::RichText::new(self.tabs[0].name.clone()))
                     .frame(false)
                     .wrap_mode(TextWrapMode::Truncate)
-                    .fill(egui::Color32::BLACK); // matches iOS native toolbar
+                    .fill(if ui.visuals().dark_mode {
+                        egui::Color32::BLACK
+                    } else {
+                        egui::Color32::WHITE
+                    }); // matches iOS native toolbar
 
             ui.allocate_ui(ui.available_size(), |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
