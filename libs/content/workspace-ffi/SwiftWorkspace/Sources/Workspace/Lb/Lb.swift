@@ -62,9 +62,9 @@ public class Lb {
     
     public func deleteAccount() -> Result<(), LbError> {
         let err = lb_delete_account(lb)
-        defer { lb_free_err(err) }
         
         if let err = err {
+            defer { lb_free_err(err) }
             return .failure(LbError(err.pointee))
         }
         
@@ -137,9 +137,9 @@ public class Lb {
         }
         
         let err = lb_write_document(lb, id.toLbUuid(), ptr, len)
-        defer { lb_free_err(err) }
         
         if let err = err {
+            defer { lb_free_err(err) }
             return .failure(LbError(err.pointee))
         }
 
@@ -192,9 +192,9 @@ public class Lb {
     
     public func deleteFile(id: UUID) -> Result<Void, LbError> {
         let err = lb_delete_file(lb, id.toLbUuid())
-        defer { lb_free_err(err) }
         
         if let err = err {
+            defer { lb_free_err(err) }
             return .failure(LbError(err.pointee))
         }
 
@@ -225,9 +225,9 @@ public class Lb {
     
     public func renameFile(id: UUID, newName: String) -> Result<Void, LbError> {
         let err = lb_rename_file(lb, id.toLbUuid(), newName)
-        defer { lb_free_err(err) }
         
         if let err = err {
+            defer { lb_free_err(err) }
             return .failure(LbError(err.pointee))
         }
 
@@ -236,9 +236,9 @@ public class Lb {
     
     public func moveFile(id: UUID, newParent: UUID) -> Result<Void, LbError> {
         let err = lb_move_file(lb, id.toLbUuid(), newParent.toLbUuid())
-        defer { lb_free_err(err) }
         
         if let err = err {
+            defer { lb_free_err(err) }
             return .failure(LbError(err.pointee))
         }
 
@@ -247,9 +247,9 @@ public class Lb {
     
     public func shareFile(id: UUID, username: String, mode: ShareMode) -> Result<Void, LbError> {
         let err = lb_share_file(lb, id.toLbUuid(), username, mode.toLbShareMode())
-        defer { lb_free_err(err) }
         
         if let err = err {
+            defer { lb_free_err(err) }
             return .failure(LbError(err.pointee))
         }
 
@@ -269,9 +269,9 @@ public class Lb {
     
     public func deletePendingShare(id: UUID) -> Result<Void, LbError> {
         let err = lb_delete_pending_share(lb, id.toLbUuid())
-        defer { lb_free_err(err) }
         
         if let err = err {
+            defer { lb_free_err(err) }
             return .failure(LbError(err.pointee))
         }
 
@@ -470,9 +470,9 @@ public class Lb {
     
     public func exportFile(sourceId: UUID, dest: String, edit: Bool) -> Result<Void, LbError> {
         let err = lb_export_file(lb, sourceId.toLbUuid(), dest, edit)
-        defer { lb_free_err(err) }
         
         if let err = err {
+            defer { lb_free_err(err) }
             return .failure(LbError(err.pointee))
         }
 
@@ -492,9 +492,9 @@ public class Lb {
     
     public func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError> {
         let err = lb_upgrade_account_stripe(lb, isOldCard, number, expYear, expMonth, cvc)
-        defer { lb_free_err(err) }
         
         if let err = err {
+            defer { lb_free_err(err) }
             return .failure(LbError(err.pointee))
         }
 
@@ -503,9 +503,9 @@ public class Lb {
     
     public func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String) -> Result<Void, LbError> {
         let err = lb_upgrade_account_app_store(lb, originalTransactionId, appAccountToken)
-        defer { lb_free_err(err) }
         
         if let err = err {
+            defer { lb_free_err(err) }
             return .failure(LbError(err.pointee))
         }
 
@@ -514,9 +514,9 @@ public class Lb {
     
     public func cancelSubscription() -> Result<Void, LbError> {
         let err = lb_cancel_subscription(lb)
-        defer { lb_free_err(err) }
         
         if let err = err {
+            defer { lb_free_err(err) }
             return .failure(LbError(err.pointee))
         }
 
