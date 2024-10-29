@@ -14,7 +14,18 @@ class AccountService: ObservableObject {
         
     init(_ core: Lb) {
         self.core = core
-        getAccount()
+        switch core.getAccount() {
+        case .success(let account):
+            print("got account.")
+            self.account = account
+        case .failure(let error):
+            print("did not get account.")
+            if error.code == .accountNonexistent {
+                account = nil
+            } else {
+                DI.errors.handleError(error)
+            }
+        }
         
         calculated = true
     }

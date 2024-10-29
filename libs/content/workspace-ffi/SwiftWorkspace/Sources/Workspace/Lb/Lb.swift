@@ -13,7 +13,11 @@ public class Lb {
             
     public func start(writablePath: String, logs: Bool) -> Result<Void, LbError> {
         let res = lb_init(writablePath, logs)
-        defer { lb_free_init(res) }
+        defer {
+            if res.err != nil {
+                lb_free_err(res.err)
+            }
+        }
                 
         guard res.err == nil else {
             return .failure(LbError(res.err.pointee))

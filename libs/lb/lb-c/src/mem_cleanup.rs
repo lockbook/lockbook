@@ -48,7 +48,7 @@ pub extern "C" fn lb_free_account(acc: LbAccountRes) {
     }
 
     if !acc.api_url.is_null() {
-        unsafe { drop(CString::from_raw(acc.username)) }
+        unsafe { drop(CString::from_raw(acc.api_url)) }
     }
 }
 
