@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftLockbookCore
 import SwiftWorkspace
 
 #if os(iOS)
@@ -207,7 +206,7 @@ struct BottomBar: View {
                         Spacer()
                     }
                     
-                    Text("\(usage.serverUsages.serverUsage.readable) out of \(usage.serverUsages.dataCap.readable) used")
+                    Text("\(usage.serverUsages.serverUsedHuman) out of \(usage.serverUsages.serverCapHuman) used")
                         .foregroundColor(.gray)
                         .font(.callout)
                     

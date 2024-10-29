@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftLockbookCore
 
 struct OutlineContextMenu: View {
     

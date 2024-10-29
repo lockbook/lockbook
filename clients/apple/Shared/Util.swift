@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import SwiftWorkspace
 
 struct DisableAutoCapitalization: ViewModifier {
     func body(content: Content) -> some View {
@@ -214,7 +215,6 @@ struct NestedList<T: Identifiable & Comparable, V: View>: View {
     init(node: WithChild<T>, row: @escaping (T) -> V) {
         self.node = node
         self.row = row
-        // Start expanded up to 3 levels deep!
         self._expanded = .init(initialValue: node.level < 3)
     }
     

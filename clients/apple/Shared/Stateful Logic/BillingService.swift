@@ -60,7 +60,7 @@ class BillingService: ObservableObject {
                 
                 switch self.core.getUsage() {
                 case .success(let usages):
-                    if usages.dataCap.exact == FREE_TIER_USAGE_CAP {
+                    if usages.serverCapExact == FREE_TIER_USAGE_CAP {
                         guard let appAccountToken = transaction.appAccountToken else {
                             DI.errors.errorWithTitle("Billing Error", "An unexpected error has occurred.")
                             return

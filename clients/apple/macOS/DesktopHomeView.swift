@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftLockbookCore
 import DSFQuickActionBar
 import SwiftWorkspace
 
@@ -43,7 +42,7 @@ struct SearchBar: View {
                 )
                 .onChange(of: isFocused, perform: { newValue in
                     if isFocused {
-                        DI.search.startSearchThread(isPathAndContentSearch: true)
+                        DI.search.startSearchThread(searchPaths: true, searchDocs: true)
                     } else if !isFocused && searchInput.isEmpty {
                         searchInput = ""
                         DI.search.endSearch(isPathAndContentSearch: true)

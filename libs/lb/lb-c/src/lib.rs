@@ -6,7 +6,7 @@ use std::{
     ptr::null_mut,
 };
 
-use ffi_utils::{carray, cstring, lb_err, r_opt_str, r_paths, rlb, rstr, rstring, rvec};
+use ffi_utils::{carray, cstring, cstring_array, lb_err, r_opt_str, r_paths, rlb, rstr, rstring, rvec};
 use lb_c_err::LbFfiErr;
 use lb_file::{LbFile, LbFileList, LbFileType};
 pub use lb_rs::*;
@@ -454,6 +454,27 @@ pub extern "C" fn lb_get_path_by_id(lb: *mut Lb, id: LbUuid) -> LbPathRes {
     }
 }
 
+#[repr(C)]
+pub struct LbPathsRes {
+    err: *mut LbFfiErr,
+    paths: *mut *mut c_char,
+    len: usize,
+}
+
+#[no_mangle]
+pub extern "C" fn lb_list_folder_paths(lb: *mut Lb) -> LbPathsRes {
+    let lb = rlb(lb);
+
+    match lb.list_paths(Some(logic::path_ops::Filter::FoldersOnly)) {
+        Ok(paths) => {
+            let (paths, len) = cstring_array(paths);
+
+            LbPathsRes { err: null_mut(), paths, len }
+        },
+        Err(err) => LbPathsRes { err: lb_err(err), paths: null_mut(), len: 0 },
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn lb_get_local_changes(lb: *mut Lb) -> LbIdListRes {
     let lb = rlb(lb);
@@ -537,6 +558,13 @@ pub extern "C" fn lb_get_last_synced_human_string(lb: *mut Lb) -> LbLastSyncedHu
         }
         Err(err) => LbLastSyncedHuman { err: lb_err(err), last: null_mut() },
     }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_get_timestamp_human_string(lb: *mut Lb, timestamp: i64) -> *mut c_char {
+    let lb = rlb(lb);
+
+    cstring(lb.get_timestamp_human_string(timestamp))
 }
 
 #[repr(C)]

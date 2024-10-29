@@ -1066,13 +1066,17 @@ impl Lb {
         let db = tx.db();
         let last_synced = db.last_synced.get().copied().unwrap_or(0);
 
-        Ok(if last_synced != 0 {
-            Duration::milliseconds(clock::get_time().0 - last_synced)
+        Ok(self.get_timestamp_human_string(last_synced))
+    }
+
+    pub fn get_timestamp_human_string(&self, timestamp: i64) -> String {
+        if timestamp != 0 {
+            Duration::milliseconds(clock::get_time().0 - timestamp)
                 .format_human()
                 .to_string()
         } else {
             "never".to_string()
-        })
+        }
     }
 }
 

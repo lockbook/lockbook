@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftLockbookCore
 #if os(iOS)
 import UIKit
 #endif

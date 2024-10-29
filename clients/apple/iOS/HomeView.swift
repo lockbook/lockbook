@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftWorkspace
-import SwiftLockbookCore
 
 struct HomeView: View {
     @EnvironmentObject var settings: SettingsService

@@ -21,7 +21,7 @@ class SettingsService: ObservableObject {
     var usageProgress: Double {
         switch usages {
         case .some(let usage):
-            return min(1.0, Double(usage.serverUsages.serverUsage.exact) / Double(usage.serverUsages.dataCap.exact))
+            return min(1.0, Double(usage.serverUsages.serverUsedExact) / Double(usage.serverUsages.serverCapExact))
         case .none:
             return 0
         }
@@ -30,7 +30,7 @@ class SettingsService: ObservableObject {
     var premiumProgress: Double {
         switch usages {
         case .some(let usage):
-            return min(1.0, Double(usage.serverUsages.serverUsage.exact) / Double(PREMIUM_TIER_USAGE_CAP))
+            return min(1.0, Double(usage.serverUsages.serverUsedExact) / Double(PREMIUM_TIER_USAGE_CAP))
         case .none:
             return 0
         }
@@ -41,7 +41,7 @@ class SettingsService: ObservableObject {
         case .none:
             return .Unknown
         case .some(let wrapped):
-            if wrapped.serverUsages.dataCap.exact == FREE_TIER_USAGE_CAP {
+            if wrapped.serverUsages.serverCapExact == FREE_TIER_USAGE_CAP {
                 return .Trial
             } else {
                 return .Premium
@@ -70,7 +70,7 @@ class SettingsService: ObservableObject {
     }
     
     func copyAccountString() {
-        switch core.exportAccount() {
+        switch core.exportAccountPrivateKey() {
         case .success(let accountString):
             #if os(iOS)
             UIPasteboard.general.string = accountString
@@ -124,7 +124,7 @@ class SettingsService: ObservableObject {
     }
     
     func accountCode() -> AnyView {
-        switch core.exportAccount() {
+        switch core.exportAccountPrivateKey() {
         case .success(let accountString):
             let data = accountString.data(using: String.Encoding.ascii)
             if let filter = CIFilter(name: "CIQRCodeGenerator") {
@@ -148,7 +148,7 @@ struct PrerequisiteInformation {
     let uncompressedUsage: UncompressedUsageMetric?
     var compressionRatio: String {
         if let uncompressedUsage = uncompressedUsage {
-            let ratio = Double(uncompressedUsage.uncompressedExact) / Double(serverUsages.serverUsedExact)
+            let ratio = Double(uncompressedUsage.exact) / Double(serverUsages.serverUsedExact)
             return "\( round(ratio * 10) / 10.0 )x"
         } else {
             return "..."

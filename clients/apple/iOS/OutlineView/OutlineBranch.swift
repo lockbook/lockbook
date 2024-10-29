@@ -3,7 +3,6 @@
 ///
 import SwiftUI
 import Combine
-import SwiftLockbookCore
 import UniformTypeIdentifiers
 import SwiftWorkspace
 

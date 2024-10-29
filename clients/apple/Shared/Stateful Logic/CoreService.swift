@@ -6,8 +6,8 @@ class CoreService: ObservableObject {
     let corePtr: UnsafeMutableRawPointer
     
     
-    init(_ core: LockbookApi) {
+    init(_ core: Lb) {
         self.core = core
-        self.corePtr = get_core_ptr()
+        self.corePtr = UnsafeMutableRawPointer(core.lb!)
     }
 }

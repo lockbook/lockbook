@@ -34,7 +34,7 @@ public class Lb {
         return .success(Account(res))
     }
     
-    public func importAccount(key: String, apiUrl: String) -> Result<Account, LbError> {
+    public func importAccount(key: String, apiUrl: String?) -> Result<Account, LbError> {
         let res = lb_import_account(lb, key, apiUrl)
         defer { lb_free_account(res) }
         
@@ -106,6 +106,17 @@ public class Lb {
 
     public func createFile(name: String, parent: UUID, fileType: FileType) -> Result<File, LbError> {
         let res = lb_create_file(lb, name, parent.toLbUuid(), fileType.toLbFileType())
+        defer { lb_free_file_res(res) }
+        
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(File(res.file))
+    }
+    
+    public func createLink(name: String, parent: UUID, target: UUID) -> Result<File, LbError> {
+        let res = lb_create_file(lb, name, parent.toLbUuid(), LbFileType(tag: LbFileTypeTag(2), link_target: target.toLbUuid()))
         defer { lb_free_file_res(res) }
         
         guard res.err == nil else {
@@ -231,7 +242,7 @@ public class Lb {
     }
     
     public func shareFile(id: UUID, username: String, mode: ShareMode) -> Result<Void, LbError> {
-        let err = lb_share_file(lb, id.toLbUuid(), username, mode)
+        let err = lb_share_file(lb, id.toLbUuid(), username, mode.toLbShareMode())
         defer { lb_free_err(err) }
         
         if let err = err {
@@ -250,6 +261,17 @@ public class Lb {
         }
 
         return .success(Array<LbFile>(UnsafeBufferPointer(start: res.list.list, count: Int(res.list.count))).toFiles())
+    }
+    
+    public func deletePendingShare(id: UUID) -> Result<Void, LbError> {
+        let err = lb_delete_pending_share(lb, id.toLbUuid())
+        defer { lb_free_err(err) }
+        
+        if let err = err {
+            return .failure(LbError(err.pointee))
+        }
+
+        return .success(())
     }
 
     public func createLinkAtPath(pathAndName: String, targetId: UUID) -> Result<File, LbError> {
@@ -295,6 +317,17 @@ public class Lb {
 
         return .success(String(cString: res.path))
     }
+    
+    public func listFolderPaths() -> Result<[String], LbError> {
+        let res = lb_list_folder_paths(lb)
+        defer { lb_free_paths_res(res) }
+        
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success((0..<res.len).map({ String(cString: res.paths[Int($0)]!) }))
+    }
         
     public func getLocalChanges() -> Result<[UUID], LbError> {
         let res = lb_get_local_changes(lb)
@@ -307,8 +340,9 @@ public class Lb {
         return .success(Array(UnsafeBufferPointer(start: res.ids, count: Int(res.len))).toUUIDs())
     }
     
-    public func debugInfo(osInfo: String) -> String {
-        let debugInfo = lb_debug_info(lb, osInfo)
+    public func debugInfo() -> String {
+        let osInfo = ProcessInfo.processInfo.operatingSystemVersion
+        let debugInfo = lb_debug_info(lb, "\(osInfo.majorVersion).\(osInfo.minorVersion).\(osInfo.patchVersion)")
         defer { lb_free_str(debugInfo) }
         
         return String(cString: debugInfo!)
@@ -344,7 +378,7 @@ public class Lb {
         return .success(SyncStatus(res))
     }
     
-    public func get_last_synced() -> Result<Int64, LbError> {
+    public func getLastSynced() -> Result<Int64, LbError> {
         let res = lb_get_last_synced(lb)
         defer { lb_free_last_synced_i64(res) }
         
@@ -355,7 +389,7 @@ public class Lb {
         return .success(res.last)
     }
     
-    public func get_last_synced_human_string() -> Result<String, LbError> {
+    public func getLastSyncedHumanString() -> Result<String, LbError> {
         let res = lb_get_last_synced_human_string(lb)
         defer { lb_free_last_synced_human(res) }
         
@@ -364,6 +398,17 @@ public class Lb {
         }
 
         return .success(String(cString: res.last))
+    }
+    
+    public func getTimestampHumanString(timestamp: Int64) -> String {
+        let msg = lb_get_timestamp_human_string(lb, timestamp)
+        defer { lb_free_str(msg) }
+        
+        if let msg = msg {
+            return String(cString: msg)
+        } else {
+            return ""
+        }
     }
     
     public func suggestedDocs() -> Result<[UUID], LbError> {

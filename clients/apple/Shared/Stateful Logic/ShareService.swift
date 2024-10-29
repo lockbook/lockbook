@@ -1,4 +1,4 @@
-import SwiftLockbookCore
+import SwiftWorkspace
 import SwiftUI
 
 struct ShareInfo {
@@ -8,7 +8,7 @@ struct ShareInfo {
 
 class ShareService: ObservableObject {
     
-    let core: LockbookApi
+    let core: Lb
     
     @Published var pendingShares: [File]? = nil
     @Published var id: UUID? = nil
@@ -16,7 +16,7 @@ class ShareService: ObservableObject {
     
     var showPendingSharesView: Bool = false
     
-    init(_ core: LockbookApi) {
+    init(_ core: Lb) {
         self.core = core
         
         calculatePendingShares()
@@ -48,8 +48,8 @@ class ShareService: ObservableObject {
         calculatePendingShares()
     }
     
-    func shareFile(id: UUID, username: String, isWrite: Bool) {
-        if case .failure(let err) = core.shareFile(id: id, username: username, isWrite: isWrite) {
+    func shareFile(id: UUID, username: String, mode: ShareMode) {
+        if case .failure(let err) = core.shareFile(id: id, username: username, mode: mode) {
             DI.errors.handleError(err)
         }
     }
@@ -63,10 +63,10 @@ class ShareService: ObservableObject {
             
             meta.shares.forEach { share in
                 switch share.mode {
-                case .Read:
-                    readAccessUsers.append(share.sharedWith)
-                case .Write:
-                    writeAccessUsers.append(share.sharedWith)
+                case .read:
+                    readAccessUsers.append(share.with)
+                case .write:
+                    writeAccessUsers.append(share.with)
                 }
             }
             

@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftLockbookCore
 import SwiftWorkspace
 
 struct OutlineRow: View {

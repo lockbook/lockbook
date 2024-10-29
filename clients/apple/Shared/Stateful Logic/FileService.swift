@@ -1,6 +1,5 @@
 import Foundation
 import SwiftUI
-import SwiftLockbookCore
 import SwiftWorkspace
 import Combine
 
@@ -149,16 +148,11 @@ class FileService: ObservableObject {
             let res = core.moveFile(id: id, newParent: newParent)
 
             if case .failure(let error) = res {
-                switch error.kind {
-                case .UiError(let uiError):
-                    switch uiError {
-                    case .FolderMovedIntoItself:
-                        DI.errors.errorWithTitle("Move Error", "Cannot move a folder into itself or one of it's children")
-                    case .TargetParentHasChildNamedThat:
-                        DI.errors.errorWithTitle("Move Error", "Target folder has a child named that")
-                    default:
-                        DI.errors.handleError(error)
-                    }
+                switch error.code {
+                case .folderMovedIntoSelf:
+                    DI.errors.errorWithTitle("Move Error", "Cannot move a folder into itself or one of it's children")
+                case .pathTaken:
+                    DI.errors.errorWithTitle("Move Error", "Target folder has a child named that")
                 default:
                     DI.errors.handleError(error)
                 }
@@ -197,27 +191,22 @@ class FileService: ObservableObject {
     }
 
     func renameFileSync(id: UUID, name: String) -> String? {
-        let operation = self.core.renameFile(id: id, name: name)
+        let operation = self.core.renameFile(id: id, newName: name)
 
         switch operation {
         case .success(_):
             idsAndFiles[id]?.name = name
             return nil
         case .failure(let error):
-            switch error.kind {
-            case .UiError(let uiError):
-                switch uiError {
-                case .FileNameNotAvailable:
-                    return "A file with that name already exists"
-                case .NewNameContainsSlash:
-                    return "Your filename cannot contain a slash"
-                case .NewNameEmpty:
-                    return "Your filename cannot be empty"
-                case .FileNameTooLong:
-                    return "Your filename is too long"
-                default:
-                    return "An error occurred while renaming the file"
-                }
+            switch error.code {
+            case .pathTaken:
+                return "A file with that name already exists"
+            case .fileNameContainsSlash:
+                return "Your file name cannot contain a slash"
+            case .fileNameEmpty:
+                return "Your filename cannot be empty"
+            case .fileNameTooLong:
+                return "Your filename is too long"
             default:
                 return "An error occurred while renaming the file"
             }
@@ -233,7 +222,7 @@ class FileService: ObservableObject {
 
         var pathToRoot = filesToExpand(pathToRoot: pathToRoot, currentFile: parentFile)
 
-        if(currentFile.fileType == .Folder) {
+        if(currentFile.type == .folder) {
             pathToRoot.append(currentFile)
         }
 
@@ -268,7 +257,7 @@ class FileService: ObservableObject {
 
     func refresh() {
         DispatchQueue.global(qos: .userInteractive).async {
-            let allFiles = DI.core.listFiles()
+            let allFiles = DI.core.listMetadatas()
 
             DispatchQueue.main.async {
                 switch allFiles {
@@ -331,13 +320,10 @@ class FileService: ObservableObject {
                     
                     return
                 case .failure(let error):
-                    
-                    switch err.kind {
-                    case .UiError(.FileNameNotAvailable):
+                    if error.code == .pathTaken {
                         attempt += 1
-                        continue
-                    default:
-                        DI.errors.handleError(err)
+                    } else {
+                        DI.errors.handleError(error)
                         return
                     }
                 }
@@ -354,19 +340,19 @@ class FileService: ObservableObject {
             #endif
         }()
         
-        switch core.createFile(name: name, dirId: realParent, isFolder: true) {
+        switch core.createFile(name: name, parent: realParent, fileType: .folder) {
         case .success(_):
             refresh()
             return nil
-        case .failure(let err):
-            switch err.kind {
-            case .UiError(.FileNameContainsSlash):
+        case .failure(let error):
+            switch error.code {
+            case .fileNameContainsSlash:
                 return "Your file name contains a slash"
-            case .UiError(.FileNameEmpty):
+            case .fileNameEmpty:
                 return "Your file name cannot be empty"
-            case .UiError(.FileNameNotAvailable):
+            case .pathTaken:
                 return "Your file name is not available"
-            case .UiError(.FileNameTooLong):
+            case .fileNameTooLong:
                 return "Your file name is too long"
             default:
                 return "An error has occurred"
@@ -393,7 +379,7 @@ class FileService: ObservableObject {
     }
     
     public func getFileByPath(path: String) -> File? {
-        switch core.getFileByPath(path: path) {
+        switch core.getByPath(path: path) {
         case .success(let file):
             return file
         case .failure(let err):
@@ -421,10 +407,10 @@ class FileService: ObservableObject {
     }
     
     public static func metaToSystemImage(meta: File) -> String {
-        switch meta.fileType {
-        case .Document:
+        switch meta.type {
+        case .document:
             return docExtToSystemImage(name: meta.name)
-        case .Folder:
+        case .folder:
             if meta.shares.count != 0 {
                 return "folder.fill.badge.person.crop"
             } else {

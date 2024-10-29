@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftLockbookCore
 
 struct MoveSheet: View {
     
@@ -35,13 +34,3 @@ struct MoveSheet: View {
     }
 }
 
-struct NestedList_Previews: PreviewProvider {
-    static var previews: some View {
-        NestedList(
-            node: .init(FakeApi.root, FakeApi.fileMetas, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder }),
-            row: {
-                Label($0.name, systemImage: "folder")
-            }
-        )
-    }
-}

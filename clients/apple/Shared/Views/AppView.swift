@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftLockbookCore
 
 struct AppView: View {
     
@@ -48,7 +47,22 @@ struct AppView: View {
                 } else {
                     return Alert(
                         title: Text("Error"),
-                        message: "An unknown error has occurred.",
+                        message: Text("An unknown error has occurred."),
+                        dismissButton: .default(Text("Dismiss"))
+                    )
+                }
+            }
+            .alert(isPresented: Binding(get: { errors.errorWithTitle != nil }, set: { _ in errors.errorWithTitle = nil })) {
+                if let error = errors.errorWithTitle {
+                    return Alert(
+                        title: Text(error.0),
+                        message: Text(error.1),
+                        dismissButton: .default(Text("Dismiss"))
+                    )
+                } else {
+                    return Alert(
+                        title: Text("Error"),
+                        message: Text("An unknown error has occurred."),
                         dismissButton: .default(Text("Dismiss"))
                     )
                 }
@@ -101,10 +115,3 @@ struct AppView: View {
         dismissButton: .default(Text("Dismiss"))
     )
 }
-
-struct AppView_Previews: PreviewProvider {
-    static var previews: some View {
-        AppView().mockDI()
-    }
-}
-

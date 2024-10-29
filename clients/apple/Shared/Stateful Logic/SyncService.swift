@@ -1,10 +1,9 @@
 import Foundation
-import SwiftLockbookCore
-
+import SwiftWorkspace
 
 // todo this should go away
 class SyncService: ObservableObject {
-    let core: LockbookApi
+    let core: Lb
     
     // sync status
     @Published public var syncing: Bool = false
@@ -17,7 +16,7 @@ class SyncService: ObservableObject {
     
     @Published var outOfSpace: Bool = false
         
-    init(_ core: LockbookApi) {
+    init(_ core: Lb) {
         self.core = core
     }
     
@@ -40,24 +39,22 @@ class SyncService: ObservableObject {
         }
         
         syncing = true
-
-        withUnsafePointer(to: self) { syncServicePtr in
-            let result = self.core.backgroundSync()
+        
+        let result = self.core.sync(updateStatus: nil)
+        
+        DispatchQueue.main.async {
+            self.cleanupSyncStatus()
             
-            DispatchQueue.main.async {
-                self.cleanupSyncStatus()
+            switch result {
+            case .success(_):
+                self.outOfSpace = false
+                self.offline = false
+                self.postSyncSteps()
+                onSuccess?()
+            case .failure(let error):
+                print("background sync error: \(error.msg)")
                 
-                switch result {
-                case .success(_):
-                    self.outOfSpace = false
-                    self.offline = false
-                    self.postSyncSteps()
-                    onSuccess?()
-                case .failure(let error):
-                    print("background sync error: \(error.message)")
-                    
-                    onFailure?()
-                }
+                onFailure?()
             }
         }
     }
@@ -72,36 +69,24 @@ class SyncService: ObservableObject {
         syncing = true
                 
         DispatchQueue.global(qos: .userInteractive).async {
-            withUnsafePointer(to: self) { syncServicePtr in
-                let result = self.core.syncAll(context: syncServicePtr, updateStatus: updateSyncStatus)
+            let result = self.core.sync(updateStatus: updateStatus)
+            
+            DispatchQueue.main.async {
+                self.cleanupSyncStatus()
                 
-                DispatchQueue.main.async {
-                    self.cleanupSyncStatus()
-                    
-                    switch result {
-                    case .success(_):
-                        DI.onboarding.getAccountAndFinalize()
-                    case .failure(let error):
-                        DI.errors.handleError(error)
-                    }
+                switch result {
+                case .success(_):
+                    DI.onboarding.getAccountAndFinalize()
+                case .failure(let error):
+                    DI.errors.handleError(error)
                 }
             }
         }
     }
 }
 
-func updateSyncStatus(context: UnsafePointer<Int8>?, cMsg: UnsafePointer<Int8>?, syncProgress: Float) -> Void {
-    DispatchQueue.main.sync {
-        guard let syncService = UnsafeRawPointer(context)?.load(as: SyncService.self) else {
-            return
-        }
-        
-        syncService.syncProgress = syncProgress
-        
-        if let cMsg = cMsg {
-            syncService.syncMsg = String(cString: cMsg)
-            syncService.core.freeText(s: cMsg)
-        }
-    }
+func updateStatus(total: UInt, progress: UInt, id: UUID, msg: String) {
+    DI.sync.syncProgress = Float(total) / Float(progress)
+    DI.sync.syncMsg = msg
 }
 

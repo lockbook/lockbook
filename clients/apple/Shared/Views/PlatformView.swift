@@ -2,7 +2,6 @@ import Foundation
 import SwiftUI
 import SwiftWorkspace
 import AlertToast
-import SwiftLockbookCore
 
 struct PlatformView: View {
     

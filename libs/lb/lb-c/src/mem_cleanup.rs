@@ -3,7 +3,7 @@ use std::ffi::{c_char, CString};
 use lb_rs::Uuid;
 
 use crate::{
-    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, lb_work::LbSyncRes, LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbSearchRes, LbSubscriptionInfoRes, LbUncompressedRes, LbUsageMetricsRes
+    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, lb_work::LbSyncRes, LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathsRes, LbSearchRes, LbSubscriptionInfoRes, LbUncompressedRes, LbUsageMetricsRes
 };
 
 #[no_mangle]
@@ -82,6 +82,22 @@ pub extern "C" fn lb_free_path_res(path: LbPathRes) {
 
     if !path.path.is_null() {
         unsafe { drop(CString::from_raw(path.path)) };
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_free_paths_res(paths: LbPathsRes) {
+    if !paths.err.is_null() {
+        lb_free_err(paths.err);
+    }
+
+    if !paths.paths.is_null() {
+        let paths = rvec(paths.paths, paths.len);
+        for path in &paths {
+            unsafe { drop(CString::from_raw(*path)) };
+        }
+
+        drop(paths);
     }
 }
 

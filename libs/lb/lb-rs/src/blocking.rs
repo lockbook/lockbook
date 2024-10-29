@@ -189,6 +189,10 @@ impl Lb {
         self.rt.block_on(self.lb.get_last_synced_human())
     }
 
+    pub fn get_timestamp_human_string(&self, timestamp: i64) -> String {
+        self.lb.get_timestamp_human_string(timestamp)
+    }
+
     pub fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
         self.rt.block_on(self.lb.suggested_docs(settings))
     }

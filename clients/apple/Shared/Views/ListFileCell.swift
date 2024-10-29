@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftWorkspace
-import SwiftLockbookCore
 import Introspect
 
 struct FileCell: View {
@@ -106,7 +105,7 @@ struct FileCell: View {
                 }
 
                 Image(systemName: FileService.metaToSystemImage(meta: meta))
-                    .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
+                    .foregroundColor(meta.type == .folder ? .blue : .secondary)
                     .font(.title3)
                     .frame(width: 20)
                 
@@ -116,7 +115,7 @@ struct FileCell: View {
                             .font(.body)
                             .lineLimit(1)
                         
-                        Text(DI.core.timeAgo(timeStamp: Int64(meta.lastModified)))
+                        Text(DI.core.getTimestampHumanString(timestamp: Int64(meta.lastModified)))
                                 .foregroundColor(.secondary)
                                 .font(.caption)
                     }

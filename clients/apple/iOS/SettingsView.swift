@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftLockbookCore
 
 
 struct SettingsView: View, Equatable {
@@ -73,7 +72,7 @@ struct SettingsView: View, Equatable {
                             HStack {
                                 Text("Server Utilization:")
                                 Spacer()
-                                Text("\(usage.serverUsages.serverUsage.readable) / \(usage.serverUsages.dataCap.readable)")
+                                Text("\(usage.serverUsages.serverUsedHuman) / \(usage.serverUsages.serverCapHuman)")
                             }
                             ColorProgressBar(value: settingsState.usageProgress)
                         }
@@ -159,108 +158,4 @@ struct SettingsView: View, Equatable {
         true
     }
     
-}
-
-struct Loading: PreviewProvider {
-    
-    static var previews: some View {
-        NavigationView {
-            SettingsView()
-                .mockDI()
-        }
-    }
-}
-
-
-struct FreeUser: PreviewProvider {
-    
-    static var previews: some View {
-        NavigationView {
-            SettingsView()
-                .mockDI()
-                .onAppear {
-                    let info = PrerequisiteInformation(
-                        serverUsages: UsageMetrics(
-                            usages: [],
-                            serverUsage: UsageItemMetric(
-                                exact: 3,
-                                readable: "3 bytes"
-                            ),
-                            dataCap: UsageItemMetric(
-                                exact: 1000000,
-                                readable: "10 Mb"
-                            )
-                        ),
-                        uncompressedUsage: UsageItemMetric(
-                            exact: 60,
-                            readable: "60 bytes"
-                        )
-                    )
-                    
-                    Mock.settings.usages = info
-                }
-        }
-    }
-}
-
-struct FreeUserRunningOutOfSpace: PreviewProvider {
-    
-    static var previews: some View {
-        NavigationView {
-            SettingsView()
-                .mockDI()
-                .onAppear {
-                    let info = PrerequisiteInformation(
-                        serverUsages: UsageMetrics(
-                            usages: [],
-                            serverUsage: UsageItemMetric(
-                                exact: 850000,
-                                readable: "8.5 Mb"
-                            ),
-                            dataCap: UsageItemMetric(
-                                exact: 1000000,
-                                readable: "10 Mb"
-                            )
-                        ),
-                        uncompressedUsage: UsageItemMetric(
-                            exact: 60,
-                            readable: "60 bytes"
-                        )
-                    )
-                    
-                    Mock.settings.usages = info
-                }
-        }
-    }
-}
-
-struct PremiumUser: PreviewProvider {
-    
-    static var previews: some View {
-        NavigationView {
-            SettingsView()
-                .mockDI()
-                .onAppear {
-                    let info = PrerequisiteInformation(
-                        serverUsages: UsageMetrics(
-                            usages: [],
-                            serverUsage: UsageItemMetric(
-                                exact: 17,
-                                readable: "17 bytes"
-                            ),
-                            dataCap: UsageItemMetric(
-                                exact: 3000000000,
-                                readable: "30 Gb"
-                            )
-                        ),
-                        uncompressedUsage: UsageItemMetric(
-                            exact: 60,
-                            readable: "60 bytes"
-                        )
-                    )
-                    
-                    Mock.settings.usages = info
-                }
-        }
-    }
 }

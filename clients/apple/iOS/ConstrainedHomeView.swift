@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftWorkspace
-import SwiftLockbookCore
 import Foundation
 
 struct ConstrainedHomeViewWrapper: View {

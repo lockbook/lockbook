@@ -1,10 +1,8 @@
 import Foundation
 import SwiftUI
-import CLockbookCore
-import SwiftLockbookCore
+import SwiftWorkspace
 
 struct SelectFolderView: View {
-    @EnvironmentObject var core: CoreService
     @StateObject var viewModel = SelectFolderViewModel()
 
     let action: SelectFolderAction
@@ -143,8 +141,8 @@ struct SelectFolderView: View {
     }
     
     var folderTreeView: some View {
-        let wc = WithChild(DI.files.root!, DI.files.files, { parent, meta in
-            parent.id == meta.parent && parent.id != meta.id && meta.fileType == .Folder
+        let wc = WithChild(DI.files.root!, DI.files.files, { (parent: File, meta: File) in
+            parent.id == meta.parent && parent.id != meta.id && meta.type == .folder
         })
         
         return VStack {
@@ -179,7 +177,7 @@ struct SelectFolderView: View {
             ScrollView {
                 NestedList(
                     node: wc,
-                    row: { dest in
+                    row: { (dest: File) in
                         Button(action: {
                             if viewModel.selectFolder(action: action, newParent: dest.id) {
                                 dismiss()

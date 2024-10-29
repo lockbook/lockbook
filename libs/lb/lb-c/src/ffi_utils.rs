@@ -14,6 +14,10 @@ pub(crate) fn cstring(from: String) -> *mut c_char {
         .into_raw()
 }
 
+pub(crate) fn cstring_array(from: Vec<String>) -> (*mut *mut c_char, usize) {
+    carray(from.into_iter().map(|s| cstring(s)).collect::<Vec<*mut c_char>>())
+}
+
 pub(crate) fn carray<T>(mut from: Vec<T>) -> (*mut T, usize) {
     from.shrink_to_fit();
     let size = from.len();

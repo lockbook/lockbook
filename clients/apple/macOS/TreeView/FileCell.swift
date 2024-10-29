@@ -1,5 +1,5 @@
 import AppKit
-import SwiftLockbookCore
+import SwiftWorkspace
 
 class FileItemView: NSTableCellView {
     init(file: File) {        
@@ -14,7 +14,7 @@ class FileItemView: NSTableCellView {
 
         super.init(frame: .zero)
         var imageView: NSImageView
-        if file.fileType == .Document {
+        if file.type == .document {
             let image: NSImage
             
             image = NSImage(systemSymbolName: FileService.docExtToSystemImage(name: file.name), accessibilityDescription: nil)!

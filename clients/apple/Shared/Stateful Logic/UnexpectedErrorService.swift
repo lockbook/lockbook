@@ -3,6 +3,7 @@ import SwiftWorkspace
 
 class UnexpectedErrorService: ObservableObject {
     @Published var globalError: LbError?
+    @Published var errorWithTitle: (String, String)? = nil
     
     func handleError(_ error: LbError) {
         DispatchQueue.main.async {
@@ -12,7 +13,7 @@ class UnexpectedErrorService: ObservableObject {
     
     func errorWithTitle(_ title: String, _ message: String) {
         DispatchQueue.main.async {
-            self.globalError = ErrorWithTitle(title: title, message: message)
+            self.errorWithTitle = (title, message)
         }
     }
 }
