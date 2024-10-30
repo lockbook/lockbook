@@ -29,6 +29,8 @@ use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
 use std::time::{Duration, Instant};
 
+use super::spelling::Spelling;
+
 #[derive(Debug, Serialize, Default)]
 pub struct Response {
     // state changes
@@ -64,6 +66,7 @@ pub struct Editor {
     pub toolbar: Toolbar,
     pub find: Find,
     pub event: EventState,
+    pub spelling: Spelling,
 
     pub virtual_keyboard_shown: bool,
     pub started_scrolling: Option<Instant>,
@@ -95,6 +98,7 @@ impl Editor {
             toolbar: Default::default(),
             find: Default::default(),
             event: Default::default(),
+            spelling: Spelling::new(), // todo: initialize once for all instances
 
             virtual_keyboard_shown: false,
             started_scrolling: None,
@@ -280,6 +284,7 @@ impl Editor {
             self.bounds.words =
                 bounds::calc_words(&self.buffer, &self.ast, &self.bounds.ast, &self.appearance);
             self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer);
+            self.spelling.check(&self.bounds.words, &self.buffer);
         }
         if text_updated || selection_updated || self.capture.mark_changes_processed() {
             self.bounds.text = bounds::calc_text(
@@ -303,6 +308,7 @@ impl Editor {
             &self.bounds,
             &self.images,
             &self.appearance,
+            &self.spelling,
             touch_mode,
             ui,
         );

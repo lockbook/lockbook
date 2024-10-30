@@ -12,6 +12,7 @@ pub mod images;
 pub mod input;
 pub mod layouts;
 pub mod output;
+pub mod spelling;
 pub mod style;
 pub mod test_input;
 pub mod widgets;

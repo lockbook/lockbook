@@ -3,6 +3,7 @@ use crate::tab::markdown_editor::ast::{Ast, AstTextRangeType};
 use crate::tab::markdown_editor::bounds::{self, Bounds, Text};
 use crate::tab::markdown_editor::images::{ImageCache, ImageState};
 use crate::tab::markdown_editor::layouts::{Annotation, LayoutJobInfo};
+use crate::tab::markdown_editor::spelling::Spelling;
 use crate::tab::markdown_editor::style::{MarkdownNode, RenderStyle};
 use crate::tab::markdown_editor::Editor;
 use egui::epaint::text::cursor::Cursor;
@@ -45,7 +46,7 @@ pub struct ImageInfo {
 
 pub fn calc(
     ast: &Ast, buffer: &Buffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
-    touch_mode: bool, ui: &mut Ui,
+    spelling: &Spelling, touch_mode: bool, ui: &mut Ui,
 ) -> Galleys {
     let max_rect = ui.max_rect();
 
@@ -63,15 +64,17 @@ pub fn calc(
         .iter()
         .map(|range| range.range)
         .collect::<Vec<_>>();
-    for ([ast_idx, paragraph_idx, link_idx, selection_idx, text_idx], text_range_portion) in
-        bounds::join([
-            &ast_ranges,
-            &bounds.paragraphs,
-            &bounds.links,
-            &[buffer.current.selection],
-            &bounds.text,
-        ])
-    {
+    for (
+        [ast_idx, paragraph_idx, link_idx, selection_idx, text_idx, spelling_idx],
+        text_range_portion,
+    ) in bounds::join([
+        &ast_ranges,
+        &bounds.paragraphs,
+        &bounds.links,
+        &[buffer.current.selection],
+        &bounds.text,
+        &spelling.errors,
+    ]) {
         // paragraphs cover all text; will always have at least one possibly-empty paragraph
         let paragraph_idx = if let Some(paragraph_idx) = paragraph_idx {
             paragraph_idx
@@ -118,6 +121,10 @@ pub fn calc(
                 annotation = text_range.annotation(ast, captured);
                 annotation_text_format = text_format.clone();
                 is_annotation = annotation.is_some();
+            }
+
+            if spelling_idx.is_some() {
+                RenderStyle::Grammar.apply_style(&mut text_format, appearance, ui.visuals());
             }
 
             let text = &buffer[text_range_portion];
