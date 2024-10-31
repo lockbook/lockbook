@@ -27,7 +27,7 @@ pub struct Tab {
 
     /// ...with lb-rs. Different from lb-rs's syncing, which is with the server.
     /// This is used to prevent saves and loads of this tab from happening concurrently.
-    pub is_syncing: bool,
+    pub is_saving_or_loading: bool,
 }
 
 #[derive(Debug, Default)]

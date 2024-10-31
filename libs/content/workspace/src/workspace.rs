@@ -195,7 +195,7 @@ impl Workspace {
             last_changed: now,
             is_new_file,
             last_saved: now,
-            is_syncing: false,
+            is_saving_or_loading: false,
         };
         self.tabs.push(new_tab);
         if make_active {
@@ -605,11 +605,11 @@ impl Workspace {
         if let Some(tab) = self.tabs.get_mut(i) {
             if tab.is_dirty() {
                 if let Some(save_req) = tab.make_save_request() {
-                    if tab.is_syncing {
+                    if tab.is_saving_or_loading {
                         // we'll just try again next tick
                         return;
                     }
-                    tab.is_syncing = true;
+                    tab.is_saving_or_loading = true;
 
                     let core = self.core.clone();
                     let update_tx = self.updates_tx.clone();
@@ -691,12 +691,12 @@ impl Workspace {
         let Some(tab) = self.get_mut_tab_by_id(id) else {
             unreachable!("could not find a tab we just created")
         };
-        if tab.is_syncing {
+        if tab.is_saving_or_loading {
             // either we're already being opened or we're in the process of saving
             // a save will always reload when it's done
             return;
         }
-        tab.is_syncing = true;
+        tab.is_saving_or_loading = true;
 
         let core = self.core.clone();
         let ctx = self.ctx.clone();
@@ -882,7 +882,7 @@ impl Workspace {
                             )));
                         };
 
-                        tab.is_syncing = false;
+                        tab.is_saving_or_loading = false;
 
                         Some(tab.name.clone())
                     } else {
@@ -919,7 +919,7 @@ impl Workspace {
                                 }
                             }
                         }
-                        tab.is_syncing = false;
+                        tab.is_saving_or_loading = false;
 
                         // always reload an open file after saving in case a reload was skipped while we were saving
                         self.open_file(id, false, false);
