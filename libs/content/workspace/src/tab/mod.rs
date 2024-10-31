@@ -24,6 +24,10 @@ pub struct Tab {
     pub is_new_file: bool,
     pub last_changed: Instant,
     pub last_saved: Instant,
+
+    /// ...with lb-rs. Different from lb-rs's syncing, which is with the server.
+    /// This is used to prevent saves and loads of this tab from happening concurrently.
+    pub is_syncing: bool,
 }
 
 #[derive(Debug, Default)]
