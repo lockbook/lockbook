@@ -66,17 +66,23 @@ category: a summary
 [closes / fixes statements]
 ```
 
+PRs should also outline what level of QA was completed on what platforms. PRs merged to `master` should be immediately releasable or, in rare circumstances should outline their risks and outline what level of `master` dogfooding is required before release.
+
+Descriptions generally should contain some element of a demo if appropriate.
+
 Possible categories include the following:
-- project (Overall / general, ex: edit the readme, or license, or add contributing guidelines)
-- doc
-- ci
-- dev_utils
-- graphics
-- website
+- all: significant, multicomponent update
+- docs
+- canvas
+- editor
+- workspace
+- public_site
 - lb-rs
 - server
 - cli
 - linux
 - android
-- apple
+- iOS
+- macOS
 - windows
+- infra
