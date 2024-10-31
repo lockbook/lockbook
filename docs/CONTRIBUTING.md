@@ -68,6 +68,8 @@ category: a summary
 
 PRs should also outline what level of QA was completed on what platforms. PRs merged to `master` should be immediately releasable or, in rare circumstances should outline their risks and outline what level of `master` dogfooding is required before release.
 
+Descriptions generally should contain some element of a demo if appropriate.
+
 Possible categories include the following:
 - all: significant, multicomponent update
 - docs
