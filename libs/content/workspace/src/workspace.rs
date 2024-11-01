@@ -20,9 +20,10 @@ use crate::tab::{SaveRequest, Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use lb_rs::{
-    CoreError, DecryptedDocument, DocumentHmac, Duration, File, FileType, LbError, NameComponents,
+    CoreError, DecryptedDocument, DocumentHmac, File, FileType, LbError, NameComponents,
     SyncProgress, SyncStatus, Uuid,
 };
+use std::time::Duration;
 
 pub struct Workspace {
     pub cfg: WsConfig,
@@ -194,6 +195,7 @@ impl Workspace {
             last_changed: now,
             is_new_file,
             last_saved: now,
+            is_saving_or_loading: false,
         };
         self.tabs.push(new_tab);
         if make_active {
@@ -312,7 +314,7 @@ impl Workspace {
         }
 
         if let Some(last_touch_event) = self.last_touch_event {
-            if Instant::now() - last_touch_event > Duration::seconds(5) {
+            if Instant::now() - last_touch_event > Duration::from_secs(5) {
                 self.ctx
                     .style_mut(|style| style.interaction.tooltip_delay = 0.0);
                 self.last_touch_event = None;
@@ -599,10 +601,16 @@ impl Workspace {
         }
     }
 
-    pub fn save_tab(&self, i: usize) {
-        if let Some(tab) = self.tabs.get(i) {
+    pub fn save_tab(&mut self, i: usize) {
+        if let Some(tab) = self.tabs.get_mut(i) {
             if tab.is_dirty() {
                 if let Some(save_req) = tab.make_save_request() {
+                    if tab.is_saving_or_loading {
+                        // we'll just try again next tick
+                        return;
+                    }
+                    tab.is_saving_or_loading = true;
+
                     let core = self.core.clone();
                     let update_tx = self.updates_tx.clone();
                     let ctx = self.ctx.clone();
@@ -680,6 +688,15 @@ impl Workspace {
         let fpath = self.core.get_path_by_id(id).unwrap(); // TODO
 
         let tab_created = self.upsert_tab(id, &fname, &fpath, is_new_file, make_active);
+        let Some(tab) = self.get_mut_tab_by_id(id) else {
+            unreachable!("could not find a tab we just created")
+        };
+        if tab.is_saving_or_loading {
+            // either we're already being opened or we're in the process of saving
+            // a save will always reload when it's done
+            return;
+        }
+        tab.is_saving_or_loading = true;
 
         let core = self.core.clone();
         let ctx = self.ctx.clone();
@@ -865,6 +882,8 @@ impl Workspace {
                             )));
                         };
 
+                        tab.is_saving_or_loading = false;
+
                         Some(tab.name.clone())
                     } else {
                         println!("failed to load file: tab not found");
@@ -878,7 +897,7 @@ impl Workspace {
                     }
                 }
                 WsMsg::SaveResult(id, result) => {
-                    let mut reopen = false;
+                    let mut sync = false;
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         match result {
                             Ok(SaveResult {
@@ -892,18 +911,21 @@ impl Workspace {
                                     md.hmac = hmac;
                                     md.buffer.saved(seq, content);
                                 }
-                                self.perform_sync(); // todo: sync once when saving multiple tabs
+                                sync = true; // todo: sync once when saving multiple tabs
                             }
                             Err(err) => {
-                                if err.kind == CoreError::ReReadRequired {
-                                    reopen = true;
+                                if err.kind != CoreError::ReReadRequired {
+                                    tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
                                 }
-                                tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
                             }
                         }
-                    }
-                    if reopen {
+                        tab.is_saving_or_loading = false;
+
+                        // always reload an open file after saving in case a reload was skipped while we were saving
                         self.open_file(id, false, false);
+                    }
+                    if sync {
+                        self.perform_sync();
                     }
                 }
                 WsMsg::BgSignal(Signal::BwDone) => {
@@ -921,15 +943,15 @@ impl Workspace {
 
                     let focused = self.ctx.input(|i| i.focused);
 
-                    if self.user_last_seen.elapsed() < Duration::seconds(10)
+                    if self.user_last_seen.elapsed() < Duration::from_secs(10)
                         && focused
-                        && self.last_sync.elapsed() > Duration::seconds(5)
+                        && self.last_sync.elapsed() > Duration::from_secs(5)
                     {
                         // the user is active if the app is in the foreground and they've done
                         // something in the last 10 seconds.
                         // during this time sync every 5 seconds
                         self.perform_sync();
-                    } else if self.last_sync.elapsed() > Duration::hours(1) {
+                    } else if self.last_sync.elapsed() > Duration::from_secs(60 * 60) {
                         // sync every hour while the user is inactive
                         self.perform_sync()
                     }
