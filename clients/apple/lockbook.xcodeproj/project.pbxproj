@@ -14,10 +14,12 @@
 		47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */ = {isa = PBXBuildFile; productRef = 47159F4529CFA05B00969DDF /* DSFQuickActionBar */; };
 		471C788D2B4910A80022B3B2 /* SwiftWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 471C788C2B4910A80022B3B2 /* SwiftWorkspace */; };
 		471E363529FD5F5C00A1958A /* DesktopHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8F925ACBCF9005B7B01 /* DesktopHomeView.swift */; };
+		47323C472CD696710086A934 /* workspace in Frameworks */ = {isa = PBXBuildFile; productRef = 47323C462CD696710086A934 /* workspace */; };
 		4735E4892C6A931C006FFD00 /* SelectFolderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4735E4882C6A931C006FFD00 /* SelectFolderViewModel.swift */; };
 		4735E48A2C6A931C006FFD00 /* SelectFolderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4735E4882C6A931C006FFD00 /* SelectFolderViewModel.swift */; };
 		473A3DCE29AC354B0017BC6A /* FilePathBreadcrumb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */; };
 		473AF8662C66B631000F9AE4 /* SelectFolderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FF75042C5AE65F004F90EC /* SelectFolderView.swift */; };
+		474AFD3F2CD695DB00B1546D /* Bridge in Frameworks */ = {isa = PBXBuildFile; productRef = 474AFD3E2CD695DB00B1546D /* Bridge */; };
 		4756C4DB2A57CE86002C64B1 /* CreateFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4756C4DA2A57CE86002C64B1 /* CreateFolderSheet.swift */; };
 		4756C4DC2A57CE86002C64B1 /* CreateFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4756C4DA2A57CE86002C64B1 /* CreateFolderSheet.swift */; };
 		4761F30F2A1832B4002ED338 /* ManageSubscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4761F30E2A1832B4002ED338 /* ManageSubscription.swift */; };
@@ -40,8 +42,6 @@
 		47B53838290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B53839290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B67289295F977C00DB0D8E /* ManageSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */; };
-		47C009172C5C00A900F4B7ED /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = 47C009162C5C00A900F4B7ED /* SwiftLockbookCore */; };
-		47C009192C5C043000F4B7ED /* CoreService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB54926D1788D0008AB3F /* CoreService.swift */; };
 		47C0091A2C5C046700F4B7ED /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
 		47CEC69D2A182F2A0018FA5C /* UpgradeToPremium.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CEC69C2A182F2A0018FA5C /* UpgradeToPremium.swift */; };
 		47DBF1F12A61A51000F86B3F /* ImportExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DBF1F02A61A51000F86B3F /* ImportExportService.swift */; };
@@ -271,7 +271,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				47C009172C5C00A900F4B7ED /* SwiftLockbookCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -279,9 +278,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				474AFD3F2CD695DB00B1546D /* Bridge in Frameworks */,
 				EA82B20C262652F700EE82B9 /* Introspect in Frameworks */,
 				47B041F32905BFB100A02DA7 /* AlertToast in Frameworks */,
 				47FCC5B12C1A33A9001AB7ED /* GameController.framework in Frameworks */,
+				47323C472CD696710086A934 /* workspace in Frameworks */,
 				471C788D2B4910A80022B3B2 /* SwiftWorkspace in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -533,7 +534,6 @@
 			);
 			name = ShareExtension;
 			packageProductDependencies = (
-				47C009162C5C00A900F4B7ED /* SwiftLockbookCore */,
 			);
 			productName = ShareExtension;
 			productReference = 47FF74F22C5AC8E0004F90EC /* ShareExtension.appex */;
@@ -558,6 +558,8 @@
 				EA82B20B262652F700EE82B9 /* Introspect */,
 				47B041F22905BFB100A02DA7 /* AlertToast */,
 				471C788C2B4910A80022B3B2 /* SwiftWorkspace */,
+				474AFD3E2CD695DB00B1546D /* Bridge */,
+				47323C462CD696710086A934 /* workspace */,
 			);
 			productName = "Lockbook (iOS)";
 			productReference = EA5C7D6F2516606000F7F358 /* Lockbook.app */;
@@ -686,7 +688,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				47C009192C5C043000F4B7ED /* CoreService.swift in Sources */,
 				47C0091A2C5C046700F4B7ED /* ConfigHelper.swift in Sources */,
 				47FF74F52C5AC8E0004F90EC /* ShareViewController.swift in Sources */,
 			);
@@ -1145,11 +1146,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios",
-					"$(PROJECT_DIR)",
-				);
-				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios_sim";
+				LIBRARY_SEARCH_PATHS = "";
 				MARKETING_VERSION = 0.5.10;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
@@ -1179,10 +1176,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios",
-					"$(PROJECT_DIR)",
-				);
+				LIBRARY_SEARCH_PATHS = "";
 				MARKETING_VERSION = 0.5.10;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
@@ -1349,11 +1343,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios",
-					"$(PROJECT_DIR)",
-				);
-				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios_sim";
+				LIBRARY_SEARCH_PATHS = "";
 				MARKETING_VERSION = 0.5.10;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
@@ -1498,6 +1488,14 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftWorkspace;
 		};
+		47323C462CD696710086A934 /* workspace */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = workspace;
+		};
+		474AFD3E2CD695DB00B1546D /* Bridge */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Bridge;
+		};
 		47B041F22905BFB100A02DA7 /* AlertToast */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */;
@@ -1507,10 +1505,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */;
 			productName = AlertToast;
-		};
-		47C009162C5C00A900F4B7ED /* SwiftLockbookCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SwiftLockbookCore;
 		};
 		47EA1B032CCEBA2B00A4DAF9 /* Bridge */ = {
 			isa = XCSwiftPackageProductDependency;

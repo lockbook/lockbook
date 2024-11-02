@@ -50,7 +50,6 @@ class SelectFolderViewModel: ObservableObject {
     func selectFolder(action: SelectFolderAction, path: String) -> Bool {
         switch DI.core.getByPath(path: path) {
         case .success(let parent):
-            print("got the folder id selected: \(path) to \(parent.id)")
             return selectFolder(action: action, newParent: parent.id)
         case .failure(let err):
             error = err.msg

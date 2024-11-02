@@ -33,40 +33,40 @@ struct AppView: View {
                 Label("Loading...", systemImage: "clock.arrow.circlepath")
             }
         }
-            .alert(isPresented: Binding(get: { errors.globalError != nil }, set: { _ in errors.globalError = nil })) {
-                if let error = errors.globalError {
-                    if error.code == .clientUpdateRequired {
-                        return updateAlert
-                    } else {
-                        return Alert(
-                            title: Text("Error"),
-                            message: Text(error.msg),
-                            dismissButton: .default(Text("Dismiss"))
-                        )
-                    }
+        .alert(isPresented: Binding(get: { errors.globalError != nil }, set: { _ in errors.globalError = nil })) {
+            if let error = errors.globalError {
+                if error.code == .clientUpdateRequired {
+                    return updateAlert
                 } else {
                     return Alert(
                         title: Text("Error"),
-                        message: Text("An unknown error has occurred."),
+                        message: Text(error.msg),
                         dismissButton: .default(Text("Dismiss"))
                     )
                 }
+            } else {
+                return Alert(
+                    title: Text("Error"),
+                    message: Text("An unknown error has occurred."),
+                    dismissButton: .default(Text("Dismiss"))
+                )
             }
-            .alert(isPresented: Binding(get: { errors.errorWithTitle != nil }, set: { _ in errors.errorWithTitle = nil })) {
-                if let error = errors.errorWithTitle {
-                    return Alert(
-                        title: Text(error.0),
-                        message: Text(error.1),
-                        dismissButton: .default(Text("Dismiss"))
-                    )
-                } else {
-                    return Alert(
-                        title: Text("Error"),
-                        message: Text("An unknown error has occurred."),
-                        dismissButton: .default(Text("Dismiss"))
-                    )
-                }
+        }
+        .alert(isPresented: Binding(get: { errors.errorWithTitle != nil }, set: { _ in errors.errorWithTitle = nil })) {
+            if let error = errors.errorWithTitle {
+                return Alert(
+                    title: Text(error.0),
+                    message: Text(error.1),
+                    dismissButton: .default(Text("Dismiss"))
+                )
+            } else {
+                return Alert(
+                    title: Text("Error"),
+                    message: Text("An unknown error has occurred."),
+                    dismissButton: .default(Text("Dismiss"))
+                )
             }
+        }
     }
     
     func handleImportLink(url: URL) {

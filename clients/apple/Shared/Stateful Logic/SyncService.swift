@@ -86,7 +86,8 @@ class SyncService: ObservableObject {
 }
 
 func updateStatus(total: UInt, progress: UInt, id: UUID, msg: String) {
-    DI.sync.syncProgress = Float(total) / Float(progress)
+    print("DOING THE UPDATE...")
+    DI.sync.syncProgress = Float(progress) / Float(total)
     DI.sync.syncMsg = msg
 }
 

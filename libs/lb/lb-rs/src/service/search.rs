@@ -113,11 +113,11 @@ impl Lb {
             SearchConfig::Paths => self.search.search_paths(input).await?,
             SearchConfig::Documents => self.search.search_content(input).await?,
             SearchConfig::PathsAndDocuments => {
-                let (paths, content) = tokio::join!(
+                let (paths, docs) = tokio::join!(
                     self.search.search_paths(input),
                     self.search.search_content(input)
                 );
-                paths?.into_iter().chain(content?.into_iter()).collect()
+                paths?.into_iter().chain(docs?.into_iter()).collect()
             }
         };
 

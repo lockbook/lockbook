@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftWorkspace
 
 struct MoveSheet: View {
     
@@ -11,7 +12,7 @@ struct MoveSheet: View {
     
     var body: some View {
         let root = fileService.files.first(where: { $0.parent == $0.id })!
-        let wc = WithChild(root, fileService.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
+        let wc = WithChild(root, fileService.files, { $0.id == $1.parent && $0.id != $1.id && $1.type == .folder })
         
         ScrollView {
             VStack {

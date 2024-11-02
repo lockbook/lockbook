@@ -50,7 +50,7 @@ struct OutlineRow: View {
             Image(systemName: FileService.metaToSystemImage(meta: file))
                 .font(.system(size: 16))
                 .frame(width: 16)
-                .foregroundColor(file.fileType == .Folder ? .accentColor : (workspace.openDoc == file.id && !isSelected ? .white : .secondary ))
+                .foregroundColor(file.type == .folder ? .accentColor : (workspace.openDoc == file.id && !isSelected ? .white : .secondary ))
             
             Text(file.name)
                 .lineLimit(1) // If lineLimit is not specified, non-leaf names will wrap

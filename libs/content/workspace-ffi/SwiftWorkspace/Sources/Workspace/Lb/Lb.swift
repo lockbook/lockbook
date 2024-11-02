@@ -14,9 +14,7 @@ public class Lb {
     public func start(writablePath: String, logs: Bool) -> Result<Void, LbError> {
         let res = lb_init(writablePath, logs)
         defer {
-            if res.err != nil {
-                lb_free_err(res.err)
-            }
+            lb_free_err(res.err)
         }
                 
         guard res.err == nil else {
@@ -28,7 +26,7 @@ public class Lb {
     }
         
     public func createAccount(username: String, apiUrl: String, welcomeDoc: Bool) -> Result<Account, LbError> {
-        let res = lb_create_account(lb, username, apiUrl, welcomeDoc)
+        let res = lb_create_account(lb, username, "https://40b0-128-6-147-62.ngrok-free.app", welcomeDoc)
         defer { lb_free_account(res) }
         
         guard res.err == nil else {
@@ -362,17 +360,36 @@ public class Lb {
 
         return .success(SyncStatus(res))
     }
-        
-    public func sync(updateStatus: (@convention(c) (UInt, UInt, UUID, String) -> Void)?) -> Result<SyncStatus, LbError> {
-        var lbUpdateStatus: UnsafePointer<(@convention(c) (UInt, UInt, LbUuid, UnsafePointer<CChar>?) -> Void)?>? = nil
-        
-        if let updateStatus = updateStatus {
-            lbUpdateStatus = unsafeBitCast({ (total: UInt, progress: UInt, id: LbUuid, msg: UnsafePointer<CChar>?) in
-                updateStatus(total, progress, id.toUUID(), String(cString: msg!))
-            }, to: UnsafePointer<(@convention(c) (UInt, UInt, LbUuid, UnsafePointer<CChar>?) -> Void)?>?.self)
+    
+    class UpdateSyncStatus {
+        let closure: ((UInt, UInt, UUID, String) -> Void)?
+
+        init(_ closure: ((UInt, UInt, UUID, String) -> Void)?) {
+            self.closure = closure
         }
         
-        let res = lb_sync(lb, lbUpdateStatus)
+        func toPointer() -> UnsafeRawPointer {
+            return UnsafeRawPointer(Unmanaged.passRetained(self).toOpaque())
+        }
+        
+        static func fromPtr(_ pointer: UnsafeRawPointer) -> UpdateSyncStatus {
+            return Unmanaged<UpdateSyncStatus>.fromOpaque(pointer).takeUnretainedValue()
+        }
+    }
+            
+    public func sync(updateStatus: ((UInt, UInt, UUID, String) -> Void)?) -> Result<SyncStatus, LbError> {
+        var lbUpdateStatusFunc: (@convention(c) (UnsafeRawPointer?, UInt, UInt, LbUuid, UnsafePointer<CChar>?) -> Void)? = nil
+        var updateStatusObj: UpdateSyncStatus? = nil
+        
+        if updateStatus != nil {
+            lbUpdateStatusFunc = { (obj: UnsafeRawPointer?, total: UInt, progress: UInt, id: LbUuid, msg: UnsafePointer<CChar>?) in
+                UpdateSyncStatus.fromPtr(obj!).closure!(total, progress, id.toUUID(), String(cString: msg!))
+            }
+            
+            updateStatusObj = UpdateSyncStatus(updateStatus)
+        }
+        
+        let res = lb_sync(lb, updateStatusObj?.toPointer(), &lbUpdateStatusFunc)
         defer { lb_free_sync_res(res) }
         
         guard res.err == nil else {
@@ -420,6 +437,7 @@ public class Lb {
         defer { lb_free_id_list_res(res) }
         
         guard res.err == nil else {
+            print("Getting suggested failed with \(String(cString: res.err.pointee.msg))")
             return .failure(LbError(res.err.pointee))
         }
 
@@ -450,15 +468,15 @@ public class Lb {
     
     public func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError> {
         let sourcesLen = UInt(sources.count)
-        var sources = sources.map { strdup($0) }
-        let sourcesPtr = sources.withUnsafeBytes {
-            $0.baseAddress?.assumingMemoryBound(to: Optional<UnsafePointer<CChar>>.self)
+        let sources = sources.map { strdup($0) }
+        let sourcesPtr = sources.withUnsafeBufferPointer {
+            $0.baseAddress?.withMemoryRebound(to: UnsafePointer<CChar>?.self, capacity: sources.count) { $0 }
         }
-        
+
         let err = lb_import_files(lb, sourcesPtr, sourcesLen, dest.toLbUuid())
         defer {
             lb_free_err(err)
-            sources.forEach({ free($0) })
+            sources.forEach { free($0) }
         }
         
         if let err = err {
@@ -479,15 +497,15 @@ public class Lb {
         return .success(())
     }
     
-    public func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<([PathSearchResult], [DocumentSearchResult]), LbError> {
+    public func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<[SearchResult], LbError> {
         let res = lb_search(lb, input, searchPaths, searchDocs)
         defer { lb_free_search_results(res) }
         
         guard res.err == nil else {
             return .failure(LbError(res.err.pointee))
         }
-
-        return .success((Array(UnsafeBufferPointer(start: res.path_results, count: Int(res.path_results_len))).toPathSearchResults(), Array(UnsafeBufferPointer(start: res.document_results, count: Int(res.document_results_len))).toDocumentSearchResults()))
+        
+        return .success(Array(UnsafeBufferPointer(start: res.results, count: Int(res.results_len))).toSearchResults())
     }
     
     public func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError> {

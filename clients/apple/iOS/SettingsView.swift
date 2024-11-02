@@ -79,7 +79,7 @@ struct SettingsView: View, Equatable {
                         HStack {
                             Text("Uncompressed usage:")
                             Spacer()
-                            Text(usage.uncompressedUsage?.readable ?? "Loading...")
+                            Text(usage.uncompressedUsage?.humanMsg ?? "Loading...")
                         }
                         HStack {
                             Text("Compression ratio:")

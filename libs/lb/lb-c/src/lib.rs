@@ -1,5 +1,5 @@
 use std::{
-    ffi::{c_char, c_uchar},
+    ffi::{c_char, c_uchar, c_void},
     fs,
     path::PathBuf,
     process,
@@ -24,6 +24,9 @@ use service::{
     search::{SearchConfig, SearchResult},
     sync::SyncProgress,
 };
+
+use std::sync::atomic::AtomicPtr;
+use std::sync::Arc;
 
 #[repr(C)]
 pub struct LbInitRes {
@@ -505,16 +508,23 @@ pub extern "C" fn lb_calculate_work(lb: *mut Lb) -> LbSyncRes {
     lb.calculate_work().into()
 }
 
-pub type UpdateSyncStatus = extern "C" fn(usize, usize, LbUuid, *const c_char);
+pub type UpdateSyncStatus = extern "C" fn(*const c_void, usize, usize, LbUuid, *const c_char);
 
 #[no_mangle]
-pub extern "C" fn lb_sync(lb: *mut Lb, update_status: *const UpdateSyncStatus) -> LbSyncRes {
+pub extern "C" fn lb_sync(lb: *mut Lb, update_status_obj: *const c_void, update_status: *const UpdateSyncStatus) -> LbSyncRes {
     let lb = rlb(lb);
+
+    let update_status_obj = Arc::new(AtomicPtr::new(update_status_obj as *mut c_void));
+
     let f: Option<Box<dyn Fn(SyncProgress) + Send>> = if !update_status.is_null() {
         let update_status = unsafe { *update_status };
+        let update_status_obj = update_status_obj.clone();
 
         Some(Box::new(move |sync_progress: SyncProgress| {
+            let update_status_obj = update_status_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void;
+
             update_status(
+                update_status_obj,
                 sync_progress.total,
                 sync_progress.progress,
                 sync_progress
@@ -692,10 +702,14 @@ pub extern "C" fn lb_export_file(
 #[repr(C)]
 pub struct LbSearchRes {
     err: *mut LbFfiErr,
-    path_results: *mut LbPathSearchResult,
-    path_results_len: usize,
-    document_results: *mut LbDocumentSearchResult,
-    document_results_len: usize,
+    results: *mut LbSearchResult,
+    results_len: usize
+}
+
+#[repr(C)]
+pub struct LbSearchResult {
+    path_result: *mut LbPathSearchResult,
+    doc_result: *mut LbDocumentSearchResult
 }
 
 #[repr(C)]
@@ -740,21 +754,24 @@ pub extern "C" fn lb_search(
 
     match lb.search(input, config) {
         Ok(search_results) => {
-            let mut path_results = Vec::new();
-            let mut document_results = Vec::new();
+            let mut results = Vec::new();
 
             for result in search_results {
                 match result {
                     SearchResult::PathMatch { id, path, matched_indices, score } => {
                         let (matched_indicies, matched_indicies_len) = carray(matched_indices);
 
-                        path_results.push(LbPathSearchResult {
-                            id: id.into(),
-                            path: cstring(path),
-                            score,
-                            matched_indicies,
-                            matched_indicies_len,
-                        });
+                        results.push(LbSearchResult {
+                            path_result: Box::into_raw(Box::new(LbPathSearchResult {
+                                id: id.into(),
+                                path: cstring(path),
+                                score,
+                                matched_indicies,
+                                matched_indicies_len,
+                            })),
+                            doc_result: null_mut()
+                        })
+
                     }
                     SearchResult::DocumentMatch { id, path, content_matches } => {
                         let mut c_content_matches = Vec::new();
@@ -773,39 +790,32 @@ pub extern "C" fn lb_search(
 
                         let (content_matches, content_matches_len) = carray(c_content_matches);
 
-                        document_results.push(LbDocumentSearchResult {
-                            id: id.into(),
-                            path: cstring(path),
-                            content_matches,
-                            content_matches_len,
-                        });
+                        results.push(LbSearchResult {
+                            path_result: null_mut(),
+                            doc_result: Box::into_raw(Box::new(LbDocumentSearchResult {
+                                id: id.into(),
+                                path: cstring(path),
+                                content_matches,
+                                content_matches_len,
+                            })),
+                        })
                     }
                 }
             }
 
-            let (path_results, path_results_len) =
-                if path_results.is_empty() { (null_mut(), 0) } else { carray(path_results) };
-
-            let (document_results, document_results_len) = if document_results.is_empty() {
-                (null_mut(), 0)
-            } else {
-                carray(document_results)
-            };
+            let (results, results_len) =
+                if results.is_empty() { (null_mut(), 0) } else { carray(results) };
 
             LbSearchRes {
                 err: null_mut(),
-                path_results,
-                path_results_len,
-                document_results,
-                document_results_len,
+                results,
+                results_len
             }
         }
         Err(err) => LbSearchRes {
             err: lb_err(err),
-            path_results: null_mut(),
-            path_results_len: 0,
-            document_results: null_mut(),
-            document_results_len: 0,
+            results: null_mut(),
+            results_len: 0,
         },
     }
 }

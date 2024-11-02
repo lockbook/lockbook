@@ -416,6 +416,8 @@ class FileService: ObservableObject {
             } else {
                 return "folder.fill"
             }
+        case .link(_):
+            return "folder.fill"
         }
     }
     

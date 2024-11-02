@@ -37,12 +37,12 @@ struct ReadHeightModifier: ViewModifier {
 struct SearchFilePathCell: View {
     let name: String
     let path: String
-    let matchedIndices: [Int]
+    let matchedIndices: [UInt]
     
     @State var nameModified: Text
     @State var pathModified: Text
     
-    init(name: String, path: String, matchedIndices: [Int]) {
+    init(name: String, path: String, matchedIndices: [UInt]) {
         self.name = name
         self.path = path
         self.matchedIndices = matchedIndices
@@ -75,10 +75,10 @@ struct SearchFilePathCell: View {
             }
         }
             .padding(.vertical, 5)
-            .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
+            .contentShape(Rectangle())
     }
     
-    static func underlineMatchedSegments(name: String, path: String, matchedIndices: [Int]) -> (formattedName: Text, formattedPath: Text) {
+    static func underlineMatchedSegments(name: String, path: String, matchedIndices: [UInt]) -> (formattedName: Text, formattedPath: Text) {
         let matchedIndicesHash = Set(matchedIndices)
         var pathOffset = 1;
         var formattedPath = Text("")
@@ -90,7 +90,7 @@ struct SearchFilePathCell: View {
                                 
                 if(path[correctIndex...correctIndex] == "/") {
                     formattedPath = formattedPath + Text(" > ").foregroundColor(.gray)
-                } else if(matchedIndicesHash.contains(index + 1)) {
+                } else if(matchedIndicesHash.contains(UInt(index + 1))) {
                     formattedPath = formattedPath + newPart.bold()
                 } else {
                     formattedPath = formattedPath + newPart
@@ -107,7 +107,7 @@ struct SearchFilePathCell: View {
                 let correctIndex = String.Index(utf16Offset: index, in: name)
                 let newPart = Text(name[correctIndex...correctIndex])
                 
-                if(matchedIndicesHash.contains(index + path.count + pathOffset)) {
+                if(matchedIndicesHash.contains(UInt(index + path.count + pathOffset))) {
                     formattedName = formattedName + newPart.bold()
                 } else {
                     formattedName = formattedName + newPart.foregroundColor(.gray)
@@ -122,22 +122,20 @@ struct SearchFilePathCell: View {
 struct SearchFileContentCell: View {
     let name: String
     let path: String
-    let paragraph: String
-    let matchedIndices: [Int]
+    let contentMatches: [ContentMatch]
     
-    @State var formattedParagraph: Text
+    @State var formattedParagraphs: [(AnyHashable, Text)]
     @State var formattedPath: Text
     
-    init(name: String, path: String, paragraph: String, matchedIndices: [Int]) {
+    init(name: String, path: String, contentMatches: [ContentMatch]) {
         self.name = name
         self.path = path
-        self.paragraph = paragraph
-        self.matchedIndices = matchedIndices
+        self.contentMatches = contentMatches
         
-        let pathAndParagraph = SearchFileContentCell.underlineMatchedSegments(path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+        let pathAndParagraphs = SearchFileContentCell.underlineMatchedSegments(path: path, contentMatches: contentMatches)
         
-        self._formattedPath = State(initialValue: pathAndParagraph.formattedPath)
-        self._formattedParagraph = State(initialValue: pathAndParagraph.formattedParagraph)
+        self._formattedPath = State(initialValue: pathAndParagraphs.formattedPath)
+        self._formattedParagraphs = State(initialValue: pathAndParagraphs.formattedParagraphs)
     }
     
     var body: some View {
@@ -159,21 +157,22 @@ struct SearchFileContentCell: View {
             }
             .padding(.bottom, 7)
             
-            HStack {
-                formattedParagraph
-                    .font(.caption)
-                    .lineLimit(nil)
+            ForEach(formattedParagraphs, id: \.0) { (_, paragraph) in
+                HStack {
+                    paragraph
+                        .font(.caption)
+                        .lineLimit(nil)
                     
-                Spacer()
+                    Spacer()
+                }
+                .padding(.bottom, 7)
             }
         }
         .padding(.vertical, 5)
-        .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
+        .contentShape(Rectangle())
     }
     
-    static func underlineMatchedSegments(path: String, paragraph: String, matchedIndices: [Int]) -> (formattedPath: Text, formattedParagraph: Text) {
-        let matchedIndicesHash = Set(matchedIndices)
-        
+    static func underlineMatchedSegments(path: String, contentMatches: [ContentMatch]) -> (formattedPath: Text, formattedParagraphs: [(AnyHashable, Text)]) {
         var formattedPath = Text("")
         
         if(path.count - 1 > 0) {
@@ -188,6 +187,17 @@ struct SearchFileContentCell: View {
             }
         }
         
+        var formattedParagraphs: [(AnyHashable, Text)] = []
+        
+        for contentMatch in contentMatches {
+            formattedParagraphs.append((contentMatches, Self.underlineParagraph(paragraph: contentMatch.paragraph, matchedIndices: contentMatch.matchedIndicies)))
+        }
+        
+        return (formattedPath, formattedParagraphs)
+    }
+    
+    static func underlineParagraph(paragraph: String, matchedIndices: [UInt]) -> Text {
+        let matchedIndicesHash = Set(matchedIndices)
         var formattedParagraph = Text("")
                 
         if(paragraph.count - 1 > 0) {
@@ -195,7 +205,7 @@ struct SearchFileContentCell: View {
                 let correctIndex = String.Index(utf16Offset: index, in: paragraph)
                 let newPart = Text(paragraph[correctIndex...correctIndex])
                 
-                if(matchedIndicesHash.contains(index)) {
+                if(matchedIndicesHash.contains(UInt(index))) {
                     formattedParagraph = formattedParagraph + newPart.bold()
                 } else {
                     formattedParagraph = formattedParagraph + newPart.foregroundColor(.gray)
@@ -203,7 +213,7 @@ struct SearchFileContentCell: View {
             }
         }
         
-        return (formattedPath, formattedParagraph)
+        return formattedParagraph
     }
 }
 

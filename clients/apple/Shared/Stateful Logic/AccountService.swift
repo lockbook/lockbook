@@ -1,11 +1,6 @@
 import Foundation
 import SwiftWorkspace
 
-//#if os(macOS)
-//import AppKit
-//import Combine
-//#endif
-
 class AccountService: ObservableObject {
     let core: Lb
     

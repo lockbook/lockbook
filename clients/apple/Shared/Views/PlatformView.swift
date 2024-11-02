@@ -72,7 +72,7 @@ struct PlatformView: View {
     var iOS: some View {
         ConstrainedHomeViewWrapper()
             .onAppear {
-                if files.path.last?.fileType != .Document {
+                if files.path.last?.type != .document {
                     if let openDoc = workspace.openDoc,
                         let meta = files.idsAndFiles[openDoc] {
                         files.path.append(meta)

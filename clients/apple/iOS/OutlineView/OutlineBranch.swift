@@ -48,7 +48,7 @@ struct OutlineBranch: View {
                                     selected.addFileToSelection(file: file)
                                 }
                             } else {
-                                if file.fileType == .Folder {
+                                if file.type == .folder {
                                     workspace.selectedFolder = file.id
                                     
                                     withAnimation {

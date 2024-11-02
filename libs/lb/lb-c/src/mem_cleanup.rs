@@ -16,6 +16,10 @@ pub extern "C" fn lb_free_str(str: *mut c_char) {
 
 #[no_mangle]
 pub extern "C" fn lb_free_err(err: *mut LbFfiErr) {
+    if err.is_null() {
+        return
+    }
+    
     unsafe {
         let err = *Box::from_raw(err);
 
@@ -225,30 +229,30 @@ pub extern "C" fn lb_free_search_results(search_results: LbSearchRes) {
         lb_free_err(search_results.err);
     }
 
-    if !search_results.document_results.is_null() {
-        let document_results =
-            rvec(search_results.document_results, search_results.document_results_len);
+    if !search_results.results.is_null() {
+        let results =
+            rvec(search_results.results, search_results.results_len);
 
-        for result in document_results {
-            let content_matches = rvec(result.content_matches, result.content_matches_len);
+        for result in results {
+            if !result.doc_result.is_null() {
+                let result = unsafe { *Box::from_raw(result.doc_result) };
+                
+                let content_matches = rvec(result.content_matches, result.content_matches_len);
 
-            for content_match in content_matches {
-                let _ = rvec(content_match.matched_indicies, content_match.matched_indicies_len);
+                for content_match in content_matches {
+                    let _ = rvec(content_match.matched_indicies, content_match.matched_indicies_len);
+    
+                    unsafe { drop(CString::from_raw(content_match.paragraph)) }
+                }
+    
+                unsafe { drop(CString::from_raw(result.path)) }    
+            } else {
+                let result = unsafe { *Box::from_raw(result.path_result) };
 
-                unsafe { drop(CString::from_raw(content_match.paragraph)) }
+                let _ = rvec(result.matched_indicies, result.matched_indicies_len);
+                unsafe { drop(CString::from_raw(result.path)) };
             }
 
-            unsafe { drop(CString::from_raw(result.path)) }
-        }
-    }
-
-    if !search_results.path_results.is_null() {
-        let path_results = rvec(search_results.path_results, search_results.path_results_len);
-
-        for result in path_results {
-            let _ = rvec(result.matched_indicies, result.matched_indicies_len);
-
-            unsafe { drop(CString::from_raw(result.path)) }
         }
     }
 }

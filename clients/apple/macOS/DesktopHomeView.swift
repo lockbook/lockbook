@@ -42,7 +42,7 @@ struct SearchBar: View {
                 )
                 .onChange(of: isFocused, perform: { newValue in
                     if isFocused {
-                        DI.search.startSearchThread(searchPaths: true, searchDocs: true)
+                        DI.search.startSearchThread(isPathAndContentSearch: true)
                     } else if !isFocused && searchInput.isEmpty {
                         searchInput = ""
                         DI.search.endSearch(isPathAndContentSearch: true)
@@ -134,22 +134,25 @@ struct SidebarView: View {
     
     var searchResultsView: some View {
         ForEach(search.pathAndContentSearchResults) { result in
-            switch result {
-            case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                Button(action: {
-                    DI.workspace.requestOpenDoc(meta.id)
-                }) {
-                    SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
-                }
-                .padding(.horizontal)
+            if let meta = DI.files.idsAndFiles[result.lbId] {
+                switch result {
+                case .path(let path):
+                    Button(action: {
+                        DI.workspace.requestOpenDoc(meta.id)
+                    }) {
+                        SearchFilePathCell(name: meta.name, path: path.path, matchedIndices: path.matchedIndicies)
+                    }
+                    .padding(.horizontal)
 
-            case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                Button(action: {
-                    DI.workspace.requestOpenDoc(meta.id)
-                }) {
-                    SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                case .document(let doc):
+                    Button(action: {
+                        DI.workspace.requestOpenDoc(meta.id)
+                    }) {
+                        SearchFileContentCell(name: meta.name, path: doc.path, contentMatches: doc.contentMatches)
+                    }
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
+
             }
             
             Divider()

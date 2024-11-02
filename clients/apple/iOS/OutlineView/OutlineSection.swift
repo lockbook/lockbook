@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftWorkspace
 
 struct OutlineSection: View {
     

@@ -53,29 +53,8 @@ struct PathSearchActionBar: View {
                             Divider()
                                 .padding(.top)
                             
-                            ScrollViewReader { scrollHelper in
-                                ScrollView {
-                                    ForEach(search.pathSearchResults) { result in
-                                        if case .PathMatch(_, _, let name, let path, let matchedIndices, _) = result {
-                                            let index = search.pathSearchResults.firstIndex(where: { $0.id == result.id }) ?? 0
-                
-                                            SearchResultCellView(name: name, path: path, matchedIndices: matchedIndices, index: index, selected: search.pathSearchSelected)
-                                        }
-                                    }
-                                    .scrollIndicators(.visible)
-                                    .padding(.horizontal)
-                                }
-                                .onChange(of: search.pathSearchSelected) { newValue in
-                                    withAnimation {
-                                        if newValue < search.pathSearchResults.count {
-                                            let item = search.pathSearchResults[newValue]
-                                            
-                                            scrollHelper.scrollTo(item.id, anchor: .center)
-                                        }
-                                    }
-                                }
-                            }
-                            .frame(maxHeight: 500)
+                            searchResults
+                            
                         } else if !search.isPathSearchInProgress && !search.pathSearchQuery.isEmpty {
                             Text("No results.")
                                .font(.headline)
@@ -103,6 +82,35 @@ struct PathSearchActionBar: View {
                 .padding(.bottom, 100)
             }
         }
+    }
+    
+    var searchResults: some View {
+        ScrollViewReader { scrollHelper in
+            ScrollView {
+                ForEach(search.pathSearchResults) { result in
+                    if let meta = DI.files.idsAndFiles[result.lbId] {
+                        if case .path(let path) = result {
+                            let index = search.pathSearchResults.firstIndex(where: { $0.lbId == meta.id }) ?? 0
+
+                            SearchResultCellView(name: meta.name, path: path.path, matchedIndices: path.matchedIndicies, index: index, selected: search.pathSearchSelected)
+                        }
+                    }
+                }
+                .scrollIndicators(.visible)
+                .padding(.horizontal)
+            }
+            .onChange(of: search.pathSearchSelected) { newValue in
+                withAnimation {
+                    if newValue < search.pathSearchResults.count {
+                        let item = search.pathSearchResults[newValue]
+                        
+                        scrollHelper.scrollTo(item.id, anchor: .center)
+                    }
+                }
+            }
+        }
+        .frame(maxHeight: 500)
+
     }
 }
 
@@ -349,7 +357,7 @@ public struct PathSearchTextFieldWrapper: NSViewRepresentable {
 struct SearchResultCellView: View {
     let name: String
     let path: String
-    let matchedIndices: [Int]
+    let matchedIndices: [UInt]
     
     let index: Int
     let selected: Int
@@ -414,7 +422,7 @@ struct SearchResultCellView: View {
                 let correctIndex = String.Index(utf16Offset: index, in: path)
                 let newPart = Text(path[correctIndex...correctIndex])
                 
-                if(matchedIndicesHash.contains(index + 1)) {
+                if(matchedIndicesHash.contains(UInt(index + 1))) {
                     pathModified = pathModified + newPart.bold()
                 } else {
                     pathModified = pathModified + newPart
@@ -430,7 +438,7 @@ struct SearchResultCellView: View {
                 let correctIndex = String.Index(utf16Offset: index, in: name)
                 let newPart = Text(name[correctIndex...correctIndex])
                 
-                if(matchedIndicesHash.contains(index + path.count + pathOffset)) {
+                if(matchedIndicesHash.contains(UInt(index + path.count + pathOffset))) {
                     nameModified = nameModified + newPart.bold()
                 } else {
                     nameModified = nameModified + newPart

@@ -50,7 +50,7 @@ struct FileCell: View {
                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                 })
                 
-                if meta.fileType == .Document {
+                if meta.type == .document {
                     Button(action: {
                         DI.files.copyFileLink(id: meta.id)
                     }) {
@@ -82,7 +82,7 @@ struct FileCell: View {
                     }
                 }
             } else {
-                if meta.fileType == .Document {
+                if meta.type == .document {
                     DI.workspace.requestOpenDoc(meta.id)
                 }
                 
@@ -109,7 +109,7 @@ struct FileCell: View {
                     .font(.title3)
                     .frame(width: 20)
                 
-                if meta.fileType == .Document {
+                if meta.type == .document {
                     VStack(alignment: .leading) {
                         Text(meta.name)
                             .font(.body)

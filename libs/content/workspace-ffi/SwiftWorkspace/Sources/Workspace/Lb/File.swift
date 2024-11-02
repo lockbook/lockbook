@@ -16,7 +16,7 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
         self.id = file.id.toUUID()
         self.parent = file.parent.toUUID()
         self.name = String(cString: file.name)
-        self.type = FileType(rawValue: Int(file.typ.tag.rawValue))!
+        self.type = FileType(file.typ)
         self.lastModifiedBy = String(cString: file.lastmod_by)
         self.lastModified = file.lastmod
         self.shares = Array(UnsafeBufferPointer(start: file.shares.list, count: Int(file.shares.count))).toShares()
@@ -95,12 +95,42 @@ extension Array<LbShare> {
     }
 }
 
-public enum FileType: Int, Codable {
-    case document = 0
-    case folder = 1
+public enum FileType: Codable, Equatable {
+    case document
+    case folder
+    case link(UUID)
+
+    var rawValue: Int {
+        get {
+            switch self {
+            case .document: return 0
+            case .folder: return 1
+            case .link(_): return 2
+            }
+        }
+    }
+    
+    var lbLinkTarget: LbUuid {
+        get {
+            switch self {
+            case .document: return LbUuid(bytes: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ))
+            case .folder: return LbUuid(bytes: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ))
+            case .link(let id): return id.toLbUuid()
+            }
+        }
+    }
+    
+    init(_ fileType: LbFileType) {
+        switch fileType.tag.rawValue {
+        case 0: self = .document
+        case 1: self = .folder
+        case 2: self = .link(fileType.link_target.toUUID())
+        default: fatalError("Unknown file type \(fileType)")
+        }
+    }
     
     func toLbFileType() -> LbFileType {
-        LbFileType(tag: .init(UInt32(self.rawValue)), link_target: LbUuid(bytes: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )))
+        LbFileType(tag: .init(UInt32(self.rawValue)), link_target: lbLinkTarget)
     }
 }
 
