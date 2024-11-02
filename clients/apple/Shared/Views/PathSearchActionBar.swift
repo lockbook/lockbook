@@ -89,10 +89,10 @@ struct PathSearchActionBar: View {
             ScrollView {
                 ForEach(search.pathSearchResults) { result in
                     if let meta = DI.files.idsAndFiles[result.lbId] {
-                        if case .path(let path) = result {
+                        if case .path(var path) = result {
                             let index = search.pathSearchResults.firstIndex(where: { $0.lbId == meta.id }) ?? 0
 
-                            SearchResultCellView(name: meta.name, path: path.path, matchedIndices: path.matchedIndicies, index: index, selected: search.pathSearchSelected)
+                            SearchResultCellView(name: path.nameAndPath.0, path: path.nameAndPath.1, matchedIndices: path.matchedIndicies, index: index, selected: search.pathSearchSelected)
                         }
                     }
                 }

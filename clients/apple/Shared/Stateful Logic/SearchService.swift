@@ -31,25 +31,26 @@ class SearchService: ObservableObject {
         if !isPathAndContentSearching && isPathAndContentSearch {
             searchDocs = true
             isPathAndContentSearching = true
-            isPathAndContentSearchInProgress = false
         } else if !isPathSearching && !isPathAndContentSearch {
             isPathSearching = true
-            isPathSearchInProgress = false
         } else {
             return
         }
 
-        switch core.search(input: "", searchPaths: searchPaths, searchDocs: searchDocs) {
-        case .success(let results):
-            if isPathAndContentSearch {
-                pathAndContentSearchResults = results
-                isPathAndContentSearching = false
-            } else {
-                pathSearchResults = results
-                isPathSearchInProgress = false
+        DispatchQueue.global(qos: .userInitiated).async {
+            switch self.core.search(input: "", searchPaths: searchPaths, searchDocs: searchDocs) {
+            case .success(let results):
+                DispatchQueue.main.async {
+                    if isPathAndContentSearch {
+                        self.pathAndContentSearchResults = results
+                    } else {
+                        self.pathSearchResults = results
+                    }
+                }
+            case .failure(let err):
+                print("i do nothing for now")
             }
-        case .failure(let err):
-            print("i do nothing for now")
+            
         }
         
     }
@@ -66,20 +67,26 @@ class SearchService: ObservableObject {
             self.isPathSearchInProgress = true
             self.pathSearchQuery = query
         } else {
+            print("returned early! \(isPathAndContentSearch) \(isPathAndContentSearching) \(isPathSearching)")
             return
         }
         
-        switch self.core.search(input: query, searchPaths: searchPaths, searchDocs: searchDocs) {
-        case .success(let results):
-            if isPathAndContentSearch {
-                pathAndContentSearchResults = results
-                isPathAndContentSearchInProgress = false
-            } else {
-                pathSearchResults = results
-                isPathSearchInProgress = false
+        DispatchQueue.global(qos: .userInitiated).async {
+            switch self.core.search(input: query, searchPaths: searchPaths, searchDocs: searchDocs) {
+            case .success(let results):
+                DispatchQueue.main.async {
+                    if isPathAndContentSearch {
+                        self.pathAndContentSearchResults = results
+                        self.isPathAndContentSearchInProgress = false
+                    } else {
+                        self.pathSearchResults = results
+                        self.isPathSearchInProgress = false
+                    }
+                }
+            case .failure(let err):
+                print("i do nothing for now")
             }
-        case .failure(let err):
-            print("i do nothing...")
+            
         }
     }
       

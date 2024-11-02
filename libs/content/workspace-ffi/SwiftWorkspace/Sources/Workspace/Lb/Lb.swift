@@ -437,7 +437,6 @@ public class Lb {
         defer { lb_free_id_list_res(res) }
         
         guard res.err == nil else {
-            print("Getting suggested failed with \(String(cString: res.err.pointee.msg))")
             return .failure(LbError(res.err.pointee))
         }
 

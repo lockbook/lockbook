@@ -69,7 +69,10 @@ class SyncService: ObservableObject {
         syncing = true
                 
         DispatchQueue.global(qos: .userInteractive).async {
-            let result = self.core.sync(updateStatus: updateStatus)
+            let result = self.core.sync { total, progress, id, msg in
+                DI.sync.syncProgress = Float(progress) / Float(total)
+                DI.sync.syncMsg = msg
+            }
             
             DispatchQueue.main.async {
                 self.cleanupSyncStatus()
@@ -84,10 +87,3 @@ class SyncService: ObservableObject {
         }
     }
 }
-
-func updateStatus(total: UInt, progress: UInt, id: UUID, msg: String) {
-    print("DOING THE UPDATE...")
-    DI.sync.syncProgress = Float(progress) / Float(total)
-    DI.sync.syncMsg = msg
-}
-

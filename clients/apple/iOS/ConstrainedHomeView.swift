@@ -148,6 +148,7 @@ struct ConstrainedHomeView: View {
             }
         }
         .onChange(of: searchInput) { newInput in
+            print("sending search query... \(newInput)")
             DI.search.search(query: newInput, isPathAndContentSearch: true)
         }
         .onChange(of: isSearching, perform: { newInput in
@@ -176,23 +177,23 @@ struct ConstrainedHomeView: View {
         ForEach(search.pathAndContentSearchResults) { result in
             if let meta = DI.files.idsAndFiles[result.lbId] {
                 switch result {
-                case .path(let path):
+                case .path(var path):
                     Button(action: {
                         DI.workspace.requestOpenDoc(meta.id)
                         DI.files.intoChildDirectory(meta)
                         dismissSearch()
                     }) {
-                        SearchFilePathCell(name: meta.name, path: path.path, matchedIndices: path.matchedIndicies)
+                        SearchFilePathCell(name: path.nameAndPath.0, path: path.nameAndPath.1, matchedIndices: path.matchedIndicies)
                     }
                     .padding(.horizontal)
 
-                case .document(let doc):
+                case .document(var doc):
                     Button(action: {
                         DI.workspace.requestOpenDoc(meta.id)
                         DI.files.intoChildDirectory(meta)
                         dismissSearch()
                     }) {
-                        SearchFileContentCell(name: meta.name, path: doc.path, contentMatches: doc.contentMatches)
+                        SearchFileContentCell(name: doc.nameAndPath.0, path: doc.nameAndPath.1, contentMatches: doc.contentMatches)
                     }
                     .padding(.horizontal)
                 }

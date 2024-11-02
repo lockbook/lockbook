@@ -122,6 +122,7 @@ impl Lb {
         };
 
         results.sort_unstable_by_key(|r| -r.score());
+        results.truncate(20);
 
         Ok(results)
     }

@@ -150,18 +150,18 @@ struct SidebarView: View {
         ForEach(search.pathAndContentSearchResults) { result in
             if let meta = DI.files.idsAndFiles[result.lbId] {
                 switch result {
-                case .path(let path):
+                case .path(var path):
                     Button(action: {
                         DI.workspace.requestOpenDoc(meta.id)
                     }) {
-                        SearchFilePathCell(name: meta.name, path: path.path, matchedIndices: path.matchedIndicies)
+                        SearchFilePathCell(name: path.nameAndPath.0, path: path.nameAndPath.1, matchedIndices: path.matchedIndicies)
                     }
                     .padding(.horizontal)
-                case .document(let doc):
+                case .document(var doc):
                     Button(action: {
                         DI.workspace.requestOpenDoc(meta.id)
                     }) {
-                        SearchFileContentCell(name: meta.name, path: doc.path, contentMatches: doc.contentMatches)
+                        SearchFileContentCell(name: doc.nameAndPath.0, path: doc.nameAndPath.1, contentMatches: doc.contentMatches)
                     }
                     .padding(.horizontal)
                 }

@@ -131,6 +131,7 @@ struct SearchFileContentCell: View {
         self.name = name
         self.path = path
         self.contentMatches = contentMatches
+        print("got this ish with \(contentMatches)")
         
         let pathAndParagraphs = SearchFileContentCell.underlineMatchedSegments(path: path, contentMatches: contentMatches)
         
@@ -190,7 +191,7 @@ struct SearchFileContentCell: View {
         var formattedParagraphs: [(AnyHashable, Text)] = []
         
         for contentMatch in contentMatches {
-            formattedParagraphs.append((contentMatches, Self.underlineParagraph(paragraph: contentMatch.paragraph, matchedIndices: contentMatch.matchedIndicies)))
+            formattedParagraphs.append((contentMatch, Self.underlineParagraph(paragraph: contentMatch.paragraph, matchedIndices: contentMatch.matchedIndicies)))
         }
         
         return (formattedPath, formattedParagraphs)

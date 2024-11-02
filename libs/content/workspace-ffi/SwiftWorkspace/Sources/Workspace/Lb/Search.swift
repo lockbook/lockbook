@@ -58,6 +58,15 @@ public struct PathSearchResult: Hashable {
     public let score: Int64
     public let matchedIndicies: [UInt]
     
+    public lazy var nameAndPath: (String, String) = {
+        let components = path.split(separator: "/")
+        
+        let name = String(components.last ?? "ERROR")
+        let path = components.dropLast().joined(separator: "/")
+                
+        return (name, path)
+    }()
+        
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
@@ -86,6 +95,15 @@ public struct DocumentSearchResult: Hashable {
     public let id: UUID
     public let path: String
     public let contentMatches: [ContentMatch]
+    
+    public lazy var nameAndPath: (String, String) = {
+        let components = path.split(separator: "/")
+        
+        let name = String(components.last ?? "ERROR")
+        let path = components.dropLast().joined(separator: "/")
+                
+        return (name, path)
+    }()
     
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -116,6 +134,11 @@ public struct ContentMatch: Hashable {
     public let score: Int64
     public let matchedIndicies: [UInt]
     
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(paragraph)
+        hasher.combine(matchedIndicies)
+    }
+
     init(_ match: LbContentMatch) {
         self.paragraph = String(cString: match.paragraph)
         self.score = match.score
