@@ -798,7 +798,16 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                                         let hmac = merge.find(&id)?.document_hmac();
                                         self.docs.insert(&id, hmac, &encrypted_document)?;
                                     }
-                                    DocumentType::Drawing | DocumentType::Other => {
+                                    DocumentType::Drawing => {
+                                        let base_document =
+                                            String::from_utf8_lossy(&base_document).to_string();
+                                        let remote_document =
+                                            String::from_utf8_lossy(&remote_document).to_string();
+
+                                        let local_document =
+                                            String::from_utf8_lossy(&local_document).to_string();
+                                    }
+                                    DocumentType::Other => {
                                         // duplicate file
                                         let merge_parent = *merge.find(&id)?.parent();
                                         let duplicate_id = if let Some(&duplicate_id) =

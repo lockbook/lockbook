@@ -4,6 +4,7 @@ extern crate tracing;
 pub mod model;
 pub mod service;
 pub mod shared;
+pub mod svg;
 pub mod text;
 
 mod repo;

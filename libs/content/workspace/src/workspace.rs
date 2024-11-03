@@ -831,7 +831,13 @@ impl Workspace {
                             } else {
                                 match tab.content.as_mut() {
                                     Some(TabContent::Svg(svg)) => {
-                                        svg.buffer.reload(&bytes, maybe_hmac);
+                                        lb_rs::svg::buffer::Buffer::reload(
+                                            &mut svg.buffer.elements,
+                                            svg.buffer.master_transform,
+                                            &svg.buffer.opened_content,
+                                            &bytes,
+                                        );
+                                        svg.buffer.open_file_hmac = maybe_hmac;
                                     }
                                     _ => unreachable!(),
                                 };

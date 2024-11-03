@@ -14,7 +14,6 @@ use super::{
         get_zoom_fit_transform, transform_canvas, zoom_percentage_to_transform, GestureHandler,
     },
     history::History,
-    parser,
     pen::{HIGHLIGHTER_STROKE_WIDTHS, PEN_STROKE_WIDTHS},
     selection::Selection,
     Buffer, Eraser, Pen,
@@ -113,7 +112,7 @@ impl Toolbar {
     }
 
     pub fn show(
-        &mut self, ui: &mut egui::Ui, buffer: &mut parser::Buffer, history: &mut History,
+        &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, history: &mut History,
         skip_frame: &mut bool, inner_rect: egui::Rect,
     ) {
         self.handle_keyboard_shortcuts(ui, history, buffer);

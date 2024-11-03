@@ -2,9 +2,8 @@ use std::{collections::VecDeque, time::Instant};
 
 use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;
+use lb_rs::svg::element::ManipulatorGroupId;
 use resvg::usvg::Transform;
-
-use super::parser::ManipulatorGroupId;
 
 /// Build a cubic bézier path with Catmull-Rom smoothing and Ramer–Douglas–Peucker compression
 #[derive(Debug)]

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use lb_rs::svg::element::Element;
 use lb_rs::Uuid;
 
 use super::toolbar::ToolContext;
@@ -69,15 +70,15 @@ impl Eraser {
                             if let Some(el) = eraser_ctx.buffer.elements.get_mut(id) {
                                 if !*has_decreased_opacity {
                                     match el {
-                                        super::parser::Element::Path(p) => {
+                                        Element::Path(p) => {
                                             p.opacity *= 0.3;
                                             p.diff_state.opacity_changed = true
                                         }
-                                        super::parser::Element::Image(img) => {
+                                        Element::Image(img) => {
                                             img.opacity = 0.3;
                                             img.diff_state.opacity_changed = true
                                         }
-                                        super::parser::Element::Text(_) => todo!(),
+                                        Element::Text(_) => todo!(),
                                     }
                                 }
                             };

@@ -1,19 +1,20 @@
 use bezier_rs::Subpath;
 use egui::{PointerButton, TouchId, TouchPhase};
-use lb_rs::Uuid;
-use resvg::usvg::Transform;
+use lb_rs::{
+    svg::{
+        diff::DiffState,
+        element::{Element, Path, Stroke},
+    },
+    Uuid,
+};
+use resvg::usvg::{Color, Transform};
 use std::time::{Duration, Instant};
 use tracing::{event, trace, Level};
 use tracing_test::traced_test;
 
 use crate::tab::ExtendedInput;
 
-use super::{
-    parser::{self, DiffState, Path, Stroke},
-    toolbar::ToolContext,
-    util::is_multi_touch,
-    InsertElement, PathBuilder,
-};
+use super::{toolbar::ToolContext, util::is_multi_touch, InsertElement, PathBuilder};
 
 pub const PEN_STROKE_WIDTHS: [f32; 3] = [1.0, 13.0, 25.0];
 pub const HIGHLIGHTER_STROKE_WIDTHS: [f32; 3] = [15.0, 20.0, 25.0];
@@ -86,8 +87,7 @@ impl Pen {
     }
 
     pub fn end_path(&mut self, pen_ctx: &mut ToolContext, is_snapped: bool) {
-        if let Some(parser::Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id)
-        {
+        if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
             trace!("found path to end");
             self.path_builder.clear();
 
@@ -137,12 +137,14 @@ impl Pen {
                     self.cancel_path(pen_ctx);
                 }
 
+                // let path_stroke =
+                //     Stroke { color: self.active_color, width: self.active_stroke_width };
+                // todo: handle dynamic stroke colors. ideally only the renderer should care
+                // about the light mode / dark mode distinction. svg vars can do this
                 let path_stroke =
-                    Stroke { color: self.active_color, width: self.active_stroke_width };
+                    Stroke { color: Color::black(), opacity: 1.0, width: self.active_stroke_width };
 
-                if let Some(parser::Element::Path(p)) =
-                    pen_ctx.buffer.elements.get_mut(&self.current_id)
-                {
+                if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
                     p.diff_state.data_changed = true;
                     p.stroke = Some(path_stroke);
 
@@ -151,7 +153,7 @@ impl Pen {
                 } else {
                     event!(Level::TRACE, "starting a new path");
 
-                    let el = parser::Element::Path(Path {
+                    let el = Element::Path(Path {
                         data: Subpath::new(vec![], false),
                         visibility: resvg::usvg::Visibility::Visible,
                         fill: None,
@@ -160,17 +162,17 @@ impl Pen {
                             pen_ctx.buffer.master_transform.sx,
                             pen_ctx.buffer.master_transform.sy,
                         ),
-                        opacity: self.active_opacity,
                         diff_state: DiffState::default(),
                         deleted: false,
+                        opacity: 1.0,
                     });
 
                     pen_ctx
                         .buffer
                         .elements
                         .insert_before(0, self.current_id, el);
-                    // }
-                    if let Some(parser::Element::Path(p)) =
+
+                    if let Some(Element::Path(p)) =
                         pen_ctx.buffer.elements.get_mut(&self.current_id)
                     {
                         self.path_builder.line_to(payload.pos, &mut p.data);
@@ -178,9 +180,7 @@ impl Pen {
                 }
             }
             PathEvent::End(payload) => {
-                if let Some(parser::Element::Path(p)) =
-                    pen_ctx.buffer.elements.get_mut(&self.current_id)
-                {
+                if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
                     p.diff_state.data_changed = true;
 
                     self.path_builder.line_to(payload.pos, &mut p.data);
@@ -194,9 +194,7 @@ impl Pen {
                 self.cancel_path(pen_ctx);
             }
             PathEvent::PredictedDraw(payload) => {
-                if let Some(parser::Element::Path(p)) =
-                    pen_ctx.buffer.elements.get_mut(&self.current_id)
-                {
+                if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
                     let maybe_new_mg = self.path_builder.line_to(payload.pos, &mut p.data);
                     trace!(maybe_new_mg, "adding predicted touch to the path at");
 
@@ -208,7 +206,7 @@ impl Pen {
             }
             PathEvent::ClearPredictedTouches => {
                 if let Some(first_predicted_mg) = self.path_builder.first_predicted_mg {
-                    if let Some(parser::Element::Path(p)) =
+                    if let Some(Element::Path(p)) =
                         pen_ctx.buffer.elements.get_mut(&self.current_id)
                     {
                         for n in (first_predicted_mg..p.data.manipulator_groups().len()).rev() {
@@ -225,8 +223,7 @@ impl Pen {
     }
 
     fn cancel_path(&mut self, pen_ctx: &mut ToolContext<'_>) {
-        if let Some(parser::Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id)
-        {
+        if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
             self.path_builder.clear();
             self.path_builder.is_canceled_path = true;
             path.diff_state.data_changed = true;
@@ -239,13 +236,12 @@ impl Pen {
         &mut self, e: IntegrationEvent, pen_ctx: &mut ToolContext<'_>,
         input_state: &PenPointerInput,
     ) -> Option<PathEvent> {
-        let is_current_path_empty = if let Some(parser::Element::Path(path)) =
-            pen_ctx.buffer.elements.get_mut(&self.current_id)
-        {
-            path.data.is_empty()
-        } else {
-            true
-        };
+        let is_current_path_empty =
+            if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
+                path.data.is_empty()
+            } else {
+                true
+            };
         let inner_rect = pen_ctx.painter.clip_rect();
         let has_same_touch_id_as_curr_path = get_event_touch_id(&e).is_some_and(|curr_id| {
             if let Some(first_point_touch_id) = self.path_builder.first_point_touch_id {
@@ -438,7 +434,7 @@ fn correct_start_of_path() {
             egui::LayerId::background(),
             egui::Rect::EVERYTHING,
         ),
-        buffer: &mut parser::Buffer::default(),
+        buffer: &mut lb_rs::svg::buffer::Buffer::default(),
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_touch_frame: true,
@@ -455,7 +451,7 @@ fn correct_start_of_path() {
     for event in &events {
         pen.handle_path_event(*event, &mut pen_ctx);
     }
-    if let Some(parser::Element::Path(p)) = pen_ctx.buffer.elements.get(&path_id) {
+    if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get(&path_id) {
         assert_eq!(p.data.len(), 2);
         // assert_eq!(pen.path_builder.original_points.len(), 1);
     }
@@ -490,7 +486,7 @@ fn cancel_touch_ui_event() {
             egui::LayerId::background(),
             egui::Rect::EVERYTHING,
         ),
-        buffer: &mut parser::Buffer::default(),
+        buffer: &mut lb_rs::svg::buffer::Buffer::default(),
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_touch_frame: true,
@@ -539,7 +535,7 @@ fn cancel_touch_ui_event() {
     });
     assert_eq!(pen_ctx.buffer.elements.len(), 1);
 
-    if let Some(parser::Element::Path(path)) = pen_ctx.buffer.elements.get(&pen.current_id) {
+    if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get(&pen.current_id) {
         assert_eq!(path.data.len(), 3)
     }
 }

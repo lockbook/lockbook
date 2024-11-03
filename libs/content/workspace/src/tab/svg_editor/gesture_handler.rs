@@ -1,5 +1,7 @@
 use std::time::{Duration, Instant};
 
+use super::element::BoundedElement;
+
 use resvg::usvg::Transform;
 use tracing::trace;
 
@@ -265,7 +267,6 @@ fn calc_elements_bounds(buffer: &mut Buffer) -> Option<egui::Rect> {
         if el.deleted() {
             continue;
         }
-
         let el_rect = el.bounding_box();
         dirty_bound = true;
 

@@ -2,8 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use bezier_rs::{Bezier, Subpath};
 use egui::Pos2;
+use lb_rs::svg::element::{Element, ManipulatorGroupId};
 
-use super::parser::{Element, ManipulatorGroupId};
+use super::element::BoundedElement;
 
 pub fn pointer_intersects_element(
     el: &Element, pos: egui::Pos2, last_pos: Option<egui::Pos2>, error_radius: f64,

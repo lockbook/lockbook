@@ -48,7 +48,7 @@ impl Tab {
             }
             TabContent::Svg(svg) => {
                 result.old_hmac = svg.buffer.open_file_hmac;
-                result.content = svg.get_minimal_content();
+                result.content = svg.buffer.to_string();
                 result.safe_write = true;
             }
             _ => return None,
