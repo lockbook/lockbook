@@ -349,24 +349,32 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                                 viewport,
                                 app: Response { close },
                             } = app.frame();
-                            let window_title = {
-                                let maybe_viewport_output = viewport.values().next();
-                                if maybe_viewport_output.is_none() {
-                                    eprintln!("viewport missing: not setting window title");
-                                }
 
-                                let window_title = maybe_viewport_output.and_then(|v| {
-                                    v.commands.iter().find_map(|c| match c {
-                                        ViewportCommand::Title(title) => Some(title.clone()),
-                                        _ => None,
-                                    })
-                                });
-                                window_title
-                            };
+                            let mut redraw_in = None;
+                            let mut window_title = None;
+                            let mut request_paste = false;
+                            if let Some(viewport) = viewport.into_values().next() {
+                                redraw_in = Some(viewport.repaint_delay.as_millis() as _);
+                                for cmd in viewport.commands.into_iter() {
+                                    match cmd {
+                                        ViewportCommand::Title(title) => window_title = Some(title),
+                                        ViewportCommand::RequestPaste => request_paste = true,
+                                        _ => {} // remaining viewport commands ignored (many such cases!)
+                                    }
+                                }
+                            } else {
+                                eprintln!(
+                                    "viewport missing: not redrawing or setting window title"
+                                );
+                            }
+                            let _: Option<u64> = redraw_in; // todo: use; unclear how this app works at all without it
 
                             if output::clipboard_copy::handle(copied_text.clone()).is_err() {
                                 // windows clipboard sometimes has transient errors
                                 app.context.output_mut(|o| o.copied_text = copied_text);
+                            }
+                            if request_paste {
+                                input::clipboard_paste::handle(app);
                             }
                             output::close::handle(close);
                             output::window_title::handle(hwnd, window_title);

@@ -80,9 +80,6 @@ pub unsafe extern "C" fn clipboard_paste(obj: *mut c_void, content: *const c_cha
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let content: String = CStr::from_ptr(content).to_str().unwrap().into();
 
-    let bytes: Vec<_> = content.bytes().collect();
-    println!("Pasting: {:?} ({:?})", content, bytes);
-
     obj.raw_input.events.push(Event::Paste(content));
 }
 

@@ -12,6 +12,7 @@ pub struct MacOSResponse {
     pub copied_text: *mut c_char,
     pub url_opened: *mut c_char,
     pub cursor: CCursorIcon,
+    pub request_paste: bool,
 
     // widget response
     pub selected_file: CUuid,
@@ -47,6 +48,7 @@ impl From<crate::Response> for MacOSResponse {
             cursor,
             virtual_keyboard_shown: _,
             window_title: _,
+            request_paste,
             context_menu: _,
         } = value;
 
@@ -68,6 +70,7 @@ impl From<crate::Response> for MacOSResponse {
             copied_text: CString::new(copied_text).unwrap().into_raw(),
             url_opened,
             cursor: cursor.into(),
+            request_paste,
         }
     }
 }

@@ -187,20 +187,23 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 viewport,
                 app: lbeguiapp::Response { close },
             } = lb.frame();
-            let window_title = {
-                let maybe_viewport_output = viewport.values().next();
-                if maybe_viewport_output.is_none() {
-                    eprintln!("viewport missing: not setting window title");
-                }
 
-                let window_title = maybe_viewport_output.and_then(|v| {
-                    v.commands.iter().find_map(|c| match c {
-                        ViewportCommand::Title(title) => Some(title.clone()),
-                        _ => None,
-                    })
-                });
-                window_title
-            };
+            let mut redraw_in = None;
+            let mut window_title = None;
+            let mut request_paste = false;
+            if let Some(viewport) = viewport.into_values().next() {
+                redraw_in = Some(viewport.repaint_delay.as_millis() as _);
+                for cmd in viewport.commands.into_iter() {
+                    match cmd {
+                        ViewportCommand::Title(title) => window_title = Some(title),
+                        ViewportCommand::RequestPaste => request_paste = true,
+                        _ => {} // remaining viewport commands ignored (many such cases!)
+                    }
+                }
+            } else {
+                eprintln!("viewport missing: not redrawing or setting window title");
+            }
+            let _: Option<u64> = redraw_in; // todo: use; unclear how this app works at all without it
 
             // set modifiers
             let pointer_state = conn.query_pointer(window_id)?.reply()?;
@@ -233,6 +236,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 copied_text,
                 &mut last_copied_text,
             )?;
+            if request_paste {
+                paste_context.handle_paste()?;
+            }
             conn.flush()?;
         }
 
