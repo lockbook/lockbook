@@ -90,12 +90,6 @@ impl AccountScreen {
     pub fn begin_shutdown(&mut self) {
         self.shutdown = Some(AccountShutdownProgress::default());
         self.workspace.save_all_tabs();
-
-        // todo: implement graceful shutdown in workspace
-        while self.workspace.any_tab_saving_or_loading() {
-            thread::sleep(Duration::from_millis(100));
-        }
-
         self.workspace
             .background_tx
             .send(BwIncomingMsg::Shutdown)
