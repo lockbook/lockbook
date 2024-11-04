@@ -213,16 +213,18 @@
     <string name="clear_logs_key" translatable="false">clear_logs</string>
 
     <string name="open_new_doc_automatically_key" translatable="false">open_new_doc_automatically</string>
-    <string name="cancel_subscription_key">cancel_subscription</string>
+    <string name="cancel_subscription_key" translatable="false">cancel_subscription</string>
 
-    <string name="subscription_info_key">subscription_info</string>
-    <string name="premium_key">premium</string>
-    <string name="show_running_out_of_space_0.9_key">running_out_of_space_0.9_key</string>
-    <string name="show_running_out_of_space_0.8_key">running_out_of_space_0.8_key</string>
+    <string name="subscription_info_key" translatable="false">subscription_info</string>
+    <string name="premium_key" translatable="false">premium</string>
+    <string name="show_running_out_of_space_0.9_key" translatable="false">running_out_of_space_0.9_key</string>
+    <string name="show_running_out_of_space_0.8_key" translatable="false">running_out_of_space_0.8_key</string>
 
-    <string name="privacy_key">privacy</string>
-    <string name="logout_key">logout</string>
-    <string name="delete_account_key">delete_account</string>
+    <string name="privacy_key" translatable="false">privacy</string>
+    <string name="logout_key" translatable="false">logout</string>
+    <string name="delete_account_key" translatable="false">delete_account</string>
+
+    <string name="theme_mode_key" translatable="false">theme_mode</string>
 
     <!--    Billing-->
 
@@ -271,6 +273,7 @@
     <string name="upgrade_now">Upgrade now</string>
 
     <string name="pending_shares">Pending Shares</string>
+    <string name="change_theme">Change theme</string>
     <string name="shared_file_icon">Shared file icon</string>
     <string name="reject_all_shared">Reject all</string>
     <string name="create_link_file_for">Creating link for \"%s\".</string>

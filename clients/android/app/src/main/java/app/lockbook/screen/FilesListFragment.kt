@@ -32,6 +32,7 @@ import com.afollestad.recyclical.viewholder.isSelected
 import com.afollestad.recyclical.withItem
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textview.MaterialTextView
 import java.lang.ref.WeakReference
 import java.util.*
@@ -251,6 +252,23 @@ class FilesListFragment : Fragment(), FilesFragment {
             header.findViewById<LinearLayout>(R.id.launch_pending_shares).setOnClickListener {
                 activityModel.launchActivityScreen(ActivityScreen.Shares)
                 binding.drawerLayout.close()
+            }
+
+            header.findViewById<LinearLayout>(R.id.change_theme).setOnClickListener {
+                var selected = ThemeMode.getSavedThemeIndex(requireContext())
+
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Choose your theme")
+                    .setSingleChoiceItems(ThemeMode.getThemeModes(), selected) { _, new ->
+                        selected = new
+                    }
+                    .setPositiveButton("Apply") { _, _ ->
+                        ThemeMode.saveAndSetThemeIndex(requireContext(), selected)
+                    }
+                    .setNegativeButton("Cancel") { dialog, _ ->
+                        dialog.dismiss()
+                    }
+                    .show()
             }
 
             header.findViewById<LinearLayout>(R.id.launch_settings).setOnClickListener {
