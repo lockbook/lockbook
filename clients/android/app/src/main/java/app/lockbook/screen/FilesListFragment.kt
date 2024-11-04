@@ -254,7 +254,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 binding.drawerLayout.close()
             }
 
-            header.findViewById<LinearLayout>(R.id.change_theme).setOnClickListener {
+            header.findViewById<LinearLayout>(R.id.set_theme).setOnClickListener {
                 var selected = ThemeMode.getSavedThemeIndex(requireContext())
 
                 MaterialAlertDialogBuilder(requireContext())
