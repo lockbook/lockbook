@@ -24,7 +24,7 @@ use x11rb::{
     xcb_ffi::XCBConnection,
     COPY_DEPTH_FROM_PARENT,
 };
-use xkbcommon::xkb::{self, x11};
+use xkbcommon::xkb::x11;
 
 // A collection of the atoms we will need.
 atom_manager! {
@@ -63,7 +63,7 @@ atom_manager! {
 }
 
 use crate::{
-    input::{self, clipboard_paste},
+    input::{self, clipboard_paste, key::Keyboard},
     output,
 };
 
@@ -87,7 +87,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         // EventMask::BUTTON4_MOTION,
         // EventMask::BUTTON5_MOTION,
         // EventMask::BUTTON_MOTION,
-        // EventMask::KEYMAP_STATE,
+        EventMask::KEYMAP_STATE,
         // EventMask::EXPOSURE,
         // EventMask::VISIBILITY_CHANGE,
         EventMask::STRUCTURE_NOTIFY,
@@ -146,6 +146,18 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Lockbook\0Lockbook\0".as_bytes(),
     )?;
 
+    // setup for keyboard layout support
+    x11::setup_xkb_extension(
+        conn,
+        1,
+        0,
+        x11::SetupXkbExtensionFlags::NoFlags,
+        &mut 0,
+        &mut 0,
+        &mut 0,
+        &mut 0,
+    );
+
     conn.map_window(window_id)?;
     conn.flush()?;
 
@@ -173,30 +185,21 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_copied_text = String::new();
     let mut paste_context = clipboard_paste::Context::new(window_id, conn, &atoms);
     let mut cursor_manager = output::cursor::Manager::new(conn, screen_num)?;
+    let mut keyboard = Keyboard::new(conn);
 
     loop {
         let mut got_events = got_events_atomic.load(Ordering::SeqCst);
         while let Some(event) = conn.poll_for_event()? {
             got_events = true;
-            conn.query_keymap()?.reply()?;
-            let mapping = conn
-                .get_keyboard_mapping(
-                    conn.setup().min_keycode,
-                    conn.setup().max_keycode - conn.setup().min_keycode + 1,
-                )?
-                .reply()?;
 
-
-            // println!("keymap query {:?}", mapping.keysyms);
             handle(
                 conn,
-                &mapping,
-                conn.setup().min_keycode,
                 &atoms,
                 &last_copied_text,
                 event,
                 &mut lb,
                 &mut paste_context,
+                &mut keyboard,
             )?;
         }
         if got_events {
@@ -263,9 +266,8 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn handle(
-    conn: &XCBConnection, mapping: &GetKeyboardMappingReply, min_key_code: u8,
-    atoms: &AtomCollection, last_copied_text: &str, event: Event, lb: &mut WgpuLockbook,
-    paste_context: &mut clipboard_paste::Context,
+    conn: &XCBConnection, atoms: &AtomCollection, last_copied_text: &str, event: Event,
+    lb: &mut WgpuLockbook, paste_context: &mut clipboard_paste::Context, keyboard: &mut Keyboard,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match event {
         // pointer
@@ -280,22 +282,15 @@ fn handle(
         }
 
         // keyboard
-        Event::KeyPress(event) => input::key::handle(
-            conn,
-            event.detail,
-            event.state,
-            true,
-            lb,
-            paste_context,
-        )?,
-        Event::KeyRelease(event) => input::key::handle(
-            conn,
-            event.detail,
-            event.state,
-            false,
-            lb,
-            paste_context,
-        )?,
+        Event::KeymapNotify(_) => {
+            *keyboard = Keyboard::new(conn);
+        }
+        Event::KeyPress(event) => {
+            keyboard.handle(event.detail, event.state, true, lb, paste_context)?
+        }
+        Event::KeyRelease(event) => {
+            keyboard.handle(event.detail, event.state, false, lb, paste_context)?
+        }
 
         // resize
         Event::ConfigureNotify(event) => {
@@ -343,7 +338,7 @@ fn handle(
             )?;
         }
 
-        _ => {} //println!("unsupported evt: {:?}", event),
+        _ => {}
     };
 
     Ok(())
