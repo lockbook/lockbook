@@ -59,7 +59,7 @@ pub enum Region {
     /// 0-length region starting and ending at location
     Location(Location),
 
-    /// Text from secondary cursor to location. preserves selection.
+    /// Text from secondary cursor to location. Preserves selection.
     ToLocation(Location),
 
     /// Text from one location to another
