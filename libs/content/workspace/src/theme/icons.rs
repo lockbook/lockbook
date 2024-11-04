@@ -34,6 +34,8 @@ impl Icon {
     pub const CLOSE: Self = ic("\u{e5cd}"); // Close
     pub const CODE: Self = ic("\u{e86f}"); // Code
     pub const CONTENT_COPY: Self = ic("\u{e14d}"); // Content Copy
+    pub const CONTENT_CUT: Self = ic("\u{e14e}"); // Content Cut
+    pub const CONTENT_PASTE: Self = ic("\u{e14f}"); // Content Paste
     pub const DOC_UNKNOWN: Self = ic("\u{e06f}"); // Note
     pub const DOC_TEXT: Self = ic("\u{e873}"); // Description
     pub const DONE: Self = ic("\u{e876}"); // Done

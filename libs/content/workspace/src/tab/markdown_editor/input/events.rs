@@ -1,7 +1,9 @@
 use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::Location;
 use crate::tab::{self, markdown_editor, ClipContent, ExtendedInput as _, ExtendedOutput as _};
-use egui::{Context, EventFilter, Pos2};
+use crate::theme::icons::Icon;
+use crate::widgets::IconButton;
+use egui::{Context, EventFilter, Pos2, Stroke, ViewportCommand};
 use lb_rs::text::buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 use markdown_editor::input::{Event, Region};
@@ -109,6 +111,52 @@ impl Editor {
             if let Some(response) = ctx.read_response(galley.response.id) {
                 let modifiers = ctx.input(|i| i.modifiers);
 
+                ctx.style_mut(|s| s.spacing.menu_margin = egui::vec2(10., 5.).into());
+                ctx.style_mut(|s| s.visuals.menu_rounding = (2.).into());
+                ctx.style_mut(|s| s.visuals.window_fill = s.visuals.extreme_bg_color);
+                ctx.style_mut(|s| s.visuals.window_stroke = Stroke::NONE);
+
+                if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {
+                    let mut context_menu_events = Vec::new();
+                    response.context_menu(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.set_min_height(30.);
+                            ui.style_mut().spacing.button_padding = egui::vec2(5.0, 5.0);
+
+                            if IconButton::new(&Icon::CONTENT_CUT)
+                                .tooltip("Cut")
+                                .show(ui)
+                                .clicked()
+                            {
+                                context_menu_events.push(Event::Cut);
+                                ui.close_menu();
+                            }
+                            ui.add_space(5.);
+                            if IconButton::new(&Icon::CONTENT_COPY)
+                                .tooltip("Copy")
+                                .show(ui)
+                                .clicked()
+                            {
+                                context_menu_events.push(Event::Copy);
+                                ui.close_menu();
+                            }
+                            ui.add_space(5.);
+                            if IconButton::new(&Icon::CONTENT_PASTE)
+                                .tooltip("Paste")
+                                .show(ui)
+                                .clicked()
+                            {
+                                // paste must go through the window because we don't yet have the clipboard content
+                                ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
+                                ui.close_menu();
+                            }
+                        });
+                    });
+                    if !context_menu_events.is_empty() {
+                        return context_menu_events;
+                    }
+                }
+
                 // hover-based cursor icons
                 let hovering_clickable = ctx
                     .input(|r| r.pointer.latest_pos())
@@ -130,6 +178,7 @@ impl Editor {
                     ctx.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
                 }
 
+                // note: early continue here unless response has a pointer interaction
                 let pos =
                     if let Some(pos) = response.interact_pointer_pos() { pos } else { continue };
                 let location = Location::Pos(pos);
