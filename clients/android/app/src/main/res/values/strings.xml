@@ -276,7 +276,7 @@
     <string name="upgrade_now">Upgrade now</string>
 
     <string name="pending_shares">Pending Shares</string>
-    <string name="change_theme">Change theme</string>
+    <string name="set_theme">Set theme</string>
     <string name="shared_file_icon">Shared file icon</string>
     <string name="reject_all_shared">Reject all</string>
     <string name="create_link_file_for">Creating link for \"%s\".</string>
