@@ -72,6 +72,8 @@ class MainScreenActivity : AppCompatActivity() {
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        ThemeMode.affirmThemeModeFromSaved(baseContext)
+
         supportFragmentManager.registerFragmentLifecycleCallbacks(
             fragmentFinishedCallback,
             false
