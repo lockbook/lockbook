@@ -8,7 +8,7 @@ use std::ffi::OsStr;
 use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc, RwLock};
 use std::time::Duration;
-use std::{path, thread};
+use std::{path, process, thread};
 
 use eframe::egui;
 use lb::{FileType, Uuid};
@@ -90,6 +90,12 @@ impl AccountScreen {
     pub fn begin_shutdown(&mut self) {
         self.shutdown = Some(AccountShutdownProgress::default());
         self.workspace.save_all_tabs();
+
+        // todo: implement graceful shutdown in workspace
+        while self.workspace.any_tab_saving_or_loading() {
+            thread::sleep(Duration::from_millis(100));
+        }
+
         self.workspace
             .background_tx
             .send(BwIncomingMsg::Shutdown)
@@ -324,6 +330,11 @@ impl AccountScreen {
                 Some(_) => None,
                 None => Some(HelpModal),
             };
+        }
+
+        // Ctrl-Q to quit.
+        if ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::Q)) {
+            process::exit(0); // todo: graceful shutdown (needs support from windows client, linux client, workspace)
         }
     }
 
