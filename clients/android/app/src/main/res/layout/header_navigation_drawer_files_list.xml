@@ -63,8 +63,8 @@
 
         <ImageView
             android:id="@+id/pending_shares_icon"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
             android:src="@drawable/ic_outline_folder_shared_24"
             android:contentDescription="@string/pending_shares" />
 
@@ -72,6 +72,32 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/pending_shares"
+            android:paddingHorizontal="13dp" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/set_theme"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clickable="true"
+        android:background="?android:attr/selectableItemBackground"
+        android:focusable="true"
+        android:layout_marginTop="20dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:id="@+id/set_theme_icon"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:src="@drawable/outline_brightness_2_24"
+            android:contentDescription="@string/pending_shares" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/set_theme"
             android:paddingHorizontal="13dp" />
 
     </LinearLayout>
@@ -88,8 +114,8 @@
         android:gravity="center_vertical">
 
         <ImageView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
             android:src="@drawable/ic_outline_settings_24"
             android:contentDescription="@string/settings_title" />
 
