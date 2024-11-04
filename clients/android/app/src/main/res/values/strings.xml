@@ -225,6 +225,9 @@
     <string name="delete_account_key" translatable="false">delete_account</string>
 
     <string name="theme_mode_key" translatable="false">theme_mode</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_system">System</string>
 
     <!--    Billing-->
 

@@ -259,7 +259,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
                 MaterialAlertDialogBuilder(requireContext())
                     .setTitle("Choose your theme")
-                    .setSingleChoiceItems(ThemeMode.getThemeModes(), selected) { _, new ->
+                    .setSingleChoiceItems(ThemeMode.getThemeModes(requireContext()), selected) { _, new ->
                         selected = new
                     }
                     .setPositiveButton("Apply") { _, _ ->

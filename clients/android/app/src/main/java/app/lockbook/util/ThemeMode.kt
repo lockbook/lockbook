@@ -6,8 +6,8 @@ import androidx.preference.PreferenceManager
 import app.lockbook.R
 
 object ThemeMode {
-    fun getThemeModes(): Array<String> {
-        return arrayOf("Light", "Dark", "System Default")
+    fun getThemeModes(context: Context): Array<String> {
+        return arrayOf(context.getString(R.string.theme_light), context.getString(R.string.theme_dark), context.getString(R.string.theme_system))
     }
 
     fun getSavedThemeIndex(context: Context): Int {
