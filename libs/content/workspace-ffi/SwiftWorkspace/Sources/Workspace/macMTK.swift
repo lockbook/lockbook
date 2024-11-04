@@ -354,6 +354,11 @@ public class MacMTK: MTKView, MTKViewDelegate {
             }
         }
         
+        if output.request_paste {
+            importFromPasteboard(NSPasteboard.general, isPaste: true)
+            setNeedsDisplay(self.frame)
+        }
+        
         redrawTask?.cancel()
         redrawTask = nil
         self.isPaused = output.redraw_in > 50
