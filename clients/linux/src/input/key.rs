@@ -1,6 +1,10 @@
 use crate::input::{self, modifiers};
 use lbeguiapp::WgpuLockbook;
-use x11rb::protocol::xproto::KeyButMask;
+use x11rb::{
+    protocol::xproto::{GetKeyboardMappingReply, KeyButMask},
+    xcb_ffi::XCBConnection,
+};
+use xkbcommon::xkb::{self, x11, Context, KEYMAP_COMPILE_NO_FLAGS};
 
 struct Key {
     sc: u8,
@@ -104,12 +108,13 @@ const KEYS: [Key; 89] = [
 ];
 
 pub fn handle(
-    detail: u8, state: KeyButMask, pressed: bool, app: &mut WgpuLockbook,
+    conn: &XCBConnection, detail: u8, state: KeyButMask, pressed: bool, app: &mut WgpuLockbook,
     paste_context: &mut input::clipboard_paste::Context,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // "X11-style keycodes are offset by 8 from the keycodes the Linux kernel uses."
     // https://github.com/rust-windowing/winit/blob/master/src/platform_impl/linux/common/keymap.rs#L7
-    let key = detail.saturating_sub(8);
+    //let key = detail.saturating_sub(8);
+    let key = detail;
 
     let modifiers = modifiers(state);
 
@@ -121,6 +126,49 @@ pub fn handle(
                 .push(egui::Event::Text(text.to_owned()));
         }
     }
+    let context = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
+    println!(
+        "STATUS: {}",
+        x11::setup_xkb_extension(
+            conn,
+            1,
+            0,
+            x11::SetupXkbExtensionFlags::NoFlags,
+            &mut 0,
+            &mut 0,
+            &mut 0,
+            &mut 0,
+        )
+    );
+    let device_id = x11::get_core_keyboard_device_id(conn);
+    println!("{device_id}");
+    let keymap =
+        x11::keymap_new_from_device(&context, conn, device_id, xkb::KEYMAP_COMPILE_NO_FLAGS);
+    println!("got map");
+    let state = x11::state_new_from_device(&keymap, conn, device_id);
+    println!("key0: {} active {:?}", keymap.layout_get_name(0), state.layout_index_is_active(0, xkb::STATE_LAYOUT_EFFECTIVE));
+    println!("key1: {} active {:?}", keymap.layout_get_name(1), state.layout_index_is_active(1, xkb::STATE_LAYOUT_EFFECTIVE));
+    let keysym = state.key_get_one_sym(key.into());
+
+
+
+    // let context = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
+    // let keymap =
+    //     xkb::Keymap::new_from_names(&context, "", "", "", "", None, KEYMAP_COMPILE_NO_FLAGS)
+    //         .unwrap();
+    // println!("num layouts: {}", keymap.num_layouts());
+    // println!("keymap 0 name: {}", keymap.layout_get_name(0));
+    // println!("keymap 1 name: {}", keymap.layout_get_name(1));
+    // let keysyms_per_keycode = mapping.keysyms_per_keycode as usize;
+
+    // // Calculate the starting index for the keysyms for the given keycode
+    // let keycode = detail;
+    // let index = (keycode - min_keycode) as usize * keysyms_per_keycode;
+    // let keysyms_slice = &mapping.keysyms[index..index + keysyms_per_keycode];
+    // // let state = xkb::State::new(&keymap);
+    // let keysym = keysyms_slice[0];
+    let s = xkb::keysym_to_utf8(keysym.into());
+    println!("key: {key}, s: {s}" );
 
     // todo: something feels weird about this
     if let Some(key) = egui_key(key) {

@@ -24,6 +24,7 @@ use x11rb::{
     xcb_ffi::XCBConnection,
     COPY_DEPTH_FROM_PARENT,
 };
+use xkbcommon::xkb::{self, x11};
 
 // A collection of the atoms we will need.
 atom_manager! {
@@ -172,11 +173,31 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_copied_text = String::new();
     let mut paste_context = clipboard_paste::Context::new(window_id, conn, &atoms);
     let mut cursor_manager = output::cursor::Manager::new(conn, screen_num)?;
+
     loop {
         let mut got_events = got_events_atomic.load(Ordering::SeqCst);
         while let Some(event) = conn.poll_for_event()? {
             got_events = true;
-            handle(conn, &atoms, &last_copied_text, event, &mut lb, &mut paste_context)?;
+            conn.query_keymap()?.reply()?;
+            let mapping = conn
+                .get_keyboard_mapping(
+                    conn.setup().min_keycode,
+                    conn.setup().max_keycode - conn.setup().min_keycode + 1,
+                )?
+                .reply()?;
+
+
+            // println!("keymap query {:?}", mapping.keysyms);
+            handle(
+                conn,
+                &mapping,
+                conn.setup().min_keycode,
+                &atoms,
+                &last_copied_text,
+                event,
+                &mut lb,
+                &mut paste_context,
+            )?;
         }
         if got_events {
             got_events_atomic.store(false, Ordering::SeqCst);
@@ -242,8 +263,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn handle(
-    conn: &XCBConnection, atoms: &AtomCollection, last_copied_text: &str, event: Event,
-    lb: &mut WgpuLockbook, paste_context: &mut clipboard_paste::Context,
+    conn: &XCBConnection, mapping: &GetKeyboardMappingReply, min_key_code: u8,
+    atoms: &AtomCollection, last_copied_text: &str, event: Event, lb: &mut WgpuLockbook,
+    paste_context: &mut clipboard_paste::Context,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match event {
         // pointer
@@ -258,12 +280,22 @@ fn handle(
         }
 
         // keyboard
-        Event::KeyPress(event) => {
-            input::key::handle(event.detail, event.state, true, lb, paste_context)?
-        }
-        Event::KeyRelease(event) => {
-            input::key::handle(event.detail, event.state, false, lb, paste_context)?
-        }
+        Event::KeyPress(event) => input::key::handle(
+            conn,
+            event.detail,
+            event.state,
+            true,
+            lb,
+            paste_context,
+        )?,
+        Event::KeyRelease(event) => input::key::handle(
+            conn,
+            event.detail,
+            event.state,
+            false,
+            lb,
+            paste_context,
+        )?,
 
         // resize
         Event::ConfigureNotify(event) => {
@@ -311,7 +343,7 @@ fn handle(
             )?;
         }
 
-        _ => {}
+        _ => {} //println!("unsupported evt: {:?}", event),
     };
 
     Ok(())
