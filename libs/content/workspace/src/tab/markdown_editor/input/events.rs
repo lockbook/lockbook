@@ -149,20 +149,24 @@ impl Editor {
                     let url = if !url.contains("://") { format!("https://{}", url) } else { url };
                     ctx.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
                     continue;
-                } else if response.triple_clicked() {
-                    Region::BoundAt { bound: Bound::Paragraph, location, backwards: true }
-                } else if response.double_clicked() {
-                    // android native context menu: double-tapped
+                } else if response.double_clicked() || response.triple_clicked() {
+                    // egui triple click detection is not that good and can report triple clicks without reporting double clicks
                     if cfg!(target_os = "android") {
-                        // context menu position based on text range of word that will be selected
+                        // android native context menu: multi-tapped for selection
+                        // position based on text range of word that will be selected
                         let offset = self.location_to_char_offset(location);
                         let range = offset
                             .range_bound(Bound::Word, true, true, &self.bounds)
                             .unwrap_or((offset, offset));
                         ctx.set_context_menu(self.context_menu_pos(range).unwrap_or(pos));
+                        continue;
+                    } else if self.buffer.current.selection.is_empty() {
+                        // double click behavior
+                        Region::BoundAt { bound: Bound::Word, location, backwards: true }
+                    } else {
+                        // triple click behavior
+                        Region::BoundAt { bound: Bound::Paragraph, location, backwards: true }
                     }
-
-                    Region::BoundAt { bound: Bound::Word, location, backwards: true }
                 } else if response.clicked() && modifiers.shift {
                     Region::ToLocation(location)
                 } else if response.clicked() {
