@@ -195,7 +195,10 @@ impl Editor {
                     Region::ToLocation(location)
                 } else if response.dragged() {
                     if response.drag_started() {
-                        Region::Location(location)
+                        let drag_origin =
+                            ctx.input(|i| i.pointer.press_origin()).unwrap_or_default();
+
+                        Region::Location(Location::Pos(drag_origin))
                     } else {
                         Region::ToLocation(location)
                     }
