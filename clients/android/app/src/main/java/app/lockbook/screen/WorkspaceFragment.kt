@@ -13,7 +13,6 @@ import android.text.InputType
 import android.text.Selection
 import android.text.Spannable
 import android.text.Spanned
-import android.util.Log
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -21,16 +20,12 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.inputmethod.BaseInputConnection
-import android.view.inputmethod.CursorAnchorInfo
-import android.view.inputmethod.EditorBoundsInfo
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
-import android.view.inputmethod.TextAttribute
 import android.widget.FrameLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.inputmethod.InputConnectionCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.App
@@ -389,11 +384,11 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         val isImmediate = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_IMMEDIATE) != 0
         val isMonitor = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR) != 0
 
-        if(isImmediate) {
+        if (isImmediate) {
             notifySelectionUpdated(true)
         }
 
-        if(isMonitor) {
+        if (isMonitor) {
             val newMonitorStatus = CursorMonitorStatus(true)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -401,7 +396,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
                 val characterBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_CHARACTER_BOUNDS) != 0
                 val insertionMarker = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_INSERTION_MARKER) != 0
 
-                if(editorBounds || characterBounds || insertionMarker) {
+                if (editorBounds || characterBounds || insertionMarker) {
                     return false
                 }
 
@@ -409,7 +404,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
                     val lineBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_VISIBLE_LINE_BOUNDS) != 0
                     val textAppearance = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_TEXT_APPEARANCE) != 0
 
-                    if(lineBounds || textAppearance) {
+                    if (lineBounds || textAppearance) {
                         return false
                     }
                 }
@@ -638,10 +633,10 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     private fun getComposingSpansFromSpannable(spannable: Spannable): Pair<Int, Int> {
-        for(span in spannable.getSpans(0, spannable.length, Object::class.java)) {
+        for (span in spannable.getSpans(0, spannable.length, Object::class.java)) {
             val flags = spannable.getSpanFlags(span)
 
-            if((flags and Spanned.SPAN_COMPOSING) != 0) {
+            if ((flags and Spanned.SPAN_COMPOSING) != 0) {
                 return Pair(spannable.getSpanStart(span), spannable.getSpanEnd(span))
             }
         }
@@ -669,27 +664,27 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             }
 
             val spannableSource = realText as? Spannable
-            if(spannableSource != null) {
-                val (sourceComposingStart, sourceComposingEnd) = if(composingTag == null) {
+            if (spannableSource != null) {
+                val (sourceComposingStart, sourceComposingEnd) = if (composingTag == null) {
                     getComposingSpansFromSpannable(spannableSource)
                 } else {
                     Pair(spannableSource.getSpanStart(composingTag), spannableSource.getSpanEnd(composingTag))
                 }
 
-                if(sourceComposingStart != -1) {
+                if (sourceComposingStart != -1) {
                     val newStart = st + sourceComposingStart
 
-                    composingStart = if(composingStart == -1) {
+                    composingStart = if (composingStart == -1) {
                         newStart
                     } else {
                         kotlin.math.min(composingStart, newStart)
                     }
                 }
 
-                if(sourceComposingEnd != -1) {
+                if (sourceComposingEnd != -1) {
                     val newEnd = st + sourceComposingEnd
 
-                    composingEnd = if(composingEnd == -1) {
+                    composingEnd = if (composingEnd == -1) {
                         newEnd
                     } else {
                         kotlin.math.max(composingStart, newEnd)
