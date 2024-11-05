@@ -674,20 +674,16 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
                 if (sourceComposingStart != -1) {
                     val newStart = st + sourceComposingStart
 
-                    composingStart = if (composingStart == -1) {
-                        newStart
-                    } else {
-                        kotlin.math.min(composingStart, newStart)
+                    if (composingStart == -1 || composingStart > newStart) {
+                        composingStart = newStart
                     }
                 }
 
                 if (sourceComposingEnd != -1) {
                     val newEnd = st + sourceComposingEnd
 
-                    composingEnd = if (composingEnd == -1) {
-                        newEnd
-                    } else {
-                        kotlin.math.max(composingStart, newEnd)
+                    if (composingEnd < newEnd) {
+                        composingEnd = newEnd
                     }
                 }
             }
