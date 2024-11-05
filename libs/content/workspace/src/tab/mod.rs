@@ -25,9 +25,10 @@ pub struct Tab {
     pub last_changed: Instant,
     pub last_saved: Instant,
 
-    /// ...with lb-rs. Different from lb-rs's syncing, which is with the server.
-    /// This is used to prevent saves and loads of this tab from happening concurrently.
+    /// Flags used to prevent saves and loads of this tab from happening concurrently. Loads while the tab is already
+    /// saving or loading are queued. Saves are periodic, so they're effectively retried.
     pub is_saving_or_loading: bool,
+    pub load_queued: bool,
 }
 
 #[derive(Debug, Default)]
