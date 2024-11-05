@@ -850,12 +850,14 @@ impl Workspace {
                                 !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         } else if ext == "svg" {
-                            tab.content = Some(TabContent::Svg(SVGEditor::new(
-                                &bytes,
-                                &ctx,
-                                core.clone(),
-                                id,
-                            )));
+                            if tab_created {
+                                tab.content = Some(TabContent::Svg(SVGEditor::new(
+                                    &bytes,
+                                    &ctx,
+                                    core.clone(),
+                                    id,
+                                )));
+                            }
                         } else if ext == "md" || ext == "txt" {
                             if tab_created {
                                 tab.content = Some(TabContent::Markdown(Markdown::new(

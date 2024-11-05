@@ -71,6 +71,7 @@ impl GestureHandler {
                 self.current_gesture = Some(Gesture::new(ui))
             }
         } else if let Some(prev_gesture) = &mut self.current_gesture {
+            let last_gesture = prev_gesture.clone();
             trace!("gesture released in the last frame");
             if !is_potential_viewport_change_higher_than_threshold(prev_gesture)
                 && prev_gesture.total_applied_shortcuts == 0
@@ -79,7 +80,10 @@ impl GestureHandler {
                 self.apply_shortcut(gesture_ctx);
                 ui.ctx().request_repaint();
             }
-            self.last_gesture = self.current_gesture.clone();
+
+            if last_gesture.total_applied_shortcuts > 0 {
+                self.last_gesture = Some(last_gesture.clone());
+            }
             self.current_gesture = None;
         }
 
@@ -145,6 +149,13 @@ impl GestureHandler {
             ui.input(|r| {
                 r.events.iter().for_each(|e| {
                     if let egui::Event::Touch { id, phase, .. } = e {
+                        if *phase == egui::TouchPhase::Cancel {
+                            println!("id is : {:#?}", id.0);
+                            println!("last_gesure ids are : {:#?}", last_gesture.touches.keys());
+                        }
+
+                        println!("{:#?}", e);
+
                         if *phase == egui::TouchPhase::Cancel
                             && last_gesture.touches.contains_key(&id.0)
                         {
@@ -152,9 +163,11 @@ impl GestureHandler {
                                 for _ in 0..last_gesture.total_applied_shortcuts {
                                     match gesture.0 {
                                         Shortcut::Undo => {
+                                            println!("fix error undo");
                                             gesture_ctx.history.redo(gesture_ctx.buffer)
                                         }
                                         Shortcut::Redo => {
+                                            println!("fix error redo");
                                             gesture_ctx.history.undo(gesture_ctx.buffer)
                                         }
                                     }
