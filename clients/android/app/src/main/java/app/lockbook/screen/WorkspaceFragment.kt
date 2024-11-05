@@ -47,7 +47,6 @@ import app.lockbook.workspace.JTextRange
 import com.github.michaelbull.result.unwrap
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import timber.log.Timber
 import kotlin.math.abs
 
 class WorkspaceFragment : Fragment() {
@@ -329,15 +328,13 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     val wsEditable = WorkspaceTextEditable(workspaceView, this)
     private var batchEditCount = 0
 
-    var cursorMonitorStatus = CursorMonitorStatus()
+    private var cursorMonitorStatus = CursorMonitorStatus()
 
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
     fun notifySelectionUpdated(isImmediate: Boolean = false) {
         if ((batchEditCount == 0 && cursorMonitorStatus.monitor) || isImmediate) {
-            Timber.tag("Workspace Editor").e("notifying selection updated")
-
             val selection = wsEditable.getSelection()
 
             getInputMethodManager().updateSelection(
@@ -350,109 +347,12 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         }
     }
 
-    override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-        return super.setComposingText(text, newCursorPosition).also { res ->
-            Timber.tag("Workspace Editor").e("setComposingText: $text $newCursorPosition result=$res")
-            Timber.tag("Workspace Editor").e("EXTRA INFO setComposingText: composingStart=${wsEditable.composingStart} composingEnd=${wsEditable.composingEnd} selectionStart=${wsEditable.selectionStart}  selectionEnd=${wsEditable.selectionEnd}}")
-        }
-    }
-
-    override fun setComposingText(
-        text: CharSequence,
-        newCursorPosition: Int,
-        textAttribute: TextAttribute?
-    ): Boolean {
-        return super.setComposingText(text, newCursorPosition, textAttribute).also { res ->
-            Timber.tag("Workspace Editor").e("setComposingText: $text $newCursorPosition $textAttribute result=$res")
-        }
-    }
-
-    override fun setComposingRegion(start: Int, end: Int): Boolean {
-        return super.setComposingRegion(start, end).also { res ->
-            Timber.tag("Workspace Editor").e("setComposingRegion: $start $end result=$res")
-        }
-    }
-
-    override fun setComposingRegion(start: Int, end: Int, textAttribute: TextAttribute?): Boolean {
-        return super.setComposingRegion(start, end, textAttribute).also { res ->
-            Timber.tag("Workspace Editor").e("setComposingRegion: $start $end $textAttribute result=$res")
-        }
-    }
-
-    override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
-        return super.commitText(text, newCursorPosition).also { res ->
-            Timber.tag("Workspace Editor").e("commitText: $text $newCursorPosition result=$res")
-            wsEditable.composingStart = -1
-            wsEditable.composingEnd = -1
-            Timber.tag("Workspace Editor").e("EXTRA INFO commitText: composingStart=${wsEditable.composingStart} composingEnd=${wsEditable.composingEnd} selectionStart=${wsEditable.selectionStart}  selectionEnd=${wsEditable.selectionEnd}}")
-        }
-    }
-
-    override fun commitText(
-        text: CharSequence,
-        newCursorPosition: Int,
-        textAttribute: TextAttribute?
-    ): Boolean {
-        return super.commitText(text, newCursorPosition, textAttribute).also { res ->
-            Timber.tag("Workspace Editor").e("commitText: $text $newCursorPosition $textAttribute result=$res")
-            wsEditable.composingStart = -1
-            wsEditable.composingEnd = -1
-            Timber.tag("Workspace Editor").e("EXTRA INFO commitText: composingStart=${wsEditable.composingStart} composingEnd=${wsEditable.composingEnd} selectionStart=${wsEditable.selectionStart}  selectionEnd=${wsEditable.selectionEnd}}")
-        }
-    }
-
-    override fun finishComposingText(): Boolean {
-        return super.finishComposingText().also { res ->
-            Timber.tag("Workspace Editor").e("finishComposingText result=$res")
-        }
-    }
-
-    override fun getSelectedText(flags: Int): CharSequence? {
-        return super.getSelectedText(flags).also { res ->
-            Timber.tag("Workspace Editor").e("getSelectedText $flags result=$res")
-        }
-    }
-
-    override fun getTextAfterCursor(length: Int, flags: Int): CharSequence? {
-        return super.getTextAfterCursor(length, flags).also { res ->
-            Timber.tag("Workspace Editor").e("getTextAfterCursor $length $flags result=${res ?: "nil"}")
-        }
-    }
-
-    override fun getTextBeforeCursor(length: Int, flags: Int): CharSequence? {
-        return super.getTextBeforeCursor(length, flags).also { res ->
-            Timber.tag("Workspace Editor").e("getTextBeforeCursor $length $flags result=${res ?: "nil"}")
-        }
-    }
-
-    override fun replaceText(
-        start: Int,
-        end: Int,
-        text: CharSequence,
-        newCursorPosition: Int,
-        textAttribute: TextAttribute?
-    ): Boolean {
-        return super.replaceText(start, end, text, newCursorPosition, textAttribute).also { res ->
-            Timber.tag("Workspace Editor").e("replaceText $start $end $text $newCursorPosition $textAttribute result=$res")
-        }
-    }
-
-    override fun setSelection(start: Int, end: Int): Boolean {
-        return super.setSelection(start, end).also { res ->
-            Timber.tag("Workspace Editor").e("setSelection $start $end result=$res")
-        }
-    }
-
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
         super.sendKeyEvent(event)
 
         if (event != null) {
-            Timber.tag("Workspace Editor").e("sending key event")
             val content = event.unicodeChar.toChar().toString()
-
             WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed)
-        } else {
-            Timber.tag("Workspace Editor").e("did not send key event")
         }
 
         workspaceView.invalidate()
@@ -461,7 +361,6 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     }
 
     override fun performContextMenuAction(id: Int): Boolean {
-        Timber.tag("Workspace Editor").e("performing context menu action")
         when (id) {
             android.R.id.selectAll -> WorkspaceView.WORKSPACE.selectAll(WorkspaceView.WGPU_OBJ)
             android.R.id.cut -> WorkspaceView.WORKSPACE.clipboardCut(WorkspaceView.WGPU_OBJ)
@@ -596,32 +495,23 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun <T> getSpans(start: Int, end: Int, type: Class<T>?): Array<T> {
-//        Timber.tag("Workspace Editor").e("getting spans: $start $end")
-
         val spans: MutableList<Any> = mutableListOf()
         val spanRange = start..end
 
         if (type != null) {
             val instanceComposingTag = composingTag
 
-            val composingMsg = if (instanceComposingTag != null) { type.isAssignableFrom(instanceComposingTag.javaClass) } else { false }
-
             if (instanceComposingTag != null && type.isAssignableFrom(instanceComposingTag.javaClass) && (spanRange.contains(composingStart) || spanRange.contains(composingEnd))) {
-//                Timber.tag("Workspace Editor").e("adding composing")
                 spans.add(instanceComposingTag)
             }
 
             if (type.isAssignableFrom(Selection.SELECTION_START.javaClass) && spanRange.contains(getSelection().start)) {
-//                Timber.tag("Workspace Editor").e("adding selection start")
                 spans.add(Selection.SELECTION_START)
             }
 
             if (type.isAssignableFrom(Selection.SELECTION_END.javaClass) && spanRange.contains(getSelection().end)) {
-//                Timber.tag("Workspace Editor").e("adding selection end")
                 spans.add(Selection.SELECTION_END)
             }
-
-//            Timber.tag("Workspace Editor").e("finished getting spans")
         }
 
         @Suppress("UNCHECKED_CAST")
@@ -698,8 +588,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             composingTag = what
             composingStart = start
             composingEnd = end
-
-            Timber.tag("Workspace Editor").e("setSpan $composingStart $composingEnd")
         } else {
             return
         }
@@ -743,67 +631,13 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun replace(st: Int, en: Int, source: CharSequence?, start: Int, end: Int): Editable {
         source?.let { realText ->
-            val sourceString = realText.subSequence(start, end)
-
-            if (st == selectionStart && en == selectionEnd) {
-                if (realText == "\n") {
-                    WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
-                } else {
-                    WorkspaceView.WORKSPACE.insertTextAtCursor(WorkspaceView.WGPU_OBJ, sourceString.toString())
-                }
-            } else {
-                WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, sourceString.toString())
-            }
-
-            if (en < composingStart) {
-                val replacedLen = en - st
-
-                composingStart = composingStart - replacedLen + sourceString.length
-                composingEnd = composingEnd - replacedLen + sourceString.length
-            }
-
-            val spannableSource = realText as? Spannable
-            if(spannableSource != null) {
-                val (sourceComposingStart, sourceComposingEnd) = if(composingTag == null) {
-                    getComposingSpansFromSpannable(spannableSource)
-                } else {
-                    Pair(spannableSource.getSpanStart(composingTag), spannableSource.getSpanEnd(composingTag))
-                }
-
-                Timber.tag("Workspace Editor").e("Checking this replace ish: $sourceComposingStart $sourceComposingEnd $composingTag")
-
-                if(sourceComposingStart != -1) {
-                    val newStart = st + sourceComposingStart
-                    Timber.tag("Workspace Editor").e("Comparing start: $composingStart $newStart")
-
-
-                    composingStart = if(composingStart == -1) {
-                        newStart
-                    } else {
-                        kotlin.math.min(composingStart, newStart)
-                    }
-                }
-
-                if(sourceComposingEnd != -1) {
-                    val newEnd = st + sourceComposingEnd
-                    Timber.tag("Workspace Editor").e("Comparing end: $composingEnd $newEnd")
-
-                    composingEnd = if(composingEnd == -1) {
-                        newEnd
-                    } else {
-                        kotlin.math.max(composingStart, newEnd)
-                    }
-                }
-            }
-
-            view.drawImmediately()
-            wsInputConnection.notifySelectionUpdated()
+            replace(st, en, realText.subSequence(start, end))
         }
 
         return this
     }
 
-    fun getComposingSpansFromSpannable(spannable: Spannable): Pair<Int, Int> {
+    private fun getComposingSpansFromSpannable(spannable: Spannable): Pair<Int, Int> {
         for(span in spannable.getSpans(0, spannable.length, Object::class.java)) {
             val flags = spannable.getSpanFlags(span)
 
@@ -842,12 +676,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
                     Pair(spannableSource.getSpanStart(composingTag), spannableSource.getSpanEnd(composingTag))
                 }
 
-                Timber.tag("Workspace Editor").e("Checking this replace ish: $sourceComposingStart $sourceComposingEnd $composingTag")
-
                 if(sourceComposingStart != -1) {
                     val newStart = st + sourceComposingStart
-                    Timber.tag("Workspace Editor").e("Comparing start: $composingStart $newStart")
-
 
                     composingStart = if(composingStart == -1) {
                         newStart
@@ -858,7 +688,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
                 if(sourceComposingEnd != -1) {
                     val newEnd = st + sourceComposingEnd
-                    Timber.tag("Workspace Editor").e("Comparing end: $composingEnd $newEnd")
 
                     composingEnd = if(composingEnd == -1) {
                         newEnd
@@ -867,8 +696,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
                     }
                 }
             }
-
-//            Timber.tag("Workspace Editor").e("2 Replacing: $composingStart $composingEnd")
 
             view.drawImmediately()
             wsInputConnection.notifySelectionUpdated()
