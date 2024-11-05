@@ -196,6 +196,7 @@ impl Workspace {
             is_new_file,
             last_saved: now,
             is_saving_or_loading: false,
+            load_queued: false,
         };
         self.tabs.push(new_tab);
         if make_active {
@@ -692,11 +693,13 @@ impl Workspace {
             unreachable!("could not find a tab we just created")
         };
         if tab.is_saving_or_loading {
-            // either we're already being opened or we're in the process of saving
-            // a save will always reload when it's done
+            // if we're already loading when we try to load, load again when the first load completes
+            // this guarantees that the tab will eventually be up-to-date
+            tab.load_queued = true;
             return;
         }
         tab.is_saving_or_loading = true;
+        tab.load_queued = false;
 
         let core = self.core.clone();
         let ctx = self.ctx.clone();
@@ -883,12 +886,11 @@ impl Workspace {
                         };
 
                         tab.is_saving_or_loading = false;
-
-                        Some(tab.name.clone())
+                        if tab.load_queued {
+                            self.open_file(id, false, false);
+                        }
                     } else {
                         println!("failed to load file: tab not found");
-
-                        None
                     };
                 }
                 WsMsg::BgSignal(Signal::SaveAll) => {
@@ -920,9 +922,9 @@ impl Workspace {
                             }
                         }
                         tab.is_saving_or_loading = false;
-
-                        // always reload an open file after saving in case a reload was skipped while we were saving
-                        self.open_file(id, false, false);
+                        if tab.load_queued {
+                            self.open_file(id, false, false);
+                        }
                     }
                     if sync {
                         self.perform_sync();
