@@ -42,6 +42,7 @@ parts:
       - cmake
       - libfontconfig1-dev
       - libfontconfig
+      - libxkbcommon-x11
     rust-path: ["clients/linux"]
     override-pull: |
       snapcraftctl pull
