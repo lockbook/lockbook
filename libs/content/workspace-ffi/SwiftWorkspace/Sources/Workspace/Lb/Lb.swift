@@ -120,6 +120,7 @@ public class Lb {
     public func createLink(name: String, parent: UUID, target: UUID) -> Result<File, LbError> {
         let res = lb_create_file(lb, name, parent.toLbUuid(), LbFileType(tag: LbFileTypeTag(2), link_target: target.toLbUuid()))
         defer { lb_free_file_res(res) }
+
         
         guard res.err == nil else {
             return .failure(LbError(res.err.pointee))

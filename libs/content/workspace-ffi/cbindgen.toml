@@ -19,3 +19,8 @@ extra_bindings = ["lb-c"]
 "target_vendor = apple" = "__APPLE__"
 "target_os = ios" = "__APPLE__"
 "target_os = android" = "__ANDROID__"
+
+# todo: we ought to enable this
+# [enum]
+# rename_variants = "ScreamingSnakeCase"
+# prefix_with_name = true

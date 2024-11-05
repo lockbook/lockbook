@@ -38,6 +38,8 @@ pub struct LbFileType {
     pub link_target: LbUuid,
 }
 
+// todo: remove this once cbindgen.toml todo addressed
+#[allow(clippy::enum_variant_names)]
 #[repr(C)]
 #[derive(Default)]
 pub enum LbFileTypeTag {

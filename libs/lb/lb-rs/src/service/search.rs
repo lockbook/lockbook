@@ -32,6 +32,7 @@ pub struct SearchIndex {
     pub docs: Arc<RwLock<Vec<SearchIndexEntry>>>,
 }
 
+#[derive(Debug)]
 pub struct SearchIndexEntry {
     pub id: Uuid,
     pub path: String,
@@ -152,9 +153,6 @@ impl Lb {
                 continue;
             }
             let name = tree.name_using_links(&id, account)?;
-            if DocumentType::from_file_name_using_extension(&name) != DocumentType::Text {
-                continue;
-            }
             let path = tree.id_to_path(&id, account)?;
 
             // once per file, re-lock lb to read document using up-to-date hmac (lb lock)
@@ -164,13 +162,27 @@ impl Lb {
             let hmac_tree = db.base_metadata.stage(&db.local_metadata); // not lazy bc no decryption uses this one
 
             let Some(file) = hmac_tree.maybe_find(&id) else { continue }; // file maybe deleted since we started
-            let Some(&hmac) = file.document_hmac() else { continue }; // file maybe contentless
-            let encrypted_content = self.docs.get(id, Some(hmac)).await?; // present bc hmac from this tx
 
-            let content = if encrypted_content.value.len() <= CONTENT_MAX_LEN_BYTES {
-                // use the original tree to decrypt the content
-                let decrypted_content = tree.decrypt_document(&id, &encrypted_content, account)?;
-                Some(String::from_utf8_lossy(&decrypted_content).into_owned())
+            let content = if DocumentType::from_file_name_using_extension(&name)
+                != DocumentType::Text
+            {
+                match file.document_hmac() {
+                    Some(&hmac) => {
+                        let encrypted_content = self.docs.get(id, Some(hmac)).await?;
+
+                        let content = if encrypted_content.value.len() <= CONTENT_MAX_LEN_BYTES {
+                            // use the original tree to decrypt the content
+                            let decrypted_content =
+                                tree.decrypt_document(&id, &encrypted_content, account)?;
+                            Some(String::from_utf8_lossy(&decrypted_content).into_owned())
+                        } else {
+                            None
+                        };
+
+                        content
+                    }
+                    None => None,
+                }
             } else {
                 None
             };

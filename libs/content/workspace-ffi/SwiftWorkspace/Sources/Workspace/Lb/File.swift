@@ -122,9 +122,9 @@ public enum FileType: Codable, Equatable {
     
     init(_ fileType: LbFileType) {
         switch fileType.tag.rawValue {
-        case 0: self = .document
-        case 1: self = .folder
-        case 2: self = .link(fileType.link_target.toUUID())
+        case LbDocument.rawValue: self = .document
+        case LbFolder.rawValue: self = .folder
+        case LbLink.rawValue: self = .link(fileType.link_target.toUUID())
         default: fatalError("Unknown file type \(fileType)")
         }
     }

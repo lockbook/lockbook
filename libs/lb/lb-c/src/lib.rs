@@ -209,7 +209,7 @@ pub struct LbUuid {
 
 impl From<Uuid> for LbUuid {
     fn from(uuid: Uuid) -> Self {
-        LbUuid { bytes: uuid.as_bytes().clone() }
+        LbUuid { bytes: *uuid.as_bytes() }
     }
 }
 
@@ -487,7 +487,7 @@ pub extern "C" fn lb_get_local_changes(lb: *mut Lb) -> LbIdListRes {
 
     match lb.get_local_changes() {
         Ok(ids) => {
-            let (ids, len) = carray(ids.into_iter().map(|id| LbUuid::from(id)).collect());
+            let (ids, len) = carray(ids.into_iter().map(LbUuid::from).collect());
             LbIdListRes { err: null_mut(), ids, len }
         }
         Err(err) => LbIdListRes { err: lb_err(err), ids: null_mut(), len: 0 },
@@ -511,17 +511,21 @@ pub extern "C" fn lb_calculate_work(lb: *mut Lb) -> LbSyncRes {
 pub type UpdateSyncStatus = extern "C" fn(*const c_void, usize, usize, LbUuid, *const c_char);
 
 #[no_mangle]
-pub extern "C" fn lb_sync(lb: *mut Lb, update_status_obj: *const c_void, update_status: *const UpdateSyncStatus) -> LbSyncRes {
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn lb_sync(
+    lb: *mut Lb, update_status_obj: *const c_void, update_status: *const UpdateSyncStatus,
+) -> LbSyncRes {
     let lb = rlb(lb);
 
     let update_status_obj = Arc::new(AtomicPtr::new(update_status_obj as *mut c_void));
 
     let f: Option<Box<dyn Fn(SyncProgress) + Send>> = if !update_status.is_null() {
-        let update_status = unsafe { *update_status };
+        let update_status = *update_status;
         let update_status_obj = update_status_obj.clone();
 
         Some(Box::new(move |sync_progress: SyncProgress| {
-            let update_status_obj = update_status_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void;
+            let update_status_obj =
+                update_status_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void;
 
             update_status(
                 update_status_obj,
@@ -596,7 +600,7 @@ pub extern "C" fn lb_suggested_docs(lb: *mut Lb) -> LbIdListRes {
 
     match lb.suggested_docs(RankingWeights::default()) {
         Ok(ids) => {
-            let (ids, len) = carray(ids.into_iter().map(|id| LbUuid::from(id)).collect());
+            let (ids, len) = carray(ids.into_iter().map(LbUuid::from).collect());
             LbIdListRes { err: null_mut(), ids, len }
         }
         Err(err) => LbIdListRes { err: lb_err(err), ids: null_mut(), len: 0 },
@@ -703,13 +707,13 @@ pub extern "C" fn lb_export_file(
 pub struct LbSearchRes {
     err: *mut LbFfiErr,
     results: *mut LbSearchResult,
-    results_len: usize
+    results_len: usize,
 }
 
 #[repr(C)]
 pub struct LbSearchResult {
     path_result: *mut LbPathSearchResult,
-    doc_result: *mut LbDocumentSearchResult
+    doc_result: *mut LbDocumentSearchResult,
 }
 
 #[repr(C)]
@@ -769,9 +773,8 @@ pub extern "C" fn lb_search(
                                 matched_indicies,
                                 matched_indicies_len,
                             })),
-                            doc_result: null_mut()
+                            doc_result: null_mut(),
                         })
-
                     }
                     SearchResult::DocumentMatch { id, path, content_matches } => {
                         let mut c_content_matches = Vec::new();
@@ -806,17 +809,9 @@ pub extern "C" fn lb_search(
             let (results, results_len) =
                 if results.is_empty() { (null_mut(), 0) } else { carray(results) };
 
-            LbSearchRes {
-                err: null_mut(),
-                results,
-                results_len
-            }
+            LbSearchRes { err: null_mut(), results, results_len }
         }
-        Err(err) => LbSearchRes {
-            err: lb_err(err),
-            results: null_mut(),
-            results_len: 0,
-        },
+        Err(err) => LbSearchRes { err: lb_err(err), results: null_mut(), results_len: 0 },
     }
 }
 

@@ -74,6 +74,7 @@ async fn search_paths_successfully() {
         .search(MATCHED_PATHS_2.0, SearchConfig::Paths)
         .await
         .unwrap();
+    println!("{:?}", core.search.docs.read().await);
     assert_eq!(search3.len(), MATCHED_PATHS_2.1.len());
 
     for result in search3 {
@@ -103,7 +104,7 @@ async fn search_content_successfully() {
         .search("", SearchConfig::PathsAndDocuments)
         .await
         .unwrap();
-    assert_eq!(search1.len(), 0);
+    assert_eq!(search1.len(), 1);
 
     let results1 = core
         .search(MATCHED_CONTENT_1.0, SearchConfig::PathsAndDocuments)
