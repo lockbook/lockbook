@@ -1,6 +1,6 @@
 use egui::os::OperatingSystem;
 use egui::{
-    scroll_area, Context, EventFilter, Frame, Id, Margin, Rect, ScrollArea, Stroke, Ui, Vec2,
+    scroll_area, Color32, Context, EventFilter, Frame, Id, Margin, Rect, ScrollArea, Stroke, Ui,
 };
 
 use lb_rs::blocking::Lb;
@@ -195,6 +195,14 @@ impl Editor {
     }
 
     pub fn show_inner(&mut self, touch_mode: bool, ui: &mut Ui) -> Response {
+        if ui.style_mut().visuals.dark_mode {
+            // #282828 raisin black
+            ui.style_mut().visuals.code_bg_color = Color32::from_rgb(40, 40, 40);
+        } else {
+            // #F5F5F5 white smoke
+            ui.style_mut().visuals.code_bg_color = Color32::from_rgb(245, 245, 245);
+        }
+
         let scroll_area_id = ui.id().with("child").with(egui::Id::new(self.file_id));
         let prev_scroll_area_offset = ui.data_mut(|d| {
             d.get_persisted(scroll_area_id)
@@ -214,7 +222,6 @@ impl Editor {
                     .drag_to_scroll(touch_mode)
                     .id_source(self.file_id)
                     .show(ui, |ui| {
-                        ui.spacing_mut().item_spacing = Vec2::ZERO;
                         ui.vertical_centered(|ui| {
                             // register widget id
                             ui.ctx().check_for_id_clash(self.id(), Rect::NOTHING, "");

@@ -85,25 +85,28 @@ impl Ast {
 
     fn push_children(&mut self, current_idx: usize, iter: &mut OffsetIter, buffer: &Buffer) {
         let mut skipped = 0;
-        while let Some((event, mut range)) = iter.next() {
-            // correct for windows-style line endings by keeping \r and \n together
-            if buffer.current.text[range.clone()].starts_with('\n')
-                && range.start > 0
-                && &buffer.current.text[range.start - 1..range.start] == "\r"
-            {
-                range.start -= 1;
-            }
-            if buffer.current.text[range.clone()].ends_with('\r')
-                && range.end < buffer.current.text.len()
-                && &buffer.current.text[range.end..range.end + 1] == "\n"
-            {
-                range.end += 1;
-            }
-
-            let range = buffer
+        while let Some((event, range)) = iter.next() {
+            let mut range = buffer
                 .current
                 .segs
                 .range_to_char((range.start.into(), range.end.into()));
+
+            // correct for windows-style line endings by keeping \r and \n together
+            if buffer[range].starts_with('\n')
+                && range.0 > 0
+                && &buffer[(range.0 - 1, range.0)] == "\r"
+            {
+                range.0 -= 1;
+            }
+            if buffer[range].ends_with('\r')
+                && range.1 < buffer.current.segs.last_cursor_position()
+                && &buffer[(range.1, range.1 + 1)] == "\n"
+            {
+                range.1 += 1;
+            }
+
+            let range = range; // no longer mutable
+
             match event {
                 Event::Start(child_tag) => {
                     let new_child_node = match child_tag {

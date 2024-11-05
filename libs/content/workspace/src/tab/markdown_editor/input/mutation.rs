@@ -617,14 +617,23 @@ impl Editor {
                 response |= self.buffer.redo();
             }
             Event::Cut => {
-                ctx.output_mut(|o| o.copied_text = self.buffer[current_selection].into());
-                operations.push(Operation::Replace(Replace {
-                    range: current_selection,
-                    text: "".into(),
-                }));
+                let range = if !current_selection.is_empty() {
+                    current_selection
+                } else {
+                    self.clipboard_current_paragraph()
+                };
+
+                ctx.output_mut(|o| o.copied_text = self.buffer[range].into());
+                operations.push(Operation::Replace(Replace { range, text: "".into() }));
             }
             Event::Copy => {
-                ctx.output_mut(|o| o.copied_text = self.buffer[current_selection].into());
+                let range = if !current_selection.is_empty() {
+                    current_selection
+                } else {
+                    self.clipboard_current_paragraph()
+                };
+
+                ctx.output_mut(|o| o.copied_text = self.buffer[range].into());
             }
             Event::ToggleDebug => self.debug.draw_enabled = !self.debug.draw_enabled,
             Event::IncrementBaseFontSize => {
@@ -954,6 +963,32 @@ impl Editor {
                 pos_to_char_offset(pos, &self.galleys, &self.buffer.current.segs, &self.bounds.text)
             }
         }
+    }
+
+    fn clipboard_current_paragraph(&self) -> (DocCharOffset, DocCharOffset) {
+        let current_selection = self.buffer.current.selection;
+        let paragraph_idx = self
+            .bounds
+            .paragraphs
+            .find_containing(current_selection.1, true, true)
+            .0;
+
+        let mut result = self.bounds.paragraphs[paragraph_idx];
+
+        // capture leading newline, if any
+        if paragraph_idx != 0 {
+            let paragraph = self.bounds.paragraphs[paragraph_idx];
+            let prev_paragraph = self.bounds.paragraphs[paragraph_idx - 1];
+            let range_between_paragraphs = (prev_paragraph.1, paragraph.0);
+            let rbp_text = &self.buffer[range_between_paragraphs];
+            if rbp_text.ends_with("\r\n") {
+                result.0 -= 2;
+            } else if rbp_text.ends_with('\n') || rbp_text.ends_with('\r') {
+                result.0 -= 1;
+            }
+        }
+
+        result
     }
 }
 

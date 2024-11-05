@@ -198,6 +198,7 @@ impl Workspace {
             last_changed: now,
             is_new_file,
             last_saved: now,
+            is_saving_or_loading: false,
         };
         self.tabs.push(new_tab);
         if make_active {
@@ -357,6 +358,15 @@ impl Workspace {
             {
                 self.create_file(false);
             }
+            if Button::default()
+                .text("New drawing")
+                .rounding(egui::Rounding::same(3.0))
+                .frame(true)
+                .show(ui)
+                .clicked()
+            {
+                self.create_file(true);
+            }
             ui.visuals_mut().widgets.inactive.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
             ui.visuals_mut().widgets.hovered.fg_stroke =
@@ -453,7 +463,11 @@ impl Workspace {
                 egui::widgets::Button::new(egui::RichText::new(self.tabs[0].name.clone()))
                     .frame(false)
                     .wrap_mode(TextWrapMode::Truncate)
-                    .fill(egui::Color32::BLACK); // matches iOS native toolbar
+                    .fill(if ui.visuals().dark_mode {
+                        egui::Color32::BLACK
+                    } else {
+                        egui::Color32::WHITE
+                    }); // matches iOS native toolbar
 
             ui.allocate_ui(ui.available_size(), |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
@@ -590,10 +604,16 @@ impl Workspace {
         }
     }
 
-    pub fn save_tab(&self, i: usize) {
-        if let Some(tab) = self.tabs.get(i) {
+    pub fn save_tab(&mut self, i: usize) {
+        if let Some(tab) = self.tabs.get_mut(i) {
             if tab.is_dirty() {
                 if let Some(save_req) = tab.make_save_request() {
+                    if tab.is_saving_or_loading {
+                        // we'll just try again next tick
+                        return;
+                    }
+                    tab.is_saving_or_loading = true;
+
                     let core = self.core.clone();
                     let update_tx = self.updates_tx.clone();
                     let ctx = self.ctx.clone();
@@ -671,6 +691,15 @@ impl Workspace {
         let fpath = self.core.get_path_by_id(id).unwrap(); // TODO
 
         let tab_created = self.upsert_tab(id, &fname, &fpath, is_new_file, make_active);
+        let Some(tab) = self.get_mut_tab_by_id(id) else {
+            unreachable!("could not find a tab we just created")
+        };
+        if tab.is_saving_or_loading {
+            // either we're already being opened or we're in the process of saving
+            // a save will always reload when it's done
+            return;
+        }
+        tab.is_saving_or_loading = true;
 
         let core = self.core.clone();
         let ctx = self.ctx.clone();
@@ -856,6 +885,8 @@ impl Workspace {
                             )));
                         };
 
+                        tab.is_saving_or_loading = false;
+
                         Some(tab.name.clone())
                     } else {
                         println!("failed to load file: tab not found");
@@ -869,7 +900,7 @@ impl Workspace {
                     }
                 }
                 WsMsg::SaveResult(id, result) => {
-                    let mut reopen = false;
+                    let mut sync = false;
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         match result {
                             Ok(SaveResult {
@@ -883,18 +914,21 @@ impl Workspace {
                                     md.hmac = hmac;
                                     md.buffer.saved(seq, content);
                                 }
-                                self.perform_sync(); // todo: sync once when saving multiple tabs
+                                sync = true; // todo: sync once when saving multiple tabs
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
-                                    reopen = true;
+                                    tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
                                 }
-                                tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
                             }
                         }
-                    }
-                    if reopen {
+                        tab.is_saving_or_loading = false;
+
+                        // always reload an open file after saving in case a reload was skipped while we were saving
                         self.open_file(id, false, false);
+                    }
+                    if sync {
+                        self.perform_sync();
                     }
                 }
                 WsMsg::BgSignal(Signal::BwDone) => {

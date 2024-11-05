@@ -24,6 +24,7 @@ use x11rb::{
     xcb_ffi::XCBConnection,
     COPY_DEPTH_FROM_PARENT,
 };
+use xkbcommon::xkb::x11;
 
 // A collection of the atoms we will need.
 atom_manager! {
@@ -62,7 +63,7 @@ atom_manager! {
 }
 
 use crate::{
-    input::{self, clipboard_paste},
+    input::{self, clipboard_paste, key::Keyboard},
     output,
 };
 
@@ -86,7 +87,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         // EventMask::BUTTON4_MOTION,
         // EventMask::BUTTON5_MOTION,
         // EventMask::BUTTON_MOTION,
-        // EventMask::KEYMAP_STATE,
+        EventMask::KEYMAP_STATE,
         // EventMask::EXPOSURE,
         // EventMask::VISIBILITY_CHANGE,
         EventMask::STRUCTURE_NOTIFY,
@@ -145,6 +146,18 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Lockbook\0Lockbook\0".as_bytes(),
     )?;
 
+    // setup for keyboard layout support
+    x11::setup_xkb_extension(
+        conn,
+        1,
+        0,
+        x11::SetupXkbExtensionFlags::NoFlags,
+        &mut 0,
+        &mut 0,
+        &mut 0,
+        &mut 0,
+    );
+
     conn.map_window(window_id)?;
     conn.flush()?;
 
@@ -172,11 +185,22 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_copied_text = String::new();
     let mut paste_context = clipboard_paste::Context::new(window_id, conn, &atoms);
     let mut cursor_manager = output::cursor::Manager::new(conn, screen_num)?;
+    let mut keyboard = Keyboard::new(conn);
+
     loop {
         let mut got_events = got_events_atomic.load(Ordering::SeqCst);
         while let Some(event) = conn.poll_for_event()? {
             got_events = true;
-            handle(conn, &atoms, &last_copied_text, event, &mut lb, &mut paste_context)?;
+
+            handle(
+                conn,
+                &atoms,
+                &last_copied_text,
+                event,
+                &mut lb,
+                &mut paste_context,
+                &mut keyboard,
+            )?;
         }
         if got_events {
             got_events_atomic.store(false, Ordering::SeqCst);
@@ -187,20 +211,23 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 viewport,
                 app: lbeguiapp::Response { close },
             } = lb.frame();
-            let window_title = {
-                let maybe_viewport_output = viewport.values().next();
-                if maybe_viewport_output.is_none() {
-                    eprintln!("viewport missing: not setting window title");
-                }
 
-                let window_title = maybe_viewport_output.and_then(|v| {
-                    v.commands.iter().find_map(|c| match c {
-                        ViewportCommand::Title(title) => Some(title.clone()),
-                        _ => None,
-                    })
-                });
-                window_title
-            };
+            let mut redraw_in = None;
+            let mut window_title = None;
+            let mut request_paste = false;
+            if let Some(viewport) = viewport.into_values().next() {
+                redraw_in = Some(viewport.repaint_delay.as_millis() as _);
+                for cmd in viewport.commands.into_iter() {
+                    match cmd {
+                        ViewportCommand::Title(title) => window_title = Some(title),
+                        ViewportCommand::RequestPaste => request_paste = true,
+                        _ => {} // remaining viewport commands ignored (many such cases!)
+                    }
+                }
+            } else {
+                eprintln!("viewport missing: not redrawing or setting window title");
+            }
+            let _: Option<u64> = redraw_in; // todo: use; unclear how this app works at all without it
 
             // set modifiers
             let pointer_state = conn.query_pointer(window_id)?.reply()?;
@@ -233,6 +260,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 copied_text,
                 &mut last_copied_text,
             )?;
+            if request_paste {
+                paste_context.handle_paste()?;
+            }
             conn.flush()?;
         }
 
@@ -243,7 +273,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn handle(
     conn: &XCBConnection, atoms: &AtomCollection, last_copied_text: &str, event: Event,
-    lb: &mut WgpuLockbook, paste_context: &mut clipboard_paste::Context,
+    lb: &mut WgpuLockbook, paste_context: &mut clipboard_paste::Context, keyboard: &mut Keyboard,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match event {
         // pointer
@@ -258,11 +288,14 @@ fn handle(
         }
 
         // keyboard
+        Event::KeymapNotify(_) => {
+            *keyboard = Keyboard::new(conn);
+        }
         Event::KeyPress(event) => {
-            input::key::handle(event.detail, event.state, true, lb, paste_context)?
+            keyboard.handle(event.detail, event.state, true, lb, paste_context)?
         }
         Event::KeyRelease(event) => {
-            input::key::handle(event.detail, event.state, false, lb, paste_context)?
+            keyboard.handle(event.detail, event.state, false, lb, paste_context)?
         }
 
         // resize

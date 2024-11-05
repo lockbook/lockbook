@@ -307,6 +307,11 @@ pub fn annotation_offset(annotation: &Option<Annotation>, appearance: &Appearanc
         }
         _ => {}
     }
+
+    // spacing between paragraphs (todo: use ui.spacing().item_spacing or similar)
+    offset.min.y += 4.;
+    offset.max.y += 4.;
+
     offset
 }
 
@@ -316,9 +321,9 @@ impl GalleyInfo {
         last_galley: bool, max_rect: Rect, ui: &mut Ui,
     ) -> Self {
         let mut offset = annotation_offset(&job.annotation, appearance);
-        let text_width = ui.available_width().min(800.);
-        let padding_width = (ui.available_width() - text_width) / 2.;
-        job.job.wrap.max_width = text_width - (offset.min.x + offset.max.x);
+        let content_width = ui.available_width().min(700.);
+        let padding_width = (ui.available_width() - content_width) / 2.;
+        job.job.wrap.max_width = content_width - (offset.min.x + offset.max.x);
 
         // allocate space for image
         let image = if let Some(Annotation::Image(_, url, _)) = &job.annotation {
@@ -328,12 +333,8 @@ impl GalleyInfo {
                     let [image_width, image_height] =
                         ui.ctx().tex_manager().read().meta(texture).unwrap().size;
                     let [image_width, image_height] = [image_width as f32, image_height as f32];
-                    let width = f32::min(
-                        ui.available_width() - appearance.image_padding() * 2.0,
-                        image_width,
-                    );
-                    let height =
-                        image_height * width / image_width + appearance.image_padding() * 2.0;
+                    let width = image_width.min(content_width);
+                    let height = image_height * (width / image_width);
                     ui.allocate_exact_size(Vec2::new(width, height), Sense::hover())
                 } else {
                     ui.allocate_exact_size(Vec2::new(200.0, 200.0), Sense::hover())
@@ -352,7 +353,7 @@ impl GalleyInfo {
         if let Some(Annotation::CodeBlock { range, language, .. }) = &job.annotation {
             if range.start() == job.range.start() && !language.is_empty() {
                 // the first galley in a code block with a language badge gets extra height for the badge
-                offset.min.y += 10.
+                offset.min.y += 7.
             }
         }
         let mut desired_size =
@@ -372,8 +373,6 @@ impl GalleyInfo {
         } else {
             0.
         };
-
-        // println!("allocating desired size {:?}", desired_size);
 
         let response = ui.allocate_response(
             desired_size,
@@ -411,7 +410,7 @@ impl GalleyInfo {
 
     pub fn bullet_center(&self) -> Pos2 {
         let mut point = self.text_location;
-        point.x -= 10.0;
+        point.x -= 15.0;
         point.y += self.cursor_height() / 2.0;
         point
     }

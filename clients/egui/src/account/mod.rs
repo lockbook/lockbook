@@ -8,7 +8,7 @@ use std::ffi::OsStr;
 use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc, RwLock};
 use std::time::Duration;
-use std::{path, thread};
+use std::{path, process, thread};
 
 use eframe::egui;
 use lb::blocking::Lb;
@@ -335,6 +335,11 @@ impl AccountScreen {
                 Some(_) => None,
                 None => Some(HelpModal),
             };
+        }
+
+        // Ctrl-Q to quit.
+        if ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::Q)) {
+            process::exit(0); // todo: graceful shutdown (needs support from windows client, linux client, workspace)
         }
     }
 

@@ -24,6 +24,7 @@ impl Icon {
     pub const BRING_FRONT: Self = ic("\u{e5cc}");
     pub const BRUSH: Self = ic("\u{e3ae}");
     pub const BOLD: Self = ic("\u{e238}"); // Bold Text
+    pub const CHECK: Self = ic("\u{e5ca}");
     pub const CHECK_CIRCLE: Self = ic("\u{e86c}"); // Check Circle
     pub const CANCEL: Self = ic("\u{e5c9}"); // Cancel
     pub const CANCEL_PRESENTATION: Self = ic("\u{e0e9}"); // Cancel Presentation
@@ -33,6 +34,8 @@ impl Icon {
     pub const CLOSE: Self = ic("\u{e5cd}"); // Close
     pub const CODE: Self = ic("\u{e86f}"); // Code
     pub const CONTENT_COPY: Self = ic("\u{e14d}"); // Content Copy
+    pub const CONTENT_CUT: Self = ic("\u{e14e}"); // Content Cut
+    pub const CONTENT_PASTE: Self = ic("\u{e14f}"); // Content Paste
     pub const DOC_UNKNOWN: Self = ic("\u{e06f}"); // Note
     pub const DOC_TEXT: Self = ic("\u{e873}"); // Description
     pub const DONE: Self = ic("\u{e876}"); // Done
@@ -51,7 +54,7 @@ impl Icon {
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
     pub const HEADER_1: Self = ic("\u{e262}"); // Header 11
     pub const TOGGLE_SIDEBAR: Self = ic("\u{f7e4}");
-    pub const HAND: Self = ic("\u{eb03}"); // Selection tool
+    pub const HAND: Self = ic("\u{f82f}"); // Selection tool
     pub const IMAGE: Self = ic("\u{e3f4}"); // Image
     pub const INFO: Self = ic("\u{e88e}");
     pub const ITALIC: Self = ic("\u{e23f}");

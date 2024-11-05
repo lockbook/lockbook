@@ -61,30 +61,62 @@ impl Editor {
                             let pos = galley.bullet_bounds(&self.appearance);
 
                             let galley = ui.ctx().fonts(|f| f.layout_job(job));
-                            let rect = Align2::RIGHT_TOP
-                                .anchor_rect(Rect::from_min_size(pos.max, galley.size()));
+                            let rect = Align2::CENTER_TOP
+                                .anchor_rect(Rect::from_min_size(pos.center(), galley.size()));
                             ui.painter().galley(rect.min, galley, Color32::TRANSPARENT);
                         }
                         ListItem::Todo(checked) => {
-                            ui.painter().rect_filled(
-                                galley.checkbox_bounds(&self.appearance),
+                            let bounds = galley.checkbox_bounds(&self.appearance);
+                            let resp = ui.allocate_rect(bounds, Sense::click());
+
+                            let hovered = resp.hovered();
+                            let pointer_down = resp.is_pointer_button_down_on() || resp.clicked();
+                            let bg_color = if hovered {
+                                ui.output_mut(|o: &mut PlatformOutput| {
+                                    o.cursor_icon = CursorIcon::PointingHand
+                                });
+                                ui.visuals().code_bg_color
+                            } else {
+                                Color32::TRANSPARENT
+                            };
+                            let icon_color = if pointer_down {
+                                ui.visuals().widgets.active.bg_fill
+                            } else if *checked {
+                                ui.visuals().text_color()
+                            } else {
+                                Color32::TRANSPARENT
+                            };
+
+                            ui.painter().rect(
+                                bounds,
                                 self.appearance.checkbox_rounding(),
-                                self.appearance.checkbox_bg(),
+                                bg_color,
+                                Stroke { width: 1., color: self.appearance.checkbox_bg() },
                             );
-                            if *checked {
-                                ui.painter().line_segment(
-                                    galley.checkbox_slash(&self.appearance),
-                                    Stroke {
-                                        width: self.appearance.checkbox_slash_width(),
-                                        color: self.appearance.text(),
-                                    },
-                                );
+
+                            let icon = &Icon::CHECK.size(16.);
+                            let icon_text: WidgetText = icon.into();
+                            let galley = icon_text.into_galley(
+                                ui,
+                                Some(TextWrapMode::Extend),
+                                ui.available_width(),
+                                TextStyle::Body,
+                            );
+                            let draw_pos = resp.rect.center() - egui::Vec2::splat(icon.size) / 2.
+                                + egui::vec2(0., 1.5);
+                            ui.painter().galley(draw_pos, galley, icon_color);
+
+                            if resp.clicked() {
+                                ui.ctx()
+                                    .push_markdown_event(Event::ToggleCheckbox(galley_idx));
+                                ui.ctx().request_repaint();
                             }
                         }
                     },
                     Annotation::HeadingRule => {
-                        let min = Pos2 { x: galley.rect.min.x, y: galley.rect.max.y };
-                        let max = Pos2 { x: galley.rect.max.x, y: galley.rect.max.y };
+                        let y = galley.rect.max.y + 2.;
+                        let min = Pos2 { x: galley.rect.min.x, y };
+                        let max = Pos2 { x: galley.rect.max.x, y };
 
                         ui.painter()
                             .line_segment([min, max], Stroke::new(0.3, self.appearance.rule()));
@@ -101,7 +133,7 @@ impl Editor {
                     Annotation::BlockQuote => {
                         ui.painter().vline(
                             galley.rect.min.x - 15.,
-                            galley.rect.y_range(),
+                            galley.rect.y_range().expand(4.),
                             Stroke { width: 3., color: self.appearance.checkbox_bg() },
                         );
                     }
@@ -132,7 +164,7 @@ impl Editor {
                             let top_left =
                                 self.galleys.galleys[code_block_galley_idx].rect.left_top()
                                     - egui::vec2(15., 15. - 10. / 2.);
-                            let padding = 5.;
+                            let padding = 10.;
                             let badge_height = code_block_galley.cursor_height() * 2.;
                             let top_left = top_left + egui::vec2(padding, padding);
                             let badge_rect =
@@ -170,7 +202,7 @@ impl Editor {
                             let galley_text_hovered = galley
                                 .response
                                 .hover_pos()
-                                .map(|pos| galley.rect.contains(pos))
+                                .map(|pos| galley.response.rect.contains(pos))
                                 .unwrap_or_default();
                             let show_code_block_button = galley_text_hovered
                                 || copy_button_response.hovered()

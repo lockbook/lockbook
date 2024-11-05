@@ -1,9 +1,9 @@
 use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::Location;
-use crate::tab::markdown_editor::layouts::Annotation;
-use crate::tab::markdown_editor::style::ListItem;
 use crate::tab::{self, markdown_editor, ClipContent, ExtendedInput as _, ExtendedOutput as _};
-use egui::{Context, EventFilter, Pos2};
+use crate::theme::icons::Icon;
+use crate::widgets::IconButton;
+use egui::{Context, EventFilter, Pos2, Stroke, ViewportCommand};
 use lb_rs::text::buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 use markdown_editor::input::{Event, Region};
@@ -111,11 +111,57 @@ impl Editor {
             if let Some(response) = ctx.read_response(galley.response.id) {
                 let modifiers = ctx.input(|i| i.modifiers);
 
+                ctx.style_mut(|s| s.spacing.menu_margin = egui::vec2(10., 5.).into());
+                ctx.style_mut(|s| s.visuals.menu_rounding = (2.).into());
+                ctx.style_mut(|s| s.visuals.window_fill = s.visuals.extreme_bg_color);
+                ctx.style_mut(|s| s.visuals.window_stroke = Stroke::NONE);
+
+                if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {
+                    let mut context_menu_events = Vec::new();
+                    response.context_menu(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.set_min_height(30.);
+                            ui.style_mut().spacing.button_padding = egui::vec2(5.0, 5.0);
+
+                            if IconButton::new(&Icon::CONTENT_CUT)
+                                .tooltip("Cut")
+                                .show(ui)
+                                .clicked()
+                            {
+                                context_menu_events.push(Event::Cut);
+                                ui.close_menu();
+                            }
+                            ui.add_space(5.);
+                            if IconButton::new(&Icon::CONTENT_COPY)
+                                .tooltip("Copy")
+                                .show(ui)
+                                .clicked()
+                            {
+                                context_menu_events.push(Event::Copy);
+                                ui.close_menu();
+                            }
+                            ui.add_space(5.);
+                            if IconButton::new(&Icon::CONTENT_PASTE)
+                                .tooltip("Paste")
+                                .show(ui)
+                                .clicked()
+                            {
+                                // paste must go through the window because we don't yet have the clipboard content
+                                ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
+                                ui.close_menu();
+                            }
+                        });
+                    });
+                    if !context_menu_events.is_empty() {
+                        return context_menu_events;
+                    }
+                }
+
                 // hover-based cursor icons
                 let hovering_clickable = ctx
                     .input(|r| r.pointer.latest_pos())
                     .map(|pos| {
-                        if modifiers.command
+                        modifiers.command
                             && mutation::pos_to_link(
                                 pos,
                                 &self.galleys,
@@ -124,15 +170,6 @@ impl Editor {
                                 &self.ast,
                             )
                             .is_some()
-                        {
-                            return true;
-                        }
-                        if let Some(Annotation::Item(ListItem::Todo(_), ..)) = galley.annotation {
-                            if galley.checkbox_bounds(&self.appearance).contains(pos) {
-                                return true;
-                            }
-                        }
-                        false
                     })
                     .unwrap_or_default();
                 if response.hovered() && hovering_clickable {
@@ -141,6 +178,7 @@ impl Editor {
                     ctx.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
                 }
 
+                // note: early continue here unless response has a pointer interaction
                 let pos =
                     if let Some(pos) = response.interact_pointer_pos() { pos } else { continue };
                 let location = Location::Pos(pos);
@@ -153,16 +191,6 @@ impl Editor {
                 } else {
                     None
                 };
-                let clicked_checkbox =
-                    if let Some(Annotation::Item(ListItem::Todo(_), ..)) = galley.annotation {
-                        let mut checkbox_bounds = galley.checkbox_bounds(&self.appearance);
-                        if cfg!(target_os = "ios") || cfg!(target_os = "android") {
-                            checkbox_bounds = checkbox_bounds.expand(16.);
-                        }
-                        checkbox_bounds.contains(pos)
-                    } else {
-                        false
-                    };
 
                 // note: deliberate order; a double click is also a click
                 let region = if response.clicked() && maybe_clicked_link.is_some() {
@@ -170,22 +198,24 @@ impl Editor {
                     let url = if !url.contains("://") { format!("https://{}", url) } else { url };
                     ctx.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
                     continue;
-                } else if response.clicked() && clicked_checkbox {
-                    return vec![Event::ToggleCheckbox(i)];
-                } else if response.triple_clicked() {
-                    Region::BoundAt { bound: Bound::Paragraph, location, backwards: true }
-                } else if response.double_clicked() {
-                    // android native context menu: double-tapped
+                } else if response.double_clicked() || response.triple_clicked() {
+                    // egui triple click detection is not that good and can report triple clicks without reporting double clicks
                     if cfg!(target_os = "android") {
-                        // context menu position based on text range of word that will be selected
+                        // android native context menu: multi-tapped for selection
+                        // position based on text range of word that will be selected
                         let offset = self.location_to_char_offset(location);
                         let range = offset
                             .range_bound(Bound::Word, true, true, &self.bounds)
                             .unwrap_or((offset, offset));
                         ctx.set_context_menu(self.context_menu_pos(range).unwrap_or(pos));
+                        continue;
+                    } else if self.buffer.current.selection.is_empty() {
+                        // double click behavior
+                        Region::BoundAt { bound: Bound::Word, location, backwards: true }
+                    } else {
+                        // triple click behavior
+                        Region::BoundAt { bound: Bound::Paragraph, location, backwards: true }
                     }
-
-                    Region::BoundAt { bound: Bound::Word, location, backwards: true }
                 } else if response.clicked() && modifiers.shift {
                     Region::ToLocation(location)
                 } else if response.clicked() {
@@ -214,7 +244,10 @@ impl Editor {
                     Region::ToLocation(location)
                 } else if response.dragged() {
                     if response.drag_started() {
-                        Region::Location(location)
+                        let drag_origin =
+                            ctx.input(|i| i.pointer.press_origin()).unwrap_or_default();
+
+                        Region::Location(Location::Pos(drag_origin))
                     } else {
                         Region::ToLocation(location)
                     }

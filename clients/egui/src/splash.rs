@@ -78,15 +78,12 @@ impl SplashScreen {
             };
 
             if is_signed_in {
-                tx.send(SplashUpdate::Status("Syncing...".to_string()))
+                tx.send(SplashUpdate::Status("Loading sync status...".to_string()))
                     .unwrap();
 
-                let sync_status = match core.sync(None) {
-                    Ok(_) => core
-                        .get_last_synced_human_string()
-                        .map_err(|err| format!("{:?}", err)),
-                    Err(err) => Err(format!("{:?}", err)),
-                };
+                let sync_status = core
+                    .get_last_synced_human_string()
+                    .map_err(|err| format!("{:?}", err));
 
                 tx.send(SplashUpdate::Status("Loading files...".to_string()))
                     .unwrap();
@@ -100,7 +97,7 @@ impl SplashScreen {
                     }
                 };
 
-                tx.send(SplashUpdate::Status("Getting usage data...".to_string()))
+                tx.send(SplashUpdate::Status("Loading usage data...".to_string()))
                     .unwrap();
 
                 let usage = core
@@ -108,7 +105,7 @@ impl SplashScreen {
                     .map(|metrics| metrics.into())
                     .map_err(|err| format!("{:?}", err));
 
-                tx.send(SplashUpdate::Status("Calculating suggested documents...".to_string()))
+                tx.send(SplashUpdate::Status("Loading suggested documents...".to_string()))
                     .unwrap();
 
                 let acct_data = AccountScreenInitData { sync_status, files, usage };
