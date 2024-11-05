@@ -3,6 +3,7 @@ package app.lockbook.screen
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -10,6 +11,7 @@ import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.Selection
+import android.text.Spannable
 import android.text.Spanned
 import android.view.KeyEvent
 import android.view.LayoutInflater
@@ -315,21 +317,19 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
     }
 }
 
+data class CursorMonitorStatus(var monitor: Boolean = false, var editorBounds: Boolean = false, var characterBounds: Boolean = false, var insertionMarker: Boolean = false)
+
 class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInputWrapper: WorkspaceTextInputWrapper) : BaseInputConnection(textInputWrapper, true) {
     val wsEditable = WorkspaceTextEditable(workspaceView, this)
     private var batchEditCount = 0
 
-    override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-        super.setComposingText(text, newCursorPosition)
-
-        return true
-    }
+    private var cursorMonitorStatus = CursorMonitorStatus()
 
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
-    fun notifySelectionUpdated() {
-        if (batchEditCount == 0) {
+    fun notifySelectionUpdated(isImmediate: Boolean = false) {
+        if ((batchEditCount == 0 && cursorMonitorStatus.monitor) || isImmediate) {
             val selection = wsEditable.getSelection()
 
             getInputMethodManager().updateSelection(
@@ -347,7 +347,6 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
 
         if (event != null) {
             val content = event.unicodeChar.toChar().toString()
-
             WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed)
         }
 
@@ -382,11 +381,43 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     }
 
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {
-        return false
+        val isImmediate = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_IMMEDIATE) != 0
+        val isMonitor = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR) != 0
+
+        if (isImmediate) {
+            notifySelectionUpdated(true)
+        }
+
+        if (isMonitor) {
+            val newMonitorStatus = CursorMonitorStatus(true)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val editorBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_EDITOR_BOUNDS) != 0
+                val characterBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_CHARACTER_BOUNDS) != 0
+                val insertionMarker = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_INSERTION_MARKER) != 0
+
+                if (editorBounds || characterBounds || insertionMarker) {
+                    return false
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    val lineBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_VISIBLE_LINE_BOUNDS) != 0
+                    val textAppearance = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_TEXT_APPEARANCE) != 0
+
+                    if (lineBounds || textAppearance) {
+                        return false
+                    }
+                }
+            }
+
+            cursorMonitorStatus = newMonitorStatus
+        }
+
+        return true
     }
 
     override fun requestCursorUpdates(cursorUpdateMode: Int, cursorUpdateFilter: Int): Boolean {
-        return false
+        return requestCursorUpdates(cursorUpdateMode or cursorUpdateFilter)
     }
 
     override fun beginBatchEdit(): Boolean {
@@ -464,8 +495,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
         if (type != null) {
             val instanceComposingTag = composingTag
-
-            val composingMsg = if (instanceComposingTag != null) { type.isAssignableFrom(instanceComposingTag.javaClass) } else { false }
 
             if (instanceComposingTag != null && type.isAssignableFrom(instanceComposingTag.javaClass) && (spanRange.contains(composingStart) || spanRange.contains(composingEnd))) {
                 spans.add(instanceComposingTag)
@@ -597,30 +626,22 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun replace(st: Int, en: Int, source: CharSequence?, start: Int, end: Int): Editable {
         source?.let { realText ->
-            val sourceString = realText.substring(start, end)
-
-            if (st == selectionStart && en == selectionEnd) {
-                if (realText == "\n") {
-                    WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
-                } else {
-                    WorkspaceView.WORKSPACE.insertTextAtCursor(WorkspaceView.WGPU_OBJ, sourceString)
-                }
-            } else {
-                WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, sourceString)
-            }
-
-            if (en < composingStart) {
-                val replacedLen = en - st
-
-                composingStart = composingStart - replacedLen + sourceString.length
-                composingEnd = composingEnd - replacedLen + sourceString.length
-            }
-
-            view.drawImmediately()
-            wsInputConnection.notifySelectionUpdated()
+            replace(st, en, realText.subSequence(start, end))
         }
 
         return this
+    }
+
+    private fun getComposingSpansFromSpannable(spannable: Spannable): Pair<Int, Int> {
+        for (span in spannable.getSpans(0, spannable.length, Object::class.java)) {
+            val flags = spannable.getSpanFlags(span)
+
+            if ((flags and Spanned.SPAN_COMPOSING) != 0) {
+                return Pair(spannable.getSpanStart(span), spannable.getSpanEnd(span))
+            }
+        }
+
+        return Pair(-1, -1)
     }
 
     override fun replace(st: Int, en: Int, text: CharSequence?): Editable {
@@ -640,6 +661,31 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
                 composingStart = composingStart - replacedLen + realText.length
                 composingEnd = composingEnd - replacedLen + realText.length
+            }
+
+            val spannableSource = realText as? Spannable
+            if (spannableSource != null) {
+                val (sourceComposingStart, sourceComposingEnd) = if (composingTag == null) {
+                    getComposingSpansFromSpannable(spannableSource)
+                } else {
+                    Pair(spannableSource.getSpanStart(composingTag), spannableSource.getSpanEnd(composingTag))
+                }
+
+                if (sourceComposingStart != -1) {
+                    val newStart = st + sourceComposingStart
+
+                    if (composingStart == -1 || composingStart > newStart) {
+                        composingStart = newStart
+                    }
+                }
+
+                if (sourceComposingEnd != -1) {
+                    val newEnd = st + sourceComposingEnd
+
+                    if (composingEnd < newEnd) {
+                        composingEnd = newEnd
+                    }
+                }
             }
 
             view.drawImmediately()
