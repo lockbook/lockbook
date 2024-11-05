@@ -25,8 +25,8 @@ pub struct Tab {
     pub last_changed: Instant,
     pub last_saved: Instant,
 
-    /// Flags used to prevent saves and loads of this tab from happening concurrently. Saves and reloads while the tab
-    /// is already saving or loading are queued.
+    /// Flags used to prevent saves and loads of this tab from happening concurrently. Loads while the tab is already
+    /// saving or loading are queued. Saves are periodic, so they're effectively retried.
     pub is_saving_or_loading: bool,
     pub load_queued: bool,
 }
