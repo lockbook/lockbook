@@ -56,8 +56,8 @@ fn handle_cargo_tomls(version: &str) {
     let cargos_to_update = vec![
         "libs/lb/lb-rs",
         "libs/lb/test_utils",
-        "libs/lb/c_interface_v2",
-        "libs/lb/lb_external_interface",
+        "libs/lb/lb-c",
+        "libs/lb/lb-java",
         "libs/content/editor/egui_editor",
         "libs/content/workspace",
         "libs/content/workspace-ffi",
