@@ -164,7 +164,7 @@ impl Lb {
             let Some(file) = hmac_tree.maybe_find(&id) else { continue }; // file maybe deleted since we started
 
             let content = if DocumentType::from_file_name_using_extension(&name)
-                != DocumentType::Text
+                == DocumentType::Text
             {
                 match file.document_hmac() {
                     Some(&hmac) => {

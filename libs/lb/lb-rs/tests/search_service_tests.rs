@@ -2,14 +2,17 @@ use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::service::search::{SearchConfig, SearchResult};
 use std::collections::HashSet;
+use std::time::Duration;
 use test_utils::*;
+use tokio::time;
 
 const FILE_PATHS: [&str; 6] =
     ["/abc.md", "/abcd.md", "/abcde.md", "/dir/doc1", "/dir/doc2", "/dir/doc3"];
 
 const MATCHED_PATHS_1: (&str, [&str; 3]) = ("a", ["/abc.md", "/abcd.md", "/abcde.md"]);
 
-const MATCHED_PATHS_2: (&str, [&str; 3]) = ("dir", ["/dir/doc1", "/dir/doc2", "/dir/doc3"]);
+const MATCHED_PATHS_2: (&str, [&str; 4]) =
+    ("dir", ["/dir/", "/dir/doc1", "/dir/doc2", "/dir/doc3"]);
 
 const MATCHED_PATHS_3: (&str, [&str; 1]) = ("bbbb", ["/bbbbbbb.md"]);
 
@@ -74,14 +77,14 @@ async fn search_paths_successfully() {
         .search(MATCHED_PATHS_2.0, SearchConfig::Paths)
         .await
         .unwrap();
-    println!("{:?}", core.search.docs.read().await);
     assert_eq!(search3.len(), MATCHED_PATHS_2.1.len());
 
     for result in search3 {
         if let SearchResult::PathMatch { path, .. } = result {
             assert!(
                 matched_paths_2.contains(&path.as_str()),
-                "A path from the second set didn't match."
+                "A path from the second set didn't match: {}",
+                path
             );
         } else {
             panic!("Non-path search result.")
@@ -98,12 +101,14 @@ async fn search_content_successfully() {
         .await
         .unwrap();
 
+    time::sleep(Duration::from_millis(10)).await;
     core.build_index().await.unwrap();
 
     let search1 = core
         .search("", SearchConfig::PathsAndDocuments)
         .await
         .unwrap();
+
     assert_eq!(search1.len(), 1);
 
     let results1 = core
