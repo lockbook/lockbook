@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftWorkspace
-import SwiftLockbookCore
 import Introspect
 
 struct FileCell: View {
@@ -51,7 +50,7 @@ struct FileCell: View {
                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                 })
                 
-                if meta.fileType == .Document {
+                if meta.type == .document {
                     Button(action: {
                         DI.files.copyFileLink(id: meta.id)
                     }) {
@@ -83,7 +82,7 @@ struct FileCell: View {
                     }
                 }
             } else {
-                if meta.fileType == .Document {
+                if meta.type == .document {
                     DI.workspace.requestOpenDoc(meta.id)
                 }
                 
@@ -106,17 +105,17 @@ struct FileCell: View {
                 }
 
                 Image(systemName: FileService.metaToSystemImage(meta: meta))
-                    .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
+                    .foregroundColor(meta.type == .folder ? .blue : .secondary)
                     .font(.title3)
                     .frame(width: 20)
                 
-                if meta.fileType == .Document {
+                if meta.type == .document {
                     VStack(alignment: .leading) {
                         Text(meta.name)
                             .font(.body)
                             .lineLimit(1)
                         
-                        Text(DI.core.timeAgo(timeStamp: Int64(meta.lastModified)))
+                        Text(DI.core.getTimestampHumanString(timestamp: Int64(meta.lastModified)))
                                 .foregroundColor(.secondary)
                                 .font(.caption)
                     }

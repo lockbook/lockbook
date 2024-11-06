@@ -1,16 +1,22 @@
-pub mod account_service;
-pub mod activity_service;
-pub mod admin_service;
-pub mod api_service;
-pub mod billing_service;
-pub mod debug_service;
-pub mod document_service;
-pub mod file_service;
-pub mod import_export_service;
-pub mod integrity_service;
-pub mod log_service;
-pub mod path_service;
-pub mod search_service;
-pub mod share_service;
-pub mod sync_service;
-pub mod usage_service;
+//! Members of this module comprise the endpoints exposed by the lb crate
+//! Members of this module are generally handling concurrency primitives, caches, and pay special
+//! attention to the needs of people consuming lb - UI developers and integration engineers.
+//! On locking: in general, it is okay to hold a lock for reading a file, but not for multiple files or network I/O
+
+pub mod account;
+pub mod activity;
+pub mod admin;
+pub mod billing;
+pub mod debug;
+pub mod documents;
+pub mod file;
+pub mod import_export;
+pub mod integrity;
+pub mod keychain;
+pub mod logging;
+pub mod network;
+pub mod path;
+pub mod search;
+pub mod share;
+pub mod sync;
+pub mod usage;

@@ -1,6 +1,5 @@
 import Foundation
 import SwiftUI
-import SwiftLockbookCore
 import SwiftWorkspace
 
 struct RenameFileSheet: View {

@@ -1,10 +1,9 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use eframe::egui;
 use egui::TextWrapMode;
-use lb::Duration;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::{Button, ProgressBar};
 
@@ -38,7 +37,7 @@ impl super::AccountScreen {
                     egui::Frame::none().show(ui, |ui| {
                         let is_throttled_hover =
                             if let Some(hover_origin) = self.sync.usage_msg_gained_hover {
-                                let throttle_duration = Duration::milliseconds(100);
+                                let throttle_duration = Duration::from_millis(100);
                                 (Instant::now() - hover_origin) > throttle_duration
                             } else {
                                 false

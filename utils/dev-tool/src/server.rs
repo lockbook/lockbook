@@ -54,7 +54,7 @@ pub fn run_rust_tests(tool_env: &ToolEnvironment) {
     dotenvy::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
     Command::new("cargo")
-        .args(["test", "--workspace"])
+        .args(["test", "--workspace", "--release"])
         .current_dir(&tool_env.root_dir)
         .assert_success();
 }

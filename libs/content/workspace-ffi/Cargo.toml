@@ -14,7 +14,7 @@ egui_wgpu_backend = "0.30"
 egui_extras = { version = "0.28.1", features = ["image"] }
 libc = "0.2"
 workspace = { path = "../workspace/" }
-lb_external_interface = { path = "../../lb/lb_external_interface" }
+lb-c = { path = "../../lb/lb-c" }
 raw-window-handle = "0.6"
 jni = "0.21.0"
 pollster = "0.2"

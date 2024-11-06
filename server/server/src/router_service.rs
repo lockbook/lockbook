@@ -7,9 +7,9 @@ use crate::document_service::DocumentService;
 use crate::utils::get_build_info;
 use crate::{handle_version_header, router_service, verify_auth, ServerError, ServerState};
 use lazy_static::lazy_static;
-use lb_rs::shared::api::*;
-use lb_rs::shared::api::{ErrorWrapper, Request, RequestWrapper};
-use lb_rs::shared::SharedErrorKind;
+use lb_rs::logic::SharedErrorKind;
+use lb_rs::model::api::*;
+use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
 use prometheus::{
     register_counter_vec, register_histogram_vec, CounterVec, HistogramVec, TextEncoder,
 };
@@ -40,8 +40,8 @@ lazy_static! {
 #[macro_export]
 macro_rules! core_req {
     ($Req: ty, $handler: path, $state: ident) => {{
-        use lb_rs::shared::api::{ErrorWrapper, Request};
-        use lb_rs::shared::file_metadata::Owner;
+        use lb_rs::model::api::{ErrorWrapper, Request};
+        use lb_rs::model::file_metadata::Owner;
         use tracing::*;
         use $crate::router_service::{self, deserialize_and_check, method};
         use $crate::{RequestContext, ServerError};

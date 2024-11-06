@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftWorkspace
-import SwiftLockbookCore
 
 struct FileTreeView: NSViewRepresentable, Equatable {
     let scrollView = NSScrollView()
@@ -140,7 +139,7 @@ class MenuOutlineView: NSOutlineView {
                 }
             }
             
-            if meta.fileType == .Document && DI.workspace.openDoc != meta.id {
+            if meta.type == .document && DI.workspace.openDoc != meta.id {
                 (outlineView.dataSource as! DataSource).selectedDoc = meta.id
                 DI.workspace.openDoc = meta.id
                 
@@ -162,7 +161,7 @@ class MenuOutlineView: NSOutlineView {
                 animator().expandItem(meta)
             }
             
-            if meta.fileType == .Folder {
+            if meta.type == .folder {
                 DI.workspace.selectedFolder = meta.id
             }
         }

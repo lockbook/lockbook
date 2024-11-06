@@ -1,14 +1,11 @@
 pub mod assert;
 
-use itertools::Itertools;
-use lb_rs::service::api_service::Requester;
-use lb_rs::shared::api::{PaymentMethod, StripeAccountTier};
-use lb_rs::shared::core_config::Config;
-use lb_rs::shared::crypto::EncryptedDocument;
-use lb_rs::shared::document_repo;
-use lb_rs::shared::work_unit::WorkUnit;
-use lb_rs::DocumentService;
-use lb_rs::{Core, CoreLib};
+use itertools::Itertools as _;
+use lb_rs::logic::crypto::EncryptedDocument;
+use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
+use lb_rs::model::core_config::Config;
+use lb_rs::model::work_unit::WorkUnit;
+use lb_rs::Lb;
 use std::collections::HashMap;
 use std::env;
 use std::fmt::Debug;
@@ -22,21 +19,25 @@ pub fn test_config() -> Config {
     Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()), logs: false, colored_logs: false }
 }
 
-pub fn test_core() -> Core {
-    Core::init(&test_config()).unwrap()
+pub async fn test_core() -> Lb {
+    Lb::init(test_config()).await.unwrap()
 }
 
-pub fn test_core_from(core: &Core) -> Core {
+pub async fn test_core_from(core: &Lb) -> Lb {
     let account_string = core.export_account_private_key().unwrap();
-    let core = test_core();
-    core.import_account(&account_string, Some(&url())).unwrap();
-    core.sync(None).unwrap();
+    let core = test_core().await;
+    core.import_account(&account_string, Some(&url()))
+        .await
+        .unwrap();
+    core.sync(None).await.unwrap();
     core
 }
 
-pub fn test_core_with_account() -> Core {
-    let core = test_core();
-    core.create_account(&random_name(), &url(), false).unwrap();
+pub async fn test_core_with_account() -> Lb {
+    let core = test_core().await;
+    core.create_account(&random_name(), &url(), false)
+        .await
+        .unwrap();
     core
 }
 
@@ -52,32 +53,37 @@ pub fn random_name() -> String {
         .collect()
 }
 
-pub fn write_path(c: &Core, path: &str, content: &[u8]) -> Result<(), String> {
-    let target = c.get_by_path(path).map_err(err_to_string)?;
-    c.write_document(target.id, content).map_err(err_to_string)
+pub async fn write_path(c: &Lb, path: &str, content: &[u8]) -> Result<(), String> {
+    let target = c.get_by_path(path).await.map_err(err_to_string)?;
+    c.write_document(target.id, content)
+        .await
+        .map_err(err_to_string)
 }
 
-pub fn delete_path(c: &Core, path: &str) -> Result<(), String> {
-    let target = c.get_by_path(path).map_err(err_to_string)?;
-    c.delete_file(target.id).map_err(err_to_string)
+pub async fn delete_path(c: &Lb, path: &str) -> Result<(), String> {
+    let target = c.get_by_path(path).await.map_err(err_to_string)?;
+    c.delete(&target.id).await.map_err(err_to_string)
 }
 
-pub fn move_by_path(c: &Core, src: &str, dest: &str) -> Result<(), String> {
-    let src = c.get_by_path(src).map_err(err_to_string)?;
-    let dest = c.get_by_path(dest).map_err(err_to_string)?;
-    c.move_file(src.id, dest.id).map_err(err_to_string)
+pub async fn move_by_path(c: &Lb, src: &str, dest: &str) -> Result<(), String> {
+    let src = c.get_by_path(src).await.map_err(err_to_string)?;
+    let dest = c.get_by_path(dest).await.map_err(err_to_string)?;
+    c.move_file(&src.id, &dest.id).await.map_err(err_to_string)
 }
 
-pub fn rename_path(c: &Core, path: &str, new_name: &str) -> Result<(), String> {
-    let target = c.get_by_path(path).map_err(err_to_string)?;
-    c.rename_file(target.id, new_name).map_err(err_to_string)
+pub async fn rename_path(c: &Lb, path: &str, new_name: &str) -> Result<(), String> {
+    let target = c.get_by_path(path).await.map_err(err_to_string)?;
+    c.rename_file(&target.id, new_name)
+        .await
+        .map_err(err_to_string)
 }
 
-pub fn another_client(c: &Core) -> Core {
+pub async fn another_client(c: &Lb) -> Lb {
     let account_string = c.export_account_private_key().unwrap();
-    let new_core = test_core();
+    let new_core = test_core().await;
     new_core
         .import_account(&account_string, Some(&url()))
+        .await
         .unwrap();
     new_core
 }
@@ -86,8 +92,9 @@ fn err_to_string<E: Debug>(e: E) -> String {
     format!("{}: {:?}", std::any::type_name::<E>(), e)
 }
 
-pub fn get_dirty_ids(db: &Core, server: bool) -> Vec<Uuid> {
-    db.calculate_work()
+pub async fn get_dirty_ids(lb: &Lb, server: bool) -> Vec<Uuid> {
+    lb.calculate_work()
+        .await
         .unwrap()
         .work_units
         .into_iter()
@@ -100,38 +107,24 @@ pub fn get_dirty_ids(db: &Core, server: bool) -> Vec<Uuid> {
         .collect()
 }
 
-pub fn dbs_equal<Client: Requester, Docs: DocumentService>(
-    left: &CoreLib<Client, Docs>, right: &CoreLib<Client, Docs>,
-) -> bool {
-    left.in_tx(|l| {
-        Ok(right
-            .in_tx(|r| {
-                Ok(r.db.account.get() == l.db.account.get()
-                    && r.db.root.get() == l.db.root.get()
-                    && r.db.local_metadata.get() == l.db.local_metadata.get()
-                    && r.db.base_metadata.get() == l.db.base_metadata.get())
-            })
-            .unwrap())
-    })
-    .unwrap()
+pub async fn dbs_equal(left: &Lb, right: &Lb) -> bool {
+    let mut left_tx = left.begin_tx().await;
+    let mut right_tx = right.begin_tx().await;
+
+    right_tx.db().account.get() == left_tx.db().account.get()
+        && right_tx.db().root.get() == left_tx.db().root.get()
+        && right_tx.db().local_metadata.get() == left_tx.db().local_metadata.get()
+        && right_tx.db().base_metadata.get() == left_tx.db().base_metadata.get()
 }
 
-pub fn assert_dbs_equal<Client: Requester, Docs: DocumentService>(
-    left: &CoreLib<Client, Docs>, right: &CoreLib<Client, Docs>,
-) {
-    left.in_tx(|l| {
-        right
-            .in_tx(|r| {
-                assert_eq!(l.db.account.get(), r.db.account.get());
-                assert_eq!(l.db.root.get(), r.db.root.get());
-                assert_eq!(l.db.base_metadata.get(), r.db.base_metadata.get());
-                assert_eq!(l.db.local_metadata.get(), r.db.local_metadata.get());
-                Ok(())
-            })
-            .unwrap();
-        Ok(())
-    })
-    .unwrap();
+pub async fn assert_dbs_equal(left: &Lb, right: &Lb) {
+    let mut left_tx = left.begin_tx().await;
+    let mut right_tx = right.begin_tx().await;
+
+    assert_eq!(left_tx.db().account.get(), right_tx.db().account.get());
+    assert_eq!(left_tx.db().root.get(), right_tx.db().root.get());
+    assert_eq!(left_tx.db().base_metadata.get(), right_tx.db().base_metadata.get());
+    assert_eq!(left_tx.db().local_metadata.get(), right_tx.db().local_metadata.get());
 }
 
 pub fn doc_repo_get_all(config: &Config) -> Vec<EncryptedDocument> {
@@ -144,7 +137,7 @@ pub fn doc_repo_get_all(config: &Config) -> Vec<EncryptedDocument> {
 }
 
 fn list_files(db: &Config) -> Vec<String> {
-    let path = document_repo::namespace_path(&db.writeable_path);
+    let path = lb_rs::repo::docs::namespace_path(&PathBuf::from(db.writeable_path.clone()));
     let path = Path::new(&path);
 
     match fs::read_dir(path) {

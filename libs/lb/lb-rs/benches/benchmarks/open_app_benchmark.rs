@@ -1,8 +1,6 @@
 use crate::*;
 use criterion::{black_box, criterion_group, Criterion};
-use lb_rs::shared::file_metadata::FileType;
-use lb_rs::Core;
-use test_utils::*;
+use lb_rs::model::file_metadata::FileType;
 use uuid::Uuid;
 
 fn open_app_benchmark(c: &mut Criterion) {
@@ -13,19 +11,17 @@ fn open_app_benchmark(c: &mut Criterion) {
 }
 
 fn get_state_benchmark(c: &mut Criterion) {
-    let core = test_core_with_account();
+    let core = blocking_core();
 
-    c.bench_function("open_app_get_state", |b| {
-        b.iter(|| Core::init(&core.get_config().unwrap()).unwrap())
-    });
+    c.bench_function("open_app_get_state", |b| b.iter(|| Lb::init(core.get_config()).unwrap()));
 }
 
 fn get_account_benchmark(c: &mut Criterion) {
-    let core = test_core_with_account();
+    let core = blocking_core();
 
     c.bench_function("open_app_get_account", |b| {
         b.iter(|| {
-            let core2 = Core::init(&core.get_config().unwrap()).unwrap();
+            let core2 = Lb::init(core.get_config()).unwrap();
             core2.get_account().unwrap();
         })
     });
@@ -43,13 +39,13 @@ fn list_metadatas_benchmark(c: &mut Criterion) {
     ]
     .iter()
     {
-        let core1 = test_core_with_account();
+        let core1 = blocking_core();
         let root = core1.get_root().unwrap();
         for _ in 0..*size {
             core1
                 .create_file(
                     black_box(&Uuid::new_v4().to_string()),
-                    black_box(root.id),
+                    black_box(&root.id),
                     black_box(FileType::Document),
                 )
                 .unwrap();
@@ -57,7 +53,7 @@ fn list_metadatas_benchmark(c: &mut Criterion) {
 
         list_metadatas_group.bench_function(size.to_string(), |b| {
             b.iter(|| {
-                let core2 = Core::init(&core1.get_config().unwrap()).unwrap();
+                let core2 = Lb::init(core1.get_config()).unwrap();
                 core2.list_metadatas().unwrap();
             })
         });
@@ -77,14 +73,14 @@ fn list_paths_benchmark(c: &mut Criterion) {
     ]
     .iter()
     {
-        let core1 = test_core_with_account();
+        let core1 = blocking_core();
         let root = core1.get_root().unwrap();
 
         for _ in 0..*size {
             core1
                 .create_file(
                     black_box(&Uuid::new_v4().to_string()),
-                    black_box(root.id),
+                    black_box(&root.id),
                     black_box(FileType::Document),
                 )
                 .unwrap();
@@ -92,7 +88,7 @@ fn list_paths_benchmark(c: &mut Criterion) {
 
         list_paths_group.bench_function(size.to_string(), |b| {
             b.iter(|| {
-                let core2 = Core::init(&core1.get_config().unwrap()).unwrap();
+                let core2 = Lb::init(core1.get_config()).unwrap();
                 core2.list_paths(None).unwrap();
             })
         });

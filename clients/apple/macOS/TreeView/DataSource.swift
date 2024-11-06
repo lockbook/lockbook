@@ -1,8 +1,6 @@
 import AppKit
-import SwiftLockbookCore
+import SwiftWorkspace
 
-// Reference for drag and drop:
-// https://github.com/KinematicSystems/NSOutlineViewReorder/blob/master/OutlineViewReorder/OutlineDataSource.swift
 class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvider {
 
     var dragged: [File]? = nil
@@ -24,7 +22,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     ) -> Bool {
         let file = item as! File
 
-        return file.fileType == .Folder
+        return file.type == .folder
                 && !DI.files.childrenOf(file).isEmpty
     }
 
@@ -58,7 +56,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
 
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
         let parent = item == nil ? DI.files.root! : item as! File
-        if parent.fileType == .Document {
+        if parent.type == .document {
             return []
         }
         
@@ -79,7 +77,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
                 return false
             }
             
-            if(parent.fileType == .Document) {
+            if(parent.type == .document) {
                 return false
             }
             
@@ -117,7 +115,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     static let REORDER_PASTEBOARD_TYPE = "net.lockbook.metadata"
 }
 
-class TreeDelegate: NSObject, MenuOutlineViewDelegate {
+class TreeDelegate: NSObject, MenuOutlineViewDelegate { 
     func outlineView(_ outlineView: NSOutlineView, menuForItem item: Any?) -> NSMenu? {
         let menu = NSMenu()
         let parent = item as? File ?? DI.files.root!
@@ -133,7 +131,7 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
             return menu
         }
         
-        if parent.fileType == .Folder {
+        if parent.type == .folder {
             menu.addItem(CreateDocument(file: parent))
             menu.addItem(CreateDrawing(file: parent))
             menu.addItem(CreateFolder(file: parent))

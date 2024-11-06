@@ -1,5 +1,0 @@
-module CLockbookCore {
-    header "lb_rs.h"
-    link "lb_external_interface"
-    export *
-}

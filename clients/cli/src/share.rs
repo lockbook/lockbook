@@ -1,22 +1,33 @@
+use crate::core;
 use cli_rs::cli_error::{CliError, CliResult};
-use lb::{Core, Uuid};
+use lb_rs::{
+    model::{
+        file::{File, ShareMode},
+        file_metadata::FileType,
+    },
+    Uuid,
+};
 
 use crate::{ensure_account_and_root, input::FileInput};
 
-pub fn new(core: &Core, target: FileInput, username: String, read_only: bool) -> CliResult<()> {
-    ensure_account_and_root(core)?;
+#[tokio::main]
+pub async fn new(target: FileInput, username: String, read_only: bool) -> CliResult<()> {
+    let lb = &core().await?;
+    ensure_account_and_root(lb).await?;
 
-    let id = target.find(core)?.id;
-    let mode = if read_only { lb::ShareMode::Read } else { lb::ShareMode::Write };
-    core.share_file(id, &username, mode)?;
+    let id = target.find(lb).await?.id;
+    let mode = if read_only { ShareMode::Read } else { ShareMode::Write };
+    lb.share_file(id, &username, mode).await?;
     println!("done!\nfile '{}' will be shared next time you sync.", id);
     Ok(())
 }
 
-pub fn pending(core: &Core) -> CliResult<()> {
-    ensure_account_and_root(core)?;
+#[tokio::main]
+pub async fn pending() -> CliResult<()> {
+    let lb = &core().await?;
+    ensure_account_and_root(lb).await?;
 
-    let pending_shares = to_share_infos(core.get_pending_shares()?);
+    let pending_shares = to_share_infos(lb.get_pending_shares().await?);
     if pending_shares.is_empty() {
         println!("no pending shares.");
         return Ok(());
@@ -25,31 +36,38 @@ pub fn pending(core: &Core) -> CliResult<()> {
     Ok(())
 }
 
-pub fn accept(core: &Core, target: Uuid, dest: FileInput) -> CliResult<()> {
-    ensure_account_and_root(core)?;
+#[tokio::main]
+pub async fn accept(target: &Uuid, dest: FileInput) -> CliResult<()> {
+    let lb = &core().await?;
+    ensure_account_and_root(lb).await?;
 
-    let share = core
-        .get_pending_shares()?
+    let share = lb
+        .get_pending_shares()
+        .await?
         .into_iter()
-        .find(|f| f.id == target)
+        .find(|f| f.id == *target)
         .ok_or_else(|| CliError::from(format!("Could not find {target} in pending shares")))?;
-    let parent = dest.find(core)?;
+    let parent = dest.find(lb).await?;
 
-    core.create_file(&share.name, parent.id, lb::FileType::Link { target: share.id })
+    lb.create_file(&share.name, &parent.id, FileType::Link { target: share.id })
+        .await
         .map_err(|err| CliError::from(format!("{:?}", err)))?;
 
     Ok(())
 }
 
-pub fn delete(core: &Core, target: Uuid) -> Result<(), CliError> {
-    ensure_account_and_root(core)?;
+#[tokio::main]
+pub async fn delete(target: Uuid) -> Result<(), CliError> {
+    let lb = &core().await?;
+    ensure_account_and_root(lb).await?;
 
-    let share = core
-        .get_pending_shares()?
+    let share = lb
+        .get_pending_shares()
+        .await?
         .into_iter()
         .find(|f| f.id == target)
         .ok_or_else(|| CliError::from(format!("Could not find {target} in pending shares")))?;
-    core.delete_pending_share(share.id)?;
+    lb.reject_share(&share.id).await?;
     Ok(())
 }
 
@@ -57,7 +75,7 @@ fn print_share_infos(infos: &[ShareInfo]) {
     println!("{}", share_infos_table(infos));
 }
 
-fn to_share_infos(files: Vec<lb::File>) -> Vec<ShareInfo> {
+fn to_share_infos(files: Vec<File>) -> Vec<ShareInfo> {
     let mut infos: Vec<ShareInfo> = files
         .into_iter()
         .map(|f| {
@@ -65,7 +83,7 @@ fn to_share_infos(files: Vec<lb::File>) -> Vec<ShareInfo> {
                 .shares
                 .first()
                 .map(|sh| (sh.shared_by.as_str(), sh.mode))
-                .unwrap_or(("", lb::ShareMode::Write));
+                .unwrap_or(("", ShareMode::Write));
             ShareInfo {
                 id: f.id,
                 mode: mode.to_string().to_lowercase(),
@@ -142,11 +160,12 @@ fn share_infos_table(infos: &[ShareInfo]) -> String {
     ret
 }
 
-pub fn pending_share_completor(
-    core: &lb::CoreLib<lb::service::api_service::Network, lb::OnDiskDocuments>, prompt: &str,
-) -> Result<Vec<String>, CliError> {
-    Ok(core
-        .get_pending_shares()?
+#[tokio::main]
+pub async fn pending_share_completor(prompt: &str) -> CliResult<Vec<String>> {
+    let lb = &core().await?;
+    Ok(lb
+        .get_pending_shares()
+        .await?
         .into_iter()
         .map(|share| share.id.to_string())
         .filter(|id| id.starts_with(prompt))

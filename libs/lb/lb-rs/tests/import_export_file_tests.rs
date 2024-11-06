@@ -1,5 +1,5 @@
-use lb_rs::service::import_export_service::{ExportFileInfo, ImportStatus};
-use lb_rs::shared::file_metadata::FileType;
+use lb_rs::model::file_metadata::FileType;
+use lb_rs::service::import_export::{ExportFileInfo, ImportStatus};
 use rand::Rng;
 
 use std::path::PathBuf;
@@ -7,9 +7,9 @@ use std::sync::{Arc, Mutex};
 use test_utils::test_core_with_account;
 use uuid::Uuid;
 
-#[test]
-fn import_file_successfully() {
-    let core = test_core_with_account();
+#[tokio::test]
+async fn import_file_successfully() {
+    let core = test_core_with_account().await;
     let tmp = tempfile::tempdir().unwrap();
     let tmp_path = tmp.path().to_path_buf();
 
@@ -19,7 +19,7 @@ fn import_file_successfully() {
 
     std::fs::write(&doc_path, rand::thread_rng().gen::<[u8; 32]>()).unwrap();
 
-    let root = core.get_root().unwrap();
+    let root = core.root().await.unwrap();
 
     let f = move |status: ImportStatus| {
         // only checking if the disk path exists since a lockbook folder that has children won't
@@ -34,9 +34,9 @@ fn import_file_successfully() {
         }
     };
 
-    core.import_files(&[doc_path], root.id, &f).unwrap();
+    core.import_files(&[doc_path], root.id, &f).await.unwrap();
 
-    core.get_by_path(&format!("/{}", name)).unwrap();
+    core.get_by_path(&format!("/{}", name)).await.unwrap();
 
     // generating folder with a document in /tmp/
     let parent_name = Uuid::new_v4().to_string();
@@ -49,16 +49,19 @@ fn import_file_successfully() {
 
     std::fs::write(child_path, rand::thread_rng().gen::<[u8; 32]>()).unwrap();
 
-    core.import_files(&[parent_path], root.id, &f).unwrap();
+    core.import_files(&[parent_path], root.id, &f)
+        .await
+        .unwrap();
 
     core.get_by_path(&format!("/{}/{}", parent_name, child_name))
+        .await
         .unwrap();
 }
 
-#[test]
-fn export_file_successfully() {
-    let core = test_core_with_account();
-    let root = core.get_root().unwrap();
+#[tokio::test]
+async fn export_file_successfully() {
+    let core = test_core_with_account().await;
+    let root = core.root().await.unwrap();
 
     let tmp = tempfile::tempdir().unwrap();
     let tmp_path = tmp.path().to_path_buf();
@@ -66,9 +69,11 @@ fn export_file_successfully() {
     // generating document in lockbook
     let name = Uuid::new_v4().to_string();
     let file = core
-        .create_file(&name, root.id, FileType::Document)
+        .create_file(&name, &root.id, FileType::Document)
+        .await
         .unwrap();
     core.write_document(file.id, &rand::thread_rng().gen::<[u8; 32]>())
+        .await
         .unwrap();
 
     let paths: Arc<Mutex<Vec<ExportFileInfo>>> = Arc::new(Mutex::new(Vec::new()));
@@ -77,10 +82,13 @@ fn export_file_successfully() {
     let export_progress = move |info: ExportFileInfo| {
         path_copy.lock().unwrap().push(info);
     };
-    core.export_file(file.id, tmp_path.clone(), false, Some(Box::new(export_progress.clone())))
+    core.export_file(file.id, tmp_path.clone(), false, &Some(export_progress.clone()))
+        .await
         .unwrap();
-    for info in paths.lock().unwrap().iter() {
-        core.get_by_path(&info.lockbook_path).unwrap();
+    // todo(parth): fix clippy warning await_holding_lock
+    let paths = paths.lock().unwrap().clone();
+    for info in paths.iter() {
+        core.get_by_path(&info.lockbook_path).await.unwrap();
         assert!(info.disk_path.exists());
     }
 
@@ -91,12 +99,15 @@ fn export_file_successfully() {
     let child_name = Uuid::new_v4().to_string();
     let child = core
         .create_at_path(&format!("/{}/{}/{}", root.name, parent_name, child_name))
+        .await
         .unwrap();
 
     core.write_document(child.id, &rand::thread_rng().gen::<[u8; 32]>())
+        .await
         .unwrap();
 
-    core.export_file(child.parent, tmp_path.clone(), false, Some(Box::new(export_progress)))
+    core.export_file(child.parent, tmp_path.clone(), false, &Some(export_progress))
+        .await
         .unwrap();
 
     assert!(tmp_path.join(parent_name).join(child_name).exists());

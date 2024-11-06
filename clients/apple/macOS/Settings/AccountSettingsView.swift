@@ -1,5 +1,5 @@
 import SwiftUI
-import SwiftLockbookCore
+import SwiftWorkspace
 
 let buttonCornerRadius = 4.0
 

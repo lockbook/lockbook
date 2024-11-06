@@ -1,6 +1,6 @@
 import Foundation
 import SwiftUI
-import SwiftLockbookCore
+import SwiftWorkspace
 
 struct ShareFileSheet: View {
     
@@ -52,7 +52,7 @@ struct ShareFileSheet: View {
             #endif
             
             Button("Share") {
-                share.shareFile(id: meta.id, username: username, isWrite: isWriteSelected)
+                share.shareFile(id: meta.id, username: username, mode: isWriteSelected ? .write : .read)
                 DI.workspace.requestSync()
 
                 presentationMode.wrappedValue.dismiss()

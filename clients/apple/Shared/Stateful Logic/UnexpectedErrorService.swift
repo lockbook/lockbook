@@ -1,10 +1,11 @@
 import Foundation
-import SwiftLockbookCore
+import SwiftWorkspace
 
 class UnexpectedErrorService: ObservableObject {
-    @Published var globalError: AnyFfiError?
+    @Published var globalError: LbError?
+    @Published var errorWithTitle: (String, String)? = nil
     
-    func handleError(_ error: AnyFfiError) {
+    func handleError(_ error: LbError) {
         DispatchQueue.main.async {
             self.globalError = error
         }
@@ -12,7 +13,7 @@ class UnexpectedErrorService: ObservableObject {
     
     func errorWithTitle(_ title: String, _ message: String) {
         DispatchQueue.main.async {
-            self.globalError = ErrorWithTitle(title: title, message: message)
+            self.errorWithTitle = (title, message)
         }
     }
 }

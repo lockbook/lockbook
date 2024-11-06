@@ -1,6 +1,6 @@
 import SwiftUI
 import Foundation
-import SwiftLockbookCore
+import SwiftWorkspace
 
 struct DeleteConfirmationButtons: View {
     

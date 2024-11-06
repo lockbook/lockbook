@@ -1,6 +1,5 @@
 import Foundation
 import SwiftUI
-import SwiftLockbookCore
 
 struct CreateFolderSheet: View {
     let info: CreatingFolderInfo

@@ -1,6 +1,6 @@
 import Foundation
 import SwiftUI
-import SwiftLockbookCore
+import SwiftWorkspace
 
 struct ExportedURLDest {
     let id: UUID
@@ -8,9 +8,9 @@ struct ExportedURLDest {
 }
 
 class ImportExportService: ObservableObject {
-    let core: LockbookApi
+    let core: Lb
 
-    init(_ core: LockbookApi) {
+    init(_ core: Lb) {
         self.core = core
     }
     
@@ -18,7 +18,7 @@ class ImportExportService: ObservableObject {
     
     public func importFilesSync(sources: [String], destination: UUID) -> Bool {
         print("importing files")
-        let operation = DI.core.importFiles(sources: sources, destination: destination)
+        let operation = DI.core.importFiles(sources: sources, dest: destination)
 
         switch operation {
         case .success(_):
@@ -38,7 +38,7 @@ class ImportExportService: ObservableObject {
         }
         
 
-        let operation = DI.core.exportFile(id: meta.id, destination: destination.path())
+        let operation = DI.core.exportFile(sourceId: meta.id, dest: destination.path(), edit: true)
         
         switch operation {
         case .success(_):

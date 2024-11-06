@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftLockbookCore
 
 struct AppView: View {
     
@@ -34,33 +33,40 @@ struct AppView: View {
                 Label("Loading...", systemImage: "clock.arrow.circlepath")
             }
         }
-            .alert(isPresented: Binding(get: { errors.globalError != nil }, set: { _ in errors.globalError = nil })) {
-                // TODO: Improve the UX of this
-                switch errors.globalError {
-                case let update as FfiError<CreateAccountError> where update == .init(.ClientUpdateRequired):
+        .alert(isPresented: Binding(get: { errors.globalError != nil }, set: { _ in errors.globalError = nil })) {
+            if let error = errors.globalError {
+                if error.code == .clientUpdateRequired {
                     return updateAlert
-                case let update as FfiError<ImportError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let update as FfiError<CalculateWorkError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let update as FfiError<SyncAllError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let update as FfiError<GetUsageError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let error as ErrorWithTitle:
+                } else {
                     return Alert(
-                        title: Text(error.title),
-                        message: Text(error.message),
-                        dismissButton: .default(Text("Dismiss"))
-                    )
-                default:
-                    return Alert(
-                        title: Text("Core Error!"),
-                        message: errors.globalError.map({ Text($0.message) }),
+                        title: Text("Error"),
+                        message: Text(error.msg),
                         dismissButton: .default(Text("Dismiss"))
                     )
                 }
+            } else {
+                return Alert(
+                    title: Text("Error"),
+                    message: Text("An unknown error has occurred."),
+                    dismissButton: .default(Text("Dismiss"))
+                )
             }
+        }
+        .alert(isPresented: Binding(get: { errors.errorWithTitle != nil }, set: { _ in errors.errorWithTitle = nil })) {
+            if let error = errors.errorWithTitle {
+                return Alert(
+                    title: Text(error.0),
+                    message: Text(error.1),
+                    dismissButton: .default(Text("Dismiss"))
+                )
+            } else {
+                return Alert(
+                    title: Text("Error"),
+                    message: Text("An unknown error has occurred."),
+                    dismissButton: .default(Text("Dismiss"))
+                )
+            }
+        }
     }
     
     func handleImportLink(url: URL) {
@@ -109,10 +115,3 @@ struct AppView: View {
         dismissButton: .default(Text("Dismiss"))
     )
 }
-
-struct AppView_Previews: PreviewProvider {
-    static var previews: some View {
-        AppView().mockDI()
-    }
-}
-

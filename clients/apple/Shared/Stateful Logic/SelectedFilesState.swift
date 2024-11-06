@@ -1,6 +1,6 @@
 import Foundation
-import SwiftLockbookCore
 import SwiftUI
+import SwiftWorkspace
 
 class SelectedFilesState: ObservableObject {
     @Published var selectedFiles: Set<File>? = nil {
@@ -22,7 +22,7 @@ class SelectedFilesState: ObservableObject {
         selectedFiles?.insert(file)
         totalSelectedFiles?.insert(file)
         
-        if file.fileType == .Folder {
+        if file.type == .folder {
             var childrenToAdd = DI.files.childrenOf(file)
             
             while !childrenToAdd.isEmpty {
@@ -30,7 +30,7 @@ class SelectedFilesState: ObservableObject {
                 for child in childrenToAdd {
                     totalSelectedFiles?.insert(child)
                     selectedFiles?.remove(child)
-                    if child.fileType == .Folder {
+                    if child.type == .folder {
                         newChildren.append(contentsOf: DI.files.childrenOf(child))
                     }
                 }
@@ -73,14 +73,14 @@ class SelectedFilesState: ObservableObject {
             }
         }
         
-        if file.fileType == .Folder {
+        if file.type == .folder {
             var childrenToRemove = DI.files.childrenOf(file)
             
             while !childrenToRemove.isEmpty {
                 var newChildren: [File] = []
                 
                 for child in childrenToRemove {
-                    if (selectedFiles?.remove(child) == child || totalSelectedFiles?.remove(child) == child) && child.fileType == .Folder {
+                    if (selectedFiles?.remove(child) == child || totalSelectedFiles?.remove(child) == child) && child.type == .folder {
                         newChildren.append(contentsOf: DI.files.childrenOf(child))
                     }
                 }

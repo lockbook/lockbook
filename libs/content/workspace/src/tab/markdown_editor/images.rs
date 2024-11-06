@@ -2,6 +2,7 @@ use crate::tab;
 use crate::tab::markdown_editor::ast::Ast;
 use crate::tab::markdown_editor::style::{InlineNode, MarkdownNode, Url};
 use egui::{ColorImage, TextureId, Ui};
+use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
 use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, Transform};
@@ -25,7 +26,7 @@ pub enum ImageState {
 }
 
 pub fn calc(
-    ast: &Ast, prior_cache: &ImageCache, client: &reqwest::blocking::Client, core: &lb_rs::Core,
+    ast: &Ast, prior_cache: &ImageCache, client: &reqwest::blocking::Client, core: &Lb,
     file_id: Uuid, ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();

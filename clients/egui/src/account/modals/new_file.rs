@@ -1,7 +1,8 @@
 use eframe::egui;
+use lb::model::file_metadata::FileType;
 
 pub struct NewFileParams {
-    pub ftype: lb::FileType,
+    pub ftype: FileType,
     pub parent_path: String,
     pub name: String,
 }
@@ -63,7 +64,7 @@ impl super::Modal for NewFolderModal {
                             self.err_msg = Some("File names cannot be empty!".to_string());
                         } else {
                             maybe_submission = Some(NewFileParams {
-                                ftype: lb::FileType::Folder,
+                                ftype: FileType::Folder,
                                 parent_path: self.parent_path.clone(),
                                 name: self.new_name.clone(),
                             });

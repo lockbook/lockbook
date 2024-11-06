@@ -1,21 +1,26 @@
 use std::{cmp::Ordering, path::Path};
 
 use cli_rs::cli_error::CliResult;
-use lb::{Core, File, Uuid};
+use lb_rs::{model::file::File, Lb, Uuid};
 
-use crate::{ensure_account_and_root, input::FileInput};
+use crate::{core, ensure_account_and_root, input::FileInput};
 
 const ID_PREFIX_LEN: usize = 8;
 
-pub fn list(
-    core: &Core, long: bool, recursive: bool, mut paths: bool, target: FileInput,
+#[tokio::main]
+pub async fn list(
+    long: bool, recursive: bool, mut paths: bool, target: FileInput,
 ) -> CliResult<()> {
-    ensure_account_and_root(core)?;
+    let lb = &core().await?;
+    ensure_account_and_root(lb).await?;
 
-    let id = target.find(core)?.id;
+    let id = target.find(lb).await?.id;
 
-    let mut files =
-        if recursive { core.get_and_get_children_recursively(id)? } else { core.get_children(id)? };
+    let mut files = if recursive {
+        lb.get_and_get_children_recursively(&id).await?
+    } else {
+        lb.get_children(&id).await?
+    };
 
     // Discard root if present. This guarantees every file to have a `dirname` and `name`.
     if let Some(pos) = files.iter().position(|f| f.id == f.parent) {
@@ -27,14 +32,14 @@ pub fn list(
     };
 
     let mut cfg = LsConfig {
-        my_name: core.get_account()?.username,
+        my_name: lb.get_account()?.username.clone(),
         w_id: ID_PREFIX_LEN,
         w_name: 0,
         long,
         paths,
     };
 
-    for ch in get_children(core, &files, id, &mut cfg)? {
+    for ch in get_children(lb, &files, id, &mut cfg).await? {
         print_node(&ch, &cfg);
     }
     Ok(())
@@ -92,8 +97,8 @@ fn node_string(node: &FileNode, cfg: &LsConfig) -> String {
     txt
 }
 
-fn get_children(
-    core: &Core, files: &[File], parent: Uuid, cfg: &mut LsConfig,
+async fn get_children(
+    lb: &Lb, files: &[File], parent: Uuid, cfg: &mut LsConfig,
 ) -> CliResult<Vec<FileNode>> {
     let mut children = Vec::new();
     for f in files {
@@ -105,7 +110,7 @@ fn get_children(
             }
             // Parent directory.
             let dirname = {
-                let path = core.get_path_by_id(f.id)?;
+                let path = lb.get_path_by_id(f.id).await?;
                 let mut dn = Path::new(&path)
                     .parent()
                     .unwrap()
@@ -150,7 +155,7 @@ fn get_children(
                 is_dir: f.is_folder(),
                 shared_with_summary,
                 shared_by,
-                children: get_children(core, files, f.id, cfg)?,
+                children: Box::pin(get_children(lb, files, f.id, cfg)).await?,
             };
             children.push(child);
         }

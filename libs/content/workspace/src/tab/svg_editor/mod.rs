@@ -16,6 +16,7 @@ pub use eraser::Eraser;
 pub use history::DeleteElement;
 pub use history::Event;
 pub use history::InsertElement;
+use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
 pub use parser::Buffer;
 use parser::DiffState;
@@ -37,7 +38,7 @@ pub struct SVGEditor {
     history: History,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
-    core: lb_rs::Core,
+    core: Lb,
     open_file: Uuid,
     skip_frame: bool,
     // last_render: Instant,
@@ -59,7 +60,7 @@ pub enum CanvasOp {
     Idle,
 }
 impl SVGEditor {
-    pub fn new(bytes: &[u8], ctx: &egui::Context, core: lb_rs::Core, open_file: Uuid) -> Self {
+    pub fn new(bytes: &[u8], ctx: &egui::Context, core: Lb, open_file: Uuid) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
         let buffer = parser::Buffer::new(content, &core, open_file);

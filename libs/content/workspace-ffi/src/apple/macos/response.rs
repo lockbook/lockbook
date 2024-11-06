@@ -1,6 +1,6 @@
 use std::ffi::{c_char, CString};
 
-use lb_external_interface::lb_rs::Uuid;
+use lb_c::Uuid;
 
 use super::super::response::*;
 use super::cursor_icon::CCursorIcon;

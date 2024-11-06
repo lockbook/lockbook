@@ -3,6 +3,10 @@ use std::thread;
 
 use eframe::egui;
 use egui::Image;
+use lb::blocking::Lb;
+use lb::model::errors::{LbErr, LbErrKind};
+use lb::service::sync::SyncProgress;
+use lb::DEFAULT_API_LOCATION;
 use workspace_rs::widgets::ButtonGroup;
 
 use crate::model::AccountScreenInitData;
@@ -10,14 +14,14 @@ use crate::settings::Settings;
 
 pub struct OnboardHandOff {
     pub settings: Arc<RwLock<Settings>>,
-    pub core: lb::Core,
+    pub core: Lb,
     pub acct_data: AccountScreenInitData,
 }
 
 enum Update {
     AccountCreated(Result<AccountScreenInitData, String>),
     AccountImported(Option<String>),
-    ImportSyncProgress(lb::SyncProgress),
+    ImportSyncProgress(SyncProgress),
     ImportSyncDone(Option<SyncError>),
     AccountDataLoaded(Result<AccountScreenInitData, String>),
 }
@@ -29,7 +33,7 @@ enum State {
 
 pub struct OnboardScreen {
     settings: Arc<RwLock<Settings>>,
-    pub core: lb::Core,
+    pub core: Lb,
 
     update_tx: mpsc::Sender<Update>,
     update_rx: mpsc::Receiver<Update>,
@@ -47,7 +51,7 @@ pub struct OnboardScreen {
 }
 
 impl OnboardScreen {
-    pub fn new(settings: Arc<RwLock<Settings>>, core: lb::Core) -> Self {
+    pub fn new(settings: Arc<RwLock<Settings>>, core: Lb) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
 
         Self {
@@ -227,7 +231,7 @@ impl OnboardScreen {
 
         thread::spawn(move || {
             let api_url =
-                std::env::var("API_URL").unwrap_or_else(|_| lb::DEFAULT_API_LOCATION.to_string());
+                std::env::var("API_URL").unwrap_or_else(|_| DEFAULT_API_LOCATION.to_string());
 
             let result = core
                 .create_account(&uname, &api_url, true)
@@ -283,7 +287,7 @@ impl OnboardScreen {
     }
 }
 
-fn load_account_data(core: &lb::Core) -> Result<AccountScreenInitData, String> {
+fn load_account_data(core: &Lb) -> Result<AccountScreenInitData, String> {
     let files = match core.list_metadatas() {
         Ok(files) => files,
         Err(err) => return Err(format!("{:?}", err)), // TODO
@@ -314,10 +318,10 @@ pub enum SyncError {
     Minor(String),
 }
 
-impl From<lb::LbError> for SyncError {
-    fn from(err: lb::LbError) -> Self {
+impl From<LbErr> for SyncError {
+    fn from(err: LbErr) -> Self {
         match err.kind {
-            lb::CoreError::Unexpected(msg) => Self::Major(msg),
+            LbErrKind::Unexpected(msg) => Self::Major(msg),
             _ => Self::Minor(format!("{:?}", err)),
         }
     }

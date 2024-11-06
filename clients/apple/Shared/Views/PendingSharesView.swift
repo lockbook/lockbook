@@ -1,6 +1,6 @@
 import Foundation
 import SwiftUI
-import SwiftLockbookCore
+import SwiftWorkspace
 
 struct PendingSharesView: View {
     
@@ -64,7 +64,7 @@ struct SharedFileCell: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: FileService.metaToSystemImage(meta: meta))
-                .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
+                .foregroundColor(meta.type == .folder ? .blue : .secondary)
                 .imageScale(.large)
                 
             Text(meta.name)

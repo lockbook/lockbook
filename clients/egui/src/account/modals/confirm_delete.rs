@@ -1,4 +1,5 @@
 use eframe::egui;
+use lb::model::file::File;
 
 enum State {
     WaitingForAnswer,
@@ -8,17 +9,17 @@ enum State {
 
 pub struct ConfirmDeleteModal {
     state: State,
-    file_ids: Vec<lb::File>,
+    file_ids: Vec<File>,
 }
 
 impl ConfirmDeleteModal {
-    pub fn new(file_ids: Vec<lb::File>) -> Self {
+    pub fn new(file_ids: Vec<File>) -> Self {
         Self { state: State::WaitingForAnswer, file_ids }
     }
 }
 
 impl super::Modal for ConfirmDeleteModal {
-    type Response = Option<(bool, Vec<lb::File>)>;
+    type Response = Option<(bool, Vec<File>)>;
 
     fn title(&self) -> &str {
         "Confirm Delete"

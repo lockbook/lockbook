@@ -11,16 +11,18 @@ use cli_rs::{
     flag::Flag,
 };
 use hotwatch::{Event, EventKind, Hotwatch};
-use lb::{Core, Uuid};
+use lb_rs::{Lb, Uuid};
 
-use crate::{ensure_account_and_root, input::FileInput};
+use crate::{core, ensure_account_and_root, input::FileInput};
 
-pub fn edit(core: &Core, editor: Editor, target: FileInput) -> CliResult<()> {
-    ensure_account_and_root(core)?;
+#[tokio::main]
+pub async fn edit(editor: Editor, target: FileInput) -> CliResult<()> {
+    let lb = &core().await?;
+    ensure_account_and_root(lb).await?;
 
-    let f = target.find(core)?;
+    let f = target.find(lb).await?;
 
-    let file_content = core.read_document(f.id)?;
+    let file_content = lb.read_document(f.id).await?;
 
     let mut temp_file_path = create_tmp_dir()?;
     temp_file_path.push(f.name);
@@ -31,7 +33,7 @@ pub fn edit(core: &Core, editor: Editor, target: FileInput) -> CliResult<()> {
     file_handle.write_all(&file_content)?;
     file_handle.sync_all()?;
 
-    let maybe_watcher = set_up_auto_save(core, f.id, &temp_file_path);
+    let maybe_watcher = set_up_auto_save(lb, f.id, &temp_file_path);
     let edit_was_successful = edit_file_with_editor(editor, &temp_file_path);
 
     if let Some(mut watcher) = maybe_watcher {
@@ -41,7 +43,7 @@ pub fn edit(core: &Core, editor: Editor, target: FileInput) -> CliResult<()> {
     }
 
     if edit_was_successful {
-        match save_temp_file_contents(core, f.id, &temp_file_path) {
+        match save_temp_file_contents(lb.clone(), f.id, &temp_file_path).await {
             Ok(_) => println!("Document encrypted and saved. Cleaning up temporary file."),
             Err(err) => eprintln!("{:?}", err),
         }
@@ -182,7 +184,7 @@ fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
         .success()
 }
 
-fn set_up_auto_save<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Option<Hotwatch> {
+fn set_up_auto_save<P: AsRef<Path>>(core: &Lb, id: Uuid, path: P) -> Option<Hotwatch> {
     match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
         Ok(mut watcher) => {
             let core = core.clone();
@@ -191,9 +193,7 @@ fn set_up_auto_save<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Option<Ho
             watcher
                 .watch(path.clone(), move |event: Event| {
                     if let EventKind::Modify(_) = event.kind {
-                        if let Err(err) = save_temp_file_contents(&core, id, &path) {
-                            eprintln!("{:?}", err);
-                        }
+                        tokio::spawn(save_temp_file_contents(core.clone(), id, path.clone()));
                     }
                 })
                 .unwrap_or_else(|err| println!("file watcher failed to watch: {:#?}", err));
@@ -207,7 +207,9 @@ fn set_up_auto_save<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Option<Ho
     }
 }
 
-fn save_temp_file_contents<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Result<(), CliError> {
+async fn save_temp_file_contents<P: AsRef<Path>>(
+    lb: Lb, id: Uuid, path: P,
+) -> Result<(), CliError> {
     let secret = fs::read_to_string(&path)
         .map_err(|err| {
             CliError::from(format!(
@@ -218,6 +220,6 @@ fn save_temp_file_contents<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Re
         })?
         .into_bytes();
 
-    core.write_document(id, &secret)?;
+    lb.write_document(id, &secret).await?;
     Ok(())
 }

@@ -1,8 +1,15 @@
+use lb_rs::{
+    model::{
+        errors::{LbErr, LbErrKind},
+        work_unit::WorkUnit,
+    },
+    service::sync::{SyncProgress, SyncStatus},
+};
+
 use crate::{
     output::DirtynessMsg,
     workspace::{Workspace, WsMsg},
 };
-use lb_rs::{CoreError, LbError, SyncProgress, SyncStatus};
 use std::{thread, time::Instant};
 
 impl Workspace {
@@ -49,7 +56,7 @@ impl Workspace {
         self.status.sync_message = Some(prog.msg);
     }
 
-    pub fn sync_done(&mut self, outcome: Result<SyncStatus, LbError>) {
+    pub fn sync_done(&mut self, outcome: Result<SyncStatus, LbErr>) {
         self.out.status_updated = true;
         self.status.sync_started = None;
         self.last_sync = Instant::now();
@@ -62,10 +69,10 @@ impl Workspace {
                 self.out.sync_done = Some(done)
             }
             Err(err) => match err.kind {
-                CoreError::ServerUnreachable => self.status.offline = true,
-                CoreError::ClientUpdateRequired => self.status.update_req = true,
-                CoreError::UsageIsOverDataCap => self.status.out_of_space = true,
-                CoreError::Unexpected(msg) => self.out.error = Some(msg),
+                LbErrKind::ServerUnreachable => self.status.offline = true,
+                LbErrKind::ClientUpdateRequired => self.status.update_req = true,
+                LbErrKind::UsageIsOverDataCap => self.status.out_of_space = true,
+                LbErrKind::Unexpected(msg) => self.out.error = Some(msg),
                 _ => {}
             },
         }
@@ -90,8 +97,8 @@ impl Workspace {
 
     pub fn refresh_files(&mut self, work: &SyncStatus) {
         let server_ids = work.work_units.iter().filter_map(|wu| match wu {
-            lb_rs::WorkUnit::LocalChange { .. } => None,
-            lb_rs::WorkUnit::ServerChange(id) => Some(*id),
+            WorkUnit::LocalChange { .. } => None,
+            WorkUnit::ServerChange(id) => Some(*id),
         });
 
         for id in server_ids {

@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftLockbookCore
 
 struct SuggestedDocs: View {
     @EnvironmentObject var fileService: FileService
@@ -214,7 +213,7 @@ struct SuggestedDocCell: View {
                 
                 Spacer()
                 
-                Text(DI.core.timeAgo(timeStamp: Int64(duration)))
+                Text(DI.core.getTimestampHumanString(timestamp: Int64(duration)))
                     .font(.caption)
                     .foregroundColor(.gray)
             }

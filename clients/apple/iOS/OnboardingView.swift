@@ -130,7 +130,7 @@ struct OnboardingTwoView: View {
         error = nil
         
         DispatchQueue.global(qos: .userInitiated).async {
-            let operation = DI.core.createAccount(username: username, apiLocation: ConfigHelper.get(.apiLocation), welcomeDoc: true)
+            let operation = DI.core.createAccount(username: username, apiUrl: ConfigHelper.get(.apiLocation), welcomeDoc: true)
                 switch operation {
                 case .success:
                     switch DI.core.exportAccountPhrase() {
@@ -150,8 +150,7 @@ struct OnboardingTwoView: View {
                             createdAccount = true
                         }
                     case .failure(let err):
-                        error = "Unexpected error."
-                        DI.errors.handleError(err)
+                        error = "An unexpected error has occurred."
                     }
                     
                     break
@@ -159,26 +158,21 @@ struct OnboardingTwoView: View {
                     DispatchQueue.main.async {
                         working = false
                         
-                        switch err.kind {
-                        case .UiError(let uiError):
-                            switch uiError {
-                            case .AccountExistsAlready:
-                                error = "You already have an account, please file a bug report."
-                            case .ClientUpdateRequired:
-                                error = "Please download the most recent version."
-                            case .CouldNotReachServer:
-                                error = "Could not reach the server."
-                            case .InvalidUsername:
-                                error = "That username is invalid."
-                            case .UsernameTaken:
-                                error = "That username is not available."
-                            case .ServerDisabled:
-                                error = "The server is not accepting any new accounts at this moment. Please try again later."
-                            }
-                            break;
-                        case .Unexpected:
+                        switch err.code {
+                        case .accountExists:
+                            error = "You already have an account, please file a bug report."
+                        case .clientUpdateRequired:
+                            error = "Please download the most recent version."
+                        case .serverUnreachable:
+                            error = "Could not reach the server."
+                        case .usernameInvalid:
+                            error = "That username is invalid."
+                        case .usernameTaken:
+                            error = "That username is not available."
+                        case .serverDisabled:
+                            error = "The server is not accepting any new accounts at this moment. Please try again later."
+                        default:
                             error = "An unexpected error has occurred."
-                            DI.errors.handleError(err)
                         }
                     }
                     break
@@ -430,7 +424,7 @@ struct ImportAccountView: View {
         }
         
         DispatchQueue.global(qos: .userInitiated).async {
-            let res = DI.core.importAccount(accountString: accountKey, apiUrl: apiUrl)
+            let res = DI.core.importAccount(key: accountKey, apiUrl: apiUrl)
             DispatchQueue.main.async {
                 working = false
                 
@@ -440,27 +434,23 @@ struct ImportAccountView: View {
                     DI.sync.importSync()
                     importedAccount = true
                 case .failure(let err):
-                    switch err.kind {
-                    case .UiError(let importError):
-                        switch importError {
-                        case .AccountDoesNotExist:
-                            error = "That account does not exist on our server"
-                        case .AccountExistsAlready:
-                            error = "You already have an account, please file a bug report."
-                        case .AccountStringCorrupted:
-                            if !isAutoImporting {
-                                error = "This account key is invalid."
-                            }
-                        case .ClientUpdateRequired:
-                            error = "Please download the most recent version."
-                        case .CouldNotReachServer:
-                            error = "Could not reach the server."
-                        case .UsernamePKMismatch:
-                            error = "The account key's conveyed username does not match the public key stored on the server."
+                    switch err.code {
+                    case .accountNonexistent:
+                        error = "That account does not exist on our server"
+                    case .accountExists:
+                        error = "You already have an account, please file a bug report."
+                    case .accountStringCorrupted:
+                        if !isAutoImporting {
+                            error = "This account key is invalid."
                         }
-                    case .Unexpected:
+                    case .clientUpdateRequired:
+                        error = "Please download the most recent version."
+                    case .serverUnreachable:
+                        error = "Could not reach the server."
+                    case .usernamePublicKeyMismatch:
+                        error = "The account key's conveyed username does not match the public key stored on the server."
+                    default:
                         error = "An unexpected error has occurred."
-                        DI.errors.handleError(err)
                     }
                 }
             }

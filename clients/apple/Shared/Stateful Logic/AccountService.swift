@@ -1,30 +1,23 @@
 import Foundation
-import SwiftLockbookCore
-
-#if os(macOS)
-import AppKit
-import Combine
-#endif
+import SwiftWorkspace
 
 class AccountService: ObservableObject {
-    let core: LockbookApi
+    let core: Lb
     
     @Published var account: Account? = nil
     var calculated = false
         
-    init(_ core: LockbookApi) {
+    init(_ core: Lb) {
         self.core = core
         switch core.getAccount() {
         case .success(let account):
+            print("got account.")
             self.account = account
         case .failure(let error):
-            switch error.kind {
-            case .UiError(let getAccountError):
-                switch getAccountError {
-                case .NoAccount:
-                    account = nil
-                }
-            case .Unexpected(_):
+            print("did not get account.")
+            if error.code == .accountNonexistent {
+                account = nil
+            } else {
                 DI.errors.handleError(error)
             }
         }
@@ -38,14 +31,9 @@ class AccountService: ObservableObject {
             case .success(let account):
                 self.account = account
             case .failure(let error):
-                switch error.kind {
-                case .UiError(let getAccountError):
-                    switch getAccountError {
-                    case .NoAccount:
-                        print("account get unsuccessful")
-                        self.account = nil
-                    }
-                case .Unexpected(_):
+                if error.code == .accountNonexistent {
+                    account = nil
+                } else {
                     DI.errors.handleError(error)
                 }
             }

@@ -2,6 +2,8 @@ use std::sync::mpsc;
 
 use eframe::egui;
 use egui_extras::{Size, StripBuilder};
+use lb::model::api::{PaymentMethod, StripeAccountTier, SubscriptionInfo};
+use lb::service::usage::{UsageItemMetric, UsageMetrics};
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::theme::palette::ThemePalette;
 use workspace_rs::widgets::{separator, subscription};
@@ -16,9 +18,9 @@ pub struct UsageSettings {
 }
 
 pub struct UsageSettingsInfo {
-    pub sub_info_result: Result<Option<lb::SubscriptionInfo>, String>,
-    pub metrics_result: Result<lb::UsageMetrics, String>,
-    pub uncompressed_result: Result<lb::UsageItemMetric, String>,
+    pub sub_info_result: Result<Option<SubscriptionInfo>, String>,
+    pub metrics_result: Result<UsageMetrics, String>,
+    pub uncompressed_result: Result<UsageItemMetric, String>,
 }
 
 pub struct Upgrading {
@@ -26,7 +28,7 @@ pub struct Upgrading {
     update_tx: mpsc::Sender<Result<UsageSettingsInfo, String>>,
     stage: UpgradingStage,
     card: CardInput,
-    payment_method: Option<lb::PaymentMethod>,
+    payment_method: Option<PaymentMethod>,
     done: Option<Result<(), String>>,
 }
 
@@ -85,9 +87,7 @@ impl super::SettingsModal {
                         let update_tx = u.update_tx.clone();
                         let ctx = ui.ctx().clone();
                         std::thread::spawn(move || {
-                            match core
-                                .upgrade_account_stripe(lb::StripeAccountTier::Premium(method))
-                            {
+                            match core.upgrade_account_stripe(StripeAccountTier::Premium(method)) {
                                 Ok(()) => {
                                     let sub_info_result = core
                                         .get_subscription_info()
@@ -332,7 +332,7 @@ impl Upgrading {
             return;
         }
 
-        self.payment_method = Some(lb::PaymentMethod::NewCard { number, exp_month, exp_year, cvc });
+        self.payment_method = Some(PaymentMethod::NewCard { number, exp_month, exp_year, cvc });
         self.stage = UpgradingStage::ConfirmPaymentMethod;
     }
 
@@ -344,7 +344,7 @@ impl Upgrading {
             .size(Size::exact(40.0))
             .vertical(|mut strip| {
                 strip.cell(|ui| {
-                    if let Some(lb::PaymentMethod::NewCard { number, .. }) = &self.payment_method {
+                    if let Some(PaymentMethod::NewCard { number, .. }) = &self.payment_method {
                         ui.vertical_centered(|ui| {
                             ui.add_space(50.0);
                             ui.label(&format!(

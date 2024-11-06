@@ -1,21 +1,21 @@
-use lb_rs::shared::account::Account;
-use lb_rs::shared::file_like::FileLike;
-use lb_rs::shared::file_metadata::{FileMetadata, FileType};
-use lb_rs::shared::symkey;
-use lb_rs::shared::tree_like::TreeLike;
+use lb_rs::logic::file_like::FileLike;
+use lb_rs::logic::symkey;
+use lb_rs::logic::tree_like::TreeLike;
+use lb_rs::model::account::Account;
+use lb_rs::model::file_metadata::{FileMetadata, FileType};
 use test_utils::*;
 use uuid::Uuid;
 
-#[test]
-fn decrypt_basic_name() {
+#[tokio::test]
+async fn decrypt_basic_name() {
     let account = Account::new(random_name(), url());
     let root = FileMetadata::create_root(&account).unwrap();
     let mut files = vec![root.clone()].to_lazy();
     assert_eq!(files.name_using_links(&root.id, &account).unwrap(), account.username);
 }
 
-#[test]
-fn decrypt_child_name_basic() {
+#[tokio::test]
+async fn decrypt_child_name_basic() {
     let account = Account::new(random_name(), url());
     let root = FileMetadata::create_root(&account).unwrap();
     let mut files = vec![root.clone()].to_lazy();
@@ -34,8 +34,8 @@ fn decrypt_child_name_basic() {
     assert_eq!(files.name_using_links(child.id(), &account).unwrap(), "test");
 }
 
-#[test]
-fn decrypt_child_name_staged() {
+#[tokio::test]
+async fn decrypt_child_name_staged() {
     let account = Account::new(random_name(), url());
     let root = FileMetadata::create_root(&account).unwrap();
     let mut files = vec![root.clone()].to_lazy();
@@ -54,8 +54,8 @@ fn decrypt_child_name_staged() {
     assert_eq!(files.name_using_links(child.id(), &account).unwrap(), "test");
 }
 
-#[test]
-fn decrypt_child_name_stage_promote() {
+#[tokio::test]
+async fn decrypt_child_name_stage_promote() {
     let account = Account::new(random_name(), url());
     let root = FileMetadata::create_root(&account).unwrap();
     let mut files = vec![root.clone()].to_lazy();
@@ -74,8 +74,8 @@ fn decrypt_child_name_stage_promote() {
     assert_eq!(files.name_using_links(child.id(), &account).unwrap(), "test");
 }
 
-#[test]
-fn decrypt_child_name_insert() {
+#[tokio::test]
+async fn decrypt_child_name_insert() {
     let account = Account::new(random_name(), url());
     let root = FileMetadata::create_root(&account).unwrap();
     let mut files = vec![root.clone()].to_lazy();
@@ -94,8 +94,8 @@ fn decrypt_child_name_insert() {
     assert_eq!(files.name_using_links(child.id(), &account).unwrap(), "test");
 }
 
-#[test]
-fn name_2dirs() {
+#[tokio::test]
+async fn name_2dirs() {
     let account = Account::new(random_name(), url());
     let root = FileMetadata::create_root(&account).unwrap();
     let mut files = vec![root.clone()].to_lazy();
@@ -133,8 +133,8 @@ fn name_2dirs() {
     );
 }
 
-#[test]
-fn deleted_2dirs() {
+#[tokio::test]
+async fn deleted_2dirs() {
     let account = Account::new(random_name(), url());
     let root = FileMetadata::create_root(&account).unwrap();
     let mut files = vec![root.clone()].to_lazy();
@@ -168,8 +168,8 @@ fn deleted_2dirs() {
     assert!(files.calculate_deleted(child_of_child.id()).unwrap());
 }
 
-#[test]
-fn deleted_2dirs2() {
+#[tokio::test]
+async fn deleted_2dirs2() {
     let account = Account::new(random_name(), url());
     let root = FileMetadata::create_root(&account).unwrap();
     let mut files = vec![root.clone()].to_lazy();

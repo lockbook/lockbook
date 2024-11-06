@@ -3,9 +3,11 @@ use egui::{
     scroll_area, Color32, Context, EventFilter, Frame, Id, Margin, Rect, ScrollArea, Stroke, Ui,
 };
 
+use lb_rs::blocking::Lb;
+use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
-use lb_rs::{DocumentHmac, Uuid};
+use lb_rs::Uuid;
 
 use crate::tab::ExtendedInput as _;
 use crate::tab::{markdown_editor, ExtendedOutput as _};
@@ -42,7 +44,7 @@ pub struct Response {
 
 pub struct Editor {
     // dependencies
-    pub core: lb_rs::Core,
+    pub core: Lb,
     pub client: reqwest::blocking::Client,
 
     // input
@@ -71,8 +73,8 @@ pub struct Editor {
 
 impl Editor {
     pub fn new(
-        core: lb_rs::Core, content: &str, file_id: Uuid, hmac: Option<DocumentHmac>,
-        needs_name: bool, plaintext_mode: bool,
+        core: Lb, content: &str, file_id: Uuid, hmac: Option<DocumentHmac>, needs_name: bool,
+        plaintext_mode: bool,
     ) -> Self {
         Self {
             core,

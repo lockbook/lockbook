@@ -2,7 +2,7 @@ use crate::WgpuWorkspace;
 use egui::{Context, FontDefinitions};
 use egui_wgpu_backend::wgpu::{CompositeAlphaMode, SurfaceTargetUnsafe};
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
-use lb_external_interface::lb_rs::Core;
+use lb_c::Lb;
 use std::ffi::c_void;
 use std::time::Instant;
 use workspace_rs::register_fonts;
@@ -14,8 +14,8 @@ use workspace_rs::workspace::{Workspace, WsConfig};
 pub unsafe extern "C" fn init_ws(
     core: *mut c_void, metal_layer: *mut c_void, dark_mode: bool,
 ) -> *mut c_void {
-    let core = unsafe { &mut *(core as *mut Core) };
-    let writable_dir = core.get_config().unwrap().writeable_path;
+    let core = unsafe { &mut *(core as *mut Lb) };
+    let writable_dir = core.get_config().writeable_path;
 
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
