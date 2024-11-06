@@ -52,6 +52,8 @@ impl Lb {
         let tx = self.ro_tx().await;
         let db = tx.db();
         let last_synced = db.last_synced.get().copied().unwrap_or_default() as u64;
+        drop(tx);
+
         let remote_changes = self
             .client
             .request(self.get_account()?, GetUpdatesRequest { since_metadata_version: last_synced })
@@ -61,7 +63,6 @@ impl Lb {
             .into_iter()
             .map(|f| *f.id())
             .map(WorkUnit::ServerChange);
-        drop(tx);
 
         self.prune().await?;
 

@@ -36,14 +36,14 @@ pub async fn cores_equal(left: &Lb, right: &Lb) {
 pub async fn new_synced_client_core_equal(lb: &Lb) {
     let new_client = test_core_from(lb).await;
 
-    let mut tx = lb.begin_tx().await;
+    let tx = lb.ro_tx().await;
     let db = tx.db();
 
     let account = db.account.get().unwrap().clone();
-    let mut local = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
+    let mut local = db.base_metadata.stage(&db.local_metadata).to_lazy();
     local.validate(Owner(account.public_key())).unwrap();
 
-    tx.end();
+    drop(tx);
 
     cores_equal(lb, &new_client).await;
 }
@@ -186,11 +186,11 @@ pub async fn local_work_paths(lb: &Lb, expected_paths: &[&'static str]) {
     let dirty = get_dirty_ids(lb, false).await;
     let mut expected_paths = expected_paths.to_vec();
 
-    let mut tx = lb.begin_tx().await;
+    let tx = lb.ro_tx().await;
     let db = tx.db();
 
     let account = db.account.get().unwrap().clone();
-    let mut local = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
+    let mut local = db.base_metadata.stage(&db.local_metadata).to_lazy();
     let mut actual_paths = dirty
         .iter()
         .filter(|id| !local.find(id).unwrap().is_link())
@@ -215,7 +215,7 @@ pub async fn local_work_paths(lb: &Lb, expected_paths: &[&'static str]) {
 pub async fn server_work_paths(core: &Lb, expected_paths: &[&'static str]) {
     let mut expected_paths = expected_paths.to_vec();
 
-    let mut tx = core.begin_tx().await;
+    let tx = core.ro_tx().await;
     let db = tx.db();
 
     let account = db.account.get().unwrap();
