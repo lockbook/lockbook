@@ -1,14 +1,11 @@
 import Foundation
-import SwiftLockbookCore
+import SwiftWorkspace
 
 class SearchService: ObservableObject {
-    let core: LockbookApi
+    let core: Lb
 
-    init(_ core: LockbookApi) {
+    init(_ core: Lb) {
         self.core = core
-        
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .millisecondsSince1970
     }
         
     var pathSearchTask: DispatchWorkItem? = nil
@@ -26,138 +23,70 @@ class SearchService: ObservableObject {
         
     var pathSearchQuery = ""
     var pathAndContentSearchQuery = ""
-    
-    let decoder = JSONDecoder()
-    
-    let updatePathSearchStatus: @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void = { context, searchResultType, searchResult in
-        DispatchQueue.global(qos: .userInitiated).async {
-            let searchService = Unmanaged<SearchService>.fromOpaque(context!).takeUnretainedValue()
-
-            if !searchService.isPathSearching {
-                if searchResultType == 1 {
-                    searchService.core.freeText(s: searchResult!)
-                }
-                
-                return
-            }
-            
-            switch searchResultType {
-            case 0:
-                DispatchQueue.main.sync {
-                    searchService.isPathSearchInProgress = true
-                    searchService.pathSearchResults.removeAll()
-                    searchService.pathSearchSelected = 0
-                }
-            case 1:
-                let data = String(cString: searchResult!).data(using: .utf8)!
-                searchService.core.freeText(s: searchResult!)
-                
-                let nameMatch: FileNameMatch = try! searchService.decoder.decode(FileNameMatch.self, from: data)
-                let pathComp = nameMatch.getNameAndPath()
-                
-                DispatchQueue.main.sync {
-                    searchService.pathSearchResults.append(.PathMatch(meta: DI.files.idsAndFiles[nameMatch.id]!, name: pathComp.name, path: pathComp.path, matchedIndices: nameMatch.matchedIndices, score: nameMatch.score))
-                
-            
-                    searchService.pathSearchResults.sort { $0.score > $1.score }
-                }
-            case 3:
-                DispatchQueue.main.sync {
-                    searchService.isPathSearchInProgress = false
-                }
-            default:
-                print("unrecognized search result type: \(searchResultType)")
-            }
-        }
-    }
-    
-    let updatePathAndContentSearchStatus: @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void = { context, searchResultType, searchResult in
-        DispatchQueue.global(qos: .userInitiated).async {
-            let searchService = Unmanaged<SearchService>.fromOpaque(context!).takeUnretainedValue()
-            
-            if !searchService.isPathAndContentSearching {
-                if searchResultType == 1 || searchResultType == 2 {
-                    searchService.core.freeText(s: searchResult!)
-                }
-                
-                return
-            }
-                        
-            switch searchResultType {
-            case 0:
-                DispatchQueue.main.sync {
-                    searchService.isPathAndContentSearchInProgress = true
-                    searchService.pathAndContentSearchResults.removeAll()
-                }
-            case 1:
-                let data = String(cString: searchResult!).data(using: .utf8)!
-                searchService.core.freeText(s: searchResult!)
-                
-                let nameMatch: FileNameMatch = try! searchService.decoder.decode(FileNameMatch.self, from: data)
-                let pathComp = nameMatch.getNameAndPath()
-                
-                DispatchQueue.main.sync {
-                    searchService.pathAndContentSearchResults.append(.PathMatch(meta: DI.files.idsAndFiles[nameMatch.id]!, name: pathComp.name, path: pathComp.path, matchedIndices: nameMatch.matchedIndices, score: nameMatch.score))
-                    
-                    searchService.pathAndContentSearchResults.sort { $0.score > $1.score }
-                }
-            case 2:
-                let data = String(cString: searchResult!).data(using: .utf8)!
-                searchService.core.freeText(s: searchResult!)
-                
-                let contentMatches: FileContentMatches = try! searchService.decoder.decode(FileContentMatches.self, from: data)
-                let pathComp = contentMatches.getNameAndPath()
-                
-                DispatchQueue.main.sync {
-                    for contentMatch in contentMatches.contentMatches {
-                        searchService.pathAndContentSearchResults.append(.ContentMatch(meta: DI.files.idsAndFiles[contentMatches.id]!, name: pathComp.name, path: pathComp.path, paragraph: contentMatch.paragraph, matchedIndices: contentMatch.matchedIndices, score: contentMatch.score))
-                    }
-                    
-                    searchService.pathAndContentSearchResults.sort { $0.score > $1.score }
-                }
-            case 3:
-                DispatchQueue.main.sync {
-                    searchService.isPathAndContentSearchInProgress = false
-                }
-            default:
-                print("unrecognized search result type: \(searchResultType)")
-            }
-        }
-    }
-    
+        
     func startSearchThread(isPathAndContentSearch: Bool) {
+        let searchPaths = true
+        var searchDocs = false
+
         if !isPathAndContentSearching && isPathAndContentSearch {
+            searchDocs = true
             isPathAndContentSearching = true
-            isPathAndContentSearchInProgress = false
         } else if !isPathSearching && !isPathAndContentSearch {
             isPathSearching = true
-            isPathSearchInProgress = false
         } else {
             return
         }
-                
+
         DispatchQueue.global(qos: .userInitiated).async {
-            let searchServicePtr = Unmanaged.passUnretained(self).toOpaque()
-            
-            if case .failure(let err) = self.core.startSearch(isPathAndContentSearch: isPathAndContentSearch, context: searchServicePtr, updateStatus: isPathAndContentSearch ? self.updatePathAndContentSearchStatus : self.updatePathSearchStatus) {
-                DI.errors.handleError(err)
+            switch self.core.search(input: "", searchPaths: searchPaths, searchDocs: searchDocs) {
+            case .success(let results):
+                DispatchQueue.main.async {
+                    if isPathAndContentSearch {
+                        self.pathAndContentSearchResults = results
+                    } else {
+                        self.pathSearchResults = results
+                    }
+                }
+            case .failure(let err):
+                print("i do nothing for now")
             }
+            
         }
+        
     }
     
     func search(query: String, isPathAndContentSearch: Bool) {
+        let searchPaths = true
+        var searchDocs = false
+        
         if isPathAndContentSearch && isPathAndContentSearching {
             self.isPathAndContentSearchInProgress = true
+            searchDocs = true
             self.pathAndContentSearchQuery = query
         } else if !isPathAndContentSearch && isPathSearching {
             self.isPathSearchInProgress = true
             self.pathSearchQuery = query
         } else {
+            print("returned early! \(isPathAndContentSearch) \(isPathAndContentSearching) \(isPathSearching)")
             return
         }
         
         DispatchQueue.global(qos: .userInitiated).async {
-            let _ = self.core.searchQuery(query: query, isPathAndContentSearch: isPathAndContentSearch)
+            switch self.core.search(input: query, searchPaths: searchPaths, searchDocs: searchDocs) {
+            case .success(let results):
+                DispatchQueue.main.async {
+                    if isPathAndContentSearch {
+                        self.pathAndContentSearchResults = results
+                        self.isPathAndContentSearchInProgress = false
+                    } else {
+                        self.pathSearchResults = results
+                        self.isPathSearchInProgress = false
+                    }
+                }
+            case .failure(let err):
+                print("i do nothing for now")
+            }
+            
         }
     }
       
@@ -196,10 +125,6 @@ class SearchService: ObservableObject {
         }
         
         DI.workspace.shouldFocus = true
-        
-        if case .failure(let err) = self.core.endSearch(isPathAndContentSearch: isPathAndContentSearch) {
-            DI.errors.handleError(err)
-        }
     }
 }
 
@@ -208,38 +133,6 @@ struct FilePathInfo: Identifiable {
     
     let meta: File
     let searchResult: SearchResult
-}
-
-public enum SearchResult: Identifiable {
-    public var id: UUID {
-        switch self {
-        case .PathMatch(let id, _, _, _, _, _):
-            return id
-        case .ContentMatch(let id, _, _, _, _, _, _):
-            return id
-        }
-    }
-    
-    public var lbId: UUID {
-        switch self {
-        case .PathMatch(_, let meta, _, _, _, _):
-            return meta.id
-        case .ContentMatch(_, let meta, _, _, _, _, _):
-            return meta.id
-        }
-    }
-    
-    public var score: Int {
-        switch self {
-        case .PathMatch(_, _, _, _, _, let score):
-            return score
-        case .ContentMatch(_, _, _, _, _, _, let score):
-            return score
-        }
-    }
-        
-    case PathMatch(id: UUID = UUID(), meta: File, name: String, path: String, matchedIndices: [Int], score: Int)
-    case ContentMatch(id: UUID = UUID(), meta: File, name: String, path: String, paragraph: String, matchedIndices: [Int], score: Int)
 }
 
 public enum SearchState {

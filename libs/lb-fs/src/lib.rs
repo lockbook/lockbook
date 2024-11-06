@@ -1,7 +1,9 @@
-use crate::core::AsyncCore;
 use crate::fs_impl::Drive;
 use crate::mount::{mount, umount};
 use cli_rs::cli_error::{CliError, CliResult};
+use lb_rs::model::core_config::Config;
+use lb_rs::service::sync::SyncProgress;
+use lb_rs::{Lb, Uuid};
 use nfsserve::tcp::{NFSTcp, NFSTcpListener};
 use std::io;
 use std::io::IsTerminal;
@@ -11,23 +13,29 @@ use std::time::Duration;
 use tracing::info;
 
 pub mod cache;
-pub mod core;
 pub mod fs_impl;
 pub mod logger;
 pub mod mount;
 pub mod utils;
 
 impl Drive {
-    /// executing this from within an async context will panic
-    pub fn init() -> Self {
-        let ac = AsyncCore::init();
+    pub async fn init() -> Self {
+        let writeable_path = format!("{}/.lockbook/drive", std::env::var("HOME").unwrap());
+
+        let lb = Lb::init(Config { writeable_path, logs: false, colored_logs: true })
+            .await
+            .unwrap();
+
+        let root = lb.root().await.map(|file| file.id).unwrap_or(Uuid::nil());
+
         let data = Arc::default();
 
-        Self { ac, data }
+        Self { lb, root, data }
     }
 
-    #[tokio::main]
-    pub async fn import(&self) -> CliResult<()> {
+    pub async fn import() -> CliResult<()> {
+        let drive = Self::init().await;
+
         if io::stdin().is_terminal() {
             return Err(CliError::from("to import an existing lockbook account, pipe your account string into this command, e.g.:\npbpaste | lb-fs import".to_string()));
         }
@@ -39,16 +47,20 @@ impl Drive {
         account_string.retain(|c| !c.is_whitespace());
 
         println!("importing account...");
-        self.ac.import_account(&account_string).await;
+        drive
+            .lb
+            .import_account(&account_string, None)
+            .await
+            .unwrap();
 
-        self.ac.sync().await;
+        drive.lb.sync(Self::progress()).await.unwrap();
 
         Ok(())
     }
 
-    #[tokio::main]
-    pub async fn mount(self) -> CliResult<()> {
-        self.prepare_caches().await;
+    pub async fn mount() -> CliResult<()> {
+        let drive = Self::init().await;
+        drive.prepare_caches().await;
         info!("registering sig handler");
 
         // capture ctrl_c and try to cleanup
@@ -60,7 +72,7 @@ impl Drive {
         });
 
         // sync periodically in the background
-        let syncer = self.clone();
+        let syncer = drive.clone();
         tokio::spawn(async move {
             loop {
                 info!("will sync in 5 minutes");
@@ -72,7 +84,9 @@ impl Drive {
 
         // todo have a better port selection strategy
         info!("creating server");
-        let listener = NFSTcpListener::bind("127.0.0.1:11111", self).await.unwrap();
+        let listener = NFSTcpListener::bind("127.0.0.1:11111", drive)
+            .await
+            .unwrap();
 
         info!("mounting");
         mount();
@@ -80,5 +94,9 @@ impl Drive {
         info!("ready");
         listener.handle_forever().await.unwrap();
         Ok(())
+    }
+
+    pub fn progress() -> Option<Box<dyn Fn(SyncProgress) + Send>> {
+        Some(Box::new(|status| println!("{status}")))
     }
 }

@@ -1,13 +1,13 @@
-use lb_rs::shared::account::Account;
-use lb_rs::shared::file_like::FileLike;
-use lb_rs::shared::file_metadata::{FileMetadata, FileType};
-use lb_rs::shared::symkey;
-use lb_rs::shared::tree_like::TreeLike;
+use lb_rs::logic::file_like::FileLike;
+use lb_rs::logic::symkey;
+use lb_rs::logic::tree_like::TreeLike;
+use lb_rs::model::account::Account;
+use lb_rs::model::file_metadata::{FileMetadata, FileType};
 use test_utils::*;
 use uuid::Uuid;
 
-#[test]
-fn test_create() {
+#[tokio::test]
+async fn test_create() {
     let account = &Account::new(random_name(), url());
     let root = FileMetadata::create_root(account)
         .unwrap()
@@ -29,8 +29,8 @@ fn test_create() {
     assert_eq!(files.name(&id, account).unwrap(), "test-doc");
 }
 
-#[test]
-fn test_rename() {
+#[tokio::test]
+async fn test_rename() {
     let account = &Account::new(random_name(), url());
     let root = FileMetadata::create_root(account)
         .unwrap()
@@ -54,8 +54,8 @@ fn test_rename() {
     assert_eq!(files.name(&id, account).unwrap(), "new-name");
 }
 
-#[test]
-fn test_children_and_move() {
+#[tokio::test]
+async fn test_children_and_move() {
     let account = &Account::new(random_name(), url());
     let root = FileMetadata::create_root(account)
         .unwrap()

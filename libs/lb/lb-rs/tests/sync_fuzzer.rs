@@ -2,9 +2,10 @@ use std::cmp::Ordering;
 
 use crate::Actions::*;
 use indicatif::{ProgressBar, ProgressStyle};
-use lb_rs::shared::file::File;
-use lb_rs::shared::file_metadata::FileType::{Document, Folder};
-use lb_rs::{Core, CoreError};
+use lb_rs::model::errors::{LbErr, LbErrKind};
+use lb_rs::model::file::File;
+use lb_rs::model::file_metadata::FileType::{Document, Folder};
+use lb_rs::Lb;
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -32,15 +33,15 @@ enum Actions {
     DeleteFile,
 }
 
-#[test]
+#[tokio::test]
 #[ignore]
 /// Run with: cargo test --release stress_test_sync -- --nocapture --ignored
-fn stress_test_sync() {
+async fn stress_test_sync() {
     println!("seed: {}", SEED);
     println!("clients: {}", CLIENTS);
 
     let mut rng = StdRng::seed_from_u64(SEED);
-    let clients = create_clients();
+    let clients = create_clients().await;
 
     let pb = setup_progress_bar();
     for event_id in 0..ACTION_COUNT {
@@ -56,119 +57,121 @@ fn stress_test_sync() {
                 _ => {}
             };
         }
-        action.execute(&clients, &mut rng);
+        action.execute(&clients, &mut rng).await;
     }
 }
 
 impl Actions {
-    fn execute(&self, clients: &[Core], rng: &mut StdRng) {
+    async fn execute(&self, clients: &[Lb], rng: &mut StdRng) {
         match &self {
             SyncAndCheck => {
                 for _ in 0..2 {
                     for client in clients {
-                        client.sync(None).unwrap();
+                        client.sync(None).await.unwrap();
                     }
                 }
 
                 for row in clients {
                     for col in clients {
-                        assert::cores_equal(row, col);
+                        assert::cores_equal(row, col).await;
                     }
-                    row.validate().unwrap();
-                    assert!(row.calculate_work().unwrap().work_units.is_empty());
+                    row.test_repo_integrity().await.unwrap();
+                    assert!(row.calculate_work().await.unwrap().work_units.is_empty());
                 }
             }
             NewFolder => {
                 let client = Self::random_client(clients, rng);
-                let parent = Self::pick_random_parent(&client, rng);
+                let parent = Self::pick_random_parent(&client, rng).await;
                 let name = Self::random_filename(rng);
-                let file = client.create_file(&name, parent.id, Folder).unwrap();
-                print!("[{:?}]\t{:?}", file.id, client.get_path_by_id(file.id).unwrap());
+                let file = client.create_file(&name, &parent.id, Folder).await.unwrap();
+                print!("[{:?}]\t{:?}", file.id, client.get_path_by_id(file.id).await.unwrap());
             }
             NewMarkdownDocument => {
                 let client = Self::random_client(clients, rng);
-                let parent = Self::pick_random_parent(&client, rng);
+                let parent = Self::pick_random_parent(&client, rng).await;
                 let name = Self::random_filename(rng) + ".md"; // TODO pick a random extension (or no extension)
-                let file = client.create_file(&name, parent.id, Document).unwrap();
-                print!("[{:?}]\t{:?}", file.id, client.get_path_by_id(file.id).unwrap());
+                let file = client
+                    .create_file(&name, &parent.id, Document)
+                    .await
+                    .unwrap();
+                print!("[{:?}]\t{:?}", file.id, client.get_path_by_id(file.id).await.unwrap());
             }
             UpdateDocument => {
                 let client = Self::random_client(clients, rng);
-                if let Some(file) = Self::pick_random_document(&client, rng) {
+                if let Some(file) = Self::pick_random_document(&client, rng).await {
                     let new_content = Self::random_utf8(rng);
                     client
                         .write_document(file.id, new_content.as_bytes())
+                        .await
                         .unwrap();
-                    print!("[{:?}]\t{:?}", file.id, client.get_path_by_id(file.id).unwrap());
+                    print!("[{:?}]\t{:?}", file.id, client.get_path_by_id(file.id).await.unwrap());
                 }
             }
             MoveDocument => {
                 let client = Self::random_client(clients, rng);
-                if let Some(file) = Self::pick_random_document(&client, rng) {
-                    let new_parent = Self::pick_random_parent(&client, rng);
+                if let Some(file) = Self::pick_random_document(&client, rng).await {
+                    let new_parent = Self::pick_random_parent(&client, rng).await;
                     if file.parent != new_parent.id && file.id != new_parent.id {
-                        let initial_path = client.get_path_by_id(file.id).unwrap();
-                        client.move_file(file.id, new_parent.id).unwrap();
+                        let initial_path = client.get_path_by_id(file.id).await.unwrap();
+                        client.move_file(&file.id, &new_parent.id).await.unwrap();
                         print!(
                             "[{:?}]\t{:?} to {:?}",
                             file.id,
                             initial_path,
-                            client.get_path_by_id(file.id).unwrap()
+                            client.get_path_by_id(file.id).await.unwrap()
                         );
                     }
                 }
             }
             AttemptFolderMove => {
                 let client = Self::random_client(clients, rng);
-                if let Some(file) = Self::pick_random_file(&client, rng) {
-                    let new_parent = Self::pick_random_parent(&client, rng);
+                if let Some(file) = Self::pick_random_file(&client, rng).await {
+                    let new_parent = Self::pick_random_parent(&client, rng).await;
                     if file.parent != new_parent.id && file.id != new_parent.id {
-                        let initial_path = client.get_path_by_id(file.id).unwrap();
-                        let move_file_result = client.move_file(file.id, new_parent.id);
+                        let initial_path = client.get_path_by_id(file.id).await.unwrap();
+                        let move_file_result = client.move_file(&file.id, &new_parent.id).await;
                         match move_file_result {
                             Ok(()) => {}
-                            Err(ref err) => match err.kind {
-                                CoreError::FolderMovedIntoSelf => {}
-                                _ => panic!(
-                                    "Unexpected error while moving file: {:#?}",
-                                    move_file_result
-                                ),
-                            },
+                            Err(LbErr { kind: LbErrKind::FolderMovedIntoSelf, .. }) => {}
+                            _ => panic!(
+                                "Unexpected error while moving file: {:#?}",
+                                move_file_result
+                            ),
                         }
                         print!(
                             "[{:?}]\t{:?} to {:?}",
                             file.id,
                             initial_path,
-                            client.get_path_by_id(file.id).unwrap()
+                            client.get_path_by_id(file.id).await.unwrap()
                         );
                     }
                 }
             }
             RenameFile => {
                 let client = Self::random_client(clients, rng);
-                if let Some(file) = Self::pick_random_file(&client, rng) {
-                    let initial_path = client.get_path_by_id(file.id).unwrap();
+                if let Some(file) = Self::pick_random_file(&client, rng).await {
+                    let initial_path = client.get_path_by_id(file.id).await.unwrap();
                     let new_name = Self::random_filename(rng) + ".md";
-                    client.rename_file(file.id, &new_name).unwrap();
+                    client.rename_file(&file.id, &new_name).await.unwrap();
                     print!(
                         "[{:?}]\t{:?} to {:?}",
                         file.id,
                         initial_path,
-                        client.get_path_by_id(file.id).unwrap()
+                        client.get_path_by_id(file.id).await.unwrap()
                     );
                 }
             }
             DeleteFile => {
                 let client = Self::random_client(clients, rng);
-                if let Some(file) = Self::pick_random_file(&client, rng) {
-                    print!("[{:?}]\t{:?}", file.id, client.get_path_by_id(file.id).unwrap());
-                    client.delete_file(file.id).unwrap();
+                if let Some(file) = Self::pick_random_file(&client, rng).await {
+                    print!("[{:?}]\t{:?}", file.id, client.get_path_by_id(file.id).await.unwrap());
+                    client.delete(&file.id).await.unwrap();
                 }
             }
         }
     }
 
-    fn random_client(clients: &[Core], rng: &mut StdRng) -> Core {
+    fn random_client(clients: &[Lb], rng: &mut StdRng) -> Lb {
         let client_index = rng.gen_range(0..CLIENTS) as usize;
         print!("client index = {:?}\t", client_index);
         clients[client_index].clone()
@@ -188,8 +191,8 @@ impl Actions {
             .collect()
     }
 
-    fn pick_random_file(core: &Core, rng: &mut StdRng) -> Option<File> {
-        let mut possible_files = core.list_metadatas().unwrap();
+    async fn pick_random_file(core: &Lb, rng: &mut StdRng) -> Option<File> {
+        let mut possible_files = core.list_metadatas().await.unwrap();
         possible_files.retain(|meta| meta.parent != meta.id);
         possible_files.sort_by(Self::deterministic_sort());
 
@@ -213,8 +216,8 @@ impl Actions {
         }
     }
 
-    fn pick_random_parent(core: &Core, rng: &mut StdRng) -> File {
-        let mut possible_parents = core.list_metadatas().unwrap();
+    async fn pick_random_parent(core: &Lb, rng: &mut StdRng) -> File {
+        let mut possible_parents = core.list_metadatas().await.unwrap();
         possible_parents.retain(|meta| meta.is_folder());
         possible_parents.sort_by(Self::deterministic_sort());
 
@@ -222,8 +225,8 @@ impl Actions {
         possible_parents[parent_index].clone()
     }
 
-    fn pick_random_document(core: &Core, rng: &mut StdRng) -> Option<File> {
-        let mut possible_documents = core.list_metadatas().unwrap();
+    async fn pick_random_document(core: &Lb, rng: &mut StdRng) -> Option<File> {
+        let mut possible_documents = core.list_metadatas().await.unwrap();
         possible_documents.retain(|meta| meta.is_document());
         possible_documents.sort_by(Self::deterministic_sort());
 
@@ -236,23 +239,25 @@ impl Actions {
     }
 }
 
-fn create_clients() -> Vec<Core> {
+async fn create_clients() -> Vec<Lb> {
     let mut cores = vec![];
 
     for _ in 0..CLIENTS {
-        cores.push(test_core());
+        cores.push(test_core().await);
     }
 
     cores[0]
         .create_account(&random_name(), &url(), false)
+        .await
         .unwrap();
     let account_string = cores[0].export_account_private_key().unwrap();
 
-    for client in &cores[1..] {
+    for client in &mut cores[1..] {
         client
             .import_account(&account_string, Some(&url()))
+            .await
             .unwrap();
-        client.sync(None).unwrap();
+        client.sync(None).await.unwrap();
     }
     cores
 }

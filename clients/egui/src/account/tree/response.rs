@@ -1,18 +1,21 @@
 use std::{collections::HashSet, path::PathBuf};
 
-use lb::LbError;
+use lb::{
+    model::{errors::LbErr, file::File},
+    Uuid,
+};
 
 #[derive(Default)]
 pub struct NodeResponse {
-    pub open_requests: HashSet<lb::Uuid>,
+    pub open_requests: HashSet<Uuid>,
     pub new_file: Option<bool>,
     pub new_drawing: Option<bool>,
-    pub export_file: Option<Result<(lb::File, PathBuf), LbError>>,
-    pub new_folder_modal: Option<lb::File>,
-    pub create_share_modal: Option<lb::File>,
-    pub rename_request: Option<(lb::Uuid, String)>,
+    pub export_file: Option<Result<(File, PathBuf), LbErr>>,
+    pub new_folder_modal: Option<File>,
+    pub create_share_modal: Option<File>,
+    pub rename_request: Option<(Uuid, String)>,
     pub delete_request: bool,
-    pub dropped_on: Option<lb::Uuid>,
+    pub dropped_on: Option<Uuid>,
 }
 
 impl NodeResponse {

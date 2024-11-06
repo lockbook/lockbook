@@ -1,5 +1,4 @@
 import Combine
-import SwiftLockbookCore
 import Foundation
 
 class BranchState: ObservableObject {

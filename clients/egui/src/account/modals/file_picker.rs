@@ -1,12 +1,14 @@
 use eframe::egui;
-use lb::File;
+use lb::blocking::Lb;
+use lb::model::file::File;
+use lb::model::file_metadata::FileType;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 
 use crate::model::DocType;
 
 pub struct FilePicker {
-    core: lb::Core,
+    core: Lb,
     panels: Vec<Panel>,
     action: FilePickerAction,
 }
@@ -18,41 +20,38 @@ pub struct FilePickerParams {
 
 #[derive(Clone)]
 struct Panel {
-    root: lb::File,
-    children: Vec<lb::File>,
+    root: File,
+    children: Vec<File>,
 }
 
 #[derive(Clone)]
 pub enum FilePickerAction {
-    AcceptShare(lb::File),
+    AcceptShare(File),
     DroppedFiles(Vec<egui::DroppedFile>),
 }
 
 impl FilePicker {
-    pub fn new(core: lb::Core, action: FilePickerAction) -> Self {
+    pub fn new(core: &Lb, action: FilePickerAction) -> Self {
+        let core = core.clone();
         let root = core.get_root().unwrap();
         let root_panel =
-            Panel { root: root.clone(), children: core.get_children(root.id).unwrap() };
+            Panel { root: root.clone(), children: core.get_children(&root.id).unwrap() };
 
         Self { core, panels: vec![root_panel], action }
     }
 
-    fn target_type(&self) -> lb::FileType {
+    fn target_type(&self) -> FileType {
         match &self.action {
             FilePickerAction::AcceptShare(file) => file.file_type,
             FilePickerAction::DroppedFiles(drops) => {
                 for drop in drops {
                     if let Some(path) = &drop.path {
-                        return if path.is_dir() {
-                            lb::FileType::Folder
-                        } else {
-                            lb::FileType::Document
-                        };
+                        return if path.is_dir() { FileType::Folder } else { FileType::Document };
                     }
                 }
 
                 // should be unreachable, as this code is only invoked if at least one drop has a path
-                lb::FileType::Folder
+                FileType::Folder
             }
         }
     }
@@ -135,7 +134,7 @@ fn show_file_panel(
                     let mut children: Vec<&File> = panel
                         .children
                         .iter()
-                        .filter(|f| f.file_type == lb::FileType::Folder)
+                        .filter(|f| f.file_type == FileType::Folder)
                         .collect();
                     children.sort_by(|a, b| a.name.cmp(&b.name));
 
@@ -163,7 +162,7 @@ fn show_bottom_bar(ui: &mut egui::Ui, file_picker: &mut FilePicker) -> Option<Fi
                 }
 
                 let icon = match file_picker.target_type() {
-                    lb::FileType::Folder => Icon::FOLDER,
+                    FileType::Folder => Icon::FOLDER,
                     _ => DocType::from_name(&file_picker.target_name()).to_icon(),
                 };
 
@@ -236,7 +235,7 @@ fn show_node(
         file_picker.panels.drain((drain_index)..);
         file_picker.panels.push(Panel {
             root: node.clone(),
-            children: file_picker.core.get_children(node.id).unwrap(),
+            children: file_picker.core.get_children(&node.id).unwrap(),
         });
     };
 }

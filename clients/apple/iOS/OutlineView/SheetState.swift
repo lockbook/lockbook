@@ -1,6 +1,6 @@
 import Combine
 import Foundation
-import SwiftLockbookCore
+import SwiftWorkspace
 
 struct CreatingFolderInfo: Identifiable {
     var id = UUID()

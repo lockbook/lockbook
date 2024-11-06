@@ -1,7 +1,6 @@
 use crate::*;
 use criterion::{black_box, criterion_group, BenchmarkId, Criterion, Throughput};
-use lb_rs::shared::file_metadata::FileType;
-use test_utils::*;
+use lb_rs::model::file_metadata::FileType;
 use uuid::Uuid;
 
 const BYTES_IN_EACH_FILE: u64 = 1000;
@@ -23,14 +22,14 @@ fn test_repo_integrity_benchmark(c: &mut Criterion) {
             BenchmarkId::from_parameter(*size),
             &size,
             |b, &size| {
-                let core = test_core_with_account();
+                let core = blocking_core();
                 let root = core.get_root().unwrap();
 
                 for _ in 0..*size {
                     let id = core
                         .create_file(
                             black_box(&Uuid::new_v4().to_string()),
-                            black_box(root.id),
+                            black_box(&root.id),
                             black_box(FileType::Document),
                         )
                         .unwrap()

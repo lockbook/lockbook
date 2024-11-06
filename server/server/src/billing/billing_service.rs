@@ -12,7 +12,9 @@ use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use base64::DecodeError;
 use db_rs::Db;
-use lb_rs::shared::api::{
+use lb_rs::logic::server_tree::ServerTree;
+use lb_rs::logic::tree_like::TreeLike;
+use lb_rs::model::api::{
     AdminSetUserTierError, AdminSetUserTierInfo, AdminSetUserTierRequest, AdminSetUserTierResponse,
     AppStoreAccountState, CancelSubscriptionError, CancelSubscriptionRequest,
     CancelSubscriptionResponse, GetSubscriptionInfoError, GetSubscriptionInfoRequest,
@@ -22,10 +24,8 @@ use lb_rs::shared::api::{
     UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
     UpgradeAccountStripeResponse, FREE_TIER_USAGE_SIZE,
 };
-use lb_rs::shared::clock::get_time;
-use lb_rs::shared::file_metadata::Owner;
-use lb_rs::shared::server_tree::ServerTree;
-use lb_rs::shared::tree_like::TreeLike;
+use lb_rs::model::clock::get_time;
+use lb_rs::model::file_metadata::Owner;
 use libsecp256k1::PublicKey;
 use std::collections::HashMap;
 use std::fmt::Debug;

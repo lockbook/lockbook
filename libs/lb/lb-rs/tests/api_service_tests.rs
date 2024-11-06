@@ -1,23 +1,24 @@
 use libsecp256k1::PublicKey;
 
 use lb_rs::get_code_version;
-use lb_rs::service::api_service::{ApiError, Network, Requester};
-use lb_rs::shared::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
-use lb_rs::shared::clock::{get_time, Timestamp};
+use lb_rs::model::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
+use lb_rs::model::clock::{get_time, Timestamp};
+use lb_rs::service::network::{ApiError, Network};
 use test_utils::assert_matches;
 use test_utils::test_core_with_account;
 
 static CODE_VERSION: fn() -> &'static str = || "0.0.0";
 
-#[test]
-fn forced_upgrade() {
-    let core = test_core_with_account();
+#[tokio::test]
+async fn forced_upgrade() {
+    let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
 
     let client = Network { client: Default::default(), get_code_version: CODE_VERSION, get_time };
 
     let result: Result<PublicKey, ApiError<GetPublicKeyError>> = client
-        .request(&account, GetPublicKeyRequest { username: account.username.clone() })
+        .request(account, GetPublicKeyRequest { username: account.username.clone() })
+        .await
         .map(|r: GetPublicKeyResponse| r.key);
 
     assert_matches!(result, Err(ApiError::<GetPublicKeyError>::ClientUpdateRequired));
@@ -25,48 +26,43 @@ fn forced_upgrade() {
 
 static EARLY_CLOCK: fn() -> Timestamp = || Timestamp(get_time().0 - 3600000);
 
-#[test]
-fn expired_request() {
-    let core = test_core_with_account();
+#[tokio::test]
+async fn expired_request() {
+    let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
 
     let client = Network { client: Default::default(), get_code_version, get_time: EARLY_CLOCK };
 
-    let result =
-        client.request(&account, GetPublicKeyRequest { username: account.username.clone() });
+    let result = client
+        .request(account, GetPublicKeyRequest { username: account.username.clone() })
+        .await;
     assert_matches!(result, Err(ApiError::<GetPublicKeyError>::ExpiredAuth));
 }
 
-#[test]
-fn invalid_url() {
-    let core = test_core_with_account();
-    let mut account = core.get_account().unwrap();
+#[tokio::test]
+async fn invalid_url() {
+    let core = test_core_with_account().await;
+    let mut account = core.get_account().unwrap().clone();
     account.api_url = String::from("not a url");
 
-    core.in_tx(|s| {
-        let res = s
-            .client
-            .request(&account, GetPublicKeyRequest { username: account.username.clone() });
-        assert_matches!(res, Err(ApiError::<GetPublicKeyError>::SendFailed(_)));
-        Ok(())
-    })
-    .unwrap();
+    let res = core
+        .client
+        .request(&account, GetPublicKeyRequest { username: account.username.clone() })
+        .await;
+    assert_matches!(res, Err(ApiError::<GetPublicKeyError>::SendFailed(_)));
 }
 
-#[test]
-fn wrong_url() {
-    let core = test_core_with_account();
-    let mut account = core.get_account().unwrap();
+#[tokio::test]
+async fn wrong_url() {
+    let core = test_core_with_account().await;
+    let mut account = core.get_account().unwrap().clone();
     account.api_url = String::from("http://google.com");
 
-    core.in_tx(|s| {
-        let result = s
-            .client
-            .request(&account, GetPublicKeyRequest { username: account.username.clone() });
-        assert_matches!(result, Err(ApiError::<GetPublicKeyError>::Deserialize(_)));
-        Ok(())
-    })
-    .unwrap();
+    let result = core
+        .client
+        .request(&account, GetPublicKeyRequest { username: account.username.clone() })
+        .await;
+    assert_matches!(result, Err(ApiError::<GetPublicKeyError>::Deserialize(_)));
 }
 
 // todo: test for invalid signature, signature mismatch during create account request

@@ -1,14 +1,15 @@
-use crate::{ensure_account, input, writable_path};
+use crate::{core, ensure_account, input, writable_path};
 use cli_rs::cli_error::CliResult;
 use fs_extra::dir::CopyOptions;
-use lb::Core;
 use lb_fs::fs_impl::Drive;
 
-pub fn mount(core: &Core) -> CliResult<()> {
-    ensure_account(core)?;
+#[tokio::main]
+pub async fn mount() -> CliResult<()> {
+    let lb = &core().await?;
+    ensure_account(lb)?;
     warning()?;
     copy_data()?;
-    Drive::init().mount()?;
+    Drive::mount().await?;
     Ok(())
 }
 
@@ -23,7 +24,7 @@ fn warning() -> CliResult<()> {
 
 fn copy_data() -> CliResult<()> {
     let current_path = writable_path()?;
-    let target_path = lb_fs::core::AsyncCore::path();
+    let target_path = format!("{}/.lockbook/drive", std::env::var("HOME").unwrap());
 
     fs_extra::copy_items(
         &[current_path],

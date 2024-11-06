@@ -4,10 +4,18 @@ use egui::os::OperatingSystem;
 use egui::{
     vec2, Context, EventFilter, Id, Image, Key, Modifiers, Sense, TextWrapMode, ViewportCommand,
 };
+use lb_rs::blocking::Lb;
+use lb_rs::logic::crypto::DecryptedDocument;
+use lb_rs::logic::filename::NameComponents;
+use lb_rs::model::errors::{LbErr, LbErrKind};
+use lb_rs::model::file::File;
+use lb_rs::model::file_metadata::{DocumentHmac, FileType};
+use lb_rs::service::sync::{SyncProgress, SyncStatus};
+use lb_rs::Uuid;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{mem, thread};
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
@@ -19,11 +27,6 @@ use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{SaveRequest, Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
-use lb_rs::{
-    CoreError, DecryptedDocument, DocumentHmac, File, FileType, LbError, NameComponents,
-    SyncProgress, SyncStatus, Uuid,
-};
-use std::time::Duration;
 
 pub struct Workspace {
     pub cfg: WsConfig,
@@ -36,7 +39,7 @@ pub struct Workspace {
     pub backdrop: Image<'static>,
 
     pub ctx: Context,
-    pub core: lb_rs::Core,
+    pub core: Lb,
 
     pub updates_tx: Sender<WsMsg>,
     pub updates_rx: Receiver<WsMsg>,
@@ -54,12 +57,12 @@ pub struct Workspace {
 pub enum WsMsg {
     FileCreated(Result<File, String>),
     FileLoaded(FileLoadedMsg),
-    SaveResult(Uuid, Result<SaveResult, LbError>),
+    SaveResult(Uuid, Result<SaveResult, LbErr>),
     FileRenamed { id: Uuid, new_name: String },
 
     BgSignal(Signal),
     SyncMsg(SyncProgress),
-    SyncDone(Result<SyncStatus, LbError>),
+    SyncDone(Result<SyncStatus, LbErr>),
     Dirtyness(DirtynessMsg),
 }
 
@@ -112,7 +115,7 @@ impl WsConfig {
 }
 
 impl Workspace {
-    pub fn new(cfg: WsConfig, core: &lb_rs::Core, ctx: &Context) -> Self {
+    pub fn new(cfg: WsConfig, core: &Lb, ctx: &Context) -> Self {
         let (updates_tx, updates_rx) = channel();
         let background = BackgroundWorker::new(ctx, &updates_tx);
         let background_tx = background.spawn_worker();
@@ -140,7 +143,7 @@ impl Workspace {
         }
     }
 
-    pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &lb_rs::Core) {
+    pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &Lb) {
         self.ctx = ctx.clone();
         self.core = core.clone();
 
@@ -663,10 +666,10 @@ impl Workspace {
 
             let file_format = if is_drawing { "svg" } else { "md" };
             let new_file = NameComponents::from(&format!("untitled.{}", file_format))
-                .next_in_children(core.get_children(focused_parent).unwrap());
+                .next_in_children(core.get_children(&focused_parent).unwrap());
 
             let result = core
-                .create_file(new_file.to_name().as_str(), focused_parent, FileType::Document)
+                .create_file(new_file.to_name().as_str(), &focused_parent, FileType::Document)
                 .map_err(|err| format!("{:?}", err));
             update_tx.send(WsMsg::FileCreated(result)).unwrap();
         });
@@ -678,7 +681,7 @@ impl Workspace {
             Err(err) => {
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id) {
                     t.failure = match err.kind {
-                        lb_rs::CoreError::FileNonexistent => Some(TabFailure::DeletedFromSync),
+                        LbErrKind::FileNonexistent => Some(TabFailure::DeletedFromSync),
                         _ => Some(err.into()),
                     }
                 }
@@ -916,7 +919,7 @@ impl Workspace {
                                 sync = true; // todo: sync once when saving multiple tabs
                             }
                             Err(err) => {
-                                if err.kind != CoreError::ReReadRequired {
+                                if err.kind == LbErrKind::ReReadRequired {
                                     tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
                                 }
                             }
@@ -1001,7 +1004,7 @@ impl Workspace {
 
         thread::spawn(move || {
             let (id, new_name) = req;
-            core.rename_file(id, &new_name).unwrap(); // TODO
+            core.rename_file(&id, &new_name).unwrap(); // TODO
 
             update_tx.send(WsMsg::FileRenamed { id, new_name }).unwrap();
             ctx.request_repaint();

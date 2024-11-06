@@ -1,21 +1,22 @@
 use itertools::Itertools;
-use lb_rs::shared::file::ShareMode;
+use lb_rs::model::file::ShareMode;
 use test_utils::*;
 
 /// Uncategorized tests.
 
-#[test]
-fn test_path_conflict() {
-    let db1 = test_core_with_account();
-    let db2 = test_core_from(&db1);
+#[tokio::test]
+async fn test_path_conflict() {
+    let db1 = test_core_with_account().await;
+    let db2 = test_core_from(&db1).await;
 
-    db1.create_at_path("new.md").unwrap();
-    db1.sync(None).unwrap();
-    db2.create_at_path("new.md").unwrap();
-    db2.sync(None).unwrap();
+    db1.create_at_path("new.md").await.unwrap();
+    db1.sync(None).await.unwrap();
+    db2.create_at_path("new.md").await.unwrap();
+    db2.sync(None).await.unwrap();
 
     assert_eq!(
         db2.list_metadatas()
+            .await
             .unwrap()
             .iter()
             .filter(|file| file.id != file.parent)
@@ -26,18 +27,19 @@ fn test_path_conflict() {
     )
 }
 
-#[test]
-fn test_path_conflict2() {
-    let db1 = test_core_with_account();
-    let db2 = test_core_from(&db1);
+#[tokio::test]
+async fn test_path_conflict2() {
+    let db1 = test_core_with_account().await;
+    let db2 = test_core_from(&db1).await;
 
-    db1.create_at_path("new-1.md").unwrap();
-    db1.sync(None).unwrap();
-    db2.create_at_path("new-1.md").unwrap();
-    db2.sync(None).unwrap();
+    db1.create_at_path("new-1.md").await.unwrap();
+    db1.sync(None).await.unwrap();
+    db2.create_at_path("new-1.md").await.unwrap();
+    db2.sync(None).await.unwrap();
 
     assert_eq!(
         db2.list_metadatas()
+            .await
             .unwrap()
             .iter()
             .filter(|file| file.id != file.parent)
@@ -48,302 +50,315 @@ fn test_path_conflict2() {
     )
 }
 
-#[test]
-fn deleted_path_is_released() {
-    let db1 = test_core_with_account();
-    let file1 = db1.create_at_path("file1.md").unwrap();
-    db1.sync(None).unwrap();
-    db1.delete_file(file1.id).unwrap();
-    db1.sync(None).unwrap();
-    db1.create_at_path("file1.md").unwrap();
-    db1.sync(None).unwrap();
+#[tokio::test]
+async fn deleted_path_is_released() {
+    let db1 = test_core_with_account().await;
+    let file1 = db1.create_at_path("file1.md").await.unwrap();
+    db1.sync(None).await.unwrap();
+    db1.delete(&file1.id).await.unwrap();
+    db1.sync(None).await.unwrap();
+    db1.create_at_path("file1.md").await.unwrap();
+    db1.sync(None).await.unwrap();
 
-    let db2 = test_core_from(&db1);
-    db2.sync(None).unwrap();
+    let db2 = test_core_from(&db1).await;
+    db2.sync(None).await.unwrap();
 }
 
 // this case did not actually get the fuzzer stuck and was written while reproducing the issue
-#[test]
-fn fuzzer_stuck_test_1() {
-    let db1 = test_core_with_account();
-    let b = db1.create_at_path("/b").unwrap();
-    let c = db1.create_at_path("/c/").unwrap();
-    let d = db1.create_at_path("/c/d/").unwrap();
-    db1.move_file(b.id, d.id).unwrap();
-    db1.move_file(c.id, d.id).unwrap_err();
+#[tokio::test]
+async fn fuzzer_stuck_test_1() {
+    let db1 = test_core_with_account().await;
+    let b = db1.create_at_path("/b").await.unwrap();
+    let c = db1.create_at_path("/c/").await.unwrap();
+    let d = db1.create_at_path("/c/d/").await.unwrap();
+    db1.move_file(&b.id, &d.id).await.unwrap();
+    db1.move_file(&c.id, &d.id).await.unwrap_err();
 }
 
 // this case did not actually get the fuzzer stuck and was written while reproducing the issue
-#[test]
-fn fuzzer_stuck_test_2() {
-    let db1 = test_core_with_account();
-    let root = db1.get_root().unwrap();
-    let db2 = test_core_from(&db1);
+#[tokio::test]
+async fn fuzzer_stuck_test_2() {
+    let db1 = test_core_with_account().await;
+    let root = db1.root().await.unwrap();
+    let db2 = test_core_from(&db1).await;
 
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
 
-    let a = db2.create_at_path("/a/").unwrap();
-    let b = db2.create_at_path("/a/b/").unwrap();
-    db2.move_file(b.id, root.id).unwrap();
-    db2.rename_file(b.id, "b2").unwrap();
-    let _c = db2.create_at_path("/c/").unwrap();
-    db2.move_file(b.id, a.id).unwrap();
+    let a = db2.create_at_path("/a/").await.unwrap();
+    let b = db2.create_at_path("/a/b/").await.unwrap();
+    db2.move_file(&b.id, &root.id).await.unwrap();
+    db2.rename_file(&b.id, "b2").await.unwrap();
+    let _c = db2.create_at_path("/c/").await.unwrap();
+    db2.move_file(&b.id, &a.id).await.unwrap();
 
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.validate().unwrap();
-    assert::cores_equal(&db1, &db2);
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.test_repo_integrity().await.unwrap();
+    assert::cores_equal(&db1, &db2).await;
 }
 
 // this case did not actually get the fuzzer stuck and was written while reproducing the issue
-#[test]
-fn fuzzer_stuck_test_3() {
-    let db1 = test_core_with_account();
-    let db2 = test_core_from(&db1);
+#[tokio::test]
+async fn fuzzer_stuck_test_3() {
+    let db1 = test_core_with_account().await;
+    let db2 = test_core_from(&db1).await;
 
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
 
-    let _a = db2.create_at_path("/a/").unwrap();
+    let _a = db2.create_at_path("/a/").await.unwrap();
 
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.validate().unwrap();
-    assert::cores_equal(&db1, &db2);
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.test_repo_integrity().await.unwrap();
+    assert::cores_equal(&db1, &db2).await;
 
-    db1.create_at_path("/a/b.md").unwrap();
-    let c = db1.create_at_path("/a/c").unwrap();
-    db1.rename_file(c.id, "c2").unwrap();
+    db1.create_at_path("/a/b.md").await.unwrap();
+    let c = db1.create_at_path("/a/c").await.unwrap();
+    db1.rename_file(&c.id, "c2").await.unwrap();
 
-    db1.create_at_path("/a/d").unwrap();
+    db1.create_at_path("/a/d").await.unwrap();
 
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.validate().unwrap();
-    assert::cores_equal(&db1, &db2);
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.test_repo_integrity().await.unwrap();
+    assert::cores_equal(&db1, &db2).await;
 }
 
 // this case did not actually get the fuzzer stuck and was written while reproducing the issue
-#[test]
-fn fuzzer_stuck_test_4() {
-    let db1 = test_core_with_account();
-    let root = db1.get_root().unwrap();
-    let db2 = test_core_from(&db1);
+#[tokio::test]
+async fn fuzzer_stuck_test_4() {
+    let db1 = test_core_with_account().await;
+    let root = db1.root().await.unwrap();
+    let db2 = test_core_from(&db1).await;
 
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
 
-    let _a = db2.create_at_path("/a/").unwrap();
-    let b = db2.create_at_path("/a/b/").unwrap();
-    db2.move_file(b.id, root.id).unwrap();
-    db2.rename_file(b.id, "b2").unwrap();
-    let c = db2.create_at_path("c.md").unwrap();
+    let _a = db2.create_at_path("/a/").await.unwrap();
+    let b = db2.create_at_path("/a/b/").await.unwrap();
+    db2.move_file(&b.id, &root.id).await.unwrap();
+    db2.rename_file(&b.id, "b2").await.unwrap();
+    let c = db2.create_at_path("c.md").await.unwrap();
     db2.write_document(c.id, b"DPCN8G0CK8qXSyJhervmmEXFnkt")
+        .await
         .unwrap();
 
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.validate().unwrap();
-    assert::cores_equal(&db1, &db2);
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.test_repo_integrity().await.unwrap();
+    assert::cores_equal(&db1, &db2).await;
 }
 
-#[test]
-fn fuzzer_stuck_test_5() {
-    let db1 = test_core_with_account();
-    let root = db1.get_root().unwrap();
-    let db2 = test_core_from(&db1);
+#[tokio::test]
+async fn fuzzer_stuck_test_5() {
+    let db1 = test_core_with_account().await;
+    let root = db1.root().await.unwrap();
+    let db2 = test_core_from(&db1).await;
 
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
 
-    let a = db1.create_at_path("/a/").unwrap();
-    let b = db1.create_at_path("/a/b/").unwrap();
+    let a = db1.create_at_path("/a/").await.unwrap();
+    let b = db1.create_at_path("/a/b/").await.unwrap();
 
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.validate().unwrap();
-    assert::cores_equal(&db1, &db2);
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.test_repo_integrity().await.unwrap();
+    assert::cores_equal(&db1, &db2).await;
 
-    db1.move_file(b.id, root.id).unwrap();
-    db1.move_file(a.id, b.id).unwrap();
-    db1.delete_file(b.id).unwrap();
+    db1.move_file(&b.id, &root.id).await.unwrap();
+    db1.move_file(&a.id, &b.id).await.unwrap();
+    db1.delete(&b.id).await.unwrap();
 
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.validate().unwrap();
-    assert::cores_equal(&db1, &db2);
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.test_repo_integrity().await.unwrap();
+    assert::cores_equal(&db1, &db2).await;
 }
 
-#[test]
-fn fuzzer_stuck_test_6() {
-    let core1 = test_core_with_account();
+#[tokio::test]
+async fn fuzzer_stuck_test_6() {
+    let core1 = test_core_with_account().await;
 
-    let dir1 = core1.create_at_path("quB/").unwrap();
-    let dir2 = core1.create_at_path("OO1/").unwrap();
-    core1.sync(None).unwrap();
-    let core2 = test_core_from(&core1);
-    core2.move_file(dir2.id, dir1.id).unwrap();
-    let _doc1 = core1.create_at_path("KbW").unwrap();
-    core1.move_file(dir1.id, dir2.id).unwrap();
+    let dir1 = core1.create_at_path("quB/").await.unwrap();
+    let dir2 = core1.create_at_path("OO1/").await.unwrap();
+    core1.sync(None).await.unwrap();
+    let core2 = test_core_from(&core1).await;
+    core2.move_file(&dir2.id, &dir1.id).await.unwrap();
+    let _doc1 = core1.create_at_path("KbW").await.unwrap();
+    core1.move_file(&dir1.id, &dir2.id).await.unwrap();
 
-    core1.sync(None).unwrap();
-    core2.sync(None).unwrap();
-    core1.sync(None).unwrap();
-    core2.sync(None).unwrap();
-    core1.validate().unwrap();
-    assert::cores_equal(&core1, &core2);
+    core1.sync(None).await.unwrap();
+    core2.sync(None).await.unwrap();
+    core1.sync(None).await.unwrap();
+    core2.sync(None).await.unwrap();
+    core1.test_repo_integrity().await.unwrap();
+    assert::cores_equal(&core1, &core2).await;
 }
 
-#[test]
-fn fuzzer_get_updates_required_test() {
-    let db1 = test_core_with_account();
+#[tokio::test]
+async fn fuzzer_get_updates_required_test() {
+    let db1 = test_core_with_account().await;
 
-    let document = db1.create_at_path("/document").unwrap();
+    let document = db1.create_at_path("/document").await.unwrap();
 
-    db1.sync(None).unwrap();
-    let db2 = test_core_from(&db1);
+    db1.sync(None).await.unwrap();
+    let db2 = test_core_from(&db1).await;
 
     db1.write_document(document.id, b"document content")
+        .await
         .unwrap();
     db2.write_document(document.id, b"content document")
+        .await
         .unwrap();
-    db2.delete_file(document.id).unwrap();
+    db2.delete(&document.id).await.unwrap();
 
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
-    db1.sync(None).unwrap();
-    db2.sync(None).unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
+    db1.sync(None).await.unwrap();
+    db2.sync(None).await.unwrap();
 }
 
-#[test]
-fn fuzzer_new_file_deleted() {
-    let core = test_core_with_account();
+#[tokio::test]
+async fn fuzzer_new_file_deleted() {
+    let core = test_core_with_account().await;
 
-    let dir1 = core.create_at_path("u88/").unwrap();
-    core.sync(None).unwrap();
-    let dir2 = core.create_at_path("mep/").unwrap();
-    core.move_file(dir1.id, dir2.id).unwrap();
-    core.delete_file(dir2.id).unwrap();
-    core.sync(None).unwrap();
+    let dir1 = core.create_at_path("u88/").await.unwrap();
+    core.sync(None).await.unwrap();
+    let dir2 = core.create_at_path("mep/").await.unwrap();
+    core.move_file(&dir1.id, &dir2.id).await.unwrap();
+    core.delete(&dir2.id).await.unwrap();
+    core.sync(None).await.unwrap();
 }
 
-#[test]
-fn fuzzer_create_document_in_renamed_concurrently_deleted_folder() {
-    let core1 = test_core_with_account();
-    let core2 = test_core_from(&core1);
+#[tokio::test]
+async fn fuzzer_create_document_in_renamed_concurrently_deleted_folder() {
+    let core1 = test_core_with_account().await;
+    let core2 = test_core_from(&core1).await;
 
-    let folder = core1.create_at_path("folder/").unwrap();
+    let folder = core1.create_at_path("folder/").await.unwrap();
 
-    core1.sync(None).unwrap();
-    core2.sync(None).unwrap();
+    core1.sync(None).await.unwrap();
+    core2.sync(None).await.unwrap();
 
-    core1.delete_file(folder.id).unwrap();
-    core1.sync(None).unwrap();
+    core1.delete(&folder.id).await.unwrap();
+    core1.sync(None).await.unwrap();
 
-    let document = core2.create_at_path("folder/document").unwrap();
+    let document = core2.create_at_path("folder/document").await.unwrap();
     core2
         .write_document(document.id, b"document content")
+        .await
         .unwrap();
-    core2.rename_file(folder.id, "folder-renamed").unwrap();
-    core2.sync(None).unwrap();
+    core2
+        .rename_file(&folder.id, "folder-renamed")
+        .await
+        .unwrap();
+    core2.sync(None).await.unwrap();
 }
 
-#[test]
-fn fuzzer_delete_concurrently_edited_document() {
-    let core1 = test_core_with_account();
-    let core2 = test_core_from(&core1);
+#[tokio::test]
+async fn fuzzer_delete_concurrently_edited_document() {
+    let core1 = test_core_with_account().await;
+    let core2 = test_core_from(&core1).await;
 
-    let document = core1.create_at_path("document.md").unwrap();
+    let document = core1.create_at_path("document.md").await.unwrap();
 
-    core1.sync(None).unwrap();
-    core2.sync(None).unwrap();
+    core1.sync(None).await.unwrap();
+    core2.sync(None).await.unwrap();
 
-    core1.write_document(document.id, b"content").unwrap();
-    core1.sync(None).unwrap();
+    core1.write_document(document.id, b"content").await.unwrap();
+    core1.sync(None).await.unwrap();
 
-    core2.write_document(document.id, b"content").unwrap();
-    core2.delete_file(document.id).unwrap();
-    core2.sync(None).unwrap();
+    core2.write_document(document.id, b"content").await.unwrap();
+    core2.delete(&document.id).await.unwrap();
+    core2.sync(None).await.unwrap();
 }
 
-#[test]
-fn test_move_folder_with_deleted_file() {
+#[tokio::test]
+async fn test_move_folder_with_deleted_file() {
     let mut cores = [
-        vec![test_core_with_account()],
-        vec![test_core_with_account()],
-        vec![test_core_with_account()],
+        vec![test_core_with_account().await],
+        vec![test_core_with_account().await],
+        vec![test_core_with_account().await],
     ];
-    let c = another_client(&cores[1][0]);
+    let c = another_client(&cores[1][0]).await;
     cores[1].push(c);
-    let c = another_client(&cores[1][0]);
+    let c = another_client(&cores[1][0]).await;
     cores[1].push(c);
-    let c = another_client(&cores[2][0]);
+    let c = another_client(&cores[2][0]).await;
     cores[2].push(c);
 
-    let us6 = cores[0][0].create_at_path("US62E5M/").unwrap();
-    let voe = cores[0][0].create_at_path("US62E5M/voey6qi.md").unwrap();
-    cores[0][0].delete_file(voe.id).unwrap();
-    let us7 = cores[0][0].create_at_path("US7/").unwrap();
-    cores[0][0].move_file(us6.id, us7.id).unwrap();
+    let us6 = cores[0][0].create_at_path("US62E5M/").await.unwrap();
+    let voe = cores[0][0]
+        .create_at_path("US62E5M/voey6qi.md")
+        .await
+        .unwrap();
+    cores[0][0].delete(&voe.id).await.unwrap();
+    let us7 = cores[0][0].create_at_path("US7/").await.unwrap();
+    cores[0][0].move_file(&us6.id, &us7.id).await.unwrap();
 }
 
-#[test]
-fn test_clean_sync_deleted_link() {
-    let cores = [test_core_with_account(), test_core_with_account()];
+#[tokio::test]
+async fn test_clean_sync_deleted_link() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
 
-    let doc = cores[0].create_at_path("welcome.md").unwrap();
+    let doc = cores[0].create_at_path("welcome.md").await.unwrap();
     cores[0]
         .share_file(doc.id, &cores[1].get_account().unwrap().username, ShareMode::Write)
+        .await
         .unwrap();
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
 
     let link_doc = cores[1]
         .create_link_at_path("welcome-path.md", doc.id)
+        .await
         .unwrap();
-    cores[1].sync(None).unwrap();
-    cores[1].delete_file(link_doc.id).unwrap();
-    cores[1].delete_pending_share(doc.id).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[1].sync(None).await.unwrap();
+    cores[1].delete(&link_doc.id).await.unwrap();
+    cores[1].reject_share(&doc.id).await.unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    another_client(&cores[1]).sync(None).unwrap();
+    another_client(&cores[1]).await.sync(None).await.unwrap();
 }
 
-#[test]
-fn test_unmergable_conflict_progress_closure() {
-    let mut cores = vec![test_core_with_account()];
-    cores.push(another_client(&cores[0]));
+#[tokio::test]
+async fn test_unmergable_conflict_progress_closure() {
+    let mut cores = vec![test_core_with_account().await];
+    let new_core = another_client(&cores[0]).await;
+    cores.push(new_core);
 
-    let doc = cores[0].create_at_path("test.md").unwrap();
+    let doc = cores[0].create_at_path("test.md").await.unwrap();
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
 
-    cores[0].write_document(doc.id, b"a").unwrap();
-    cores[1].write_document(doc.id, b"b").unwrap();
+    cores[0].write_document(doc.id, b"a").await.unwrap();
+    cores[1].write_document(doc.id, b"b").await.unwrap();
 
-    cores[0].sync(None).unwrap();
-    cores[1].sync(Some(Box::new(|_| {}))).unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(Some(Box::new(|_| {}))).await.unwrap();
 }

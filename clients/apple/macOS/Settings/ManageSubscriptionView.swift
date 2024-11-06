@@ -152,12 +152,3 @@ struct ManageSubscriptionView: View {
         }
     }
 }
-
-struct ManageSubscriptionView_Previews: PreviewProvider {
-    static var previews: some View {
-        NavigationView {
-            ManageSubscriptionView()
-                .mockDI()
-        }
-    }
-}

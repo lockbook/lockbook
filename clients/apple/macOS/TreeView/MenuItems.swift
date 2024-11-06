@@ -1,5 +1,5 @@
 import AppKit
-import SwiftLockbookCore
+import SwiftWorkspace
 
 class CreateDocument: NSMenuItem {
     let file: File
@@ -134,7 +134,7 @@ class ShareExternallyMenu: NSMenuItem {
         submenu = NSMenu(title: "Share externally")
         submenu!.addItem(ShareTo(file: file, fileTree: fileTree))
         
-        if file.fileType == .Document {
+        if file.type == .document {
             submenu!.addItem(CopyLink(file: file))
         }
     }

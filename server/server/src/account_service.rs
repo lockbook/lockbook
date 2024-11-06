@@ -8,9 +8,15 @@ use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use db_rs::Db;
-use lb_rs::shared::account::Username;
-use lb_rs::shared::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
-use lb_rs::shared::api::{
+use lb_rs::logic::file_like::FileLike;
+use lb_rs::logic::lazy::LazyTree;
+use lb_rs::logic::server_file::IntoServerFile;
+use lb_rs::logic::server_tree::ServerTree;
+use lb_rs::logic::tree_like::TreeLike;
+use lb_rs::logic::usage::bytes_to_human;
+use lb_rs::model::account::Username;
+use lb_rs::model::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
+use lb_rs::model::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminDisappearAccountError,
     AdminDisappearAccountRequest, AdminGetAccountInfoError, AdminGetAccountInfoRequest,
     AdminGetAccountInfoResponse, AdminListUsersError, AdminListUsersRequest,
@@ -19,14 +25,8 @@ use lb_rs::shared::api::{
     GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountRequest,
     NewAccountResponse, PaymentPlatform, METADATA_FEE,
 };
-use lb_rs::shared::clock::get_time;
-use lb_rs::shared::file_like::FileLike;
-use lb_rs::shared::file_metadata::Owner;
-use lb_rs::shared::lazy::LazyTree;
-use lb_rs::shared::server_file::IntoServerFile;
-use lb_rs::shared::server_tree::ServerTree;
-use lb_rs::shared::tree_like::TreeLike;
-use lb_rs::shared::usage::bytes_to_human;
+use lb_rs::model::clock::get_time;
+use lb_rs::model::file_metadata::Owner;
 use libsecp256k1::PublicKey;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;

@@ -1,12 +1,18 @@
-use crate::{Error, GooglePlayAccountState, Res, SetUserTier, StripeAccountState};
-use lb::{
-    base64, AccountFilter, AccountIdentifier, AdminSetUserTierInfo, AppStoreAccountState, Core,
-    PublicKey,
-};
 use std::str::FromStr;
 
+use lb::{
+    blocking::Lb,
+    model::api::{
+        AccountFilter, AccountIdentifier, AdminSetUserTierInfo, AppStoreAccountState,
+        GooglePlayAccountState, StripeAccountState,
+    },
+};
+use libsecp256k1::PublicKey;
+
+use crate::{error::Error, Res, SetUserTier};
+
 pub fn list(
-    core: &Core, premium: bool, app_store_premium: bool, google_play_premium: bool,
+    lb: &Lb, premium: bool, app_store_premium: bool, google_play_premium: bool,
     stripe_premium: bool,
 ) -> Res<()> {
     let filter = if premium {
@@ -21,7 +27,7 @@ pub fn list(
         None
     };
 
-    let users = core.admin_list_users(filter.clone())?;
+    let users = lb.admin_list_users(filter.clone())?;
 
     if users.is_empty() {
         let msg = match filter {
@@ -42,7 +48,7 @@ pub fn list(
     Ok(())
 }
 
-pub fn info(core: &Core, username: Option<String>, public_key: Option<String>) -> Res<()> {
+pub fn info(lb: &Lb, username: Option<String>, public_key: Option<String>) -> Res<()> {
     let identifier = if let Some(username) = username {
         AccountIdentifier::Username(username)
     } else if let Some(public_key) = public_key {
@@ -54,13 +60,13 @@ pub fn info(core: &Core, username: Option<String>, public_key: Option<String>) -
         return Err(Error);
     };
 
-    let account_info = core.admin_get_account_info(identifier)?;
+    let account_info = lb.admin_get_account_info(identifier)?;
     println!("{:#?}", account_info);
 
     Ok(())
 }
 
-pub fn set_user_tier(core: &Core, premium_info: SetUserTier) -> Res<()> {
+pub fn set_user_tier(lb: &Lb, premium_info: SetUserTier) -> Res<()> {
     let (premium_info, username) = match premium_info {
         SetUserTier::Stripe {
             username,
@@ -109,7 +115,7 @@ pub fn set_user_tier(core: &Core, premium_info: SetUserTier) -> Res<()> {
         SetUserTier::Free { username } => (AdminSetUserTierInfo::Free, username),
     };
 
-    core.admin_set_user_tier(&username, premium_info)?;
+    lb.admin_set_user_tier(&username, premium_info)?;
 
     Ok(())
 }

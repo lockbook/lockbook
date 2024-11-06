@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 60;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -14,10 +14,12 @@
 		47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */ = {isa = PBXBuildFile; productRef = 47159F4529CFA05B00969DDF /* DSFQuickActionBar */; };
 		471C788D2B4910A80022B3B2 /* SwiftWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 471C788C2B4910A80022B3B2 /* SwiftWorkspace */; };
 		471E363529FD5F5C00A1958A /* DesktopHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8F925ACBCF9005B7B01 /* DesktopHomeView.swift */; };
+		47323C472CD696710086A934 /* workspace in Frameworks */ = {isa = PBXBuildFile; productRef = 47323C462CD696710086A934 /* workspace */; };
 		4735E4892C6A931C006FFD00 /* SelectFolderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4735E4882C6A931C006FFD00 /* SelectFolderViewModel.swift */; };
 		4735E48A2C6A931C006FFD00 /* SelectFolderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4735E4882C6A931C006FFD00 /* SelectFolderViewModel.swift */; };
 		473A3DCE29AC354B0017BC6A /* FilePathBreadcrumb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */; };
 		473AF8662C66B631000F9AE4 /* SelectFolderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FF75042C5AE65F004F90EC /* SelectFolderView.swift */; };
+		474AFD3F2CD695DB00B1546D /* Bridge in Frameworks */ = {isa = PBXBuildFile; productRef = 474AFD3E2CD695DB00B1546D /* Bridge */; };
 		4756C4DB2A57CE86002C64B1 /* CreateFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4756C4DA2A57CE86002C64B1 /* CreateFolderSheet.swift */; };
 		4756C4DC2A57CE86002C64B1 /* CreateFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4756C4DA2A57CE86002C64B1 /* CreateFolderSheet.swift */; };
 		4761F30F2A1832B4002ED338 /* ManageSubscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4761F30E2A1832B4002ED338 /* ManageSubscription.swift */; };
@@ -40,14 +42,16 @@
 		47B53838290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B53839290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B67289295F977C00DB0D8E /* ManageSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */; };
-		47C009172C5C00A900F4B7ED /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = 47C009162C5C00A900F4B7ED /* SwiftLockbookCore */; };
-		47C009192C5C043000F4B7ED /* CoreService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB54926D1788D0008AB3F /* CoreService.swift */; };
 		47C0091A2C5C046700F4B7ED /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
 		47CEC69D2A182F2A0018FA5C /* UpgradeToPremium.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CEC69C2A182F2A0018FA5C /* UpgradeToPremium.swift */; };
 		47DBF1F12A61A51000F86B3F /* ImportExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DBF1F02A61A51000F86B3F /* ImportExportService.swift */; };
 		47DBF1F22A61A51000F86B3F /* ImportExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DBF1F02A61A51000F86B3F /* ImportExportService.swift */; };
 		47E208562C387A60002A356B /* Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E208552C387A60002A356B /* Util.swift */; };
 		47E208572C387A62002A356B /* Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E208552C387A60002A356B /* Util.swift */; };
+		47EA1B022CCEBA1F00A4DAF9 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 47F098392BCDA94800F66CED /* SystemConfiguration.framework */; };
+		47EA1B042CCEBA2B00A4DAF9 /* Bridge in Frameworks */ = {isa = PBXBuildFile; productRef = 47EA1B032CCEBA2B00A4DAF9 /* Bridge */; };
+		47EA1B062CCEBA4A00A4DAF9 /* workspace in Frameworks */ = {isa = PBXBuildFile; productRef = 47EA1B052CCEBA4A00A4DAF9 /* workspace */; };
+		47F013C22CCEB9D00076C22E /* SwiftWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 47F013C12CCEB9D00076C22E /* SwiftWorkspace */; };
 		47F0983A2BCDA94800F66CED /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 47F098392BCDA94800F66CED /* SystemConfiguration.framework */; };
 		47FAA4C829EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
 		47FAA4C929EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
@@ -120,8 +124,6 @@
 		EA831A552534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA831A562534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA9079C32569960A00E04F5D /* ListFileCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9079C22569960A00E04F5D /* ListFileCell.swift */; };
-		EA9EEFD225FC058100E8C790 /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA8C627B25EF091900330E27 /* SwiftLockbookCore */; };
-		EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E81E2516655B00B9158C /* SwiftLockbookCore */; };
 		EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
 		EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
 		EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
@@ -177,6 +179,7 @@
 		477D80F02C98810C001AC17C /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		4782F83A2C49B4E700D55923 /* DeleteConfirmationButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteConfirmationButtons.swift; sourceTree = "<group>"; };
 		4788D3842C5D71A900507DCE /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
+		478B1BC32CCEB67300FDCB73 /* LbSwiftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LbSwiftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		47A45FBA2969047B00573044 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
 		47B53837290EFE150012E542 /* BillingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingService.swift; sourceTree = "<group>"; };
 		47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageSubscriptionView.swift; sourceTree = "<group>"; };
@@ -248,12 +251,26 @@
 		EAF96D12252E8F3000AA1A14 /* Production.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Production.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		478B1BC42CCEB67300FDCB73 /* LbSwiftTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = LbSwiftTests; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
+		478B1BC02CCEB67300FDCB73 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				47EA1B062CCEBA4A00A4DAF9 /* workspace in Frameworks */,
+				47EA1B022CCEBA1F00A4DAF9 /* SystemConfiguration.framework in Frameworks */,
+				47EA1B042CCEBA2B00A4DAF9 /* Bridge in Frameworks */,
+				47F013C22CCEB9D00076C22E /* SwiftWorkspace in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		47FF74EF2C5AC8E0004F90EC /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				47C009172C5C00A900F4B7ED /* SwiftLockbookCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -261,11 +278,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				474AFD3F2CD695DB00B1546D /* Bridge in Frameworks */,
 				EA82B20C262652F700EE82B9 /* Introspect in Frameworks */,
 				47B041F32905BFB100A02DA7 /* AlertToast in Frameworks */,
 				47FCC5B12C1A33A9001AB7ED /* GameController.framework in Frameworks */,
+				47323C472CD696710086A934 /* workspace in Frameworks */,
 				471C788D2B4910A80022B3B2 /* SwiftWorkspace in Frameworks */,
-				EA9EEFD225FC058100E8C790 /* SwiftLockbookCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -278,7 +296,6 @@
 				B2A3AB342B27A1E800C2319E /* workspace in Frameworks */,
 				B2A3AB322B27A1E800C2319E /* SwiftWorkspace in Frameworks */,
 				B2ADC2492835451000DB8D3D /* Introspect in Frameworks */,
-				EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */,
 				47F0983A2BCDA94800F66CED /* SystemConfiguration.framework in Frameworks */,
 				47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */,
 			);
@@ -375,6 +392,7 @@
 				EA5C7D712516606000F7F358 /* iOS */,
 				EA5C7D782516606100F7F358 /* macOS */,
 				47FF74F32C5AC8E0004F90EC /* ShareExtension */,
+				478B1BC42CCEB67300FDCB73 /* LbSwiftTests */,
 				EA5C7D702516606000F7F358 /* Products */,
 				EA14E8172516643400B9158C /* Frameworks */,
 			);
@@ -400,6 +418,7 @@
 				EA5C7D6F2516606000F7F358 /* Lockbook.app */,
 				EA5C7D772516606000F7F358 /* Lockbook.app */,
 				47FF74F22C5AC8E0004F90EC /* ShareExtension.appex */,
+				478B1BC32CCEB67300FDCB73 /* LbSwiftTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -476,6 +495,31 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		478B1BC22CCEB67300FDCB73 /* LbSwiftTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 478B1BC72CCEB67300FDCB73 /* Build configuration list for PBXNativeTarget "LbSwiftTests" */;
+			buildPhases = (
+				478B1BBF2CCEB67300FDCB73 /* Sources */,
+				478B1BC02CCEB67300FDCB73 /* Frameworks */,
+				478B1BC12CCEB67300FDCB73 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				478B1BC42CCEB67300FDCB73 /* LbSwiftTests */,
+			);
+			name = LbSwiftTests;
+			packageProductDependencies = (
+				47F013C12CCEB9D00076C22E /* SwiftWorkspace */,
+				47EA1B032CCEBA2B00A4DAF9 /* Bridge */,
+				47EA1B052CCEBA4A00A4DAF9 /* workspace */,
+			);
+			productName = LbSwiftTests;
+			productReference = 478B1BC32CCEB67300FDCB73 /* LbSwiftTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		47FF74F12C5AC8E0004F90EC /* ShareExtension */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 47FF75012C5AC8E0004F90EC /* Build configuration list for PBXNativeTarget "ShareExtension" */;
@@ -490,7 +534,6 @@
 			);
 			name = ShareExtension;
 			packageProductDependencies = (
-				47C009162C5C00A900F4B7ED /* SwiftLockbookCore */,
 			);
 			productName = ShareExtension;
 			productReference = 47FF74F22C5AC8E0004F90EC /* ShareExtension.appex */;
@@ -512,10 +555,11 @@
 			);
 			name = "Lockbook (iOS)";
 			packageProductDependencies = (
-				EA8C627B25EF091900330E27 /* SwiftLockbookCore */,
 				EA82B20B262652F700EE82B9 /* Introspect */,
 				47B041F22905BFB100A02DA7 /* AlertToast */,
 				471C788C2B4910A80022B3B2 /* SwiftWorkspace */,
+				474AFD3E2CD695DB00B1546D /* Bridge */,
+				47323C462CD696710086A934 /* workspace */,
 			);
 			productName = "Lockbook (iOS)";
 			productReference = EA5C7D6F2516606000F7F358 /* Lockbook.app */;
@@ -536,7 +580,6 @@
 			);
 			name = "Lockbook (macOS)";
 			packageProductDependencies = (
-				EA14E81E2516655B00B9158C /* SwiftLockbookCore */,
 				B2ADC2482835451000DB8D3D /* Introspect */,
 				47B041F42905BFF100A02DA7 /* AlertToast */,
 				47159F4529CFA05B00969DDF /* DSFQuickActionBar */,
@@ -554,9 +597,12 @@
 		EA5C7D632516605F00F7F358 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastSwiftUpdateCheck = 1540;
+				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 1400;
 				TargetAttributes = {
+					478B1BC22CCEB67300FDCB73 = {
+						CreatedOnToolsVersion = 16.0;
+					};
 					47FF74F12C5AC8E0004F90EC = {
 						CreatedOnToolsVersion = 15.4;
 					};
@@ -590,11 +636,19 @@
 				EA5C7D6E2516606000F7F358 /* Lockbook (iOS) */,
 				EA5C7D762516606000F7F358 /* Lockbook (macOS) */,
 				47FF74F12C5AC8E0004F90EC /* ShareExtension */,
+				478B1BC22CCEB67300FDCB73 /* LbSwiftTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		478B1BC12CCEB67300FDCB73 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		47FF74F02C5AC8E0004F90EC /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -623,11 +677,17 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		478B1BBF2CCEB67300FDCB73 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		47FF74EE2C5AC8E0004F90EC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				47C009192C5C043000F4B7ED /* CoreService.swift in Sources */,
 				47C0091A2C5C046700F4B7ED /* ConfigHelper.swift in Sources */,
 				47FF74F52C5AC8E0004F90EC /* ShareViewController.swift in Sources */,
 			);
@@ -754,6 +814,87 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		478B1BC82CCEB67300FDCB73 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 39ZS78S25U;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = net.lockbook.LbSwiftTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = NO;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		478B1BC92CCEB67300FDCB73 /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 39ZS78S25U;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = net.lockbook.LbSwiftTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = NO;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Development;
+		};
+		478B1BCA2CCEB67300FDCB73 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 39ZS78S25U;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = net.lockbook.LbSwiftTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = NO;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		47FF74FE2C5AC8E0004F90EC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1005,11 +1146,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios",
-					"$(PROJECT_DIR)",
-				);
-				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios_sim";
+				LIBRARY_SEARCH_PATHS = "";
 				MARKETING_VERSION = 0.5.10;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
@@ -1039,10 +1176,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios",
-					"$(PROJECT_DIR)",
-				);
+				LIBRARY_SEARCH_PATHS = "";
 				MARKETING_VERSION = 0.5.10;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
@@ -1209,11 +1343,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios",
-					"$(PROJECT_DIR)",
-				);
-				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios_sim";
+				LIBRARY_SEARCH_PATHS = "";
 				MARKETING_VERSION = 0.5.10;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
@@ -1262,6 +1392,16 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		478B1BC72CCEB67300FDCB73 /* Build configuration list for PBXNativeTarget "LbSwiftTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				478B1BC82CCEB67300FDCB73 /* Debug */,
+				478B1BC92CCEB67300FDCB73 /* Development */,
+				478B1BCA2CCEB67300FDCB73 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		47FF75012C5AC8E0004F90EC /* Build configuration list for PBXNativeTarget "ShareExtension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1348,6 +1488,14 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftWorkspace;
 		};
+		47323C462CD696710086A934 /* workspace */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = workspace;
+		};
+		474AFD3E2CD695DB00B1546D /* Bridge */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Bridge;
+		};
 		47B041F22905BFB100A02DA7 /* AlertToast */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */;
@@ -1358,9 +1506,18 @@
 			package = 47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */;
 			productName = AlertToast;
 		};
-		47C009162C5C00A900F4B7ED /* SwiftLockbookCore */ = {
+		47EA1B032CCEBA2B00A4DAF9 /* Bridge */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = SwiftLockbookCore;
+			package = B2D3F38E2B279E7A00272937 /* XCLocalSwiftPackageReference "../../libs/content/workspace-ffi/SwiftWorkspace" */;
+			productName = Bridge;
+		};
+		47EA1B052CCEBA4A00A4DAF9 /* workspace */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = workspace;
+		};
+		47F013C12CCEB9D00076C22E /* SwiftWorkspace */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftWorkspace;
 		};
 		B2A3AB2F2B27A1E800C2319E /* Bridge */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -1379,18 +1536,10 @@
 			package = EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
 			productName = Introspect;
 		};
-		EA14E81E2516655B00B9158C /* SwiftLockbookCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SwiftLockbookCore;
-		};
 		EA82B20B262652F700EE82B9 /* Introspect */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
 			productName = Introspect;
-		};
-		EA8C627B25EF091900330E27 /* SwiftLockbookCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SwiftLockbookCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

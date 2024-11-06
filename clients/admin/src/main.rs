@@ -6,11 +6,14 @@ mod info;
 mod validate;
 
 use clap::{Parser, Subcommand};
+use lb::blocking::Lb;
+use lb::model::api::UnixTimeMillis;
+use lb::model::core_config::Config;
+use lb::Uuid;
 use std::env;
 
 use crate::error::Error;
 use crate::indexes::CliIndex;
-use lb::{Config, Core, GooglePlayAccountState, StripeAccountState, UnixTimeMillis, Uuid};
 
 #[derive(Debug, PartialEq, Eq, Parser)]
 pub enum Admin {
@@ -111,7 +114,7 @@ pub fn main() {
         _ => panic!("no lockbook location"),
     };
 
-    let core = Core::init(&Config { writeable_path, logs: true, colored_logs: true }).unwrap();
+    let core = Lb::init(Config { writeable_path, logs: true, colored_logs: true }).unwrap();
 
     let result = match Admin::parse() {
         Admin::DisappearAccount { username } => disappear::account(&core, username),

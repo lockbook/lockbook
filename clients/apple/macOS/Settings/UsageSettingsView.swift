@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftLockbookCore
 
 struct UsageSettingsView: View {
     
@@ -17,7 +16,7 @@ struct UsageSettingsView: View {
                     if let usage = settingsState.usages {
                         VStack {
                             ColorProgressBar(value: settingsState.usageProgress)
-                            Text("\(usage.serverUsages.serverUsage.readable) / \(usage.serverUsages.dataCap.readable)")
+                            Text("\(usage.serverUsages.serverUsedHuman) / \(usage.serverUsages.serverCapHuman)")
                         }
                     } else {
                         Text("Calculating...")
@@ -29,7 +28,7 @@ struct UsageSettingsView: View {
                             Text("Uncompressed usage:")
                                 .frame(maxWidth: 175, alignment: .trailing)
                             
-                            Text(uncompressedUsage.readable)
+                            Text(uncompressedUsage.humanMsg)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         

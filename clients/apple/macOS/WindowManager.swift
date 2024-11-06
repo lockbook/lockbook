@@ -1,6 +1,5 @@
 import Foundation
 import SwiftUI
-import SwiftLockbookCore
 import BackgroundTasks
 
 let macOSLogoutWindowSize = 1024.0

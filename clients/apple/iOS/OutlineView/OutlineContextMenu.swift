@@ -1,5 +1,5 @@
 import SwiftUI
-import SwiftLockbookCore
+import SwiftWorkspace
 
 struct OutlineContextMenu: View {
     
@@ -11,7 +11,7 @@ struct OutlineContextMenu: View {
     var body: some View {
         Text(meta.name)
         VStack {
-            if meta.fileType == .Folder {
+            if meta.type == .folder {
                 Button(action: {
                     withAnimation {
                         branchState?.open = true
@@ -59,7 +59,7 @@ struct OutlineContextMenu: View {
                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                 }
                 
-                if meta.fileType == .Document {
+                if meta.type == .document {
                     Button(action: {
                         DI.files.copyFileLink(id: meta.id)
                     }) {

@@ -1,0 +1,9 @@
+language = "C"
+
+[parse]
+parse_deps = true
+include = ["lb-rs", "uuid"]
+
+[enum]
+rename_variants = "ScreamingSnakeCase"
+prefix_with_name = true

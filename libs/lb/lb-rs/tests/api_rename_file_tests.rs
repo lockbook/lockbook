@@ -1,35 +1,42 @@
-use lb_rs::service::api_service::Requester;
-use lb_rs::shared::api::*;
-use lb_rs::shared::file_like::FileLike;
-use lb_rs::shared::file_metadata::FileDiff;
+use lb_rs::logic::file_like::FileLike;
+use lb_rs::model::api::*;
+use lb_rs::model::file_metadata::FileDiff;
 use test_utils::*;
 
-#[test]
-fn rename_document() {
-    let core = test_core_with_account();
+#[tokio::test]
+async fn rename_document() {
+    let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
 
-    let doc = core.create_at_path("test.md").unwrap().id;
+    let doc = core.create_at_path("test.md").await.unwrap().id;
     let doc = core
-        .in_tx(|s| {
-            let doc = s.db.local_metadata.get().get(&doc).unwrap();
-            s.client
-                .request(&account, UpsertRequest { updates: vec![FileDiff::new(doc)] })
-                .unwrap();
-
-            Ok(doc.clone())
-        })
+        .begin_tx()
+        .await
+        .db()
+        .local_metadata
+        .get()
+        .get(&doc)
+        .unwrap()
+        .clone();
+    core.client
+        .request(account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
+        .await
         .unwrap();
 
     let old = doc.clone();
-    core.rename_file(*doc.id(), &random_name()).unwrap();
-    core.in_tx(|s| {
-        let new = s.db.local_metadata.get().get(doc.id()).unwrap();
+    core.rename_file(doc.id(), &random_name()).await.unwrap();
+    let new = core
+        .begin_tx()
+        .await
+        .db()
+        .local_metadata
+        .get()
+        .get(doc.id())
+        .unwrap()
+        .clone();
 
-        s.client
-            .request(&account, UpsertRequest { updates: vec![FileDiff::edit(&old, new)] })
-            .unwrap();
-        Ok(())
-    })
-    .unwrap();
+    core.client
+        .request(account, UpsertRequest { updates: vec![FileDiff::edit(&old, &new)] })
+        .await
+        .unwrap();
 }

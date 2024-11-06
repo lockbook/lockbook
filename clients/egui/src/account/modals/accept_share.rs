@@ -1,25 +1,27 @@
 use eframe::egui;
-use lb::File;
+use lb::blocking::Lb;
+use lb::model::file::File;
+use lb::model::file_metadata::FileType;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 
 use crate::model::DocType;
 
 pub struct AcceptShareModal {
-    requests: Vec<lb::File>,
+    requests: Vec<File>,
     username: String,
 }
 
 pub struct AcceptShareParams {
-    pub target: lb::File,
+    pub target: File,
     pub is_accept: bool,
 }
 
 impl AcceptShareModal {
-    pub fn new(core: &lb::Core) -> Self {
+    pub fn new(core: &Lb) -> Self {
         Self {
             requests: core.get_pending_shares().unwrap_or_default(),
-            username: core.get_account().unwrap().username,
+            username: core.get_account().unwrap().username.clone(),
         }
     }
 }
@@ -79,7 +81,7 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) -> Option<Accept
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 let icon = match req.file_type {
-                    lb::FileType::Folder => Icon::FOLDER,
+                    FileType::Folder => Icon::FOLDER,
                     _ => DocType::from_name(&req.name).to_icon(),
                 };
 

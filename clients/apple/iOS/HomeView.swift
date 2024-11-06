@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftWorkspace
-import SwiftLockbookCore
 
 struct HomeView: View {
     @EnvironmentObject var settings: SettingsService
@@ -149,22 +148,23 @@ struct SidebarView: View {
     
     var searchResultsView: some View {
         ForEach(search.pathAndContentSearchResults) { result in
-            switch result {
-            case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                Button(action: {
-                    DI.workspace.requestOpenDoc(meta.id)
-                }) {
-                    SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
+            if let meta = DI.files.idsAndFiles[result.lbId] {
+                switch result {
+                case .path(var path):
+                    Button(action: {
+                        DI.workspace.requestOpenDoc(meta.id)
+                    }) {
+                        SearchFilePathCell(name: path.nameAndPath.0, path: path.nameAndPath.1, matchedIndices: path.matchedIndicies)
+                    }
+                    .padding(.horizontal)
+                case .document(var doc):
+                    Button(action: {
+                        DI.workspace.requestOpenDoc(meta.id)
+                    }) {
+                        SearchFileContentCell(name: doc.nameAndPath.0, path: doc.nameAndPath.1, contentMatches: doc.contentMatches)
+                    }
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
-
-            case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                Button(action: {
-                    DI.workspace.requestOpenDoc(meta.id)
-                }) {
-                    SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
-                }
-                .padding(.horizontal)
             }
             
             Divider()

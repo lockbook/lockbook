@@ -1,6 +1,5 @@
+use lb_rs::{model::file::File, service::sync::SyncStatus, Uuid};
 use std::time::Instant;
-
-use lb_rs::{File, SyncStatus, Uuid};
 
 // todo: dirty docs
 #[derive(Debug, Default, Clone)]

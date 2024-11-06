@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftWorkspace
-import SwiftLockbookCore
 import Foundation
 
 struct ConstrainedHomeViewWrapper: View {
@@ -15,7 +14,7 @@ struct ConstrainedHomeViewWrapper: View {
     
     var canShowFileTreeInfo: Bool {
         get {
-            files.path.last?.fileType != .Document && !settings.showView && !share.showPendingSharesView && !billing.showManageSubscriptionView && !search.isPathAndContentSearching
+            files.path.last?.type != .document && !settings.showView && !share.showPendingSharesView && !billing.showManageSubscriptionView && !search.isPathAndContentSearching
         }
     }
     
@@ -27,7 +26,7 @@ struct ConstrainedHomeViewWrapper: View {
                 }
             }
             .onChange(of: files.path) { new in
-                if files.path.last?.fileType != .Document && DI.workspace.openDoc != nil {
+                if files.path.last?.type != .document && DI.workspace.openDoc != nil {
                     DI.workspace.requestCloseAllTabs()
                 }
             }
@@ -51,7 +50,7 @@ struct ConstrainedHomeViewWrapper: View {
                 }
             }
             
-            if files.path.last?.fileType != .Document {
+            if files.path.last?.type != .document {
                 WorkspaceView(DI.workspace, DI.coreService.corePtr)
                     .equatable()
                     .opacity(0)
@@ -63,7 +62,7 @@ struct ConstrainedHomeViewWrapper: View {
         ConstrainedHomeView(searchInput: $searchInput)
             .searchable(text: $searchInput, prompt: "Search")
             .navigationDestination(for: File.self, destination: { meta in
-                if meta.fileType == .Folder {
+                if meta.type == .folder {
                     FileListView(parent: meta, haveScrollView: true)
                         .navigationTitle(meta.name)
                 } else {
@@ -149,6 +148,7 @@ struct ConstrainedHomeView: View {
             }
         }
         .onChange(of: searchInput) { newInput in
+            print("sending search query... \(newInput)")
             DI.search.search(query: newInput, isPathAndContentSearch: true)
         }
         .onChange(of: isSearching, perform: { newInput in
@@ -175,26 +175,28 @@ struct ConstrainedHomeView: View {
     
     var searchResultsView: some View {
         ForEach(search.pathAndContentSearchResults) { result in
-            switch result {
-            case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                Button(action: {
-                    DI.workspace.requestOpenDoc(meta.id)
-                    DI.files.intoChildDirectory(meta)
-                    dismissSearch()
-                }) {
-                    SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
-                }
-                .padding(.horizontal)
+            if let meta = DI.files.idsAndFiles[result.lbId] {
+                switch result {
+                case .path(var path):
+                    Button(action: {
+                        DI.workspace.requestOpenDoc(meta.id)
+                        DI.files.intoChildDirectory(meta)
+                        dismissSearch()
+                    }) {
+                        SearchFilePathCell(name: path.nameAndPath.0, path: path.nameAndPath.1, matchedIndices: path.matchedIndicies)
+                    }
+                    .padding(.horizontal)
 
-            case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                Button(action: {
-                    DI.workspace.requestOpenDoc(meta.id)
-                    DI.files.intoChildDirectory(meta)
-                    dismissSearch()
-                }) {
-                    SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                case .document(var doc):
+                    Button(action: {
+                        DI.workspace.requestOpenDoc(meta.id)
+                        DI.files.intoChildDirectory(meta)
+                        dismissSearch()
+                    }) {
+                        SearchFileContentCell(name: doc.nameAndPath.0, path: doc.nameAndPath.1, contentMatches: doc.contentMatches)
+                    }
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
             }
             
             Divider()
