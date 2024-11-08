@@ -785,19 +785,6 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
-
-
-    @objc private func pencilOnlyDrawingSettingChanged() {
-        // Update the pencil-only drawing setting
-        set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
-    }
-    
-    deinit {
-        // Remove observer on deinitialization
-        NotificationCenter.default.removeObserver(self)
-    }
-    
 }
 
 public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
