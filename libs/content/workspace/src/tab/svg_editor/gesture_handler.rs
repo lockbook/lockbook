@@ -40,6 +40,13 @@ impl GestureHandler {
             self.current_gesture = None;
             return;
         }
+
+        if let Some(current_gesture) = &mut self.current_gesture {
+            for info in current_gesture.touch_infos.values_mut() {
+                info.frame_delta = egui::vec2(0.0, 0.0);
+            }
+        }
+
         ui.input(|r| {
             // go through the touches and reset how much they moved in the last frame
             for e in r.events.iter() {
@@ -50,7 +57,10 @@ impl GestureHandler {
     }
 
     fn handle_event(&mut self, event: &egui::Event, gesture_ctx: &mut ToolContext) {
-        if let egui::Event::Touch { device_id: _, id, phase, pos, force: _ } = *event {
+        if let egui::Event::Touch { device_id: _, id, phase, pos, force } = *event {
+            if force.is_some() {
+                return;
+            }
             if let Some(current_gest) = &mut self.current_gesture {
                 match phase {
                     TouchPhase::Start => {
@@ -76,6 +86,7 @@ impl GestureHandler {
                                 touch_info.frame_delta = pos - last_pos;
                                 touch_info.lifetime_distance += last_pos.distance(pos);
                             }
+                            touch_info.last_pos = Some(pos);
                         }
                     }
                     TouchPhase::End => {
@@ -103,7 +114,10 @@ impl GestureHandler {
                 }
             } else if phase == egui::TouchPhase::Start {
                 let mut touch_infos = HashMap::new();
-                touch_infos.insert(id.0, TouchInfo { last_pos: Some(pos), ..Default::default() });
+                touch_infos.insert(
+                    id.0,
+                    TouchInfo { last_pos: Some(pos), is_active: true, ..Default::default() },
+                );
 
                 self.current_gesture = Some(Gesture { touch_infos })
             } else if phase == egui::TouchPhase::Cancel {
@@ -115,7 +129,7 @@ impl GestureHandler {
     fn change_viewport(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext<'_>) {
         let zoom_delta = ui.input(|r| r.zoom_delta());
         let is_zooming = zoom_delta != 1.0;
-        let pan = get_pan(ui);
+        let pan = self.get_pan(ui, gesture_ctx);
 
         let touch_positions = get_touch_positions(ui);
         let pos_cardinality = touch_positions.len();
@@ -169,7 +183,7 @@ impl GestureHandler {
         if current_gesture
             .touch_infos
             .values()
-            .any(|info| info.lifetime_distance > 50.0)
+            .any(|info| info.lifetime_distance != 0.0)
         {
             return;
         };
@@ -188,6 +202,46 @@ impl GestureHandler {
             Shortcut::Redo => gesture_ctx.history.redo(gesture_ctx.buffer),
         };
         trace!(num_touches, "applied gesture");
+    }
+
+    fn get_pan(&self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext) -> Option<egui::Vec2> {
+        if let Some(current_gesture) = &self.current_gesture {
+            let mut active_touches = current_gesture.touch_infos.values().filter(|v| v.is_active);
+
+            if active_touches.clone().count() == 1 && gesture_ctx.settings.pencil_only_drawing {
+                let touch = active_touches.next().unwrap();
+                return Some(touch.frame_delta);
+            }
+        }
+        ui.input(|r| {
+            if r.raw_scroll_delta.x.abs() > 0.0 || r.raw_scroll_delta.y.abs() > 0.0 {
+                Some(r.raw_scroll_delta)
+            } else if let Some(touch_gesture) = r.multi_touch() {
+                if touch_gesture.translation_delta.x.abs() > 0.0
+                    || touch_gesture.translation_delta.y.abs() > 0.0
+                {
+                    Some(touch_gesture.translation_delta)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+    }
+
+    // todo: tech debt lol, should refactor the eraser instead of doing this
+    pub fn is_locked_vw_pen_only_draw(&self) -> bool {
+        if let Some(current_gesture) = &self.current_gesture {
+            current_gesture
+                .touch_infos
+                .values()
+                .filter(|v| v.is_active)
+                .count()
+                > 0
+        } else {
+            false
+        }
     }
 }
 
@@ -249,24 +303,6 @@ fn calc_elements_bounds(buffer: &mut Buffer) -> Option<egui::Rect> {
     } else {
         Some(elements_bound)
     }
-}
-
-fn get_pan(ui: &mut egui::Ui) -> Option<egui::Vec2> {
-    ui.input(|r| {
-        if r.raw_scroll_delta.x.abs() > 0.0 || r.raw_scroll_delta.y.abs() > 0.0 {
-            Some(r.raw_scroll_delta)
-        } else if let Some(touch_gesture) = r.multi_touch() {
-            if touch_gesture.translation_delta.x.abs() > 0.0
-                || touch_gesture.translation_delta.y.abs() > 0.0
-            {
-                Some(touch_gesture.translation_delta)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    })
 }
 
 pub fn zoom_percentage_to_transform(
