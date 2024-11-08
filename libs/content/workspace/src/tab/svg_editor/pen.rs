@@ -47,7 +47,7 @@ impl Pen {
 
     /// returns true if a path is being built
     pub fn handle_input(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext) -> bool {
-        let input_state = PenPointerInput { is_multi_touch: is_multi_touch(ui) };
+        let input_state = PenPointerInput { is_multi_touch: is_multi_touch(ui, pen_ctx) };
         let mut is_drawing = false;
 
         // clear the previous predicted touches and replace them with the actual touches
@@ -113,6 +113,10 @@ impl Pen {
     fn handle_path_event(&mut self, event: PathEvent, pen_ctx: &mut ToolContext) {
         match event {
             PathEvent::Draw(payload) => {
+                if payload.force.is_none() && pen_ctx.settings.pencil_only_drawing {
+                    return;
+                }
+
                 if let Some(touch_id) = payload.id {
                     if self.path_builder.first_point_touch_id.is_none() {
                         self.path_builder.first_point_touch_id = Some(touch_id);
@@ -442,6 +446,7 @@ fn correct_start_of_path() {
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_touch_frame: true,
+        settings: crate::tab::svg_editor::CanvasSettings::default(),
     };
 
     let start_pos = egui::pos2(10.0, 10.0);
@@ -494,6 +499,7 @@ fn cancel_touch_ui_event() {
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_touch_frame: true,
+        settings: crate::tab::svg_editor::CanvasSettings::default(),
     };
 
     let input_state = PenPointerInput { is_multi_touch: false };

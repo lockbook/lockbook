@@ -883,6 +883,17 @@ pub unsafe extern "C" fn toggle_drawing_tool_between_eraser(obj: *mut c_void) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
+pub unsafe extern "C" fn set_pencil_only_drawing(obj: *mut c_void, val: bool) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    if let Some(svg) = obj.workspace.current_tab_svg_mut() {
+        svg.settings.pencil_only_drawing = val
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
 pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
