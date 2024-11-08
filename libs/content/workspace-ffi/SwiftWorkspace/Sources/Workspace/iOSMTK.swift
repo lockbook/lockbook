@@ -740,6 +740,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
         self.addInteraction(pointerInteraction)
         
         self.isMultipleTouchEnabled = true
+        set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
+     
     }
     
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
@@ -762,35 +764,22 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
     }
 
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
 
-        if touch.type == .stylus || !UIPencilInteraction.prefersPencilOnlyDrawing {
-            mtkView.touchesBegan(touches, with: event)
-        }
+        mtkView.touchesBegan(touches, with: event)
     }
 
     public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-
-        if touch.type == .stylus || !UIPencilInteraction.prefersPencilOnlyDrawing {
-            mtkView.touchesMoved(touches, with: event)
-        }
+        mtkView.touchesMoved(touches, with: event)
     }
 
     public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-
-        if touch.type == .stylus || !UIPencilInteraction.prefersPencilOnlyDrawing {
-            mtkView.touchesEnded(touches, with: event)
-        }
+        
+        mtkView.touchesEnded(touches, with: event)
     }
 
     public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-
-        if touch.type == .stylus || !UIPencilInteraction.prefersPencilOnlyDrawing {
-            mtkView.touchesCancelled(touches, with: event)
-        }
+        mtkView.touchesCancelled(touches, with: event)
+        
     }
 
     required init(coder: NSCoder) {
@@ -1188,7 +1177,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             let value = UInt64(UInt(bitPattern: point))
 
             let location = touch.preciseLocation(in: self)
-            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 02
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
             touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(force))
         }
 

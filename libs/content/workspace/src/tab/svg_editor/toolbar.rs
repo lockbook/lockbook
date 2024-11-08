@@ -17,7 +17,7 @@ use super::{
     parser,
     pen::{HIGHLIGHTER_STROKE_WIDTHS, PEN_STROKE_WIDTHS},
     selection::Selection,
-    Buffer, Eraser, Pen,
+    Buffer, CanvasSettings, Eraser, Pen,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
@@ -62,6 +62,7 @@ pub struct ToolContext<'a> {
     pub history: &'a mut History,
     pub allow_viewport_changes: &'a mut bool,
     pub is_touch_frame: bool,
+    pub settings: CanvasSettings,
 }
 #[derive(Clone)]
 pub struct ColorSwatch {

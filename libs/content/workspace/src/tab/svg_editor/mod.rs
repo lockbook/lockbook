@@ -47,10 +47,15 @@ pub struct SVGEditor {
     has_queued_save_request: bool,
     /// don't allow zooming or panning
     allow_viewport_changes: bool,
+    pub settings: CanvasSettings,
 }
 
 pub struct Response {
     pub request_save: bool,
+}
+#[derive(Default, Clone, Copy)]
+pub struct CanvasSettings {
+    pub pencil_only_drawing: bool,
 }
 
 #[derive(PartialEq)]
@@ -86,6 +91,7 @@ impl SVGEditor {
             renderer: Renderer::new(elements_count),
             has_queued_save_request: false,
             allow_viewport_changes: false,
+            settings: CanvasSettings::default(),
         }
     }
 
@@ -185,6 +191,7 @@ impl SVGEditor {
                     )
                 })
             }) || cfg!(target_os = "ios"),
+            settings: self.settings,
         };
 
         if self.skip_frame {
@@ -201,7 +208,11 @@ impl SVGEditor {
                 self.toolbar.highlighter.handle_input(ui, &mut tool_context);
             }
             Tool::Eraser => {
-                self.toolbar.eraser.handle_input(ui, &mut tool_context);
+                self.toolbar.eraser.handle_input(
+                    ui,
+                    &mut tool_context,
+                    self.toolbar.gesture_handler.is_locked_vw_pen_only_draw(),
+                );
             }
             Tool::Selection => {
                 self.toolbar.selection.handle_input(ui, &mut tool_context);
