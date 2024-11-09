@@ -26,6 +26,7 @@ pub mod logic;
 pub mod model;
 pub mod repo;
 pub mod service;
+pub mod svg;
 pub mod text;
 
 #[derive(Clone)]

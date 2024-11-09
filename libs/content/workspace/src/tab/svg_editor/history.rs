@@ -1,9 +1,10 @@
 use std::{collections::VecDeque, fmt::Debug};
 
-use lb_rs::Uuid;
+use lb_rs::{
+    svg::{buffer::Buffer, element::Element},
+    Uuid,
+};
 use resvg::usvg::Transform;
-
-use super::parser;
 
 #[derive(Default, Debug)]
 pub struct History {
@@ -43,21 +44,21 @@ impl History {
         self.undo.push_back(event);
     }
 
-    pub fn apply_event(&mut self, event: &Event, buffer: &mut parser::Buffer) {
+    pub fn apply_event(&mut self, event: &Event, buffer: &mut Buffer) {
         match event {
             Event::Insert(payload) => {
                 payload.iter().for_each(|insert_payload| {
                     if let Some(el) = buffer.elements.get_mut(&insert_payload.id) {
                         match el {
-                            parser::Element::Path(p) => {
+                            Element::Path(p) => {
                                 p.deleted = false;
                                 p.diff_state.delete_changed = true;
                             }
-                            parser::Element::Image(i) => {
+                            Element::Image(i) => {
                                 i.deleted = false;
                                 i.diff_state.delete_changed = true;
                             }
-                            parser::Element::Text(_) => todo!(),
+                            Element::Text(_) => todo!(),
                         }
                     }
                 });
@@ -66,15 +67,15 @@ impl History {
                 payload.iter().for_each(|delete_payload| {
                     if let Some(el) = buffer.elements.get_mut(&delete_payload.id) {
                         match el {
-                            parser::Element::Path(p) => {
+                            Element::Path(p) => {
                                 p.deleted = true;
                                 p.diff_state.delete_changed = true;
                             }
-                            parser::Element::Image(i) => {
+                            Element::Image(i) => {
                                 i.deleted = true;
                                 i.diff_state.delete_changed = true;
                             }
-                            parser::Element::Text(_) => todo!(),
+                            Element::Text(_) => todo!(),
                         }
                     }
                 });
@@ -89,7 +90,7 @@ impl History {
         };
     }
 
-    pub fn undo(&mut self, buffer: &mut parser::Buffer) {
+    pub fn undo(&mut self, buffer: &mut Buffer) {
         if self.undo.is_empty() {
             return;
         }
@@ -105,7 +106,7 @@ impl History {
         !self.undo.is_empty()
     }
 
-    pub fn redo(&mut self, buffer: &mut parser::Buffer) {
+    pub fn redo(&mut self, buffer: &mut Buffer) {
         if self.redo.is_empty() {
             return;
         }

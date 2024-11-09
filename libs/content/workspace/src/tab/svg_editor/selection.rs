@@ -1,14 +1,18 @@
 use bezier_rs::Subpath;
 use egui_animation::{animate_bool_eased, easing};
 use glam::{DAffine2, DMat2, DVec2};
-use lb_rs::Uuid;
+use lb_rs::{
+    svg::element::{Element, ManipulatorGroupId},
+    Uuid,
+};
 use resvg::usvg::Transform;
+
+use super::element::BoundedElement;
 
 use crate::{theme::icons::Icon, widgets::Button};
 
 use super::{
     history::TransformElement,
-    parser::ManipulatorGroupId,
     toolbar::ToolContext,
     util::{is_multi_touch, pointer_intersects_element},
     Buffer, DeleteElement, Event,
@@ -351,13 +355,13 @@ impl Selection {
         laso_selected_elements
     }
 
-    fn el_intersects_laso(&mut self, el: &super::parser::Element) -> bool {
+    fn el_intersects_laso(&mut self, el: &Element) -> bool {
         let laso_rect = match self.laso_rect {
             Some(val) => val,
             None => return false,
         };
         match el {
-            super::parser::Element::Path(path) => {
+            Element::Path(path) => {
                 let path_rect = path.bounding_box();
                 if laso_rect.intersects(path_rect) {
                     let laso_bb = Subpath::new_rect(
@@ -374,11 +378,11 @@ impl Selection {
                     false
                 }
             }
-            super::parser::Element::Image(img) => {
+            Element::Image(img) => {
                 let img_bb = img.bounding_box();
                 laso_rect.contains_rect(img_bb) || laso_rect.intersects(img_bb)
             }
-            super::parser::Element::Text(_) => todo!(),
+            Element::Text(_) => todo!(),
         }
     }
 

@@ -1,8 +1,8 @@
 mod clip;
+mod element;
 mod eraser;
 mod gesture_handler;
 mod history;
-mod parser;
 mod path_builder;
 mod pen;
 mod renderer;
@@ -17,9 +17,12 @@ pub use history::DeleteElement;
 pub use history::Event;
 pub use history::InsertElement;
 use lb_rs::blocking::Lb;
+use lb_rs::model::file_metadata::DocumentHmac;
+use lb_rs::svg::buffer::u_transform_to_bezier;
+use lb_rs::svg::buffer::Buffer;
+use lb_rs::svg::diff::DiffState;
+use lb_rs::svg::element::Element;
 use lb_rs::Uuid;
-pub use parser::Buffer;
-use parser::DiffState;
 pub use path_builder::PathBuilder;
 pub use pen::Pen;
 use renderer::Renderer;
@@ -34,7 +37,7 @@ use usvg_parser::Options;
 pub type ImageHrefStringResolverFn = Box<dyn Fn(&str, &Options) -> Option<ImageKind> + Send + Sync>;
 
 pub struct SVGEditor {
-    buffer: parser::Buffer,
+    pub buffer: Buffer,
     history: History,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
@@ -65,10 +68,20 @@ pub enum CanvasOp {
     Idle,
 }
 impl SVGEditor {
-    pub fn new(bytes: &[u8], ctx: &egui::Context, core: Lb, open_file: Uuid) -> Self {
+    pub fn new(
+        bytes: &[u8], ctx: &egui::Context, core: lb_rs::blocking::Lb, open_file: Uuid,
+        hmac: Option<DocumentHmac>,
+    ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
-        let buffer = parser::Buffer::new(content, &core, open_file);
+        let mut buffer = Buffer::new(content, Some(&core), hmac);
+        for (_, el) in buffer.elements.iter_mut() {
+            if let Element::Path(path) = el {
+                // path.transform = path.transform.post_concat(buffer.master_transform);
+                path.data
+                    .apply_transform(u_transform_to_bezier(&buffer.master_transform));
+            }
+        }
 
         let toolbar = Toolbar::new();
 
@@ -123,9 +136,7 @@ impl SVGEditor {
         );
         self.process_events(ui);
 
-        self.show_canvas(ui);
-
-        let global_diff = self.get_and_reset_diff_state();
+        let global_diff = self.show_canvas(ui);
 
         if global_diff.is_dirty() {
             self.has_queued_save_request = true;
@@ -144,31 +155,6 @@ impl SVGEditor {
             };
 
         Response { request_save: needs_save_and_frame_is_cheap }
-    }
-
-    fn get_and_reset_diff_state(&mut self) -> DiffState {
-        let mut global_diff_state = DiffState::default();
-        self.buffer.elements.iter_mut().for_each(|(_, element)| {
-            if element.data_changed() {
-                global_diff_state.data_changed = true;
-            }
-            if element.delete_changed() {
-                global_diff_state.delete_changed = true;
-            }
-            if element.opacity_changed() {
-                global_diff_state.opacity_changed = true;
-            }
-            if element.transformed().is_some() {
-                global_diff_state.transformed = element.transformed();
-            }
-
-            match element {
-                parser::Element::Path(p) => p.diff_state = DiffState::default(),
-                parser::Element::Image(i) => i.diff_state = DiffState::default(),
-                parser::Element::Text(_) => todo!(),
-            }
-        });
-        global_diff_state
     }
 
     fn process_events(&mut self, ui: &mut egui::Ui) {
@@ -221,11 +207,12 @@ impl SVGEditor {
             .handle_input(ui, &mut tool_context);
     }
 
-    fn show_canvas(&mut self, ui: &mut egui::Ui) {
+    fn show_canvas(&mut self, ui: &mut egui::Ui) -> DiffState {
         ui.vertical(|ui| {
             self.renderer
-                .render_svg(ui, &mut self.buffer, &mut self.painter);
-        });
+                .render_svg(ui, &mut self.buffer, &mut self.painter)
+        })
+        .inner
     }
 
     // fn show_debug_info(&mut self, ui: &mut egui::Ui) {

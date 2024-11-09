@@ -4,6 +4,9 @@ use egui::TouchPhase;
 use resvg::usvg::Transform;
 use tracing::trace;
 
+use super::element::BoundedElement;
+use lb_rs::svg::{buffer::u_transform_to_bezier, element::Element};
+
 use super::{toolbar::ToolContext, Buffer};
 
 #[derive(Default)]
@@ -252,7 +255,10 @@ pub fn transform_canvas(buffer: &mut Buffer, t: Transform) {
     }
     buffer.master_transform = new_transform;
     for el in buffer.elements.values_mut() {
-        el.transform(t);
+        if let Element::Path(path) = el {
+            path.diff_state.transformed = Some(t);
+            path.data.apply_transform(u_transform_to_bezier(&t));
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use lb_rs::svg::element::Element;
 use lb_rs::Uuid;
 
 use super::toolbar::ToolContext;
@@ -70,15 +71,15 @@ impl Eraser {
                             if let Some(el) = eraser_ctx.buffer.elements.get_mut(id) {
                                 if !*has_decreased_opacity {
                                     match el {
-                                        super::parser::Element::Path(p) => {
+                                        Element::Path(p) => {
                                             p.opacity *= 0.3;
                                             p.diff_state.opacity_changed = true
                                         }
-                                        super::parser::Element::Image(img) => {
+                                        Element::Image(img) => {
                                             img.opacity = 0.3;
                                             img.diff_state.opacity_changed = true
                                         }
-                                        super::parser::Element::Text(_) => todo!(),
+                                        Element::Text(_) => todo!(),
                                     }
                                 }
                             };
@@ -93,21 +94,7 @@ impl Eraser {
                     }
 
                     self.delete_candidates.iter().for_each(|(id, _)| {
-                        if let Some(el) = eraser_ctx.buffer.elements.get_mut(id) {
-                            match el {
-                                super::parser::Element::Path(p) => {
-                                    p.opacity = 1.0;
-                                    p.deleted = true;
-                                    p.diff_state.delete_changed = true;
-                                }
-                                super::parser::Element::Image(img) => {
-                                    img.opacity = 1.0;
-                                    img.deleted = true;
-                                    img.diff_state.delete_changed = true
-                                }
-                                super::parser::Element::Text(_) => todo!(),
-                            }
-                        };
+                        eraser_ctx.buffer.remove(*id);
                     });
                     let event = super::Event::Delete(
                         self.delete_candidates
