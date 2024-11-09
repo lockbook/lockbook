@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use glam::f64::DVec2;
 use lb_rs::svg::diff::DiffState;
-use lb_rs::svg::element::{Element, Image};
+use lb_rs::svg::element::Element;
 use lb_rs::Uuid;
 use lyon::math::Point;
 use lyon::path::{AttributeIndex, LineCap, LineJoin};
@@ -12,8 +12,10 @@ use lyon::tessellation::{
 };
 
 use rayon::prelude::*;
-use resvg::usvg::{ImageKind, Transform};
+use resvg::usvg::Transform;
 use tracing::{span, Level};
+
+use crate::theme::palette::ThemePalette;
 
 use super::Buffer;
 
@@ -182,15 +184,9 @@ fn tesselate_element(
                 if p.data.is_empty() {
                     return Some((*id, RenderOp::Delete));
                 }
-
-                // todo: change strokes based on dynamic / light mode
-                let stroke_color = egui::Color32::from_rgb(
-                    stroke.color.red,
-                    stroke.color.green,
-                    stroke.color.blue,
-                )
-                .gamma_multiply(stroke.opacity)
-                .gamma_multiply(p.opacity);
+                let stroke_color = ThemePalette::resolve_dynamic_color(stroke.color, dark_mode)
+                    .gamma_multiply(stroke.opacity)
+                    .gamma_multiply(p.opacity);
 
                 let mut builder = lyon::path::BuilderWithAttributes::new(1);
 

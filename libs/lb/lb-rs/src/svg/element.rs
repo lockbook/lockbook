@@ -1,9 +1,6 @@
 use bezier_rs::{Identifier, Subpath};
 
-use usvg::{
-    self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, Options, Paint, Text, Transform,
-    Visibility,
-};
+use usvg::{self, Color, Fill, ImageKind, Text, Transform, Visibility};
 
 use super::{buffer::u_transform_to_bezier, diff::DiffState};
 
@@ -39,9 +36,21 @@ pub struct Path {
 
 #[derive(Clone, Copy)]
 pub struct Stroke {
-    pub color: usvg::Color,
+    pub color: DynamicColor,
     pub opacity: f32,
     pub width: f32,
+}
+
+#[derive(Clone, Copy)]
+pub struct DynamicColor {
+    pub light: usvg::Color,
+    pub dark: usvg::Color,
+}
+
+impl Default for DynamicColor {
+    fn default() -> Self {
+        Self { light: Color::black(), dark: Color::white() }
+    }
 }
 
 impl PartialEq for Path {

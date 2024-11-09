@@ -1,7 +1,11 @@
 use std::ops::RangeInclusive;
 
-use egui::{emath::RectTransform, Color32, InnerResponse, Response};
+use egui::{emath::RectTransform, InnerResponse, Response};
 use egui_animation::{animate_eased, easing};
+use lb_rs::svg::{
+    buffer::{get_highlighter_colors, get_pen_colors},
+    element::DynamicColor,
+};
 
 use crate::{
     theme::{icons::Icon, palette::ThemePalette},
@@ -104,7 +108,7 @@ impl Toolbar {
 
     pub fn new() -> Self {
         let mut toolbar = Toolbar {
-            pen: Pen::new(ThemePalette::get_fg_color(), PEN_STROKE_WIDTHS[0]),
+            pen: Pen::new(get_pen_colors()[0], PEN_STROKE_WIDTHS[0]),
             highlighter: Pen::new(get_highlighter_colors()[0], HIGHLIGHTER_STROKE_WIDTHS[0]),
             ..Default::default()
         };
@@ -717,9 +721,7 @@ fn show_highlighter_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) 
     ui.add_space(10.0);
 }
 
-fn show_color_swatches(
-    ui: &mut egui::Ui, colors: Vec<(egui::Color32, egui::Color32)>, pen: &mut Pen,
-) {
+fn show_color_swatches(ui: &mut egui::Ui, colors: Vec<DynamicColor>, pen: &mut Pen) {
     colors.iter().for_each(|c| {
         let color = ThemePalette::resolve_dynamic_color(*c, ui.visuals().dark_mode);
         let active_color =
@@ -877,30 +879,6 @@ fn show_thickness_slider(ui: &mut egui::Ui, value: &mut f32, value_range: RangeI
         }
     }
     ui.advance_cursor_after_rect(slider_rect);
-}
-
-pub fn get_highlighter_colors() -> Vec<(Color32, Color32)> {
-    let yellow = (Color32::from_rgb(244, 250, 65), Color32::from_rgb(244, 250, 65));
-    let blue = (Color32::from_rgb(65, 194, 250), Color32::from_rgb(65, 194, 250));
-    let pink = (Color32::from_rgb(254, 110, 175), Color32::from_rgb(254, 110, 175));
-
-    let highlighter_colors = vec![yellow, blue, pink];
-    highlighter_colors
-}
-
-pub fn get_pen_colors() -> Vec<(Color32, Color32)> {
-    let blue = (Color32::from_rgb(62, 130, 230), Color32::from_rgb(54, 116, 207));
-    let green = (Color32::from_rgb(42, 136, 49), Color32::from_rgb(56, 176, 65));
-    let red = (Color32::from_rgb(218, 21, 21), Color32::from_rgb(174, 33, 33));
-    vec![
-        ThemePalette::get_fg_color(),
-        blue,
-        green,
-        red,
-        (ThemePalette::LIGHT.magenta, ThemePalette::DARK.magenta),
-        (ThemePalette::LIGHT.cyan, ThemePalette::DARK.cyan),
-        (ThemePalette::LIGHT.yellow, ThemePalette::DARK.yellow),
-    ]
 }
 
 fn get_non_additive(color: &egui::Color32) -> egui::Color32 {

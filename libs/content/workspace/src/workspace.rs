@@ -872,7 +872,7 @@ impl Workspace {
                                             &mut svg.buffer.elements,
                                             svg.buffer.master_transform,
                                             &svg.buffer.opened_content,
-                                            &String::from_utf8_lossy(&bytes).to_string(),
+                                            String::from_utf8_lossy(&bytes).as_ref(),
                                         );
 
                                         svg.buffer.open_file_hmac = maybe_hmac;

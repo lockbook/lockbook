@@ -13,10 +13,10 @@ use usvg::{
     tiny_skia_path::{PathSegment, Point},
     ImageHrefResolver, ImageHrefStringResolverFn, Options, Transform,
 };
-use usvg::{ImageKind, Paint};
+use usvg::{Color, ImageKind, Paint};
 use uuid::Uuid;
 
-use super::element::Stroke;
+use super::element::{DynamicColor, Stroke};
 use super::{
     diff::DiffState,
     element::{Element, Image, ManipulatorGroupId, Path},
@@ -52,7 +52,7 @@ impl Buffer {
             Options::default()
         };
 
-        let maybe_tree = usvg::Tree::from_str(&content, &opt, &Database::default());
+        let maybe_tree = usvg::Tree::from_str(content, &opt, &Database::default());
 
         if let Err(err) = maybe_tree {
             println!("{:#?}", err);
@@ -83,7 +83,7 @@ impl Buffer {
         local_elements: &mut IndexMap<Uuid, Element>, local_master_transform: Transform,
         base_content: &str, remote_content: &str,
     ) {
-        let base_buffer = Buffer::new(&base_content, None, None);
+        let base_buffer = Buffer::new(base_content, None, None);
 
         let remote_buffer = Buffer::new(remote_content, None, None);
 
@@ -186,7 +186,7 @@ impl Buffer {
         }
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn serialize(&self) -> String {
         let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
         for el in self.elements.iter() {
             match el.1 {
@@ -200,9 +200,9 @@ impl Buffer {
                         curv_attrs = format!(
                             "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}' transform='{}'",
                             stroke.width,
-                            stroke.color.red,
-                            stroke.color.green,
-                            stroke.color.blue,
+                            stroke.color.light.red,
+                            stroke.color.light.green,
+                            stroke.color.light.blue,
                             stroke.opacity,
                             self.id_map.get(el.0).unwrap_or(&el.0.to_string()),
                             to_svg_transform(p.transform)
@@ -292,7 +292,22 @@ pub fn parse_child(
 
             let stroke = if let Some(s) = path.stroke() {
                 if let Paint::Color(color) = *s.paint() {
-                    Some(Stroke { color, opacity: s.opacity().get(), width: s.width().get() })
+                    let canvas_colors = get_canvas_colors();
+
+                    let maybe_dynamic_color = if let Some(dynamic_color) = canvas_colors
+                        .iter()
+                        .find(|c| c.light.eq(&color) || c.dark.eq(&color))
+                    {
+                        *dynamic_color
+                    } else {
+                        DynamicColor { light: color, dark: color }
+                    };
+
+                    Some(Stroke {
+                        color: maybe_dynamic_color,
+                        opacity: s.opacity().get(),
+                        width: s.width().get(),
+                    })
                 } else {
                     None
                 }
@@ -330,6 +345,41 @@ fn get_internal_id(svg_id: &str, id_map: &mut HashMap<Uuid, String>) -> Uuid {
         warn!(id = svg_id, "found elements  with duplicate id");
     }
     id
+}
+
+pub fn get_canvas_colors() -> Vec<DynamicColor> {
+    let mut highlighter_colors = get_highlighter_colors();
+    highlighter_colors.append(&mut get_pen_colors());
+
+    highlighter_colors
+}
+
+pub fn get_highlighter_colors() -> Vec<DynamicColor> {
+    let yellow =
+        DynamicColor { light: Color::new_rgb(244, 250, 65), dark: Color::new_rgb(244, 250, 65) };
+    let blue =
+        DynamicColor { light: Color::new_rgb(65, 194, 250), dark: Color::new_rgb(65, 194, 250) };
+    let pink =
+        DynamicColor { light: Color::new_rgb(254, 110, 175), dark: Color::new_rgb(254, 110, 175) };
+    vec![yellow, blue, pink]
+}
+
+pub fn get_pen_colors() -> Vec<DynamicColor> {
+    let blue =
+        DynamicColor { light: Color::new_rgb(62, 130, 230), dark: Color::new_rgb(54, 116, 207) };
+    let green =
+        DynamicColor { light: Color::new_rgb(42, 136, 49), dark: Color::new_rgb(56, 176, 65) };
+    let red =
+        DynamicColor { light: Color::new_rgb(218, 21, 21), dark: Color::new_rgb(174, 33, 33) };
+    let magenta =
+        DynamicColor { light: Color::new_rgb(175, 82, 222), dark: Color::new_rgb(191, 90, 242) };
+    let cyan =
+        DynamicColor { light: Color::new_rgb(85, 190, 240), dark: Color::new_rgb(90, 200, 245) };
+    let yellow =
+        DynamicColor { light: Color::new_rgb(255, 204, 0), dark: Color::new_rgb(255, 214, 10) };
+
+    let fg = DynamicColor { light: Color::black(), dark: Color::white() };
+    vec![fg, blue, green, red, magenta, cyan, yellow]
 }
 
 fn usvg_d_to_subpath(path: &usvg::Path) -> Subpath<ManipulatorGroupId> {

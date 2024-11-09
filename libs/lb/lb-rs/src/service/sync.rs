@@ -616,7 +616,7 @@ impl Lb {
                                             String::from_utf8_lossy(&remote_document).to_string();
 
                                         let mut local_buffer = crate::svg::buffer::Buffer::new(
-                                            &String::from_utf8_lossy(&local_document).to_string(),
+                                            String::from_utf8_lossy(&local_document).as_ref(),
                                             None,
                                             None,
                                         );
@@ -627,7 +627,7 @@ impl Lb {
                                             &remote_document,
                                         );
 
-                                        let merged_document = local_buffer.to_string();
+                                        let merged_document = local_buffer.serialize();
                                         let encrypted_document = merge
                                             .update_document_unvalidated(
                                                 &id,

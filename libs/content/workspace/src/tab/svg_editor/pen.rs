@@ -4,11 +4,11 @@ use egui_animation::{animate_bool_eased, easing};
 use lb_rs::{
     svg::{
         diff::DiffState,
-        element::{Element, Path, Stroke},
+        element::{DynamicColor, Element, Path, Stroke},
     },
     Uuid,
 };
-use resvg::usvg::{Color, Transform};
+use resvg::usvg::Transform;
 use std::time::{Duration, Instant};
 use tracing::{event, trace, Level};
 use tracing_test::traced_test;
@@ -22,7 +22,7 @@ pub const HIGHLIGHTER_STROKE_WIDTHS: [f32; 3] = [15.0, 20.0, 25.0];
 
 #[derive(Default)]
 pub struct Pen {
-    pub active_color: (egui::Color32, egui::Color32),
+    pub active_color: DynamicColor,
     pub active_stroke_width: f32,
     pub active_opacity: f32,
     path_builder: PathBuilder,
@@ -37,7 +37,7 @@ enum IntegrationEvent<'a> {
     Native(&'a egui::Event),
 }
 impl Pen {
-    pub fn new(active_color: (egui::Color32, egui::Color32), active_stroke_width: f32) -> Self {
+    pub fn new(active_color: DynamicColor, active_stroke_width: f32) -> Self {
         Pen {
             active_color,
             active_stroke_width,
@@ -183,8 +183,11 @@ impl Pen {
                 // let path_stroke =
                 //     Stroke { color: self.active_color., width: self.active_stroke_width };
 
-                let path_stroke =
-                    Stroke { color: Color::black(), opacity: 1.0, width: self.active_stroke_width };
+                let path_stroke = Stroke {
+                    color: self.active_color,
+                    opacity: self.active_opacity,
+                    width: self.active_stroke_width,
+                };
 
                 if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
                     p.diff_state.data_changed = true;
@@ -479,7 +482,7 @@ pub struct DrawPayload {
 #[traced_test]
 #[test]
 fn correct_start_of_path() {
-    let mut pen = Pen::new((egui::Color32::BLACK, egui::Color32::WHITE), 1.0);
+    let mut pen = Pen::new(DynamicColor::default(), 1.0);
     let mut pen_ctx = ToolContext {
         painter: &egui::Painter::new(
             egui::Context::default(),
@@ -533,7 +536,7 @@ fn cancel_touch_ui_event() {
         },
     ];
 
-    let mut pen = Pen::new((egui::Color32::BLACK, egui::Color32::WHITE), 1.0);
+    let mut pen = Pen::new(DynamicColor::default(), 1.0);
     let mut pen_ctx = ToolContext {
         painter: &egui::Painter::new(
             egui::Context::default(),

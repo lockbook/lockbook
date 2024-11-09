@@ -1,6 +1,6 @@
 use bezier_rs::Subpath;
 use egui_animation::{animate_bool_eased, easing};
-use glam::{DAffine2, DMat2, DVec2};
+use glam::DVec2;
 use lb_rs::{
     svg::element::{Element, ManipulatorGroupId},
     Uuid,
@@ -715,17 +715,6 @@ fn get_laso_rect(current: egui::Pos2, drag_origin: egui::Pos2) -> egui::Rect {
         std::mem::swap(&mut laso_rect.min.x, &mut laso_rect.max.x)
     }
     laso_rect
-}
-
-/// converts a usvg transform into a bezier_rs transform
-pub fn u_transform_to_bezier(src: &Transform) -> DAffine2 {
-    glam::DAffine2 {
-        matrix2: DMat2 {
-            x_axis: DVec2 { x: src.sx.into(), y: src.ky.into() },
-            y_axis: DVec2 { x: src.kx.into(), y: src.sy.into() },
-        },
-        translation: glam::DVec2 { x: src.tx.into(), y: src.ty.into() },
-    }
 }
 
 pub fn detect_translation(
