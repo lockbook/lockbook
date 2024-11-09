@@ -41,9 +41,9 @@ impl ThemePalette {
     }
 
     pub fn resolve_dynamic_color(
-        dynamic_color: (egui::Color32, egui::Color32), ui: &mut egui::Ui,
+        dynamic_color: (egui::Color32, egui::Color32), dark_mode: bool,
     ) -> egui::Color32 {
-        if ui.visuals().dark_mode {
+        if dark_mode {
             dynamic_color.1
         } else {
             dynamic_color.0
