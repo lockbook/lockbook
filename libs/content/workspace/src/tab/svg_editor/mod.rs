@@ -192,6 +192,7 @@ impl SVGEditor {
                 })
             }) || cfg!(target_os = "ios"),
             settings: self.settings,
+            is_locked_vw_pen_only: self.toolbar.gesture_handler.is_locked_vw_pen_only_draw(),
         };
 
         if self.skip_frame {
@@ -208,11 +209,7 @@ impl SVGEditor {
                 self.toolbar.highlighter.handle_input(ui, &mut tool_context);
             }
             Tool::Eraser => {
-                self.toolbar.eraser.handle_input(
-                    ui,
-                    &mut tool_context,
-                    self.toolbar.gesture_handler.is_locked_vw_pen_only_draw(),
-                );
+                self.toolbar.eraser.handle_input(ui, &mut tool_context);
             }
             Tool::Selection => {
                 self.toolbar.selection.handle_input(ui, &mut tool_context);

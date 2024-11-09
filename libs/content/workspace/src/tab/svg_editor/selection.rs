@@ -69,7 +69,7 @@ struct SelectionInputState {
 
 impl Selection {
     pub fn handle_input(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
-        let is_multi_touch = is_multi_touch(ui, selection_ctx);
+        let is_multi_touch = is_multi_touch(ui);
 
         ui.input(|r| {
             let mut input_state = SelectionInputState {
@@ -78,7 +78,10 @@ impl Selection {
                 is_multi_touch,
             };
             for e in r.events.iter() {
-                if input_state.is_multi_touch {
+                if input_state.is_multi_touch
+                    || (selection_ctx.settings.pencil_only_drawing
+                        && selection_ctx.is_locked_vw_pen_only)
+                {
                     break;
                 }
                 if let Some(pos) = r.pointer.interact_pos() {

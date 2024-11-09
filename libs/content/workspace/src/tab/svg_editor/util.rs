@@ -3,10 +3,7 @@ use std::collections::HashSet;
 use bezier_rs::{Bezier, Subpath};
 use egui::TouchPhase;
 
-use super::{
-    parser::{Element, ManipulatorGroupId},
-    toolbar::ToolContext,
-};
+use super::parser::{Element, ManipulatorGroupId};
 
 pub fn pointer_intersects_element(
     el: &Element, pos: egui::Pos2, last_pos: Option<egui::Pos2>, error_radius: f64,
@@ -78,7 +75,7 @@ pub fn pointer_intersects_outline(
     intersects_delete_brush || is_inside_delete_brush
 }
 
-pub fn is_multi_touch(ui: &mut egui::Ui, tool_ctx: &mut ToolContext) -> bool {
+pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
     let mut custom_multi_touch = false;
     ui.input(|r| {
         if r.multi_touch().is_some() {
@@ -87,14 +84,7 @@ pub fn is_multi_touch(ui: &mut egui::Ui, tool_ctx: &mut ToolContext) -> bool {
         }
         let mut touch_ids = HashSet::new();
         for e in r.events.iter() {
-            if let egui::Event::Touch { device_id: _, id, phase, pos: _, force } = *e {
-                if (phase == TouchPhase::Start || phase == TouchPhase::Move)
-                    && force.is_none()
-                    && tool_ctx.settings.pencil_only_drawing
-                {
-                    custom_multi_touch = true;
-                    break;
-                }
+            if let egui::Event::Touch { device_id: _, id, phase, pos: _, force: _ } = *e {
                 if phase != TouchPhase::Cancel {
                     touch_ids.insert(id.0);
                     if touch_ids.len() > 1 {

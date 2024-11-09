@@ -1,12 +1,13 @@
 use bezier_rs::Subpath;
 use egui::{PointerButton, TouchId, TouchPhase};
+use egui_animation::{animate_bool_eased, easing};
 use lb_rs::Uuid;
 use resvg::usvg::Transform;
 use std::time::{Duration, Instant};
 use tracing::{event, trace, Level};
 use tracing_test::traced_test;
 
-use crate::tab::ExtendedInput;
+use crate::{tab::ExtendedInput, theme::palette::ThemePalette};
 
 use super::{
     parser::{self, DiffState, Path, Stroke},
@@ -26,6 +27,7 @@ pub struct Pen {
     path_builder: PathBuilder,
     pub current_id: Uuid, // todo: this should be at a higher component state, maybe in buffer
     maybe_snap_started: Option<Instant>,
+    hover_pos: Option<(egui::Pos2, Instant)>,
 }
 
 #[derive(Clone)]
@@ -42,12 +44,13 @@ impl Pen {
             path_builder: PathBuilder::new(),
             maybe_snap_started: None,
             active_opacity: 1.0,
+            hover_pos: None,
         }
     }
 
     /// returns true if a path is being built
     pub fn handle_input(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext) -> bool {
-        let input_state = PenPointerInput { is_multi_touch: is_multi_touch(ui, pen_ctx) };
+        let input_state = PenPointerInput { is_multi_touch: is_multi_touch(ui) };
         let mut is_drawing = false;
 
         // clear the previous predicted touches and replace them with the actual touches
@@ -82,7 +85,41 @@ impl Pen {
             }
         });
 
+        // draw hover pos
+        self.show_hover_point(ui, pen_ctx);
+
         is_drawing
+    }
+
+    fn show_hover_point(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext<'_>) {
+        if let Some((pos, instant)) = self.hover_pos {
+            let is_current_path_empty = if let Some(parser::Element::Path(path)) =
+                pen_ctx.buffer.elements.get_mut(&self.current_id)
+            {
+                path.data.is_empty()
+            } else {
+                true
+            };
+            let opacity = animate_bool_eased(
+                ui.ctx(),
+                "pen_hover_pos",
+                Instant::now() - instant < Duration::from_millis(10)
+                    && !(pen_ctx.settings.pencil_only_drawing && pen_ctx.is_locked_vw_pen_only),
+                easing::cubic_in_out,
+                0.5,
+            );
+
+            if is_current_path_empty
+                && !(pen_ctx.settings.pencil_only_drawing && pen_ctx.is_locked_vw_pen_only)
+            {
+                ui.painter().circle_filled(
+                    pos,
+                    self.active_stroke_width * pen_ctx.buffer.master_transform.sx / 2.0,
+                    ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode)
+                        .gamma_multiply(self.active_opacity * opacity),
+                );
+            }
+        }
     }
 
     pub fn end_path(&mut self, pen_ctx: &mut ToolContext, is_snapped: bool) {
@@ -110,11 +147,13 @@ impl Pen {
     }
 
     /// given a path event mutate state of the current path by building it, canceling it, or ending it.
-    fn handle_path_event(&mut self, event: PathEvent, pen_ctx: &mut ToolContext) {
+    fn handle_path_event(
+        &mut self, event: PathEvent, pen_ctx: &mut ToolContext,
+    ) -> Option<egui::Shape> {
         match event {
             PathEvent::Draw(payload) => {
                 if payload.force.is_none() && pen_ctx.settings.pencil_only_drawing {
-                    return;
+                    return None;
                 }
 
                 if let Some(touch_id) = payload.id {
@@ -225,7 +264,11 @@ impl Pen {
                     }
                 }
             }
+            PathEvent::Hover(draw_payload) => {
+                self.hover_pos = Some((draw_payload.pos, Instant::now()));
+            }
         }
+        None
     }
 
     fn cancel_path(&mut self, pen_ctx: &mut ToolContext<'_>) {
@@ -329,6 +372,11 @@ impl Pen {
         if pen_ctx.is_touch_frame {
             *pen_ctx.allow_viewport_changes = true;
             // shouldn't handle non touch events on touch devices to avoid breaking ipad hover.
+            if let IntegrationEvent::Native(&egui::Event::PointerMoved(pos)) = e {
+                if is_current_path_empty {
+                    return Some(PathEvent::Hover(DrawPayload { pos, force: None, id: None }));
+                }
+            }
             return None;
         }
 
@@ -419,6 +467,7 @@ struct PenPointerInput {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PathEvent {
     Draw(DrawPayload),
+    Hover(DrawPayload),
     PredictedDraw(DrawPayload),
     ClearPredictedTouches,
     End(DrawPayload),
@@ -447,6 +496,7 @@ fn correct_start_of_path() {
         allow_viewport_changes: &mut false,
         is_touch_frame: true,
         settings: crate::tab::svg_editor::CanvasSettings::default(),
+        is_locked_vw_pen_only: false,
     };
 
     let start_pos = egui::pos2(10.0, 10.0);
@@ -500,6 +550,7 @@ fn cancel_touch_ui_event() {
         allow_viewport_changes: &mut false,
         is_touch_frame: true,
         settings: crate::tab::svg_editor::CanvasSettings::default(),
+        is_locked_vw_pen_only: false,
     };
 
     let input_state = PenPointerInput { is_multi_touch: false };

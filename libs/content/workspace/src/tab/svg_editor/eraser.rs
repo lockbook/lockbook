@@ -33,11 +33,9 @@ impl Eraser {
         }
     }
 
-    pub fn handle_input(
-        &mut self, ui: &mut egui::Ui, eraser_ctx: &mut ToolContext, is_locked_vw: bool,
-    ) {
-        if is_multi_touch(ui, eraser_ctx)
-            || (is_locked_vw && eraser_ctx.settings.pencil_only_drawing)
+    pub fn handle_input(&mut self, ui: &mut egui::Ui, eraser_ctx: &mut ToolContext) {
+        if is_multi_touch(ui)
+            || (eraser_ctx.is_locked_vw_pen_only && eraser_ctx.settings.pencil_only_drawing)
         {
             return;
         }
