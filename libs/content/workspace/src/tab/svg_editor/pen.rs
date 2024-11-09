@@ -50,7 +50,7 @@ impl Pen {
 
     /// returns true if a path is being built
     pub fn handle_input(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext) -> bool {
-        let input_state = PenPointerInput { is_multi_touch: is_multi_touch(ui, pen_ctx) };
+        let input_state = PenPointerInput { is_multi_touch: is_multi_touch(ui) };
         let mut is_drawing = false;
 
         // clear the previous predicted touches and replace them with the actual touches

@@ -69,7 +69,7 @@ struct SelectionInputState {
 
 impl Selection {
     pub fn handle_input(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
-        let is_multi_touch = is_multi_touch(ui, selection_ctx);
+        let is_multi_touch = is_multi_touch(ui);
 
         ui.input(|r| {
             let mut input_state = SelectionInputState {
