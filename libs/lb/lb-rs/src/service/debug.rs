@@ -136,7 +136,6 @@ impl Lb {
             self.find_most_recent_panic_log()
         );
 
-
         Ok(serde_json::to_string_pretty(&DebugInfo {
             time: self.now(),
             name: account.username.clone(),
@@ -148,7 +147,7 @@ impl Lb {
             lb_dir: self.config.writeable_path.clone(),
             last_synced,
             os_info,
-            last_panic: last_panic?
+            last_panic: last_panic?,
         })?)
     }
 }
