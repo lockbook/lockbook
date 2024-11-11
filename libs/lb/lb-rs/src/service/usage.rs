@@ -22,12 +22,14 @@ pub struct UsageItemMetric {
 }
 
 impl Lb {
+    #[instrument(level = "debug", skip(self))]
     pub async fn get_usage(&self) -> LbResult<UsageMetrics> {
         let acc = self.get_account()?;
         let usage = self.client.request(acc, GetUsageRequest {}).await?;
         Ok(get_usage(usage))
     }
 
+    #[instrument(level = "debug", skip(self))]
     pub async fn get_uncompressed_usage_breakdown(&self) -> LbResult<HashMap<Uuid, usize>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -50,6 +52,7 @@ impl Lb {
     }
 
     // big async opportunity
+    #[instrument(level = "debug", skip(self))]
     pub async fn get_uncompressed_usage(&self) -> LbResult<UsageItemMetric> {
         let tx = self.ro_tx().await;
         let db = tx.db();

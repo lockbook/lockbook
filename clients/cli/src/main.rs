@@ -88,11 +88,15 @@ fn run() -> CliResult<()> {
                 )
                 .subcommand(
                     Command::name("whoami").description("print who is logged into this lockbook")
-                        .handler( debug::whoami)
+                        .handler(debug::whoami)
                 )
                 .subcommand(
                     Command::name("whereami").description("print information about where this lockbook is stored and it's server url")
                         .handler(debug::whereami)
+                )
+                .subcommand(
+                    Command::name("debuginfo").description("retrieve the debug-info string to help a lockbook engineer diagnose a problem")
+                        .handler(debug::debug_info)
                 )
         )
         .subcommand(

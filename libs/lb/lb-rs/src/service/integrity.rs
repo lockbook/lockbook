@@ -11,6 +11,8 @@ const UTF8_SUFFIXES: [&str; 12] =
     ["md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs"];
 
 impl Lb {
+    // todo good contender for async treatment, to speedup debug_info
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn test_repo_integrity(&self) -> Result<Vec<Warning>, TestRepoError> {
         let tx = self.ro_tx().await;
         let db = tx.db();
