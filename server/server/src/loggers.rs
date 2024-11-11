@@ -41,9 +41,8 @@ pub fn init(config: &Config) {
         )
         // Logger for file (verbose and sent to loki)
         .with(
-            fmt::Layer::new()
+            tracing_stackdriver::layer()
                 .with_writer(file_logger(config))
-                .with_ansi(false)
                 .with_filter(LevelFilter::DEBUG)
                 .with_filter(server_logs()),
         )
