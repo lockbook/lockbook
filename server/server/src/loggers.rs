@@ -39,7 +39,7 @@ pub fn init(config: &Config) {
                 .with_filter(log_level)
                 .with_filter(server_logs()),
         )
-        // Logger for file (verbose and sent to loki)
+        // Writes to the specified file in a format that gcp understands
         .with(
             tracing_stackdriver::layer()
                 .with_writer(file_logger(config))
