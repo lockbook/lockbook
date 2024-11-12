@@ -290,9 +290,7 @@ impl Lb {
         );
 
         let mut idx = 0;
-        println!("polling");
         while let Some(fut) = stream.next().await {
-            println!("{:?}", fut);
             let id = fut?;
             ctx.file_msg(id, &format!("Downloaded file {idx} of {num_docs}."));
             idx += 1;
@@ -301,7 +299,6 @@ impl Lb {
     }
 
     async fn fetch_doc(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<Uuid> {
-        println!("fetching doc");
         let remote_document = self
             .client
             .request(self.get_account()?, GetDocRequest { id, hmac })
@@ -309,7 +306,6 @@ impl Lb {
         self.docs
             .insert(id, Some(hmac), &remote_document.content)
             .await?;
-        println!("fetched doc");
 
         Ok(id)
     }
