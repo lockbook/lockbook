@@ -10,6 +10,7 @@ use std::iter;
 use uuid::Uuid;
 
 impl Lb {
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_file(
         &self, name: &str, parent: &Uuid, file_type: FileType,
     ) -> LbResult<File> {
@@ -38,6 +39,7 @@ impl Lb {
         Ok(ui_file)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn rename_file(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
@@ -59,6 +61,7 @@ impl Lb {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn move_file(&self, id: &Uuid, new_parent: &Uuid) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
@@ -77,6 +80,7 @@ impl Lb {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn delete(&self, id: &Uuid) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
@@ -96,6 +100,7 @@ impl Lb {
     }
 
     // todo: keychain?
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn root(&self) -> LbResult<File> {
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -110,6 +115,7 @@ impl Lb {
         Ok(root)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn list_metadatas(&self) -> LbResult<Vec<File>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -122,6 +128,7 @@ impl Lb {
         Ok(tree.decrypt_all(account, ids, &db.pub_key_lookup, true)?)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn get_children(&self, id: &Uuid) -> LbResult<Vec<File>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -134,6 +141,7 @@ impl Lb {
         Ok(tree.decrypt_all(account, ids, &db.pub_key_lookup, true)?)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn get_and_get_children_recursively(&self, id: &Uuid) -> LbResult<Vec<File>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -151,6 +159,7 @@ impl Lb {
         )?)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn get_file_by_id(&self, id: Uuid) -> LbResult<File> {
         let tx = self.ro_tx().await;
         let db = tx.db();

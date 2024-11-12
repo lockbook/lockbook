@@ -18,6 +18,7 @@ impl Lb {
     /// CoreError::ServerDisabled,
     /// CoreError::ServerUnreachable,
     /// CoreError::ClientUpdateRequired,
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_account(
         &self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> LbResult<Account> {
@@ -66,6 +67,7 @@ impl Lb {
         Ok(account)
     }
 
+    #[instrument(level = "debug", skip(self, key), err(Debug))]
     pub async fn import_account(&self, key: &str, api_url: Option<&str>) -> LbResult<Account> {
         if self.get_account().is_ok() {
             warn!("tried to import an account, but account exists already.");
@@ -143,6 +145,7 @@ impl Lb {
             .await
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn export_account_private_key(&self) -> LbResult<String> {
         self.export_account_private_key_v1()
     }
@@ -170,6 +173,7 @@ impl Lb {
             .map_err(|err| core_err_unexpected(err).into())
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn delete_account(&self) -> LbResult<()> {
         let account = self.get_account()?;
 

@@ -6,6 +6,7 @@ use crate::Lb;
 use uuid::Uuid;
 
 impl Lb {
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_link_at_path(&self, path: &str, target_id: Uuid) -> LbResult<File> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
@@ -27,6 +28,7 @@ impl Lb {
         Ok(ui_file)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_at_path(&self, path: &str) -> LbResult<File> {
         let pub_key = self.get_pk()?;
         let mut tx = self.begin_tx().await;
@@ -48,6 +50,7 @@ impl Lb {
         Ok(ui_file)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn get_by_path(&self, path: &str) -> LbResult<File> {
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -64,6 +67,7 @@ impl Lb {
         Ok(ui_file)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn get_path_by_id(&self, id: Uuid) -> LbResult<String> {
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -75,6 +79,7 @@ impl Lb {
         Ok(path)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn list_paths(&self, filter: Option<Filter>) -> LbResult<Vec<String>> {
         let tx = self.ro_tx().await;
         let db = tx.db();

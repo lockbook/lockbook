@@ -86,6 +86,7 @@ impl SearchResult {
 }
 
 impl Lb {
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
         if self.search.docs.read().await.is_empty() {
             self.build_index().await?;
@@ -128,6 +129,7 @@ impl Lb {
         Ok(results)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn build_index(&self) -> LbResult<()> {
         let ts = clock::get_time().0 as u64;
         self.search.last_built.store(ts, Ordering::SeqCst);
@@ -196,6 +198,7 @@ impl Lb {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self))]
     /// ensure the index is not built more frequently than every 5s
     pub fn spawn_build_index(&self) {
         tokio::spawn({

@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 impl Lb {
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
         let db = self.ro_tx().await;
         let db = db.db();
@@ -33,7 +34,7 @@ impl Lb {
         Ok(result)
     }
 
-    pub async fn add_doc_event(&self, event: DocEvent) -> LbResult<()> {
+    pub(crate) async fn add_doc_event(&self, event: DocEvent) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 

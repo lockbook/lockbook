@@ -81,6 +81,7 @@ impl Lb {
         Ok(SyncStatus { work_units, latest_server_ts })
     }
 
+    #[instrument(level = "debug", skip_all, err(Debug))]
     pub async fn sync(&self, f: Option<Box<dyn Fn(SyncProgress) + Send>>) -> LbResult<SyncStatus> {
         let mut ctx = self.setup_sync(f).await?;
 

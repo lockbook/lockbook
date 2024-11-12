@@ -53,6 +53,7 @@ impl Default for Network {
 }
 
 impl Network {
+    #[instrument(level = "debug", skip(self, account, request), fields(route=T::ROUTE), err(Debug))]
     pub async fn request<T: Request>(
         &self, account: &Account, request: T,
     ) -> Result<T::Response, ApiError<T::Error>> {

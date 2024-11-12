@@ -16,6 +16,7 @@ use uuid::Uuid;
 use super::activity;
 
 impl Lb {
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn read_document(&self, id: Uuid) -> LbResult<DecryptedDocument> {
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -35,7 +36,9 @@ impl Lb {
         Ok(doc)
     }
 
+    #[instrument(level = "debug", skip(self, content), err(Debug))]
     pub async fn write_document(&self, id: Uuid, content: &[u8]) -> LbResult<()> {
+        debug!("doc length: {}", content.len());
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
@@ -67,6 +70,7 @@ impl Lb {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn read_document_with_hmac(
         &self, id: Uuid,
     ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
@@ -89,9 +93,11 @@ impl Lb {
         Ok((hmac, doc))
     }
 
+    #[instrument(level = "debug", skip(self, content), err(Debug))]
     pub async fn safe_write(
         &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>,
     ) -> LbResult<DocumentHmac> {
+        debug!("doc length: {}", content.len());
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 

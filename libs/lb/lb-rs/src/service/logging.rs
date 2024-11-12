@@ -1,6 +1,8 @@
 use crate::model::errors::{core_err_unexpected, LbResult};
 use crate::Config;
-use std::{backtrace, env, panic};
+use chrono::Local;
+use std::backtrace::Backtrace;
+use std::{env, fs, panic};
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::{filter, fmt, prelude::*, Layer};
@@ -16,8 +18,9 @@ pub fn init(config: &Config) -> LbResult<()> {
 
         let subscriber = tracing_subscriber::Registry::default()
             .with(
+                // file
                 fmt::Layer::new()
-                    .with_span_events(FmtSpan::ACTIVE)
+                    .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
                     .with_ansi(config.colored_logs)
                     .with_target(true)
                     .with_writer(tracing_appender::rolling::never(&config.writeable_path, LOG_FILE))
@@ -26,9 +29,11 @@ pub fn init(config: &Config) -> LbResult<()> {
                         metadata.target().starts_with("lb_rs")
                             || metadata.target().starts_with("dbrs")
                             || metadata.target().starts_with("workspace")
+                            || metadata.target().starts_with("lb_fs")
                     })),
             )
             .with(
+                // stdout
                 fmt::Layer::new()
                     .pretty()
                     .with_target(false)
@@ -40,17 +45,20 @@ pub fn init(config: &Config) -> LbResult<()> {
             );
 
         tracing::subscriber::set_global_default(subscriber).map_err(core_err_unexpected)?;
-        panic_capture();
+        panic_capture(config);
     }
     Ok(())
 }
 
-fn panic_capture() {
-    panic::set_hook(Box::new(|panic_info| {
-        tracing::error!("panic detected: {panic_info} {}", backtrace::Backtrace::force_capture());
-        eprintln!(
-            "panic detected and logged: {panic_info} {}",
-            backtrace::Backtrace::force_capture()
-        );
+fn panic_capture(config: &Config) {
+    let path = config.writeable_path.clone();
+    panic::set_hook(Box::new(move |panic_info| {
+        let bt = Backtrace::force_capture();
+        tracing::error!("panic detected: {panic_info} {}", bt);
+        eprintln!("panic detected and logged: {panic_info} {}", bt);
+        let timestamp = Local::now().format("%Y-%m-%d---%H-%M-%S");
+        let file_name = format!("{}/panic---{}.log", path, timestamp);
+        let file = format!("INFO: {}\nBT: {}", panic_info, bt);
+        fs::write(file_name, file).unwrap();
     }));
 }

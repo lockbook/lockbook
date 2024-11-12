@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 impl Lb {
     // todo: this can check whether the username is known already
+    #[instrument(level = "debug", skip(self))]
     pub async fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> LbResult<()> {
         let account = self.get_account()?;
 
@@ -37,6 +38,7 @@ impl Lb {
     }
 
     // todo: move to tree
+    #[instrument(level = "debug", skip(self))]
     pub async fn get_pending_shares(&self) -> LbResult<Vec<File>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -71,6 +73,7 @@ impl Lb {
         Ok(result)
     }
 
+    #[instrument(level = "debug", skip(self))]
     async fn delete_share(
         &self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>,
     ) -> LbResult<()> {
@@ -89,6 +92,7 @@ impl Lb {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self))]
     pub async fn reject_share(&self, id: &Uuid) -> Result<(), LbErr> {
         let pk = self.get_account()?.public_key();
         let result = self.delete_share(id, Some(pk)).await;
