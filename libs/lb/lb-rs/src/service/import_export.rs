@@ -17,6 +17,7 @@ pub enum ImportStatus {
 }
 
 impl Lb {
+    #[instrument(level = "debug", skip(self, update_status), err(Debug))]
     pub async fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> LbResult<()> {
@@ -120,6 +121,7 @@ impl Lb {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self, update_status), err(Debug))]
     pub async fn export_file<F: Fn(ExportFileInfo)>(
         &self, id: Uuid, dest: PathBuf, edit: bool, update_status: &Option<F>,
     ) -> LbResult<()> {

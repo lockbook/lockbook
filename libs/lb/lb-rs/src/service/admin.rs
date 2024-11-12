@@ -6,6 +6,7 @@ use crate::Lb;
 use uuid::Uuid;
 
 impl Lb {
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn disappear_account(&self, username: &str) -> LbResult<()> {
         let account = self.get_account()?;
 
@@ -28,6 +29,7 @@ impl Lb {
             })
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn disappear_file(&self, id: Uuid) -> LbResult<()> {
         let account = self.get_account()?;
         self.client
@@ -49,6 +51,7 @@ impl Lb {
             })
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn list_users(&self, filter: Option<AccountFilter>) -> LbResult<Vec<Username>> {
         let account = self.get_account()?;
 
@@ -67,6 +70,7 @@ impl Lb {
             .users)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn get_account_info(&self, identifier: AccountIdentifier) -> LbResult<AccountInfo> {
         let account = self.get_account()?;
 
@@ -88,6 +92,7 @@ impl Lb {
             .account)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn validate_account(&self, username: &str) -> LbResult<AdminValidateAccount> {
         let account = self.get_account()?;
         self.client
@@ -109,6 +114,7 @@ impl Lb {
             })
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn validate_server(&self) -> LbResult<AdminValidateServer> {
         let account = self.get_account()?;
         self.client
@@ -127,6 +133,7 @@ impl Lb {
             })
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn file_info(&self, id: Uuid) -> LbResult<AdminFileInfoResponse> {
         let account = self.get_account()?;
         self.client
@@ -148,6 +155,7 @@ impl Lb {
             })
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn rebuild_index(&self, index: ServerIndex) -> LbResult<()> {
         let account = self.get_account()?;
         self.client
@@ -166,6 +174,7 @@ impl Lb {
             })
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn set_user_tier(&self, username: &str, info: AdminSetUserTierInfo) -> LbResult<()> {
         let account = self.get_account()?;
         self.client
