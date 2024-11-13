@@ -114,7 +114,7 @@ pub fn main() {
         _ => panic!("no lockbook location"),
     };
 
-    let core = Lb::init(Config { writeable_path, logs: true, colored_logs: true }).unwrap();
+    let core = Lb::init(Config { writeable_path, logs: true, colored_logs: true, background_work: false }).unwrap();
 
     let result = match Admin::parse() {
         Admin::DisappearAccount { username } => disappear::account(&core, username),

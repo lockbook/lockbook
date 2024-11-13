@@ -22,7 +22,7 @@ impl Drive {
     pub async fn init() -> Self {
         let writeable_path = format!("{}/.lockbook/drive", std::env::var("HOME").unwrap());
 
-        let lb = Lb::init(Config { writeable_path, logs: false, colored_logs: true })
+        let lb = Lb::init(Config { writeable_path, logs: false, colored_logs: true, background_work: false })
             .await
             .unwrap();
 

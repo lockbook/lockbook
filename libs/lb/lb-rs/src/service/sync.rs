@@ -953,26 +953,22 @@ impl Lb {
 
         drop(tx);
 
-        // todo: parallelize
         let docs_count = updates.len();
         ctx.total += docs_count;
-        for (idx, diff) in updates.clone().into_iter().enumerate() {
-            let id = diff.new.id();
-            let hmac = diff.new.document_hmac();
-            // todo: file names here one day
-            ctx.file_msg(*id, &format!("Pushing document {idx} / {docs_count}"));
+        let futures = updates.clone().into_iter().map(|diff| self.push_doc(diff));
 
-            let local_document_change = self.docs.get(*id, hmac.copied()).await?;
+        let mut stream = stream::iter(futures).buffer_unordered(
+            thread::available_parallelism()
+                .unwrap_or(NonZeroUsize::new(4).unwrap())
+                .into(),
+        );
 
-            // remote = local
-            self.client
-                .request(
-                    self.get_account()?,
-                    ChangeDocRequest { diff, new_content: local_document_change },
-                )
-                .await?;
+        let mut idx = 0;
+        while let Some(fut) = stream.next().await {
+            let id = fut?;
+            ctx.file_msg(id, &format!("Pushed file {idx} of {docs_count}."));
+            idx += 1;
         }
-
         ctx.pushed_docs = updates;
 
         let mut tx = self.begin_tx().await;
@@ -988,6 +984,20 @@ impl Lb {
         tx.end();
 
         Ok(())
+    }
+
+    async fn push_doc(&self, diff: FileDiff<SignedFile>) -> LbResult<Uuid> {
+        let id = *diff.new.id();
+        let hmac = diff.new.document_hmac();
+        let local_document_change = self.docs.get(id, hmac.copied()).await?;
+        self.client
+            .request(
+                self.get_account()?,
+                ChangeDocRequest { diff, new_content: local_document_change },
+            )
+            .await?;
+
+        Ok(id)
     }
 
     async fn dedup(
