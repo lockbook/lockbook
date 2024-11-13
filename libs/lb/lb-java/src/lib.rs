@@ -32,7 +32,7 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, input: JString<'local>,
 ) {
     let writeable_path = rstring(&mut env, input);
-    let config = Config { logs: true, colored_logs: false, writeable_path };
+    let config = Config { logs: true, colored_logs: false, writeable_path, background_work: true };
 
     match Lb::init(config) {
         Ok(lb) => {
