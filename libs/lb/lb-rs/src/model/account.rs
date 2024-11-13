@@ -123,8 +123,8 @@ impl Account {
     /// color associated with the username. As our platform doesn't have profile pictures this
     /// serves as a secondary queue for identification of people you collaborate with frequently.
     ///
-    /// imagine the blame view of a file color coded. If we can commit to not persisting this value 
-    /// anywhere we can even experiment with more sophisticated color science. Maybe docs.rs 
+    /// imagine the blame view of a file color coded. If we can commit to not persisting this value
+    /// anywhere we can even experiment with more sophisticated color science. Maybe docs.rs
     /// is when we can signal that this color is a stable value. I can see us doing a more HSL
     /// based generation strategy.
     ///
@@ -135,6 +135,16 @@ impl Account {
         let result = hasher.finalize();
 
         (result[0], result[1], result[2])
+    }
+
+    /// A flag for which users have volunteers as beta testers.
+    ///
+    /// Beta users are users to which riskier code is enabled first for testing.
+    /// Beta users are also users who have opted into telemetry by way of approving a PR that adds
+    /// their name to this list. Certainly telemetry in lockbook will always be opt in but the
+    /// mechanism of consent may evolve over time.
+    pub fn is_beta(&self) -> bool {
+        matches!(self.username.as_str(), "parth" | "travis")
     }
 }
 
