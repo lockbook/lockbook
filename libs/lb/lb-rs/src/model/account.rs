@@ -121,7 +121,7 @@ impl Account {
     ///
     /// anywhere in the app you see someone's name, a UI developer has the choice to show the
     /// color associated with the username. As our platform doesn't have profile pictures this
-    /// serves as a secondary queue for identification of people you collaborate with frequently.
+    /// serves as a secondary cue for identification of people you collaborate with frequently.
     ///
     /// imagine the blame view of a file color coded. If we can commit to not persisting this value
     /// anywhere we can even experiment with more sophisticated color science. Maybe docs.rs
