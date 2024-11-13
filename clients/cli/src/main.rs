@@ -232,7 +232,7 @@ fn writable_path() -> CliResult<String> {
 pub async fn core() -> CliResult<Lb> {
     let writeable_path = writable_path()?;
 
-    Lb::init(Config { writeable_path, logs: true, colored_logs: true })
+    Lb::init(Config { writeable_path, logs: true, colored_logs: true, background_work: false })
         .await
         .map_err(|err| CliError::from(err.to_string()))
 }
