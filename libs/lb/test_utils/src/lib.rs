@@ -16,7 +16,12 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 pub fn test_config() -> Config {
-    Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()), logs: false, colored_logs: false, background_work: false }
+    Config {
+        writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+        logs: false,
+        colored_logs: false,
+        background_work: false,
+    }
 }
 
 pub async fn test_core() -> Lb {
