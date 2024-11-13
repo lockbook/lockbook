@@ -10,20 +10,26 @@ import org.junit.Test;
 public class LBTest {
 
     @Test
-    public void someLibraryMethodReturnsTrue() throws Err {
+    public void someLibraryMethodReturnsTrue() throws LbError {
         Lb.init(testDir());
 
-        Err exc = null;
+        LbError exc = null;
         try {
             Lb.createAccount("invalid username", null, true);
-        } catch (Err e) {
+        } catch (LbError e) {
             exc = e;
         }
-        assertEquals(EKind.UsernameInvalid, exc.kind);
+        assertEquals(LbError.LbEC.UsernameInvalid, exc.kind);
 
-        Account account = Lb.createAccount(random(), "http://127.0.0.1:8000", true);
-        assertNotNull(account.uname);
-        assertNotNull(account.apiUrl);
+        try {
+            Account account = Lb.createAccount(random(), "http://127.0.0.1:8000", true);
+            assertNotNull(account.username);
+            assertNotNull(account.apiUrl);
+
+        } catch (LbError e) {
+            System.out.print("got error: " + e.msg);
+            throw new RuntimeException(e);
+        }
     }
 
     static String random() {
@@ -44,7 +50,7 @@ public class LBTest {
         return "/tmp/" + random();
     }
 
-    static void assertNoErr(Err err) {
+    static void assertNoErr(LbError err) {
         if (err != null) {
             System.err.println("msg: " + err.msg);
             System.err.println("code: " + err.kind);

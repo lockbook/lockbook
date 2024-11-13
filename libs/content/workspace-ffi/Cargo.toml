@@ -15,6 +15,7 @@ egui_extras = { version = "0.28.1", features = ["image"] }
 libc = "0.2"
 workspace = { path = "../workspace/" }
 lb-c = { path = "../../lb/lb-c" }
+lb-java = { path = "../../lb/lb-java" }
 raw-window-handle = "0.6"
 jni = "0.21.0"
 pollster = "0.2"

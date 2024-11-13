@@ -11,11 +11,14 @@ import androidx.lifecycle.viewModelScope
 import app.lockbook.R
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
-import com.github.michaelbull.result.Err
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import net.lockbook.Lb
+import net.lockbook.LbError
+import net.lockbook.SearchResult
+import net.lockbook.SearchResult.DocumentMatch.ContentMatch
 import java.io.File
 
 class SearchDocumentsViewModel(application: Application) : AndroidViewModel(application) {
@@ -25,100 +28,66 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     val updateSearchUI: LiveData<UpdateSearchUI>
         get() = _updateSearchUI
 
-    private val filesResultsSource = mutableListOf<SearchedDocumentViewHolderInfo>()
     val fileResults = emptyDataSourceTyped<SearchedDocumentViewHolderInfo>()
 
     var isProgressSpinnerShown = false
     var isNoSearchResultsShown = false
 
-    var lastQuery = ""
-
     private val highlightColor = ResourcesCompat.getColor(getContext().resources, R.color.md_theme_inversePrimary, null)
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            val startSearchResult = CoreModel.startSearch(this@SearchDocumentsViewModel)
-
-            if (startSearchResult is Err) {
-                _updateSearchUI.postValue(UpdateSearchUI.Error(startSearchResult.error.toLbError(getRes())))
+            try {
+                processSearchResults(Lb.search(""))
+            } catch (err: LbError) {
+                _updateSearchUI.postValue(UpdateSearchUI.Error(err))
             }
         }
     }
 
-    fun newSearch(query: String?) {
-        hideNoSearchResultsIfVisible()
-
-        if (query == null) {
-            return
+    private fun processSearchResults(results: Array<SearchResult>) {
+        viewModelScope.launch(Dispatchers.Main) {
+            hideProgressSpinnerIfVisible()
         }
 
-        lastQuery = query
+        val filesResultsSource = mutableListOf<SearchedDocumentViewHolderInfo>()
 
+        for(result in results) {
+            when(result) {
+                is SearchResult.PathMatch -> {
+                    val (parentPathSpan, fileNameSpan) = highlightMatchedPathParts(result.path, result.matchedIndices)
+
+                    filesResultsSource.add(SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(result.id, parentPathSpan, fileNameSpan, result.score))
+                }
+                is SearchResult.DocumentMatch -> {
+                    val (parentPath, fileName) = getPathAndParentFile(result.path)
+                    val contentMatches = highlightMatchedParagraph(result.contentMatches)
+
+                    for(contentMatch in contentMatches) {
+                        filesResultsSource.add(SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(result.id, parentPath, fileName, contentMatch.second, contentMatch.first))
+                    }
+                }
+            }
+        }
+
+        viewModelScope.launch(Dispatchers.Main) {
+            if(filesResultsSource.isEmpty()) {
+                showNoSearchResultsIfGone()
+            } else {
+                fileResults.set(filesResultsSource, { left, right -> left.id == right.id })
+            }
+        }
+    }
+
+    fun newSearch(input: String) {
+        hideNoSearchResultsIfVisible()
         showProgressSpinnerIfGone()
 
         viewModelScope.launch(Dispatchers.IO) {
-            val searchResult = CoreModel.search(query)
-
-            if (searchResult is Err) {
-                _updateSearchUI.value = UpdateSearchUI.Error(searchResult.error.toLbError(getRes()))
-            }
-        }
-    }
-
-    private fun endSearch() {
-        val endSearchResult = CoreModel.endSearch()
-
-        if (endSearchResult is Err) {
-            _updateSearchUI.value = UpdateSearchUI.Error(endSearchResult.error.toLbError(getRes()))
-        }
-    }
-
-    // used by core over ffi
-    fun startOfSearchQuery() {
-        viewModelScope.launch(Dispatchers.Main) {
-            filesResultsSource.clear()
-            fileResults.clear()
-
-            showProgressSpinnerIfGone()
-            hideNoSearchResultsIfVisible()
-        }
-    }
-
-    // used by core over ffi
-    fun addFileNameSearchResult(id: String, path: String, score: Int, matchedIndicesJson: String) {
-        val (parentPathSpan, fileNameSpan) = highlightMatchedPathParts(path, matchedIndicesJson)
-
-        filesResultsSource.add(SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(id, parentPathSpan, fileNameSpan, score))
-        filesResultsSource.sortByDescending { it.score }
-
-        viewModelScope.launch(Dispatchers.Main) {
-            fileResults.set(filesResultsSource, { left, right -> left.id == right.id })
-        }
-    }
-
-    // used by core over ffi
-    fun addFileContentSearchResult(id: String, path: String, contentMatchesJson: String) {
-        val (parentPath, fileName) = getPathAndParentFile(path)
-        val contentMatches = highlightMatchedParagraph(contentMatchesJson)
-
-        for (match in contentMatches) {
-            filesResultsSource.add(SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(id, parentPath, fileName, match.second, match.first))
-        }
-
-        filesResultsSource.sortByDescending { it.score }
-
-        viewModelScope.launch(Dispatchers.Main) {
-            fileResults.set(filesResultsSource, { left, right -> left.id == right.id })
-        }
-    }
-
-    // used by core over ffi
-    fun endOfSearchQuery() {
-        viewModelScope.launch(Dispatchers.Main) {
-            hideProgressSpinnerIfVisible()
-
-            if (fileResults.isEmpty() && lastQuery.isNotEmpty()) {
-                showNoSearchResultsIfGone()
+            try {
+                processSearchResults(Lb.search(input))
+            } catch (err: LbError) {
+                _updateSearchUI.postValue(UpdateSearchUI.Error(err))
             }
         }
     }
@@ -153,11 +122,9 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 
     private fun highlightMatchedPathParts(
         path: String,
-        matchedIndicesJson: String
+        matchedIndices: IntArray
     ): Pair<SpannableString, SpannableString> {
         val (parentPathSpan, fileNameSpan) = getPathAndParentFile(path)
-
-        val matchedIndices: List<Int> = Json.decodeFromString(matchedIndicesJson)
 
         for (index in matchedIndices) {
             if (index < parentPathSpan.length) {
@@ -181,9 +148,8 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     }
 
     private fun highlightMatchedParagraph(
-        contentMatchesJson: String
+        contentMatches: Array<ContentMatch>
     ): List<Pair<SpannableString, Int>> {
-        val contentMatches: List<ContentMatch> = Json.decodeFromString(contentMatchesJson)
         val paragraphsSpan: MutableList<Pair<SpannableString, Int>> = mutableListOf()
 
         for (contentMatch in contentMatches) {
@@ -210,7 +176,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     }
 
     override fun onCleared() {
-        endSearch()
+
     }
 }
 

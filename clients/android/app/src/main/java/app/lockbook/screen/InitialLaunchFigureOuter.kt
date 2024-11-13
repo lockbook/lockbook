@@ -8,12 +8,10 @@ import app.lockbook.R
 import app.lockbook.databinding.SplashScreenBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.BiometricModel
-import app.lockbook.model.CoreModel
 import app.lockbook.model.VerificationItem
-import app.lockbook.util.CoreError
-import app.lockbook.util.GetAccountError
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
+import net.lockbook.Lb
+import net.lockbook.LbError
+import net.lockbook.LbError.LbEC
 import java.lang.ref.WeakReference
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
@@ -35,16 +33,15 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
     }
 
     private fun handleAccountState() {
-        when (val getAccountResult = CoreModel.getAccount()) {
-            is Ok -> startFromExistingAccount()
-            is Err -> when (val error = getAccountResult.error) {
-                is CoreError.UiError -> when (error.content) {
-                    GetAccountError.NoAccount -> {
-                        startActivity(Intent(this, OnBoardingActivity::class.java))
-                        finish()
-                    }
-                }
-                is CoreError.Unexpected -> alertModel.notifyError(error.toLbError(resources))
+        try {
+            Lb.getAccount()
+            startFromExistingAccount()
+        } catch (err: LbError) {
+            if(err.kind == LbEC.AccountNonexistent) {
+                startActivity(Intent(this, OnBoardingActivity::class.java))
+                finish()
+            } else {
+                alertModel.notifyError(err)
             }
         }
     }

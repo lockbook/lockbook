@@ -78,14 +78,14 @@ class SearchDocumentsFragment : Fragment() {
 
         binding.searchDocumentsSearch.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
-                model.newSearch(query)
+                model.newSearch(query ?: "")
                 binding.searchDocumentsSearch.clearFocus()
 
                 return true
             }
 
             override fun onQueryTextChange(newText: String?): Boolean {
-                model.newSearch(newText)
+                model.newSearch(newText ?: "")
 
                 return true
             }

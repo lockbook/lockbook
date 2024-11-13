@@ -17,7 +17,7 @@ use super::{
     parser,
     pen::{HIGHLIGHTER_STROKE_WIDTHS, PEN_STROKE_WIDTHS},
     selection::Selection,
-    Buffer, Eraser, Pen,
+    Buffer, CanvasSettings, Eraser, Pen,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
@@ -62,6 +62,8 @@ pub struct ToolContext<'a> {
     pub history: &'a mut History,
     pub allow_viewport_changes: &'a mut bool,
     pub is_touch_frame: bool,
+    pub settings: CanvasSettings,
+    pub is_locked_vw_pen_only: bool,
 }
 #[derive(Clone)]
 pub struct ColorSwatch {
@@ -268,10 +270,16 @@ impl Toolbar {
                     ui.style_mut().animation_time = 2.0;
 
                     let color = if self.active_tool == Tool::Pen {
-                        ThemePalette::resolve_dynamic_color(self.pen.active_color, ui)
-                            .gamma_multiply(0.2)
+                        ThemePalette::resolve_dynamic_color(
+                            self.pen.active_color,
+                            ui.visuals().dark_mode,
+                        )
+                        .gamma_multiply(0.2)
                     } else if self.active_tool == Tool::Highlighter {
-                        ThemePalette::resolve_dynamic_color(self.highlighter.active_color, ui)
+                        ThemePalette::resolve_dynamic_color(
+                            self.highlighter.active_color,
+                            ui.visuals().dark_mode,
+                        )
                     } else {
                         ui.visuals().text_color().gamma_multiply(0.2)
                     };
@@ -714,8 +722,9 @@ fn show_color_swatches(
     ui: &mut egui::Ui, colors: Vec<(egui::Color32, egui::Color32)>, pen: &mut Pen,
 ) {
     colors.iter().for_each(|c| {
-        let color = ThemePalette::resolve_dynamic_color(*c, ui);
-        let active_color = ThemePalette::resolve_dynamic_color(pen.active_color, ui);
+        let color = ThemePalette::resolve_dynamic_color(*c, ui.visuals().dark_mode);
+        let active_color =
+            ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode);
         let color_btn = show_color_btn(ui, color, active_color);
         if color_btn.clicked() || color_btn.drag_started() {
             pen.active_color = *c;
@@ -747,7 +756,7 @@ fn show_color_btn(
 fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
     let preview_stroke = egui::Stroke {
         width: pen.active_stroke_width * buffer.master_transform.sx,
-        color: ThemePalette::resolve_dynamic_color(pen.active_color, ui)
+        color: ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode)
             .gamma_multiply(pen.active_opacity),
     };
 

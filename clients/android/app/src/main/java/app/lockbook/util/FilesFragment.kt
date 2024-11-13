@@ -1,5 +1,7 @@
 package app.lockbook.util
 
+import net.lockbook.File
+
 interface FilesFragment {
     fun refreshFiles()
     fun unselectFiles()

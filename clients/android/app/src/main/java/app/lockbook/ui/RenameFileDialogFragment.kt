@@ -8,17 +8,16 @@ import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.databinding.DialogRenameFileBinding
-import app.lockbook.model.CoreModel
 import app.lockbook.model.FinishedAction
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.exhaustive
 import app.lockbook.util.requestKeyboardFocus
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
+import net.lockbook.Lb
+import net.lockbook.LbError
 
 class RenameFileDialogFragment : DialogFragment() {
     private lateinit var binding: DialogRenameFileBinding
@@ -65,20 +64,16 @@ class RenameFileDialogFragment : DialogFragment() {
 
     private fun onButtonPositive() {
         uiScope.launch(Dispatchers.IO) {
-            val renameFileResult = CoreModel.renameFile(file.id, binding.renameFile.text.toString())
-
-            withContext(Dispatchers.Main) {
-                when (renameFileResult) {
-                    is Ok -> {
-                        workspaceModel._finishedAction.postValue(FinishedAction.Rename(file.id, binding.renameFile.text.toString()))
-                        dismiss()
-                    }
-                    is Err -> binding.renameFileError.setText(
-                        renameFileResult.error.toLbError(
-                            resources
-                        ).msg
-                    )
-                }.exhaustive
+            try {
+                Lb.renameFile(file.id, binding.renameFile.text.toString())
+                withContext(Dispatchers.Main) {
+                    workspaceModel._finishedAction.postValue(FinishedAction.Rename(file.id, binding.renameFile.text.toString()))
+                    dismiss()
+                }
+            } catch (err: LbError) {
+                withContext(Dispatchers.Main) {
+                    binding.renameFileError.setText(err.msg)
+                }
             }
         }
     }

@@ -21,15 +21,17 @@ import app.lockbook.model.*
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialogFragment
 import app.lockbook.ui.UsageBarPreference
-import app.lockbook.util.GooglePlayAccountState
-import app.lockbook.util.PaymentPlatform
 import app.lockbook.util.exhaustive
 import app.lockbook.util.getSettingsActivity
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
+import net.lockbook.Lb
+import net.lockbook.LbError
+import net.lockbook.SubscriptionInfo.AppStore
+import net.lockbook.SubscriptionInfo.GooglePlay
+import net.lockbook.SubscriptionInfo.PaymentPlatform
+import net.lockbook.SubscriptionInfo.Stripe
 import java.io.File
 import java.lang.ref.WeakReference
 import kotlin.system.exitProcess
@@ -110,7 +112,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         val maybePaymentPlatform = settingsInfo.subscriptionInfo?.paymentPlatform
 
         val isPremium = settingsInfo.usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES
-        val isOkState = (maybePaymentPlatform as? PaymentPlatform.GooglePlay)?.accountState == GooglePlayAccountState.Ok || (maybePaymentPlatform as? PaymentPlatform.Stripe) != null
+        val isOkState = (maybePaymentPlatform as? GooglePlay)?.accountState == GooglePlay.GooglePlayAccountState.Ok || (maybePaymentPlatform as? Stripe) != null || (maybePaymentPlatform as? AppStore)?.accountState == AppStore.AppStoreAccountState.Ok
 
         findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = isPremium
         findPreference<Preference>(getString(R.string.cancel_subscription_key))!!.isVisible = isPremium && isOkState
@@ -215,38 +217,36 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun exportAccountQR() {
-        when (val exportResult = CoreModel.exportAccount()) {
-            is Ok -> {
-                val bitmap = BarcodeEncoder().encodeBitmap(
-                    exportResult.value,
-                    BarcodeFormat.QR_CODE,
-                    400,
-                    400
-                )
+        try {
+            val bitmap = BarcodeEncoder().encodeBitmap(
+                Lb.exportAccountPrivateKey(),
+                BarcodeFormat.QR_CODE,
+                400,
+                400
+            )
 
-                val qrCodeView = layoutInflater.inflate(
-                    R.layout.popup_window_qr_code,
-                    view as ViewGroup,
-                    false
-                )
-                qrCodeView.findViewById<ImageView>(R.id.qr_code).setImageBitmap(bitmap)
-                val popUpWindow = PopupWindow(qrCodeView, 900, 900, true)
-                popUpWindow.showAtLocation(view, Gravity.CENTER, 0, 0)
-            }
-            is Err -> alertModel.notifyError(exportResult.error.toLbError(resources))
-        }.exhaustive
+            val qrCodeView = layoutInflater.inflate(
+                R.layout.popup_window_qr_code,
+                view as ViewGroup,
+                false
+            )
+            qrCodeView.findViewById<ImageView>(R.id.qr_code).setImageBitmap(bitmap)
+            val popUpWindow = PopupWindow(qrCodeView, 900, 900, true)
+            popUpWindow.showAtLocation(view, Gravity.CENTER, 0, 0)
+        } catch (err: LbError) {
+            alertModel.notifyError(err)
+        }
     }
 
     private fun exportAccountRaw() {
-        when (val exportResult = CoreModel.exportAccount()) {
-            is Ok -> {
-                val clipBoard: ClipboardManager =
-                    requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val clipBoardData = ClipData.newPlainText("account string", exportResult.value)
-                clipBoard.setPrimaryClip(clipBoardData)
-                alertModel.notify(getString(R.string.settings_export_account_copied))
-            }
-            is Err -> alertModel.notifyError(exportResult.error.toLbError(resources))
-        }.exhaustive
+        try {
+            val clipBoard: ClipboardManager =
+                requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clipBoardData = ClipData.newPlainText("account string", Lb.exportAccountPrivateKey())
+            clipBoard.setPrimaryClip(clipBoardData)
+            alertModel.notify(getString(R.string.settings_export_account_copied))
+        } catch (err: LbError) {
+            alertModel.notifyError(err)
+        }
     }
 }

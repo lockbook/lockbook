@@ -2,10 +2,10 @@ package app.lockbook.model
 
 import androidx.lifecycle.LiveData
 import app.lockbook.util.*
-import com.github.michaelbull.result.*
-import com.github.michaelbull.result.Ok
+import net.lockbook.Lb
+import net.lockbook.SyncProgress
 
-class SyncModel {
+class SyncModel : SyncProgress {
     var syncStatus: SyncStatus = SyncStatus.NotSyncing
 
     private val _notifySyncStepInfo = SingleMutableLiveData<SyncStepInfo>()
@@ -13,17 +13,16 @@ class SyncModel {
     val notifySyncStepInfo: LiveData<SyncStepInfo>
         get() = _notifySyncStepInfo
 
-    fun trySync(): Result<Unit, CoreError<out UiCoreError>> =
+    fun trySync() {
         if (syncStatus is SyncStatus.NotSyncing) {
-            val syncResult = sync()
-            syncStatus = SyncStatus.NotSyncing
-            syncResult
-        } else {
-            Ok(Unit)
-        }
+            syncStatus = SyncStatus.StartingSync
+            Lb.sync(this)
 
-    // used by core over ffi
-    fun updateSyncProgressAndTotal(
+            syncStatus = SyncStatus.NotSyncing
+        }
+    }
+
+    override fun updateSyncProgressAndTotal(
         total: Int,
         progress: Int,
         msg: String?
@@ -33,15 +32,6 @@ class SyncModel {
         syncStatus = newStatus
 
         _notifySyncStepInfo.postValue(syncProgress)
-    }
-
-    fun hasSyncWork(): Result<Boolean, CoreError<out UiCoreError>> {
-        return CoreModel.calculateWork().map { workCalculated -> workCalculated.workUnits.isNotEmpty() }
-    }
-
-    private fun sync(): Result<Unit, CoreError<out UiCoreError>> {
-        syncStatus = SyncStatus.StartingSync
-        return CoreModel.syncAll(this)
     }
 }
 

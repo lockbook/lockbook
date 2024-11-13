@@ -11,12 +11,13 @@ import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.getOrElse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import net.lockbook.File
+import net.lockbook.Lb
+import net.lockbook.LbError
+import net.lockbook.LbError.LbEC
 
 class FilesListViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -45,8 +46,10 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun checkUsage() {
         viewModelScope.launch(Dispatchers.IO) {
-            val usage = CoreModel.getUsage().getOrElse { error ->
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
+            val usage = try {
+                Lb.getUsage()
+            } catch (err: LbError) {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError((err)))
                 return@launch
             }
 
@@ -91,28 +94,23 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun startUpInRoot() {
-        when (val createAtRootResult = FileModel.createAtRoot(getContext())) {
-            is Ok -> {
-                val tempFileModel = createAtRootResult.value
-                if (tempFileModel == null) {
-                    _notifyUpdateFilesUI.postValue(UpdateFilesUI.SyncImport)
-                } else {
-                    fileModel = tempFileModel
+        try {
+            fileModel = FileModel.createAtRoot()
+            suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
+            files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
 
-                    suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
-                    files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-                    breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
 
-                    _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
-
-                    viewModelScope.launch(Dispatchers.IO) {
-                        maybeToggleSuggestedDocs()
-                    }
-                    refreshWorkInfo()
-                }
+            viewModelScope.launch(Dispatchers.IO) {
+                maybeToggleSuggestedDocs()
             }
-            is Err -> {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(createAtRootResult.error))
+            refreshWorkInfo()
+        } catch (err: LbError) {
+            if (err.kind == LbEC.RootNonexistent) {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.SyncImport)
+            } else {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
             }
         }
     }
@@ -137,15 +135,15 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 fileName = "${getString(R.string.note)}-$iter.md"
             } while (fileModel.children.any { it.name == fileName })
 
-            when (val createFileResult = CoreModel.createFile(fileModel.parent.id, fileName, FileType.Document)) {
-                is Ok -> {
-                    withContext(Dispatchers.Main) {
-                        workspaceModel._openFile.postValue(Pair(createFileResult.value.id, true))
-                    }
-
-                    refreshFiles()
+            try {
+                val newFile = Lb.createFile(fileName, fileModel.parent.id, true)
+                withContext(Dispatchers.Main) {
+                    workspaceModel._openFile.postValue(Pair(newFile.id, true))
                 }
-                is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(createFileResult.error.toLbError(getRes())))
+
+                refreshFiles()
+            } catch (err: LbError) {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
             }
         }
     }
@@ -156,9 +154,10 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
             maybeToggleSuggestedDocs()
 
-            localChanges = CoreModel.getLocalChanges().getOrElse { error ->
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
-                return@launch
+            try {
+                localChanges = Lb.getLocalChanges().toHashSet()
+            } catch (err: LbError) {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
             }
 
             viewModelScope.launch(Dispatchers.Main) {
@@ -210,34 +209,34 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun fileOpened(id: String) {
-        if (fileModel.verifyOpenFile(id)) {
-            viewModelScope.launch(Dispatchers.Main) {
-                files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-            }
+        try {
+            if (fileModel.verifyOpenFile(id)) {
+                viewModelScope.launch(Dispatchers.Main) {
+                    files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+                }
 
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+                breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+            }
+        } catch (err: LbError) {
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
         }
     }
 
     private fun refreshFiles() {
-        val refreshChildrenResult = fileModel.refreshFiles()
-        if (refreshChildrenResult is Err) {
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(refreshChildrenResult.error.toLbError(getRes())))
-            return
-        }
+        try {
+            fileModel.refreshFiles()
+            localChanges = Lb.getLocalChanges().toHashSet()
 
-        localChanges = CoreModel.getLocalChanges().getOrElse { error ->
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
-            return
-        }
+            viewModelScope.launch(Dispatchers.Main) {
+                files.deselectAll()
+                files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+                suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
 
-        viewModelScope.launch(Dispatchers.Main) {
-            files.deselectAll()
-            files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-            suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
-
-            _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
+                _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
+            }
+        } catch (err: LbError) {
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
         }
     }
 
@@ -245,48 +244,45 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         val sidebarInfo = UpdateFilesUI.UpdateSideBarInfo()
         maybeLastSidebarInfo = sidebarInfo
 
-        when (val usageResult = CoreModel.getUsage()) {
-            is Ok -> sidebarInfo.usageMetrics = usageResult.value
-            is Err -> if ((usageResult.error as? CoreError.UiError)?.content != GetUsageError.CouldNotReachServer) {
-                _notifyUpdateFilesUI.postValue(
-                    UpdateFilesUI.NotifyError(usageResult.error.toLbError(getRes()))
-                )
+        try {
+            sidebarInfo.usageMetrics = Lb.getUsage()
+        } catch (err: LbError) {
+            if (err.kind != LbEC.ServerUnreachable) {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
             }
         }
 
         _notifyUpdateFilesUI.postValue(sidebarInfo)
 
-        when (val getLocalChangesResult = CoreModel.getLocalChanges()) {
-            is Ok -> sidebarInfo.localDirtyFilesCount = getLocalChangesResult.value.size
-            is Err -> {
-                return _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(getLocalChangesResult.error.toLbError(getRes())))
+        try {
+            sidebarInfo.localDirtyFilesCount = Lb.getLocalChanges().size
+        } catch (err: LbError) {
+            return _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
+        }
+
+        _notifyUpdateFilesUI.postValue(sidebarInfo)
+
+        try {
+            val syncWork = Lb.calculateWork()
+            sidebarInfo.lastSynced = Lb.getTimestampHumanString(syncWork.latestServerTS)
+            sidebarInfo.serverDirtyFilesCount = syncWork.workUnits.filter { !it.isLocalChange }.size
+
+            serverChanges = syncWork.workUnits.filter { !it.isLocalChange }.map { it.id }.toHashSet()
+            viewModelScope.launch(Dispatchers.Main) {
+                files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+            }
+        } catch (err: LbError) {
+            if (err.kind != LbEC.ServerUnreachable) {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
             }
         }
 
         _notifyUpdateFilesUI.postValue(sidebarInfo)
 
-        when (val calculateWorkResult = CoreModel.calculateWork()) {
-            is Ok -> {
-                sidebarInfo.lastSynced = CoreModel.convertToHumanDuration(
-                    calculateWorkResult.value.latestServerTS
-                )
-                sidebarInfo.serverDirtyFilesCount = calculateWorkResult.value.workUnits.filter { it.tag == WorkUnitTag.ServerChange }.size
-
-                serverChanges = calculateWorkResult.value.workUnits.filter { it.tag == WorkUnitTag.ServerChange }.map { it.content }.toHashSet()
-                viewModelScope.launch(Dispatchers.Main) {
-                    files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-                }
-            }
-            is Err -> if ((calculateWorkResult.error as? CoreError.UiError)?.content != CalculateWorkError.CouldNotReachServer) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(calculateWorkResult.error.toLbError(getRes())))
-            }
-        }
-
-        _notifyUpdateFilesUI.postValue(sidebarInfo)
-
-        when (val pendingSharesResult = CoreModel.getPendingShares()) {
-            is Ok -> sidebarInfo.hasPendingShares = pendingSharesResult.value.isNotEmpty()
-            is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(pendingSharesResult.error.toLbError(getRes())))
+        try {
+            sidebarInfo.hasPendingShares = Lb.getPendingShares().isNotEmpty()
+        } catch (err: LbError) {
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
         }
 
         _notifyUpdateFilesUI.postValue(sidebarInfo)

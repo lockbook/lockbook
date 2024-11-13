@@ -1,11 +1,10 @@
-use std::time::{Duration, Instant};
+use std::collections::HashMap;
 
+use egui::TouchPhase;
 use resvg::usvg::Transform;
 use tracing::trace;
 
-use crate::tab::svg_editor::util::is_multi_touch;
-
-use super::{toolbar::ToolContext, util::get_touch_positions, Buffer};
+use super::{toolbar::ToolContext, Buffer};
 
 #[derive(Default)]
 pub struct GestureHandler {
@@ -15,132 +14,122 @@ pub struct GestureHandler {
     pub is_pan_y_locked: bool,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct Gesture {
     /// min, max
-    potential_zoom: f32,
-    potential_pan: egui::Vec2,
-    last_applied_shortcut: Option<(Shortcut, Instant)>,
-    total_applied_shortcuts: usize,
-    num_touches: usize,
-    start_time: Instant, // can't trust egui's time that's `Relative to whatever. Used for animation.`
+    touch_infos: HashMap<u64, TouchInfo>,
 }
 
-impl Gesture {
-    fn new(ui: &mut egui::Ui) -> Self {
-        let zoom_delta = ui.input(|r| r.zoom_delta());
-        let pan = get_pan(ui).unwrap_or_default();
-        let res = Gesture {
-            potential_zoom: zoom_delta,
-            potential_pan: pan,
-            start_time: Instant::now(),
-            last_applied_shortcut: None,
-            total_applied_shortcuts: 0,
-            num_touches: if let Some(multi_touch) = ui.input(|r| r.multi_touch()) {
-                multi_touch.num_touches
-            } else {
-                get_touch_positions(ui).len()
-            },
-        };
-        trace!(res.num_touches, "initialed num touch");
-        res
-    }
+#[derive(Clone, Copy, Debug, Default)]
+struct TouchInfo {
+    is_active: bool,
+    lifetime_distance: f32,
+    frame_delta: egui::Vec2,
+    last_pos: Option<egui::Pos2>,
 }
+
 #[derive(PartialEq, Clone, Copy, Debug)]
 enum Shortcut {
     Undo,
     Redo,
 }
-const ZOOM_THRESH: f32 = 0.05;
-const PAN_THRESH: egui::Vec2 = egui::vec2(10.0, 10.0);
-const DECISION_TIME: Duration = Duration::from_millis(800);
 
 impl GestureHandler {
     pub fn handle_input(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext) {
-        if !*gesture_ctx.allow_viewport_changes && self.current_gesture.is_none() {
-            return;
-        }
-
-        // populate gesture on first multi frame
-        if is_multi_touch(ui) {
-            if self.current_gesture.is_none() {
-                trace!("setting new gesture");
-                self.current_gesture = Some(Gesture::new(ui))
-            }
-        } else if let Some(prev_gesture) = &mut self.current_gesture {
-            trace!("gesture released in the last frame");
-            if !is_potential_viewport_change_higher_than_threshold(prev_gesture)
-                && prev_gesture.total_applied_shortcuts == 0
-            {
-                trace!("starting shortcut handler");
-                self.apply_shortcut(gesture_ctx);
-                ui.ctx().request_repaint();
-            }
+        if !*gesture_ctx.allow_viewport_changes {
             self.current_gesture = None;
-        }
-
-        if let Some(current_gesture) = self.current_gesture {
-            if current_gesture.total_applied_shortcuts == 0 {
-                self.change_viewport(ui, gesture_ctx);
-            }
-        } else {
-            self.change_viewport(ui, gesture_ctx);
-        }
-
-        if let Some(multi_touch) = ui.input(|r| r.multi_touch()) {
-            if let Some(current_touch) = &mut self.current_gesture {
-                current_touch.num_touches = current_touch.num_touches.max(multi_touch.num_touches);
-                trace!(current_touch.num_touches, "setting num touches");
-            }
-        }
-
-        let current_gesture = match self.current_gesture {
-            Some(ref mut val) => val,
-            None => return,
-        };
-
-        if is_potential_viewport_change_higher_than_threshold(current_gesture) {
             return;
         }
 
-        let elapsed_gesture_time = Instant::now() - current_gesture.start_time;
-        if elapsed_gesture_time < DECISION_TIME {
-            trace!("still collecting more potential viewport change");
-            ui.ctx().request_repaint();
-            return;
+        if let Some(current_gesture) = &mut self.current_gesture {
+            for info in current_gesture.touch_infos.values_mut() {
+                info.frame_delta = egui::vec2(0.0, 0.0);
+            }
         }
 
-        let should_apply_shortcut =
-            if let Some(last_applied_shortcut) = &current_gesture.last_applied_shortcut {
-                if current_gesture.total_applied_shortcuts == 0 {
-                    trace!("this is first gesture, apply auto");
-                    true
-                } else {
-                    let shortcut_cool_off = if current_gesture.total_applied_shortcuts > 4 {
-                        Duration::from_millis(70)
-                    } else {
-                        Duration::from_millis(200)
-                    };
+        ui.input(|r| {
+            // go through the touches and reset how much they moved in the last frame
+            for e in r.events.iter() {
+                self.handle_event(e, gesture_ctx)
+            }
+        });
+        self.change_viewport(ui, gesture_ctx);
+    }
 
-                    let time_since_last_shortcut = Instant::now() - last_applied_shortcut.1;
-                    trace!(?time_since_last_shortcut, "time frame between last shortcut");
-                    time_since_last_shortcut > shortcut_cool_off
+    fn handle_event(&mut self, event: &egui::Event, gesture_ctx: &mut ToolContext) {
+        if let egui::Event::Touch { device_id: _, id, phase, pos, force } = *event {
+            if force.is_some() {
+                return;
+            }
+            if let Some(current_gest) = &mut self.current_gesture {
+                match phase {
+                    TouchPhase::Start => {
+                        // add this to the list of touches in the gesture
+                        if current_gest
+                            .touch_infos
+                            .insert(
+                                id.0,
+                                TouchInfo {
+                                    last_pos: Some(pos),
+                                    is_active: true,
+                                    ..Default::default()
+                                },
+                            )
+                            .is_some()
+                        {
+                            trace!("duplicate start for a touch id")
+                        }
+                    }
+                    TouchPhase::Move => {
+                        if let Some(touch_info) = current_gest.touch_infos.get_mut(&id.0) {
+                            if let Some(last_pos) = touch_info.last_pos {
+                                touch_info.frame_delta = pos - last_pos;
+                                touch_info.lifetime_distance += last_pos.distance(pos);
+                            }
+                            touch_info.last_pos = Some(pos);
+                        }
+                    }
+                    TouchPhase::End => {
+                        // mark this touch as inactive in touches hashmap
+                        if let Some(touch_info) = current_gest.touch_infos.get_mut(&id.0) {
+                            touch_info.is_active = false;
+                        }
+
+                        // if this is the last active touch then end the gesture
+                        if current_gest
+                            .touch_infos
+                            .values()
+                            .all(|info| !info.is_active)
+                        {
+                            self.apply_shortcut(gesture_ctx);
+                            self.current_gesture = None;
+                        }
+                    }
+                    TouchPhase::Cancel => {
+                        // don't just mark as inactive insdies fof touches but completly remove it
+                        if current_gest.touch_infos.remove(&id.0).is_none() {
+                            trace!(?id, "tryed to cancel touch  which is not in current gesture",);
+                        }
+                    }
                 }
-            } else {
-                trace!("there's no last gesture");
-                true
-            };
+            } else if phase == egui::TouchPhase::Start {
+                let mut touch_infos = HashMap::new();
+                touch_infos.insert(
+                    id.0,
+                    TouchInfo { last_pos: Some(pos), is_active: true, ..Default::default() },
+                );
 
-        if should_apply_shortcut {
-            self.apply_shortcut(gesture_ctx);
+                self.current_gesture = Some(Gesture { touch_infos })
+            } else if phase == egui::TouchPhase::Cancel {
+                trace!(?id, "no gesture in progress but tried to cancel touch");
+            }
         }
-        ui.ctx().request_repaint();
     }
 
     fn change_viewport(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext<'_>) {
         let zoom_delta = ui.input(|r| r.zoom_delta());
         let is_zooming = zoom_delta != 1.0;
-        let pan = get_pan(ui);
+        let pan = self.get_pan(ui, gesture_ctx);
 
         let touch_positions = get_touch_positions(ui);
         let pos_cardinality = touch_positions.len();
@@ -158,7 +147,7 @@ impl GestureHandler {
                     if gesture_ctx.painter.clip_rect().contains(cp) {
                         cp
                     } else {
-                        return; // todo: check this doesn't break zoom on touch devices
+                        return;
                     }
                 }
                 None => egui::Pos2::ZERO,
@@ -183,42 +172,76 @@ impl GestureHandler {
         if pan.is_some() || is_zooming {
             transform_canvas(gesture_ctx.buffer, t);
         }
-
-        if let Some(current_gesture) = &mut self.current_gesture {
-            current_gesture.potential_zoom *= (1.0 - zoom_delta).abs() + 1.0;
-            current_gesture.potential_pan += pan.unwrap_or_default().abs();
-        }
     }
+
     fn apply_shortcut(&mut self, gesture_ctx: &mut ToolContext<'_>) {
         let current_gesture = match self.current_gesture {
             Some(ref mut val) => val,
             None => return,
         };
 
-        let intended_shortcut = if current_gesture.num_touches == 2 {
+        if current_gesture
+            .touch_infos
+            .values()
+            .any(|info| info.lifetime_distance != 0.0)
+        {
+            return;
+        };
+        let num_touches = current_gesture.touch_infos.len();
+        let intended_shortcut = if num_touches == 2 {
             Shortcut::Undo
-        } else if current_gesture.num_touches == 3 {
+        } else if num_touches == 3 {
             Shortcut::Redo
         } else {
-            trace!(current_gesture.num_touches, "no configured for num touches");
+            trace!(num_touches, "no configured for num touches");
             return;
         };
 
-        if let Some(last_applied_shortcut) = &current_gesture.last_applied_shortcut {
-            if last_applied_shortcut.0 == intended_shortcut {
-                current_gesture.total_applied_shortcuts += 1;
-            } else {
-                current_gesture.total_applied_shortcuts = 1;
-            }
-        } else {
-            current_gesture.total_applied_shortcuts += 1
-        }
         match intended_shortcut {
             Shortcut::Undo => gesture_ctx.history.undo(gesture_ctx.buffer),
             Shortcut::Redo => gesture_ctx.history.redo(gesture_ctx.buffer),
         };
-        current_gesture.last_applied_shortcut = Some((intended_shortcut, Instant::now()));
-        trace!(current_gesture.num_touches, "applied gesture");
+        trace!(num_touches, "applied gesture");
+    }
+
+    fn get_pan(&self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext) -> Option<egui::Vec2> {
+        if let Some(current_gesture) = &self.current_gesture {
+            let mut active_touches = current_gesture.touch_infos.values().filter(|v| v.is_active);
+
+            if active_touches.clone().count() == 1 && gesture_ctx.settings.pencil_only_drawing {
+                let touch = active_touches.next().unwrap();
+                return Some(touch.frame_delta);
+            }
+        }
+        ui.input(|r| {
+            if r.raw_scroll_delta.x.abs() > 0.0 || r.raw_scroll_delta.y.abs() > 0.0 {
+                Some(r.raw_scroll_delta)
+            } else if let Some(touch_gesture) = r.multi_touch() {
+                if touch_gesture.translation_delta.x.abs() > 0.0
+                    || touch_gesture.translation_delta.y.abs() > 0.0
+                {
+                    Some(touch_gesture.translation_delta)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+    }
+
+    // todo: tech debt lol, should refactor the eraser instead of doing this
+    pub fn is_locked_vw_pen_only_draw(&self) -> bool {
+        if let Some(current_gesture) = &self.current_gesture {
+            current_gesture
+                .touch_infos
+                .values()
+                .filter(|v| v.is_active)
+                .count()
+                > 0
+        } else {
+            false
+        }
     }
 }
 
@@ -282,30 +305,6 @@ fn calc_elements_bounds(buffer: &mut Buffer) -> Option<egui::Rect> {
     }
 }
 
-fn is_potential_viewport_change_higher_than_threshold(current_gesture: &Gesture) -> bool {
-    current_gesture.potential_pan.x.abs() > PAN_THRESH.x
-        || current_gesture.potential_pan.y.abs() > PAN_THRESH.y
-        || (current_gesture.potential_zoom - 1.0).abs() > ZOOM_THRESH
-}
-
-fn get_pan(ui: &mut egui::Ui) -> Option<egui::Vec2> {
-    ui.input(|r| {
-        if r.raw_scroll_delta.x.abs() > 0.0 || r.raw_scroll_delta.y.abs() > 0.0 {
-            Some(r.raw_scroll_delta)
-        } else if let Some(touch_gesture) = r.multi_touch() {
-            if touch_gesture.translation_delta.x.abs() > 0.0
-                || touch_gesture.translation_delta.y.abs() > 0.0
-            {
-                Some(touch_gesture.translation_delta)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    })
-}
-
 pub fn zoom_percentage_to_transform(
     zoom_percentage: f32, buffer: &mut Buffer, ui: &mut egui::Ui,
 ) -> Transform {
@@ -316,4 +315,19 @@ pub fn zoom_percentage_to_transform(
             (1.0 - zoom_delta) * ui.ctx().screen_rect().center().x,
             (1.0 - zoom_delta) * ui.ctx().screen_rect().center().y,
         );
+}
+
+fn get_touch_positions(ui: &mut egui::Ui) -> HashMap<u64, egui::Pos2> {
+    ui.input(|r| {
+        let mut touch_positions = HashMap::new();
+        for e in r.events.iter() {
+            if let egui::Event::Touch { device_id: _, id, phase, pos, force: _ } = *e {
+                if phase != egui::TouchPhase::Cancel {
+                    touch_positions.insert(id.0, pos);
+                }
+            }
+        }
+
+        touch_positions
+    })
 }

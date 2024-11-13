@@ -86,8 +86,9 @@ impl SearchResult {
 }
 
 impl Lb {
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
-        if self.search.docs.read().await.is_empty() {
+        if self.search.docs.read().await.is_empty() || !self.config.background_work {
             self.build_index().await?;
         }
 
@@ -128,6 +129,7 @@ impl Lb {
         Ok(results)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn build_index(&self) -> LbResult<()> {
         let ts = clock::get_time().0 as u64;
         self.search.last_built.store(ts, Ordering::SeqCst);
@@ -196,34 +198,37 @@ impl Lb {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self))]
     /// ensure the index is not built more frequently than every 5s
     pub fn spawn_build_index(&self) {
-        tokio::spawn({
-            let lb = self.clone();
-            async move {
-                let ts = clock::get_time().0 as u64;
-                let since_last = ts - lb.search.last_built.load(Ordering::SeqCst);
-                if since_last < 5000 {
-                    if lb.search.scheduled_build.load(Ordering::SeqCst) {
-                        // index is pretty fresh, and there is a build scheduled in the future, do
-                        // nothing
-                        return;
-                    } else {
-                        // wait until about 5s since last build and then try the whole routine
-                        // again
-                        lb.search.scheduled_build.store(true, Ordering::SeqCst);
-                        sleep(Duration::from_millis(5001 - since_last)).await;
-                        lb.spawn_build_index();
+        if self.config.background_work {
+            tokio::spawn({
+                let lb = self.clone();
+                async move {
+                    let ts = clock::get_time().0 as u64;
+                    let since_last = ts - lb.search.last_built.load(Ordering::SeqCst);
+                    if since_last < 5000 {
+                        if lb.search.scheduled_build.load(Ordering::SeqCst) {
+                            // index is pretty fresh, and there is a build scheduled in the future, do
+                            // nothing
+                            return;
+                        } else {
+                            // wait until about 5s since last build and then try the whole routine
+                            // again
+                            lb.search.scheduled_build.store(true, Ordering::SeqCst);
+                            sleep(Duration::from_millis(5001 - since_last)).await;
+                            lb.spawn_build_index();
+                        }
+                    }
+
+                    // if we make it here there are no scheduled builds reset that flag
+                    lb.search.scheduled_build.store(false, Ordering::SeqCst);
+                    if let Err(e) = lb.build_index().await {
+                        error!("Error building search index: {:?}", e)
                     }
                 }
-
-                // if we make it here there are no scheduled builds reset that flag
-                lb.search.scheduled_build.store(false, Ordering::SeqCst);
-                if let Err(e) = lb.build_index().await {
-                    error!("Error building search index: {:?}", e)
-                }
-            }
-        });
+            });
+        }
     }
 }
 

@@ -18,7 +18,7 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
-import com.github.michaelbull.result.unwrap
+import net.lockbook.Lb
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -97,8 +97,9 @@ class MainScreenActivity : AppCompatActivity() {
                     is BillingEvent.SuccessfulPurchase -> {
                         model.confirmSubscription(billingEvent.purchaseToken, billingEvent.accountId)
                     }
-                    is BillingEvent.NotifyError,
-                    BillingEvent.NotifyUnrecoverableError -> {}
+                    is BillingEvent.NotifyError -> alertModel.notifyError(billingEvent.error)
+                    is BillingEvent.NotifyUnrecoverableError -> alertModel.notifyBasicError()
+                    is BillingEvent.NotifyErrorMsg -> alertModel.notify(billingEvent.error)
                 }.exhaustive
             }
         }
@@ -185,11 +186,11 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
         workspaceModel.newFolderBtnPressed.observe(this) {
-            model.launchTransientScreen(TransientScreen.Create(CoreModel.getRoot().unwrap().id, ExtendedFileType.Folder))
+            model.launchTransientScreen(TransientScreen.Create(Lb.getRoot().id, ExtendedFileType.Folder))
         }
 
         workspaceModel.tabTitleClicked.observe(this) {
-            model.launchTransientScreen(TransientScreen.Rename(CoreModel.getFileById(workspaceModel.selectedFile.value!!).unwrap()))
+            model.launchTransientScreen(TransientScreen.Rename(Lb.getFileById(workspaceModel.selectedFile.value!!)))
         }
 
         workspaceModel.currentTab.observe(this) { tab ->

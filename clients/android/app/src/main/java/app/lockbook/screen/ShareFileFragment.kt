@@ -9,10 +9,11 @@ import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.databinding.FragmentShareFileBinding
 import app.lockbook.model.*
-import app.lockbook.util.*
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import com.google.android.material.chip.Chip
+import net.lockbook.File
+import net.lockbook.File.ShareMode
+import net.lockbook.Lb
+import net.lockbook.LbError
 import java.lang.ref.WeakReference
 
 class ShareFileFragment : Fragment() {
@@ -47,15 +48,16 @@ class ShareFileFragment : Fragment() {
             activityModel.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
         }
 
-        when (val getAccountResult = CoreModel.getAccount()) {
-            is Ok ->
-                if (admittedUsernames.any { username ->
-                    username == getAccountResult.value.username
+        try {
+            val account = Lb.getAccount()
+            if (admittedUsernames.any { username ->
+                    username == account.username
                 }
-                ) {
-                    binding.shareFileAddUser.visibility = View.VISIBLE
-                }
-            is Err -> alertModel.notifyError(getAccountResult.error.toLbError(requireContext().resources))
+            ) {
+                binding.shareFileAddUser.visibility = View.VISIBLE
+            }
+        } catch (err: LbError) {
+            alertModel.notifyError(err)
         }
 
         return binding.root
@@ -67,12 +69,12 @@ class ShareFileFragment : Fragment() {
             val modeString = binding.shareFileAccessMode.text.toString()
 
             if (username.isEmpty()) {
-                alertModel.notifyError(LbError.newUserError(getString(R.string.no_username)))
+                alertModel.notifyWithToast(getString(R.string.no_username))
                 return@setOnClickListener
             }
 
             if (modeString.isEmpty()) {
-                alertModel.notifyError(LbError.newUserError(getString(R.string.no_access_mode)))
+                alertModel.notifyWithToast(getString(R.string.no_access_mode))
                 return@setOnClickListener
             }
 
@@ -80,17 +82,17 @@ class ShareFileFragment : Fragment() {
                 getString(R.string.share_mode_read) -> ShareMode.Read
                 getString(R.string.share_mode_write) -> ShareMode.Write
                 else -> {
-                    alertModel.notifyError(LbError.newUserError(getString(R.string.basic_error)))
+                    alertModel.notifyWithToast(getString(R.string.basic_error))
                     return@setOnClickListener
                 }
             }
 
-            when (val result = CoreModel.shareFile(file.id, username, mode)) {
-                is Ok -> {
-                    workspaceModel._sync.postValue(Unit)
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
-                }
-                is Err -> alertModel.notifyError(result.error.toLbError(resources))
+            try {
+                Lb.shareFile(file.id, username, mode == ShareMode.Write)
+                workspaceModel._sync.postValue(Unit)
+                activityModel.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
+            } catch (err: LbError) {
+                alertModel.notifyError(err)
             }
         }
 

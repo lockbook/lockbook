@@ -15,9 +15,11 @@ import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
+import net.lockbook.File
+import net.lockbook.File.FileType
+import net.lockbook.Lb
+import net.lockbook.LbError
 import java.lang.ref.WeakReference
 
 class PendingSharesFragment : Fragment() {
@@ -58,7 +60,7 @@ class PendingSharesFragment : Fragment() {
                     name.text = item.name
                     owner.text = item.lastModifiedBy
 
-                    val iconResource = when (item.fileType) {
+                    val iconResource = when (item.type) {
                         FileType.Document -> {
                             val extensionHelper = ExtensionHelper(item.name)
 
@@ -74,7 +76,7 @@ class PendingSharesFragment : Fragment() {
 
                     addShared.setOnClickListener {
                         val bundle = Bundle()
-                        bundle.putParcelable(CreateLinkFragment.CREATE_LINK_FILE_KEY, item)
+                        bundle.putString(CreateLinkFragment.CREATE_LINK_FILE_ID_KEY, item.id)
                         findNavController().navigate(R.id.action_create_link, bundle)
                     }
 
@@ -127,17 +129,19 @@ class PendingSharesFragment : Fragment() {
 
     private fun populatePendingShares() {
         uiScope.launch(Dispatchers.IO) {
-            when (val getPendingSharesResults = CoreModel.getPendingShares()) {
-                is Ok -> {
-                    withContext(Dispatchers.Main) {
-                        sharedFilesDataSource.set(FileModel.sortFiles(getPendingSharesResults.value))
 
-                        if (getPendingSharesResults.value.isEmpty()) {
-                            binding.sharedFilesNone.visibility = View.VISIBLE
-                        }
+            try {
+                val pendingShares = Lb.getPendingShares()
+
+                withContext(Dispatchers.Main) {
+                    sharedFilesDataSource.set(FileModel.sortFiles(pendingShares.toList()))
+
+                    if (pendingShares.isEmpty()) {
+                        binding.sharedFilesNone.visibility = View.VISIBLE
                     }
                 }
-                is Err -> alertModel.notifyError(getPendingSharesResults.error.toLbError(resources)) {
+            } catch (err: LbError) {
+                alertModel.notifyError(err) {
                     activity?.onBackPressed()
                 }
             }

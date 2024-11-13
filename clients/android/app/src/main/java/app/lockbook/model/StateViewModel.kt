@@ -5,10 +5,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.util.*
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import net.lockbook.File.FileType
+import net.lockbook.Lb
+import net.lockbook.LbError
 import java.io.File
 
 class StateViewModel(application: Application) : AndroidViewModel(application) {
@@ -45,40 +46,25 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         _updateMainScreenUI.postValue(uiUpdate)
     }
 
-    fun shareSelectedFiles(selectedFiles: List<app.lockbook.util.File>, appDataDir: File) {
+    fun shareSelectedFiles(selectedFiles: List<net.lockbook.File>, appDataDir: File) {
         viewModelScope.launch(Dispatchers.IO) {
-            val exportResult = exportImportModel.exportDocuments(selectedFiles, appDataDir)
-            if (exportResult is Err) {
-                _updateMainScreenUI.postValue(
-                    UpdateMainScreenUI.NotifyError(
-                        exportResult.error.toLbError(
-                            getRes()
-                        )
-                    )
-                )
-                return@launch
+            try {
+                exportImportModel.exportDocuments(selectedFiles, appDataDir)
+            } catch (err: LbError) {
+                _updateMainScreenUI.postValue(UpdateMainScreenUI.NotifyError(err))
             }
         }
     }
 
     fun confirmSubscription(purchaseToken: String, accountId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val confirmSubscriptionResult =
-                CoreModel.upgradeAccountGooglePlay(purchaseToken, accountId)
-
-            when (confirmSubscriptionResult) {
-                is Ok -> {
-                    _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowSubscriptionConfirmed)
-                }
-                is Err -> {
-                    _updateMainScreenUI.postValue(
-                        UpdateMainScreenUI.NotifyError(
-                            confirmSubscriptionResult.error.toLbError(
-                                getRes()
-                            )
-                        )
-                    )
-                }
+            try {
+                Lb.upgradeAccountGooglePlay(purchaseToken, accountId)
+                _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowSubscriptionConfirmed)
+            } catch (err: LbError) {
+                _updateMainScreenUI.postValue(
+                    UpdateMainScreenUI.NotifyError(err)
+                )
             }
         }
     }
@@ -90,13 +76,13 @@ sealed class ActivityScreen {
 }
 
 sealed class TransientScreen {
-    data class Move(val files: List<app.lockbook.util.File>) : TransientScreen()
-    data class Rename(val file: app.lockbook.util.File) : TransientScreen()
+    data class Move(val files: List<net.lockbook.File>) : TransientScreen()
+    data class Rename(val file: net.lockbook.File) : TransientScreen()
     data class Create(val parentId: String, val extendedFileType: ExtendedFileType) : TransientScreen()
-    data class Info(val file: app.lockbook.util.File) : TransientScreen()
+    data class Info(val file: net.lockbook.File) : TransientScreen()
     data class ShareExport(val files: List<File>) : TransientScreen()
-    data class ShareFile(val file: app.lockbook.util.File) : TransientScreen()
-    data class Delete(val files: List<app.lockbook.util.File>) : TransientScreen()
+    data class ShareFile(val file: net.lockbook.File) : TransientScreen()
+    data class Delete(val files: List<net.lockbook.File>) : TransientScreen()
 }
 
 sealed class UpdateMainScreenUI {

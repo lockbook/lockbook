@@ -2,17 +2,17 @@ package net.lockbook;
 
 // make every inner class static
 public class SubscriptionInfo {
-    PaymentPlatform paymentPlatform;
-    long periodEnd;
+    public PaymentPlatform paymentPlatform;
+    public long periodEnd;
     
     public static interface PaymentPlatform {}
 
     public static class Stripe implements PaymentPlatform {
-        String cardLast4Digits;
+        public String cardLast4Digits;
     }
 
     public static class GooglePlay implements PaymentPlatform {
-        GooglePlayAccountState accountState;
+        public GooglePlayAccountState accountState;
 
         public enum GooglePlayAccountState {
             Ok,
@@ -23,7 +23,7 @@ public class SubscriptionInfo {
     }
 
     public static class AppStore implements PaymentPlatform {
-        AppStoreAccountState accountState;
+        public AppStoreAccountState accountState;
 
         public enum AppStoreAccountState {
             Ok,

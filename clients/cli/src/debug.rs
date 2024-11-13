@@ -50,3 +50,10 @@ pub async fn whereami() -> Result<(), CliError> {
     println!("Core: {}", config.writeable_path);
     Ok(())
 }
+
+#[tokio::main]
+pub async fn debug_info() -> Result<(), CliError> {
+    let lb = &core().await?;
+    println!("{}", lb.debug_info("None Provided".to_string()).await?);
+    Ok(())
+}

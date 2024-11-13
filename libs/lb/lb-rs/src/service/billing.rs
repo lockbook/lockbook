@@ -9,6 +9,7 @@ use crate::model::errors::{core_err_unexpected, LbErrKind, LbResult};
 use crate::Lb;
 
 impl Lb {
+    #[instrument(level = "debug", skip(self, account_tier), err(Debug))]
     pub async fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> LbResult<()> {
         let account = self.get_account()?;
 
@@ -47,6 +48,7 @@ impl Lb {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn upgrade_account_google_play(
         &self, purchase_token: &str, account_id: &str,
     ) -> LbResult<()> {
@@ -80,6 +82,7 @@ impl Lb {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn upgrade_account_app_store(
         &self, original_transaction_id: String, app_account_token: String,
     ) -> LbResult<()> {
@@ -113,6 +116,7 @@ impl Lb {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn cancel_subscription(&self) -> LbResult<()> {
         let account = self.get_account()?;
 
@@ -141,6 +145,7 @@ impl Lb {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn get_subscription_info(&self) -> LbResult<Option<SubscriptionInfo>> {
         let account = self.get_account()?;
 

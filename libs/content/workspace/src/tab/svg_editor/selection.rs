@@ -78,7 +78,10 @@ impl Selection {
                 is_multi_touch,
             };
             for e in r.events.iter() {
-                if input_state.is_multi_touch {
+                if input_state.is_multi_touch
+                    || (selection_ctx.settings.pencil_only_drawing
+                        && selection_ctx.is_locked_vw_pen_only)
+                {
                     break;
                 }
                 if let Some(pos) = r.pointer.interact_pos() {
