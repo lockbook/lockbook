@@ -27,8 +27,6 @@ class ShareFileFragment : Fragment() {
     }
 
     companion object {
-        val admittedUsernames = listOf("parth", "smail", "travis", "adam", "steve", "krishma")
-
         val TAG = "ShareFileFragment"
     }
 
@@ -46,18 +44,6 @@ class ShareFileFragment : Fragment() {
 
         binding.materialToolbar.setNavigationOnClickListener {
             activityModel.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
-        }
-
-        try {
-            val account = Lb.getAccount()
-            if (admittedUsernames.any { username ->
-                    username == account.username
-                }
-            ) {
-                binding.shareFileAddUser.visibility = View.VISIBLE
-            }
-        } catch (err: LbError) {
-            alertModel.notifyError(err)
         }
 
         return binding.root

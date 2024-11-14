@@ -72,6 +72,7 @@ class PendingSharesFragment : Fragment() {
                             }
                         }
                         FileType.Folder -> R.drawable.ic_baseline_folder_24
+                        FileType.Link -> R.drawable.ic_baseline_miscellaneous_services_24
                     }
 
                     addShared.setOnClickListener {

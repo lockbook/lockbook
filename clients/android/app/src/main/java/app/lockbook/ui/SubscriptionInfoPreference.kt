@@ -100,9 +100,9 @@ class SubscriptionInfoPreference(context: Context, attributeSet: AttributeSet?) 
     }
 }
 
-fun PaymentPlatform.toReadableString(): String = when(this) {
-        is Stripe -> "Stripe"
-        is GooglePlay -> "Google Play"
-        is AppStore -> "App Store"
-        else -> "Unknown"
-    }
+fun PaymentPlatform.toReadableString(): String = when (this) {
+    is Stripe -> "Stripe"
+    is GooglePlay -> "Google Play"
+    is AppStore -> "App Store"
+    else -> "Unknown"
+}

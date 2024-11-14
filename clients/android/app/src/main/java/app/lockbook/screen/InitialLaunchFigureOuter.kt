@@ -37,7 +37,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             Lb.getAccount()
             startFromExistingAccount()
         } catch (err: LbError) {
-            if(err.kind == LbEC.AccountNonexistent) {
+            if (err.kind == LbEC.AccountNonexistent) {
                 startActivity(Intent(this, OnBoardingActivity::class.java))
                 finish()
             } else {

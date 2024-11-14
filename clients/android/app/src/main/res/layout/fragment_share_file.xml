@@ -77,8 +77,7 @@
             app:layout_constraintBottom_toBottomOf="@+id/share_file_new"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toEndOf="@+id/share_file_new"
-            app:layout_constraintTop_toTopOf="@+id/share_file_new"
-            android:visibility="gone"/>
+            app:layout_constraintTop_toTopOf="@+id/share_file_new" />
 
     </LinearLayout>
 

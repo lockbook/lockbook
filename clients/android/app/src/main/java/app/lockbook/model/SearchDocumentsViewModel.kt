@@ -13,8 +13,6 @@ import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 import net.lockbook.Lb
 import net.lockbook.LbError
 import net.lockbook.SearchResult
@@ -52,8 +50,8 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 
         val filesResultsSource = mutableListOf<SearchedDocumentViewHolderInfo>()
 
-        for(result in results) {
-            when(result) {
+        for (result in results) {
+            when (result) {
                 is SearchResult.PathMatch -> {
                     val (parentPathSpan, fileNameSpan) = highlightMatchedPathParts(result.path, result.matchedIndices)
 
@@ -63,7 +61,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
                     val (parentPath, fileName) = getPathAndParentFile(result.path)
                     val contentMatches = highlightMatchedParagraph(result.contentMatches)
 
-                    for(contentMatch in contentMatches) {
+                    for (contentMatch in contentMatches) {
                         filesResultsSource.add(SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(result.id, parentPath, fileName, contentMatch.second, contentMatch.first))
                     }
                 }
@@ -71,7 +69,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
         }
 
         viewModelScope.launch(Dispatchers.Main) {
-            if(filesResultsSource.isEmpty()) {
+            if (filesResultsSource.isEmpty()) {
                 showNoSearchResultsIfGone()
             } else {
                 fileResults.set(filesResultsSource, { left, right -> left.id == right.id })
@@ -176,7 +174,6 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     }
 
     override fun onCleared() {
-
     }
 }
 

@@ -46,6 +46,8 @@ pub fn init(config: &Config) -> LbResult<()> {
             )
             .with(
                 fmt::Layer::new()
+                    .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+                    .with_ansi(false)
                     .with_writer(LogcatMakeWriter::new(LogcatTag::Target).unwrap())
                     .with_filter(lockbook_log_level)
                     .with_filter(filter::filter_fn(|metadata| {

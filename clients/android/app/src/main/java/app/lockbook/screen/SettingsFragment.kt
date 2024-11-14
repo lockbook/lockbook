@@ -21,7 +21,6 @@ import app.lockbook.model.*
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialogFragment
 import app.lockbook.ui.UsageBarPreference
-import app.lockbook.util.exhaustive
 import app.lockbook.util.getSettingsActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.zxing.BarcodeFormat
@@ -30,7 +29,6 @@ import net.lockbook.Lb
 import net.lockbook.LbError
 import net.lockbook.SubscriptionInfo.AppStore
 import net.lockbook.SubscriptionInfo.GooglePlay
-import net.lockbook.SubscriptionInfo.PaymentPlatform
 import net.lockbook.SubscriptionInfo.Stripe
 import java.io.File
 import java.lang.ref.WeakReference

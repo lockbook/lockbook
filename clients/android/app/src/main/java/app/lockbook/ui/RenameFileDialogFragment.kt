@@ -12,7 +12,6 @@ import app.lockbook.model.FinishedAction
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceViewModel
-import app.lockbook.util.exhaustive
 import app.lockbook.util.requestKeyboardFocus
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
