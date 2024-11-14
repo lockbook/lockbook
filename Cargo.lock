@@ -3947,6 +3947,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-appender",
+ "tracing-logcat",
  "tracing-subscriber",
  "unicode-segmentation",
  "uuid 1.8.0",
@@ -7278,6 +7279,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-logcat"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "678d561ce3d4b33dfcfb1c6bd13c422aad89be5bf0e66e20d518a5a254345b54"
+dependencies = [
+ "rustix 0.38.34",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "tracing-serde"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8741,6 +8753,7 @@ dependencies = [
  "egui_wgpu_backend",
  "jni",
  "lb-c",
+ "lb-java",
  "libc",
  "ndk-sys 0.4.1+23.1.7779620",
  "pollster 0.2.5",

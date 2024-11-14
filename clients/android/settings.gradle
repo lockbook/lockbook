@@ -1,4 +1,5 @@
 rootProject.name='Lockbook'
 include ':app'
-include ':lb-rs'
 include ':workspace'
+include ':lb-java'
+project(':lb-java').projectDir = new File(rootDir, '../../libs/lb/lb-java/lib')

@@ -2,6 +2,7 @@
 set -ae
 
 cargo ndk --target aarch64-linux-android --target armv7-linux-androideabi --target i686-linux-android --target x86_64-linux-android --platform 22 -- build --release
+
 cd ../../../
 
 rm -rf clients/android/workspace/src/main/jniLibs/*

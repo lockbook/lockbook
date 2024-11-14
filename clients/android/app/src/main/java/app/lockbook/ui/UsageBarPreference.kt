@@ -14,6 +14,7 @@ import app.lockbook.R
 import app.lockbook.screen.UpgradeAccountActivity
 import app.lockbook.util.*
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import net.lockbook.Usage
 
 class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
     lateinit var usageBar: LinearProgressIndicator
@@ -47,7 +48,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
         }
     }
 
-    private fun setUpUsagePreference(usage: UsageMetrics, uncompressedUsage: UsageItemMetric) {
+    private fun setUpUsagePreference(usage: Usage, uncompressedUsage: Usage.UsageItemMetric) {
         val roundedDataCap = usage.dataCap.exact / ROUND_DECIMAL_PLACES
         val roundedProgress = usage.serverUsage.exact / ROUND_DECIMAL_PLACES
 

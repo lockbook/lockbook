@@ -11,11 +11,10 @@ import app.lockbook.R
 import app.lockbook.billing.BillingEvent
 import app.lockbook.databinding.ActivityUpgradeAccountBinding
 import app.lockbook.model.AlertModel
-import app.lockbook.model.CoreModel
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import com.google.android.material.card.MaterialCardView
 import kotlinx.coroutines.*
+import net.lockbook.Lb
+import net.lockbook.LbError
 import java.lang.ref.WeakReference
 
 class UpgradeAccountActivity : AppCompatActivity() {
@@ -89,31 +88,23 @@ class UpgradeAccountActivity : AppCompatActivity() {
                     binding.subscribeToPlan.isEnabled = false
 
                     withContext(Dispatchers.IO) {
-                        val confirmResult =
-                            CoreModel.upgradeAccountGooglePlay(billingEvent.purchaseToken, billingEvent.accountId)
-                        withContext(Dispatchers.Main) {
+                        try {
+                            Lb.upgradeAccountGooglePlay(billingEvent.purchaseToken, billingEvent.accountId)
+                            binding.progressOverlay.visibility = View.GONE
+                            binding.subscribeToPlan.isEnabled = true
 
-                            when (confirmResult) {
-                                is Ok -> {
-                                    binding.progressOverlay.visibility = View.GONE
-                                    binding.subscribeToPlan.isEnabled = true
-
-                                    alertModel.notifySuccessfulPurchaseConfirm {
-                                        setResult(SUCCESSFUL_SUBSCRIPTION_PURCHASE)
-                                        this@UpgradeAccountActivity.finish()
-                                    }
-                                }
-                                is Err -> alertModel.notifyError(
-                                    confirmResult.error.toLbError(
-                                        applicationContext.resources
-                                    )
-                                )
+                            alertModel.notifySuccessfulPurchaseConfirm {
+                                setResult(SUCCESSFUL_SUBSCRIPTION_PURCHASE)
+                                this@UpgradeAccountActivity.finish()
                             }
+                        } catch (err: LbError) {
+                            alertModel.notifyError(err)
                         }
                     }
                 }
             }
             is BillingEvent.NotifyError -> alertModel.notifyError(billingEvent.error)
+            is BillingEvent.NotifyErrorMsg -> alertModel.notifyWithToast(billingEvent.error)
         }
     }
 

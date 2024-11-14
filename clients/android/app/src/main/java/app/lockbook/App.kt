@@ -10,10 +10,10 @@ import androidx.preference.PreferenceManager
 import androidx.work.*
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
 import app.lockbook.billing.BillingClientLifecycle
-import app.lockbook.model.CoreModel
 import app.lockbook.util.*
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
+import app.lockbook.workspace.Workspace
+import net.lockbook.Lb
+import net.lockbook.LbError
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
 
@@ -31,8 +31,8 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         Timber.plant(Timber.DebugTree())
-
-        loadLockbookCore()
+        Workspace.init()
+        Lb.init(filesDir.absolutePath)
 
         ProcessLifecycleOwner.get().lifecycle
             .addObserver(ForegroundBackgroundObserver(this))
@@ -47,11 +47,6 @@ class App : Application() {
         fun applicationContext(): Context {
             return instance!!.applicationContext
         }
-    }
-
-    private fun loadLockbookCore() {
-        System.loadLibrary("lb_external_interface")
-        CoreModel.init(Config(true, false, this.filesDir.absolutePath))
     }
 }
 
@@ -86,12 +81,11 @@ class ForegroundBackgroundObserver(val context: Context) : DefaultLifecycleObser
 
     private fun doIfLoggedIn(onSuccess: () -> Unit) {
         if (!(context.applicationContext as App).isInImportSync) {
-            when (val getAccountResult = CoreModel.getAccount()) {
-                is Ok -> onSuccess()
-                is Err -> when (val error = getAccountResult.error) {
-                    is CoreError.UiError -> {}
-                    is CoreError.Unexpected -> Timber.e("Error: ${error.content}")
-                }
+            try {
+                Lb.getAccount()
+                onSuccess()
+            } catch (err: LbError) {
+                Timber.e("Error: ${err.msg}")
             }
         }
     }
@@ -99,28 +93,13 @@ class ForegroundBackgroundObserver(val context: Context) : DefaultLifecycleObser
 
 class SyncWork(appContext: Context, workerParams: WorkerParameters) :
     Worker(appContext, workerParams) {
-    override fun doWork(): Result {
-        val syncResult =
-            CoreModel.syncAll(null)
+    override fun doWork(): Result = try {
+        Lb.sync(null)
 
-        return if (syncResult is Err) {
-            val msg = when (val error = syncResult.error) {
-                is CoreError.UiError -> when (error.content) {
-                    SyncAllError.Retry -> "Retry requested."
-                    SyncAllError.ClientUpdateRequired -> "Client update required."
-                    SyncAllError.CouldNotReachServer -> "Could not reach server."
-                    SyncAllError.UsageIsOverDataCap -> "Usage is now over free tier data cap."
-                }
-                is CoreError.Unexpected -> {
-                    "Unable to sync all files: ${error.content}"
-                }
-            }.exhaustive
+        Result.success()
+    } catch (err: LbError) {
+        Timber.e(err.msg)
 
-            Timber.e(msg)
-
-            Result.failure()
-        } else {
-            Result.success()
-        }
+        Result.failure()
     }
 }

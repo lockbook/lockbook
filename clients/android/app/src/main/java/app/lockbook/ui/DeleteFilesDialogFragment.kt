@@ -7,14 +7,14 @@ import androidx.appcompat.app.AppCompatDialogFragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.model.AlertModel
-import app.lockbook.model.CoreModel
 import app.lockbook.model.FinishedAction
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceViewModel
-import com.github.michaelbull.result.Err
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
+import net.lockbook.Lb
+import net.lockbook.LbError
 import java.lang.ref.WeakReference
 
 class DeleteFilesDialogFragment : AppCompatDialogFragment() {
@@ -58,13 +58,12 @@ class DeleteFilesDialogFragment : AppCompatDialogFragment() {
         uiScope.launch(Dispatchers.IO) {
 
             for (file in files) {
-                val deleteFileResult = CoreModel.deleteFile(file.id)
-
-                if (deleteFileResult is Err) {
-                    alertModel.notifyError(deleteFileResult.error.toLbError(resources))
-                    break
-                } else {
+                try {
+                    Lb.deleteFile(file.id)
                     workspaceModel._finishedAction.postValue(FinishedAction.Delete(file.id))
+                } catch (err: LbError) {
+                    alertModel.notifyError(err)
+                    break
                 }
             }
 

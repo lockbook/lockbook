@@ -7,10 +7,12 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import net.lockbook.File
+import net.lockbook.File.FileType
+import net.lockbook.Lb
+import net.lockbook.LbError
 
 class CreateLinkViewModel(application: Application) :
     AndroidViewModel(application) {
@@ -38,26 +40,25 @@ class CreateLinkViewModel(application: Application) :
     }
 
     private fun startAtRoot() {
-        when (val getRootResult = CoreModel.getRoot()) {
-            is Ok -> {
-                currentParent = getRootResult.value
-                refreshOverFolder()
-            }
-            is Err -> _notifyError.postValue(getRootResult.error.toLbError(getRes()))
-        }.exhaustive
+        try {
+            currentParent = Lb.getRoot()
+            refreshOverFolder()
+        } catch (err: LbError) {
+            _notifyError.postValue(err)
+        }
     }
 
     private fun refreshOverFolder() {
-        when (val getChildrenResult = CoreModel.getChildren(currentParent.id)) {
-            is Ok -> {
-                _updateTitle.postValue(currentParent.name)
-                val tempFiles = getChildrenResult.value.filter { file -> file.isFolder() }.toMutableList()
+        try {
+            val children = Lb.getChildren(currentParent.id)
+            _updateTitle.postValue(currentParent.name)
+            val tempFiles = children.filter { file -> file.type == FileType.Folder }.toMutableList()
 
-                viewModelScope.launch(Dispatchers.Main) {
-                    files.set(FileModel.sortFiles(tempFiles))
-                }
+            viewModelScope.launch(Dispatchers.Main) {
+                files.set(FileModel.sortFiles(tempFiles))
             }
-            is Err -> _notifyError.postValue(getChildrenResult.error.toLbError(getRes()))
+        } catch (err: LbError) {
+            _notifyError.postValue(err)
         }
     }
 
@@ -66,13 +67,12 @@ class CreateLinkViewModel(application: Application) :
             if (currentParent.isRoot()) {
                 _closeFragment.postValue(Unit)
             } else {
-                when (val getFileById = CoreModel.getFileById(currentParent.parent)) {
-                    is Ok -> {
-                        currentParent = getFileById.value
-                        refreshOverFolder()
-                    }
-                    is Err -> _notifyError.postValue(getFileById.error.toLbError(getRes()))
-                }.exhaustive
+                try {
+                    currentParent = Lb.getFileById(currentParent.parent)
+                    refreshOverFolder()
+                } catch (err: LbError) {
+                    _notifyError.postValue(err)
+                }
             }
         }
     }

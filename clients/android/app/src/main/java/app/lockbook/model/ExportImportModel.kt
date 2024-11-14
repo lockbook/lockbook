@@ -2,9 +2,9 @@ package app.lockbook.model
 
 import android.text.format.DateUtils
 import app.lockbook.util.*
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Result
+import net.lockbook.File.FileType
+import net.lockbook.Lb
+import net.lockbook.LbError
 import java.io.File
 import kotlin.collections.ArrayList
 
@@ -33,7 +33,7 @@ class ExportImportModel(
         }
     }
 
-    fun exportDocuments(selectedFiles: List<app.lockbook.util.File>, appDataDir: File): Result<Unit, CoreError<out UiCoreError>> {
+    fun exportDocuments(selectedFiles: List<net.lockbook.File>, appDataDir: File) {
         val cacheDir = getMainShareFolder(appDataDir)
 
         isLoadingOverlayVisible = true
@@ -41,11 +41,8 @@ class ExportImportModel(
 
         clearShareStorage(cacheDir)
 
-        val documents = mutableListOf<app.lockbook.util.File>()
-        val selectedDocumentsResult = retrieveSelectedDocuments(selectedFiles, documents)
-        if (selectedDocumentsResult is Err) {
-            return selectedDocumentsResult
-        }
+        val documents = mutableListOf<net.lockbook.File>()
+        retrieveSelectedDocuments(selectedFiles, documents)
 
         val filesToShare = ArrayList<File>()
         val shareFolder = createRandomShareFolderInstance(cacheDir)
@@ -59,55 +56,44 @@ class ExportImportModel(
 
             shareItemFolder.mkdir()
 
-            when (val exportFileResult = CoreModel.exportFile(file.id, shareItemFolder.absolutePath, false)) {
-                is Ok -> filesToShare.add(
+            try {
+                Lb.exportFile(file.id, shareItemFolder.absolutePath, false)
+
+                filesToShare.add(
                     File(
                         shareItemFolder,
                         file.name
                     ).absoluteFile
                 )
-
-                is Err -> {
-                    isLoadingOverlayVisible = false
-                    _updateMainScreenUI.postValue(
-                        UpdateMainScreenUI.ShowHideProgressOverlay(
-                            isLoadingOverlayVisible
-                        )
+            } catch (err: LbError) {
+                isLoadingOverlayVisible = false
+                _updateMainScreenUI.postValue(
+                    UpdateMainScreenUI.ShowHideProgressOverlay(
+                        isLoadingOverlayVisible
                     )
-                    return exportFileResult
-                }
+                )
+                throw err
             }
         }
 
         _updateMainScreenUI.postValue(UpdateMainScreenUI.ShareDocuments(filesToShare))
-        return Ok(Unit)
     }
 
     private fun retrieveSelectedDocuments(
-        selectedFiles: List<app.lockbook.util.File>,
-        documents: MutableList<app.lockbook.util.File>
-    ): Result<Unit, CoreError<out UiCoreError>> {
+        selectedFiles: List<net.lockbook.File>,
+        documents: MutableList<net.lockbook.File>
+    ) {
         for (file in selectedFiles) {
-            when (file.fileType) {
+            when (file.type) {
                 FileType.Document -> {
                     documents.add(file)
                 }
-                FileType.Folder ->
-                    when (
-                        val getChildrenResult =
-                            CoreModel.getChildren(file.id)
-                    ) {
-                        is Ok -> {
-                            val retrieveDocumentsResult = retrieveSelectedDocuments(getChildrenResult.value, documents)
-                            if (retrieveDocumentsResult is Err) {
-                                return retrieveDocumentsResult
-                            }
-                        }
-                        is Err -> return getChildrenResult
-                    }
+                FileType.Folder -> {
+                    val children = Lb.getChildren(file.id)
+                    retrieveSelectedDocuments(children.toList(), documents)
+                }
+                FileType.Link -> {} // won't happen
             }
         }
-
-        return Ok(Unit)
     }
 }

@@ -7,6 +7,8 @@ import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
 import app.lockbook.R
 import com.afollestad.recyclical.ViewHolder
+import net.lockbook.File
+import net.lockbook.File.FileType
 
 sealed class FileViewHolderInfo(open val fileMetadata: File, open val needToBePushed: Boolean, open val needsToBePulled: Boolean) {
     data class DocumentViewHolderInfo(override val fileMetadata: File, override val needToBePushed: Boolean, override val needsToBePulled: Boolean) : FileViewHolderInfo(fileMetadata, needToBePushed, needsToBePulled)
@@ -34,9 +36,9 @@ class BasicFileItemHolder(itemView: View) : ViewHolder(itemView) {
 }
 
 fun List<File>.intoViewHolderInfo(localChanges: HashSet<String>, serverChanges: HashSet<String>?): List<FileViewHolderInfo> = this.map { fileMetadata ->
-    when (fileMetadata.fileType) {
+    when (fileMetadata.type) {
         FileType.Document -> FileViewHolderInfo.DocumentViewHolderInfo(fileMetadata, localChanges.contains(fileMetadata.id), serverChanges?.contains(fileMetadata.id) ?: false)
-        FileType.Folder -> FileViewHolderInfo.FolderViewHolderInfo(fileMetadata, localChanges.contains(fileMetadata.id), serverChanges?.contains(fileMetadata.id) ?: false)
+        FileType.Folder, FileType.Link -> FileViewHolderInfo.FolderViewHolderInfo(fileMetadata, localChanges.contains(fileMetadata.id), serverChanges?.contains(fileMetadata.id) ?: false)
     }
 }
 

@@ -3,3 +3,9 @@
 
 # Ignore Gradle build output directory
 build
+lib/.settings
+lib/bin
+lib/build
+lib/.classpath
+lib/.project
+local.properties

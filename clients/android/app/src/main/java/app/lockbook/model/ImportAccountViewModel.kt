@@ -4,12 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
-import app.lockbook.util.getRes
-import com.github.michaelbull.result.Err
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import net.lockbook.LbError
 
 class ImportAccountViewModel(application: Application) : AndroidViewModel(application) {
     val syncModel = SyncModel()
@@ -22,13 +20,12 @@ class ImportAccountViewModel(application: Application) : AndroidViewModel(applic
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            val syncResult = syncModel.trySync()
-
-            if (syncResult is Err) {
-                isErrorVisible = true
-                _updateImportUI.postValue(UpdateImportUI.NotifyError(syncResult.error.toLbError(getRes())))
-            } else {
+            try {
+                syncModel.trySync()
                 _updateImportUI.postValue(UpdateImportUI.FinishedSync)
+            } catch (err: LbError) {
+                isErrorVisible = true
+                _updateImportUI.postValue(UpdateImportUI.NotifyError(err))
             }
         }
     }

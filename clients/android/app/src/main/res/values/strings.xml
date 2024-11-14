@@ -140,49 +140,6 @@
     <string name="delete_account_confirmation_details">Are you sure you want to delete your account?</string>
 
     <!-- Errors -->
-    <string name="no_account">You have no account.</string>
-    <string name="could_not_reach_server">Offline.</string>
-    <string name="client_update_required">Update required.</string>
-    <string name="username_taken">This username has been taken.</string>
-    <string name="invalid_username">This username is invalid.</string>
-    <string name="account_exists_already">An account already exists on this device.</string>
-    <string name="account_string_corrupted">Invalid account key.</string>
-    <string name="account_does_not_exist">That account does not exist.</string>
-    <string name="username_pk_mismatch">That username does not correspond with that public_key on this server.</string>
-    <string name="file_does_not_exist">That file does not exist.</string>
-    <string name="folder_treated_as_document">A folder cannot be treated as document.</string>
-    <string name="document_treated_as_folder">A document cannot be treated as folder.</string>
-    <string name="could_not_find_a_parent">Could not find that file\'s parent.</string>
-    <string name="file_name_not_available">That file name is not available.</string>
-    <string name="file_name_contains_slash">A file name cannot contain a slash.</string>
-    <string name="file_name_empty">A file\'s name cannot be empty.</string>
-    <string name="no_file_with_that_id">No file with that id exists.</string>
-    <string name="cannot_delete_root">You cannot delete root.</string>
-    <string name="cannot_rename_root">You cannot rename root.</string>
-    <string name="target_parent_has_a_child_named_that">Your target parent already has a child named that.</string>
-    <string name="folder_moved_into_itself">A folder cannot be moved into itself.</string>
-    <string name="no_root">No root!</string>
-    <string name="cannot_move_root">Cannot move root!</string>
-    <string name="new_account_disabled">This server is not accepting any new accounts at this moment. Please try again another time.</string>
-    <string name="already_premium">Error, you are already premium.</string>
-    <string name="invalid_purchase_token">Failed to verify purchase.</string>
-    <string name="existing_request_pending">You are accessing billing too quickly. Please try again in a minute.</string>
-    <string name="not_premium">Error, you are not premium.</string>
-    <string name="already_canceled">You have already canceled your subscription.</string>
-    <string name="usage_is_over_data_cap">Your total data usage exceeds free tier. Please remove some data.</string>
-    <string name="retry_sync">Please retry syncing.</string>
-    <string name="link_in_shared_folder">You cannot share a folder that contains a link.</string>
-    <string name="link_target_is_owned">You cannot create a link to a file you own.</string>
-    <string name="link_target_nonexistent">You cannot link to a file that does not exist.</string>
-    <string name="multiple_links_to_same_file">You cannot link to a file that is already linked to.</string>
-    <string name="insufficient_permissions">Error, you have insufficient permissions.</string>
-    <string name="cannot_cancel_for_app_store">Cannot cancel an Apple App Store subscription from Android. Please manage your subscription from an Apple device.</string>
-    <string name="file_name_too_long">That file name is too long</string>
-
-    <string name="cannot_share_root">You cannot share root.</string>
-    <string name="share_already_exists">Error, this file is already shared.</string>
-    <string name="share_non_existant">This pending share does not exist.</string>
-
     <string name="unexpected_error">An unexpected error has occurred!</string>
     <string name="basic_error">An error has occurred.</string>
     <string name="unrecoverable_billing_error">Billing is currently not available right now, please try again later.</string>
@@ -254,9 +211,6 @@
     <string name="next_renewal_day">Next Renewal Date:</string>
     <string name="expiration_day">Expiration Date:</string>
     <string name="grace_period">End of Grace Period:</string>
-    <string name="google_play">Google Play</string>
-    <string name="stripe">Stripe</string>
-    <string name="app_store">App Store</string>
 
     <string name="backup_my_secret">Backup my secret</string>
     <string name="folder_action">Folder action</string>

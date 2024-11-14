@@ -10,18 +10,17 @@ import androidx.appcompat.app.AppCompatDialogFragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.databinding.DialogCreateFileBinding
-import app.lockbook.model.CoreModel
 import app.lockbook.model.ExtendedFileType
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
-import app.lockbook.util.File
-import app.lockbook.util.FileType
 import app.lockbook.util.exhaustive
 import app.lockbook.util.requestKeyboardFocus
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
+import net.lockbook.File
+import net.lockbook.File.FileType
+import net.lockbook.Lb
+import net.lockbook.LbError
 
 class CreateFileDialogFragment : AppCompatDialogFragment() {
     private lateinit var binding: DialogCreateFileBinding
@@ -85,7 +84,8 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
             when (info.extendedFileType.toFileType()) {
                 FileType.Document -> window.requestKeyboardFocus(binding.createDocument)
                 FileType.Folder -> window.requestKeyboardFocus(binding.createFolder)
-            }.exhaustive
+                FileType.Link -> {}
+            }
             setOnShowListener {
                 getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
             }
@@ -127,18 +127,19 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
         val fileName = when (fileType) {
             FileType.Document -> "${binding.createDocument.text}${binding.createDocumentExtension.text}"
             FileType.Folder -> binding.createFolder.text.toString()
+            FileType.Link -> "" // not gonna happen
         }
 
         uiScope.launch(Dispatchers.IO) {
-            val createFileResult = CoreModel.createFile(info.parentId, fileName, fileType)
-            withContext(Dispatchers.Main) {
-                when (createFileResult) {
-                    is Ok -> {
-                        newFile = createFileResult.value
-                        dismiss()
-                    }
-                    is Err -> binding.createFileError.setText(createFileResult.error.toLbError(resources).msg)
-                }.exhaustive
+            try {
+                newFile = Lb.createFile(fileName, info.parentId, fileType == FileType.Document)
+                withContext(Dispatchers.Main) {
+                    dismiss()
+                }
+            } catch (err: LbError) {
+                withContext(Dispatchers.Main) {
+                    binding.createFileError.setText(err.msg)
+                }
             }
         }
     }

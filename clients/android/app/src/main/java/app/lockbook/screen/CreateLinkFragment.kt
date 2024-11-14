@@ -12,12 +12,12 @@ import app.lockbook.databinding.FragmentCreateLinkBinding
 import app.lockbook.model.*
 import app.lockbook.util.BasicFileItemHolder
 import app.lockbook.util.ExtensionHelper
-import app.lockbook.util.File
-import app.lockbook.util.FileType
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
+import net.lockbook.File
+import net.lockbook.File.FileType
+import net.lockbook.Lb
+import net.lockbook.LbError
 import java.lang.ref.WeakReference
 
 class CreateLinkFragment : Fragment() {
@@ -48,16 +48,16 @@ class CreateLinkFragment : Fragment() {
                     val extensionHelper = ExtensionHelper(item.name)
 
                     val imageResource = when {
-                        item.fileType == FileType.Document && extensionHelper.isDrawing -> {
+                        item.type == FileType.Document && extensionHelper.isDrawing -> {
                             R.drawable.ic_outline_draw_24
                         }
-                        item.fileType == FileType.Document && extensionHelper.isImage -> {
+                        item.type == FileType.Document && extensionHelper.isImage -> {
                             R.drawable.ic_outline_image_24
                         }
-                        item.fileType == FileType.Document && extensionHelper.isPdf -> {
+                        item.type == FileType.Document && extensionHelper.isPdf -> {
                             R.drawable.ic_outline_picture_as_pdf_24
                         }
-                        item.fileType == FileType.Document -> {
+                        item.type == FileType.Document -> {
                             R.drawable.ic_outline_insert_drive_file_24
                         }
                         else -> {
@@ -93,20 +93,25 @@ class CreateLinkFragment : Fragment() {
             }
         }
 
-        val file = requireArguments().getParcelable<File>(CREATE_LINK_FILE_KEY)!!
-        binding.createLinkFileFor.setText(getString(R.string.create_link_file_for, file.name))
-        binding.createLinkName.setText(file.name)
+        try {
+            val file = Lb.getFileById(requireArguments().getString(CREATE_LINK_FILE_ID_KEY)!!)
 
-        binding.createLinkCreate.setOnClickListener {
-            val name = binding.createLinkName.text.toString()
+            binding.createLinkFileFor.setText(getString(R.string.create_link_file_for, file.name))
+            binding.createLinkName.setText(file.name)
 
-            when (val result = CoreModel.createLink(name, file.id, model.currentParent.id)) {
-                is Ok -> {
+            binding.createLinkCreate.setOnClickListener {
+                val name = binding.createLinkName.text.toString()
+
+                try {
+                    Lb.createLink(name, file.id, model.currentParent.id)
                     alertModel.notifyWithToast(getString(R.string.created_link))
                     findNavController().popBackStack()
+                } catch (err: LbError) {
+                    alertModel.notifyError(err)
                 }
-                is Err -> alertModel.notifyError(result.error.toLbError(resources))
             }
+        } catch (err: LbError) {
+            alertModel.notifyError(err)
         }
 
         binding.createLinkCancel.setOnClickListener {
@@ -125,6 +130,6 @@ class CreateLinkFragment : Fragment() {
     }
 
     companion object {
-        const val CREATE_LINK_FILE_KEY = "create_link_file_key"
+        const val CREATE_LINK_FILE_ID_KEY = "create_link_file_key"
     }
 }

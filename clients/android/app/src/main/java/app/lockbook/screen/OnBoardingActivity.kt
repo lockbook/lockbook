@@ -18,17 +18,15 @@ import app.lockbook.databinding.ActivityOnBoardingBinding
 import app.lockbook.databinding.FragmentOnBoardingCreateAccountBinding
 import app.lockbook.databinding.FragmentOnBoardingImportAccountBinding
 import app.lockbook.model.AlertModel
-import app.lockbook.model.CoreModel
-import app.lockbook.util.exhaustive
 import app.lockbook.util.getApp
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import com.google.android.material.tabs.TabLayoutMediator
 import com.journeyapps.barcodescanner.CaptureActivity
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanIntentResult
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.*
+import net.lockbook.Lb
+import net.lockbook.LbError
 import java.lang.ref.WeakReference
 
 class OnBoardingActivity : AppCompatActivity() {
@@ -158,20 +156,16 @@ class ImportFragment : Fragment() {
         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
         uiScope.launch {
-            when (val importAccountResult = CoreModel.importAccount(account)) {
-                is Ok -> {
-                    onBoardingActivity.startActivity(Intent(context, ImportAccountActivity::class.java))
-                    onBoardingActivity.finishAffinity()
+            try {
+                Lb.importAccount(account)
+                onBoardingActivity.startActivity(Intent(context, ImportAccountActivity::class.java))
+                onBoardingActivity.finishAffinity()
+            } catch (err: LbError) {
+                withContext(Dispatchers.Main) {
+                    onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
+                    importBinding.onBoardingImportAccountHolder.error = err.msg
                 }
-                is Err -> {
-                    withContext(Dispatchers.Main) {
-                        onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
-                        importBinding.onBoardingImportAccountHolder.error = importAccountResult.error.toLbError(
-                            resources
-                        ).msg
-                    }
-                }
-            }.exhaustive
+            }
         }
     }
 }
@@ -213,22 +207,18 @@ class CreateFragment : Fragment() {
         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
         uiScope.launch {
-            when (val createAccountResult = CoreModel.createAccount(username)) {
-                is Ok -> {
-                    getApp().isNewAccount = true
+            try {
+                Lb.createAccount(username, null, true)
+                getApp().isNewAccount = true
 
-                    onBoardingActivity.startActivity(Intent(context, MainScreenActivity::class.java))
-                    onBoardingActivity.finishAffinity()
+                onBoardingActivity.startActivity(Intent(context, MainScreenActivity::class.java))
+                onBoardingActivity.finishAffinity()
+            } catch (err: LbError) {
+                withContext(Dispatchers.Main) {
+                    onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
+                    createBinding.onBoardingCreateAccountInputHolder.error = err.msg
                 }
-                is Err -> {
-                    withContext(Dispatchers.Main) {
-                        onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
-                        createBinding.onBoardingCreateAccountInputHolder.error = createAccountResult.error.toLbError(
-                            resources
-                        ).msg
-                    }
-                }
-            }.exhaustive
+            }
         }
     }
 }

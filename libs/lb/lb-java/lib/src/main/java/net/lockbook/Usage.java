@@ -1,9 +1,11 @@
+package net.lockbook;
+
 public class Usage {
-    UsageItemMetric serverUsage;
-    UsageItemMetric dataCap;
+    public UsageItemMetric serverUsage;
+    public UsageItemMetric dataCap;
     
     public static class UsageItemMetric {
-        Long exact;
-        String readable;
+        public long exact;
+        public String readable;
     }
 }

@@ -5,11 +5,13 @@ import android.content.Context
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
+import app.lockbook.R
 import app.lockbook.screen.UpgradeAccountActivity
-import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
+import app.lockbook.util.getString
 import com.android.billingclient.api.*
 import com.android.billingclient.api.BillingClient.BillingResponseCode
+import net.lockbook.LbError
 import timber.log.Timber
 import java.util.*
 
@@ -97,13 +99,13 @@ class BillingClientLifecycle private constructor(
 
     fun launchBillingFlow(activity: Activity, newTier: UpgradeAccountActivity.AccountTier) {
         val billingFlowParams = billingFlowParamsBuilder(newTier)
-            ?: return _billingEvent.postValue(BillingEvent.NotifyError(LbError.basicError(applicationContext.resources)))
+            ?: return _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(activity.resources, R.string.basic_error)))
 
         val response = BillingResponse(billingClient.launchBillingFlow(activity, billingFlowParams).responseCode)
 
         when {
             response.isOk -> {}
-            response.isRecoverableError -> _billingEvent.postValue(BillingEvent.NotifyError(LbError.basicError(applicationContext.resources)))
+            response.isRecoverableError -> _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(applicationContext.resources, R.string.basic_error)))
             else -> _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
         }
     }
@@ -154,11 +156,7 @@ class BillingClientLifecycle private constructor(
                         BillingEvent.SuccessfulPurchase(
                             purchases[0].purchaseToken,
                             purchases[0].accountIdentifiers?.obfuscatedAccountId
-                                ?: return _billingEvent.postValue(
-                                    BillingEvent.NotifyError(
-                                        LbError.basicError(applicationContext.resources)
-                                    )
-                                )
+                                ?: return _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(applicationContext.resources, R.string.basic_error)))
                         )
                     )
                 }
@@ -168,13 +166,7 @@ class BillingClientLifecycle private constructor(
             }
             billingResponse.isCancelable -> {}
             else -> {
-                _billingEvent.postValue(
-                    BillingEvent.NotifyError(
-                        LbError.basicError(
-                            applicationContext.resources
-                        )
-                    )
-                )
+                _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(applicationContext.resources, R.string.basic_error)))
             }
         }
     }
@@ -202,6 +194,7 @@ class BillingClientLifecycle private constructor(
 sealed class BillingEvent {
     data class SuccessfulPurchase(val purchaseToken: String, val accountId: String) : BillingEvent()
     data class NotifyError(val error: LbError) : BillingEvent()
+    data class NotifyErrorMsg(val error: String) : BillingEvent()
     object NotifyUnrecoverableError : BillingEvent()
 }
 

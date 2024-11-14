@@ -16,11 +16,11 @@ import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.*
 import app.lockbook.util.BasicFileItemHolder
 import app.lockbook.util.ExtensionHelper
-import app.lockbook.util.File
-import app.lockbook.util.FileType
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import net.lockbook.File
+import net.lockbook.File.FileType
 import java.lang.ref.WeakReference
 
 class MoveFileDialogFragment : DialogFragment() {
@@ -76,16 +76,16 @@ class MoveFileDialogFragment : DialogFragment() {
                     val extensionHelper = ExtensionHelper(item.name)
 
                     val imageResource = when {
-                        item.fileType == FileType.Document && extensionHelper.isDrawing -> {
+                        item.type == FileType.Document && extensionHelper.isDrawing -> {
                             R.drawable.ic_outline_draw_24
                         }
-                        item.fileType == FileType.Document && extensionHelper.isImage -> {
+                        item.type == FileType.Document && extensionHelper.isImage -> {
                             R.drawable.ic_outline_image_24
                         }
-                        item.fileType == FileType.Document -> {
+                        item.type == FileType.Document -> {
                             R.drawable.ic_outline_insert_drive_file_24
                         }
-                        item.fileType == FileType.Document && extensionHelper.isPdf -> {
+                        item.type == FileType.Document && extensionHelper.isPdf -> {
                             R.drawable.ic_outline_picture_as_pdf_24
                         }
                         else -> {

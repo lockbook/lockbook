@@ -41,7 +41,7 @@ pub(crate) fn rbyte_array(env: &JNIEnv, bytes: JByteArray) -> Vec<u8> {
 }
 
 pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject<'local> {
-    let j_err = env.find_class("Lnet/lockbook/Err;").unwrap();
+    let j_err = env.find_class("net/lockbook/LbError").unwrap();
 
     let obj = env.alloc_object(j_err).unwrap();
 
@@ -51,7 +51,7 @@ pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject
         .unwrap();
 
     // kind
-    let enum_class = env.find_class("Lnet/lockbook/EKind;").unwrap();
+    let enum_class = env.find_class("net/lockbook/LbError$LbEC").unwrap();
 
     let name = match err.kind {
         LbErrKind::AccountExists => "AccountExists",
@@ -113,11 +113,11 @@ pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject
         LbErrKind::Unexpected(_) => "Unexpected",
     };
     let enum_constant = env
-        .get_static_field(enum_class, name, "Lnet/lockbook/EKind;")
+        .get_static_field(enum_class, name, "Lnet/lockbook/LbError$LbEC;")
         .unwrap()
         .l()
         .unwrap();
-    env.set_field(&obj, "kind", "Lnet/lockbook/EKind;", JValue::Object(&enum_constant))
+    env.set_field(&obj, "kind", "Lnet/lockbook/LbError$LbEC;", JValue::Object(&enum_constant))
         .unwrap();
 
     // trace

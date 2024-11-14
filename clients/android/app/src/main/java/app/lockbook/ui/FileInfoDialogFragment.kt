@@ -6,10 +6,10 @@ import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.databinding.DialogFileInfoBinding
-import app.lockbook.model.CoreModel
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import net.lockbook.Lb
 
 class FileInfoDialogFragment : DialogFragment() {
     private lateinit var binding: DialogFileInfoBinding
@@ -31,9 +31,9 @@ class FileInfoDialogFragment : DialogFragment() {
     private fun setUpInfo() {
         val file = (activityModel.transientScreen as TransientScreen.Info).file
 
-        binding.popupInfoLastModified.text = CoreModel.convertToHumanDuration(file.lastModified)
+        binding.popupInfoLastModified.text = Lb.getTimestampHumanString(file.lastModified)
         binding.popupInfoName.text = file.name
         binding.popupInfoId.text = file.id
-        binding.popupInfoFileType.text = file.fileType.name
+        binding.popupInfoFileType.text = file.type.name
     }
 }
