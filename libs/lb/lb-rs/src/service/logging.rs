@@ -1,6 +1,7 @@
 use crate::model::errors::{core_err_unexpected, LbResult};
 use crate::Config;
 use chrono::Local;
+use tracing_logcat::{LogcatMakeWriter, LogcatTag};
 use std::backtrace::Backtrace;
 use std::{env, fs, panic};
 use tracing::metadata::LevelFilter;
@@ -41,6 +42,18 @@ pub fn init(config: &Config) -> LbResult<()> {
                     .with_filter(filter::filter_fn(|metadata| {
                         metadata.target().starts_with("workspace")
                             || metadata.target().starts_with("lb_fs")
+                    })),
+            )
+            .with(
+                fmt::Layer::new()
+                    .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+                    .with_ansi(false)
+                    .with_writer(LogcatMakeWriter::new(LogcatTag::Target).unwrap())
+                    .with_filter(lockbook_log_level)
+                    .with_filter(filter::filter_fn(|metadata| {
+                        metadata.target().starts_with("lb_rs")
+                            || metadata.target().starts_with("workspace")
+                            || metadata.target().starts_with("lb_java")
                     })),
             );
 
