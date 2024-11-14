@@ -113,7 +113,7 @@ impl Pen {
             if is_current_path_empty
                 && !(pen_ctx.settings.pencil_only_drawing && pen_ctx.is_locked_vw_pen_only)
             {
-                ui.painter().circle_filled(
+                pen_ctx.painter.circle_filled(
                     pos,
                     self.active_stroke_width * pen_ctx.buffer.master_transform.sx / 2.0,
                     ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode)

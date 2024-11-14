@@ -110,7 +110,7 @@ impl Buffer {
                         _ => {}
                     }
 
-                    local_elements.insert(*id, transformed_el);
+                    local_elements.insert(*id, transformed_el.clone());
 
                     println!("remote changed element {:#?}", id);
                 }
@@ -121,7 +121,7 @@ impl Buffer {
             }
         }
 
-        for (id, remote_el) in remote_buffer.elements.iter() {
+        for (i, (id, remote_el)) in remote_buffer.elements.iter().enumerate() {
             if !base_buffer.elements.contains_key(id) {
                 // this was created remotly
 
@@ -144,7 +144,7 @@ impl Buffer {
                     _ => {}
                 }
 
-                local_elements.insert(*id, transformed_el);
+                local_elements.insert_before(i, *id, transformed_el);
                 println!("remote inserted element {:#?}", id);
             }
         }
