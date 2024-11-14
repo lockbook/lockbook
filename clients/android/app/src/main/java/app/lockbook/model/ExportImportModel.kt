@@ -92,6 +92,7 @@ class ExportImportModel(
                     val children = Lb.getChildren(file.id)
                     retrieveSelectedDocuments(children.toList(), documents)
                 }
+                FileType.Link -> {} // won't happen
             }
         }
     }

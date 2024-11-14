@@ -80,6 +80,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     fun newSearch(input: String) {
         hideNoSearchResultsIfVisible()
         showProgressSpinnerIfGone()
+        fileResults.clear()
 
         viewModelScope.launch(Dispatchers.IO) {
             try {

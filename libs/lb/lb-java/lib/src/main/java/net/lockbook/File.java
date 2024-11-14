@@ -23,8 +23,8 @@ public class File {
     }
 
     public enum FileType {
-        Document,
         Folder,
+        Document,
         Link
     }
 
