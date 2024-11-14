@@ -6,7 +6,6 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.R
-import app.lockbook.ui.UsageBarPreference
 import app.lockbook.util.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -49,11 +48,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             val uncompressedUsage = Lb.getUncompressedUsage()
             val subscriptionInfo = Lb.getSubscriptionInfo()
 
-            if (usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES) {
-                _determineSettingsInfo.postValue(SettingsInfo(usage, uncompressedUsage, subscriptionInfo))
-            } else {
-                _determineSettingsInfo.postValue(SettingsInfo(usage, uncompressedUsage, null))
-            }
+            _determineSettingsInfo.postValue(SettingsInfo(usage, uncompressedUsage, subscriptionInfo))
         } catch (err: LbError) {
             _notifyError.postValue(err)
         }

@@ -75,13 +75,12 @@ public data class AndroidResponse(
 object Workspace {
 
     init {
-        print("INITING WORKSPACE ISH")
         System.loadLibrary("workspace")
     }
 
     // dummy init to load workspace and lb-java lib
     fun init() {
-        print("LOADED WORKSPACE and LB-JAVA")
+        print("do nothing")
     }
 
     external fun initWS(surface: Surface, core: Long, scaleFactor: Float, darkMode: Boolean, oldWGPU: Long): Long
