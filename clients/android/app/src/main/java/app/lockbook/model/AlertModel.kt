@@ -58,7 +58,7 @@ class AlertModel(private val activity: WeakReference<Activity>, view: View? = nu
 
     fun notifyError(error: LbError, onFinish: (() -> Unit)? = null) {
         if (error.kind == LbEC.Unexpected) {
-            notifyWithDialog(unexpectedErrorMsg, error.msg, onFinish)
+            notifyWithDialog(unexpectedErrorMsg, "${error.msg}\n${error.trace}", onFinish)
             Timber.e("Unexpected Error: $error.msg")
         } else {
             notify(error.msg, onFinish)
