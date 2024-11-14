@@ -18,20 +18,6 @@ pub fn init(config: &Config) -> LbResult<()> {
 
         let mut layers = Vec::with_capacity(2);
 
-
-        layers.push(
-            fmt::Layer::new()
-                .pretty()
-                .with_target(false)
-                .with_filter(lockbook_log_level)
-                .with_filter(filter::filter_fn(|metadata| {
-                    metadata.target().starts_with("workspace")
-                        || metadata.target().starts_with("lb_fs")
-                }))
-                .boxed(),
-        );
-
-        #[cfg(not(target_os = "android"))]
         layers.push(
             fmt::Layer::new()
                 .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
@@ -48,6 +34,21 @@ pub fn init(config: &Config) -> LbResult<()> {
                 .boxed(),
         );
 
+        // stdout target for non-android platforms
+        #[cfg(not(target_os = "android"))]
+        layers.push(
+            fmt::Layer::new()
+                .pretty()
+                .with_target(false)
+                .with_filter(lockbook_log_level)
+                .with_filter(filter::filter_fn(|metadata| {
+                    metadata.target().starts_with("workspace")
+                        || metadata.target().starts_with("lb_fs")
+                }))
+                .boxed(),
+        );
+
+        // logcat target for android
         #[cfg(target_os = "android")]
         if let Some(writer) = tracing_logcat::LogcatMakeWriter::new(tracing_logcat::LogcatTag::Target).ok() {
             layers.push(
