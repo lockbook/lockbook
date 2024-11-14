@@ -1,19 +1,19 @@
 mod java_utils;
 
-use std::{fs, process, str::FromStr};
+use std::{fs, str::FromStr};
 
 use java_utils::{jbyte_array, jni_string, rbyte_array, rlb, rstring, throw_err};
 use jni::{
     objects::{JByteArray, JClass, JObject, JObjectArray, JString, JValue},
-    sys::{jarray, jboolean, jbyteArray, jlong, jobject, jobjectArray, jstring},
+    sys::{jboolean, jbyteArray, jlong, jobject, jobjectArray, jstring},
     JNIEnv,
 };
+pub use lb_rs::*;
+pub use lb_rs::{blocking::Lb, model::core_config::Config};
 use lb_rs::{
-    blocking::Lb,
     model::{
         account::Account,
         api::{AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo},
-        core_config::Config,
         file::{File, ShareMode},
         file_metadata::FileType,
         work_unit::WorkUnit,
@@ -24,14 +24,13 @@ use lb_rs::{
         sync::{SyncProgress, SyncStatus},
         usage::{UsageItemMetric, UsageMetrics},
     },
-    Uuid, DEFAULT_API_LOCATION,
 };
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, input: JString<'local>,
+    mut env: JNIEnv<'local>, class: JClass<'local>, path: JString<'local>,
 ) {
-    let writeable_path = rstring(&mut env, input);
+    let writeable_path = rstring(&mut env, path);
     let config = Config { logs: true, colored_logs: false, writeable_path, background_work: true };
 
     match Lb::init(config) {
@@ -50,12 +49,12 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_createAccount<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, uname: JString<'local>,
+    mut env: JNIEnv<'local>, class: JClass<'local>, username: JString<'local>,
     api_url: JString<'local>, welcome_doc: jboolean,
 ) -> jobject {
     let lb = rlb(&mut env, &class);
 
-    let uname = rstring(&mut env, uname);
+    let username = rstring(&mut env, username);
     let api_url = if api_url.is_null() {
         DEFAULT_API_LOCATION.to_string()
     } else {
@@ -63,7 +62,7 @@ pub extern "system" fn Java_net_lockbook_Lb_createAccount<'local>(
     };
     let welcome_doc = welcome_doc != 0;
 
-    match lb.create_account(&uname, &api_url, welcome_doc) {
+    match lb.create_account(&username, &api_url, welcome_doc) {
         Ok(account) => j_account(&mut env, account),
         Err(err) => throw_err(&mut env, err),
     }
@@ -87,13 +86,13 @@ pub extern "system" fn Java_net_lockbook_Lb_importAccount<'local>(
 }
 
 fn j_account<'local>(env: &mut JNIEnv<'local>, account: Account) -> JObject<'local> {
-    let obj = env.find_class("Lnet/lockbook/Account;").unwrap();
+    let obj = env.find_class("net/lockbook/Account").unwrap();
     let obj = env.alloc_object(obj).unwrap();
 
-    let uname = jni_string(env, account.username);
+    let username = jni_string(env, account.username);
     let api_url = jni_string(env, account.api_url);
 
-    env.set_field(&obj, "uname", "Ljava/lang/String;", JValue::Object(&uname))
+    env.set_field(&obj, "username", "Ljava/lang/String;", JValue::Object(&username))
         .unwrap();
     env.set_field(&obj, "apiUrl", "Ljava/lang/String;", JValue::Object(&api_url))
         .unwrap();
@@ -151,7 +150,7 @@ pub extern "system" fn Java_net_lockbook_Lb_exportAccountQR<'local>(
 }
 
 fn jfile<'local>(env: &mut JNIEnv<'local>, file: File) -> JObject<'local> {
-    let file_class = env.find_class("Lnet/lockbook/File;").unwrap();
+    let file_class = env.find_class("net/lockbook/File").unwrap();
     let obj = env.alloc_object(file_class).unwrap();
 
     // id
@@ -170,11 +169,11 @@ fn jfile<'local>(env: &mut JNIEnv<'local>, file: File) -> JObject<'local> {
         .unwrap();
 
     // file type
-    let enum_class = env.find_class("Lnet/lockbook/File$FileType;").unwrap();
+    let enum_class = env.find_class("net/lockbook/File$FileType").unwrap();
     let filetype_name = match file.file_type {
         FileType::Document => "Document",
         FileType::Folder => "Folder",
-        FileType::Link { .. } => panic!("did not expect link file type!"),
+        FileType::Link { .. } => "Link",
     };
     let enum_constant = env
         .get_static_field(enum_class, filetype_name, "Lnet/lockbook/File$FileType;")
@@ -182,7 +181,7 @@ fn jfile<'local>(env: &mut JNIEnv<'local>, file: File) -> JObject<'local> {
         .l()
         .unwrap();
 
-    env.set_field(&obj, "fileType", "Lnet/lockbook/File$FileType;", JValue::Object(&enum_constant))
+    env.set_field(&obj, "type", "Lnet/lockbook/File$FileType;", JValue::Object(&enum_constant))
         .unwrap();
 
     // last modified
@@ -194,8 +193,8 @@ fn jfile<'local>(env: &mut JNIEnv<'local>, file: File) -> JObject<'local> {
     env.set_field(&obj, "lastModifiedBy", "Ljava/lang/String;", JValue::Object(&last_modified_by))
         .unwrap();
 
-    let share_class = env.find_class("Lnet/lockbook/File$Share;").unwrap();
-    let share_mode_class = env.find_class("Lnet/lockbook/File$ShareMode;").unwrap();
+    let share_class = env.find_class("net/lockbook/File$Share").unwrap();
+    let share_mode_class = env.find_class("net/lockbook/File$ShareMode").unwrap();
 
     // shares
     let shares_array = env
@@ -257,7 +256,7 @@ pub extern "system" fn Java_net_lockbook_Lb_getRoot<'local>(
 }
 
 fn jfiles<'local>(env: &mut JNIEnv<'local>, files: Vec<File>) -> JObjectArray<'local> {
-    let file_class = env.find_class("Lnet/lockbook/File;").unwrap();
+    let file_class = env.find_class("net/lockbook/File").unwrap();
     let obj = env
         .new_object_array(files.len() as i32, file_class, JObject::null())
         .unwrap();
@@ -349,26 +348,18 @@ pub extern "system" fn Java_net_lockbook_Lb_createLink<'local>(
     .into_raw()
 }
 
-// #[no_mangle]
-// pub extern "system" fn Java_net_lockbook_Lb_convertToHumanDuration<'local>(
-//     mut env: JNIEnv<'local>, class: JClass<'local>, time_stamp: jlong,
-// ) -> jstring {
-//     let lb = rlb(&mut env, &class);
+#[no_mangle]
+pub extern "system" fn Java_net_lockbook_Lb_getTimestampHumanString<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, timestamp: jlong,
+) -> jstring {
+    let lb = rlb(&mut env, &class);
 
-//     let msg = if time_stamp != 0 {
-//         Duration::milliseconds(clock::get_time().0 - time_stamp)
-//             .format_human()
-//             .to_string()
-//     } else {
-//         "never".to_string()
-//     };
-
-//     jni_string(&mut env, msg).into_raw()
-// }
+    jni_string(&mut env, lb.get_timestamp_human_string(timestamp)).into_raw()
+}
 
 fn jusage_item_metric<'local>(env: &mut JNIEnv<'local>, usage: UsageItemMetric) -> JObject<'local> {
     let item_metric_class = env
-        .find_class("Lnet/lockbook/Usage$UsageItemMetric;")
+        .find_class("net/lockbook/Usage$UsageItemMetric")
         .unwrap();
     let obj = env.alloc_object(item_metric_class).unwrap();
 
@@ -383,23 +374,26 @@ fn jusage_item_metric<'local>(env: &mut JNIEnv<'local>, usage: UsageItemMetric) 
 }
 
 fn jusage_metrics<'local>(env: &mut JNIEnv<'local>, usage: UsageMetrics) -> JObject<'local> {
-    let usage_class = env
-        .find_class("Lnet/lockbook/Usage$UsageItemMetric;")
-        .unwrap();
+    let usage_class = env.find_class("net/lockbook/Usage").unwrap();
     let obj = env.alloc_object(usage_class).unwrap();
 
     let server_usage = jusage_item_metric(env, usage.server_usage);
     env.set_field(
         &obj,
         "serverUsage",
-        "Lnet/lockbook/File$ShareMode;",
+        "Lnet/lockbook/Usage$UsageItemMetric;",
         JValue::Object(&server_usage),
     )
     .unwrap();
 
     let data_cap = jusage_item_metric(env, usage.data_cap);
-    env.set_field(&obj, "dataCap", "Lnet/lockbook/File$ShareMode;", JValue::Object(&data_cap))
-        .unwrap();
+    env.set_field(
+        &obj,
+        "dataCap",
+        "Lnet/lockbook/Usage$UsageItemMetric;",
+        JValue::Object(&data_cap),
+    )
+    .unwrap();
 
     obj
 }
@@ -407,7 +401,7 @@ fn jusage_metrics<'local>(env: &mut JNIEnv<'local>, usage: UsageMetrics) -> JObj
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_getUsage<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
-) -> jstring {
+) -> jobject {
     let lb = rlb(&mut env, &class);
 
     match lb.get_usage() {
@@ -516,52 +510,45 @@ pub extern "system" fn Java_net_lockbook_Lb_moveFile<'local>(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll<'local>(
+pub extern "system" fn Java_net_lockbook_Lb_sync<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jsync_progress: JObject<'local>,
 ) {
     let lb: &mut Lb = rlb(&mut env, &class);
 
-    let jvm = env.get_java_vm().unwrap();
-    let jsync_progress = env.new_global_ref(jsync_progress).unwrap();
+    let f: Option<Box<dyn Fn(SyncProgress) + Send>> = if jsync_progress.is_null() {
+        None
+    } else {
+        let jvm = env.get_java_vm().unwrap();
+        let jsync_progress = env.new_global_ref(jsync_progress).unwrap();
 
-    let closure = move |sync_progress: SyncProgress| {
-        let mut env = jvm.attach_current_thread().unwrap();
+        Some(Box::new(move |sync_progress: SyncProgress| {
+            let mut env = jvm.attach_current_thread().unwrap();
 
-        let msg = jni_string(&mut env, sync_progress.msg);
-        let args = [
-            JValue::Int(sync_progress.total as i32),
-            JValue::Int(sync_progress.progress as i32),
-            JValue::Object(&msg),
-        ]
-        .to_vec();
+            let msg = jni_string(&mut env, sync_progress.msg);
+            let args = [
+                JValue::Int(sync_progress.total as i32),
+                JValue::Int(sync_progress.progress as i32),
+                JValue::Object(&msg),
+            ]
+            .to_vec();
 
-        env.call_method(
-            jsync_progress.as_obj(),
-            "updateSyncProgressAndTotal",
-            "(IILjava/lang/String;)V",
-            args.as_slice(),
-        )
-        .unwrap();
+            env.call_method(
+                jsync_progress.as_obj(),
+                "updateSyncProgressAndTotal",
+                "(IILjava/lang/String;)V",
+                args.as_slice(),
+            )
+            .unwrap();
+        }))
     };
 
-    if let Err(err) = lb.sync(Some(Box::new(closure))) {
-        throw_err(&mut env, err);
-    }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_backgroundSync<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>,
-) {
-    let lb: &mut Lb = rlb(&mut env, &class);
-
-    if let Err(err) = lb.sync(None) {
+    if let Err(err) = lb.sync(f) {
         throw_err(&mut env, err);
     }
 }
 
 fn jsync_status<'local>(env: &mut JNIEnv<'local>, sync_status: SyncStatus) -> JObject<'local> {
-    let sync_status_class = env.find_class("Lnet/lockbook/SyncStatus;").unwrap();
+    let sync_status_class = env.find_class("net/lockbook/SyncStatus").unwrap();
     let sync_status_obj = env.alloc_object(sync_status_class).unwrap();
 
     // latest server ts
@@ -574,9 +561,7 @@ fn jsync_status<'local>(env: &mut JNIEnv<'local>, sync_status: SyncStatus) -> JO
     .unwrap();
 
     // work units
-    let work_unit_class = env
-        .find_class("Lnet/lockbook/SyncStatus$WorkUnit;")
-        .unwrap();
+    let work_unit_class = env.find_class("net/lockbook/SyncStatus$WorkUnit").unwrap();
 
     let work_units_array = env
         .new_object_array(sync_status.work_units.len() as i32, &work_unit_class, JObject::null())
@@ -677,7 +662,7 @@ fn jsubscription_info<'local>(
         None => return JObject::null(),
     };
 
-    let subscription_info_class = env.find_class("Lnet/lockbook/SubscriptionInfo;").unwrap();
+    let subscription_info_class = env.find_class("net/lockbook/SubscriptionInfo").unwrap();
     let obj = env.alloc_object(subscription_info_class).unwrap();
 
     env.set_field(&obj, "periodEnd", "J", JValue::Long(sub_info.period_end as jlong))
@@ -686,7 +671,7 @@ fn jsubscription_info<'local>(
     match sub_info.payment_platform {
         PaymentPlatform::Stripe { card_last_4_digits } => {
             let stripe_class = env
-                .find_class("Lnet/lockbook/SubscriptionInfo$Stripe;")
+                .find_class("net/lockbook/SubscriptionInfo$Stripe")
                 .unwrap();
             let stripe_obj = env.alloc_object(stripe_class).unwrap();
 
@@ -709,12 +694,12 @@ fn jsubscription_info<'local>(
         }
         PaymentPlatform::GooglePlay { account_state } => {
             let google_play_class = env
-                .find_class("Lnet/lockbook/SubscriptionInfo$GooglePlay;")
+                .find_class("net/lockbook/SubscriptionInfo$GooglePlay")
                 .unwrap();
             let google_play_obj = env.alloc_object(google_play_class).unwrap();
 
             let google_play_enum_class = env
-                .find_class("Lnet/lockbook/SubscriptionInfo$GooglePlay$GooglePlayAccountState;")
+                .find_class("net/lockbook/SubscriptionInfo$GooglePlay$GooglePlayAccountState")
                 .unwrap();
             let account_state_str = match account_state {
                 GooglePlayAccountState::Ok => "Ok",
@@ -750,12 +735,12 @@ fn jsubscription_info<'local>(
         }
         PaymentPlatform::AppStore { account_state } => {
             let app_store_class = env
-                .find_class("Lnet/lockbook/SubscriptionInfo$AppStore;")
+                .find_class("net/lockbook/SubscriptionInfo$AppStore")
                 .unwrap();
             let app_store_obj = env.alloc_object(app_store_class).unwrap();
 
             let app_store_enum_class = env
-                .find_class("Lnet/lockbook/SubscriptionInfo$AppStore$AppStoreAccountState;")
+                .find_class("net/lockbook/SubscriptionInfo$AppStore$AppStoreAccountState")
                 .unwrap();
             let account_state_str = match account_state {
                 AppStoreAccountState::Ok => "Ok",
@@ -826,7 +811,7 @@ fn jids<'local>(env: &mut JNIEnv<'local>, ids: Vec<Uuid>) -> JObjectArray<'local
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_getLocalChanges<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
-) -> jarray {
+) -> jobjectArray {
     let lb = rlb(&mut env, &class);
 
     match lb.get_local_changes() {
@@ -915,7 +900,7 @@ fn jsearch_results<'local>(
                         .unwrap();
                     env.set_field(
                         &jcontent_match,
-                        "matchedIndicies",
+                        "matchedIndices",
                         "[I",
                         JValue::Object(&jmatched_indices),
                     )
@@ -944,7 +929,7 @@ fn jsearch_results<'local>(
 
                 jdoc_match
             }
-            SearchResult::PathMatch { id, path, .. } => {
+            SearchResult::PathMatch { id, path, matched_indices, score } => {
                 let jpath_match = env.alloc_object(&path_match_class).unwrap();
 
                 // id
@@ -955,6 +940,23 @@ fn jsearch_results<'local>(
                 // path
                 let jpath = env.new_string(path.clone()).unwrap();
                 env.set_field(&jpath_match, "path", "Ljava/lang/String;", JValue::Object(&jpath))
+                    .unwrap();
+
+                // matched indices
+                let jmatched_indices = env.new_int_array(matched_indices.len() as i32).unwrap();
+                let matched_indices: Vec<i32> = matched_indices.iter().map(|&x| x as i32).collect();
+                env.set_int_array_region(&jmatched_indices, 0, &matched_indices)
+                    .unwrap();
+                env.set_field(
+                    &jpath_match,
+                    "matchedIndices",
+                    "[I",
+                    JValue::Object(&jmatched_indices),
+                )
+                .unwrap();
+
+                // score
+                env.set_field(&jpath_match, "score", "I", JValue::Int(*score as i32))
                     .unwrap();
 
                 jpath_match
@@ -1024,7 +1026,7 @@ pub extern "system" fn Java_net_lockbook_Lb_deletePendingShare<'local>(
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_suggestedDocs<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
-) -> jarray {
+) -> jobjectArray {
     let lb = rlb(&mut env, &class);
 
     match lb.suggested_docs(RankingWeights::default()) {
@@ -1034,12 +1036,11 @@ pub extern "system" fn Java_net_lockbook_Lb_suggestedDocs<'local>(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_net_lockbook_Lb_logoutAndExit<'local>(
+pub extern "system" fn Java_net_lockbook_Lb_logout<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) {
     let lb = rlb(&mut env, &class);
     fs::remove_dir_all(lb.get_config().writeable_path).unwrap();
-    process::exit(0);
 }
 
 #[no_mangle]

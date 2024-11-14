@@ -1,6 +1,6 @@
 package net.lockbook;
 
 public class Account {
-    String uname;
-    String apiUrl;
+    public String username;
+    public String apiUrl;
 }

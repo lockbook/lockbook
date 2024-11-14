@@ -20,7 +20,6 @@ import android.view.SurfaceView
 import android.view.View
 import androidx.core.content.ContextCompat.startActivity
 import app.lockbook.App
-import app.lockbook.model.CoreModel
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
@@ -30,6 +29,7 @@ import app.lockbook.workspace.WsStatus
 import app.lockbook.workspace.isNullUUID
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import net.lockbook.Lb
 import kotlin.math.min
 
 @SuppressLint("ViewConstructor")
@@ -80,7 +80,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
-        WORKSPACE.resizeWS(
+        Workspace.resizeWS(
             WGPU_OBJ,
             holder.surface,
             context.resources.displayMetrics.scaledDensity
@@ -90,9 +90,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     override fun surfaceCreated(holder: SurfaceHolder) {
         surface = holder.surface
 
-        WGPU_OBJ = WORKSPACE.initWS(
+        WGPU_OBJ = Workspace.initWS(
             surface!!,
-            CoreModel.getPtr(),
+            Lb.lb,
             context.resources.displayMetrics.scaledDensity,
             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
             WGPU_OBJ
@@ -126,13 +126,13 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
                     if (action == SPEN_ACTION_DOWN) {
                         eraserToggledOnByPen = true
-                        WORKSPACE.toggleEraserSVG(WGPU_OBJ, true)
+                        Workspace.toggleEraserSVG(WGPU_OBJ, true)
                     } else if (eraserToggledOnByPen) {
                         eraserToggledOnByPen = false
-                        WORKSPACE.toggleEraserSVG(WGPU_OBJ, false)
+                        Workspace.toggleEraserSVG(WGPU_OBJ, false)
                     }
 
-                    WORKSPACE.touchesBegin(
+                    Workspace.touchesBegin(
                         WGPU_OBJ,
                         pointerId,
                         adjustTouchPoint(event.getX(i)),
@@ -142,7 +142,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 }
 
                 MotionEvent.ACTION_MOVE, SPEN_ACTION_MOVE -> {
-                    WORKSPACE.touchesMoved(
+                    Workspace.touchesMoved(
                         WGPU_OBJ,
                         pointerId,
                         adjustTouchPoint(event.getX(i)),
@@ -152,7 +152,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 }
 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, SPEN_ACTION_UP -> {
-                    WORKSPACE.touchesEnded(
+                    Workspace.touchesEnded(
                         WGPU_OBJ,
                         pointerId,
                         adjustTouchPoint(event.getX(i)),
@@ -162,7 +162,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 }
 
                 MotionEvent.ACTION_CANCEL -> {
-                    WORKSPACE.touchesCancelled(
+                    Workspace.touchesCancelled(
                         WGPU_OBJ,
                         pointerId,
                         adjustTouchPoint(event.getX(i)),
@@ -189,7 +189,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
-        WORKSPACE.openDoc(WGPU_OBJ, id, newFile)
+        Workspace.openDoc(WGPU_OBJ, id, newFile)
     }
 
     fun showTabs(show: Boolean) {
@@ -197,7 +197,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
-        WORKSPACE.showTabs(WGPU_OBJ, show)
+        Workspace.showTabs(WGPU_OBJ, show)
     }
 
     fun sync() {
@@ -205,7 +205,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
-        WORKSPACE.requestSync(WGPU_OBJ)
+        Workspace.requestSync(WGPU_OBJ)
     }
 
     fun closeDoc(id: String) {
@@ -213,7 +213,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
-        WORKSPACE.closeDoc(WGPU_OBJ, id)
+        Workspace.closeDoc(WGPU_OBJ, id)
     }
 
     fun fileRenamed(id: String, name: String) {
@@ -221,7 +221,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
-        WORKSPACE.fileRenamed(WGPU_OBJ, id, name)
+        Workspace.fileRenamed(WGPU_OBJ, id, name)
     }
 
     override fun draw(canvas: Canvas) {
@@ -241,7 +241,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
-        val responseJson = WORKSPACE.enterFrame(WGPU_OBJ)
+        val responseJson = Workspace.enterFrame(WGPU_OBJ)
         val response: AndroidResponse = frameOutputJsonParser.decodeFromString(responseJson)
 
         if (response.urlOpened.isNotEmpty()) {
@@ -250,7 +250,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         if (response.statusUpdated) {
-            val status: WsStatus = frameOutputJsonParser.decodeFromString(Workspace.getInstance().getStatus(WGPU_OBJ))
+            val status: WsStatus = frameOutputJsonParser.decodeFromString(Workspace.getStatus(WGPU_OBJ))
 
             if (model.isSyncing && !status.syncing) {
                 model._syncCompleted.postValue(Unit)
@@ -278,7 +278,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         if (response.tabTitleClicked) {
             model._tabTitleClicked.postValue(Unit)
-            WORKSPACE.unfocusTitle(WGPU_OBJ)
+            Workspace.unfocusTitle(WGPU_OBJ)
         }
 
         if (response.copiedText.isNotEmpty()) {
@@ -286,7 +286,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
         }
 
-        val currentTab = WorkspaceTab.fromInt(WORKSPACE.currentTab(WGPU_OBJ))
+        val currentTab = WorkspaceTab.fromInt(Workspace.currentTab(WGPU_OBJ))
         if (currentTab != model._currentTab.value) {
             model._currentTab.value = currentTab
         }
@@ -330,8 +330,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         const val SPEN_ACTION_DOWN = 211
         const val SPEN_ACTION_MOVE = 213
         const val SPEN_ACTION_UP = 212
-
-        val WORKSPACE = Workspace.getInstance()
     }
     inner class FloatingTextEditorContextMenu(private val textEditorContextMenu: TextEditorContextMenu, val editMenuX: Float, val editMenuY: Float) : ActionMode.Callback2() {
         override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {

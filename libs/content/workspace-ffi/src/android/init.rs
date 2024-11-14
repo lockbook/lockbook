@@ -6,7 +6,7 @@ use egui_wgpu_backend::ScreenDescriptor;
 use jni::objects::JClass;
 use jni::sys::*;
 use jni::JNIEnv;
-use lb_external_interface::Core;
+use lb_java::Lb;
 use ndk_sys::{
     ANativeWindow, ANativeWindow_fromSurface, ANativeWindow_getHeight, ANativeWindow_getWidth,
     ANativeWindow_release,
@@ -79,8 +79,8 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     env: JNIEnv, _: JClass, surface: jobject, core: jlong, scale_factor: jfloat, dark_mode: bool,
     old_wgpu: jlong,
 ) -> jlong {
-    let core = unsafe { &mut *(core as *mut Core) };
-    let writable_dir = core.get_config().unwrap().writeable_path;
+    let core = unsafe { &mut *(core as *mut Lb) };
+    let writable_dir = core.get_config().writeable_path;
 
     let mut native_window = NativeWindow::new(&env, surface);
     let backends = wgpu::Backends::VULKAN;

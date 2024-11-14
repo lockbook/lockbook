@@ -6,11 +6,11 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatDialogFragment
 import app.lockbook.R
 import app.lockbook.model.AlertModel
-import app.lockbook.model.CoreModel
-import app.lockbook.util.File
-import com.github.michaelbull.result.Err
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
+import net.lockbook.File
+import net.lockbook.Lb
+import net.lockbook.LbError
 import java.lang.ref.WeakReference
 
 class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment() {
@@ -23,13 +23,13 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
     companion object {
         const val DELETE_SHARED_DIALOG_FRAGMENT = "DeleteSharedDialogFragment"
 
-        const val FILES_KEY = "files_key"
+        const val FILES_ID_KEY = "files_key"
 
         fun newInstance(files: ArrayList<File>): DeleteSharedDialogFragment {
             val dialog = DeleteSharedDialogFragment()
 
             val bundle = Bundle()
-            bundle.putParcelableArrayList(FILES_KEY, files)
+            bundle.putStringArray(FILES_ID_KEY, files.map { it.id }.toTypedArray())
             dialog.arguments = bundle
 
             return dialog
@@ -37,7 +37,7 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val files = requireArguments().getParcelableArrayList<File>(FILES_KEY)!!
+        val files = requireArguments().getStringArray(FILES_ID_KEY)!!.map { Lb.getFileById(it) }
 
         return MaterialAlertDialogBuilder(requireContext())
             .apply {
@@ -59,14 +59,13 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
             }
     }
 
-    private fun onButtonPositive(files: ArrayList<File>) {
+    private fun onButtonPositive(files: List<File>) {
         uiScope.launch(Dispatchers.IO) {
             for (file in files) {
-                val deleteFileResult = CoreModel.deletePendingShare(file.id)
-
-                if (deleteFileResult is Err) {
-                    alertModel.notifyError(deleteFileResult.error.toLbError(resources))
-                    break
+                try {
+                    Lb.deletePendingShare(file.id)
+                } catch (err: LbError) {
+                    alertModel.notifyError(err)
                 }
             }
 

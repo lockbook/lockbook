@@ -34,6 +34,11 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textview.MaterialTextView
+import net.lockbook.File
+import net.lockbook.File.FileType
+import net.lockbook.Lb
+import net.lockbook.LbError
+import net.lockbook.Usage
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -344,7 +349,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                     name.text = item.fileMetadata.name
                     if (item.fileMetadata.lastModified != 0L) {
                         description.visibility = View.VISIBLE
-                        description.text = CoreModel.convertToHumanDuration(item.fileMetadata.lastModified)
+                        description.text = Lb.getTimestampHumanString(item.fileMetadata.lastModified)
                     } else {
                         description.visibility = View.GONE
                     }
@@ -407,7 +412,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 onBind(::SuggestedDocsItemViewHolder) { _, item ->
                     name.text = item.fileMetadata.name
                     folderName.text = getString(R.string.suggested_docs_parent_folder, item.folderName)
-                    lastEdited.text = CoreModel.convertToHumanDuration(item.fileMetadata.lastModified)
+                    lastEdited.text = Lb.getTimestampHumanString(item.fileMetadata.lastModified)
 
                     val extensionHelper = ExtensionHelper(item.fileMetadata.name)
 
@@ -429,7 +434,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     private fun enterFile(item: File) {
-        when (item.fileType) {
+        when (item.type) {
             FileType.Document -> {
                 // TODO: consider that not all updates to the screen may go through because of postVal
                 activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFile(item.id))
@@ -437,6 +442,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             FileType.Folder -> {
                 model.enterFolder(item)
             }
+            FileType.Link -> {} // shouldn't happen
         }
     }
 
@@ -651,7 +657,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 sealed class UpdateFilesUI {
     data class UpdateBreadcrumbBar(val breadcrumbItems: List<BreadCrumbItem>) : UpdateFilesUI()
     data class NotifyError(val error: LbError) : UpdateFilesUI()
-    data class UpdateSideBarInfo(var usageMetrics: UsageMetrics? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null, var hasPendingShares: Boolean? = null) : UpdateFilesUI()
+    data class UpdateSideBarInfo(var usageMetrics: Usage? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null, var hasPendingShares: Boolean? = null) : UpdateFilesUI()
     data class ToggleSuggestedDocsVisibility(var show: Boolean) : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
     object ShowBeforeWeStart : UpdateFilesUI()

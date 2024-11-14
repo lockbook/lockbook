@@ -50,16 +50,13 @@ android {
         }
     }
 
-// To inline the bytecode built with JVM target 1.8 into
-// bytecode that is being built with JVM target 1.6. (e.g. navArgs)
-
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17"
     }
 
     kotlinter {
@@ -127,11 +124,10 @@ dependencies {
     androidTestImplementation "androidx.test:rules:$test_runner_version"
 
     // Miscellaneous
-    implementation "com.michael-bull.kotlin-result:kotlin-result:$result_version"
     implementation "com.jakewharton.timber:timber:$logger_version"
     implementation "androidx.work:work-runtime-ktx:$work_version"
     implementation "com.android.billingclient:billing-ktx:$billing_version"
 
-    implementation project(':lb-rs')
     implementation project(':workspace')
+    implementation project(':lb-java')
 }

@@ -1,6 +1,5 @@
 package app.lockbook
 
-import app.lockbook.model.CoreModel
 import app.lockbook.util.CancelSubscriptionError
 import app.lockbook.util.Config
 import org.junit.Before

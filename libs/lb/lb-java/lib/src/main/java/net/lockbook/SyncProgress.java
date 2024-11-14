@@ -1,3 +1,5 @@
+package net.lockbook;
+
 public interface SyncProgress {
-    public void updateSyncProgressAndTotal(int total, int progress, String message);
+    void updateSyncProgressAndTotal(int total, int progress, String message);
 }

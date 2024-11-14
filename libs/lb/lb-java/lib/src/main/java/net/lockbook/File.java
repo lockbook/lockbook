@@ -1,26 +1,43 @@
 package net.lockbook;
 
-public class File {
-    String id;
-    String parent;
-    String name;
-    FileType fileType;
-    long lastModified;
-    long lastModifiedBy;
-    Share[] shares;
+import javax.annotation.Nonnull;
 
-    public static enum FileType {
+public class File {
+    @Nonnull
+    public String id;
+    @Nonnull
+    public String parent;
+    @Nonnull
+    public String name;
+    @Nonnull
+    public FileType type;
+    @Nonnull
+    public long lastModified;
+    @Nonnull
+    public String lastModifiedBy;
+    @Nonnull
+    public Share[] shares;
+
+    public boolean isRoot() {
+        return id.equals(parent);
+    }
+
+    public enum FileType {
+        Folder,
         Document,
-        Folder
+        Link
     }
 
     public static class Share {
-        ShareMode mode;
-        String sharedBy;
-        String sharedWith;
+        @Nonnull
+        public ShareMode mode;
+        @Nonnull
+        public String sharedBy;
+        @Nonnull
+        public String sharedWith;
     }
 
-    public static enum ShareMode {
+    public enum ShareMode {
         Write,
         Read
     }

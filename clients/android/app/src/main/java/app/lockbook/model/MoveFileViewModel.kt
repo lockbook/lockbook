@@ -7,10 +7,12 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import net.lockbook.File
+import net.lockbook.File.FileType
+import net.lockbook.Lb
+import net.lockbook.LbError
 
 class MoveFileViewModel(application: Application, private val startId: String) :
     AndroidViewModel(application) {
@@ -39,24 +41,23 @@ class MoveFileViewModel(application: Application, private val startId: String) :
     }
 
     private fun startWithCurrentParent() {
-        when (val getFileByIdResult = CoreModel.getFileById(startId)) {
-            is Ok -> {
-                currentParent = getFileByIdResult.value
-                refreshOverFolder()
-            }
-            is Err -> _notifyError.postValue(getFileByIdResult.error.toLbError(getRes()))
-        }.exhaustive
+        try {
+            currentParent = Lb.getFileById(startId)
+            refreshOverFolder()
+        } catch (err: LbError) {
+            _notifyError.postValue(err)
+        }
     }
 
     fun moveFilesToCurrentFolder() {
         viewModelScope.launch(Dispatchers.IO) {
-            for (id in ids) {
-                val moveFileResult = CoreModel.moveFile(id, currentParent.id)
-
-                if (moveFileResult is Err) {
-                    _notifyError.postValue(moveFileResult.error.toLbError(getRes()))
-                    return@launch
+            try {
+                for (id in ids) {
+                    Lb.moveFile(id, currentParent.id)
                 }
+            } catch (err: LbError) {
+                _notifyError.postValue(err)
+                return@launch
             }
 
             _closeDialog.postValue(Unit)
@@ -64,36 +65,33 @@ class MoveFileViewModel(application: Application, private val startId: String) :
     }
 
     private fun refreshOverFolder() {
-        when (val getChildrenResult = CoreModel.getChildren(currentParent.id)) {
-            is Ok -> {
-                val tempFiles = getChildrenResult.value.filter { file ->
-                    file.isFolder() && !ids.contains(file.id)
-                }.toMutableList()
+        try {
+            val tempFiles = Lb.getChildren(currentParent.id).filter { file ->
+                file.type == FileType.Folder && !ids.contains(file.id)
+            }.toMutableList()
 
-                if (!currentParent.isRoot()) {
-                    tempFiles.add(
-                        0,
-                        File(
-                            id = PARENT_ID,
-                            fileType = FileType.Folder,
-                            name = "...",
-                        )
-                    )
-                }
-
-                viewModelScope.launch(Dispatchers.Main) {
-                    files.set(FileModel.sortFiles(tempFiles))
-                }
+            if (!currentParent.isRoot) {
+                val parent = File()
+                parent.id = PARENT_ID
+                parent.type = FileType.Folder
+                parent.name = "..."
+                tempFiles.add(0, parent)
             }
-            is Err -> _notifyError.postValue(getChildrenResult.error.toLbError(getRes()))
+
+            viewModelScope.launch(Dispatchers.Main) {
+                files.set(FileModel.sortFiles(tempFiles))
+            }
+        } catch (err: LbError) {
+            _notifyError.postValue(err)
         }
     }
 
     private fun setParentAsParent() {
-        when (val getFileById = CoreModel.getFileById(currentParent.parent)) {
-            is Ok -> currentParent = getFileById.value
-            is Err -> _notifyError.postValue(getFileById.error.toLbError(getRes()))
-        }.exhaustive
+        try {
+            currentParent = Lb.getFileById(currentParent.parent)
+        } catch (err: LbError) {
+            _notifyError.postValue(err)
+        }
     }
 
     fun onItemClick(item: File) {
