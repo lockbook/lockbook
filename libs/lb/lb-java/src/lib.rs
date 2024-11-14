@@ -2,14 +2,14 @@ mod java_utils;
 
 use std::{fs, str::FromStr};
 
-pub use lb_rs::*;
-pub use lb_rs::{blocking::Lb, model::core_config::Config};
 use java_utils::{jbyte_array, jni_string, rbyte_array, rlb, rstring, throw_err};
 use jni::{
     objects::{JByteArray, JClass, JObject, JObjectArray, JString, JValue},
     sys::{jboolean, jbyteArray, jlong, jobject, jobjectArray, jstring},
     JNIEnv,
 };
+pub use lb_rs::*;
+pub use lb_rs::{blocking::Lb, model::core_config::Config};
 use lb_rs::{
     model::{
         account::Account,
@@ -374,9 +374,7 @@ fn jusage_item_metric<'local>(env: &mut JNIEnv<'local>, usage: UsageItemMetric) 
 }
 
 fn jusage_metrics<'local>(env: &mut JNIEnv<'local>, usage: UsageMetrics) -> JObject<'local> {
-    let usage_class = env
-        .find_class("net/lockbook/Usage")
-        .unwrap();
+    let usage_class = env.find_class("net/lockbook/Usage").unwrap();
     let obj = env.alloc_object(usage_class).unwrap();
 
     let server_usage = jusage_item_metric(env, usage.server_usage);
@@ -389,8 +387,13 @@ fn jusage_metrics<'local>(env: &mut JNIEnv<'local>, usage: UsageMetrics) -> JObj
     .unwrap();
 
     let data_cap = jusage_item_metric(env, usage.data_cap);
-    env.set_field(&obj, "dataCap", "Lnet/lockbook/Usage$UsageItemMetric;", JValue::Object(&data_cap))
-        .unwrap();
+    env.set_field(
+        &obj,
+        "dataCap",
+        "Lnet/lockbook/Usage$UsageItemMetric;",
+        JValue::Object(&data_cap),
+    )
+    .unwrap();
 
     obj
 }
@@ -558,9 +561,7 @@ fn jsync_status<'local>(env: &mut JNIEnv<'local>, sync_status: SyncStatus) -> JO
     .unwrap();
 
     // work units
-    let work_unit_class = env
-        .find_class("net/lockbook/SyncStatus$WorkUnit")
-        .unwrap();
+    let work_unit_class = env.find_class("net/lockbook/SyncStatus$WorkUnit").unwrap();
 
     let work_units_array = env
         .new_object_array(sync_status.work_units.len() as i32, &work_unit_class, JObject::null())
@@ -942,13 +943,8 @@ fn jsearch_results<'local>(
                     .unwrap();
 
                 // matched indices
-                let jmatched_indices = env
-                .new_int_array(matched_indices.len() as i32)
-                .unwrap();
-                let matched_indices: Vec<i32> = matched_indices
-                    .iter()
-                    .map(|&x| x as i32)
-                    .collect();
+                let jmatched_indices = env.new_int_array(matched_indices.len() as i32).unwrap();
+                let matched_indices: Vec<i32> = matched_indices.iter().map(|&x| x as i32).collect();
                 env.set_int_array_region(&jmatched_indices, 0, &matched_indices)
                     .unwrap();
                 env.set_field(
@@ -957,17 +953,11 @@ fn jsearch_results<'local>(
                     "[I",
                     JValue::Object(&jmatched_indices),
                 )
-                .unwrap();      
+                .unwrap();
 
                 // score
-                env.set_field(
-                    &jpath_match,
-                    "score",
-                    "I",
-                    JValue::Int(*score as i32),
-                )
-                .unwrap();
-    
+                env.set_field(&jpath_match, "score", "I", JValue::Int(*score as i32))
+                    .unwrap();
 
                 jpath_match
             }

@@ -27,14 +27,7 @@ pub struct LbErr {
 /// printing this out anywhere within core is going to be _unexpected_
 impl Display for LbErr {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match &self.backtrace {
-            Some(backtrace) => {
-                writeln!(f, "unexpected error: {:?}: {}", self.kind, self.kind).unwrap();
-                writeln!(f, "{backtrace}").unwrap();
-                Ok(())
-            }
-            None => write!(f, "{}", self.kind),
-        }
+        write!(f, "{}", self.kind)
     }
 }
 
