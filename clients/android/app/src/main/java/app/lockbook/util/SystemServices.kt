@@ -72,3 +72,36 @@ fun MainScreenActivity.maybeGetSearchFilesFragment(): SearchDocumentsFragment? =
 
 fun SharesActivity.maybeGetCreateLinkFragment(): CreateLinkFragment? =
     (supportFragmentManager.findFragmentById(R.id.shared_files_container) as? NavHostFragment)?.childFragmentManager?.fragments?.get(0) as? CreateLinkFragment
+
+fun getString(
+    res: Resources,
+    @StringRes stringRes: Int,
+    vararg formatArgs: Any = emptyArray()
+): String = res.getString(stringRes, *formatArgs)
+
+class ExtensionHelper(val fileName: String) {
+    private val extension: String
+        get() {
+            val indexOfDot = fileName.lastIndexOf('.')
+
+            if (indexOfDot == -1) {
+                return ""
+            }
+
+            return fileName.substring(indexOfDot + 1)
+        }
+
+    val isImage: Boolean
+        get() = extension in setOf(
+            "jpeg",
+            "jpg",
+            "png"
+        )
+
+    val isDrawing: Boolean get() = extension == "svg"
+
+    val isPdf: Boolean get() = extension == "pdf"
+}
+
+val <T> T.exhaustive: T
+    get() = this

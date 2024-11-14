@@ -1,9 +1,11 @@
+package net.lockbook;
+
 public class SyncStatus {
-    WorkUnit workUnits;
-    long latestServerTS;
+    public WorkUnit[] workUnits;
+    public long latestServerTS;
 
     public static class WorkUnit {
-        boolean isLocalChange;
-        String id;
+        public boolean isLocalChange;
+        public String id;
     }
 }

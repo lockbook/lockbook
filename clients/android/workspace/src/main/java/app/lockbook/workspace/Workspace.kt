@@ -1,9 +1,6 @@
 package app.lockbook.workspace
-import android.text.Editable
-import android.text.InputFilter
 import android.view.Surface
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.SerialInfo
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -12,10 +9,8 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
-import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.jsonPrimitive
 import java.math.BigInteger
-import java.util.UUID
 
 // Examine performance improvements with borsh.io
 
@@ -77,22 +72,16 @@ public data class AndroidResponse(
     val textUpdated: Boolean
 )
 
-class Workspace private constructor() {
+object Workspace {
 
     init {
+        print("INITING WORKSPACE ISH")
         System.loadLibrary("workspace")
     }
 
-    companion object {
-        private var workspace: Workspace? = null
-
-        fun getInstance(): Workspace {
-            if(workspace == null) {
-                workspace = Workspace()
-            }
-
-            return workspace!!
-        }
+    // dummy init to load workspace and lb-java lib
+    fun init() {
+        print("LOADED WORKSPACE and LB-JAVA")
     }
 
     external fun initWS(surface: Surface, core: Long, scaleFactor: Float, darkMode: Boolean, oldWGPU: Long): Long

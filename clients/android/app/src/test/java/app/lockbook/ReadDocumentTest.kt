@@ -1,6 +1,5 @@
 package app.lockbook
 
-import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
 import app.lockbook.util.FileType
 import app.lockbook.util.ReadDocumentError

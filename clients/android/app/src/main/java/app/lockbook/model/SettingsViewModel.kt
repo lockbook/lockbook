@@ -8,10 +8,12 @@ import androidx.lifecycle.viewModelScope
 import app.lockbook.R
 import app.lockbook.ui.UsageBarPreference
 import app.lockbook.util.*
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import net.lockbook.Lb
+import net.lockbook.LbError
+import net.lockbook.SubscriptionInfo
+import net.lockbook.Usage
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val _sendBreadcrumb = SingleMutableLiveData<String>()
@@ -42,54 +44,52 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun computeUsage() {
-        when (val usageResult = CoreModel.getUsage()) {
-            is Ok -> when (val uncompressedUsageResult = CoreModel.getUncompressedUsage()) {
-                is Ok ->
-                    if (usageResult.value.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES) {
-                        when (val subscriptionResult = CoreModel.getSubscriptionInfo()) {
-                            is Ok -> _determineSettingsInfo.postValue(SettingsInfo(usageResult.value, uncompressedUsageResult.value, subscriptionResult.value))
-                            is Err -> _notifyError.postValue(subscriptionResult.error.toLbError(getRes()))
-                        }
-                    } else {
-                        _determineSettingsInfo.postValue(SettingsInfo(usageResult.value, uncompressedUsageResult.value, null))
-                    }
-                is Err -> _notifyError.postValue(uncompressedUsageResult.error.toLbError(getRes()))
+        try {
+            val usage = Lb.getUsage()
+            val uncompressedUsage = Lb.getUncompressedUsage()
+            val subscriptionInfo = Lb.getSubscriptionInfo()
+
+            if (usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES) {
+                _determineSettingsInfo.postValue(SettingsInfo(usage, uncompressedUsage, subscriptionInfo))
+            } else {
+                _determineSettingsInfo.postValue(SettingsInfo(usage, uncompressedUsage, null))
             }
-            is Err -> _notifyError.postValue(usageResult.error.toLbError(getRes()))
+        } catch (err: LbError) {
+            _notifyError.postValue(err)
         }
     }
 
     fun cancelSubscription() {
         viewModelScope.launch(Dispatchers.IO) {
-            when (val cancelResult = CoreModel.cancelSubscription()) {
-                is Ok -> {
-                    _sendBreadcrumb.postValue(getString(R.string.settings_cancel_completed))
-                    computeUsage()
-                }
-                is Err -> _notifyError.postValue(cancelResult.error.toLbError(getRes()))
+            try {
+                Lb.cancelSubscription()
+                _sendBreadcrumb.postValue(getString(R.string.settings_cancel_completed))
+                computeUsage()
+            } catch (err: LbError) {
+                _notifyError.postValue(err)
             }
         }
     }
 
     fun deleteAccount() {
-        viewModelScope.launch(Dispatchers.IO) {
-            when (val cancelResult = CoreModel.deleteAccount()) {
-                is Ok -> _exit.postValue(Unit)
-                is Err -> _notifyError.postValue(cancelResult.error.toLbError(getRes()))
-            }
+        try {
+            Lb.deleteAccount()
+            _exit.postValue(Unit)
+        } catch (err: LbError) {
+            _notifyError.postValue(err)
         }
     }
 
     fun logout() {
         viewModelScope.launch(Dispatchers.IO) {
-            CoreModel.logout()
+            Lb.logout()
             _exit.postValue(Unit)
         }
     }
 }
 
 data class SettingsInfo(
-    val usage: UsageMetrics,
-    val uncompressedUsage: UsageItemMetric,
+    val usage: Usage,
+    val uncompressedUsage: Usage.UsageItemMetric,
     val subscriptionInfo: SubscriptionInfo?
 )

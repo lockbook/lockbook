@@ -1,8 +1,7 @@
 package app.lockbook.model
 
-import android.content.Context
-import app.lockbook.util.*
-import com.github.michaelbull.result.*
+import net.lockbook.File
+import net.lockbook.Lb
 
 class FileModel(
     val root: File,
@@ -15,61 +14,23 @@ class FileModel(
 
     companion object {
         // Returns Ok(null) if there is no root
-        fun createAtRoot(context: Context): Result<FileModel?, LbError> {
-            return when (val getRootResult = CoreModel.getRoot()) {
-                is Ok -> {
-                    val root = getRootResult.value
+        fun createAtRoot(): FileModel {
+            val root = Lb.getRoot()
 
-                    val fileModel = FileModel(
-                        root,
-                        root,
-                        emptyMap(),
-                        listOf(),
-                        listOf(),
-                        mutableListOf(root),
-                    )
-                    fileModel.refreshFiles()
+            val fileModel = FileModel(
+                root,
+                root,
+                emptyMap(),
+                listOf(),
+                listOf(),
+                mutableListOf(root),
+            )
+            fileModel.refreshFiles()
 
-                    Ok(fileModel)
-                }
-                is Err -> {
-                    if ((getRootResult.error as? CoreError.UiError)?.content == GetRootError.NoRoot) {
-                        Ok(null)
-                    } else {
-                        Err(getRootResult.error.toLbError(context.resources))
-                    }
-                }
-            }
+            return fileModel
         }
 
-        private fun suggestedDocs(idsAndFiles: Map<String, File>): Result<List<File>, CoreError<Empty>> {
-            return when (val suggestedDocsResult = CoreModel.suggestedDocs()) {
-                is Ok -> {
-                    Ok(
-                        suggestedDocsResult.value.filter {
-                            idsAndFiles.containsKey(it)
-                        }.map {
-                            idsAndFiles[it]!!
-                        }
-                    )
-                }
-                is Err -> {
-                    Err(suggestedDocsResult.error)
-                }
-            }
-        }
-
-        fun sortFiles(files: List<File>): List<File> {
-            val folders = files.filter { fileMetadata ->
-                fileMetadata.fileType == FileType.Folder
-            }
-
-            val documents = files.filter { fileMetadata ->
-                fileMetadata.fileType == FileType.Document
-            }
-
-            return folders.sortedBy { it.name } + documents.sortedBy { it.name }
-        }
+        fun sortFiles(files: List<File>): List<File> = files.sortedWith(compareBy<File> { it.type }.thenBy { it.name })
     }
 
     fun refreshChildrenAtAncestor(position: Int) {
@@ -84,14 +45,10 @@ class FileModel(
 
     fun isAtRoot(): Boolean = parent.id == parent.parent
 
-    fun refreshFiles(): Result<Unit, CoreError<Empty>> {
-        return CoreModel.listMetadatas().map { files ->
-            this.idsAndFiles = files.associateBy { it.id }
-            this.suggestedDocs = suggestedDocs(idsAndFiles).getOrElse { err ->
-                return Err(err)
-            }
-            refreshChildren()
-        }
+    fun refreshFiles() {
+        idsAndFiles = Lb.listMetadatas().associateBy { it.id }
+        suggestedDocs = Lb.suggestedDocs().mapNotNull { idsAndFiles[it] }
+        refreshChildren()
     }
 
     fun intoFile(newParent: File) {
@@ -110,7 +67,7 @@ class FileModel(
     fun intoParent() {
         parent = idsAndFiles[parent.parent]!!
         refreshChildren()
-        fileDir.removeLast()
+        fileDir.removeAt(fileDir.lastIndex)
     }
 
     fun verifyOpenFile(id: String): Boolean {
@@ -131,12 +88,7 @@ class FileModel(
         }
     }
 
-    fun refreshChildren() {
-        children = idsAndFiles.values.filter { it.parent == parent.id && it.id != it.parent }
-        sortChildren()
-    }
-
-    private fun sortChildren() {
-        children = sortFiles(children)
+    private fun refreshChildren() {
+        children = sortFiles(idsAndFiles.values.filter { it.parent == parent.id && it.id != it.parent })
     }
 }

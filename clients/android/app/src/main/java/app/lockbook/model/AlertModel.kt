@@ -6,11 +6,11 @@ import android.os.Looper
 import android.view.View
 import android.widget.Toast
 import app.lockbook.R
-import app.lockbook.util.LbError
-import app.lockbook.util.LbErrorKind
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
+import net.lockbook.LbError
+import net.lockbook.LbError.LbEC
 import timber.log.Timber
 import java.lang.ref.WeakReference
 
@@ -57,12 +57,11 @@ class AlertModel(private val activity: WeakReference<Activity>, view: View? = nu
     }
 
     fun notifyError(error: LbError, onFinish: (() -> Unit)? = null) {
-        when (error.kind) {
-            LbErrorKind.Program -> notifyWithDialog(unexpectedErrorMsg, error.msg, onFinish)
-            LbErrorKind.User -> {
-                Timber.e("Unexpected Error: $error.msg")
-                notify(error.msg, onFinish)
-            }
+        if (error.kind == LbEC.Unexpected) {
+            Timber.e("Unexpected Error: $error.msg")
+            notify(error.msg, onFinish)
+        } else {
+            notifyWithDialog(unexpectedErrorMsg, error.msg, onFinish)
         }
     }
 
