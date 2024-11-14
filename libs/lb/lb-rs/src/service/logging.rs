@@ -50,7 +50,9 @@ pub fn init(config: &Config) -> LbResult<()> {
 
         // logcat target for android
         #[cfg(target_os = "android")]
-        if let Some(writer) = tracing_logcat::LogcatMakeWriter::new(tracing_logcat::LogcatTag::Target).ok() {
+        if let Some(writer) =
+            tracing_logcat::LogcatMakeWriter::new(tracing_logcat::LogcatTag::Target).ok()
+        {
             layers.push(
                 fmt::Layer::new()
                     .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
@@ -65,7 +67,7 @@ pub fn init(config: &Config) -> LbResult<()> {
                     .boxed(),
             );
         }
-        
+
         tracing::subscriber::set_global_default(
             tracing_subscriber::Registry::default().with(layers),
         )
