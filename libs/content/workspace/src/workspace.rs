@@ -944,7 +944,7 @@ impl Workspace {
                                 sync = true; // todo: sync once when saving multiple tabs
                             }
                             Err(err) => {
-                                if err.kind == LbErrKind::ReReadRequired {
+                                if err.kind != LbErrKind::ReReadRequired {
                                     tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
                                 }
                             }
