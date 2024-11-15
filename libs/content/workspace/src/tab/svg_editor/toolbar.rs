@@ -83,7 +83,11 @@ macro_rules! set_tool {
             $obj.previous_tool = Some($obj.active_tool);
             $obj.active_tool = $new_tool;
         } else {
-            $obj.show_tool_controls = true;
+            if $obj.show_tool_controls == true {
+                $obj.show_tool_controls = false;
+            } else {
+                $obj.show_tool_controls = true;
+            }
         }
     };
 }
