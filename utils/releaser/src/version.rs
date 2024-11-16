@@ -62,7 +62,7 @@ fn handle_cargo_tomls(version: &str) {
         "libs/content/workspace",
         "libs/content/workspace-ffi",
         "libs/lb-fs",
-        "server/server",
+        "server",
         "clients/cli",
         "clients/egui",
         "clients/linux",
