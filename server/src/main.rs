@@ -47,7 +47,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let routes = core_routes(&server_state)
         .or(build_info())
-        .or(get_metrics())
         .or(stripe_webhooks(&server_state))
         .or(google_play_notification_webhooks(&server_state))
         .or(app_store_notification_webhooks(&server_state));
@@ -57,6 +56,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     error!("server started successfully");
 
     server_state.start_metrics_worker();
+
+    // metrics endpoint to be served anauthenticated, locally, only
+    tokio::spawn(warp::serve(get_metrics()).run(([127, 0, 0, 1], 8080)));
 
     // *** How people can connect to this server ***
     match (cfg.server.ssl_cert_location, cfg.server.ssl_private_key_location) {
