@@ -50,21 +50,21 @@ fn draw_free_tier(ui: &mut egui::Ui) {
 }
 
 fn draw_stripe(ui: &mut egui::Ui, last4: &str) -> Option<SubscriptionResponse> {
-    ui.heading(&format!("Stripe ({})", last4));
+    ui.heading(format!("Stripe ({})", last4));
     None
 }
 
 fn draw_google_play(
     ui: &mut egui::Ui, account_state: &GooglePlayAccountState,
 ) -> Option<SubscriptionResponse> {
-    ui.heading(&format!("Google Play ({:?})", account_state));
+    ui.heading(format!("Google Play ({:?})", account_state));
     None
 }
 
 fn draw_app_store(
     ui: &mut egui::Ui, account_state: &AppStoreAccountState,
 ) -> Option<SubscriptionResponse> {
-    ui.heading(&format!("App Store ({:?})", account_state));
+    ui.heading(format!("App Store ({:?})", account_state));
     None
 }
 
@@ -78,10 +78,10 @@ fn usage_bar(
 
     ui.horizontal(|ui| {
         ui.columns(2, |uis| {
-            uis[0].label(&format!("{}    ({:.2} %)", human_usage, percent * 100.0));
+            uis[0].label(format!("{}    ({:.2} %)", human_usage, percent * 100.0));
 
             uis[1].with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                ui.label(&bytes_to_human(available as u64));
+                ui.label(bytes_to_human(available as u64));
             });
         });
     });

@@ -60,14 +60,9 @@ impl Buffer {
         } else {
             let utree = maybe_tree.unwrap();
 
-            utree
-                .root()
-                .children()
-                .iter()
-                .enumerate()
-                .for_each(|(_, u_el)| {
-                    parse_child(u_el, &mut elements, &mut master_transform, &mut id_map)
-                });
+            utree.root().children().iter().for_each(|u_el| {
+                parse_child(u_el, &mut elements, &mut master_transform, &mut id_map)
+            });
         }
 
         Self {
@@ -262,8 +257,7 @@ pub fn parse_child(
             group
                 .children()
                 .iter()
-                .enumerate()
-                .for_each(|(_, u_el)| parse_child(u_el, elements, master_transform, id_map));
+                .for_each(|u_el| parse_child(u_el, elements, master_transform, id_map));
         }
 
         usvg::Node::Image(img) => {
