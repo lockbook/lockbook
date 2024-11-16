@@ -90,7 +90,7 @@ async fn test_children_and_move() {
     // Dir should have 1 child after the move
     let children = tree.children(&dir).unwrap();
     assert_eq!(children.len(), 1);
-    assert!(children.get(&doc).is_some());
+    assert!(children.contains(&doc));
 
     // Doc should have no children (obviously)
     let children = tree.children(&doc).unwrap();

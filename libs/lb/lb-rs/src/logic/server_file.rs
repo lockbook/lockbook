@@ -19,12 +19,6 @@ impl IntoServerFile for SignedFile {
     }
 }
 
-trait FromSignedFile {
-    fn from(file: SignedFile, version: u64) -> ServerFile {
-        file.add_time(version)
-    }
-}
-
 impl Display for ServerFile {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.display())

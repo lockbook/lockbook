@@ -85,7 +85,7 @@ impl Lb {
         }
 
         let phrase: [&str; 24] = key
-            .split(|c| c == ' ' || c == ',')
+            .split([' ', ','])
             .filter(|maybe_word| !maybe_word.is_empty())
             .collect::<Vec<_>>()
             .try_into()
