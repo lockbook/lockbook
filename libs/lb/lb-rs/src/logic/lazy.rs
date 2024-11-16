@@ -132,7 +132,7 @@ impl<T: TreeLike> LazyTree<T> {
         let mut visited_ids = vec![];
 
         loop {
-            if self.key.get(&file_id).is_some() {
+            if self.key.contains_key(&file_id) {
                 break;
             }
 

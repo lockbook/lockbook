@@ -70,7 +70,7 @@ impl SettingsModal {
             core: core.clone(),
             settings: s.clone(),
             account: AccountSettings::new(export_result),
-            usage: UsageSettings { info: None, info_tx, info_rx, upgrading: None },
+            usage: UsageSettings { info: None, info_rx, upgrading: None },
             active_tab: SettingsTab::Account,
             version: env!("CARGO_PKG_VERSION").to_string(),
         }

@@ -399,7 +399,7 @@ impl Workspace {
                             TabFailure::DeletedFromSync => {
                                 ui.vertical_centered(|ui| {
                                     ui.add_space(50.0);
-                                    ui.label(&format!(
+                                    ui.label(format!(
                                         "This file ({}) was deleted after syncing.",
                                         tab.path
                                     ));

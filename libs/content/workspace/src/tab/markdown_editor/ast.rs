@@ -676,7 +676,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
                         // head -> advance to own text
 
                         // current range should have ended at start of current node's text range
-                        #[cfg(debug)]
+                        #[cfg(debug_assertions)]
                         assert_eq!(current_range.range.1, current.text_range.0);
 
                         AstTextRange {
@@ -718,7 +718,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
                             // own tail
 
                             // current range should have ended at end of current node's text range
-                            #[cfg(debug)]
+                            #[cfg(debug_assertions)]
                             assert_eq!(current_range.range.1, current.text_range.1);
 
                             AstTextRange {
@@ -730,7 +730,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
                     }
                     AstTextRangeType::Tail => {
                         // current range should have ended at end of current node's range
-                        #[cfg(debug)]
+                        #[cfg(debug_assertions)]
                         assert_eq!(current_range.range.1, current.range.1);
 
                         // tail -> advance to parent text

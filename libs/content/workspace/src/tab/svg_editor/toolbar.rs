@@ -68,11 +68,6 @@ pub struct ToolContext<'a> {
     pub settings: CanvasSettings,
     pub is_locked_vw_pen_only: bool,
 }
-#[derive(Clone)]
-pub struct ColorSwatch {
-    pub id: Option<String>,
-    pub color: egui::Color32,
-}
 
 macro_rules! set_tool {
     ($obj:expr, $new_tool:expr) => {

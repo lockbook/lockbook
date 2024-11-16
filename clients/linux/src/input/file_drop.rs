@@ -139,7 +139,7 @@ fn get_more_types(
             atoms.XdndTypeList,
             xproto::Atom::from(xproto::AtomEnum::ATOM),
             0,
-            std::u32::MAX,
+            u32::MAX,
         )?
         .reply()?
         .value;
@@ -169,7 +169,7 @@ fn read_data(
     conn: &XCBConnection, atoms: &AtomCollection, window: xproto::Window,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let data = conn
-        .get_property(false, window, atoms.XdndSelection, atoms.TextUriList, 0, std::u32::MAX)?
+        .get_property(false, window, atoms.XdndSelection, atoms.TextUriList, 0, u32::MAX)?
         .reply()?
         .value;
 

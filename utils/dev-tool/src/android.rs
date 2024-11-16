@@ -97,7 +97,7 @@ pub fn make_android_libs(tool_env: &ToolEnvironment) {
 pub fn make_android_test_lib(tool_env: &ToolEnvironment) {
     Command::new("cargo")
         .args(["build", "--lib", "--release"])
-        .current_dir(&utils::lb_external_interface_dir(&tool_env.root_dir))
+        .current_dir(utils::lb_external_interface_dir(&tool_env.root_dir))
         .assert_success();
 
     let jni_lib_dir = utils::jni_lib_dir(&tool_env.root_dir);

@@ -30,9 +30,9 @@ pub enum DocType {
     PlainText,
     Markdown,
     Drawing,
-    Image(String),
-    ImageUnsupported(String),
-    Code(String),
+    Image,
+    ImageUnsupported,
+    Code,
     Unknown,
 }
 
@@ -43,11 +43,9 @@ impl DocType {
             "draw" | "svg" => Self::Drawing,
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
-            "cr2" => Self::ImageUnsupported(ext.to_string()),
-            "go" => Self::Code(ext.to_string()),
-            _ if workspace_rs::tab::image_viewer::is_supported_image_fmt(ext) => {
-                Self::Image(ext.to_string())
-            }
+            "cr2" => Self::ImageUnsupported,
+            "go" => Self::Code,
+            _ if workspace_rs::tab::image_viewer::is_supported_image_fmt(ext) => Self::Image,
             _ => Self::Unknown,
         }
     }
@@ -55,8 +53,8 @@ impl DocType {
         match self {
             DocType::Markdown | DocType::PlainText => Icon::DOC_TEXT,
             DocType::Drawing => Icon::DRAW,
-            DocType::Image(_) => Icon::IMAGE,
-            DocType::Code(_) => Icon::CODE,
+            DocType::Image => Icon::IMAGE,
+            DocType::Code => Icon::CODE,
             _ => Icon::DOC_UNKNOWN,
         }
     }

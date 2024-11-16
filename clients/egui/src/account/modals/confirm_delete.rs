@@ -37,7 +37,7 @@ impl super::Modal for ConfirmDeleteModal {
                 } else {
                     format!("these {} files", how_many)
                 };
-                ui.label(&format!("Are you sure you want to delete {}?", desc));
+                ui.label(format!("Are you sure you want to delete {}?", desc));
 
                 ui.horizontal(|ui| {
                     if ui.button("Yes, I'm Sure").clicked() {

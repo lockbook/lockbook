@@ -168,7 +168,7 @@ impl<'a> Ctx<'a> {
                 atoms.CLIPBOARD,
                 xproto::Atom::from(xproto::AtomEnum::ATOM),
                 0,
-                std::u32::MAX,
+                u32::MAX,
             )?
             .reply()?
             .value;
@@ -193,7 +193,7 @@ impl<'a> Ctx<'a> {
         let mut incr = false;
         loop {
             let reply = conn
-                .get_property(false, window, atoms.CLIPBOARD, format, offset, std::u32::MAX)?
+                .get_property(false, window, atoms.CLIPBOARD, format, offset, u32::MAX)?
                 .reply()?;
 
             incr |= reply.type_ == atoms.INCR;

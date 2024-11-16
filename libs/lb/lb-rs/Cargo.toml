@@ -17,6 +17,7 @@ bench = false
 default = ["rustls-tls"]
 rustls-tls = ["reqwest/rustls-tls"]
 native-tls = ["reqwest/native-tls"]
+no-network = ["db-rs/clone"]
 
 [dependencies]
 base64 = "0.13.0"
