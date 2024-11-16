@@ -15,6 +15,8 @@ use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
 use crate::model::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
 use crate::model::work_unit::WorkUnit;
+use crate::svg::buffer::u_transform_to_bezier;
+use crate::svg::element::Element;
 use crate::text::buffer::Buffer;
 use crate::Lb;
 pub use basic_human_duration::ChronoHumanDuration;
@@ -606,7 +608,44 @@ impl Lb {
                                         let hmac = merge.find(&id)?.document_hmac().copied();
                                         self.docs.insert(id, hmac, &encrypted_document).await?;
                                     }
-                                    DocumentType::Drawing | DocumentType::Other => {
+                                    DocumentType::Drawing => {
+                                        println!("sync merge");
+                                        let base_document =
+                                            String::from_utf8_lossy(&base_document).to_string();
+                                        let remote_document =
+                                            String::from_utf8_lossy(&remote_document).to_string();
+
+                                        let mut local_buffer = crate::svg::buffer::Buffer::new(
+                                            String::from_utf8_lossy(&local_document).as_ref(),
+                                            None,
+                                            None,
+                                        );
+
+                                        for (_, el) in local_buffer.elements.iter_mut() {
+                                            if let Element::Path(path) = el {
+                                                path.data.apply_transform(u_transform_to_bezier(
+                                                    &local_buffer.master_transform,
+                                                ));
+                                            }
+                                        }
+                                        crate::svg::buffer::Buffer::reload(
+                                            &mut local_buffer.elements,
+                                            local_buffer.master_transform,
+                                            &base_document,
+                                            &remote_document,
+                                        );
+
+                                        let merged_document = local_buffer.serialize();
+                                        let encrypted_document = merge
+                                            .update_document_unvalidated(
+                                                &id,
+                                                &merged_document.into_bytes(),
+                                                self.get_account()?,
+                                            )?;
+                                        let hmac = merge.find(&id)?.document_hmac().copied();
+                                        self.docs.insert(id, hmac, &encrypted_document).await?;
+                                    }
+                                    DocumentType::Other => {
                                         // duplicate file
                                         let merge_parent = *merge.find(&id)?.parent();
                                         let duplicate_id = if let Some(&duplicate_id) =

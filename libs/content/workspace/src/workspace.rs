@@ -11,6 +11,7 @@ use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
+use lb_rs::svg::buffer::Buffer;
 use lb_rs::Uuid;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -862,7 +863,22 @@ impl Workspace {
                                     &ctx,
                                     core.clone(),
                                     id,
+                                    maybe_hmac,
                                 )));
+                            } else {
+                                match tab.content.as_mut() {
+                                    Some(TabContent::Svg(svg)) => {
+                                        Buffer::reload(
+                                            &mut svg.buffer.elements,
+                                            svg.buffer.master_transform,
+                                            &svg.buffer.opened_content,
+                                            String::from_utf8_lossy(&bytes).as_ref(),
+                                        );
+
+                                        svg.buffer.open_file_hmac = maybe_hmac;
+                                    }
+                                    _ => unreachable!(),
+                                };
                             }
                         } else if ext == "md" || ext == "txt" {
                             if tab_created {
@@ -914,14 +930,21 @@ impl Workspace {
                                 seq,
                             }) => {
                                 tab.last_saved = time_saved;
-                                if let TabContent::Markdown(md) = tab.content.as_mut().unwrap() {
-                                    md.hmac = hmac;
-                                    md.buffer.saved(seq, content);
+                                match tab.content.as_mut() {
+                                    Some(TabContent::Markdown(md)) => {
+                                        md.hmac = hmac;
+                                        md.buffer.saved(seq, content);
+                                    }
+                                    Some(TabContent::Svg(svg)) => {
+                                        svg.buffer.open_file_hmac = hmac;
+                                        svg.buffer.opened_content = content;
+                                    }
+                                    _ => {}
                                 }
                                 sync = true; // todo: sync once when saving multiple tabs
                             }
                             Err(err) => {
-                                if err.kind == LbErrKind::ReReadRequired {
+                                if err.kind != LbErrKind::ReReadRequired {
                                     tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
                                 }
                             }

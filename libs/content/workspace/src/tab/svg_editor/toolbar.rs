@@ -1,7 +1,11 @@
 use std::ops::RangeInclusive;
 
-use egui::{emath::RectTransform, Color32, InnerResponse, Response};
+use egui::{emath::RectTransform, InnerResponse, Response, RichText};
 use egui_animation::{animate_eased, easing};
+use lb_rs::svg::{
+    buffer::{get_highlighter_colors, get_pen_colors},
+    element::DynamicColor,
+};
 
 use crate::{
     theme::{icons::Icon, palette::ThemePalette},
@@ -14,7 +18,6 @@ use super::{
         get_zoom_fit_transform, transform_canvas, zoom_percentage_to_transform, GestureHandler,
     },
     history::History,
-    parser,
     pen::{HIGHLIGHTER_STROKE_WIDTHS, PEN_STROKE_WIDTHS},
     selection::Selection,
     Buffer, CanvasSettings, Eraser, Pen,
@@ -109,7 +112,7 @@ impl Toolbar {
 
     pub fn new() -> Self {
         let mut toolbar = Toolbar {
-            pen: Pen::new(ThemePalette::get_fg_color(), PEN_STROKE_WIDTHS[0]),
+            pen: Pen::new(get_pen_colors()[0], PEN_STROKE_WIDTHS[0]),
             highlighter: Pen::new(get_highlighter_colors()[0], HIGHLIGHTER_STROKE_WIDTHS[0]),
             ..Default::default()
         };
@@ -119,7 +122,7 @@ impl Toolbar {
     }
 
     pub fn show(
-        &mut self, ui: &mut egui::Ui, buffer: &mut parser::Buffer, history: &mut History,
+        &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, history: &mut History,
         skip_frame: &mut bool, inner_rect: egui::Rect,
     ) {
         self.handle_keyboard_shortcuts(ui, history, buffer);
@@ -278,12 +281,13 @@ impl Toolbar {
                             self.pen.active_color,
                             ui.visuals().dark_mode,
                         )
-                        .gamma_multiply(0.2)
+                        .gamma_multiply(self.pen.active_opacity)
                     } else if self.active_tool == Tool::Highlighter {
                         ThemePalette::resolve_dynamic_color(
                             self.highlighter.active_color,
                             ui.visuals().dark_mode,
                         )
+                        .gamma_multiply(self.highlighter.active_opacity)
                     } else {
                         ui.visuals().text_color().gamma_multiply(0.2)
                     };
@@ -691,13 +695,39 @@ fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
 
     show_thickness_slider(ui, &mut pen.active_stroke_width, 3.0..=30.0);
 
-    ui.add_space(10.0);
+    ui.add_space(40.0);
 
     ui.horizontal_wrapped(|ui| {
         show_color_swatches(ui, get_pen_colors(), pen);
     });
 
     ui.add_space(10.0);
+
+    show_opacity_slider(ui, pen);
+
+    ui.add_space(10.0);
+}
+
+fn show_opacity_slider(ui: &mut egui::Ui, pen: &mut Pen) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Opacity").size(13.0));
+        ui.add_space(20.0);
+        let slider_color =
+            ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode)
+                .gamma_multiply(pen.active_opacity);
+        ui.visuals_mut().widgets.inactive.bg_fill = slider_color;
+        ui.visuals_mut().widgets.inactive.fg_stroke =
+            egui::Stroke { width: 1.0, color: slider_color };
+        ui.visuals_mut().widgets.hovered.bg_fill = slider_color;
+        ui.visuals_mut().widgets.hovered.fg_stroke =
+            egui::Stroke { width: 2.0, color: slider_color };
+        ui.visuals_mut().widgets.active.bg_fill = slider_color;
+        ui.visuals_mut().widgets.active.fg_stroke =
+            egui::Stroke { width: 2.5, color: slider_color };
+        ui.spacing_mut().slider_width = ui.available_width();
+        ui.spacing_mut().slider_rail_height = 2.0;
+        ui.add(egui::Slider::new(&mut pen.active_opacity, 0.05..=1.0).show_value(false));
+    });
 }
 
 fn show_highlighter_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
@@ -722,9 +752,7 @@ fn show_highlighter_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) 
     ui.add_space(10.0);
 }
 
-fn show_color_swatches(
-    ui: &mut egui::Ui, colors: Vec<(egui::Color32, egui::Color32)>, pen: &mut Pen,
-) {
+fn show_color_swatches(ui: &mut egui::Ui, colors: Vec<DynamicColor>, pen: &mut Pen) {
     colors.iter().for_each(|c| {
         let color = ThemePalette::resolve_dynamic_color(*c, ui.visuals().dark_mode);
         let active_color =
@@ -882,30 +910,6 @@ fn show_thickness_slider(ui: &mut egui::Ui, value: &mut f32, value_range: RangeI
         }
     }
     ui.advance_cursor_after_rect(slider_rect);
-}
-
-pub fn get_highlighter_colors() -> Vec<(Color32, Color32)> {
-    let yellow = (Color32::from_rgb(244, 250, 65), Color32::from_rgb(244, 250, 65));
-    let blue = (Color32::from_rgb(65, 194, 250), Color32::from_rgb(65, 194, 250));
-    let pink = (Color32::from_rgb(254, 110, 175), Color32::from_rgb(254, 110, 175));
-
-    let highlighter_colors = vec![yellow, blue, pink];
-    highlighter_colors
-}
-
-pub fn get_pen_colors() -> Vec<(Color32, Color32)> {
-    let blue = (Color32::from_rgb(62, 130, 230), Color32::from_rgb(54, 116, 207));
-    let green = (Color32::from_rgb(42, 136, 49), Color32::from_rgb(56, 176, 65));
-    let red = (Color32::from_rgb(218, 21, 21), Color32::from_rgb(174, 33, 33));
-    vec![
-        ThemePalette::get_fg_color(),
-        blue,
-        green,
-        red,
-        (ThemePalette::LIGHT.magenta, ThemePalette::DARK.magenta),
-        (ThemePalette::LIGHT.cyan, ThemePalette::DARK.cyan),
-        (ThemePalette::LIGHT.yellow, ThemePalette::DARK.yellow),
-    ]
 }
 
 fn get_non_additive(color: &egui::Color32) -> egui::Color32 {
