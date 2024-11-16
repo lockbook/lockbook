@@ -56,7 +56,7 @@ pub fn local_env_path<P: AsRef<Path>>(root: P) -> PathBuf {
 }
 
 pub fn server_log<P: AsRef<Path>>(root_dir: P) -> PathBuf {
-    root_dir.as_ref().join("server/server/server_log.txt")
+    root_dir.as_ref().join("server/server_log.txt")
 }
 
 pub fn root_dir() -> PathBuf {
