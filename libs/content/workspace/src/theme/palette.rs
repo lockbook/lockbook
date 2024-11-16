@@ -1,4 +1,6 @@
 use egui::Color32;
+use lb_rs::svg::element::DynamicColor;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
@@ -36,17 +38,19 @@ impl ThemePalette {
         white: Color32::from_rgb(255, 255, 255),
     };
 
-    pub fn get_fg_color() -> (Color32, Color32) {
-        (ThemePalette::LIGHT.black, ThemePalette::DARK.white)
-    }
-
-    pub fn resolve_dynamic_color(
-        dynamic_color: (egui::Color32, egui::Color32), dark_mode: bool,
-    ) -> egui::Color32 {
+    pub fn resolve_dynamic_color(dynamic_color: DynamicColor, dark_mode: bool) -> egui::Color32 {
         if dark_mode {
-            dynamic_color.1
+            Color32::from_rgb(
+                dynamic_color.dark.red,
+                dynamic_color.dark.green,
+                dynamic_color.dark.blue,
+            )
         } else {
-            dynamic_color.0
+            Color32::from_rgb(
+                dynamic_color.light.red,
+                dynamic_color.light.green,
+                dynamic_color.light.blue,
+            )
         }
     }
 }

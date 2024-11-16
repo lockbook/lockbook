@@ -1,9 +1,15 @@
-use lb_rs::Uuid;
+use lb_rs::{
+    svg::{
+        diff::DiffState,
+        element::{Element, Image},
+    },
+    Uuid,
+};
 use resvg::usvg::{AspectRatio, NonZeroRect, Transform, ViewBox};
 
 use crate::tab::{ClipContent, ExtendedInput as _};
 
-use super::{parser::DiffState, SVGEditor};
+use super::SVGEditor;
 
 impl SVGEditor {
     pub fn handle_clip_input(&mut self, ui: &mut egui::Ui) {
@@ -27,28 +33,25 @@ impl SVGEditor {
                                 });
                                 self.buffer.elements.insert(
                                     Uuid::new_v4(),
-                                    crate::tab::svg_editor::parser::Element::Image(
-                                        crate::tab::svg_editor::parser::Image {
-                                            data: resvg::usvg::ImageKind::PNG(data.into()),
-                                            visibility: resvg::usvg::Visibility::Visible,
-                                            transform: Transform::identity(),
-                                            view_box: ViewBox {
-                                                rect: NonZeroRect::from_xywh(
-                                                    position.x,
-                                                    position.y,
-                                                    img.width() as f32,
-                                                    img.height() as f32,
-                                                )
-                                                .unwrap(),
-                                                aspect: AspectRatio::default(),
-                                            },
-                                            texture: None,
-                                            href: Some(href),
-                                            opacity: 1.0,
-                                            diff_state: DiffState::default(),
-                                            deleted: false,
+                                    Element::Image(Image {
+                                        data: resvg::usvg::ImageKind::PNG(data.into()),
+                                        visibility: resvg::usvg::Visibility::Visible,
+                                        transform: Transform::identity(),
+                                        view_box: ViewBox {
+                                            rect: NonZeroRect::from_xywh(
+                                                position.x,
+                                                position.y,
+                                                img.width() as f32,
+                                                img.height() as f32,
+                                            )
+                                            .unwrap(),
+                                            aspect: AspectRatio::default(),
                                         },
-                                    ),
+                                        href: Some(href),
+                                        opacity: 1.0,
+                                        diff_state: DiffState::default(),
+                                        deleted: false,
+                                    }),
                                 );
                             }
                             ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
