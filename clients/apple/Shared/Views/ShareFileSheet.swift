@@ -5,7 +5,7 @@ import SwiftWorkspace
 struct ShareFileSheet: View {
     let file: File
     
-    @State var isWriteMode: Bool = true
+    @State var mode: ShareMode = .write
     @State var username: String = ""
     @State var error: String = ""
     
@@ -40,9 +40,9 @@ struct ShareFileSheet: View {
                     shareFile()
                 }
             
-            Picker("Flavor", selection: $isWriteMode) {
-                Text("Write").tag(true)
-                Text("Read").tag(false)
+            Picker("Flavor", selection: $mode) {
+                Text("Write").tag(ShareMode.write)
+                Text("Read").tag(ShareMode.read)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -118,7 +118,7 @@ struct ShareFileSheet: View {
     }
     
     func shareFile() {
-        let res = DI.core.shareFile(id: file.id, username: username, mode: isWriteMode ? .write : .read)
+        let res = DI.core.shareFile(id: file.id, username: username, mode: mode)
         
         switch res {
         case .success():

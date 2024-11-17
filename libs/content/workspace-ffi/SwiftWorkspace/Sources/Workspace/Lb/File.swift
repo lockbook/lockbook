@@ -84,7 +84,7 @@ public struct Share: Codable, Equatable {
     }
 }
 
-public enum ShareMode: Int, Codable {
+public enum ShareMode: Int, Codable, Hashable {
     case write = 0
     case read = 1
     
