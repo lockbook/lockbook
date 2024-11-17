@@ -132,6 +132,15 @@ impl Element {
             Element::Text(_) => todo!(),
         }
     }
+
+    pub fn get_transform(&self) -> Transform {
+        match self {
+            Element::Path(path) => path.transform,
+            Element::Image(img) => img.transform,
+            Element::Text(_) => todo!(),
+        }
+    }
+
     pub fn opacity(&self) -> f32 {
         match self {
             Element::Path(path) => path.opacity,
