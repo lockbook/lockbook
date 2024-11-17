@@ -80,10 +80,6 @@ struct RenameFileSheet: View {
     }
 }
 
-#Preview() {
-    RenameFileSheet(info: RenamingFileInfo(id: UUID(), name: "apple.md", parentPath: "/work/"))
-}
-
 #if os(iOS)
 struct RenameFileTextFieldWrapper: UIViewRepresentable {
     var placeholder: String
