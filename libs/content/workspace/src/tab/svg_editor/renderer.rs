@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use egui::Mesh;
 use glam::f64::DVec2;
 use lb_rs::svg::diff::DiffState;
 use lb_rs::svg::element::Element;
@@ -40,13 +41,18 @@ impl StrokeVertexConstructor<epaint::Vertex> for VertexConstructor {
 
 enum RenderOp {
     Delete,
-    Paint(egui::Shape),
+    Paint(MeshShape),
     Transform(Transform),
 }
 
 pub struct Renderer {
-    mesh_cache: HashMap<Uuid, egui::Shape>,
+    mesh_cache: HashMap<Uuid, MeshShape>,
     dark_mode: bool,
+}
+
+struct MeshShape {
+    shape: Mesh,
+    scale: f32,
 }
 
 impl Renderer {
@@ -73,12 +79,21 @@ impl Renderer {
                     return Some((*id, RenderOp::Delete));
                 };
 
+                let stale_mesh = if let Some(MeshShape { scale, .. }) = self.mesh_cache.get(id) {
+                    let current_el_scale = el.get_transform().sx * buffer.master_transform.sx;
+                    let diff = current_el_scale.max(*scale) / current_el_scale.min(*scale);
+                    diff > 5.0
+                } else {
+                    false
+                };
+
                 if el.deleted()
                     || (!el.opacity_changed()
                         && !el.data_changed()
                         && !el.delete_changed()
                         && el.transformed().is_none()
-                        && !dark_mode_changed)
+                        && !dark_mode_changed
+                        && !stale_mesh)
                 {
                     return None;
                 }
@@ -105,8 +120,8 @@ impl Renderer {
                 }
                 RenderOp::Transform(t) => {
                     diff_state.transformed = Some(t);
-                    if let Some(egui::Shape::Mesh(m)) = self.mesh_cache.get_mut(&id) {
-                        for v in &mut m.vertices {
+                    if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(&id) {
+                        for v in &mut shape.vertices {
                             v.pos.x = t.sx * v.pos.x + t.tx;
                             v.pos.y = t.sy * v.pos.y + t.ty;
                         }
@@ -122,9 +137,9 @@ impl Renderer {
                     Element::Image(i) => i.diff_state = DiffState::default(),
                     Element::Text(_) => todo!(),
                 }
-                if let Some(egui::Shape::Mesh(m)) = self.mesh_cache.get(id) {
-                    if !m.vertices.is_empty() && !m.indices.is_empty() {
-                        Some(egui::Shape::mesh(m.to_owned()))
+                if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(id) {
+                    if !shape.vertices.is_empty() && !shape.indices.is_empty() {
+                        Some(egui::Shape::mesh(shape.to_owned()))
                     } else {
                         None
                     }
@@ -205,7 +220,13 @@ fn tesselate_element(
                 if mesh.is_empty() {
                     None
                 } else {
-                    Some((*id, RenderOp::Paint(egui::Shape::Mesh(mesh))))
+                    Some((
+                        *id,
+                        RenderOp::Paint(MeshShape {
+                            shape: mesh,
+                            scale: master_transform.sx * p.transform.sx,
+                        }),
+                    ))
                 }
             } else {
                 None
