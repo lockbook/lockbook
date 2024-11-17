@@ -56,6 +56,8 @@ struct FileTreeView: NSViewRepresentable, Equatable {
         if dataSource.lastFilesHash != files.idsAndFiles.hashValue {
             dataSource.lastFilesHash = files.idsAndFiles.hashValue
             
+            print("reloading file tree")
+            
             treeView.reloadData()
         }
         

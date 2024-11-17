@@ -6,7 +6,7 @@ struct RenameFileSheet: View {
     let info: RenamingFileInfo
     
     @State var newName: String = ""
-    @State var error: String? = nil
+    @State var error: String = ""
     
     @Environment(\.dismiss) private var dismiss
     
@@ -44,15 +44,13 @@ struct RenameFileSheet: View {
                 renameFile()
             }, newName: $newName)
                                     
-            if let error = error {
-                HStack {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .fontWeight(.bold)
-                        .lineLimit(2, reservesSpace: false)
-                    
-                    Spacer()
-                }
+            HStack {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .fontWeight(.bold)
+                    .lineLimit(1, reservesSpace: true)
+                
+                Spacer()
             }
                                     
             Button {
@@ -80,6 +78,10 @@ struct RenameFileSheet: View {
             dismiss()
         }
     }
+}
+
+#Preview() {
+    RenameFileSheet(info: RenamingFileInfo(id: UUID(), name: "apple.md", parentPath: "/work/"))
 }
 
 #if os(iOS)

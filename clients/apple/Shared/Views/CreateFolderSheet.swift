@@ -5,7 +5,7 @@ struct CreateFolderSheet: View {
     let info: CreatingFolderInfo
     
     @State var name: String = ""
-    @State var error: String? = nil
+    @State var error: String = ""
     
     @Environment(\.dismiss) private var dismiss
     
@@ -33,15 +33,13 @@ struct CreateFolderSheet: View {
                 createFolder()
             }, name: $name)
                                     
-            if let error = error {
-                HStack {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .fontWeight(.bold)
-                        .lineLimit(2, reservesSpace: false)
-                    
-                    Spacer()
-                }
+            HStack {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .fontWeight(.bold)
+                    .lineLimit(1, reservesSpace: true)
+                
+                Spacer()
             }
                                     
             Button {

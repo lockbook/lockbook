@@ -183,8 +183,14 @@ struct SelectFolderView: View {
                                 dismiss()
                             }
                         }, label: {
-                            Label(dest.name, systemImage: FileService.metaToSystemImage(meta: dest))
-                                .foregroundStyle(.foreground)
+                            Label {
+                                Text(dest.name)
+                                    .foregroundStyle(.foreground)
+                            } icon: {
+                                Image(systemName: FileService.metaToSystemImage(meta: dest))
+                                    .foregroundStyle(Color.blue)
+                            }
+
                         })
                         .modifier(PlatformSelectFolderButtonModifier())
                     }
