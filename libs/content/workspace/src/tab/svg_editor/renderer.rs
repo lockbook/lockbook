@@ -79,7 +79,7 @@ impl Renderer {
                     return Some((*id, RenderOp::Delete));
                 };
 
-                let stale_mesh = if let Some(MeshShape { scale, .. }) = self.mesh_cache.get(&id) {
+                let stale_mesh = if let Some(MeshShape { scale, .. }) = self.mesh_cache.get(id) {
                     let current_el_scale = el.get_transform().sx * buffer.master_transform.sx;
                     let diff = current_el_scale.max(*scale) / current_el_scale.min(*scale);
                     diff > 5.0
@@ -137,7 +137,7 @@ impl Renderer {
                     Element::Image(i) => i.diff_state = DiffState::default(),
                     Element::Text(_) => todo!(),
                 }
-                if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(&id) {
+                if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(id) {
                     if !shape.vertices.is_empty() && !shape.indices.is_empty() {
                         Some(egui::Shape::mesh(shape.to_owned()))
                     } else {
