@@ -1,5 +1,3 @@
-use eframe::egui;
-
 pub struct ErrorModal {
     err: String,
 }

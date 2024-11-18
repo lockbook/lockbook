@@ -1,4 +1,3 @@
-use eframe::egui;
 use lb::model::file_metadata::FileType;
 
 pub struct NewFileParams {

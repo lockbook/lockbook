@@ -1,4 +1,3 @@
-use eframe::egui;
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;

@@ -1,5 +1,3 @@
-use eframe::egui;
-
 use crate::settings::ThemeMode;
 use crate::theme;
 
