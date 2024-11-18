@@ -251,7 +251,10 @@ pub fn calc_links(buffer: &Buffer, text: &Text, ast: &Ast) -> PlainTextLinks {
     let mut result = vec![];
     for &text_range in text {
         'spans: for span in finder.spans(&buffer[text_range]) {
-            let link_range = (text_range.0 + span.start(), text_range.0 + span.end());
+            let text_range_bytes = buffer.current.segs.range_to_byte(text_range);
+            let link_range_bytes =
+                (text_range_bytes.0 + span.start(), text_range_bytes.0 + span.end());
+            let link_range = buffer.current.segs.range_to_char(link_range_bytes);
 
             if span.kind().is_none() {
                 continue;
