@@ -1,6 +1,5 @@
 use std::sync::{mpsc, Arc, RwLock};
 
-use egui;
 use lb::blocking::Lb;
 use lb::model::core_config::Config;
 use lb::model::errors::LbErrKind;

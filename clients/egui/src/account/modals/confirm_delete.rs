@@ -1,4 +1,3 @@
-use egui;
 use lb::model::file::File;
 
 enum State {

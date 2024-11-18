@@ -1,6 +1,5 @@
 use std::{sync::mpsc, thread};
 
-use egui;
 use lb::{blocking::Lb, service::activity::RankingWeights, Uuid};
 
 use crate::model::DocType;

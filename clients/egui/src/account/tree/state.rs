@@ -4,7 +4,6 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 
-use egui;
 use lb::{model::file::File, Uuid};
 
 #[derive(Debug)]

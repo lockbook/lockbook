@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 use std::thread;
 
-use egui;
 use egui::TextWrapMode;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;

@@ -5,7 +5,6 @@ mod usage_tab;
 
 use std::sync::{mpsc, Arc, RwLock};
 
-use egui;
 use egui_extras::{Size, StripBuilder};
 use lb::blocking::Lb;
 use workspace_rs::theme::icons::Icon;

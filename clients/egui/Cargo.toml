@@ -8,10 +8,10 @@ dark-light = "1.0.0"
 egui = "0.28.1"
 eframe = { version = "0.28.1", default-features = false, features = [
     "wgpu",
-], optional = true } # eframe dependency for binary only
+], optional = true } # dependency for binary only
+egui_wgpu_backend = { version = "0.30", optional = true } # dependency for library only
 egui-notify = "0.15.0"
 egui-winit = "0.28.1"
-egui_wgpu_backend = "0.30"
 egui_extras = { version = "0.28.1", features = ["image"] }
 env_logger = "0.10"
 image = { version = "0.24", default-features = false, features = [
@@ -34,14 +34,16 @@ serde = { version = "1.0.140", features = ["derive"] }
 serde_json = "1.0.82"
 workspace = { path = "../../libs/content/workspace" }
 
-# require eframe's wgpu feature for binary only
+# features: egui_wgpu_backend (library) or eframe (binary)
 [features]
-default = []
+default = ["egui_wgpu_backend"]
 eframe = ["dep:eframe"]
+egui_wgpu_backend = ["dep:egui_wgpu_backend"]
 
 [lib]
 name = "lockbook_egui"
 path = "src/lib.rs"
+required-features = ["egui_wgpu_backend"]
 
 [[bin]]
 name = "lockbook-egui"

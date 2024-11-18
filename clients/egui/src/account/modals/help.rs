@@ -1,4 +1,3 @@
-use egui;
 use egui_extras::{Column, TableBuilder};
 
 #[derive(Default)]

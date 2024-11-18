@@ -1,5 +1,3 @@
-use egui;
-
 pub struct ErrorModal {
     err: String,
 }
