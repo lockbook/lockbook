@@ -5,6 +5,7 @@ use lb_rs::{
     },
     service::sync::{SyncProgress, SyncStatus},
 };
+use tracing::error;
 
 use crate::{
     output::DirtynessMsg,
@@ -73,7 +74,10 @@ impl Workspace {
                 LbErrKind::ClientUpdateRequired => self.status.update_req = true,
                 LbErrKind::UsageIsOverDataCap => self.status.out_of_space = true,
                 LbErrKind::Unexpected(msg) => self.out.error = Some(msg),
-                _ => {}
+                _ => {
+                    error!("Unhandled sync error: {:?}", err);
+                    self.out.error = format!("{:?}", err).into();
+                }
             },
         }
     }
