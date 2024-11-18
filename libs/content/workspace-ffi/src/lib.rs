@@ -96,8 +96,8 @@ impl<'window> WgpuWorkspace<'window> {
 
         self.rpass
             .update_buffers(&self.device, &self.queue, &paint_jobs, &self.screen);
-        // Record all render passes.
 
+        // Record all render passes.
         {
             let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
