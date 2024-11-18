@@ -75,6 +75,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
                                       owner: self, userInfo: nil)
         self.addTrackingArea(trackingArea!)
     }
+    
+    public override func mouseExited(with event: NSEvent) {
+        mouse_gone(wsHandle)
+    }
 
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
