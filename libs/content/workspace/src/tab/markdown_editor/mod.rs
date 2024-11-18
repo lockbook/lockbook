@@ -42,6 +42,10 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         font.tweak.y_offset_factor = -0.1;
         font
     });
+    fonts.font_data.insert(
+        "twitter_emoji".to_owned(),
+        FontData::from_static(lb_fonts::TWITTER_COLOR_EMOJI_15_1),
+    );
 
     fonts
         .families
@@ -61,7 +65,25 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
 
     fonts
         .families
+        .get_mut(&egui::FontFamily::Proportional)
+        .unwrap()
+        .push("material_icons".to_owned());
+
+    fonts
+        .families
         .get_mut(&egui::FontFamily::Monospace)
         .unwrap()
         .push("material_icons".to_owned());
+
+    fonts
+        .families
+        .get_mut(&egui::FontFamily::Proportional)
+        .unwrap()
+        .insert(0, "twitter_emoji".to_owned());
+
+    fonts
+        .families
+        .get_mut(&egui::FontFamily::Monospace)
+        .unwrap()
+        .insert(0, "twitter_emoji".to_owned());
 }
