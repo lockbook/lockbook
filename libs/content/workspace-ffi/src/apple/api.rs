@@ -148,6 +148,13 @@ pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
 }
 
 /// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn mouse_gone(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.raw_input.events.push(egui::Event::PointerGone);
+}
+
+/// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn tab_renamed(obj: *mut c_void, id: *const c_char, new_name: *const c_char) {

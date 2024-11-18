@@ -120,6 +120,11 @@ public class MacMTK: MTKView, MTKViewDelegate {
         mouse_moved(wsHandle, Float(local.x), Float(local.y))
         setNeedsDisplay(self.frame)
     }
+    
+    public override func mouseExited(with event: NSEvent) {
+        mouse_gone(wsHandle)
+        setNeedsDisplay(self.frame)
+    }
 
     public override func mouseDown(with event: NSEvent) {
         let local = viewCoordinates(event)
