@@ -36,7 +36,7 @@ workspace = { path = "../../libs/content/workspace" }
 
 # features: egui_wgpu_backend (library) or eframe (binary)
 [features]
-default = ["egui_wgpu_backend"]
+default = ["eframe"]
 eframe = ["dep:eframe"]
 egui_wgpu_backend = ["dep:egui_wgpu_backend"]
 
