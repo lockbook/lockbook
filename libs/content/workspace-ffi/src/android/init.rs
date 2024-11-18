@@ -108,7 +108,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
         desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &config);
-    let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
+    let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 4);
 
     let context = Context::default();
     visuals::init(&context, dark_mode);
