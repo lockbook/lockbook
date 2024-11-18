@@ -358,13 +358,6 @@ pub unsafe extern "C" fn touches_predicted(obj: *mut c_void, id: u64, x: f32, y:
 }
 
 /// # Safety
-#[no_mangle]
-pub unsafe extern "C" fn mouse_gone(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.raw_input.events.push(egui::Event::PointerGone);
-}
-
-/// # Safety
 /// obj must be a valid pointer to WgpuEditor
 ///
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
