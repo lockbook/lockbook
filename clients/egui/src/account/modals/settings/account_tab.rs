@@ -1,6 +1,5 @@
 use std::sync::mpsc;
 
-use eframe::egui;
 use egui::{vec2, Image};
 use egui_extras::{Size, StripBuilder};
 
