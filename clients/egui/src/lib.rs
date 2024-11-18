@@ -15,7 +15,7 @@ pub use workspace_rs::Event;
 use crate::account::AccountScreen;
 use crate::onboard::{OnboardHandOff, OnboardScreen};
 use crate::splash::{SplashHandOff, SplashScreen};
-use eframe::egui::{self, ViewportCommand};
+use egui;
 use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode};
 use egui_winit::egui::{PlatformOutput, Pos2, Rect};
 use std::iter;
@@ -104,28 +104,6 @@ impl Lockbook {
             }
         }
         output
-    }
-}
-
-impl eframe::App for Lockbook {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let output = Lockbook::update(self, ctx);
-        if output.close {
-            ctx.send_viewport_cmd(ViewportCommand::CancelClose);
-        }
-
-        // We process `close_requested` in order to give the Account screen a chance to:
-        // 1) close any open modals or dialogs via a window close event, or
-        // 2) to start a graceful shutdown by saving state and cleaning up.
-        if ctx.input(|i| i.viewport().close_requested()) {
-            if let Self::Account(screen) = self {
-                // If the account screen is done shutting down, it's safe to close the app.
-                // If the account screen didn't close an open modal, we begin the shutdown process.
-                if !screen.is_shutdown() && !screen.close_something() {
-                    screen.begin_shutdown();
-                }
-            }
-        }
     }
 }
 

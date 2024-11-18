@@ -6,7 +6,9 @@ edition = "2021"
 [dependencies]
 dark-light = "1.0.0"
 egui = "0.28.1"
-eframe = { version = "0.28.1", default-features = false }
+eframe = { version = "0.28.1", default-features = false, features = [
+    "wgpu",
+], optional = true } # eframe dependency for binary only
 egui-notify = "0.15.0"
 egui-winit = "0.28.1"
 egui_wgpu_backend = "0.30"
@@ -35,7 +37,7 @@ workspace = { path = "../../libs/content/workspace" }
 # require eframe's wgpu feature for binary only
 [features]
 default = []
-eframe-wgpu = ["eframe/wgpu"]
+eframe = ["dep:eframe"]
 
 [lib]
 name = "lockbook_egui"
@@ -44,4 +46,4 @@ path = "src/lib.rs"
 [[bin]]
 name = "lockbook-egui"
 path = "src/main.rs"
-required-features = ["eframe-wgpu"]
+required-features = ["eframe"]

@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::{mem, thread};
 
-use eframe::egui;
+use egui;
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::service::search::{ContentMatch, SearchConfig, SearchResult};

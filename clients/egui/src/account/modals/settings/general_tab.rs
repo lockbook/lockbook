@@ -1,4 +1,4 @@
-use eframe::egui;
+use egui;
 use workspace_rs::widgets::switch;
 
 impl super::SettingsModal {

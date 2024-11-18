@@ -1,7 +1,7 @@
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 
-use eframe::egui;
+use egui;
 use egui::Image;
 use lb::blocking::Lb;
 use lb::model::errors::{LbErr, LbErrKind};

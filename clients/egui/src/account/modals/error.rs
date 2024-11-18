@@ -1,4 +1,4 @@
-use eframe::egui;
+use egui;
 
 pub struct ErrorModal {
     err: String,

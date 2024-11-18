@@ -1,6 +1,6 @@
 use std::sync::mpsc;
 
-use eframe::egui;
+use egui;
 use egui_extras::{Size, StripBuilder};
 use lb::model::api::{PaymentMethod, StripeAccountTier, SubscriptionInfo};
 use lb::service::usage::{UsageItemMetric, UsageMetrics};

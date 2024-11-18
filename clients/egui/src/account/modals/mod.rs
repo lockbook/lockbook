@@ -22,7 +22,7 @@ pub use search::SearchModal;
 pub use settings::{SettingsModal, SettingsResponse};
 
 use super::OpenModal;
-use eframe::egui;
+use egui;
 
 #[derive(Default)]
 pub struct Modals {

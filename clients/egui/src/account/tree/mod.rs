@@ -4,7 +4,7 @@ mod state;
 
 pub use self::node::TreeNode;
 
-use eframe::egui;
+use egui;
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::Uuid;
