@@ -76,9 +76,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.addTrackingArea(trackingArea!)
     }
     
-    public override func mouseExited(with event: NSEvent) {
-        mouse_gone(wsHandle)
-    }
 
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -122,6 +119,11 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
         let local = viewCoordinates(event)
         mouse_moved(wsHandle, Float(local.x), Float(local.y))
+        setNeedsDisplay(self.frame)
+    }
+    
+    public override func mouseExited(with event: NSEvent) {
+        mouse_gone(wsHandle)
         setNeedsDisplay(self.frame)
     }
 
