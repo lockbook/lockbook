@@ -1,4 +1,4 @@
-# Lockbook: Private note-taking & file storage
+# Lockbook: Private Note-Taking & File Storage
 Write notes, sketch ideas, and upload documents. Backup and share across platforms. We encrypt your files so even we can’t see them. Don’t take our word for it: Lockbook is 100% open-source.
 
 [<img height= "30" src="https://apple-resources.s3.amazonaws.com/media-badges/download-on-the-app-store/black/en-us.svg">](https://apps.apple.com/us/app/lockbook/id1526775001) [<img height= "30" src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Google_Play_Store_badge_EN.svg/2560px-Google_Play_Store_badge_EN.svg.png">](https://play.google.com/store/apps/details?id=app.lockbook)
