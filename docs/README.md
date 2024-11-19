@@ -24,7 +24,7 @@ Be the customer, not the product. We sell a note-taking app, not your data.
 Lockbook compresses your files before measuring your usage. Compressed text files are smaller by 5x or more so you can store the entire Harry Potter book series in our free tier. Less compressible formats like PDFs and images will count closer to their full size.
 
 ## Developer-friendly
-The Lockbook CLI will fit right into your favorite chain of piped-together Unix commands. Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. Our Rust library `lb-rs` has bindings for C and Java.
+The Lockbook CLI will fit right into your favorite chain of piped-together Unix commands. Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. Our Rust library `lb-rs` has bindings for C and Java. Lockbook creates documents in Markdown and SVG, open formats that lend themselves to extensibility and automation.
 
 ## How To Install
 ### Mobile
