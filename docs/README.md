@@ -21,7 +21,7 @@ Be the customer, not the product. We sell a note-taking app, not your data.
 | Up to 30GB | $2.99 / month |
 | Above 30GB | Coming soon   |
 
-Lockbook compresses your files before measuring your usage. This makes text files up to 5x smaller: the free tier is about enough to store the entire Harry Potter book series. Larger and less compressible formats like PDFs and images will fill your storage at a closer-to-normal rate.
+Lockbook compresses your files before measuring your usage. Text files compress up to 5x so you can store the entire Harry Potter book series in the free tier. Less compressible formats like PDFs and images will fill your storage at a close-to-normal rate.
 
 ## Developer-friendly
 The Lockbook CLI will fit right into your favorite chain of piped-together Unix commands. Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. Our Rust library `lb-rs` has bindings for C and Java.
