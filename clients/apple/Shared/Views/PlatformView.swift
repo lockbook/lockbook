@@ -195,7 +195,7 @@ struct PlatformView: View {
                     .modifier(FormSheetViewModifier(show: $sheets.sharingFile, sheetContent: {
                         ShareFileSheet(file: sheets.sharingFileInfo!)
                             .padding(.bottom, 3)
-                            .frame(width: 420, height: 310)
+                            .frame(width: 500, height: 355)
                     }))
             )
     }
@@ -232,7 +232,7 @@ struct PlatformView: View {
                 .sheet(isPresented: $sheets.sharingFile, content: {
                     ShareFileSheet(file: sheets.sharingFileInfo!)
                         .padding(.bottom, 3)
-                        .frame(width: 350, height: 280)
+                        .frame(width: 430, height: 300)
                 })
 
             

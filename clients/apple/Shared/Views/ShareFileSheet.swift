@@ -9,11 +9,21 @@ struct ShareFileSheet: View {
     @State var username: String = ""
     @State var error: String = ""
     
+    @Environment(\.colorScheme) var colorScheme
+    
     var readAccessUsers: [String] {
         file.shares.filter({ $0.mode == .read }).map({ $0.with })
     }
     var writeAccessUsers: [String] {
         file.shares.filter({ $0.mode == .write }).map({ $0.with })
+    }
+    
+    var userCardBackground: Color {
+        #if os(iOS)
+        Color(UIColor.tertiarySystemBackground)
+        #else
+        colorScheme == .dark ? Color(nsColor: .windowBackgroundColor) : Color(nsColor: .controlBackgroundColor)
+        #endif
     }
     
     @FocusState var focused: Bool
@@ -28,10 +38,20 @@ struct ShareFileSheet: View {
                 Spacer()
             }
             
+            HStack {
+                Text("File:")
+                    .font(.callout)
+                
+                Text(file.name)
+                    .font(.system(.callout, design: .monospaced))
+                
+                Spacer()
+            }
+            
             TextField("Username", text: $username)
                 .disableAutocorrection(true)
                 .modifier(DisableAutoCapitalization())
-                .textFieldStyle(.plain)
+                .modifier(ShareFileTextField())
                 .focused($focused)
                 .onAppear {
                     focused = true
@@ -82,7 +102,7 @@ struct ShareFileSheet: View {
                             ForEach(readAccessUsers, id: \.self) { username in
                                 Text(username)
                                     .padding(3)
-                                    .modifier(CardBackground())
+                                    .modifier(CardBackground(background: userCardBackground))
                             }
                         }
                         .padding(.horizontal)
@@ -102,7 +122,7 @@ struct ShareFileSheet: View {
                             ForEach(writeAccessUsers, id: \.self) { username in
                                 Text(username)
                                     .padding(3)
-                                    .modifier(CardBackground())
+                                    .modifier(CardBackground(background: userCardBackground))
                             }
                         }
                         .padding(.horizontal)
@@ -163,13 +183,27 @@ struct ShareFileSheet: View {
 #endif
 
 struct CardBackground: ViewModifier {
+    let background: Color
+    
     func body(content: Content) -> some View {
         content
             .background(
                 RoundedRectangle(cornerRadius: 5)
-                    .fill(.background)
+                    .fill(background)
                     .shadow(color: .black.opacity(0.2), radius: 4)
             )
             .padding(.vertical, 5)
+    }
+}
+
+struct ShareFileTextField: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content
+            .textFieldStyle(.roundedBorder)
+        #else
+        content
+            .textFieldStyle(.plain)
+        #endif
     }
 }
