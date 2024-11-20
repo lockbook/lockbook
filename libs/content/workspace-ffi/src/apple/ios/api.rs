@@ -149,7 +149,10 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 
     CTextRange {
         none: false,
-        start: CTextPosition { pos: markdown.buffer.current.selection.start().0, ..Default::default() },
+        start: CTextPosition {
+            pos: markdown.buffer.current.selection.start().0,
+            ..Default::default()
+        },
         end: CTextPosition { pos: markdown.buffer.current.selection.end().0, ..Default::default() },
     }
 }
