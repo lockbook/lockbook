@@ -683,11 +683,16 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
 
     @objc func deleteWord() {
+        inputDelegate?.selectionWillChange(self)
+        inputDelegate?.textWillChange(self)
         delete_word(wsHandle)
+        mtkView.drawImmediately()
+        inputDelegate?.textDidChange(self)
+        inputDelegate?.selectionDidChange(self)
     }
 
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        mtkView.forwardedPressesBegan(presses, with: event)
+        mtkView.forwardKeyPress(presses, with: event, pressBegan: true)
 
         if !mtkView.overrideDefaultKeyboardBehavior {
             super.pressesBegan(presses, with: event)
@@ -695,7 +700,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
 
     public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        mtkView.forwardedPressesEnded(presses, with: event)
+        mtkView.forwardKeyPress(presses, with: event, pressBegan: false)
 
         if !mtkView.overrideDefaultKeyboardBehavior {
             super.pressesEnded(presses, with: event)
@@ -764,7 +769,6 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
     }
 
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-
         mtkView.touchesBegan(touches, with: event)
     }
 
@@ -977,9 +981,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     }
     
     public func draw(in view: MTKView) {
-        let swiftStartTime = DispatchTime.now()
-
-        
         if tabSwitchTask != nil {
             tabSwitchTask!()
             tabSwitchTask = nil
@@ -988,10 +989,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, Float(self.contentScaleFactor))
         
-        let rustStartTime = DispatchTime.now()
         let output = ios_frame(wsHandle)
-        let rustEndTime = DispatchTime.now()
-
         
         if output.status_updated {
             let status = get_status(wsHandle)
@@ -1117,8 +1115,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         for touch in touches {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
-            let location = touch.preciseLocation(in: self)
-            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
             
             for touch in event!.coalescedTouches(for: touch)! {
                 let location = touch.preciseLocation(in: self)
@@ -1143,12 +1139,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                 let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
                 touches_predicted(wsHandle, value, Float(location.x), Float(location.y), Float(force))
             }
-            
-            // for touch in event!.coalescedTouches(for: touch)! {
-            //     let location = touch.location(in: self)
-            //     let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-            //     touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
-            // }
 
             touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
 
@@ -1184,7 +1174,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     }
 
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        forwardedPressesBegan(presses, with: event)
+        forwardKeyPress(presses, with: event, pressBegan: true)
 
         if !overrideDefaultKeyboardBehavior {
             super.pressesBegan(presses, with: event)
@@ -1192,14 +1182,14 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     }
 
     public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        forwardedPressesEnded(presses, with: event)
+        forwardKeyPress(presses, with: event, pressBegan: false)
 
         if !overrideDefaultKeyboardBehavior {
             super.pressesEnded(presses, with: event)
         }
     }
-
-    func forwardedPressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    
+    func forwardKeyPress(_ presses: Set<UIPress>, with event: UIPressesEvent?, pressBegan: Bool) {
         overrideDefaultKeyboardBehavior = false
 
         for press in presses {
@@ -1218,31 +1208,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                 overrideDefaultKeyboardBehavior = true
             }
 
-            ios_key_event(wsHandle, key.keyCode.rawValue, shift, ctrl, option, command, true)
-            self.setNeedsDisplay(self.frame)
-        }
-    }
-
-    func forwardedPressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        overrideDefaultKeyboardBehavior = false
-
-        for press in presses {
-            guard let key = press.key else { continue }
-
-            if workspaceState!.currentTab.isTextEdit() && key.keyCode == .keyboardDeleteOrBackspace {
-                return
-            }
-
-            let shift = key.modifierFlags.contains(.shift)
-            let ctrl = key.modifierFlags.contains(.control)
-            let option = key.modifierFlags.contains(.alternate)
-            let command = key.modifierFlags.contains(.command)
-
-            if (command && key.keyCode == .keyboardW) || (shift && key.keyCode == .keyboardTab) {
-                overrideDefaultKeyboardBehavior = true
-            }
-
-            ios_key_event(wsHandle, key.keyCode.rawValue, shift, ctrl, option, command, false)
+            ios_key_event(wsHandle, key.keyCode.rawValue, shift, ctrl, option, command, pressBegan)
             self.setNeedsDisplay(self.frame)
         }
     }
