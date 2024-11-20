@@ -21,7 +21,7 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
         self.lastModified = file.lastmod
         self.shares = Array(UnsafeBufferPointer(start: file.shares.list, count: Int(file.shares.count))).toShares()
     }
-    
+        
     public static func == (lhs: File, rhs: File) -> Bool {
         return lhs.type == rhs.type &&
             lhs.id == rhs.id &&
@@ -74,7 +74,7 @@ public struct Share: Codable, Equatable {
     }
 }
 
-public enum ShareMode: Int, Codable {
+public enum ShareMode: Int, Codable, Hashable {
     case write = 0
     case read = 1
     

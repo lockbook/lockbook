@@ -87,16 +87,17 @@ struct ConstrainedHomeViewWrapper: View {
                                 }
                                 
                                 Button(action: {
-                                    DI.sheets.sharingFileInfo = meta
-                                }, label: {
-                                    Label("Share", systemImage: "person.wave.2.fill")
-                                })
-                                .foregroundColor(.blue)
-                                
-                                Button(action: {
                                     exportFilesAndShowShareSheet(metas: [meta])
                                 }, label: {
                                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
+                                })
+                                .foregroundColor(.blue)
+
+                                
+                                Button(action: {
+                                    DI.sheets.sharingFileInfo = meta
+                                }, label: {
+                                    Label("Share", systemImage: "person.wave.2.fill")
                                 })
                                 .foregroundColor(.blue)
                             }
