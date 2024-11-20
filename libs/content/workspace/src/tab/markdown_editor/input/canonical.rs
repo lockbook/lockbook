@@ -28,7 +28,7 @@ impl From<Modifiers> for Offset {
 pub fn translate_egui_keyboard_event(event: egui::Event) -> Option<Event> {
     match event {
         egui::Event::Key { key, pressed: true, modifiers, .. }
-            if matches!(key, Key::ArrowUp | Key::ArrowDown) && !cfg!(target_os = "ios") =>
+            if matches!(key, Key::ArrowUp | Key::ArrowDown) =>
         {
             Some(Event::Select {
                 region: Region::ToOffset {
@@ -43,8 +43,7 @@ pub fn translate_egui_keyboard_event(event: egui::Event) -> Option<Event> {
             })
         }
         egui::Event::Key { key, pressed: true, modifiers, .. }
-            if matches!(key, Key::ArrowRight | Key::ArrowLeft | Key::Home | Key::End)
-                && !cfg!(target_os = "ios") =>
+            if matches!(key, Key::ArrowRight | Key::ArrowLeft | Key::Home | Key::End) =>
         {
             Some(Event::Select {
                 region: Region::ToOffset {
