@@ -836,7 +836,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-        
+    
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
         guard let event = sender, event.state != .cancelled, event.state != .failed else {
             return
