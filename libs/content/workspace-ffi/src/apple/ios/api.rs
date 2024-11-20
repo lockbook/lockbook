@@ -147,12 +147,13 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
         None => return CTextRange::default(),
     };
 
-    let (start, end) = markdown.buffer.current.selection;
-
     CTextRange {
         none: false,
-        start: CTextPosition { pos: start.0, ..Default::default() },
-        end: CTextPosition { pos: end.0, ..Default::default() },
+        start: CTextPosition {
+            pos: markdown.buffer.current.selection.start().0,
+            ..Default::default()
+        },
+        end: CTextPosition { pos: markdown.buffer.current.selection.end().0, ..Default::default() },
     }
 }
 
@@ -355,13 +356,6 @@ pub unsafe extern "C" fn touches_predicted(obj: *mut c_void, id: u64, x: f32, y:
         force,
         pos: Pos2 { x, y },
     });
-}
-
-/// # Safety
-#[no_mangle]
-pub unsafe extern "C" fn mouse_gone(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.raw_input.events.push(egui::Event::PointerGone);
 }
 
 /// # Safety

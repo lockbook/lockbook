@@ -14,7 +14,9 @@ lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false
     "native-tls",
 ] }
 lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_editor" }
-lbeguiapp = { package = "lockbook-egui", path = "../egui" }
+lbeguiapp = { package = "lockbook-egui", path = "../egui", default-features = false, features = [
+    "egui_wgpu_backend",
+] }
 pollster = "0.2"
 raw-window-handle = "0.6"
 workspace = { path = "../../libs/content/workspace" }

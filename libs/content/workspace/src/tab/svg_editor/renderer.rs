@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
+use egui::Mesh;
 use glam::f64::DVec2;
+use lb_rs::svg::diff::DiffState;
+use lb_rs::svg::element::Element;
 use lb_rs::Uuid;
 use lyon::math::Point;
 use lyon::path::{AttributeIndex, LineCap, LineJoin};
@@ -10,10 +13,11 @@ use lyon::tessellation::{
 };
 
 use rayon::prelude::*;
-use resvg::usvg::{ImageKind, Transform};
+use resvg::usvg::Transform;
 use tracing::{span, Level};
 
-use super::parser::{self};
+use crate::theme::palette::ThemePalette;
+
 use super::Buffer;
 
 const STROKE_WIDTH: AttributeIndex = 0;
@@ -37,13 +41,18 @@ impl StrokeVertexConstructor<epaint::Vertex> for VertexConstructor {
 
 enum RenderOp {
     Delete,
-    Paint(egui::Shape),
+    Paint(MeshShape),
     Transform(Transform),
 }
 
 pub struct Renderer {
-    mesh_cache: HashMap<Uuid, egui::Shape>,
+    mesh_cache: HashMap<Uuid, MeshShape>,
     dark_mode: bool,
+}
+
+struct MeshShape {
+    shape: Mesh,
+    scale: f32,
 }
 
 impl Renderer {
@@ -53,16 +62,14 @@ impl Renderer {
 
     pub fn render_svg(
         &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, painter: &mut egui::Painter,
-    ) {
+    ) -> DiffState {
         let frame = ui.ctx().frame_nr();
         let span = span!(Level::TRACE, "rendering svg", frame);
         let _ = span.enter();
+        let mut diff_state = DiffState::default();
 
         let dark_mode_changed = ui.visuals().dark_mode != self.dark_mode;
         self.dark_mode = ui.visuals().dark_mode;
-
-        // todo: should avoid running this on every frame, because the images are allocated once
-        load_image_textures(buffer, ui);
 
         let paint_ops: Vec<(Uuid, RenderOp)> = buffer
             .elements
@@ -72,18 +79,29 @@ impl Renderer {
                     return Some((*id, RenderOp::Delete));
                 };
 
+                let stale_mesh = if let Some(MeshShape { scale, .. }) = self.mesh_cache.get(id) {
+                    let current_el_scale = el.get_transform().sx * buffer.master_transform.sx;
+                    let diff = current_el_scale.max(*scale) / current_el_scale.min(*scale);
+                    diff > 5.0
+                } else {
+                    false
+                };
+
                 if el.deleted()
                     || (!el.opacity_changed()
                         && !el.data_changed()
                         && !el.delete_changed()
                         && el.transformed().is_none()
-                        && !dark_mode_changed)
+                        && !dark_mode_changed
+                        && !stale_mesh)
                 {
                     return None;
                 }
 
                 if let Some(transform) = el.transformed() {
-                    return Some((*id, RenderOp::Transform(transform)));
+                    if self.mesh_cache.contains_key(id) {
+                        return Some((*id, RenderOp::Transform(transform)));
+                    }
                 }
 
                 tesselate_element(el, id, ui.visuals().dark_mode, frame, buffer.master_transform)
@@ -93,14 +111,17 @@ impl Renderer {
         for (id, paint_op) in paint_ops {
             match paint_op {
                 RenderOp::Delete => {
+                    diff_state.delete_changed = true;
                     self.mesh_cache.remove(&id);
                 }
                 RenderOp::Paint(m) => {
+                    diff_state.data_changed = true;
                     self.mesh_cache.insert(id.to_owned(), m);
                 }
                 RenderOp::Transform(t) => {
-                    if let Some(egui::Shape::Mesh(m)) = self.mesh_cache.get_mut(&id) {
-                        for v in &mut m.vertices {
+                    diff_state.transformed = Some(t);
+                    if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(&id) {
+                        for v in &mut shape.vertices {
                             v.pos.x = t.sx * v.pos.x + t.tx;
                             v.pos.y = t.sy * v.pos.y + t.ty;
                         }
@@ -110,10 +131,15 @@ impl Renderer {
         }
 
         if !self.mesh_cache.is_empty() {
-            painter.extend(buffer.elements.iter().rev().filter_map(|(id, _)| {
-                if let Some(egui::Shape::Mesh(m)) = self.mesh_cache.get(id) {
-                    if !m.vertices.is_empty() && !m.indices.is_empty() {
-                        Some(egui::Shape::mesh(m.to_owned()))
+            painter.extend(buffer.elements.iter_mut().rev().filter_map(|(id, el)| {
+                match el {
+                    Element::Path(p) => p.diff_state = DiffState::default(),
+                    Element::Image(i) => i.diff_state = DiffState::default(),
+                    Element::Text(_) => todo!(),
+                }
+                if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(id) {
+                    if !shape.vertices.is_empty() && !shape.indices.is_empty() {
+                        Some(egui::Shape::mesh(shape.to_owned()))
                     } else {
                         None
                     }
@@ -121,46 +147,21 @@ impl Renderer {
                     None
                 }
             }));
-        }
-    }
-}
+        };
 
-fn load_image_textures(buffer: &mut Buffer, ui: &mut egui::Ui) {
-    for (id, el) in buffer.elements.iter_mut() {
-        if let parser::Element::Image(img) = el {
-            match &img.data {
-                ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
-                    let image = image::load_from_memory(bytes).unwrap();
-
-                    let egui_image = egui::ColorImage::from_rgba_unmultiplied(
-                        [image.width() as usize, image.height() as usize],
-                        &image.to_rgba8(),
-                    );
-
-                    if img.texture.is_none() {
-                        img.texture = Some(ui.ctx().load_texture(
-                            format!("canvas_img_{}", id),
-                            egui_image,
-                            egui::TextureOptions::LINEAR,
-                        ));
-                    }
-                }
-                ImageKind::GIF(_) => todo!(),
-                ImageKind::SVG(_) => todo!(),
-            }
-        }
+        diff_state
     }
 }
 
 // todo: maybe impl this on element struct
 fn tesselate_element(
-    el: &mut parser::Element, id: &Uuid, dark_mode: bool, frame: u64, master_transform: Transform,
+    el: &mut Element, id: &Uuid, dark_mode: bool, frame: u64, master_transform: Transform,
 ) -> Option<(Uuid, RenderOp)> {
     let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
     let mut stroke_tess = StrokeTessellator::new();
 
     match el {
-        parser::Element::Path(p) => {
+        Element::Path(p) => {
             let span = span!(Level::TRACE, "tessellating path", frame = frame);
             let _ = span.enter();
 
@@ -168,7 +169,8 @@ fn tesselate_element(
                 if p.data.is_empty() {
                     return Some((*id, RenderOp::Delete));
                 }
-                let stroke_color = if dark_mode { stroke.color.1 } else { stroke.color.0 }
+                let stroke_color = ThemePalette::resolve_dynamic_color(stroke.color, dark_mode)
+                    .gamma_multiply(stroke.opacity)
                     .gamma_multiply(p.opacity);
 
                 let mut builder = lyon::path::BuilderWithAttributes::new(1);
@@ -177,7 +179,7 @@ fn tesselate_element(
                 let mut i = 0;
 
                 while let Some(seg) = p.data.get_segment(i) {
-                    let thickness = stroke.width * master_transform.sx;
+                    let thickness = stroke.width * p.transform.sx * master_transform.sx;
 
                     let start = devc_to_point(seg.start());
                     let end = devc_to_point(seg.end());
@@ -218,42 +220,24 @@ fn tesselate_element(
                 if mesh.is_empty() {
                     None
                 } else {
-                    Some((*id, RenderOp::Paint(egui::Shape::Mesh(mesh))))
+                    Some((
+                        *id,
+                        RenderOp::Paint(MeshShape {
+                            shape: mesh,
+                            scale: master_transform.sx * p.transform.sx,
+                        }),
+                    ))
                 }
             } else {
                 None
             }
         }
-        parser::Element::Image(img) => render_image(img, id),
-        parser::Element::Text(_) => todo!(),
+        // todo: draw images
+        Element::Image(_) => todo!(),
+        Element::Text(_) => todo!(),
     }
 }
 
 fn devc_to_point(dvec: DVec2) -> Point {
     Point::new(dvec.x as f32, dvec.y as f32)
-}
-
-fn render_image(img: &mut parser::Image, id: &Uuid) -> Option<(Uuid, RenderOp)> {
-    match &img.data {
-        ImageKind::JPEG(_) | ImageKind::PNG(_) => {
-            if let Some(texture) = &img.texture {
-                let rect = egui::Rect {
-                    min: egui::pos2(img.view_box.rect.left(), img.view_box.rect.top()),
-                    max: egui::pos2(img.view_box.rect.right(), img.view_box.rect.bottom()),
-                };
-                let uv = egui::Rect {
-                    min: egui::Pos2 { x: 0.0, y: 0.0 },
-                    max: egui::Pos2 { x: 1.0, y: 1.0 },
-                };
-
-                let mut mesh = egui::Mesh::with_texture(texture.id());
-                mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE.linear_multiply(img.opacity));
-                Some((*id, RenderOp::Paint(egui::Shape::mesh(mesh))))
-            } else {
-                None
-            }
-        }
-        ImageKind::GIF(_) => todo!(),
-        ImageKind::SVG(_) => todo!(),
-    }
 }

@@ -1,6 +1,5 @@
 use std::sync::mpsc;
 
-use eframe::egui;
 use egui_extras::{Size, StripBuilder};
 use lb::model::api::{PaymentMethod, StripeAccountTier, SubscriptionInfo};
 use lb::service::usage::{UsageItemMetric, UsageMetrics};
@@ -13,7 +12,6 @@ use super::SettingsResponse;
 pub struct UsageSettings {
     pub info: Option<UsageSettingsInfo>,
     pub info_rx: mpsc::Receiver<UsageSettingsInfo>,
-    pub info_tx: mpsc::Sender<UsageSettingsInfo>,
     pub upgrading: Option<Upgrading>,
 }
 
@@ -347,7 +345,7 @@ impl Upgrading {
                     if let Some(PaymentMethod::NewCard { number, .. }) = &self.payment_method {
                         ui.vertical_centered(|ui| {
                             ui.add_space(50.0);
-                            ui.label(&format!(
+                            ui.label(format!(
                                 "Use card (ending in {})",
                                 &number[number.len() - 4..]
                             ));

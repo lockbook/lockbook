@@ -1,5 +1,4 @@
 use dark_light::Mode::Dark;
-use eframe::egui;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;

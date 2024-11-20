@@ -8,13 +8,13 @@
 //! modifications are valid / authorized.
 //!
 //! - Most clients / integrators will be interested in the functions attached to the [Lb] struct.
-//! See the [service] module for evolving this functionality.
+//!   See the [service] module for evolving this functionality.
 //! - The [model] module contains the specification of our data structures and contracts between
-//! components.
+//!   components.
 //! - The [logic] module contains our important algorithms and routines.
 //!
 //! - The `"blocking"` feature flag enables the [blocking] module and and the corresponding
-//! blocking `Lb` variant.
+//!   blocking `Lb` variant.
 //! - The `"ffi"` feature flag enables `blocking` as well as an API for C ffi clients
 //! - The `"jni"` feature flag enables `blocking` as well as an API for JVM clients
 
@@ -26,6 +26,7 @@ pub mod logic;
 pub mod model;
 pub mod repo;
 pub mod service;
+pub mod svg;
 pub mod text;
 
 #[derive(Clone)]

@@ -1,4 +1,3 @@
-use eframe::egui;
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
@@ -168,7 +167,7 @@ fn show_bottom_bar(ui: &mut egui::Ui, file_picker: &mut FilePicker) -> Option<Fi
 
                 icon.show(ui);
 
-                ui.label(&file_picker.target_name());
+                ui.label(file_picker.target_name());
             });
         ui.spacing_mut().button_padding = egui::vec2(25.0, 5.0);
 

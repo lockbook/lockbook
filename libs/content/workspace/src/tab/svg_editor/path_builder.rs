@@ -4,7 +4,7 @@ use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;
 use resvg::usvg::Transform;
 
-use super::parser::ManipulatorGroupId;
+use lb_rs::svg::element::ManipulatorGroupId;
 
 /// Build a cubic bézier path with Catmull-Rom smoothing and Ramer–Douglas–Peucker compression
 #[derive(Debug)]
@@ -76,7 +76,7 @@ impl PathBuilder {
 
         if let Some(simple_points) = maybe_simple_points {
             self.simplified_points = simple_points.clone();
-            simple_points.iter().enumerate().for_each(|(_, p)| {
+            simple_points.iter().for_each(|p| {
                 self.line_to(*p, path);
             });
         }
@@ -193,7 +193,7 @@ impl Line {
     }
 
     fn perpendicular_distance_to(&self, point: egui::Pos2) -> f32 {
-        const SOME_SMALL_NUMBER: f32 = std::f32::EPSILON * 100.0;
+        const SOME_SMALL_NUMBER: f32 = f32::EPSILON * 100.0;
 
         let side_a = self.start - point;
         let side_b = self.end - point;
