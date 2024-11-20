@@ -48,12 +48,6 @@ class ShareService: ObservableObject {
         calculatePendingShares()
     }
     
-    func shareFile(id: UUID, username: String, mode: ShareMode) {
-        if case .failure(let err) = core.shareFile(id: id, username: username, mode: mode) {
-            DI.errors.handleError(err)
-        }
-    }
-    
     func calculateShareInfo(id: UUID) {
         let maybeMeta = DI.files.idsAndFiles[id]
         

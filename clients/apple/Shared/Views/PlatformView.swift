@@ -15,12 +15,6 @@ struct PlatformView: View {
     var body: some View {
         platform
             .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
-            .sheet(isPresented: $sheets.sharingFile, content: {
-                if let meta = sheets.sharingFileInfo {
-                    ShareFileSheet(meta: meta)
-                }
-                
-            })
             .sheet(isPresented: $sheets.moving, content: {
                 if let action = sheets.movingInfo {
                     SelectFolderView(action: action)
@@ -97,6 +91,12 @@ struct PlatformView: View {
             .sheet(isPresented: $sheets.renamingFile, content: {
                 if let renamingFileInfo = sheets.renamingFileInfo {
                     RenameFileSheet(info: renamingFileInfo)
+                        .modifier(AutoSizeSheetViewModifier(sheetHeight: $sheetHeight))
+                }
+            })
+            .sheet(isPresented: $sheets.sharingFile, content: {
+                if let file = sheets.sharingFileInfo {
+                    ShareFileSheet(file: file)
                         .modifier(AutoSizeSheetViewModifier(sheetHeight: $sheetHeight))
                 }
             })
@@ -185,12 +185,17 @@ struct PlatformView: View {
                     .modifier(FormSheetViewModifier(show: $sheets.creatingFolder, sheetContent: {
                         CreateFolderSheet(info: sheets.creatingFolderInfo!)
                             .padding(.bottom, 3)
-                            .frame(width: 300, height: 190)
+                            .frame(width: 420, height: 190)
                     }))
                     .modifier(FormSheetViewModifier(show: $sheets.renamingFile, sheetContent: {
                         RenameFileSheet(info: sheets.renamingFileInfo!)
                             .padding(.bottom, 3)
-                            .frame(width: 300, height: 190)
+                            .frame(width: 420, height: 190)
+                    }))
+                    .modifier(FormSheetViewModifier(show: $sheets.sharingFile, sheetContent: {
+                        ShareFileSheet(file: sheets.sharingFileInfo!)
+                            .padding(.bottom, 3)
+                            .frame(width: 500, height: 355)
                     }))
             )
     }
@@ -214,15 +219,20 @@ struct PlatformView: View {
                     if let creatingFolderInfo = sheets.creatingFolderInfo {
                         CreateFolderSheet(info: creatingFolderInfo)
                             .padding(.bottom, 3)
-                            .frame(width: 300, height: 140)
+                            .frame(width: 300, height: 160)
                     }
                 })
                 .sheet(isPresented: $sheets.renamingFile, content: {
                     if let renamingFileInfo = sheets.renamingFileInfo {
                         RenameFileSheet(info: renamingFileInfo)
                             .padding(.bottom, 3)
-                            .frame(width: 300, height: 140)
+                            .frame(width: 300, height: 160)
                     }
+                })
+                .sheet(isPresented: $sheets.sharingFile, content: {
+                    ShareFileSheet(file: sheets.sharingFileInfo!)
+                        .padding(.bottom, 3)
+                        .frame(width: 430, height: 300)
                 })
 
             
