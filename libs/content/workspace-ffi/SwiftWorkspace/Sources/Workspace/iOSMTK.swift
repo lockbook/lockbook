@@ -812,6 +812,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     var ignoreTextUpdate = false
     
     var cursorTracked = false
+    var scrollId = 0
     
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
@@ -847,7 +848,15 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         velocity.y /= 50
                         
         if event.state == .ended {
+            let currentScrollId = Int(Date().timeIntervalSince1970)
+            scrollId = currentScrollId
+            
             Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
+                if currentScrollId != scrollId {
+                    timer.invalidate()
+                    return
+                }
+                
                 velocity.x *= Self.POINTER_DECELERATION_RATE
                 velocity.y *= Self.POINTER_DECELERATION_RATE
                 
@@ -1097,16 +1106,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         }
         
         self.enableSetNeedsDisplay = self.isPaused
-        
-        let swiftEndTime = DispatchTime.now()
-
-        let swiftNanoseconds = swiftEndTime.uptimeNanoseconds - swiftStartTime.uptimeNanoseconds
-        let swiftSeconds = Double(swiftNanoseconds) / 1_000_000.0
-        
-        let rustNanoseconds = rustEndTime.uptimeNanoseconds - rustStartTime.uptimeNanoseconds
-        let rustSeconds = Double(rustNanoseconds) / 1_000_000.0
-        // print("Swift time: \(swiftSeconds) ms | Rust time: \(rustSeconds)")
-        
     }
 
     override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
