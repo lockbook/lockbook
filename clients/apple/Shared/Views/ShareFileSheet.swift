@@ -150,38 +150,6 @@ struct ShareFileSheet: View {
     }
 }
 
-#if os(iOS)
-#Preview() {
-    let file = File(id: UUID(), name: "", type: .document, parent: UUID(), lastModifiedBy: "", lastModified: 0, shares: [Share(by: "Smail", with: "Adam", mode: .write)])
-    
-    if UIDevice.current.userInterfaceIdiom == .pad {
-        Rectangle()
-            .foregroundStyle(.white)
-            .modifier(FormSheetViewModifier(show: Binding.constant(true), sheetContent: {
-                ShareFileSheet(file: file)
-                    .padding(.bottom, 3)
-                    .frame(width: 350, height: 260)
-            }))
-    } else {
-        Rectangle()
-            .foregroundStyle(.white)
-            .sheet(isPresented: Binding.constant(true), content: {
-                ShareFileSheet(file: file)
-                    .presentationDetents([.height(200)])
-                    .presentationDragIndicator(.visible)
-            })
-    }
-}
-#else
-#Preview() {
-    Rectangle()
-        .foregroundStyle(.white)
-        .sheet(isPresented: Binding.constant(true), content: {
-            ShareFileSheet(file: File(id: UUID(), name: "", type: .document, parent: UUID(), lastModifiedBy: "", lastModified: 0, shares: [SwiftWorkspace.Share(by: "Smail", with: "Adam", mode: .write)]))
-        })
-}
-#endif
-
 struct CardBackground: ViewModifier {
     let background: Color
     

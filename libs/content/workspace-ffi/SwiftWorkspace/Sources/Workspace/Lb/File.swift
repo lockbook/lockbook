@@ -21,17 +21,7 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
         self.lastModified = file.lastmod
         self.shares = Array(UnsafeBufferPointer(start: file.shares.list, count: Int(file.shares.count))).toShares()
     }
-    
-    public init(id: UUID, name: String, type: FileType, parent: UUID, lastModifiedBy: String, lastModified: UInt64, shares: [Share]) {
-        self.id = id
-        self.parent = parent
-        self.name = name
-        self.type = type
-        self.lastModifiedBy = lastModifiedBy
-        self.lastModified = lastModified
-        self.shares = shares
-    }
-    
+        
     public static func == (lhs: File, rhs: File) -> Bool {
         return lhs.type == rhs.type &&
             lhs.id == rhs.id &&
@@ -77,7 +67,7 @@ public struct Share: Codable, Equatable {
     public let with: String
     public let mode: ShareMode
     
-    public init(by: String, with: String, mode: ShareMode) {
+    init(by: String, with: String, mode: ShareMode) {
         self.by = by
         self.with = with
         self.mode = mode
