@@ -1,17 +1,17 @@
 import Foundation
 import SwiftWorkspace
 
-class UnexpectedErrorService: ObservableObject {
-    @Published var globalError: LbError?
+class ErrorService: ObservableObject {
+    @Published var error: LbError?
     @Published var errorWithTitle: (String, String)? = nil
     
-    func handleError(_ error: LbError) {
+    func showError(_ error: LbError) {
         DispatchQueue.main.async {
-            self.globalError = error
+            self.error = error
         }
     }
     
-    func errorWithTitle(_ title: String, _ message: String) {
+    func showErrorWithTitle(_ title: String, _ message: String) {
         DispatchQueue.main.async {
             self.errorWithTitle = (title, message)
         }

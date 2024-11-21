@@ -18,7 +18,7 @@ class AccountService: ObservableObject {
             if error.code == .accountNonexistent {
                 account = nil
             } else {
-                DI.errors.handleError(error)
+                DI.errors.showError(error)
             }
         }
         
@@ -34,7 +34,7 @@ class AccountService: ObservableObject {
                 if error.code == .accountNonexistent {
                     account = nil
                 } else {
-                    DI.errors.handleError(error)
+                    DI.errors.showError(error)
                 }
             }
         }
@@ -50,7 +50,7 @@ class AccountService: ObservableObject {
         case .success(_):
             DI.freshState()
         case .failure(let error):
-            DI.errors.handleError(error)
+            DI.errors.showError(error)
         }
     }
 }

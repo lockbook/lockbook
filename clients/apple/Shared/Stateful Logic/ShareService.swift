@@ -35,14 +35,14 @@ class ShareService: ObservableObject {
                     self.pendingShares = shares
                 }
             case .failure(let err):
-                DI.errors.handleError(err)
+                DI.errors.showError(err)
             }
         }
     }
     
     func rejectShare(id: UUID) {
         if case .failure(let err) = core.deletePendingShare(id: id) {
-            DI.errors.handleError(err)
+            DI.errors.showError(err)
         }
         
         calculatePendingShares()

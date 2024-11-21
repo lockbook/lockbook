@@ -81,7 +81,7 @@ class SyncService: ObservableObject {
                 case .success(_):
                     DI.onboarding.getAccountAndFinalize()
                 case .failure(let error):
-                    DI.errors.handleError(error)
+                    DI.errors.showError(error)
                 }
             }
         }

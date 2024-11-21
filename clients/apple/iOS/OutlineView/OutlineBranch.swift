@@ -9,7 +9,7 @@ import SwiftWorkspace
 struct OutlineBranch: View {
     @EnvironmentObject var files: FileService
     @EnvironmentObject var selected: SelectedFilesState
-    @EnvironmentObject var errors: UnexpectedErrorService
+    @EnvironmentObject var errors: ErrorService
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var workspace: WorkspaceState
 
