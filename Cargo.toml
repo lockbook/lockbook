@@ -21,5 +21,6 @@ members = [
     "libs/lb/lb-c", "libs/lb/lb-java",
 ]
 
-[profile.release]
-debug = true
+# restore for big binaries but good backtraces
+# [profile.release]
+# debug = true
