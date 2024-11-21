@@ -37,6 +37,7 @@ pub struct Lb {
     pub docs: AsyncDocs,
     pub search: SearchIndex,
     pub client: Network,
+    pub syncing: Arc<AtomicBool>,
 }
 
 impl Lb {
@@ -51,8 +52,9 @@ impl Lb {
         let docs = AsyncDocs::from(&config);
         let client = Network::default();
         let search = SearchIndex::default();
+        let syncing = Arc::default();
 
-        let result = Self { config, keychain, db, docs, client, search };
+        let result = Self { config, keychain, db, docs, client, search, syncing };
         result.spawn_build_index();
         Ok(result)
     }
@@ -75,6 +77,7 @@ use repo::LbDb;
 use service::keychain::Keychain;
 use service::network::Network;
 use service::search::SearchIndex;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 pub use uuid::Uuid;

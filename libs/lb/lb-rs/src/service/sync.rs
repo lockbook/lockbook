@@ -85,6 +85,11 @@ impl Lb {
 
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub async fn sync(&self, f: Option<Box<dyn Fn(SyncProgress) + Send>>) -> LbResult<SyncStatus> {
+        let old = self.syncing.swap(true, Ordering::SeqCst);
+        if old {
+            return Err(LbErrKind::AlreadySyncing.into());
+        }
+
         let mut ctx = self.setup_sync(f).await?;
 
         let mut got_updates = false;
@@ -110,6 +115,7 @@ impl Lb {
 
         let cleanup = self.cleanup().await;
 
+        self.syncing.store(false, Ordering::Relaxed);
         pipeline?;
         cleanup?;
         ctx.done_msg();
