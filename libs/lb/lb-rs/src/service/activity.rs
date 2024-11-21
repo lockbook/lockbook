@@ -22,6 +22,10 @@ impl Lb {
         let mut result = Vec::new();
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         for score in scores {
+            if tree.maybe_find(&score.id).is_none() {
+                continue;
+            }
+
             if tree.calculate_deleted(&score.id)? {
                 continue;
             }
