@@ -12,7 +12,7 @@ Write notes, sketch ideas, and store files in one secure place. Share seamlessly
 Lockbook is in open beta. Join our community, share your feedback, and help achieve our vision of open-source privacy without compromises.
 
 ## Private & Secure
-Keep your thoughts to yourself! Lockbook uses secp256k1 ECDSA keys—just like Bitcoin—to hide your data even from us. Your files never leave your device without being encrypted with your private key. Your private key is generated on your device and transferred directly to your other devices by scanning a QR code or typing a 24-word phrase.
+Keep your thoughts to yourself! Lockbook uses elliptic curve cryptography (just like Bitcoin) to hide your data even from us. Your files never leave your device without being encrypted with your private key. Your private key is generated on your device and transferred directly to your other devices by scanning a QR code or typing a 24-word phrase.
 
 ## Transparent
 Be the customer, not the product. We sell a note-taking app, not your data.
