@@ -27,7 +27,7 @@ class ImportExportService: ObservableObject {
             
             return true
         case .failure(let error):
-            DI.errors.handleError(error)
+            DI.errors.showError(error)
             return false
         }
     }
@@ -44,7 +44,7 @@ class ImportExportService: ObservableObject {
         case .success(_):
             return destination.appendingPathComponent(meta.name)
         case .failure(let error):
-            DI.errors.handleError(error)
+            DI.errors.showError(error)
             return nil
         }
     }

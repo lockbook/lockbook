@@ -4,7 +4,7 @@ struct AppView: View {
     
     @EnvironmentObject var accounts: AccountService
     @EnvironmentObject var files: FileService
-    @EnvironmentObject var errors: UnexpectedErrorService
+    @EnvironmentObject var errors: ErrorService
     
     @ViewBuilder
     var body: some View {
@@ -33,39 +33,21 @@ struct AppView: View {
                 Label("Loading...", systemImage: "clock.arrow.circlepath")
             }
         }
-        .alert(isPresented: Binding(get: { errors.globalError != nil }, set: { _ in errors.globalError = nil })) {
-            if let error = errors.globalError {
-                if error.code == .clientUpdateRequired {
-                    return updateAlert
-                } else {
-                    return Alert(
-                        title: Text("Error"),
-                        message: Text(error.msg),
-                        dismissButton: .default(Text("Dismiss"))
-                    )
-                }
-            } else {
-                return Alert(
-                    title: Text("Error"),
-                    message: Text("An unknown error has occurred."),
-                    dismissButton: .default(Text("Dismiss"))
-                )
-            }
+        .alert("Error", isPresented: Binding<Bool>(
+            get: { errors.error != nil },
+            set: { if !$0 { errors.error = nil } }
+        ), presenting: errors.error) { _ in
+            Button("Dismiss", role: .cancel) {}
+        } message: { error in
+            Text("An error occurred: \(error.msg)")
         }
-        .alert(isPresented: Binding(get: { errors.errorWithTitle != nil }, set: { _ in errors.errorWithTitle = nil })) {
-            if let error = errors.errorWithTitle {
-                return Alert(
-                    title: Text(error.0),
-                    message: Text(error.1),
-                    dismissButton: .default(Text("Dismiss"))
-                )
-            } else {
-                return Alert(
-                    title: Text("Error"),
-                    message: Text("An unknown error has occurred."),
-                    dismissButton: .default(Text("Dismiss"))
-                )
-            }
+        .alert(errors.errorWithTitle?.0 ?? "Error", isPresented: Binding<Bool>(
+            get: { errors.errorWithTitle != nil },
+            set: { if !$0 { errors.errorWithTitle = nil } }
+        ), presenting: errors.errorWithTitle) { _ in
+            Button("Dismiss", role: .cancel) {}
+        } message: { error in
+            Text("\(error.1)")
         }
     }
     
@@ -87,7 +69,7 @@ struct AppView: View {
     
     func handleOpenLink(url: URL) {
         guard let uuidString = url.host, let id = UUID(uuidString: uuidString) else {
-            DI.errors.errorWithTitle("Malformed link", "Cannot open file")
+            DI.errors.showErrorWithTitle("Malformed link", "Cannot open file")
             return
         }
 
@@ -99,7 +81,7 @@ struct AppView: View {
             Thread.sleep(until: .now + 0.1)
 
             if DI.files.idsAndFiles[id] == nil {
-                DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
+                DI.errors.showErrorWithTitle("File not found", "That file does not exist in your lockbook")
             }
 
             DispatchQueue.main.async {

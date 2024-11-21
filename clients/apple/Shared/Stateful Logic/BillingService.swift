@@ -62,7 +62,7 @@ class BillingService: ObservableObject {
                 case .success(let usages):
                     if usages.serverCapExact == FREE_TIER_USAGE_CAP {
                         guard let appAccountToken = transaction.appAccountToken else {
-                            DI.errors.errorWithTitle("Billing Error", "An unexpected error has occurred.")
+                            DI.errors.showErrorWithTitle("Billing Error", "An unexpected error has occurred.")
                             return
                         }
                             
@@ -81,7 +81,7 @@ class BillingService: ObservableObject {
                         await transaction.finish()
                     }
                 case .failure(let error):
-                    DI.errors.handleError(error)
+                    DI.errors.showError(error)
                 }
             }
         }
@@ -128,7 +128,7 @@ class BillingService: ObservableObject {
                     await updatePurchaseResult(.success)
                 case .failure(let error):
                     await updatePurchaseResult(.failure)
-                    DI.errors.handleError(error)
+                    DI.errors.showError(error)
                 }
             case .pending:
                 showPurchaseToast = true
@@ -163,10 +163,10 @@ class BillingService: ObservableObject {
             if storeProducts.count == 1 {
                 maybeMonthlySubscription = storeProducts[0]
             } else {
-                DI.errors.errorWithTitle("App Store Error", "Cannot retrieve data from the app store (err_id: 2).")
+                DI.errors.showErrorWithTitle("App Store Error", "Cannot retrieve data from the app store (err_id: 2).")
             }
         } catch {
-            DI.errors.errorWithTitle("App Store Error", "Cannot retrieve data from the app store (err_id: 1).")
+            DI.errors.showErrorWithTitle("App Store Error", "Cannot retrieve data from the app store (err_id: 1).")
         }
     }
     
@@ -182,7 +182,7 @@ class BillingService: ObservableObject {
                     if err.code == .cannotCancelSubscriptionForAppStore {
                         self.cancelSubscriptionResult = .appstoreActionRequired
                     } else {
-                        DI.errors.handleError(err)
+                        DI.errors.showError(err)
                     }
                 }
             }

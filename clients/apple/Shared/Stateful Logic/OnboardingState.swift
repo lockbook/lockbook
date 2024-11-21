@@ -49,7 +49,7 @@ class OnboardingService: ObservableObject {
                         self.createAccountError = "This server is not accepting any new accounts at this moment. Please try again another time."
                     default:
                         self.createAccountError = "Unexpected Error!"
-                        DI.errors.handleError(err)
+                        DI.errors.showError(err)
                     }
                     break
                 }
@@ -84,7 +84,7 @@ class OnboardingService: ObservableObject {
                     case .usernamePublicKeyMismatch:
                         self.importAccountError = "That username does not match the public key stored on this server!"
                     default:
-                        DI.errors.handleError(error)
+                        DI.errors.showError(error)
                     }
                 }
             }

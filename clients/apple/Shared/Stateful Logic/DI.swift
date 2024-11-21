@@ -5,7 +5,7 @@ class DI {
     static let core = Lb(writablePath: ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location, logs: true)
 
     static let coreService: CoreService = CoreService(core)
-    static let errors: UnexpectedErrorService = UnexpectedErrorService()
+    static let errors: ErrorService = ErrorService()
     static let accounts = AccountService(core)
     static let settings = SettingsService(core)
     static let billing = BillingService(core)
