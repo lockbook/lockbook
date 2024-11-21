@@ -77,8 +77,8 @@
 		874A88F626D3E91900F010C8 /* DI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874A88F426D3E91900F010C8 /* DI.swift */; };
 		877FB54A26D1788D0008AB3F /* CoreService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB54926D1788D0008AB3F /* CoreService.swift */; };
 		877FB54B26D1788D0008AB3F /* CoreService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB54926D1788D0008AB3F /* CoreService.swift */; };
-		877FB55026D17FD00008AB3F /* UnexpectedErrorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB54F26D17FD00008AB3F /* UnexpectedErrorService.swift */; };
-		877FB55126D17FD00008AB3F /* UnexpectedErrorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB54F26D17FD00008AB3F /* UnexpectedErrorService.swift */; };
+		877FB55026D17FD00008AB3F /* ErrorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB54F26D17FD00008AB3F /* ErrorService.swift */; };
+		877FB55126D17FD00008AB3F /* ErrorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB54F26D17FD00008AB3F /* ErrorService.swift */; };
 		877FB55326D1854E0008AB3F /* SyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB55226D1854E0008AB3F /* SyncService.swift */; };
 		877FB55426D1854E0008AB3F /* SyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB55226D1854E0008AB3F /* SyncService.swift */; };
 		877FB55626D18AA60008AB3F /* AccountService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB55526D18AA60008AB3F /* AccountService.swift */; };
@@ -211,7 +211,7 @@
 		8741E90E25AD1565005B7B01 /* OutlineBranch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineBranch.swift; sourceTree = "<group>"; };
 		874A88F426D3E91900F010C8 /* DI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DI.swift; sourceTree = "<group>"; };
 		877FB54926D1788D0008AB3F /* CoreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreService.swift; sourceTree = "<group>"; };
-		877FB54F26D17FD00008AB3F /* UnexpectedErrorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnexpectedErrorService.swift; sourceTree = "<group>"; };
+		877FB54F26D17FD00008AB3F /* ErrorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorService.swift; sourceTree = "<group>"; };
 		877FB55226D1854E0008AB3F /* SyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncService.swift; sourceTree = "<group>"; };
 		877FB55526D18AA60008AB3F /* AccountService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountService.swift; sourceTree = "<group>"; };
 		877FB55826D18EC80008AB3F /* FileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileService.swift; sourceTree = "<group>"; };
@@ -332,7 +332,7 @@
 				87BD383726C020B00030D2B1 /* SettingsService.swift */,
 				476436CB29B7DE4E00FBDC59 /* SearchService.swift */,
 				877FB54926D1788D0008AB3F /* CoreService.swift */,
-				877FB54F26D17FD00008AB3F /* UnexpectedErrorService.swift */,
+				877FB54F26D17FD00008AB3F /* ErrorService.swift */,
 				47A45FBA2969047B00573044 /* ShareService.swift */,
 				877FB55226D1854E0008AB3F /* SyncService.swift */,
 				47FAA4C729EC830600DB606E /* BranchState.swift */,
@@ -738,7 +738,7 @@
 				877FB55326D1854E0008AB3F /* SyncService.swift in Sources */,
 				B249B9E7282AF4F4004F5300 /* HomeView.swift in Sources */,
 				47A45FBB2969047B00573044 /* ShareService.swift in Sources */,
-				877FB55026D17FD00008AB3F /* UnexpectedErrorService.swift in Sources */,
+				877FB55026D17FD00008AB3F /* ErrorService.swift in Sources */,
 				477D80F12C98810C001AC17C /* OnboardingView.swift in Sources */,
 				476436CC29B7DE4E00FBDC59 /* SearchService.swift in Sources */,
 				877FB55626D18AA60008AB3F /* AccountService.swift in Sources */,
@@ -758,7 +758,7 @@
 				87BD383926C020B00030D2B1 /* SettingsService.swift in Sources */,
 				B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */,
 				476436CD29B7DE4E00FBDC59 /* SearchService.swift in Sources */,
-				877FB55126D17FD00008AB3F /* UnexpectedErrorService.swift in Sources */,
+				877FB55126D17FD00008AB3F /* ErrorService.swift in Sources */,
 				877FB54B26D1788D0008AB3F /* CoreService.swift in Sources */,
 				87F78F782709352C0001E159 /* LogoView.swift in Sources */,
 				47CEC69D2A182F2A0018FA5C /* UpgradeToPremium.swift in Sources */,

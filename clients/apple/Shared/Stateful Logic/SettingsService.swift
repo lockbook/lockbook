@@ -80,7 +80,7 @@ class SettingsService: ObservableObject {
             #endif
             copied = true
         case .failure(let err):
-            DI.errors.handleError(err)
+            DI.errors.showError(err)
         }
     }
     
@@ -99,12 +99,12 @@ class SettingsService: ObservableObject {
                     case .failure(let err):
                         switch err.code {
                         case .clientUpdateRequired:
-                            DI.errors.errorWithTitle("Update Required", "You need to update to view your usage")
+                            DI.errors.showErrorWithTitle("Update Required", "You need to update to view your usage")
                             self.offline = false
                         case .serverUnreachable:
                             self.offline = true
                         default:
-                            DI.errors.handleError(err)
+                            DI.errors.showError(err)
                         }
                     }
                 } else {
@@ -117,7 +117,7 @@ class SettingsService: ObservableObject {
                 case .serverUnreachable:
                     self.offline = true
                 default:
-                    DI.errors.handleError(err)
+                    DI.errors.showError(err)
                 }
             }
         }
@@ -137,7 +137,7 @@ class SettingsService: ObservableObject {
                 }
             }
         case .failure(let err):
-            DI.errors.handleError(err)
+            DI.errors.showError(err)
         }
         return AnyView(Text("Failed to generate QR Code"))
     }

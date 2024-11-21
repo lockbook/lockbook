@@ -104,14 +104,7 @@ class FileService: ObservableObject {
                     self.successfulAction = .move
                     self.refresh()
                 case .failure(let error):
-                    switch error.code {
-                    case .folderMovedIntoSelf:
-                        DI.errors.errorWithTitle("Move Error", "Cannot move a folder into itself or one of it's children")
-                    case .pathTaken:
-                        DI.errors.errorWithTitle("Move Error", "Target folder has a child named that")
-                    default:
-                        DI.errors.handleError(error)
-                    }
+                    DI.errors.showError(error)
                 }
             }
         }
@@ -148,14 +141,8 @@ class FileService: ObservableObject {
             let res = core.moveFile(id: id, newParent: newParent)
 
             if case .failure(let error) = res {
-                switch error.code {
-                case .folderMovedIntoSelf:
-                    DI.errors.errorWithTitle("Move Error", "Cannot move a folder into itself or one of it's children")
-                case .pathTaken:
-                    DI.errors.errorWithTitle("Move Error", "Target folder has a child named that")
-                default:
-                    DI.errors.handleError(error)
-                }
+                DI.errors.showError(error)
+                
                 return false
             }
         }
@@ -172,7 +159,7 @@ class FileService: ObservableObject {
                 
                 if case .failure(let error) = res {
                     if error.code != .fileNonexistent {
-                        DI.errors.handleError(error)
+                        DI.errors.showError(error)
                     }
                 }
                 
@@ -198,18 +185,7 @@ class FileService: ObservableObject {
             idsAndFiles[id]?.name = name
             return nil
         case .failure(let error):
-            switch error.code {
-            case .pathTaken:
-                return "A file with that name already exists"
-            case .fileNameContainsSlash:
-                return "Your file name cannot contain a slash"
-            case .fileNameEmpty:
-                return "Your filename cannot be empty"
-            case .fileNameTooLong:
-                return "Your filename is too long"
-            default:
-                return "An error occurred while renaming the file"
-            }
+            return error.msg
         }
     }
 
@@ -241,7 +217,7 @@ class FileService: ObservableObject {
                         suggestedDocs.append(meta)
                     case .failure(let error):
                         if error.code != .fileNonexistent {
-                            DI.errors.handleError(error)
+                            DI.errors.showError(error)
                         }
                     }
                 }
@@ -250,7 +226,7 @@ class FileService: ObservableObject {
                     self.suggestedDocs = suggestedDocs
                 }
             case .failure(let error):
-                DI.errors.handleError(error)
+                DI.errors.showError(error)
             }
         }
     }
@@ -264,7 +240,7 @@ class FileService: ObservableObject {
                 case .success(let files):
                     self.postRefreshFiles(files)
                 case .failure(let error):
-                    DI.errors.handleError(error)
+                    DI.errors.showError(error)
                 }
             }
         }
@@ -323,7 +299,7 @@ class FileService: ObservableObject {
                     if error.code == .pathTaken {
                         attempt += 1
                     } else {
-                        DI.errors.handleError(error)
+                        DI.errors.showError(error)
                         return
                     }
                 }
@@ -345,18 +321,7 @@ class FileService: ObservableObject {
             refresh()
             return nil
         case .failure(let error):
-            switch error.code {
-            case .fileNameContainsSlash:
-                return "Your file name contains a slash"
-            case .fileNameEmpty:
-                return "Your file name cannot be empty"
-            case .pathTaken:
-                return "Your file name is not available"
-            case .fileNameTooLong:
-                return "Your file name is too long"
-            default:
-                return "An error has occurred"
-            }
+            return error.msg
         }
     }
     
@@ -373,7 +338,7 @@ class FileService: ObservableObject {
         case .success(let path):
             return path
         case .failure(let err):
-            DI.errors.handleError(err)
+            DI.errors.showError(err)
             return nil
         }
     }
@@ -383,7 +348,7 @@ class FileService: ObservableObject {
         case .success(let file):
             return file
         case .failure(let err):
-            DI.errors.handleError(err)
+            DI.errors.showError(err)
             return nil
         }
     }
