@@ -7,10 +7,11 @@ use lb::{
 
 #[derive(Debug)]
 pub struct FileTree {
-    /// Set of selected files. To be selected, a file must be visible i.e. all its ancestors are expanded.
+    /// Set of selected files. To be selected, a file must be visible i.e. all its ancestors must be expanded.
     pub selected: HashSet<Uuid>,
 
-    /// Set of expanded files. To be expanded, a file must be a folder but need not be visible.
+    /// Set of expanded files. To be expanded, a file must be a folder but need not be visible. A document is
+    /// considered neither expanded nor collapsed.
     pub expanded: HashSet<Uuid>,
 }
 
@@ -19,75 +20,120 @@ impl FileTree {
         Self { selected: HashSet::new(), expanded: [files.root()].into_iter().collect() }
     }
 
-    /// Clears the selection. Does not expand or collapse anything.
-    pub fn clear_selection(&mut self) {
-        self.selected.clear();
+    /// Adds `ids` to the selection and reveals them in the tree.
+    pub fn select(&mut self, ids: &[Uuid], files: &[File]) {
+        self.selected.extend(ids);
+        self.reveal_selection(files);
     }
 
-    /// Adds `ids` to the selection (optionally `recursive`) and reveals them in the tree.
-    pub fn select(&mut self, ids: &[Uuid], recursive: bool, files: &[File]) {
-        self.selected.extend(ids);
-        if recursive {
-            for &id in ids {
-                self.selected
-                    .extend(files.descendents(id).into_iter().map(|f| f.id));
+    /// Adds `ids` to the selection and reveals them recursively to a maximum depth of `depth`. If `depth` is `None`,
+    /// selects all the way.
+    pub fn select_recursive(&mut self, ids: &[Uuid], depth: Option<usize>, files: &[File]) {
+        self.selected.extend(ids.iter().copied());
+        if depth == Some(0) {
+            return;
+        }
+        for &id in ids {
+            for child in files.children(id) {
+                self.select_recursive(&[child.id], depth.map(|d| d - 1), files);
             }
         }
         self.reveal_selection(files);
     }
 
-    /// Removes `ids` from the selection (optionally `recursive`). Does not expand or collapse anything.
-    pub fn deselect(&mut self, ids: &[Uuid], recursive: bool, files: &[File]) {
-        for &id in ids {
-            self.selected.remove(&id);
-            if recursive {
-                for descendent in files.descendents(id) {
-                    self.selected.remove(&descendent.id);
-                }
-            }
-        }
+    /// Removes `ids` from the selection. Does not expand or collapse anything.
+    pub fn deselect(&mut self, ids: &[Uuid]) {
+        self.selected.retain(|&id| !ids.contains(&id));
+    }
+
+    /// Clears the selection. Does not expand or collapse anything.
+    pub fn clear_selection(&mut self) {
+        self.selected.clear();
     }
 
     /// Expands `ids`. Does not select or deselect anything.
-    pub fn expand(&mut self, ids: &[Uuid], recursive: bool, files: &[File]) {
-        self.expanded.extend(ids);
-        if recursive {
-            for &id in ids {
-                self.expanded
-                    .extend(files.descendents(id).into_iter().filter_map(|f| {
-                        if let FileType::Folder = f.file_type {
-                            Some(f.id)
-                        } else {
-                            None
-                        }
-                    }));
+    pub fn expand(&mut self, ids: &[Uuid], files: &[File]) {
+        self.expand_recursive(ids, Some(0), files);
+    }
+
+    /// Expands `ids` recursively to a maximum depth of `depth`. If `depth` is `None`, expands all the way. Does not
+    /// select or deselect anything.
+    pub fn expand_recursive(&mut self, ids: &[Uuid], depth: Option<usize>, files: &[File]) {
+        let ids = ids
+            .iter()
+            .copied()
+            .filter(|&id| files.get_by_id(id).is_folder())
+            .collect::<Vec<_>>();
+        self.expanded.extend(ids.iter().copied());
+        if depth == Some(0) {
+            return;
+        }
+        for id in ids {
+            for child in files.children(id) {
+                self.expand_recursive(&[child.id], depth.map(|d| d - 1), files);
             }
         }
+    }
+
+    /// Expands nodes to increment the shortest distance from any id in `ids` to a collapsed descendent.
+    pub fn expand_incremental(&mut self, ids: &[Uuid], files: &[File]) {
+        for &id in ids {
+            self.expand_recursive(ids, self.shortest_collapsed_distance(id, files), files);
+        }
+    }
+
+    /// Helper that returns the shortest distance from `id` to a collapsed descendent.
+    fn shortest_collapsed_distance(&self, id: Uuid, files: &[File]) -> Option<usize> {
+        if files.get_by_id(id).is_document() {
+            return None;
+        }
+        if !self.expanded.contains(&id) {
+            return Some(0);
+        }
+        let mut distance = None;
+        for child in files.children(id) {
+            let child_distance = self.shortest_collapsed_distance(child.id, files);
+            distance = match (distance, child_distance) {
+                (None, None) => None,
+                (None, Some(child_distance)) => Some(child_distance + 1),
+                (Some(distance), None) => Some(distance),
+                (Some(distance), Some(child_distance)) => Some(distance.min(child_distance + 1)),
+            };
+        }
+        distance
     }
 
     /// Collapses `ids`. Selections that are hidden are replaced with their closest visible ancestor.
-    pub fn collapse(&mut self, ids: &[Uuid], recursive: bool, files: &[File]) {
-        for &id in ids {
-            self.expanded.remove(&id);
-            if recursive {
-                for descendent in files.descendents(id) {
-                    self.expanded.remove(&descendent.id);
-                }
-            }
-        }
+    pub fn collapse(&mut self, ids: &[Uuid], files: &[File]) {
+        self.expanded.retain(|&id| !ids.contains(&id));
         self.select_visible_ancestors(files);
     }
 
-    /// A file is visible if all its ancestors are expanded.
-    fn is_visible(&self, id: Uuid, files: &[File]) -> bool {
-        let file = files.get_by_id(id);
-        if file.parent == file.id {
-            return true;
+    /// Collapses all leaves under `ids`. Selections that are hidden are replaced with their closest visible ancestor.
+    pub fn collapse_leaves(&mut self, ids: &[Uuid], files: &[File]) {
+        let mut all_children = Vec::new();
+        for &id in ids {
+            let mut leaf_node = true; // guilty until proven innocent
+            let children = files.children(id).iter().map(|f| f.id).collect::<Vec<_>>();
+            for child in &children {
+                if self.expanded.contains(child) {
+                    leaf_node = false; // sacrifice at least one child to live
+                    break;
+                }
+            }
+            if leaf_node {
+                self.expanded.remove(&id); // else you will be collapsed
+                self.select_visible_ancestors(files);
+            }
+
+            all_children.extend(children);
         }
-        self.expanded.contains(&file.parent) && self.is_visible(file.parent, files)
+        if !all_children.is_empty() {
+            self.collapse_leaves(&all_children, files); // your descendants are cursed to repeat the cycle
+        }
     }
 
-    /// Replaces each file in selection with its first visible ancestor (including itself).
+    /// Helper that replaces each file in selection with its first visible ancestor (including itself).
     fn select_visible_ancestors(&mut self, files: &[File]) {
         let selected = mem::take(&mut self.selected);
         for mut id in selected {
@@ -98,7 +144,7 @@ impl FileTree {
         }
     }
 
-    /// Expands the parents of the selected files.
+    /// Helper that expands the ancestors of the selected files.
     fn reveal_selection(&mut self, files: &[File]) {
         for mut id in self.selected.clone() {
             loop {
@@ -115,7 +161,7 @@ impl FileTree {
     }
 
     /// Returns the file after id in depth-first order, folders first then alphabetically.
-    fn next(&self, id: Uuid, visible_only: bool, files: &[File]) -> Option<Uuid> {
+    pub fn next(&self, id: Uuid, visible_only: bool, files: &[File]) -> Option<Uuid> {
         // if the file has children, return the first child
         // if `visible_only` is true then the child must be visible i.e. the file must be visible and expanded
         if !visible_only || (self.is_visible(id, files) && self.expanded.contains(&id)) {
@@ -148,7 +194,7 @@ impl FileTree {
     }
 
     /// Returns the file before id in depth-first order, folders first then alphabetically.
-    fn prev(&self, id: Uuid, visible_only: bool, files: &[File]) -> Option<Uuid> {
+    pub fn prev(&self, id: Uuid, visible_only: bool, files: &[File]) -> Option<Uuid> {
         let parent = files.get_by_id(id).parent;
         if id == parent {
             return None;
@@ -201,6 +247,15 @@ impl FileTree {
             }
             Some(ancestor)
         }
+    }
+
+    /// A file is visible if all its ancestors are expanded.
+    pub fn is_visible(&self, id: Uuid, files: &[File]) -> bool {
+        let file = files.get_by_id(id);
+        if file.parent == file.id {
+            return true;
+        }
+        self.expanded.contains(&file.parent) && self.is_visible(file.parent, files)
     }
 }
 
@@ -285,22 +340,22 @@ mod test {
         assert_eq!(tree.selected, vec![].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
 
-        tree.select(&[ids[1]], false, &files);
+        tree.select(&[ids[1]], &files);
 
         assert_eq!(tree.selected, vec![ids[1]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
 
-        tree.select(&[ids[1]], true, &files);
+        tree.select_recursive(&[ids[1]], None, &files);
 
         assert_eq!(tree.selected, vec![ids[1], ids[2], ids[3]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0], ids[1]].into_iter().collect());
 
-        tree.deselect(&[ids[1]], false, &files);
+        tree.deselect(&[ids[1]]);
 
         assert_eq!(tree.selected, vec![ids[2], ids[3]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0], ids[1]].into_iter().collect());
 
-        tree.deselect(&[ids[1]], true, &files);
+        tree.clear_selection();
 
         assert_eq!(tree.selected, vec![].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0], ids[1]].into_iter().collect());
@@ -327,80 +382,105 @@ mod test {
 
         let mut tree = FileTree::new(&files);
 
-        tree.collapse(&[ids[0]], false, &files);
-        tree.select(&[ids[0]], false, &files);
+        assert_eq!(tree.selected, vec![].into_iter().collect());
+        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
+
+        tree.collapse(&[ids[0]], &files);
+        tree.select(&[ids[0]], &files);
 
         assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
         assert_eq!(tree.expanded, vec![].into_iter().collect());
 
-        tree.expand(&[ids[0]], false, &files);
+        tree.expand(&[ids[0]], &files);
 
         assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
 
-        tree.expand(&[ids[0]], true, &files);
+        tree.expand_recursive(&[ids[0]], None, &files);
         tree.clear_selection();
-        tree.select(&[ids[2], ids[3]], false, &files);
+        tree.select(&[ids[2], ids[3]], &files);
 
         assert_eq!(tree.selected, vec![ids[2], ids[3]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0], ids[1]].into_iter().collect());
 
-        tree.collapse(&[ids[0]], false, &files);
+        tree.collapse(&[ids[0]], &files);
 
         assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[1]].into_iter().collect());
-
-        tree.expand(&[ids[0]], true, &files);
-        tree.clear_selection();
-        tree.select(&[ids[2], ids[3]], false, &files);
-        tree.collapse(&[ids[0]], true, &files);
-
-        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![].into_iter().collect());
     }
 
     #[test]
-    fn is_visible() {
+    fn collapse_leafs_expand_incremental() {
         /*
          * 0
          * ├── 1
-         * │   ├── 2
+         * ├── 2
          * │   └── 3
          * └── 4
+         *     ├── 5
+         *     └── 6
+         *         └── 7
          */
-        let ids =
-            vec![Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()];
+        let ids = vec![
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+        ];
         let files = vec![
             file(0, 0, FileType::Folder, &ids),
-            file(1, 0, FileType::Folder, &ids),
-            file(2, 1, FileType::Document, &ids),
-            file(3, 1, FileType::Document, &ids),
-            file(4, 0, FileType::Document, &ids),
+            file(1, 0, FileType::Document, &ids),
+            file(2, 0, FileType::Folder, &ids),
+            file(3, 2, FileType::Document, &ids),
+            file(4, 0, FileType::Folder, &ids),
+            file(5, 4, FileType::Document, &ids),
+            file(6, 4, FileType::Folder, &ids),
+            file(7, 6, FileType::Document, &ids),
         ];
 
         let mut tree = FileTree::new(&files);
 
-        assert!(tree.is_visible(ids[0], &files));
-        assert!(tree.is_visible(ids[1], &files));
-        assert!(!tree.is_visible(ids[2], &files));
-        assert!(!tree.is_visible(ids[3], &files));
-        assert!(tree.is_visible(ids[4], &files));
+        assert_eq!(tree.selected, vec![].into_iter().collect());
+        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
 
-        tree.expand(&[ids[1]], false, &files);
+        tree.select(&[ids[3], ids[7]], &files);
 
-        assert!(tree.is_visible(ids[0], &files));
-        assert!(tree.is_visible(ids[1], &files));
-        assert!(tree.is_visible(ids[2], &files));
-        assert!(tree.is_visible(ids[3], &files));
-        assert!(tree.is_visible(ids[4], &files));
+        assert_eq!(tree.selected, vec![ids[3], ids[7]].into_iter().collect());
+        assert_eq!(tree.expanded, vec![ids[0], ids[2], ids[4], ids[6]].into_iter().collect());
 
-        tree.collapse(&[ids[0]], false, &files);
+        tree.collapse_leaves(&[ids[0]], &files);
 
-        assert!(tree.is_visible(ids[0], &files));
-        assert!(!tree.is_visible(ids[1], &files));
-        assert!(!tree.is_visible(ids[2], &files));
-        assert!(!tree.is_visible(ids[3], &files));
-        assert!(!tree.is_visible(ids[4], &files));
+        assert_eq!(tree.selected, vec![ids[2], ids[6]].into_iter().collect());
+        assert_eq!(tree.expanded, vec![ids[0], ids[4]].into_iter().collect());
+
+        tree.collapse_leaves(&[ids[0]], &files);
+
+        assert_eq!(tree.selected, vec![ids[2], ids[4]].into_iter().collect());
+        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
+
+        tree.collapse_leaves(&[ids[0]], &files);
+
+        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
+        assert_eq!(tree.expanded, vec![].into_iter().collect());
+
+        tree.expand_incremental(&[ids[0]], &files);
+
+        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
+        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
+
+        tree.expand_incremental(&[ids[0]], &files);
+
+        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
+        assert_eq!(tree.expanded, vec![ids[0], ids[2], ids[4]].into_iter().collect());
+
+        tree.expand_incremental(&[ids[0]], &files);
+
+        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
+        assert_eq!(tree.expanded, vec![ids[0], ids[2], ids[4], ids[6]].into_iter().collect());
     }
 
     #[test]
@@ -436,7 +516,7 @@ mod test {
         assert_eq!(tree.next(ids[3], true, &files), Some(ids[4]));
         assert_eq!(tree.next(ids[4], true, &files), None);
 
-        tree.expand(&[ids[1]], false, &files);
+        tree.expand(&[ids[1]], &files);
 
         assert_eq!(tree.next(ids[0], false, &files), Some(ids[1]));
         assert_eq!(tree.next(ids[1], false, &files), Some(ids[2]));
@@ -450,7 +530,7 @@ mod test {
         assert_eq!(tree.next(ids[3], true, &files), Some(ids[4]));
         assert_eq!(tree.next(ids[4], true, &files), None);
 
-        tree.collapse(&[ids[0]], false, &files);
+        tree.collapse(&[ids[0]], &files);
 
         assert_eq!(tree.next(ids[0], false, &files), Some(ids[1]));
         assert_eq!(tree.next(ids[1], false, &files), Some(ids[2]));
@@ -498,7 +578,7 @@ mod test {
         assert_eq!(tree.prev(ids[3], true, &files), Some(ids[1]));
         assert_eq!(tree.prev(ids[4], true, &files), Some(ids[1]));
 
-        tree.expand(&[ids[1]], false, &files);
+        tree.expand(&[ids[1]], &files);
 
         assert_eq!(tree.prev(ids[0], false, &files), None);
         assert_eq!(tree.prev(ids[1], false, &files), Some(ids[0]));
@@ -512,7 +592,7 @@ mod test {
         assert_eq!(tree.prev(ids[3], false, &files), Some(ids[2]));
         assert_eq!(tree.prev(ids[4], false, &files), Some(ids[3]));
 
-        tree.collapse(&[ids[0]], false, &files);
+        tree.collapse(&[ids[0]], &files);
 
         assert_eq!(tree.prev(ids[0], false, &files), None);
         assert_eq!(tree.prev(ids[1], false, &files), Some(ids[0]));
@@ -525,6 +605,50 @@ mod test {
         assert_eq!(tree.prev(ids[2], true, &files), Some(ids[0]));
         assert_eq!(tree.prev(ids[3], true, &files), Some(ids[0]));
         assert_eq!(tree.prev(ids[4], true, &files), Some(ids[0]));
+    }
+
+    #[test]
+    fn is_visible() {
+        /*
+         * 0
+         * ├── 1
+         * │   ├── 2
+         * │   └── 3
+         * └── 4
+         */
+        let ids =
+            vec![Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()];
+        let files = vec![
+            file(0, 0, FileType::Folder, &ids),
+            file(1, 0, FileType::Folder, &ids),
+            file(2, 1, FileType::Document, &ids),
+            file(3, 1, FileType::Document, &ids),
+            file(4, 0, FileType::Document, &ids),
+        ];
+
+        let mut tree = FileTree::new(&files);
+
+        assert!(tree.is_visible(ids[0], &files));
+        assert!(tree.is_visible(ids[1], &files));
+        assert!(!tree.is_visible(ids[2], &files));
+        assert!(!tree.is_visible(ids[3], &files));
+        assert!(tree.is_visible(ids[4], &files));
+
+        tree.expand(&[ids[1]], &files);
+
+        assert!(tree.is_visible(ids[0], &files));
+        assert!(tree.is_visible(ids[1], &files));
+        assert!(tree.is_visible(ids[2], &files));
+        assert!(tree.is_visible(ids[3], &files));
+        assert!(tree.is_visible(ids[4], &files));
+
+        tree.collapse(&[ids[0]], &files);
+
+        assert!(tree.is_visible(ids[0], &files));
+        assert!(!tree.is_visible(ids[1], &files));
+        assert!(!tree.is_visible(ids[2], &files));
+        assert!(!tree.is_visible(ids[3], &files));
+        assert!(!tree.is_visible(ids[4], &files));
     }
 
     fn file(idx: usize, parent_idx: usize, file_type: FileType, ids: &[Uuid]) -> File {
