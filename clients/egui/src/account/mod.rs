@@ -5,6 +5,7 @@ mod syncing;
 mod tree;
 
 use std::ffi::OsStr;
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc, RwLock};
 use std::time::Duration;
@@ -15,6 +16,7 @@ use lb::model::file::File;
 use lb::model::file_metadata::FileType;
 use lb::service::import_export::ImportStatus;
 use lb::Uuid;
+use tree::FilesExt;
 use workspace_rs::background::BwIncomingMsg;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
@@ -180,7 +182,7 @@ impl AccountScreen {
                     settings.zen_mode,
                 );
                 drop(settings);
-                self.workspace.focused_parent = Some(self.focused_parent());
+                self.workspace.focused_parent = self.focused_parent();
                 let wso = self.workspace.show(ui);
                 if wso.settings_updated {
                     self.settings.write().unwrap().zen_mode =
@@ -188,8 +190,11 @@ impl AccountScreen {
                     self.settings.read().unwrap().to_file().unwrap();
                 }
                 if let Some((id, new_name)) = wso.file_renamed {
-                    if let Some(node) = self.tree.root.find_mut(id) {
-                        node.file.name = new_name.clone();
+                    for file in self.tree.files.iter_mut() {
+                        if file.id == id {
+                            file.name = new_name;
+                            break;
+                        }
                     }
                     self.suggested.recalc_and_redraw(ctx, &self.core);
                     ctx.request_repaint();
@@ -200,7 +205,8 @@ impl AccountScreen {
                 }
 
                 if let Some(file) = wso.selected_file {
-                    self.tree.reveal_file(file, ctx);
+                    // todo: scroll to file instead
+                    self.tree.select(&[file]);
                 }
 
                 if wso.sync_done.is_some() {
@@ -251,19 +257,23 @@ impl AccountScreen {
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
                 AccountUpdate::FileImported(result) => match result {
-                    Ok(root) => {
-                        self.tree.root = root;
+                    Ok(files) => {
+                        self.tree.update_files(files);
                         self.modals.file_picker = None;
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
                 AccountUpdate::FileCreated(result) => self.file_created(ctx, result),
                 AccountUpdate::FileDeleted(f) => {
-                    self.tree.remove(&f);
+                    // inefficient but fine
+                    let mut files = self.tree.files.clone();
+                    files.retain(|file| file.id != f.id);
+                    self.tree.update_files(files);
+
                     self.suggested.recalc_and_redraw(ctx, &self.core);
                 }
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
-                AccountUpdate::ReloadTree(root) => self.tree.root = root,
+                AccountUpdate::ReloadTree(files) => self.tree.update_files(files),
 
                 AccountUpdate::FinalSyncAttemptDone => {
                     if let Some(s) = &mut self.shutdown {
@@ -388,37 +398,26 @@ impl AccountScreen {
             self.workspace.open_file(id, false, true);
         }
 
-        if resp.delete_request {
-            let selected_files = self.tree.get_selected_files();
-            if !selected_files.is_empty() {
-                self.update_tx
-                    .send(OpenModal::ConfirmDelete(selected_files).into())
-                    .unwrap();
-            }
+        if resp.delete_request && !self.tree.selected.is_empty() {
+            let selected_files = self
+                .tree
+                .selected
+                .iter()
+                .map(|&id| self.tree.files.get_by_id(id))
+                .cloned()
+                .collect();
+            self.update_tx
+                .send(OpenModal::ConfirmDelete(selected_files).into())
+                .unwrap();
         }
 
         if let Some(id) = resp.dropped_on {
+            // todo: async
             self.move_selected_files_to(ui.ctx(), id);
         }
 
-        if let Some(res) = resp.export_file {
-            match res {
-                Ok((src, dest)) => self.toasts.success(format!(
-                    "Exported \"{}\" to \"{}\"",
-                    src.name,
-                    dest.file_name()
-                        .unwrap_or(OsStr::new("/"))
-                        .to_string_lossy()
-                )),
-                Err(err) => {
-                    eprintln!("couldn't export file {:#?}", err.backtrace);
-                    self.toasts
-                        .error(format!("{:#?}, failed to export file", err.kind))
-                }
-            }
-            .set_closable(false)
-            .set_show_progress_bar(false)
-            .set_duration(Some(Duration::from_secs(7)));
+        if let Some((f, dest)) = resp.export_file {
+            self.export_file(f, dest);
         }
     }
 
@@ -479,8 +478,9 @@ impl AccountScreen {
 
         thread::spawn(move || {
             let all_metas = core.list_metadatas().unwrap();
-            let root = tree::create_root_node(all_metas);
-            update_tx.send(AccountUpdate::ReloadTree(root)).unwrap();
+            update_tx
+                .send(AccountUpdate::ReloadTree(all_metas))
+                .unwrap();
             ctx.request_repaint();
         });
     }
@@ -518,13 +518,13 @@ impl AccountScreen {
         });
     }
 
-    fn focused_parent(&mut self) -> Uuid {
-        let mut focused_parent = self.tree.root.file.id;
-        for id in self.tree.state.selected.iter() {
-            focused_parent = *id;
+    fn focused_parent(&mut self) -> Option<Uuid> {
+        if let Some(cursor) = self.tree.cursor {
+            if self.tree.files.get_by_id(cursor).is_folder() {
+                return Some(cursor);
+            }
         }
-
-        focused_parent
+        None
     }
 
     fn create_share(&mut self, params: CreateShareParams) {
@@ -540,28 +540,79 @@ impl AccountScreen {
     }
 
     fn move_selected_files_to(&mut self, ctx: &egui::Context, target: Uuid) {
-        let files = self.tree.get_selected_files();
+        // pre-check cyclic moves for atomicity
+        for &file in &self.tree.selected {
+            let descendents = self
+                .tree
+                .files
+                .descendents(file)
+                .into_iter()
+                .map(|f| f.id)
+                .collect::<Vec<_>>();
+            if descendents.contains(&target) {
+                // todo: show error
+                println!("cannot move folder into self");
+                return;
+            }
+        }
 
-        for f in files {
-            if f.parent == target {
+        // pre-check name conflicts for atomicity
+        let target_children = self.tree.files.children(target);
+        for &file in &self.tree.selected {
+            let name = self.tree.files.get_by_id(file).name.clone();
+            if target_children.iter().any(|f| f.name == name) {
+                // todo: show error
+                println!("cannot move file into folder containing file with same name");
+                return;
+            }
+        }
+
+        // move files
+        for &f in &self.tree.selected {
+            if self.tree.files.get_by_id(f).parent == target {
                 continue;
             }
-            if let Err(err) = self.core.move_file(&f.id, &target) {
-                println!("{:?}", err);
+            if let Err(err) = self.core.move_file(&f, &target) {
+                // todo: show error
+                println!("error moving file: {:?}", err);
                 return;
             } else {
-                let parent = self.tree.root.find_mut(f.parent).unwrap();
-                let node = parent.remove(f.id).unwrap();
-                let target_node = self.tree.root.find_mut(target).unwrap();
-                target_node.insert_node(node);
-                if let Some(tab) = self.workspace.get_mut_tab_by_id(f.id) {
-                    tab.path = self.core.get_path_by_id(f.id).unwrap();
+                if let Some(tab) = self.workspace.get_mut_tab_by_id(f) {
+                    tab.path = self.core.get_path_by_id(f).unwrap();
                 }
                 ctx.request_repaint();
             }
         }
 
+        self.refresh_tree(ctx);
+
         ctx.request_repaint();
+    }
+
+    fn export_file(&mut self, f: File, dest: PathBuf) {
+        let res = self.core.export_files(
+            f.id,
+            dest.clone(),
+            true,
+            &Some(Box::new(|info| println!("{:?}", info))),
+        );
+        match res {
+            Ok(()) => self.toasts.success(format!(
+                "Exported \"{}\" to \"{}\"",
+                f.name,
+                dest.file_name()
+                    .unwrap_or(OsStr::new("/"))
+                    .to_string_lossy()
+            )),
+            Err(err) => {
+                eprintln!("couldn't export file {:#?}", err.backtrace);
+                self.toasts
+                    .error(format!("{:#?}, failed to export file", err.kind))
+            }
+        }
+        .set_closable(false)
+        .set_show_progress_bar(false)
+        .set_duration(Some(Duration::from_secs(7)));
     }
 
     fn accept_share(&self, ctx: &egui::Context, target: File, parent: File) {
@@ -615,9 +666,10 @@ impl AccountScreen {
             });
 
             let all_metas = core.list_metadatas().unwrap();
-            let root = tree::create_root_node(all_metas);
 
-            let result = result.map(|_| root).map_err(|err| format!("{:?}", err));
+            let result = result
+                .map(|_| all_metas)
+                .map_err(|err| format!("{:?}", err));
 
             update_tx.send(AccountUpdate::FileImported(result)).unwrap();
             ctx.request_repaint();
@@ -655,12 +707,15 @@ impl AccountScreen {
         match result {
             Ok(f) => {
                 let (id, is_doc) = (f.id, f.is_document());
-                self.tree.root.insert(f);
-                self.tree.reveal_file(id, ctx);
+
+                // inefficient but works
+                let mut files = self.tree.files.clone();
+                files.push(f);
+                self.tree.update_files(files);
+
                 if is_doc {
                     self.workspace.open_file(id, true, true);
                 }
-                // Close whichever new file modal was open.
                 self.modals.new_folder = None;
                 ctx.request_repaint();
             }
@@ -684,13 +739,13 @@ pub enum AccountUpdate {
     FileDeleted(File),
 
     /// if a file has been imported successfully refresh the tree, otherwise show what went wrong
-    FileImported(Result<TreeNode, String>),
+    FileImported(Result<Vec<File>, String>),
 
     ShareAccepted(Result<File, String>),
 
     DoneDeleting,
 
-    ReloadTree(TreeNode),
+    ReloadTree(Vec<File>),
 
     FinalSyncAttemptDone,
 }

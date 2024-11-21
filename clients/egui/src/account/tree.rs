@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashSet, mem};
+use std::{cmp::Ordering, collections::HashSet, mem, path::PathBuf};
 
 use egui::Ui;
 use lb::{
@@ -8,20 +8,40 @@ use lb::{
 
 #[derive(Debug)]
 pub struct FileTree {
-    /// This is where the egui app caches files
+    /// This is where the egui app caches files.
     pub files: Vec<File>,
 
-    /// Set of selected files. To be selected, a file must be visible i.e. all its ancestors must be expanded.
+    /// Set of selected files. To be selected, a file must be visible i.e. all its ancestors must be expanded. This is
+    /// the set of files that will be deleted when the user presses the delete key, for example.
     pub selected: HashSet<Uuid>,
 
     /// Set of expanded files. To be expanded, a file must be a folder but need not be visible. A document is
     /// considered neither expanded nor collapsed.
     pub expanded: HashSet<Uuid>,
+
+    /// Currently active file - if folder, this is where ctrl+n will add files, for example.
+    pub cursor: Option<Uuid>,
 }
 
 impl FileTree {
     pub fn new(files: Vec<File>) -> Self {
-        Self { selected: HashSet::new(), expanded: [files.root()].into_iter().collect(), files }
+        Self {
+            selected: HashSet::new(),
+            expanded: [files.root()].into_iter().collect(),
+            files,
+            cursor: None,
+        }
+    }
+
+    /// Updates the files in the tree. The selection and expansion are preserved except that the selection is revealed
+    /// in the new tree.
+    pub fn update_files(&mut self, files: Vec<File>) {
+        self.files = files;
+        self.expanded
+            .retain(|&id| self.files.iter().any(|f| f.id == id));
+        self.selected
+            .retain(|&id| self.files.iter().any(|f| f.id == id));
+        self.reveal_selection();
     }
 
     /// Adds `ids` to the selection and reveals them in the tree.
@@ -154,7 +174,8 @@ impl FileTree {
         }
     }
 
-    /// Helper that replaces each file in selection with its first visible ancestor (including itself).
+    /// Helper that replaces each file in selection with its first visible ancestor (including itself). One option for
+    /// making sure all selections are visible. See also `reveal_selection`.
     fn select_visible_ancestors(&mut self) {
         let selected = mem::take(&mut self.selected);
         for mut id in selected {
@@ -165,7 +186,8 @@ impl FileTree {
         }
     }
 
-    /// Helper that expands the ancestors of the selected files.
+    /// Helper that expands the ancestors of the selected files. One option for making sure all selections are visible.
+    /// See also `select_visible_ancestors`.
     fn reveal_selection(&mut self) {
         for mut id in self.selected.clone() {
             loop {
@@ -280,16 +302,36 @@ impl FileTree {
     }
 }
 
-struct Response {}
+pub struct Response {
+    pub open_requests: HashSet<Uuid>,
+    pub new_file: Option<bool>,
+    pub new_drawing: Option<bool>,
+    pub export_file: Option<(File, PathBuf)>,
+    pub new_folder_modal: Option<File>,
+    pub create_share_modal: Option<File>,
+    pub rename_request: Option<(Uuid, String)>,
+    pub delete_request: bool,
+    pub dropped_on: Option<Uuid>,
+}
 
 impl FileTree {
     pub fn show(&self, ui: &mut Ui) -> Response {
         ui.label("file tree");
-        Response {}
+        Response {
+            open_requests: Default::default(),
+            new_file: Default::default(),
+            new_drawing: Default::default(),
+            export_file: Default::default(),
+            new_folder_modal: Default::default(),
+            create_share_modal: Default::default(),
+            rename_request: Default::default(),
+            delete_request: Default::default(),
+            dropped_on: Default::default(),
+        }
     }
 }
 
-trait FilesExt {
+pub trait FilesExt {
     fn root(&self) -> Uuid;
     fn get_by_id(&self, id: Uuid) -> &File;
     fn children(&self, id: Uuid) -> Vec<&File>;
