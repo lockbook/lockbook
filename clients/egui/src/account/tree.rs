@@ -1,10 +1,12 @@
 use std::{cmp::Ordering, collections::HashSet, mem, path::PathBuf};
 
-use egui::Ui;
+use egui::{Id, Ui};
 use lb::{
+    logic::filename::DocumentType,
     model::{file::File, file_metadata::FileType},
     Uuid,
 };
+use workspace_rs::{theme::icons::Icon, widgets::Button};
 
 #[derive(Debug)]
 pub struct FileTree {
@@ -302,6 +304,7 @@ impl FileTree {
     }
 }
 
+#[derive(Debug, Default)]
 pub struct Response {
     pub open_requests: HashSet<Uuid>,
     pub new_file: Option<bool>,
@@ -314,20 +317,104 @@ pub struct Response {
     pub dropped_on: Option<Uuid>,
 }
 
+impl Response {
+    pub fn union(self, other: Self) -> Self {
+        let mut this = self;
+        this.new_file = this.new_file.or(other.new_file);
+        this.new_drawing = this.new_drawing.or(other.new_drawing);
+        this.new_folder_modal = this.new_folder_modal.or(other.new_folder_modal);
+        this.create_share_modal = this.create_share_modal.or(other.create_share_modal);
+        this.export_file = this.export_file.or(other.export_file);
+        this.open_requests.extend(other.open_requests);
+        this.rename_request = this.rename_request.or(other.rename_request);
+        this.delete_request = this.delete_request || other.delete_request;
+        this.dropped_on = this.dropped_on.or(other.dropped_on);
+        this
+    }
+}
+
 impl FileTree {
-    pub fn show(&self, ui: &mut Ui) -> Response {
-        ui.label("file tree");
-        Response {
-            open_requests: Default::default(),
-            new_file: Default::default(),
-            new_drawing: Default::default(),
-            export_file: Default::default(),
-            new_folder_modal: Default::default(),
-            create_share_modal: Default::default(),
-            rename_request: Default::default(),
-            delete_request: Default::default(),
-            dropped_on: Default::default(),
+    pub fn show(&mut self, ui: &mut Ui) -> Response {
+        ui.vertical(|ui| self.show_recursive(ui, self.files.root()))
+            .inner
+    }
+
+    pub fn show_recursive(&mut self, ui: &mut Ui, id: Uuid) -> Response {
+        let mut resp = Response::default();
+
+        let file = self.files.get_by_id(id);
+        // let is_selected = self.selected.contains(&id);
+        // let is_visible = self.is_visible(id);
+
+        if file.is_document() {
+            let doc_type = DocumentType::from_file_name_using_extension(&file.name);
+            let button_resp = match doc_type {
+                DocumentType::Text => Button::default()
+                    .icon(&Icon::DOC_TEXT)
+                    .text(&file.name)
+                    .show(ui),
+                DocumentType::Drawing => Button::default()
+                    .icon(&Icon::DRAW)
+                    .text(&file.name)
+                    .show(ui),
+                DocumentType::Other => Button::default()
+                    .icon(&Icon::DOC_UNKNOWN)
+                    .text(&file.name)
+                    .show(ui),
+            };
+
+            if button_resp.clicked() {
+                resp.open_requests.insert(id);
+            }
+        } else {
+            let is_expanded = self.expanded.contains(&id);
+            let is_shared = !file.shares.is_empty();
+            let button_resp = if is_expanded {
+                let button_resp = Button::default()
+                    .icon(&Icon::FOLDER_OPEN)
+                    .text(&file.name)
+                    .show(ui);
+                resp = resp.union(
+                    ui.indent(Id::new(id.to_string()), |ui| self.show_children_recursive(ui, id))
+                        .inner,
+                );
+                button_resp
+            } else if is_shared {
+                Button::default()
+                    .icon(&Icon::SHARED_FOLDER)
+                    .text(&file.name)
+                    .show(ui)
+            } else {
+                Button::default()
+                    .icon(&Icon::FOLDER)
+                    .text(&file.name)
+                    .show(ui)
+            };
+
+            if button_resp.clicked() {
+                if !is_expanded {
+                    self.expand(&[id]);
+                } else {
+                    self.collapse(&[id]);
+                }
+            }
+        };
+
+        resp
+    }
+
+    pub fn show_children_recursive(&mut self, ui: &mut Ui, id: Uuid) -> Response {
+        let children_ids = self
+            .files
+            .children(id)
+            .iter()
+            .map(|f| f.id)
+            .collect::<Vec<_>>();
+        let mut resp = Response::default();
+        for child in children_ids {
+            resp = resp.union(self.show_recursive(ui, child));
         }
+        resp
     }
 }
 
