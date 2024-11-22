@@ -17,8 +17,8 @@ use crate::{tab::ExtendedInput, theme::palette::ThemePalette};
 
 use super::{toolbar::ToolContext, util::is_multi_touch, InsertElement, PathBuilder};
 
-pub const PEN_STROKE_WIDTHS: [f32; 3] = [1.0, 13.0, 25.0];
-pub const HIGHLIGHTER_STROKE_WIDTHS: [f32; 3] = [15.0, 20.0, 25.0];
+pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 1.0;
+pub const DEFAULT_HIGHLIGHTER_STROKE_WIDTH: f32 = 15.0;
 
 #[derive(Default)]
 pub struct Pen {
@@ -200,10 +200,7 @@ impl Pen {
                         visibility: resvg::usvg::Visibility::Visible,
                         fill: None,
                         stroke: Some(path_stroke),
-                        transform: Transform::identity().post_scale(
-                            pen_ctx.buffer.master_transform.sx,
-                            pen_ctx.buffer.master_transform.sy,
-                        ),
+                        transform: Transform::identity(),
                         opacity: self.active_opacity,
                         diff_state: DiffState::default(),
                         deleted: false,
