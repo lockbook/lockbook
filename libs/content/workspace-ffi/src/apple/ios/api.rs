@@ -881,7 +881,7 @@ pub unsafe extern "C" fn set_pencil_only_drawing(obj: *mut c_void, val: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     obj.workspace.tabs.iter_mut().for_each(|t| {
-        if let Some(TabContent::Svg(svg)) = &mut current_tab.content {
+        if let Some(TabContent::Svg(svg)) = &mut t.content {
             svg.settings.pencil_only_drawing = val
         }
     });
