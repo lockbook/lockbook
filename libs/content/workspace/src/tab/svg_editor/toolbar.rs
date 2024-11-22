@@ -18,7 +18,7 @@ use super::{
         get_zoom_fit_transform, transform_canvas, zoom_percentage_to_transform, GestureHandler,
     },
     history::History,
-    pen::{HIGHLIGHTER_STROKE_WIDTHS, PEN_STROKE_WIDTHS},
+    pen::{DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
     selection::Selection,
     Buffer, CanvasSettings, Eraser, Pen,
 };
@@ -107,8 +107,8 @@ impl Toolbar {
 
     pub fn new() -> Self {
         let mut toolbar = Toolbar {
-            pen: Pen::new(get_pen_colors()[0], PEN_STROKE_WIDTHS[0]),
-            highlighter: Pen::new(get_highlighter_colors()[0], HIGHLIGHTER_STROKE_WIDTHS[0]),
+            pen: Pen::new(get_pen_colors()[0], DEFAULT_PEN_STROKE_WIDTH),
+            highlighter: Pen::new(get_highlighter_colors()[0], DEFAULT_HIGHLIGHTER_STROKE_WIDTH),
             ..Default::default()
         };
         toolbar.highlighter.active_opacity = 0.1;
@@ -688,7 +688,7 @@ fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
     // thickness hints.
     ui.add_space(20.0);
 
-    show_thickness_slider(ui, &mut pen.active_stroke_width, 3.0..=30.0);
+    show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=30.0);
 
     ui.add_space(40.0);
 
@@ -736,7 +736,11 @@ fn show_highlighter_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) 
     // thickness hints.
     ui.add_space(20.0);
 
-    show_thickness_slider(ui, &mut pen.active_stroke_width, 15.0..=40.0);
+    show_thickness_slider(
+        ui,
+        &mut pen.active_stroke_width,
+        DEFAULT_HIGHLIGHTER_STROKE_WIDTH..=40.0,
+    );
 
     ui.add_space(10.0);
 
@@ -847,6 +851,7 @@ fn show_thickness_slider(ui: &mut egui::Ui, value: &mut f32, value_range: RangeI
         .add(
             egui::Slider::new(value, value_range.clone())
                 .show_value(false)
+                .step_by(1.0)
                 .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
         )
         .rect;
