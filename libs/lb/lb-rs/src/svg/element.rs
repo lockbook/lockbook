@@ -1,6 +1,10 @@
+use std::ops::{Deref, DerefMut};
+
 use bezier_rs::{Identifier, Subpath};
+use serde::{Deserialize, Serialize};
 
 use usvg::{self, Color, Fill, ImageKind, Text, Transform, Visibility};
+use uuid::Uuid;
 
 use super::{buffer::u_transform_to_bezier, diff::DiffState};
 
@@ -69,9 +73,75 @@ pub struct Image {
     pub transform: Transform,
     pub view_box: usvg::ViewBox,
     pub opacity: f32,
-    pub href: Option<String>,
+    pub href: Uuid,
     pub diff_state: DiffState,
     pub deleted: bool,
+}
+
+impl From<Transform> for WeakTransform {
+    fn from(value: Transform) -> Self {
+        WeakTransform {
+            sx: value.sx,
+            kx: value.kx,
+            ky: value.ky,
+            sy: value.sy,
+            tx: value.tx,
+            ty: value.ty,
+        }
+    }
+}
+
+impl Into<WeakImage> for &Image {
+    fn into(self) -> WeakImage {
+        WeakImage {
+            href: self.href,
+            transform: WeakTransform::from(self.transform),
+            opacity: self.opacity,
+            width: self.view_box.rect.width(),
+            height: self.view_box.rect.height(),
+            x: self.view_box.rect.x(),
+            y: self.view_box.rect.y(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Default)]
+pub struct WeakImages(Vec<WeakImage>);
+
+impl Deref for WeakImages {
+    type Target = Vec<WeakImage>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for WeakImages {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+/// image that only contains a ref to the data but not the data itself.
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
+pub struct WeakImage {
+    href: Uuid,
+    transform: WeakTransform,
+    opacity: f32,
+    width: f32,
+    height: f32,
+    x: f32,
+    y: f32,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
+struct WeakTransform {
+    pub sx: f32,
+    pub kx: f32,
+    pub ky: f32,
+    pub sy: f32,
+    pub tx: f32,
+    pub ty: f32,
 }
 
 impl Identifier for ManipulatorGroupId {

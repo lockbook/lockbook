@@ -21,11 +21,7 @@ impl SVGEditor {
                             ClipContent::Image(data) => {
                                 let file =
                                     crate::tab::import_image(&self.core, self.open_file, &data);
-                                let href = crate::tab::core_get_relative_path(
-                                    &self.core,
-                                    self.open_file,
-                                    file.id,
-                                );
+
                                 let img = image::load_from_memory(&data).unwrap();
 
                                 let position = ui.input(|r| {
@@ -47,7 +43,7 @@ impl SVGEditor {
                                             .unwrap(),
                                             aspect: AspectRatio::default(),
                                         },
-                                        href: Some(href),
+                                        href: file.id,
                                         opacity: 1.0,
                                         diff_state: DiffState::default(),
                                         deleted: false,

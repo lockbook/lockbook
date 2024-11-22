@@ -13,16 +13,17 @@ use usvg::{
     tiny_skia_path::{PathSegment, Point},
     ImageHrefResolver, ImageHrefStringResolverFn, Options, Transform,
 };
-use usvg::{Color, ImageKind, Paint};
+use usvg::{Color, ImageKind, Paint, Tree};
 use uuid::Uuid;
 
-use super::element::{DynamicColor, Stroke};
+use super::element::{DynamicColor, Stroke, WeakImage, WeakImages};
 use super::{
     diff::DiffState,
     element::{Element, Image, ManipulatorGroupId, Path},
 };
 
 const ZOOM_G_ID: &str = "lb_master_transform";
+const WEAK_IMAGE_G_ID: &str = "lb_images";
 
 #[derive(Default)]
 pub struct Buffer {
@@ -30,6 +31,7 @@ pub struct Buffer {
     pub opened_content: String,
 
     pub elements: IndexMap<Uuid, Element>,
+    pub weak_images: WeakImages,
     pub master_transform: Transform,
     id_map: HashMap<Uuid, String>,
 }
@@ -41,6 +43,7 @@ impl Buffer {
         let mut elements = IndexMap::default();
         let mut master_transform = Transform::identity();
         let mut id_map = HashMap::default();
+        let mut weak_images = WeakImages::default();
 
         let opt = if let Some(core) = maybe_core {
             let lb_local_resolver = ImageHrefResolver {
@@ -61,7 +64,13 @@ impl Buffer {
             let utree = maybe_tree.unwrap();
 
             utree.root().children().iter().for_each(|u_el| {
-                parse_child(u_el, &mut elements, &mut master_transform, &mut id_map)
+                parse_child(
+                    u_el,
+                    &mut elements,
+                    &mut master_transform,
+                    &mut id_map,
+                    &mut weak_images,
+                )
             });
         }
 
@@ -71,6 +80,7 @@ impl Buffer {
             elements,
             master_transform,
             id_map,
+            weak_images,
         }
     }
 
@@ -183,6 +193,7 @@ impl Buffer {
 
     pub fn serialize(&self) -> String {
         let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
+        let mut weak_images = WeakImages::default();
         for el in self.elements.iter() {
             match el.1 {
                 Element::Path(p) => {
@@ -214,17 +225,7 @@ impl Buffer {
                     }
                 }
                 Element::Image(img) => {
-                    let image_element = format!(
-                        r#" <image id="{}" href="{}" width="{}" height="{}" x="{}" y="{}" />"#,
-                        self.id_map.get(el.0).unwrap_or(&el.0.to_string()),
-                        img.href.clone().unwrap_or_default(),
-                        img.view_box.rect.width(),
-                        img.view_box.rect.height(),
-                        img.view_box.rect.left(),
-                        img.view_box.rect.top(),
-                    );
-
-                    let _ = write!(root, "{image_element}");
+                    weak_images.push(img.into());
                 }
                 Element::Text(_) => {}
             }
@@ -240,6 +241,18 @@ impl Buffer {
             self.master_transform.tx,
             self.master_transform.ty
         );
+
+        if !weak_images.is_empty() {
+            let binary_data = bincode::serialize(&self.weak_images).expect("Failed to serialize");
+            let base64_data = base64::encode(&binary_data);
+
+            let _ = write!(
+                &mut root,
+                "<g id=\"{}\"> <g id=\"{}\"></g></g>",
+                WEAK_IMAGE_G_ID, base64_data
+            );
+        }
+
         let _ = write!(&mut root, "{} </svg>", zoom_level);
         root
     }
@@ -247,38 +260,28 @@ impl Buffer {
 
 pub fn parse_child(
     u_el: &usvg::Node, elements: &mut IndexMap<Uuid, Element>, master_transform: &mut Transform,
-    id_map: &mut HashMap<Uuid, String>,
+    id_map: &mut HashMap<Uuid, String>, weak_images: &mut WeakImages,
 ) {
     match &u_el {
         usvg::Node::Group(group) => {
             if group.id().eq(ZOOM_G_ID) {
                 *master_transform = group.transform();
+            } else if group.id().eq(WEAK_IMAGE_G_ID) {
+                if let Some(usvg::Node::Group(weak_images_g)) = group.children().first() {
+                    let base64 = base64::decode(weak_images_g.id().as_bytes())
+                        .expect("Failed to decode base64");
+
+                    let decoded: WeakImages = bincode::deserialize(&base64).unwrap();
+                    *weak_images = decoded;
+                }
+            } else {
+                group.children().iter().for_each(|u_el| {
+                    parse_child(u_el, elements, master_transform, id_map, weak_images)
+                });
             }
-            group
-                .children()
-                .iter()
-                .for_each(|u_el| parse_child(u_el, elements, master_transform, id_map));
         }
 
-        usvg::Node::Image(img) => {
-            let diff_state = DiffState { data_changed: true, ..Default::default() };
-
-            let id = get_internal_id(img.id(), id_map);
-
-            elements.insert(
-                id,
-                Element::Image(Image {
-                    data: img.kind().clone(),
-                    visibility: img.visibility(),
-                    transform: img.abs_transform(),
-                    view_box: img.view_box(),
-                    opacity: 1.0,
-                    href: Some(img.id().to_string()),
-                    diff_state,
-                    deleted: false,
-                }),
-            );
-        }
+        usvg::Node::Image(_) => {}
         usvg::Node::Path(path) => {
             let diff_state = DiffState { data_changed: true, ..Default::default() };
 
