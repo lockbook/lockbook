@@ -15,13 +15,4 @@ debug-window = ["dep:eframe"]
 egui = "0.28.1"
 workspace = { path = "../../workspace" }
 eframe = { version = "0.28.1", optional = true }
-
-# todo: maybe move this switch into lb itself
-[target.'cfg(not(target_os = "android"))'.dependencies]
-lb = { package = "lb-rs", path = "../../../lb/lb-rs", default-features = false, features = [
-    "native-tls",
-] }
-[target.'cfg(target_os = "android")'.dependencies]
-lb = { package = "lb-rs", path = "../../../lb/lb-rs", default-features = false, features = [
-    "rustls-tls",
-] }
+lb = { package = "lb-rs", path = "../../../lb/lb-rs" }
