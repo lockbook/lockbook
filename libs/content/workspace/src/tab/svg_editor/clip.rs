@@ -45,7 +45,7 @@ impl SVGEditor {
                                         },
                                         href: file.id,
                                         opacity: 1.0,
-                                        diff_state: DiffState::default(),
+                                        diff_state: DiffState::new(),
                                         deleted: false,
                                     }),
                                 );

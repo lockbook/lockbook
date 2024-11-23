@@ -133,6 +133,7 @@ impl SVGEditor {
                 );
             },
         );
+
         self.process_events(ui);
 
         let global_diff = self.show_canvas(ui);
@@ -162,6 +163,7 @@ impl SVGEditor {
         if !ui.is_enabled() {
             return;
         }
+        self.handle_clip_input(ui);
 
         let mut tool_context = ToolContext {
             painter: &self.painter,

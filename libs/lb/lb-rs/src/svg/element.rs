@@ -101,6 +101,7 @@ impl Into<WeakImage> for &Image {
             height: self.view_box.rect.height(),
             x: self.view_box.rect.x(),
             y: self.view_box.rect.y(),
+            id: self.href,
         }
     }
 }
@@ -125,6 +126,7 @@ impl DerefMut for WeakImages {
 /// image that only contains a ref to the data but not the data itself.
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
 pub struct WeakImage {
+    id: Uuid,
     href: Uuid,
     transform: WeakTransform,
     opacity: f32,

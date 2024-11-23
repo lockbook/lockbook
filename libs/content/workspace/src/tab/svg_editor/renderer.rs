@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use egui::Mesh;
 use glam::f64::DVec2;
 use lb_rs::svg::diff::DiffState;
-use lb_rs::svg::element::Element;
+use lb_rs::svg::element::{Element, Image};
 use lb_rs::Uuid;
 use lyon::math::Point;
 use lyon::path::{AttributeIndex, LineCap, LineJoin};
@@ -13,7 +13,7 @@ use lyon::tessellation::{
 };
 
 use rayon::prelude::*;
-use resvg::usvg::Transform;
+use resvg::usvg::{ImageKind, Transform};
 use tracing::{span, Level};
 
 use crate::theme::palette::ThemePalette;
@@ -43,6 +43,7 @@ enum RenderOp {
     Delete,
     Paint(MeshShape),
     Transform(Transform),
+    ForwordImage(Image),
 }
 
 pub struct Renderer {
@@ -104,7 +105,17 @@ impl Renderer {
                     }
                 }
 
-                tesselate_element(el, id, ui.visuals().dark_mode, frame, buffer.master_transform)
+                match el {
+                    Element::Path(_) => tesselate_element(
+                        el,
+                        id,
+                        ui.visuals().dark_mode,
+                        frame,
+                        buffer.master_transform,
+                    ),
+                    Element::Image(image) => Some((*id, RenderOp::ForwordImage(image.clone()))), // todo: should not do this cus it's expensive
+                    Element::Text(_) => todo!(),
+                }
             })
             .collect();
 
@@ -126,6 +137,47 @@ impl Renderer {
                             v.pos.y = t.sy * v.pos.y + t.ty;
                         }
                     }
+                }
+                RenderOp::ForwordImage(img) => {
+                    println!("got an image forowrded");
+                    match &img.data {
+                        ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
+                            let image = image::load_from_memory(&bytes).unwrap();
+
+                            let egui_image = egui::ColorImage::from_rgba_unmultiplied(
+                                [image.width() as usize, image.height() as usize],
+                                &image.to_rgba8(),
+                            );
+
+                            let texture = ui.ctx().load_texture(
+                                format!("canvas_img_{}", id),
+                                egui_image,
+                                egui::TextureOptions::LINEAR,
+                            );
+
+                            let rect = egui::Rect {
+                                min: egui::pos2(img.view_box.rect.left(), img.view_box.rect.top()),
+                                max: egui::pos2(
+                                    img.view_box.rect.right(),
+                                    img.view_box.rect.bottom(),
+                                ),
+                            };
+                            let uv = egui::Rect {
+                                min: egui::Pos2 { x: 0.0, y: 0.0 },
+                                max: egui::Pos2 { x: 1.0, y: 1.0 },
+                            };
+                            let mut mesh = egui::Mesh::with_texture(texture.id());
+                            mesh.add_rect_with_uv(
+                                rect,
+                                uv,
+                                egui::Color32::WHITE.linear_multiply(img.opacity),
+                            );
+                            self.mesh_cache
+                                .insert(id, MeshShape { shape: mesh, scale: img.transform.sx });
+                        }
+                        ImageKind::GIF(_) => todo!(),
+                        ImageKind::SVG(_) => todo!(),
+                    };
                 }
             }
         }
