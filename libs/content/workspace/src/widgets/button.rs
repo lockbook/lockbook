@@ -1,11 +1,11 @@
-use egui::{Rounding, TextStyle, TextWrapMode};
+use egui::{Rounding, TextStyle, TextWrapMode, WidgetText};
 
 use crate::theme::icons::Icon;
 
 #[derive(Default)]
 pub struct Button<'a> {
     icon: Option<&'a Icon>,
-    text: Option<&'a str>,
+    text: Option<WidgetText>,
     text_style: Option<egui::TextStyle>,
     icon_style: Option<egui::Style>,
     icon_alignment: Option<egui::Align>,
@@ -23,6 +23,7 @@ impl<'a> Button<'a> {
     pub fn icon(self, icon: &'a Icon) -> Self {
         Self { icon: Some(icon), ..self }
     }
+
     pub fn icon_alignment(self, align: egui::Align) -> Self {
         let alignment = match align {
             egui::Align::Center | egui::Align::Min => egui::Align::LEFT,
@@ -31,8 +32,8 @@ impl<'a> Button<'a> {
         Self { icon_alignment: Some(alignment), ..self }
     }
 
-    pub fn text(self, text: &'a str) -> Self {
-        Self { text: Some(text), ..self }
+    pub fn text(self, text: impl Into<WidgetText>) -> Self {
+        Self { text: Some(text.into()), ..self }
     }
 
     pub fn text_style(self, text_style: TextStyle) -> Self {
@@ -59,6 +60,10 @@ impl<'a> Button<'a> {
         Self { frame, ..self }
     }
 
+    pub fn default_fill(self, default_fill: egui::Color32) -> Self {
+        Self { default_fill: Some(default_fill), ..self }
+    }
+
     pub fn show(self, ui: &mut egui::Ui) -> egui::Response {
         let text_style = self.text_style.unwrap_or(egui::TextStyle::Body);
         let padding = self.padding.unwrap_or_else(|| ui.spacing().button_padding);
@@ -80,7 +85,6 @@ impl<'a> Button<'a> {
         });
 
         let maybe_text_galley = self.text.map(|text| {
-            let text: egui::WidgetText = text.into();
             let galley = text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, text_style);
             width += galley.size().x;
             galley
