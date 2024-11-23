@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, collections::HashSet, mem, path::PathBuf};
 
-use egui::{Id, Key, Modifiers, Ui, WidgetText};
+use egui::{Event, Id, Key, Modifiers, Ui, WidgetText};
 use lb::{
     logic::filename::DocumentType,
     model::{file::File, file_metadata::FileType},
@@ -23,15 +23,19 @@ pub struct FileTree {
 
     /// Currently active file - if folder, this is where ctrl+n will add files, for example.
     pub cursor: Option<Uuid>,
+
+    /// Files that have been marked with cmd + x can be moved to the cursored folder with cmd + v.
+    pub cut: HashSet<Uuid>,
 }
 
 impl FileTree {
     pub fn new(files: Vec<File>) -> Self {
         Self {
-            selected: HashSet::new(),
+            selected: Default::default(),
             expanded: [files.root()].into_iter().collect(),
             files,
-            cursor: None,
+            cursor: Default::default(),
+            cut: Default::default(),
         }
     }
 
@@ -312,6 +316,7 @@ pub struct Response {
     pub export_file: Option<(File, PathBuf)>,
     pub new_folder_modal: Option<File>,
     pub create_share_modal: Option<File>,
+    pub move_requests: Vec<(Uuid, Uuid)>,
     pub rename_request: Option<(Uuid, String)>,
     pub delete_request: bool,
     pub dropped_on: Option<Uuid>,
@@ -326,6 +331,7 @@ impl Response {
         this.create_share_modal = this.create_share_modal.or(other.create_share_modal);
         this.export_file = this.export_file.or(other.export_file);
         this.open_requests.extend(other.open_requests);
+        this.move_requests.extend(other.move_requests);
         this.rename_request = this.rename_request.or(other.rename_request);
         this.delete_request = this.delete_request || other.delete_request;
         this.dropped_on = this.dropped_on.or(other.dropped_on);
@@ -336,6 +342,7 @@ impl Response {
 impl FileTree {
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         // todo: focus, factoring
+        let mut resp = Response::default();
         let mut any_keyboard_input = false;
 
         // shift + left arrow: incremental recursive collapse
@@ -541,9 +548,28 @@ impl FileTree {
             }
         }
 
-        let mut resp = ui
-            .vertical(|ui| self.show_recursive(ui, self.files.root(), any_keyboard_input))
-            .inner;
+        // cmd + x: cut selected files
+        if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::X))
+            || ui.input(|i| i.events.contains(&Event::Cut))
+        {
+            self.cut = self.selected.clone();
+            if let Some(cursor) = self.cursor {
+                self.cut.insert(cursor);
+            }
+        }
+
+        // cmd + v: paste clipped files into cursor location
+        if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::V))
+            || ui.input(|i| i.events.iter().any(|e| matches!(e, &Event::Paste(_))))
+        {
+            if let Some(cursor) = self.cursor {
+                let cursor_file = self.files.get_by_id(cursor);
+                let dest = if cursor_file.is_folder() { cursor } else { cursor_file.parent };
+                for id in mem::take(&mut self.cut) {
+                    resp.move_requests.push((id, dest));
+                }
+            }
+        }
 
         // enter: open selected files
         if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
@@ -561,7 +587,10 @@ impl FileTree {
             }
         }
 
-        resp
+        resp.union(
+            ui.vertical(|ui| self.show_recursive(ui, self.files.root(), any_keyboard_input))
+                .inner,
+        )
     }
 
     pub fn show_recursive(&mut self, ui: &mut Ui, id: Uuid, scroll_to_cursor: bool) -> Response {
@@ -570,6 +599,7 @@ impl FileTree {
         let file = self.files.get_by_id(id);
         let is_selected = self.selected.contains(&id);
         let is_cursored = self.cursor == Some(id);
+        let is_cut = self.cut.contains(&id);
 
         let mut text = WidgetText::from(&file.name);
         let mut default_fill = ui.style().visuals.extreme_bg_color;
@@ -578,6 +608,9 @@ impl FileTree {
         }
         if is_cursored {
             default_fill = ui.style().visuals.selection.bg_fill
+        }
+        if is_cut {
+            text = text.strikethrough();
         }
 
         let button_resp = if file.is_document() {

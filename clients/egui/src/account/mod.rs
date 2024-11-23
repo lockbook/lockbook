@@ -390,6 +390,10 @@ impl AccountScreen {
             ui.ctx().request_repaint();
         }
 
+        for move_req in resp.move_requests {
+            self.workspace.move_file(move_req);
+        }
+
         if let Some(rename_req) = resp.rename_request {
             self.workspace.rename_file(rename_req);
         }

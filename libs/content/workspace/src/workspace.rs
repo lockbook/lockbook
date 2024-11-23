@@ -1037,6 +1037,17 @@ impl Workspace {
             ctx.request_repaint();
         });
     }
+
+    pub fn move_file(&self, req: (Uuid, Uuid)) {
+        let core = self.core.clone();
+        let ctx = self.ctx.clone();
+
+        thread::spawn(move || {
+            let (id, dest) = req;
+            core.move_file(&id, &dest).unwrap(); // TODO
+            ctx.request_repaint();
+        });
+    }
 }
 
 enum TabLabelResponse {
