@@ -70,7 +70,7 @@ pub enum CanvasOp {
 impl SVGEditor {
     pub fn new(
         bytes: &[u8], ctx: &egui::Context, core: lb_rs::blocking::Lb, open_file: Uuid,
-        hmac: Option<DocumentHmac>,
+        hmac: Option<DocumentHmac>, maybe_settings: Option<CanvasSettings>,
     ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
@@ -103,7 +103,7 @@ impl SVGEditor {
             renderer: Renderer::new(elements_count),
             has_queued_save_request: false,
             allow_viewport_changes: false,
-            settings: CanvasSettings::default(),
+            settings: maybe_settings.unwrap_or_default(),
         }
     }
 

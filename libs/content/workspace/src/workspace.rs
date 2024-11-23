@@ -832,6 +832,14 @@ impl Workspace {
                     let core = self.core.clone();
                     let show_tabs = self.show_tabs;
 
+                    let canvas_settings = self.tabs.iter().find_map(|t| {
+                        if let Some(TabContent::Svg(svg)) = &t.content {
+                            Some(svg.settings)
+                        } else {
+                            None
+                        }
+                    });
+
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         let (maybe_hmac, bytes) = match load_result {
                             Ok((hmac, bytes)) => (hmac, bytes),
@@ -864,6 +872,7 @@ impl Workspace {
                                     core.clone(),
                                     id,
                                     maybe_hmac,
+                                    canvas_settings,
                                 )));
                             } else {
                                 match tab.content.as_mut() {
