@@ -723,6 +723,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
 
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
     var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
+    
+    var prefersPencilOnlyDrawing: Bool = UIPencilInteraction.prefersPencilOnlyDrawing
 
     init(mtkView: iOSMTK) {
         self.mtkView = mtkView
@@ -745,8 +747,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
         self.addInteraction(pointerInteraction)
         
         self.isMultipleTouchEnabled = true
-        set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
-     
+        set_pencil_only_drawing(wsHandle, prefersPencilOnlyDrawing)
     }
     
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
@@ -767,8 +768,17 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
 
         mtkView.setNeedsDisplay(mtkView.frame)
     }
+    
+    func updateFromPencilState() {
+        if UIPencilInteraction.prefersPencilOnlyDrawing != prefersPencilOnlyDrawing {
+            prefersPencilOnlyDrawing.toggle()
+            set_pencil_only_drawing(wsHandle, prefersPencilOnlyDrawing)
+        }
+    }
 
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        updateFromPencilState()
+        
         mtkView.touchesBegan(touches, with: event)
     }
 
@@ -777,7 +787,6 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
     }
 
     public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        
         mtkView.touchesEnded(touches, with: event)
     }
 
