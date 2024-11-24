@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use bezier_rs::{Identifier, Subpath};
 use serde::{Deserialize, Serialize};
 
-use usvg::{self, Color, Fill, ImageKind, Text, Transform, Visibility};
+use usvg::{self, Color, Fill, ImageKind, NonZeroRect, Text, Transform, Visibility};
 use uuid::Uuid;
 
 use super::{buffer::u_transform_to_bezier, diff::DiffState};
@@ -71,7 +71,7 @@ pub struct Image {
     pub data: ImageKind,
     pub visibility: Visibility,
     pub transform: Transform,
-    pub view_box: usvg::ViewBox,
+    pub view_box: NonZeroRect,
     pub opacity: f32,
     pub href: Uuid,
     pub diff_state: DiffState,
@@ -97,10 +97,10 @@ impl Into<WeakImage> for &Image {
             href: self.href,
             transform: WeakTransform::from(self.transform),
             opacity: self.opacity,
-            width: self.view_box.rect.width(),
-            height: self.view_box.rect.height(),
-            x: self.view_box.rect.x(),
-            y: self.view_box.rect.y(),
+            width: self.view_box.width(),
+            height: self.view_box.height(),
+            x: self.view_box.x(),
+            y: self.view_box.y(),
             id: self.href,
         }
     }
@@ -200,6 +200,9 @@ impl Element {
             Element::Image(img) => {
                 img.diff_state.transformed = Some(transform);
                 img.transform = img.transform.post_concat(transform);
+                if let Some(new_vbox) = img.view_box.transform(transform) {
+                    img.view_box = new_vbox;
+                }
             }
             Element::Text(_) => todo!(),
         }

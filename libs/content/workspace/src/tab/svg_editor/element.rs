@@ -18,8 +18,8 @@ impl BoundedElement for Element {
 impl BoundedElement for Image {
     fn bounding_box(&self) -> egui::Rect {
         egui::Rect {
-            min: egui::pos2(self.view_box.rect.left(), self.view_box.rect.top()),
-            max: egui::pos2(self.view_box.rect.right(), self.view_box.rect.bottom()),
+            min: egui::pos2(self.view_box.left(), self.view_box.top()),
+            max: egui::pos2(self.view_box.right(), self.view_box.bottom()),
         }
     }
 }

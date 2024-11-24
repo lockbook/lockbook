@@ -5,7 +5,7 @@ use lb_rs::{
     },
     Uuid,
 };
-use resvg::usvg::{AspectRatio, NonZeroRect, Transform, ViewBox};
+use resvg::usvg::{NonZeroRect, Transform};
 
 use crate::tab::{ClipContent, ExtendedInput as _};
 
@@ -33,16 +33,13 @@ impl SVGEditor {
                                         data: resvg::usvg::ImageKind::PNG(data.into()),
                                         visibility: resvg::usvg::Visibility::Visible,
                                         transform: Transform::identity(),
-                                        view_box: ViewBox {
-                                            rect: NonZeroRect::from_xywh(
-                                                position.x,
-                                                position.y,
-                                                img.width() as f32,
-                                                img.height() as f32,
-                                            )
-                                            .unwrap(),
-                                            aspect: AspectRatio::default(),
-                                        },
+                                        view_box: NonZeroRect::from_xywh(
+                                            position.x,
+                                            position.y,
+                                            img.width() as f32,
+                                            img.height() as f32,
+                                        )
+                                        .unwrap(),
                                         href: file.id,
                                         opacity: 1.0,
                                         diff_state: DiffState::new(),

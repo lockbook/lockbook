@@ -13,13 +13,13 @@ use usvg::{
     tiny_skia_path::{PathSegment, Point},
     ImageHrefResolver, ImageHrefStringResolverFn, Options, Transform,
 };
-use usvg::{Color, ImageKind, Paint, Tree};
+use usvg::{Color, ImageKind, Paint};
 use uuid::Uuid;
 
-use super::element::{DynamicColor, Stroke, WeakImage, WeakImages};
+use super::element::{DynamicColor, Stroke, WeakImages};
 use super::{
     diff::DiffState,
-    element::{Element, Image, ManipulatorGroupId, Path},
+    element::{Element, ManipulatorGroupId, Path},
 };
 
 const ZOOM_G_ID: &str = "lb_master_transform";
