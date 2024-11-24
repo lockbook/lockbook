@@ -11,7 +11,7 @@ use std::path::Path;
 
 pub fn release() -> CliResult<()> {
     cli::release();
-    core::build();
+    // core::build();
     ws::build();
     clean_build_dir();
     ios::release();

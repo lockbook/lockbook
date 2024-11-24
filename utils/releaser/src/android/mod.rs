@@ -23,7 +23,7 @@ const DEFAULT_LOC: &str = "en-US";
 const MIME: &str = "application/octet-stream";
 
 pub fn release() -> CliResult<()> {
-    core::build_libs();
+    // core::build_libs();
     ws::build();
     build_android();
     release_gh();
