@@ -6,10 +6,7 @@ struct OnboardingOneView: View {
         NavigationStack {
             VStack(alignment: .leading) {
                 HStack {
-                    Image(uiImage: UIImage(named: "logo")!)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 75)
+                    logo
                     
                     Spacer()
                 }
@@ -55,11 +52,25 @@ struct OnboardingOneView: View {
                 Text("By using Lockbook, you acknowledge our [Privacy Policy](https://lockbook.net/privacy-policy) and accept our [Terms of Service](https://lockbook.net/tos).")
                     .foregroundColor(.gray)
                     .font(.caption2)
-                    .padding()
             }
             .padding(.top, 35)
+            .padding(.bottom)
             .padding(.horizontal)
         }
+    }
+    
+    var logo: some View {
+        #if os(iOS)
+        Image(uiImage: UIImage(named: "logo")!)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 75)
+        #else
+        Image(nsImage: NSImage(named: NSImage.Name("logo"))!)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 75)
+        #endif
     }
 }
 
@@ -90,7 +101,7 @@ struct OnboardingTwoView: View {
             TextField("Username", text: $username)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
+                .modifier(DisableAutoCapitalization())
                 .onSubmit(createAccount)
                 .padding(.top, 20)
             
@@ -117,6 +128,7 @@ struct OnboardingTwoView: View {
             Spacer()
         }
         .padding(.top, 35)
+        .padding(.bottom)
         .padding(.horizontal, 25)
         .navigationDestination(isPresented: $createdAccount, destination: {
             if let keyPhrase = keyPhrase {
@@ -262,6 +274,7 @@ struct OnboardingThreeView: View {
             .disabled(!storedSecurely || working)
         }
         .padding(.top, 35)
+        .padding(.bottom)
         .padding(.horizontal, 25)
         .navigationBarBackButtonHidden()
     }
@@ -354,16 +367,7 @@ struct ImportAccountView: View {
                         importAccount(isAutoImporting: true)
                     }
 
-                Button(action: {
-                    showQRScanner = true
-                }, label: {
-                    Image(systemName: "qrcode.viewfinder")
-                        .font(.title)
-                        .foregroundStyle(.blue)
-                })
-                .sheet(isPresented: $showQRScanner) {
-                    CodeScannerView(codeTypes: [.qr], simulatedData: "This is simulated data", completion: handleScan)
-                }
+                qrScanner
             }
             .padding(.top)
             
@@ -401,18 +405,47 @@ struct ImportAccountView: View {
                         .foregroundStyle(.gray)
                 })
                 .padding(.trailing)
-                .padding(.bottom)
-                .modifier(iOSAndiPadSheetViewModifier(isPresented: $showAPIURLSheet, width: 500, height: 130) {
-                    SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
-                })
+                .background(apiURLSheet)
             }
         }
         .padding(.top, 35)
+        .padding(.bottom)
         .padding(.horizontal, 25)
         .navigationDestination(isPresented: $importedAccount, destination: {
             ImportAccountSyncView()
         })
-        
+    }
+    
+    var apiURLSheet: some View {
+        #if os(iOS)
+        EmptyView()
+            .modifier(iOSAndiPadSheetViewModifier(isPresented: $showAPIURLSheet, width: 500, height: 130) {
+                SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
+            })
+        #else
+        EmptyView()
+            .sheet(isPresented: $showAPIURLSheet) {
+                SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
+                    .frame(width: 300, height: 110)
+            }
+        #endif
+    }
+    
+    var qrScanner: some View {
+        #if os(iOS)
+        Button(action: {
+            showQRScanner = true
+        }, label: {
+            Image(systemName: "qrcode.viewfinder")
+                .font(.title)
+                .foregroundStyle(.blue)
+        })
+        .sheet(isPresented: $showQRScanner) {
+            CodeScannerView(codeTypes: [.qr], simulatedData: "This is simulated data", completion: handleScan)
+        }
+        #else
+        EmptyView()
+        #endif
     }
     
     func importAccount(isAutoImporting: Bool) {
@@ -457,6 +490,7 @@ struct ImportAccountView: View {
         }
     }
     
+    #if os(iOS)
     func handleScan(result: Result<String, CodeScannerView.ScanError>) {
         showQRScanner = false
         switch result {
@@ -466,6 +500,7 @@ struct ImportAccountView: View {
             print(err) // TODO: Convert this to an ApplicationError
         }
     }
+    #endif
 }
 
 struct SetAPIURLView: View {
@@ -489,10 +524,14 @@ struct SetAPIURLView: View {
             TextField("Default: \(defaultAPIURL)", text: $unsavedAPIURL)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
+                .modifier(DisableAutoCapitalization())
                 .focused($focused)
                 .onAppear {
                     focused = true
+                }
+                .onSubmit {
+                    apiURL = unsavedAPIURL
+                    dismiss()
                 }
             
             Button {
@@ -535,12 +574,8 @@ struct ImportAccountSyncView: View {
             Spacer()
         }
         .padding(.top, 35)
+        .padding(.bottom)
         .padding(.horizontal, 25)
         .navigationBarBackButtonHidden()
     }
 }
-
-//#Preview("Import Account Syncing") {
-//    ImportAccountSyncView()
-//        .mockDI()
-//}

@@ -11,11 +11,7 @@ struct AppView: View {
         VStack {
             if accounts.calculated {
                 if accounts.account == nil {
-                    #if os(macOS)
-                        OnboardingView()
-                    #else
-                        OnboardingOneView()
-                    #endif
+                    OnboardingOneView()
                 } else {
                     PlatformView()
                         .onOpenURL() { url in
