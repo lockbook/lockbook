@@ -22,9 +22,7 @@ image = { version = "0.24", default-features = false, features = [
     "bmp",
     "ico",
 ] }
-lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false, features = [
-    "native-tls",
-] }
+lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false }
 lb-fonts = { git = "https://github.com/lockbook/lb-fonts" }
 lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_editor" }
 minidom = { git = "https://github.com/lockbook/minidom" }
