@@ -7,7 +7,10 @@ use std::{
     thread,
 };
 
-use egui::{text_edit::TextEditState, Event, Key, Modifiers, TextEdit, Ui, WidgetText};
+use egui::{
+    text_edit::TextEditState, Color32, Event, Key, LayerId, Modifiers, Order, Pos2, TextEdit, Ui,
+    Vec2, WidgetText,
+};
 use lb::{
     blocking::Lb,
     logic::filename::DocumentType,
@@ -47,6 +50,9 @@ pub struct FileTree {
 
     /// File export targets are selected asynchronously using the system file dialog.
     pub export: Arc<Mutex<Option<(File, PathBuf)>>>,
+
+    /// Which file is being dragged and how far has it been dragged?
+    pub drag: Option<(Uuid, Vec2)>,
 }
 
 impl FileTree {
@@ -62,6 +68,7 @@ impl FileTree {
             rename_target: Default::default(),
             rename_buffer: Default::default(),
             export: Default::default(),
+            drag: None,
         }
     }
 
@@ -686,7 +693,7 @@ impl FileTree {
 
                 let doc_type = DocumentType::from_file_name_using_extension(&file.name);
 
-                let button_resp = match doc_type {
+                let file_resp = match doc_type {
                     DocumentType::Text => Button::default()
                         .icon(&Icon::DOC_TEXT)
                         .text(text)
@@ -713,7 +720,7 @@ impl FileTree {
                         .show(ui),
                 };
 
-                if button_resp.clicked() {
+                if file_resp.clicked() {
                     resp.open_requests.insert(id);
                 }
             }
@@ -732,6 +739,7 @@ impl FileTree {
         let is_cursored = self.cursor == Some(id);
         let is_cut = self.cut.contains(&id);
         let is_renaming = self.rename_target == Some(id);
+        let indent = depth as f32 * 15.;
 
         let mut text = WidgetText::from(&file.name);
         let mut default_fill = ui.style().visuals.extreme_bg_color;
@@ -739,23 +747,23 @@ impl FileTree {
             text = text.color(ui.style().visuals.widgets.active.bg_fill);
         }
         if is_cursored {
-            default_fill = ui.style().visuals.selection.bg_fill
+            default_fill = ui.style().visuals.selection.bg_fill;
         }
         if is_cut {
             text = text.strikethrough();
         }
 
-        let button_resp = if file.is_document() {
+        let file_resp = if file.is_document() {
             let doc_type = DocumentType::from_file_name_using_extension(&file.name);
 
-            let button_resp = match doc_type {
+            let file_resp = match doc_type {
                 DocumentType::Text => Button::default()
                     .icon(&Icon::DOC_TEXT)
                     .text(text)
                     .default_fill(default_fill)
                     .frame(true)
                     .hexpand(true)
-                    .indent(depth as f32 * 15.)
+                    .indent(indent)
                     .show(ui),
                 DocumentType::Drawing => Button::default()
                     .icon(&Icon::DRAW)
@@ -763,7 +771,7 @@ impl FileTree {
                     .default_fill(default_fill)
                     .frame(true)
                     .hexpand(true)
-                    .indent(depth as f32 * 15.)
+                    .indent(indent)
                     .show(ui),
                 DocumentType::Other => Button::default()
                     .icon(&Icon::DOC_UNKNOWN)
@@ -771,32 +779,32 @@ impl FileTree {
                     .default_fill(default_fill)
                     .frame(true)
                     .hexpand(true)
-                    .indent(depth as f32 * 15.)
+                    .indent(indent)
                     .show(ui),
             };
 
-            if button_resp.clicked() {
+            if file_resp.clicked() {
                 resp.open_requests.insert(id);
             }
 
-            button_resp
+            file_resp
         } else {
             let is_expanded = self.expanded.contains(&id);
             let is_shared = !file.shares.is_empty();
 
-            let button_resp = if is_expanded {
-                let button_resp = Button::default()
+            let file_resp = if is_expanded {
+                let file_resp = Button::default()
                     .icon(&Icon::FOLDER_OPEN)
                     .text(text)
                     .default_fill(default_fill)
                     .frame(true)
                     .hexpand(true)
-                    .indent(depth as f32 * 15.)
+                    .indent(indent)
                     .show(ui);
                 resp =
                     resp.union(self.show_children_recursive(ui, id, depth + 1, scroll_to_cursor));
 
-                button_resp
+                file_resp
             } else if is_shared {
                 Button::default()
                     .icon(&Icon::SHARED_FOLDER)
@@ -804,7 +812,7 @@ impl FileTree {
                     .default_fill(default_fill)
                     .frame(true)
                     .hexpand(true)
-                    .indent(depth as f32 * 15.)
+                    .indent(indent)
                     .show(ui)
             } else {
                 Button::default()
@@ -813,11 +821,11 @@ impl FileTree {
                     .default_fill(default_fill)
                     .frame(true)
                     .hexpand(true)
-                    .indent(depth as f32 * 15.)
+                    .indent(indent)
                     .show(ui)
             };
 
-            if button_resp.clicked() {
+            if file_resp.clicked() {
                 if !is_expanded {
                     self.expand(&[id]);
                 } else {
@@ -825,10 +833,10 @@ impl FileTree {
                 }
             }
 
-            button_resp
+            file_resp
         };
 
-        if button_resp.clicked() {
+        if file_resp.clicked() {
             let mut shift_clicked = false;
             if let Some(cursored_file) = self.cursor {
                 // shift-click to add visible files between cursor and target to selection
@@ -887,7 +895,7 @@ impl FileTree {
         }
 
         let mut context_menu_resp = Response::default();
-        button_resp.context_menu(|ui| {
+        file_resp.context_menu(|ui| {
             context_menu_resp = self.context_menu(ui, id);
         });
         resp = resp.union(context_menu_resp);
@@ -896,9 +904,96 @@ impl FileTree {
             resp.export_file = export.clone();
             *export = None;
         }
+        mem::drop(export);
+
+        // drag 'n' drop:
+        // when drag starts, dragged file sets dnd payload and starts tracking cumulative drag delta
+        if file_resp.drag_started() {
+            file_resp.dnd_set_drag_payload(id);
+            self.drag = Some((id, file_resp.drag_delta()));
+
+            // the selection is what's actually moved
+            // dragging a selected file moves all selected files
+            // dragging an unselected file moves only that file (and clears the selection)
+            if !self.selected.contains(&id) {
+                self.clear_selection();
+                self.select(&[id]);
+            }
+        }
+        let file = self.files.get_by_id(id);
+        // during drag, dragged file accumulates delta
+        if file_resp.dragged() {
+            if let Some((drag_id, drag_acc)) = self.drag.as_mut() {
+                if *drag_id == id {
+                    *drag_acc += file_resp.drag_delta();
+                }
+            }
+        }
+        // during drag, drop target renders indicator
+        if let (Some(pointer), Some(_)) =
+            (ui.input(|i| i.pointer.interact_pos()), file_resp.dnd_hover_payload::<Uuid>())
+        {
+            if file_resp.rect.contains(pointer)
+            // ^ you'd think this would always be true (some suffering occurred here)
+            // either something is deeply wrong with egui or something is deeply wrong with me
+            {
+                // awkwardly we can't use the drag 'n' drop state to adjust how the button is rendered because we don't
+                // have the response until after we draw it, so we'll just draw something on top of it instead
+                let stroke = ui.style().visuals.widgets.active.fg_stroke;
+                if file.is_folder() {
+                    // folders are indicated by a rectangle around the file
+                    ui.with_layer_id(
+                        LayerId::new(
+                            Order::PanelResizeLine,
+                            egui::Id::from("file_tree_drop_indicator"),
+                        ),
+                        |ui| {
+                            ui.painter()
+                                .rect(file_resp.rect, 2., Color32::TRANSPARENT, stroke);
+                        },
+                    );
+                } else {
+                    // documents are indicated by a line above or below the file
+                    let y = if pointer.y < file_resp.rect.center().y {
+                        file_resp.rect.min.y
+                    } else {
+                        file_resp.rect.max.y
+                    };
+                    let mut x_range = file_resp.rect.x_range();
+                    x_range.min += indent;
+
+                    ui.with_layer_id(
+                        LayerId::new(
+                            Order::PanelResizeLine,
+                            egui::Id::from("file_tree_drop_indicator"),
+                        ),
+                        |ui| {
+                            ui.painter().hline(x_range, y, stroke);
+                            ui.painter().circle_filled(
+                                Pos2 { x: x_range.min, y },
+                                3.,
+                                stroke.color,
+                            );
+                        },
+                    );
+                }
+            }
+        }
+        // when drag ends, dragged file clears drag state
+        if file_resp.drag_stopped() {
+            self.drag = None;
+        }
+        // when drag ends, dropped file consumes dnd payload and emits move operation
+        // the dnd payload itself is ignored because we always move the selection
+        if file_resp.dnd_release_payload::<Uuid>().is_some() {
+            let destination = if file.is_folder() { id } else { file.parent };
+            for &selected in &self.selected {
+                resp.move_requests.push((selected, destination));
+            }
+        }
 
         if is_cursored && scroll_to_cursor {
-            ui.scroll_to_rect(button_resp.rect, None);
+            ui.scroll_to_rect(file_resp.rect, None);
         }
 
         resp

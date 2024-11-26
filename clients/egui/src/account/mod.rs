@@ -126,8 +126,6 @@ impl AccountScreen {
 
         self.show_any_modals(ctx, 0.0);
 
-        println!("sidebar_expanded: {}", self.sidebar_expanded);
-
         egui::SidePanel::left("sidebar_panel")
             .frame(egui::Frame::none().fill(ctx.style().visuals.extreme_bg_color))
             .min_width(300.0)
@@ -213,21 +211,21 @@ impl AccountScreen {
 
         // focus management
         let sidebar_id = Id::from("sidebar_panel");
-        println!("sidebar: {:?}", sidebar_id);
-        println!("focused: {:?}", ctx.memory(|m| m.focused()));
+        // println!("sidebar: {:?}", sidebar_id);
+        // println!("focused: {:?}", ctx.memory(|m| m.focused()));
         ctx.check_for_id_clash(Id::new(sidebar_id), egui::Rect::ZERO, ""); // register the widget id
         if ctx.input(|i| i.key_pressed(Key::F) && i.modifiers.command && i.modifiers.shift) {
             if !self.sidebar_expanded {
                 self.sidebar_expanded = true;
                 ctx.memory_mut(|m| m.request_focus(sidebar_id));
-                println!("sidebar_expanded = {}", self.sidebar_expanded);
-                println!("focused = {:?}", ctx.memory(|m| m.focused()));
+                // println!("sidebar_expanded = {}", self.sidebar_expanded);
+                // println!("focused = {:?}", ctx.memory(|m| m.focused()));
             } else if ctx.memory(|m| m.has_focus(sidebar_id)) {
                 self.sidebar_expanded = false;
-                println!("sidebar_expanded = {}", self.sidebar_expanded);
+                // println!("sidebar_expanded = {}", self.sidebar_expanded);
             } else {
                 ctx.memory_mut(|m| m.request_focus(sidebar_id));
-                println!("focused = {:?}", ctx.memory(|m| m.focused()));
+                // println!("focused = {:?}", ctx.memory(|m| m.focused()));
             }
         }
         if ctx.memory(|m| m.has_focus(sidebar_id)) {

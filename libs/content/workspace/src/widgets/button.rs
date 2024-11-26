@@ -113,8 +113,18 @@ impl<'a> Button<'a> {
             let icon_visuals = icon_visuals.interact(&resp);
             let icon_color = icon_visuals.text_color();
 
-            let bg_fill = if resp.hovered() {
-                text_visuals.bg_fill
+            // In stark contrast to its documentation, resp.hovered() is often true even if something is being dragged
+            // and even when it does not contain the pointer! Some suffering occurred here to get desirable behavior.
+            let bg_fill = if resp.hovered()
+                && ui.input(|i| {
+                    i.pointer
+                        .interact_pos()
+                        .map(|p| resp.rect.contains(p))
+                        .unwrap_or_default()
+                })
+                && !resp.dragged()
+            {
+                ui.visuals().widgets.hovered.bg_fill
             } else {
                 self.default_fill.unwrap_or(text_visuals.bg_fill)
             };
