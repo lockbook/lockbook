@@ -34,6 +34,8 @@ pub fn init(ctx: &egui::Context, dark_mode: bool) {
 
 pub fn dark(primary: ColorAlias) -> egui::Visuals {
     let mut v = egui::Visuals::dark();
+    v.window_fill = Color32::from_rgb(0, 0, 0);
+    v.extreme_bg_color = Color32::from_rgb(0, 0, 0);
     v.faint_bg_color = Color32::from_rgb(35, 35, 37);
     v.widgets.noninteractive.bg_fill = Color32::from_rgb(25, 25, 27);
     v.widgets.noninteractive.fg_stroke.color = Color32::from_rgb(242, 242, 247);
@@ -45,6 +47,8 @@ pub fn dark(primary: ColorAlias) -> egui::Visuals {
 
 pub fn light(primary: ColorAlias) -> egui::Visuals {
     let mut v = egui::Visuals::light();
+    v.window_fill = Color32::from_rgb(255, 255, 255);
+    v.extreme_bg_color = Color32::from_rgb(255, 255, 255);
     v.widgets.hovered.bg_fill = v.widgets.active.bg_fill;
     v.widgets.active.bg_fill = ThemePalette::LIGHT[primary];
     v

@@ -73,11 +73,7 @@ impl<'window> WgpuWorkspace<'window> {
         self.context.begin_frame(self.raw_input.take());
 
         let workspace_response = egui::CentralPanel::default()
-            .frame(egui::Frame::default().fill(if self.context.style().visuals.dark_mode {
-                egui::Color32::BLACK
-            } else {
-                egui::Color32::WHITE
-            }))
+            .frame(egui::Frame::default().fill(self.context.style().visuals.window_fill))
             .show(&self.context, |ui| self.workspace.show(ui))
             .inner;
 
