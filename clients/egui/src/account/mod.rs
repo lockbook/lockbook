@@ -11,7 +11,6 @@ use std::sync::{mpsc, Arc, RwLock};
 use std::time::Duration;
 use std::{path, process, thread};
 
-use egui::scroll_area::ScrollBarVisibility;
 use egui::style::ScrollStyle;
 use egui::{Frame, ScrollArea, Stroke, Vec2};
 use lb::blocking::Lb;
@@ -78,9 +77,9 @@ impl AccountScreen {
         );
         drop(reference_settings);
 
-        Self {
+        let mut result = Self {
             settings,
-            core,
+            core: core.clone(),
             toasts,
             update_tx,
             update_rx,
@@ -93,7 +92,9 @@ impl AccountScreen {
             workspace: Workspace::new(ws_cfg, &core_clone, &ctx.clone()),
             modals: Modals::default(),
             shutdown: None,
-        }
+        };
+        result.tree.recalc_suggested_files(&core, ctx);
+        result
     }
 
     pub fn begin_shutdown(&mut self) {
@@ -128,7 +129,7 @@ impl AccountScreen {
         self.show_any_modals(ctx, 0.0);
 
         egui::SidePanel::left("sidebar_panel")
-            .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
+            .frame(egui::Frame::none().fill(ctx.style().visuals.extreme_bg_color))
             .min_width(300.0)
             .show_animated(ctx, is_expanded, |ui| {
                 if self.is_any_modal_open() {
@@ -149,23 +150,16 @@ impl AccountScreen {
                         });
 
                     ui.vertical(|ui| {
-                        ui.add_space(15.0);
                         if let Some(file) = self.full_search_doc.show(ui, &self.core) {
                             self.workspace.open_file(file, false, true);
                         }
-                        ui.add_space(15.0);
-
-                        let full_doc_search_results_empty = self
+                        let full_doc_search_term_empty = self
                             .full_search_doc
-                            .results
+                            .query
                             .lock()
-                            .map(|r| r.is_empty())
+                            .map(|q| q.is_empty())
                             .unwrap_or(true);
-                        if full_doc_search_results_empty {
-                            if let Some(file) = self.suggested.show(ui) {
-                                self.workspace.open_file(file, false, true);
-                            }
-                            ui.add_space(15.0);
+                        if full_doc_search_term_empty {
                             self.show_tree(ui);
                         }
                     });
@@ -272,8 +266,7 @@ impl AccountScreen {
                     let mut files = self.tree.files.clone();
                     files.retain(|file| file.id != f.id);
                     self.tree.update_files(files);
-
-                    self.suggested.recalc_and_redraw(ctx, &self.core);
+                    self.tree.recalc_suggested_files(&self.core, ctx);
                 }
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(files) => self.tree.update_files(files),

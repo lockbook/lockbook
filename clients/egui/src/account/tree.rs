@@ -1,9 +1,18 @@
-use std::{cmp::Ordering, collections::HashSet, mem, path::PathBuf};
+use std::{
+    cmp::Ordering,
+    collections::HashSet,
+    mem,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    thread,
+};
 
-use egui::{Color32, Event, Id, Key, Modifiers, Rounding, Stroke, Ui, WidgetText};
+use egui::{Event, Key, Modifiers, Ui, WidgetText};
 use lb::{
+    blocking::Lb,
     logic::filename::DocumentType,
     model::{file::File, file_metadata::FileType},
+    service::activity::RankingWeights,
     Uuid,
 };
 use workspace_rs::{theme::icons::Icon, widgets::Button};
@@ -26,16 +35,23 @@ pub struct FileTree {
 
     /// Files that have been marked with cmd + x can be moved to the cursored folder with cmd + v.
     pub cut: HashSet<Uuid>,
+
+    /// Suggested files appear in a "folder" at the top of the tree.
+    pub suggested_docs_folder_id: Uuid,
+    pub suggested_docs: Arc<Mutex<HashSet<Uuid>>>,
 }
 
 impl FileTree {
     pub fn new(files: Vec<File>) -> Self {
+        println!("new file tree");
         Self {
             selected: Default::default(),
             expanded: [files.root()].into_iter().collect(),
             files,
             cursor: Default::default(),
             cut: Default::default(),
+            suggested_docs_folder_id: Uuid::new_v4(),
+            suggested_docs: Default::default(),
         }
     }
 
@@ -43,11 +59,35 @@ impl FileTree {
     /// in the new tree.
     pub fn update_files(&mut self, files: Vec<File>) {
         self.files = files;
-        self.expanded
-            .retain(|&id| self.files.iter().any(|f| f.id == id));
-        self.selected
-            .retain(|&id| self.files.iter().any(|f| f.id == id));
+        self.expanded.retain(|&id| {
+            self.files.iter().any(|f| f.id == id) || id == self.suggested_docs_folder_id
+        });
+        self.selected.retain(|&id| {
+            self.files.iter().any(|f| f.id == id) || id == self.suggested_docs_folder_id
+        });
         self.reveal_selection();
+    }
+
+    /// Asynchronously recalculates the suggested files; requests repaint when complete.
+    pub fn recalc_suggested_files(&mut self, core: &Lb, ctx: &egui::Context) {
+        let core = core.clone();
+        let suggested = self.suggested_docs.clone();
+        let ctx = ctx.clone();
+
+        thread::spawn(move || {
+            let suggested_docs = core.suggested_docs(RankingWeights::default());
+            match suggested_docs {
+                Ok(docs) => {
+                    let mut suggested = suggested.lock().unwrap();
+                    *suggested = docs.into_iter().take(5).collect();
+                }
+                Err(err) => {
+                    // todo: better error surfacing
+                    println!("Failed to calculate suggested files: {:?}", err);
+                }
+            }
+            ctx.request_repaint();
+        });
     }
 
     /// Adds `ids` to the selection and reveals them in the tree.
@@ -587,10 +627,89 @@ impl FileTree {
             }
         }
 
-        resp.union(
-            ui.vertical(|ui| self.show_recursive(ui, self.files.root(), 0, any_keyboard_input))
-                .inner,
-        )
+        resp
+            // show suggested docs
+            .union(ui.vertical(|ui| self.show_suggested(ui)).inner)
+            // show file tree
+            .union(
+                ui.vertical(|ui| self.show_recursive(ui, self.files.root(), 0, any_keyboard_input))
+                    .inner,
+            )
+    }
+
+    pub fn show_suggested(&mut self, ui: &mut Ui) -> Response {
+        let mut resp = Response::default();
+
+        // suggested "folder"
+        let is_expanded = self.expanded.contains(&self.suggested_docs_folder_id);
+        if Button::default()
+            .icon(&Icon::SCHEDULE)
+            .text("Recent Documents") // perhaps this is a better name for now
+            .default_fill(ui.style().visuals.extreme_bg_color)
+            .frame(true)
+            .hexpand(true)
+            .show(ui)
+            .clicked()
+        {
+            if is_expanded {
+                self.expanded.remove(&self.suggested_docs_folder_id);
+            } else {
+                self.expanded.insert(self.suggested_docs_folder_id);
+            }
+        }
+
+        // suggested docs
+        if is_expanded {
+            for &id in self.suggested_docs.lock().unwrap().iter() {
+                let file = self.files.get_by_id(id);
+                let is_selected = self.selected.contains(&id);
+                let is_cursored = self.cursor == Some(id);
+
+                let mut text = WidgetText::from(&file.name);
+                let mut default_fill = ui.style().visuals.extreme_bg_color;
+                if is_selected {
+                    text = text.color(ui.style().visuals.widgets.active.bg_fill);
+                }
+                if is_cursored {
+                    default_fill = ui.style().visuals.selection.bg_fill
+                }
+
+                let doc_type = DocumentType::from_file_name_using_extension(&file.name);
+
+                let button_resp = match doc_type {
+                    DocumentType::Text => Button::default()
+                        .icon(&Icon::DOC_TEXT)
+                        .text(text)
+                        .default_fill(default_fill)
+                        .frame(true)
+                        .hexpand(true)
+                        .indent(15.)
+                        .show(ui),
+                    DocumentType::Drawing => Button::default()
+                        .icon(&Icon::DRAW)
+                        .text(text)
+                        .default_fill(default_fill)
+                        .frame(true)
+                        .hexpand(true)
+                        .indent(15.)
+                        .show(ui),
+                    DocumentType::Other => Button::default()
+                        .icon(&Icon::DOC_UNKNOWN)
+                        .text(text)
+                        .default_fill(default_fill)
+                        .frame(true)
+                        .hexpand(true)
+                        .indent(15.)
+                        .show(ui),
+                };
+
+                if button_resp.clicked() {
+                    resp.open_requests.insert(id);
+                }
+            }
+        }
+
+        resp
     }
 
     pub fn show_recursive(

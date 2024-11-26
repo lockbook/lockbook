@@ -69,6 +69,7 @@ impl Icon {
     pub const SETTINGS: Self = ic("\u{e8b8}"); // Settings
     pub const SPARKLE: Self = ic("\u{e65f}"); // Auto Awesome
     pub const SAVE: Self = ic("\u{e161}"); // Save
+    pub const SCHEDULE: Self = ic("\u{e8b5}"); // Schedule
     pub const SEARCH: Self = ic("\u{e8b6}"); // Search
     pub const SYNC: Self = ic("\u{e863}"); // Auto-renew
     pub const SHARED_FOLDER: Self = ic("\u{e2c9}"); // Shared Folder

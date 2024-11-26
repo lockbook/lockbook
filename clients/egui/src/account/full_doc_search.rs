@@ -61,45 +61,49 @@ impl FullDocSearch {
 
             mem::drop(query);
 
-            // show spinner while searching
-            if self.is_searching.load(Ordering::Relaxed) {
-                ui.add_space(20.0);
-                ui.spinner();
+            let query_empty = self.query.lock().map(|q| q.is_empty()).unwrap_or_default();
+            if !query_empty {
+                // show spinner while searching
+                if self.is_searching.load(Ordering::Relaxed) {
+                    ui.add_space(20.0);
+                    ui.spinner();
+                }
+
+                // launch search if query changed
+                if output.response.changed() {
+                    let core = core.clone();
+                    let is_searching = self.is_searching.clone();
+                    let query = self.query.clone();
+                    let results = self.results.clone();
+                    let ctx = ui.ctx().clone();
+                    thread::spawn(move || {
+                        // get the query
+                        let this_query = query.lock().unwrap().clone();
+
+                        // run the search (no locks held)
+                        is_searching.store(true, Ordering::Relaxed);
+                        let these_results = core
+                            .search(&this_query, SearchConfig::PathsAndDocuments)
+                            .unwrap_or_default();
+
+                        // update the results only if they are for the current query
+                        // note: locks acquired in same order as above to prevent deadlock
+                        let query = query.lock().unwrap();
+                        let mut results = results.lock().unwrap();
+
+                        if query.deref() == &this_query {
+                            is_searching.store(false, Ordering::Relaxed);
+                            *results = these_results;
+                            ctx.request_repaint();
+                        }
+                    });
+                }
+                egui::ScrollArea::vertical()
+                    .show(ui, |ui| self.show_results(ui, core))
+                    .inner
+            } else {
+                None
             }
-
-            // launch search if query changed
-            if output.response.changed() {
-                let core = core.clone();
-                let is_searching = self.is_searching.clone();
-                let query = self.query.clone();
-                let results = self.results.clone();
-                let ctx = ui.ctx().clone();
-                thread::spawn(move || {
-                    // get the query
-                    let this_query = query.lock().unwrap().clone();
-
-                    // run the search (no locks held)
-                    is_searching.store(true, Ordering::Relaxed);
-                    let these_results = core
-                        .search(&this_query, SearchConfig::PathsAndDocuments)
-                        .unwrap_or_default();
-
-                    // update the results only if they are for the current query
-                    // note: locks acquired in same order as above to prevent deadlock
-                    let query = query.lock().unwrap();
-                    let mut results = results.lock().unwrap();
-
-                    if query.deref() == &this_query {
-                        is_searching.store(false, Ordering::Relaxed);
-                        *results = these_results;
-                        ctx.request_repaint();
-                    }
-                });
-            }
-
-            egui::ScrollArea::vertical()
-                .show(ui, |ui| self.show_results(ui, core))
-                .inner
         })
         .inner
     }
