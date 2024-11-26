@@ -34,8 +34,16 @@ pub fn init(ctx: &egui::Context, dark_mode: bool) {
 
 pub fn dark(primary: ColorAlias) -> egui::Visuals {
     let mut v = egui::Visuals::dark();
-    v.window_fill = Color32::from_rgb(0, 0, 0);
-    v.extreme_bg_color = Color32::from_rgb(0, 0, 0);
+    let is_mobile = cfg!(target_os = "ios") || cfg!(target_os = "android");
+
+    if is_mobile {
+        v.window_fill = Color32::from_rgb(0, 0, 0);
+        v.extreme_bg_color = Color32::from_rgb(0, 0, 0);
+    } else {
+        v.window_fill = Color32::from_rgb(20, 20, 20);
+        v.extreme_bg_color = Color32::from_rgb(20, 20, 20);
+    }
+
     v.faint_bg_color = Color32::from_rgb(35, 35, 37);
     v.widgets.noninteractive.bg_fill = Color32::from_rgb(25, 25, 27);
     v.widgets.noninteractive.fg_stroke.color = Color32::from_rgb(242, 242, 247);
