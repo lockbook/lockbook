@@ -1,8 +1,6 @@
+use std::collections::HashMap;
 use std::fmt::Write;
-use std::sync::Arc;
-use std::{collections::HashMap, str::FromStr};
 
-use crate::blocking::Lb;
 use crate::model::file_metadata::DocumentHmac;
 
 use bezier_rs::{Bezier, Subpath};
@@ -11,12 +9,12 @@ use indexmap::IndexMap;
 use usvg::{
     fontdb::Database,
     tiny_skia_path::{PathSegment, Point},
-    ImageHrefResolver, ImageHrefStringResolverFn, Options, Transform,
+    Options, Transform,
 };
-use usvg::{Color, ImageKind, Paint};
+use usvg::{Color, Paint};
 use uuid::Uuid;
 
-use super::element::{DynamicColor, Stroke, WeakImages};
+use super::element::{DynamicColor, Stroke, WeakImage, WeakImages};
 use super::{
     diff::DiffState,
     element::{Element, ManipulatorGroupId, Path},
@@ -37,25 +35,13 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new(
-        content: &str, maybe_core: Option<&Lb>, open_file_hmac: Option<DocumentHmac>,
-    ) -> Self {
+    pub fn new(content: &str, open_file_hmac: Option<DocumentHmac>) -> Self {
         let mut elements = IndexMap::default();
         let mut master_transform = Transform::identity();
         let mut id_map = HashMap::default();
         let mut weak_images = WeakImages::default();
 
-        let opt = if let Some(core) = maybe_core {
-            let lb_local_resolver = ImageHrefResolver {
-                resolve_data: ImageHrefResolver::default_data_resolver(),
-                resolve_string: lb_local_resolver(core),
-            };
-            Options { image_href_resolver: lb_local_resolver, ..Default::default() }
-        } else {
-            Options::default()
-        };
-
-        let maybe_tree = usvg::Tree::from_str(content, &opt, &Database::default());
+        let maybe_tree = usvg::Tree::from_str(content, &Options::default(), &Database::default());
 
         if let Err(err) = maybe_tree {
             println!("{:#?}", err);
@@ -88,9 +74,9 @@ impl Buffer {
         local_elements: &mut IndexMap<Uuid, Element>, local_master_transform: Transform,
         base_content: &str, remote_content: &str,
     ) {
-        let base_buffer = Buffer::new(base_content, None, None);
+        let base_buffer = Buffer::new(base_content, None);
 
-        let remote_buffer = Buffer::new(remote_content, None, None);
+        let remote_buffer = Buffer::new(remote_content, None);
 
         for (id, base_el) in base_buffer.elements.iter() {
             if let Some(remote_el) = remote_buffer.elements.get(id) {
@@ -194,7 +180,7 @@ impl Buffer {
     pub fn serialize(&self) -> String {
         let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
         let mut weak_images = WeakImages::default();
-        for el in self.elements.iter() {
+        for (index, el) in self.elements.iter().enumerate() {
             match el.1 {
                 Element::Path(p) => {
                     if p.deleted {
@@ -225,7 +211,11 @@ impl Buffer {
                     }
                 }
                 Element::Image(img) => {
-                    weak_images.push(img.into());
+                    let mut weak_image: WeakImage = img.into_weak(index);
+                    weak_image.transform(self.master_transform.invert().unwrap_or_default());
+
+                    // todo: inverse the transform by changing widh height and a x,y
+                    weak_images.push(weak_image);
                 }
                 Element::Text(_) => {}
             }
@@ -243,7 +233,7 @@ impl Buffer {
         );
 
         if !weak_images.is_empty() {
-            let binary_data = bincode::serialize(&self.weak_images).expect("Failed to serialize");
+            let binary_data = bincode::serialize(&weak_images).expect("Failed to serialize");
             let base64_data = base64::encode(&binary_data);
 
             let _ = write!(
@@ -251,6 +241,7 @@ impl Buffer {
                 "<g id=\"{}\"> <g id=\"{}\"></g></g>",
                 WEAK_IMAGE_G_ID, base64_data
             );
+            println!("{:#?}", base64_data);
         }
 
         let _ = write!(&mut root, "{} </svg>", zoom_level);
@@ -267,12 +258,14 @@ pub fn parse_child(
             if group.id().eq(ZOOM_G_ID) {
                 *master_transform = group.transform();
             } else if group.id().eq(WEAK_IMAGE_G_ID) {
+                println!("found images");
                 if let Some(usvg::Node::Group(weak_images_g)) = group.children().first() {
                     let base64 = base64::decode(weak_images_g.id().as_bytes())
                         .expect("Failed to decode base64");
 
                     let decoded: WeakImages = bincode::deserialize(&base64).unwrap();
                     *weak_images = decoded;
+                    println!("decoded weak images: {:#?}", weak_images);
                 }
             } else {
                 group.children().iter().for_each(|u_el| {
@@ -449,26 +442,6 @@ pub fn u_transform_to_bezier(src: &Transform) -> DAffine2 {
         },
         translation: glam::DVec2 { x: src.tx.into(), y: src.ty.into() },
     }
-}
-
-fn lb_local_resolver(core: &Lb) -> ImageHrefStringResolverFn {
-    let core = core.clone();
-    Box::new(move |href: &str, _opts: &Options, _db: &Database| {
-        let id = href.strip_prefix("lb://")?;
-        let id = Uuid::from_str(id).ok()?;
-
-        let raw = core.read_document(id).ok()?;
-
-        let name = core.get_file_by_id(id).ok()?.name;
-        let ext = name.split('.').last().unwrap_or_default();
-        match ext {
-            "jpg" | "jpeg" => Some(ImageKind::JPEG(Arc::new(raw))),
-            "png" => Some(ImageKind::PNG(Arc::new(raw))),
-            // "svg" => Some(ImageKind::SVG(Arc::new(raw))), todo: handle nested svg
-            "gif" => Some(ImageKind::GIF(Arc::new(raw))),
-            _ => None,
-        }
-    })
 }
 
 fn to_svg_transform(transform: Transform) -> String {

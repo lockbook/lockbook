@@ -12,6 +12,7 @@ mod util;
 
 use self::history::History;
 use crate::tab::svg_editor::toolbar::Toolbar;
+use element::PromoteWeakImage;
 pub use eraser::Eraser;
 pub use history::DeleteElement;
 pub use history::Event;
@@ -22,6 +23,7 @@ use lb_rs::svg::buffer::u_transform_to_bezier;
 use lb_rs::svg::buffer::Buffer;
 use lb_rs::svg::diff::DiffState;
 use lb_rs::svg::element::Element;
+use lb_rs::svg::element::Image;
 use lb_rs::Uuid;
 pub use path_builder::PathBuilder;
 pub use pen::Pen;
@@ -41,7 +43,7 @@ pub struct SVGEditor {
     history: History,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
-    core: Lb,
+    lb: Lb,
     open_file: Uuid,
     skip_frame: bool,
     // last_render: Instant,
@@ -69,18 +71,22 @@ pub enum CanvasOp {
 }
 impl SVGEditor {
     pub fn new(
-        bytes: &[u8], ctx: &egui::Context, core: lb_rs::blocking::Lb, open_file: Uuid,
+        bytes: &[u8], ctx: &egui::Context, lb: lb_rs::blocking::Lb, open_file: Uuid,
         hmac: Option<DocumentHmac>, maybe_settings: Option<CanvasSettings>,
     ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
-        let mut buffer = Buffer::new(content, Some(&core), hmac);
+        let mut buffer = Buffer::new(content, hmac);
         for (_, el) in buffer.elements.iter_mut() {
             if let Element::Path(path) = el {
                 path.data
                     .apply_transform(u_transform_to_bezier(&buffer.master_transform));
             }
         }
+        buffer
+            .weak_images
+            .iter_mut()
+            .for_each(|w_i| w_i.transform(buffer.master_transform));
 
         let toolbar = Toolbar::new();
 
@@ -91,7 +97,7 @@ impl SVGEditor {
             history: History::default(),
             toolbar,
             inner_rect: egui::Rect::NOTHING,
-            core,
+            lb,
             open_file,
             skip_frame: false,
             // last_render: Instant::now(),
@@ -113,6 +119,22 @@ impl SVGEditor {
         let _ = span.enter();
 
         self.inner_rect = ui.available_rect_before_wrap();
+
+        self.buffer.weak_images.drain(..).for_each(|weak_image| {
+            let image = Image::from_weak(weak_image, &self.lb);
+
+            if weak_image.z_index > self.buffer.elements.len() {
+                self.buffer
+                    .elements
+                    .insert(weak_image.id, Element::Image(image));
+            } else {
+                self.buffer.elements.shift_insert(
+                    weak_image.z_index,
+                    weak_image.id,
+                    Element::Image(image),
+                );
+            }
+        });
 
         ui.painter()
             .rect_filled(self.inner_rect, 0., ui.style().visuals.extreme_bg_color);

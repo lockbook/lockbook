@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use usvg::{self, Color, Fill, ImageKind, NonZeroRect, Text, Transform, Visibility};
 use uuid::Uuid;
 
+use crate::blocking::Lb;
+
 use super::{buffer::u_transform_to_bezier, diff::DiffState};
 
 #[derive(Clone)]
@@ -91,8 +93,8 @@ impl From<Transform> for WeakTransform {
     }
 }
 
-impl Into<WeakImage> for &Image {
-    fn into(self) -> WeakImage {
+impl Image {
+    pub fn into_weak(&self, z_index: usize) -> WeakImage {
         WeakImage {
             href: self.href,
             transform: WeakTransform::from(self.transform),
@@ -102,6 +104,7 @@ impl Into<WeakImage> for &Image {
             x: self.view_box.x(),
             y: self.view_box.y(),
             id: self.href,
+            z_index,
         }
     }
 }
@@ -126,18 +129,29 @@ impl DerefMut for WeakImages {
 /// image that only contains a ref to the data but not the data itself.
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
 pub struct WeakImage {
-    id: Uuid,
-    href: Uuid,
-    transform: WeakTransform,
-    opacity: f32,
-    width: f32,
-    height: f32,
-    x: f32,
-    y: f32,
+    pub id: Uuid,
+    pub href: Uuid,
+    pub transform: WeakTransform,
+    pub opacity: f32,
+    pub width: f32,
+    pub height: f32,
+    pub x: f32,
+    pub y: f32,
+    pub z_index: usize,
+}
+
+impl WeakImage {
+    pub fn transform(&mut self, transform: Transform) {
+        self.x = transform.sx * self.x + transform.kx * self.y + transform.tx;
+        self.y = transform.ky * self.x + transform.sy * self.y + transform.ty;
+
+        self.width = transform.sx * self.width;
+        self.height = transform.sy * self.height;
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
-struct WeakTransform {
+pub struct WeakTransform {
     pub sx: f32,
     pub kx: f32,
     pub ky: f32,

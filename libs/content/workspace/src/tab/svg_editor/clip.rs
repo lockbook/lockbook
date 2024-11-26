@@ -20,7 +20,7 @@ impl SVGEditor {
                         match clip {
                             ClipContent::Image(data) => {
                                 let file =
-                                    crate::tab::import_image(&self.core, self.open_file, &data);
+                                    crate::tab::import_image(&self.lb, self.open_file, &data);
 
                                 let img = image::load_from_memory(&data).unwrap();
 

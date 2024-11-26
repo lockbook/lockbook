@@ -624,7 +624,6 @@ impl Lb {
                                         let mut local_buffer = crate::svg::buffer::Buffer::new(
                                             String::from_utf8_lossy(&local_document).as_ref(),
                                             None,
-                                            None,
                                         );
 
                                         for (_, el) in local_buffer.elements.iter_mut() {
