@@ -11,7 +11,7 @@ use std::time::Duration;
 use std::{path, process, thread};
 
 use egui::style::ScrollStyle;
-use egui::{Frame, ScrollArea, Stroke, Vec2};
+use egui::{EventFilter, Frame, Id, Key, ScrollArea, Stroke, Vec2};
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
@@ -49,6 +49,7 @@ pub struct AccountScreen {
     workspace: Workspace,
     modals: Modals,
     shutdown: Option<AccountShutdownProgress>,
+    sidebar_expanded: bool,
 }
 
 impl AccountScreen {
@@ -74,6 +75,7 @@ impl AccountScreen {
         );
         drop(reference_settings);
 
+        let sidebar_expanded = !settings.read().unwrap().zen_mode;
         let mut result = Self {
             settings,
             core: core.clone(),
@@ -88,6 +90,7 @@ impl AccountScreen {
             workspace: Workspace::new(ws_cfg, &core_clone, &ctx.clone()),
             modals: Modals::default(),
             shutdown: None,
+            sidebar_expanded,
         };
         result.tree.recalc_suggested_files(&core, ctx);
         result
@@ -121,13 +124,14 @@ impl AccountScreen {
             return Default::default();
         }
 
-        let is_expanded = !self.settings.read().unwrap().zen_mode;
         self.show_any_modals(ctx, 0.0);
+
+        println!("sidebar_expanded: {}", self.sidebar_expanded);
 
         egui::SidePanel::left("sidebar_panel")
             .frame(egui::Frame::none().fill(ctx.style().visuals.extreme_bg_color))
             .min_width(300.0)
-            .show_animated(ctx, is_expanded, |ui| {
+            .show_animated(ctx, self.sidebar_expanded, |ui| {
                 if self.is_any_modal_open() {
                     ui.disable();
                 }
@@ -206,6 +210,39 @@ impl AccountScreen {
                     self.refresh_tree(ctx);
                 }
             });
+
+        // focus management
+        let sidebar_id = Id::from("sidebar_panel");
+        println!("sidebar: {:?}", sidebar_id);
+        println!("focused: {:?}", ctx.memory(|m| m.focused()));
+        ctx.check_for_id_clash(Id::new(sidebar_id), egui::Rect::ZERO, ""); // register the widget id
+        if ctx.input(|i| i.key_pressed(Key::F) && i.modifiers.command && i.modifiers.shift) {
+            if !self.sidebar_expanded {
+                self.sidebar_expanded = true;
+                ctx.memory_mut(|m| m.request_focus(sidebar_id));
+                println!("sidebar_expanded = {}", self.sidebar_expanded);
+                println!("focused = {:?}", ctx.memory(|m| m.focused()));
+            } else if ctx.memory(|m| m.has_focus(sidebar_id)) {
+                self.sidebar_expanded = false;
+                println!("sidebar_expanded = {}", self.sidebar_expanded);
+            } else {
+                ctx.memory_mut(|m| m.request_focus(sidebar_id));
+                println!("focused = {:?}", ctx.memory(|m| m.focused()));
+            }
+        }
+        if ctx.memory(|m| m.has_focus(sidebar_id)) {
+            ctx.memory_mut(|m| {
+                m.set_focus_lock_filter(
+                    sidebar_id,
+                    EventFilter {
+                        tab: true,
+                        horizontal_arrows: true,
+                        vertical_arrows: true,
+                        escape: true,
+                    },
+                )
+            })
+        }
 
         if self.is_new_user {
             self.modals.account_backup = Some(AccountBackup);
