@@ -1,6 +1,5 @@
 mod full_doc_search;
 mod modals;
-mod suggested_docs;
 mod syncing;
 mod tree;
 
@@ -31,7 +30,6 @@ use crate::util::data_dir;
 use self::full_doc_search::FullDocSearch;
 use self::modals::*;
 
-use self::suggested_docs::SuggestedDocs;
 use self::syncing::SyncPanel;
 use self::tree::FileTree;
 
@@ -45,7 +43,6 @@ pub struct AccountScreen {
 
     tree: FileTree,
     is_new_user: bool,
-    suggested: SuggestedDocs,
     full_search_doc: FullDocSearch,
     sync: SyncPanel,
     usage: Result<Usage, String>,
@@ -85,7 +82,6 @@ impl AccountScreen {
             update_rx,
             is_new_user,
             tree: FileTree::new(files),
-            suggested: SuggestedDocs::new(&core_clone),
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(sync_status),
             usage,
@@ -193,7 +189,7 @@ impl AccountScreen {
                             break;
                         }
                     }
-                    self.suggested.recalc_and_redraw(ctx, &self.core);
+                    self.tree.recalc_suggested_files(&self.core, ctx);
                     ctx.request_repaint();
                 }
 

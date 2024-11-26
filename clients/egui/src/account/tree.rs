@@ -43,7 +43,6 @@ pub struct FileTree {
 
 impl FileTree {
     pub fn new(files: Vec<File>) -> Self {
-        println!("new file tree");
         Self {
             selected: Default::default(),
             expanded: [files.root()].into_iter().collect(),
