@@ -198,7 +198,7 @@ impl AccountScreen {
                 }
 
                 if let Some(file) = wso.selected_file {
-                    // todo: scroll to file instead
+                    self.tree.cursor = Some(file);
                     self.tree.select(&[file]);
                 }
 
@@ -601,6 +601,7 @@ impl AccountScreen {
     }
 
     fn export_file(&mut self, f: File, dest: PathBuf) {
+        println!("export_file");
         let res = self.core.export_files(
             f.id,
             dest.clone(),

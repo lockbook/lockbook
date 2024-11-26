@@ -7,7 +7,7 @@ use std::{
     thread,
 };
 
-use egui::{Event, Key, Modifiers, Ui, WidgetText};
+use egui::{text_edit::TextEditState, Event, Key, Modifiers, TextEdit, Ui, WidgetText};
 use lb::{
     blocking::Lb,
     logic::filename::DocumentType,
@@ -15,6 +15,7 @@ use lb::{
     service::activity::RankingWeights,
     Uuid,
 };
+use rfd::FileDialog;
 use workspace_rs::{theme::icons::Icon, widgets::Button};
 
 #[derive(Debug)]
@@ -39,6 +40,13 @@ pub struct FileTree {
     /// Suggested files appear in a "folder" at the top of the tree.
     pub suggested_docs_folder_id: Uuid,
     pub suggested_docs: Arc<Mutex<HashSet<Uuid>>>,
+
+    /// Up to one file can be renamed at a time.
+    pub rename_target: Option<Uuid>,
+    pub rename_buffer: String,
+
+    /// File export targets are selected asynchronously using the system file dialog.
+    pub export: Arc<Mutex<Option<(File, PathBuf)>>>,
 }
 
 impl FileTree {
@@ -51,6 +59,9 @@ impl FileTree {
             cut: Default::default(),
             suggested_docs_folder_id: Uuid::new_v4(),
             suggested_docs: Default::default(),
+            rename_target: Default::default(),
+            rename_buffer: Default::default(),
+            export: Default::default(),
         }
     }
 
@@ -643,7 +654,7 @@ impl FileTree {
         let is_expanded = self.expanded.contains(&self.suggested_docs_folder_id);
         if Button::default()
             .icon(&Icon::SCHEDULE)
-            .text("Recent Documents") // perhaps this is a better name for now
+            .text("Recent Documents")
             .default_fill(ui.style().visuals.extreme_bg_color)
             .frame(true)
             .hexpand(true)
@@ -720,6 +731,7 @@ impl FileTree {
         let is_selected = self.selected.contains(&id);
         let is_cursored = self.cursor == Some(id);
         let is_cut = self.cut.contains(&id);
+        let is_renaming = self.rename_target == Some(id);
 
         let mut text = WidgetText::from(&file.name);
         let mut default_fill = ui.style().visuals.extreme_bg_color;
@@ -874,6 +886,17 @@ impl FileTree {
             ui.ctx().request_repaint();
         }
 
+        let mut context_menu_resp = Response::default();
+        button_resp.context_menu(|ui| {
+            context_menu_resp = self.context_menu(ui, id);
+        });
+        resp = resp.union(context_menu_resp);
+        let mut export = self.export.lock().unwrap();
+        if export.is_some() {
+            resp.export_file = export.clone();
+            *export = None;
+        }
+
         if is_cursored && scroll_to_cursor {
             ui.scroll_to_rect(button_resp.rect, None);
         }
@@ -894,6 +917,90 @@ impl FileTree {
         for child in children_ids {
             resp = resp.union(self.show_recursive(ui, child, depth, scroll_to_cursor));
         }
+        resp
+    }
+
+    fn context_menu(&mut self, ui: &mut egui::Ui, file: Uuid) -> Response {
+        let file = self.files.get_by_id(file).clone();
+        let mut resp = Response::default();
+
+        if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
+            ui.close_menu();
+        }
+
+        ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+
+        if ui.button("New Document").clicked() {
+            resp.new_file = Some(true);
+            ui.close_menu();
+        }
+
+        if ui.button("New Drawing").clicked() {
+            resp.new_drawing = Some(true);
+            ui.close_menu();
+        }
+
+        if ui.button("New Folder").clicked() {
+            resp.new_folder_modal = Some(self.files.get_by_id(file.id).clone());
+            ui.close_menu();
+        }
+
+        ui.separator();
+
+        if ui.button("Rename").clicked() {
+            self.rename_target = Some(file.id);
+
+            let name = &self.rename_buffer;
+            let end_pos = name.rfind('.').unwrap_or(name.len());
+
+            let mut rename_edit_state = TextEditState::default();
+            rename_edit_state
+                .cursor
+                .set_char_range(Some(egui::text::CCursorRange {
+                    primary: egui::text::CCursor::new(end_pos),
+                    secondary: egui::text::CCursor::new(0),
+                }));
+            TextEdit::store_state(ui.ctx(), egui::Id::new("rename_field"), rename_edit_state);
+
+            ui.close_menu();
+        }
+
+        if ui.button("Delete").clicked() {
+            self.files.retain(|f| f.id != file.id);
+            self.selected.retain(|&id| id != file.id);
+            self.expanded.retain(|&id| id != file.id);
+            if self.cursor == Some(file.id) {
+                self.cursor = None;
+            }
+
+            resp.delete_request = true;
+            ui.close_menu();
+        }
+
+        ui.separator();
+
+        if ui.button("Export").clicked() {
+            let file = file.clone();
+            let export = self.export.clone();
+            let ctx = ui.ctx().clone();
+
+            thread::spawn(move || {
+                if let Some(folder) = FileDialog::new().pick_folder() {
+                    let mut export = export.lock().unwrap();
+                    *export = Some((file, folder.clone()));
+                }
+                ctx.request_repaint();
+            });
+            ui.close_menu();
+        }
+
+        let share = ui.add(egui::Button::new(egui::RichText::new("Share")));
+
+        if share.clicked() {
+            resp.create_share_modal = Some(file);
+            ui.close_menu();
+        }
+
         resp
     }
 }
