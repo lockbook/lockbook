@@ -15,6 +15,7 @@ pub struct Button<'a> {
     stroke: egui::Stroke,
     frame: bool,
     hexpand: bool,
+    indent: f32,
     default_fill: Option<egui::Color32>,
 }
 const SPINNER_RADIUS: u32 = 6;
@@ -58,6 +59,14 @@ impl<'a> Button<'a> {
 
     pub fn frame(self, frame: bool) -> Self {
         Self { frame, ..self }
+    }
+
+    pub fn hexpand(self, hexpand: bool) -> Self {
+        Self { hexpand, ..self }
+    }
+
+    pub fn indent(self, indent: f32) -> Self {
+        Self { indent, ..self }
     }
 
     pub fn default_fill(self, default_fill: egui::Color32) -> Self {
@@ -120,8 +129,10 @@ impl<'a> Button<'a> {
                 blur_width: 0.,
             });
 
-            let mut text_pos =
-                egui::pos2(rect.min.x + padding.x, rect.center().y - 0.5 * text_height);
+            let mut text_pos = egui::pos2(
+                rect.min.x + padding.x + self.indent,
+                rect.center().y - 0.5 * text_height,
+            );
 
             if self.is_loading {
                 let spinner_pos = egui::pos2(
@@ -137,7 +148,7 @@ impl<'a> Button<'a> {
                 let icon_x_pos = match alignment {
                     egui::Align::LEFT => {
                         text_pos.x += icon_width + padding.x / 2.0;
-                        rect.min.x + padding.x
+                        rect.min.x + padding.x + self.indent
                     }
                     egui::Align::Center | egui::Align::RIGHT => rect.max.x - padding.x - icon_width,
                 };

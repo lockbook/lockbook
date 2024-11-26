@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, collections::HashSet, mem, path::PathBuf};
 
-use egui::{Event, Id, Key, Modifiers, Ui, WidgetText};
+use egui::{Color32, Event, Id, Key, Modifiers, Rounding, Stroke, Ui, WidgetText};
 use lb::{
     logic::filename::DocumentType,
     model::{file::File, file_metadata::FileType},
@@ -588,12 +588,14 @@ impl FileTree {
         }
 
         resp.union(
-            ui.vertical(|ui| self.show_recursive(ui, self.files.root(), any_keyboard_input))
+            ui.vertical(|ui| self.show_recursive(ui, self.files.root(), 0, any_keyboard_input))
                 .inner,
         )
     }
 
-    pub fn show_recursive(&mut self, ui: &mut Ui, id: Uuid, scroll_to_cursor: bool) -> Response {
+    pub fn show_recursive(
+        &mut self, ui: &mut Ui, id: Uuid, depth: usize, scroll_to_cursor: bool,
+    ) -> Response {
         let mut resp = Response::default();
 
         let file = self.files.get_by_id(id);
@@ -622,18 +624,24 @@ impl FileTree {
                     .text(text)
                     .default_fill(default_fill)
                     .frame(true)
+                    .hexpand(true)
+                    .indent(depth as f32 * 15.)
                     .show(ui),
                 DocumentType::Drawing => Button::default()
                     .icon(&Icon::DRAW)
                     .text(text)
                     .default_fill(default_fill)
                     .frame(true)
+                    .hexpand(true)
+                    .indent(depth as f32 * 15.)
                     .show(ui),
                 DocumentType::Other => Button::default()
                     .icon(&Icon::DOC_UNKNOWN)
                     .text(text)
                     .default_fill(default_fill)
                     .frame(true)
+                    .hexpand(true)
+                    .indent(depth as f32 * 15.)
                     .show(ui),
             };
 
@@ -652,13 +660,12 @@ impl FileTree {
                     .text(text)
                     .default_fill(default_fill)
                     .frame(true)
+                    .hexpand(true)
+                    .indent(depth as f32 * 15.)
                     .show(ui);
-                resp = resp.union(
-                    ui.indent(Id::new(id.to_string()), |ui| {
-                        self.show_children_recursive(ui, id, scroll_to_cursor)
-                    })
-                    .inner,
-                );
+                resp =
+                    resp.union(self.show_children_recursive(ui, id, depth + 1, scroll_to_cursor));
+
                 button_resp
             } else if is_shared {
                 Button::default()
@@ -666,6 +673,8 @@ impl FileTree {
                     .text(text)
                     .default_fill(default_fill)
                     .frame(true)
+                    .hexpand(true)
+                    .indent(depth as f32 * 15.)
                     .show(ui)
             } else {
                 Button::default()
@@ -673,6 +682,8 @@ impl FileTree {
                     .text(text)
                     .default_fill(default_fill)
                     .frame(true)
+                    .hexpand(true)
+                    .indent(depth as f32 * 15.)
                     .show(ui)
             };
 
@@ -753,7 +764,7 @@ impl FileTree {
     }
 
     pub fn show_children_recursive(
-        &mut self, ui: &mut Ui, id: Uuid, scroll_to_cursor: bool,
+        &mut self, ui: &mut Ui, id: Uuid, depth: usize, scroll_to_cursor: bool,
     ) -> Response {
         let children_ids = self
             .files
@@ -763,7 +774,7 @@ impl FileTree {
             .collect::<Vec<_>>();
         let mut resp = Response::default();
         for child in children_ids {
-            resp = resp.union(self.show_recursive(ui, child, scroll_to_cursor));
+            resp = resp.union(self.show_recursive(ui, child, depth, scroll_to_cursor));
         }
         resp
     }

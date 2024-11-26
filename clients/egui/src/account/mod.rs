@@ -11,6 +11,9 @@ use std::sync::{mpsc, Arc, RwLock};
 use std::time::Duration;
 use std::{path, process, thread};
 
+use egui::scroll_area::ScrollBarVisibility;
+use egui::style::ScrollStyle;
+use egui::{Frame, ScrollArea, Stroke, Vec2};
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
@@ -364,8 +367,23 @@ impl AccountScreen {
     }
 
     fn show_tree(&mut self, ui: &mut egui::Ui) {
-        let resp = egui::ScrollArea::both()
-            .show(ui, |ui| self.tree.show(ui))
+        // avoids flickering due to hover conflict with sidebar resize
+        ui.style_mut().spacing.scroll = ScrollStyle::solid();
+
+        let resp = ScrollArea::vertical()
+            .show(ui, |ui| {
+                ui.vertical_centered_justified(|ui| {
+                    Frame::canvas(ui.style())
+                        .inner_margin(0.)
+                        .stroke(Stroke::NONE)
+                        .show(ui, |ui| {
+                            ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
+                            self.tree.show(ui)
+                        })
+                })
+            })
+            .inner
+            .inner
             .inner;
 
         if resp.new_file.is_some() {
