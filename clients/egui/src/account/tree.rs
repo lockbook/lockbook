@@ -8,8 +8,8 @@ use std::{
 };
 
 use egui::{
-    text_edit::TextEditState, Color32, Event, Key, LayerId, Modifiers, Order, Pos2, TextEdit, Ui,
-    Vec2, WidgetText,
+    text_edit::TextEditState, Color32, Event, Id, Key, LayerId, Modifiers, Order, Pos2, TextEdit,
+    Ui, Vec2, WidgetText,
 };
 use lb::{
     blocking::Lb,
@@ -42,7 +42,7 @@ pub struct FileTree {
 
     /// Suggested files appear in a "folder" at the top of the tree.
     pub suggested_docs_folder_id: Uuid,
-    pub suggested_docs: Arc<Mutex<HashSet<Uuid>>>,
+    pub suggested_docs: Arc<Mutex<Vec<Uuid>>>,
 
     /// Up to one file can be renamed at a time.
     pub rename_target: Option<Uuid>,
@@ -72,8 +72,7 @@ impl FileTree {
         }
     }
 
-    /// Updates the files in the tree. The selection and expansion are preserved except that the selection is revealed
-    /// in the new tree.
+    /// Updates the files in the tree. The selection and expansion are preserved.
     pub fn update_files(&mut self, files: Vec<File>) {
         self.files = files;
         self.expanded.retain(|&id| {
@@ -82,7 +81,12 @@ impl FileTree {
         self.selected.retain(|&id| {
             self.files.iter().any(|f| f.id == id) || id == self.suggested_docs_folder_id
         });
-        self.reveal_selection();
+        if let Some(cursor) = self.cursor {
+            if !self.files.iter().any(|f| f.id == cursor) && cursor != self.suggested_docs_folder_id
+            {
+                self.cursor = None;
+            }
+        }
     }
 
     /// Asynchronously recalculates the suggested files; requests repaint when complete.
@@ -105,43 +109,6 @@ impl FileTree {
             }
             ctx.request_repaint();
         });
-    }
-
-    /// Adds `ids` to the selection and reveals them in the tree.
-    pub fn select(&mut self, ids: &[Uuid]) {
-        self.selected.extend(ids);
-        self.reveal_selection();
-    }
-
-    /// Adds `ids` to the selection and reveals them recursively to a maximum depth of `depth`. If `depth` is `None`,
-    /// selects all the way.
-    pub fn select_recursive(&mut self, ids: &[Uuid], depth: Option<usize>) {
-        self.selected.extend(ids.iter().copied());
-        if depth == Some(0) {
-            return;
-        }
-        for &id in ids {
-            let children = self
-                .files
-                .children(id)
-                .into_iter()
-                .cloned()
-                .collect::<Vec<_>>();
-            for child in children {
-                self.select_recursive(&[child.id], depth.map(|d| d - 1));
-            }
-        }
-        self.reveal_selection();
-    }
-
-    /// Removes `ids` from the selection. Does not expand or collapse anything.
-    pub fn deselect(&mut self, ids: &[Uuid]) {
-        self.selected.retain(|&id| !ids.contains(&id));
-    }
-
-    /// Clears the selection. Does not expand or collapse anything.
-    pub fn clear_selection(&mut self) {
-        self.selected.clear();
     }
 
     /// Expands `ids`. Does not select or deselect anything.
@@ -254,8 +221,11 @@ impl FileTree {
     fn reveal_selection(&mut self) {
         for mut id in self.selected.clone() {
             loop {
-                let parent = self.files.get_by_id(id).parent;
+                if id == self.suggested_docs_folder_id {
+                    break;
+                }
 
+                let parent = self.files.get_by_id(id).parent;
                 if parent == id {
                     break;
                 }
@@ -355,6 +325,48 @@ impl FileTree {
         }
     }
 
+    /// Returns the file after id in the order of suggested docs. Returns None if suggested docs are collapsed, if id
+    /// is not suggested, or if there is no next suggested doc.
+    pub fn next_suggested(&self, id: Uuid) -> Option<Uuid> {
+        let Ok(suggested_docs) = self.suggested_docs.lock() else {
+            return None;
+        };
+
+        if !self.expanded.contains(&self.suggested_docs_folder_id) {
+            None // folder collapsed -> none
+        } else if id == self.suggested_docs_folder_id {
+            suggested_docs.first().copied() // folder -> first item
+        } else {
+            let idx = suggested_docs.iter().position(|&doc_id| doc_id == id)?;
+            if idx + 1 < suggested_docs.len() {
+                Some(suggested_docs[idx + 1]) // child -> next sibling
+            } else {
+                None // last child -> none
+            }
+        }
+    }
+
+    /// Returns the file before id in the order of suggested docs. Returns None if suggested docs are collapsed, if id
+    /// is not suggested, or if there is no previous suggested doc.
+    pub fn prev_suggested(&self, id: Uuid) -> Option<Uuid> {
+        let Ok(suggested_docs) = self.suggested_docs.lock() else {
+            return None;
+        };
+
+        if id == self.suggested_docs_folder_id {
+            None // folder -> none
+        } else if !self.expanded.contains(&self.suggested_docs_folder_id) {
+            Some(self.suggested_docs_folder_id) // invisible item -> folder
+        } else {
+            let idx = suggested_docs.iter().position(|&doc_id| doc_id == id)?;
+            if idx > 0 {
+                Some(suggested_docs[idx - 1]) // child -> prev sibling
+            } else {
+                Some(self.suggested_docs_folder_id) // last child -> folder
+            }
+        }
+    }
+
     /// A file is visible if all its ancestors are expanded.
     pub fn is_visible(&self, id: Uuid) -> bool {
         let file = self.files.get_by_id(id);
@@ -375,7 +387,7 @@ pub struct Response {
     pub create_share_modal: Option<File>,
     pub move_requests: Vec<(Uuid, Uuid)>,
     pub rename_request: Option<(Uuid, String)>,
-    pub delete_request: bool,
+    pub delete_requests: HashSet<Uuid>,
     pub dropped_on: Option<Uuid>,
 }
 
@@ -390,7 +402,7 @@ impl Response {
         this.open_requests.extend(other.open_requests);
         this.move_requests.extend(other.move_requests);
         this.rename_request = this.rename_request.or(other.rename_request);
-        this.delete_request = this.delete_request || other.delete_request;
+        this.delete_requests.extend(other.delete_requests);
         this.dropped_on = this.dropped_on.or(other.dropped_on);
         this
     }
@@ -398,248 +410,370 @@ impl Response {
 
 impl FileTree {
     pub fn show(&mut self, ui: &mut Ui) -> Response {
-        // todo: focus, factoring
         let mut resp = Response::default();
-        let mut any_keyboard_input = false;
+        let mut scroll_to_cursor = false;
 
-        // shift + left arrow: incremental recursive collapse
-        if ui.input_mut(|i| i.consume_key(Modifiers::SHIFT, Key::ArrowLeft)) {
-            self.collapse_leaves(&Vec::from_iter(self.selected.iter().cloned()));
-        }
-        // left arrow: collapse selected or move selection to parent
-        else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowLeft)) {
-            any_keyboard_input = true;
-
-            // prefer to collapse all selected folders
-            let mut collapsed_any = false;
-            for id in self.selected.clone() {
-                if self.expanded.contains(&id) {
-                    self.collapse(&[id]);
-                    collapsed_any = true;
+        let full_doc_search_id = Id::from("full_doc_search");
+        let suggested_docs_id = Id::from("suggested_docs");
+        let file_tree_id = Id::from("file_tree");
+        if ui.memory(|m| m.has_focus(suggested_docs_id)) {
+            // left arrow: collapse folder or move to folder (or surrender focus)
+            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowLeft)) {
+                if self.cursor == Some(self.suggested_docs_folder_id) {
+                    if self.expanded.contains(&self.suggested_docs_folder_id) {
+                        self.expanded.remove(&self.suggested_docs_folder_id);
+                        self.selected.clear();
+                    } else {
+                        // focus to search
+                        ui.memory_mut(|m| m.request_focus(full_doc_search_id));
+                        self.selected.clear();
+                        self.cursor = None;
+                    }
+                } else if self.cursor.is_some() {
+                    self.cursor = Some(self.suggested_docs_folder_id);
+                    self.selected.clear();
                 }
             }
-            if let Some(cursor) = self.cursor {
-                if self.expanded.contains(&cursor) {
-                    self.collapse(&[cursor]);
-                    collapsed_any = true;
+
+            // right arrow: expand folder or move to first child (or surrender focus)
+            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowRight)) {
+                if self.cursor == Some(self.suggested_docs_folder_id) {
+                    if self.expanded.contains(&self.suggested_docs_folder_id) {
+                        self.cursor = self.suggested_docs.lock().unwrap().first().copied();
+                        self.selected.clear();
+                        if let Some(cursor) = self.cursor {
+                            self.selected.insert(cursor);
+                        }
+                    } else {
+                        self.expanded.insert(self.suggested_docs_folder_id);
+                    }
+                } else if let Some(cursor) = self.cursor {
+                    if let Some(next) = self.next_suggested(cursor) {
+                        self.cursor = Some(next);
+                        self.selected.clear();
+                        self.selected.insert(next);
+                    } else {
+                        // focus to tree
+                        ui.memory_mut(|m| m.request_focus(file_tree_id));
+                        self.cursor = Some(self.files.root());
+                        self.selected.clear();
+                        self.selected.insert(self.files.root());
+                    }
                 }
             }
 
-            // if all selected folders are already collapsed, move selection to parent
-            if !collapsed_any {
-                let mut new_selection = HashSet::new();
-                for &id in &self.selected {
-                    new_selection.insert(self.files.get_by_id(id).parent);
-                }
-                self.clear_selection();
-                self.select(&Vec::from_iter(new_selection));
+            // up arrow: move cursor up
+            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp)) {
                 if let Some(cursor) = self.cursor {
-                    self.cursor = Some(self.files.get_by_id(cursor).parent);
-                }
-            }
-        }
+                    if let Some(prev) = self.prev_suggested(cursor) {
+                        self.cursor = Some(prev);
 
-        // shift + right arrow: incremental recursive expand
-        if ui.input_mut(|i| i.consume_key(Modifiers::SHIFT, Key::ArrowRight)) {
-            self.expand_incremental(&Vec::from_iter(self.selected.clone()));
-        }
-        // right arrow: expand selected or move selection to first child
-        else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowRight)) {
-            any_keyboard_input = true;
-
-            // prefer to expand all selected folders
-            let mut expanded_any = false;
-            for id in self.selected.clone() {
-                if self.files.get_by_id(id).is_folder() && !self.expanded.contains(&id) {
-                    self.expand(&[id]);
-                    expanded_any = true;
-                }
-            }
-            if let Some(cursor) = self.cursor {
-                if self.files.get_by_id(cursor).is_folder() && !self.expanded.contains(&cursor) {
-                    self.expand(&[cursor]);
-                    expanded_any = true;
-                }
-            }
-
-            // if all selected folders are already expanded, move selection to first child
-            let mut new_selection = self.selected.clone();
-            let mut new_cursor = self.cursor;
-            let mut advanced_to_children = false;
-            if !expanded_any {
-                new_selection.clear();
-                for &id in &self.selected {
-                    let mut advanced_to_child = false;
-                    if let Some(next) = self.next(id, false) {
-                        if self.files.children(id).iter().any(|f| f.id == next) {
-                            new_selection.insert(next);
-                            advanced_to_child = true;
-                            advanced_to_children = true;
+                        if !ui.input(|i| i.raw.modifiers.shift) {
+                            self.selected.clear();
                         }
-                    }
-                    if !advanced_to_child {
-                        new_selection.insert(id); // no children -> leave alone
+                        self.selected.insert(prev);
+                    } else {
+                        // focus to search
+                        ui.memory_mut(|m| m.request_focus(full_doc_search_id));
+                        self.selected.clear();
+                        self.cursor = None;
                     }
                 }
+            }
+
+            // down arrow: move cursor down
+            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown)) {
                 if let Some(cursor) = self.cursor {
-                    if let Some(next) = self.next(cursor, false) {
-                        if self.files.children(cursor).iter().any(|f| f.id == next) {
-                            new_cursor = Some(next);
-                            advanced_to_children = true;
+                    if let Some(next) = self.next_suggested(cursor) {
+                        self.cursor = Some(next);
+
+                        if !ui.input(|i| i.raw.modifiers.shift) {
+                            self.selected.clear();
                         }
+                        self.selected.insert(next);
+                    } else {
+                        // focus to tree
+                        ui.memory_mut(|m| m.request_focus(file_tree_id));
+                        self.cursor = Some(self.files.root());
+                        self.selected.clear();
                     }
                 }
             }
+        } else if ui.memory(|m| m.has_focus(file_tree_id)) {
+            // shift + left arrow: incremental recursive collapse
+            if ui.input_mut(|i| i.consume_key(Modifiers::SHIFT, Key::ArrowLeft)) {
+                self.collapse_leaves(&Vec::from_iter(self.selected.iter().cloned()));
+            }
+            // left arrow: collapse selected or move selection to parent
+            else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowLeft)) {
+                scroll_to_cursor = true;
 
-            // if no children, move selection to next sibling within respective parents
-            let mut advanced_to_siblings = false;
-            if !advanced_to_children {
-                new_selection.clear();
-                for &id in &self.selected {
-                    let file = self.files.get_by_id(id);
-                    let mut advanced_to_sibling = false;
-                    if let Some(next) = self.next(id, false) {
-                        if self
-                            .files
-                            .children(file.parent)
-                            .iter()
-                            .any(|f| f.id == next)
-                        {
-                            new_selection.insert(next);
-                            advanced_to_sibling = true;
-                            advanced_to_siblings = true;
-                        }
-                    }
-                    if !advanced_to_sibling {
-                        new_selection.insert(id); // no further siblings -> leave alone
+                // prefer to collapse all selected folders
+                let mut collapsed_any = false;
+                for id in self.selected.clone() {
+                    if self.expanded.contains(&id) {
+                        self.collapse(&[id]);
+                        collapsed_any = true;
                     }
                 }
                 if let Some(cursor) = self.cursor {
-                    let file = self.files.get_by_id(cursor);
-                    if let Some(next) = self.next(cursor, false) {
-                        if self
-                            .files
-                            .children(file.parent)
-                            .iter()
-                            .any(|f| f.id == next)
-                        {
-                            new_cursor = Some(next);
-                            advanced_to_siblings = true;
-                        }
+                    if self.expanded.contains(&cursor) {
+                        self.collapse(&[cursor]);
+                        collapsed_any = true;
                     }
+                }
+
+                // if all selected folders are already collapsed, move selection to parent
+                let mut selected_any_parents = false;
+                if !collapsed_any {
+                    let mut new_selection = HashSet::new();
+                    for &id in &self.selected {
+                        let parent = self.files.get_by_id(id).parent;
+                        if id != parent {
+                            selected_any_parents = true;
+                        }
+                        new_selection.insert(self.files.get_by_id(id).parent);
+                    }
+                    self.selected = new_selection;
+                    if let Some(cursor) = self.cursor {
+                        let parent = self.files.get_by_id(cursor).parent;
+                        if cursor != parent {
+                            selected_any_parents = true;
+                        }
+                        self.cursor = Some(self.files.get_by_id(cursor).parent);
+                    }
+                }
+
+                if !collapsed_any && !selected_any_parents {
+                    // focus to suggested
+                    ui.memory_mut(|m| m.request_focus(suggested_docs_id));
+                    self.selected.clear();
+                    self.cut.clear();
+                    self.cursor = if self.expanded.contains(&self.suggested_docs_folder_id) {
+                        self.suggested_docs.lock().unwrap().last().copied()
+                    } else {
+                        Some(self.suggested_docs_folder_id)
+                    };
                 }
             }
 
-            // finally, if none of the above, advance to sibling of containing folder
-            if !advanced_to_children && !advanced_to_siblings {
-                new_selection.clear();
-                for &id in &self.selected {
-                    let file = self.files.get_by_id(id);
-                    let parent = self.files.get_by_id(file.parent);
-                    let mut advanced_to_parent_sibling = false;
-                    if let Some(next) = self.next(id, false) {
-                        if self
-                            .files
-                            .children(parent.parent)
-                            .iter()
-                            .any(|f| f.id == next)
-                        {
-                            new_selection.insert(next);
-                            advanced_to_parent_sibling = true;
-                        }
-                    }
-                    if !advanced_to_parent_sibling {
-                        new_selection.insert(id); // no further siblings -> leave alone
+            // shift + right arrow: incremental recursive expand
+            if ui.input_mut(|i| i.consume_key(Modifiers::SHIFT, Key::ArrowRight)) {
+                self.expand_incremental(&Vec::from_iter(self.selected.clone()));
+            }
+            // right arrow: expand selected or move selection to first child
+            else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowRight)) {
+                scroll_to_cursor = true;
+
+                // prefer to expand all selected folders
+                let mut expanded_any = false;
+                for id in self.selected.clone() {
+                    if self.files.get_by_id(id).is_folder() && !self.expanded.contains(&id) {
+                        self.expand(&[id]);
+                        expanded_any = true;
                     }
                 }
                 if let Some(cursor) = self.cursor {
-                    let file = self.files.get_by_id(cursor);
-                    let parent = self.files.get_by_id(file.parent);
-                    if let Some(next) = self.next(cursor, false) {
-                        if self
-                            .files
-                            .children(parent.parent)
-                            .iter()
-                            .any(|f| f.id == next)
-                        {
-                            new_cursor = Some(next);
+                    if self.files.get_by_id(cursor).is_folder() && !self.expanded.contains(&cursor)
+                    {
+                        self.expand(&[cursor]);
+                        expanded_any = true;
+                    }
+                }
+
+                // if all selected folders are already expanded, move selection to first child
+                let mut new_selection = self.selected.clone();
+                let mut new_cursor = self.cursor;
+                let mut advanced_to_children = false;
+                if !expanded_any {
+                    new_selection.clear();
+                    for &id in &self.selected {
+                        let mut advanced_to_child = false;
+                        if let Some(next) = self.next(id, false) {
+                            if self.files.children(id).iter().any(|f| f.id == next) {
+                                new_selection.insert(next);
+                                advanced_to_child = true;
+                                advanced_to_children = true;
+                            }
+                        }
+                        if !advanced_to_child {
+                            new_selection.insert(id); // no children -> leave alone
+                        }
+                    }
+                    if let Some(cursor) = self.cursor {
+                        if let Some(next) = self.next(cursor, false) {
+                            if self.files.children(cursor).iter().any(|f| f.id == next) {
+                                new_cursor = Some(next);
+                                advanced_to_children = true;
+                            }
                         }
                     }
                 }
+
+                // if no children, move selection to next sibling within respective parents
+                let mut advanced_to_siblings = false;
+                if !advanced_to_children {
+                    new_selection.clear();
+                    for &id in &self.selected {
+                        let file = self.files.get_by_id(id);
+                        let mut advanced_to_sibling = false;
+                        if let Some(next) = self.next(id, false) {
+                            if self
+                                .files
+                                .children(file.parent)
+                                .iter()
+                                .any(|f| f.id == next)
+                            {
+                                new_selection.insert(next);
+                                advanced_to_sibling = true;
+                                advanced_to_siblings = true;
+                            }
+                        }
+                        if !advanced_to_sibling {
+                            new_selection.insert(id); // no further siblings -> leave alone
+                        }
+                    }
+                    if let Some(cursor) = self.cursor {
+                        let file = self.files.get_by_id(cursor);
+                        if let Some(next) = self.next(cursor, false) {
+                            if self
+                                .files
+                                .children(file.parent)
+                                .iter()
+                                .any(|f| f.id == next)
+                            {
+                                new_cursor = Some(next);
+                                advanced_to_siblings = true;
+                            }
+                        }
+                    }
+                }
+
+                // finally, if none of the above, advance to sibling of containing folder
+                if !advanced_to_children && !advanced_to_siblings {
+                    new_selection.clear();
+                    for &id in &self.selected {
+                        let file = self.files.get_by_id(id);
+                        let parent = self.files.get_by_id(file.parent);
+                        let mut advanced_to_parent_sibling = false;
+                        if let Some(next) = self.next(id, false) {
+                            if self
+                                .files
+                                .children(parent.parent)
+                                .iter()
+                                .any(|f| f.id == next)
+                            {
+                                new_selection.insert(next);
+                                advanced_to_parent_sibling = true;
+                            }
+                        }
+                        if !advanced_to_parent_sibling {
+                            new_selection.insert(id); // no further siblings -> leave alone
+                        }
+                    }
+                    if let Some(cursor) = self.cursor {
+                        let file = self.files.get_by_id(cursor);
+                        let parent = self.files.get_by_id(file.parent);
+                        if let Some(next) = self.next(cursor, false) {
+                            if self
+                                .files
+                                .children(parent.parent)
+                                .iter()
+                                .any(|f| f.id == next)
+                            {
+                                new_cursor = Some(next);
+                            }
+                        }
+                    }
+                }
+
+                self.selected = new_selection;
+                self.reveal_selection();
+                self.cursor = new_cursor;
             }
 
-            self.clear_selection();
-            self.select(&Vec::from_iter(new_selection));
-            self.cursor = new_cursor;
-        }
+            // up arrow: move selection to previous visible node (or surrender focus)
+            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp)) {
+                scroll_to_cursor = true;
 
-        // up arrow: move selection to previous visible node
-        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp)) {
-            any_keyboard_input = true;
+                if let Some(cursor) = self.cursor {
+                    if let Some(prev) = self.prev(cursor, true) {
+                        self.cursor = Some(prev);
 
-            if let Some(cursor) = self.cursor {
-                if let Some(prev) = self.prev(cursor, true) {
-                    self.cursor = Some(prev);
-
-                    if !ui.input(|i| i.raw.modifiers.shift) {
-                        self.clear_selection();
+                        if !ui.input(|i| i.raw.modifiers.shift) {
+                            self.selected.clear();
+                        }
+                        self.selected.insert(prev);
+                    } else {
+                        // focus to suggested
+                        ui.memory_mut(|m| m.request_focus(suggested_docs_id));
+                        self.selected.clear();
+                        self.cut.clear();
+                        self.cursor = if self.expanded.contains(&self.suggested_docs_folder_id) {
+                            self.suggested_docs.lock().unwrap().last().copied()
+                        } else {
+                            Some(self.suggested_docs_folder_id)
+                        };
                     }
-                    self.select(&[prev]);
+                }
+            }
+
+            // down arrow: move selection to next visible node (or surrender focus)
+            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown)) {
+                scroll_to_cursor = true;
+
+                if let Some(cursor) = self.cursor {
+                    if let Some(next) = self.next(cursor, true) {
+                        self.cursor = Some(next);
+
+                        if !ui.input(|i| i.raw.modifiers.shift) {
+                            self.selected.clear();
+                        }
+                        self.selected.insert(next);
+                    }
+                }
+            }
+
+            // cmd + x: cut selected files
+            if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::X))
+                || ui.input(|i| i.events.contains(&Event::Cut))
+            {
+                self.cut = self.selected.clone();
+                if let Some(cursor) = self.cursor {
+                    self.cut.insert(cursor);
+                }
+            }
+
+            // cmd + v: paste clipped files into cursor location
+            if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::V))
+                || ui.input(|i| i.events.iter().any(|e| matches!(e, &Event::Paste(_))))
+            {
+                if let Some(cursor) = self.cursor {
+                    let cursor_file = self.files.get_by_id(cursor);
+                    let dest = if cursor_file.is_folder() { cursor } else { cursor_file.parent };
+                    for id in mem::take(&mut self.cut) {
+                        resp.move_requests.push((id, dest));
+                    }
                 }
             }
         }
 
-        // down arrow: move selection to next visible node
-        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown)) {
-            any_keyboard_input = true;
-
-            if let Some(cursor) = self.cursor {
-                if let Some(next) = self.next(cursor, true) {
-                    self.cursor = Some(next);
-
-                    if !ui.input(|i| i.raw.modifiers.shift) {
-                        self.clear_selection();
-                    }
-                    self.select(&[next]);
-                }
-            }
-        }
-
-        // cmd + x: cut selected files
-        if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::X))
-            || ui.input(|i| i.events.contains(&Event::Cut))
+        if ui
+            .memory(|m| m.has_focus(Id::new("suggested_docs")) || m.has_focus(Id::new("file_tree")))
         {
-            self.cut = self.selected.clone();
-            if let Some(cursor) = self.cursor {
-                self.cut.insert(cursor);
-            }
-        }
-
-        // cmd + v: paste clipped files into cursor location
-        if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::V))
-            || ui.input(|i| i.events.iter().any(|e| matches!(e, &Event::Paste(_))))
-        {
-            if let Some(cursor) = self.cursor {
-                let cursor_file = self.files.get_by_id(cursor);
-                let dest = if cursor_file.is_folder() { cursor } else { cursor_file.parent };
-                for id in mem::take(&mut self.cut) {
-                    resp.move_requests.push((id, dest));
-                }
-            }
-        }
-
-        // enter: open selected files
-        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
-            // inefficient but works
-            let mut id = self.files.root();
-            loop {
-                if self.selected.contains(&id) && self.files.get_by_id(id).is_document() {
-                    resp.open_requests.insert(id);
-                }
-                if let Some(next_id) = self.next(id, false) {
-                    id = next_id;
-                } else {
-                    break;
+            // enter: open selected files
+            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
+                // inefficient but works
+                let mut id = self.files.root();
+                loop {
+                    if self.selected.contains(&id) && self.files.get_by_id(id).is_document() {
+                        resp.open_requests.insert(id);
+                    }
+                    if let Some(next_id) = self.next(id, false) {
+                        id = next_id;
+                    } else {
+                        break;
+                    }
                 }
             }
         }
@@ -649,7 +783,7 @@ impl FileTree {
             .union(ui.vertical(|ui| self.show_suggested(ui)).inner)
             // show file tree
             .union(
-                ui.vertical(|ui| self.show_recursive(ui, self.files.root(), 0, any_keyboard_input))
+                ui.vertical(|ui| self.show_recursive(ui, self.files.root(), 0, scroll_to_cursor))
                     .inner,
             )
     }
@@ -657,17 +791,38 @@ impl FileTree {
     pub fn show_suggested(&mut self, ui: &mut Ui) -> Response {
         let mut resp = Response::default();
 
+        let suggested_docs_id = Id::new("suggested_docs");
+        let focused = ui.memory(|m| m.has_focus(suggested_docs_id));
+        let suggested_docs = {
+            let Ok(suggested_docs) = self.suggested_docs.lock() else {
+                return resp;
+            };
+            suggested_docs.clone()
+        };
+
         // suggested "folder"
         let is_expanded = self.expanded.contains(&self.suggested_docs_folder_id);
+        let is_cursored = self.cursor == Some(self.suggested_docs_folder_id);
+        let mut default_fill = ui.style().visuals.extreme_bg_color;
+
+        if focused && is_cursored {
+            default_fill = ui.style().visuals.selection.bg_fill;
+        }
+
         if Button::default()
             .icon(&Icon::SCHEDULE)
             .text("Recent Documents")
-            .default_fill(ui.style().visuals.extreme_bg_color)
+            .default_fill(default_fill)
             .frame(true)
             .hexpand(true)
             .show(ui)
             .clicked()
         {
+            ui.memory_mut(|m| m.request_focus(suggested_docs_id));
+            self.selected.clear();
+            self.cut.clear();
+            self.cursor = Some(self.suggested_docs_folder_id);
+
             if is_expanded {
                 self.expanded.remove(&self.suggested_docs_folder_id);
             } else {
@@ -677,17 +832,17 @@ impl FileTree {
 
         // suggested docs
         if is_expanded {
-            for &id in self.suggested_docs.lock().unwrap().iter() {
+            for &id in &suggested_docs {
                 let file = self.files.get_by_id(id);
                 let is_selected = self.selected.contains(&id);
                 let is_cursored = self.cursor == Some(id);
 
                 let mut text = WidgetText::from(&file.name);
                 let mut default_fill = ui.style().visuals.extreme_bg_color;
-                if is_selected {
+                if is_selected && focused && !is_cursored {
                     text = text.color(ui.style().visuals.widgets.active.bg_fill);
                 }
-                if is_cursored {
+                if is_cursored && focused {
                     default_fill = ui.style().visuals.selection.bg_fill
                 }
 
@@ -721,6 +876,11 @@ impl FileTree {
                 };
 
                 if file_resp.clicked() {
+                    ui.memory_mut(|m| m.request_focus(suggested_docs_id));
+                    self.selected.clear();
+                    self.cut.clear();
+                    self.cursor = Some(self.suggested_docs_folder_id);
+
                     resp.open_requests.insert(id);
                 }
             }
@@ -741,12 +901,15 @@ impl FileTree {
         let is_renaming = self.rename_target == Some(id);
         let indent = depth as f32 * 15.;
 
+        let file_tree_id = Id::new("file_tree");
+        let focused = ui.memory(|m| m.has_focus(file_tree_id));
+
         let mut text = WidgetText::from(&file.name);
         let mut default_fill = ui.style().visuals.extreme_bg_color;
-        if is_selected {
+        if is_selected && focused && !is_cursored {
             text = text.color(ui.style().visuals.widgets.active.bg_fill);
         }
-        if is_cursored {
+        if is_cursored && focused {
             default_fill = ui.style().visuals.selection.bg_fill;
         }
         if is_cut {
@@ -875,7 +1038,7 @@ impl FileTree {
                             }
                         }
                     }
-                    self.select(&selection);
+                    self.selected.extend(selection);
                 }
             }
 
@@ -883,13 +1046,16 @@ impl FileTree {
             if !shift_clicked && ui.input(|i| i.raw.modifiers.command) {
                 cmd_clicked = true;
 
-                self.select(&[id]);
+                self.selected.insert(id);
             }
 
             if !shift_clicked && !cmd_clicked {
-                self.clear_selection();
-                self.select(&[id]);
+                self.selected.clear();
+                self.selected.insert(id);
             }
+
+            self.cut.clear();
+            ui.memory_mut(|m| m.request_focus(file_tree_id));
             self.cursor = Some(id);
             ui.ctx().request_repaint();
         }
@@ -916,8 +1082,8 @@ impl FileTree {
             // dragging a selected file moves all selected files
             // dragging an unselected file moves only that file (and clears the selection)
             if !self.selected.contains(&id) {
-                self.clear_selection();
-                self.select(&[id]);
+                self.selected.clear();
+                self.selected.insert(id);
             }
         }
         let file = self.files.get_by_id(id);
@@ -943,10 +1109,7 @@ impl FileTree {
                 if file.is_folder() {
                     // folders are indicated by a rectangle around the file
                     ui.with_layer_id(
-                        LayerId::new(
-                            Order::PanelResizeLine,
-                            egui::Id::from("file_tree_drop_indicator"),
-                        ),
+                        LayerId::new(Order::PanelResizeLine, Id::from("file_tree_drop_indicator")),
                         |ui| {
                             ui.painter()
                                 .rect(file_resp.rect, 2., Color32::TRANSPARENT, stroke);
@@ -963,10 +1126,7 @@ impl FileTree {
                     x_range.min += indent;
 
                     ui.with_layer_id(
-                        LayerId::new(
-                            Order::PanelResizeLine,
-                            egui::Id::from("file_tree_drop_indicator"),
-                        ),
+                        LayerId::new(Order::PanelResizeLine, Id::from("file_tree_drop_indicator")),
                         |ui| {
                             ui.painter().hline(x_range, y, stroke);
                             ui.painter().circle_filled(
@@ -1055,20 +1215,17 @@ impl FileTree {
                     primary: egui::text::CCursor::new(end_pos),
                     secondary: egui::text::CCursor::new(0),
                 }));
-            TextEdit::store_state(ui.ctx(), egui::Id::new("rename_field"), rename_edit_state);
+            TextEdit::store_state(ui.ctx(), Id::new("rename_field"), rename_edit_state);
 
             ui.close_menu();
         }
 
         if ui.button("Delete").clicked() {
-            self.files.retain(|f| f.id != file.id);
-            self.selected.retain(|&id| id != file.id);
-            self.expanded.retain(|&id| id != file.id);
-            if self.cursor == Some(file.id) {
-                self.cursor = None;
+            if self.selected.contains(&file.id) {
+                resp.delete_requests.extend(&self.selected);
+            } else {
+                resp.delete_requests.insert(file.id);
             }
-
-            resp.delete_request = true;
             ui.close_menu();
         }
 
@@ -1181,22 +1338,26 @@ mod test {
         assert_eq!(tree.selected, vec![].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
 
-        tree.select(&[ids[1]]);
+        tree.selected.insert(ids[1]);
+        tree.reveal_selection();
 
         assert_eq!(tree.selected, vec![ids[1]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
 
-        tree.select_recursive(&[ids[1]], None);
+        tree.selected.insert(ids[1]);
+        tree.selected.insert(ids[2]);
+        tree.selected.insert(ids[3]);
+        tree.reveal_selection();
 
         assert_eq!(tree.selected, vec![ids[1], ids[2], ids[3]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0], ids[1]].into_iter().collect());
 
-        tree.deselect(&[ids[1]]);
+        tree.selected.remove(&ids[1]);
 
         assert_eq!(tree.selected, vec![ids[2], ids[3]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0], ids[1]].into_iter().collect());
 
-        tree.clear_selection();
+        tree.selected.clear();
 
         assert_eq!(tree.selected, vec![].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0], ids[1]].into_iter().collect());
@@ -1227,7 +1388,8 @@ mod test {
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
 
         tree.collapse(&[ids[0]]);
-        tree.select(&[ids[0]]);
+        tree.selected.insert(ids[0]);
+        tree.reveal_selection();
 
         assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
         assert_eq!(tree.expanded, vec![].into_iter().collect());
@@ -1238,8 +1400,10 @@ mod test {
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
 
         tree.expand_recursive(&[ids[0]], None);
-        tree.clear_selection();
-        tree.select(&[ids[2], ids[3]]);
+        tree.selected.clear();
+        tree.selected.insert(ids[2]);
+        tree.selected.insert(ids[3]);
+        tree.reveal_selection();
 
         assert_eq!(tree.selected, vec![ids[2], ids[3]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0], ids[1]].into_iter().collect());
@@ -1288,7 +1452,9 @@ mod test {
         assert_eq!(tree.selected, vec![].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
 
-        tree.select(&[ids[3], ids[7]]);
+        tree.selected.insert(ids[3]);
+        tree.selected.insert(ids[7]);
+        tree.reveal_selection();
 
         assert_eq!(tree.selected, vec![ids[3], ids[7]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0], ids[2], ids[4], ids[6]].into_iter().collect());

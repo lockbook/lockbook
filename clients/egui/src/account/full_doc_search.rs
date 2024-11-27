@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::{mem, thread};
 
+use egui::{Id, Key, Modifiers};
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::service::search::{ContentMatch, SearchConfig, SearchResult};
@@ -19,93 +20,116 @@ pub struct FullDocSearch {
     pub results: Arc<Mutex<Vec<SearchResult>>>,
 }
 
+#[derive(Default)]
+pub struct Response {
+    /// The user selected this file in search results. Open the file.
+    pub file_to_open: Option<Uuid>,
+
+    /// The user down-arrowed the focus out of the search widget. Advance the focus to the widget below.
+    pub advance_focus: bool,
+}
+
 impl FullDocSearch {
     const X_MARGIN: f32 = 15.0;
 
-    pub fn show(&mut self, ui: &mut egui::Ui, core: &Lb) -> Option<Uuid> {
-        ui.vertical_centered(|ui| {
-            // draw the UI, get the query, possibly clear the query & search results
-            let Ok(mut query) = self.query.lock() else { return None };
+    pub fn show(&mut self, ui: &mut egui::Ui, core: &Lb) -> Response {
+        let mut resp = Response::default();
+        let results_resp = ui
+            .vertical_centered(|ui| {
+                // draw the UI, get the query, possibly clear the query & search results
+                let Ok(mut query) = self.query.lock() else { return None };
 
-            let output = egui::TextEdit::singleline(query.deref_mut())
-                .desired_width(ui.available_size_before_wrap().x - 5.0)
-                .hint_text("Search")
-                .margin(egui::vec2(Self::X_MARGIN, 9.0))
-                .show(ui);
+                let id = Id::new("full_doc_search");
+                if ui.memory(|m| m.has_focus(id))
+                    && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown))
+                    && query.is_empty()
+                {
+                    resp.advance_focus = true;
+                }
 
-            let search_icon_width = 15.0; // approximation
-            let is_text_clipped =
-                output.galley.rect.width() + Self::X_MARGIN * 2.0 + search_icon_width
-                    > output.response.rect.width();
+                let output = egui::TextEdit::singleline(query.deref_mut())
+                    .id(id)
+                    .desired_width(ui.available_size_before_wrap().x - 5.0)
+                    .hint_text("Search")
+                    .margin(egui::vec2(Self::X_MARGIN, 9.0))
+                    .show(ui);
 
-            if !is_text_clipped {
-                ui.allocate_ui_at_rect(output.response.rect, |ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.add_space(10.0);
+                let search_icon_width = 15.0; // approximation
+                let is_text_clipped =
+                    output.galley.rect.width() + Self::X_MARGIN * 2.0 + search_icon_width
+                        > output.response.rect.width();
 
-                        if query.is_empty() {
-                            Icon::SEARCH.color(egui::Color32::GRAY).show(ui);
-                        } else {
-                            ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
-                            if Button::default().icon(&Icon::CLOSE).show(ui).clicked() {
-                                if let Ok(mut results) = self.results.lock() {
-                                    // note: at this point both locks held simultaneously with order query -> results
-                                    query.clear();
-                                    results.clear();
+                if !is_text_clipped {
+                    ui.allocate_ui_at_rect(output.response.rect, |ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.add_space(10.0);
+
+                            if query.is_empty() {
+                                Icon::SEARCH.color(egui::Color32::GRAY).show(ui);
+                            } else {
+                                ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+                                if Button::default().icon(&Icon::CLOSE).show(ui).clicked() {
+                                    if let Ok(mut results) = self.results.lock() {
+                                        // note: at this point both locks held simultaneously with order query -> results
+                                        query.clear();
+                                        results.clear();
+                                    }
                                 }
                             }
-                        }
+                        });
                     });
-                });
-            };
+                };
 
-            mem::drop(query);
+                mem::drop(query);
 
-            let query_empty = self.query.lock().map(|q| q.is_empty()).unwrap_or_default();
-            if !query_empty {
-                // show spinner while searching
-                if self.is_searching.load(Ordering::Relaxed) {
-                    ui.add_space(20.0);
-                    ui.spinner();
+                let query_empty = self.query.lock().map(|q| q.is_empty()).unwrap_or_default();
+                if !query_empty {
+                    // show spinner while searching
+                    if self.is_searching.load(Ordering::Relaxed) {
+                        ui.add_space(20.0);
+                        ui.spinner();
+                    }
+
+                    // launch search if query changed
+                    if output.response.changed() {
+                        let core = core.clone();
+                        let is_searching = self.is_searching.clone();
+                        let query = self.query.clone();
+                        let results = self.results.clone();
+                        let ctx = ui.ctx().clone();
+                        thread::spawn(move || {
+                            // get the query
+                            let this_query = query.lock().unwrap().clone();
+
+                            // run the search (no locks held)
+                            is_searching.store(true, Ordering::Relaxed);
+                            let these_results = core
+                                .search(&this_query, SearchConfig::PathsAndDocuments)
+                                .unwrap_or_default();
+
+                            // update the results only if they are for the current query
+                            // note: locks acquired in same order as above to prevent deadlock
+                            let query = query.lock().unwrap();
+                            let mut results = results.lock().unwrap();
+
+                            if query.deref() == &this_query {
+                                is_searching.store(false, Ordering::Relaxed);
+                                *results = these_results;
+                                ctx.request_repaint();
+                            }
+                        });
+                    }
+                    egui::ScrollArea::vertical()
+                        .show(ui, |ui| self.show_results(ui, core))
+                        .inner
+                } else {
+                    None
                 }
+            })
+            .inner;
 
-                // launch search if query changed
-                if output.response.changed() {
-                    let core = core.clone();
-                    let is_searching = self.is_searching.clone();
-                    let query = self.query.clone();
-                    let results = self.results.clone();
-                    let ctx = ui.ctx().clone();
-                    thread::spawn(move || {
-                        // get the query
-                        let this_query = query.lock().unwrap().clone();
-
-                        // run the search (no locks held)
-                        is_searching.store(true, Ordering::Relaxed);
-                        let these_results = core
-                            .search(&this_query, SearchConfig::PathsAndDocuments)
-                            .unwrap_or_default();
-
-                        // update the results only if they are for the current query
-                        // note: locks acquired in same order as above to prevent deadlock
-                        let query = query.lock().unwrap();
-                        let mut results = results.lock().unwrap();
-
-                        if query.deref() == &this_query {
-                            is_searching.store(false, Ordering::Relaxed);
-                            *results = these_results;
-                            ctx.request_repaint();
-                        }
-                    });
-                }
-                egui::ScrollArea::vertical()
-                    .show(ui, |ui| self.show_results(ui, core))
-                    .inner
-            } else {
-                None
-            }
-        })
-        .inner
+        resp.file_to_open = results_resp;
+        resp
     }
 
     pub fn show_results(&mut self, ui: &mut egui::Ui, core: &Lb) -> Option<Uuid> {

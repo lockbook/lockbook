@@ -126,6 +126,37 @@ impl AccountScreen {
 
         self.show_any_modals(ctx, 0.0);
 
+        // focus management
+        let full_doc_search_id = Id::from("full_doc_search");
+        let suggested_docs_id = Id::from("suggested_docs");
+        if ctx.input(|i| i.key_pressed(Key::F) && i.modifiers.command && i.modifiers.shift) {
+            if !self.sidebar_expanded {
+                self.sidebar_expanded = true;
+                ctx.memory_mut(|m| m.request_focus(full_doc_search_id));
+            } else if ctx.memory(|m| m.has_focus(full_doc_search_id)) {
+                self.sidebar_expanded = false;
+                ctx.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
+            } else {
+                ctx.memory_mut(|m| m.request_focus(full_doc_search_id));
+            }
+        }
+        // whatever is focused, lock focus on it
+        // while the sidebar is expanding, it isn't rendered, so its contents lose focus
+        if let Some(focused) = ctx.memory(|m| m.focused()) {
+            // "register" the widget id - this keeps the id and its focus from being garbage collected
+            // in debug builds, this will render some errors if the id is also used elsewhere
+            ctx.check_for_id_clash(focused, egui::Rect::ZERO, "");
+
+            // focus lock filter happens to be the same for all widgets we're managing here
+            let event_filter = EventFilter {
+                tab: true, // we don't need to capture tab input but tab focus navigation is unimplemented
+                horizontal_arrows: true, // horizontal arrows move cursor in search and navigate file tree
+                vertical_arrows: true, // vertical arrows navigate file tree and only change focus at widget discretion
+                escape: false, // escape releases focus which is generally grabbed by the editor
+            };
+            ctx.memory_mut(|m| m.set_focus_lock_filter(focused, event_filter))
+        }
+
         egui::SidePanel::left("sidebar_panel")
             .frame(egui::Frame::none().fill(ctx.style().visuals.extreme_bg_color))
             .min_width(300.0)
@@ -148,9 +179,15 @@ impl AccountScreen {
                         });
 
                     ui.vertical(|ui| {
-                        if let Some(file) = self.full_search_doc.show(ui, &self.core) {
+                        let full_doc_search_resp = self.full_search_doc.show(ui, &self.core);
+                        if let Some(file) = full_doc_search_resp.file_to_open {
                             self.workspace.open_file(file, false, true);
                         }
+                        if full_doc_search_resp.advance_focus {
+                            ctx.memory_mut(|m| m.request_focus(suggested_docs_id));
+                            self.tree.cursor = Some(self.tree.suggested_docs_folder_id);
+                        }
+
                         let full_doc_search_term_empty = self
                             .full_search_doc
                             .query
@@ -201,46 +238,13 @@ impl AccountScreen {
 
                 if let Some(file) = wso.selected_file {
                     self.tree.cursor = Some(file);
-                    self.tree.select(&[file]);
+                    self.tree.selected.insert(file);
                 }
 
                 if wso.sync_done.is_some() {
                     self.refresh_tree(ctx);
                 }
             });
-
-        // focus management
-        let sidebar_id = Id::from("sidebar_panel");
-        // println!("sidebar: {:?}", sidebar_id);
-        // println!("focused: {:?}", ctx.memory(|m| m.focused()));
-        ctx.check_for_id_clash(Id::new(sidebar_id), egui::Rect::ZERO, ""); // register the widget id
-        if ctx.input(|i| i.key_pressed(Key::F) && i.modifiers.command && i.modifiers.shift) {
-            if !self.sidebar_expanded {
-                self.sidebar_expanded = true;
-                ctx.memory_mut(|m| m.request_focus(sidebar_id));
-                // println!("sidebar_expanded = {}", self.sidebar_expanded);
-                // println!("focused = {:?}", ctx.memory(|m| m.focused()));
-            } else if ctx.memory(|m| m.has_focus(sidebar_id)) {
-                self.sidebar_expanded = false;
-                // println!("sidebar_expanded = {}", self.sidebar_expanded);
-            } else {
-                ctx.memory_mut(|m| m.request_focus(sidebar_id));
-                // println!("focused = {:?}", ctx.memory(|m| m.focused()));
-            }
-        }
-        if ctx.memory(|m| m.has_focus(sidebar_id)) {
-            ctx.memory_mut(|m| {
-                m.set_focus_lock_filter(
-                    sidebar_id,
-                    EventFilter {
-                        tab: true,
-                        horizontal_arrows: true,
-                        vertical_arrows: true,
-                        escape: true,
-                    },
-                )
-            })
-        }
 
         if self.is_new_user {
             self.modals.account_backup = Some(AccountBackup);
@@ -412,6 +416,7 @@ impl AccountScreen {
 
         if resp.new_file.is_some() {
             self.workspace.create_file(false);
+            ui.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
         }
 
         if resp.new_drawing.is_some() {
@@ -444,16 +449,15 @@ impl AccountScreen {
             self.workspace.open_file(id, false, true);
         }
 
-        if resp.delete_request && !self.tree.selected.is_empty() {
-            let selected_files = self
-                .tree
-                .selected
+        if !resp.delete_requests.is_empty() {
+            let files = resp
+                .delete_requests
                 .iter()
                 .map(|&id| self.tree.files.get_by_id(id))
                 .cloned()
                 .collect();
             self.update_tx
-                .send(OpenModal::ConfirmDelete(selected_files).into())
+                .send(OpenModal::ConfirmDelete(files).into())
                 .unwrap();
         }
 
@@ -566,7 +570,9 @@ impl AccountScreen {
 
     fn focused_parent(&mut self) -> Option<Uuid> {
         if let Some(cursor) = self.tree.cursor {
-            if self.tree.files.get_by_id(cursor).is_folder() {
+            if cursor != self.tree.suggested_docs_folder_id
+                && self.tree.files.get_by_id(cursor).is_folder()
+            {
                 return Some(cursor);
             }
         }
