@@ -79,7 +79,8 @@ class SyncService: ObservableObject {
                 
                 switch result {
                 case .success(_):
-                    DI.onboarding.getAccountAndFinalize()
+                    DI.accounts.getAccount()
+                    DI.files.refresh()
                 case .failure(let error):
                     DI.errors.showError(error)
                 }
