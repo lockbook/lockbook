@@ -82,6 +82,7 @@ impl Renderer {
             .par_iter_mut()
             .filter_map(|(id, el)| -> Option<(Uuid, RenderOp<'_>)> {
                 if el.deleted() && el.delete_changed() {
+                    println!("issuning delete on el: {}", id);
                     return Some((*id, RenderOp::Delete));
                 };
 
@@ -166,6 +167,7 @@ impl Renderer {
                     }
                 }
                 RenderOp::ForwordImage(img) => {
+                    diff_state.data_changed = true;
                     self.alloc_image_mesh(id, img, ui);
                 }
             }
@@ -194,9 +196,9 @@ impl Renderer {
     }
 
     fn alloc_image_mesh(&mut self, id: Uuid, img: &mut Image, ui: &mut egui::Ui) {
-        if self.mesh_cache.contains_key(&id) {
-            return;
-        }
+        // if self.mesh_cache.contains_key(&id) {
+        //     return;
+        // }
         match &img.data {
             ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
                 let image = image::load_from_memory(&bytes).unwrap();
@@ -231,12 +233,19 @@ impl Renderer {
 
                 let mut mesh = egui::Mesh::with_texture(texture.id());
                 println!("created mesh");
-                mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE.linear_multiply(img.opacity));
+                let tint_color = if ui.visuals().dark_mode {
+                    egui::Color32::BLACK
+                } else {
+                    egui::Color32::WHITE
+                };
+
+                mesh.add_rect_with_uv(rect, uv, tint_color.gamma_multiply(img.opacity));
                 self.mesh_cache
                     .insert(id, MeshShape { shape: mesh, scale: img.transform.sx });
             }
-            ImageKind::GIF(_) => todo!(),
-            ImageKind::SVG(_) => todo!(),
+            _ => {
+                println!("image type is not supported")
+            }
         }
     }
 }

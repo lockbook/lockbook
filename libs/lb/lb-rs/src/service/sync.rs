@@ -635,6 +635,7 @@ impl Lb {
                                         }
                                         crate::svg::buffer::Buffer::reload(
                                             &mut local_buffer.elements,
+                                            &mut local_buffer.weak_images,
                                             local_buffer.master_transform,
                                             &base_document,
                                             &remote_document,

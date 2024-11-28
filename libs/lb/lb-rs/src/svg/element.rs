@@ -1,12 +1,13 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
 
 use bezier_rs::{Identifier, Subpath};
 use serde::{Deserialize, Serialize};
 
 use usvg::{self, Color, Fill, ImageKind, NonZeroRect, Text, Transform, Visibility};
 use uuid::Uuid;
-
-use crate::blocking::Lb;
 
 use super::{buffer::u_transform_to_bezier, diff::DiffState};
 
@@ -103,17 +104,16 @@ impl Image {
             height: self.view_box.height(),
             x: self.view_box.x(),
             y: self.view_box.y(),
-            id: self.href,
             z_index,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Default)]
-pub struct WeakImages(Vec<WeakImage>);
+pub struct WeakImages(HashMap<Uuid, WeakImage>);
 
 impl Deref for WeakImages {
-    type Target = Vec<WeakImage>;
+    type Target = HashMap<Uuid, WeakImage>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -127,9 +127,8 @@ impl DerefMut for WeakImages {
 }
 
 /// image that only contains a ref to the data but not the data itself.
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct WeakImage {
-    pub id: Uuid,
     pub href: Uuid,
     pub transform: WeakTransform,
     pub opacity: f32,
@@ -140,13 +139,25 @@ pub struct WeakImage {
     pub z_index: usize,
 }
 
+impl PartialEq for WeakImage {
+    fn eq(&self, other: &Self) -> bool {
+        self.href == other.href
+            && self.transform == other.transform
+            && self.opacity == other.opacity
+            && self.z_index == other.z_index
+    }
+}
+
 impl WeakImage {
     pub fn transform(&mut self, transform: Transform) {
-        self.x = transform.sx * self.x + transform.kx * self.y + transform.tx;
-        self.y = transform.ky * self.x + transform.sy * self.y + transform.ty;
+        if transform.is_identity() {
+            return;
+        }
+        self.x = transform.sx * self.x + transform.kx * self.x + transform.tx;
+        self.y = transform.ky * self.y + transform.sy * self.y + transform.ty;
 
-        self.width = transform.sx * self.width;
-        self.height = transform.sy * self.height;
+        self.width = self.width / transform.sx;
+        self.height = self.height / transform.sy;
     }
 }
 

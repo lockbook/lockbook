@@ -879,6 +879,7 @@ impl Workspace {
                                     Some(TabContent::Svg(svg)) => {
                                         Buffer::reload(
                                             &mut svg.buffer.elements,
+                                            &mut svg.buffer.weak_images,
                                             svg.buffer.master_transform,
                                             &svg.buffer.opened_content,
                                             String::from_utf8_lossy(&bytes).as_ref(),
@@ -977,10 +978,14 @@ impl Workspace {
                     // }
                 }
                 WsMsg::BgSignal(Signal::MaybeSync) => {
+                    if self.last_sync.elapsed() > Duration::from_secs(1) {
+                        self.perform_sync()
+                    }
+
                     if !self.cfg.auto_sync.load(Ordering::Relaxed) {
                         // auto sync disabled
-                        continue;
                     }
+                    // continue;
 
                     let focused = self.ctx.input(|i| i.focused);
 

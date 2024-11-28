@@ -35,9 +35,6 @@ use tracing::span;
 use tracing::Level;
 use usvg_parser::Options;
 
-/// A shorthand for [ImageHrefResolver]'s string function.
-pub type ImageHrefStringResolverFn = Box<dyn Fn(&str, &Options) -> Option<ImageKind> + Send + Sync>;
-
 pub struct SVGEditor {
     pub buffer: Buffer,
     history: History,
@@ -83,10 +80,6 @@ impl SVGEditor {
                     .apply_transform(u_transform_to_bezier(&buffer.master_transform));
             }
         }
-        buffer
-            .weak_images
-            .iter_mut()
-            .for_each(|w_i| w_i.transform(buffer.master_transform));
 
         let toolbar = Toolbar::new();
 
@@ -100,7 +93,6 @@ impl SVGEditor {
             lb,
             open_file,
             skip_frame: false,
-            // last_render: Instant::now(),
             painter: egui::Painter::new(
                 ctx.to_owned(),
                 egui::LayerId::new(egui::Order::Background, "canvas_painter".into()),
@@ -120,21 +112,33 @@ impl SVGEditor {
 
         self.inner_rect = ui.available_rect_before_wrap();
 
-        self.buffer.weak_images.drain(..).for_each(|weak_image| {
-            let image = Image::from_weak(weak_image, &self.lb);
+        let non_empty_weak_imaegs = !self.buffer.weak_images.is_empty();
+        self.buffer
+            .weak_images
+            .drain()
+            .for_each(|(id, mut weak_image)| {
+                // if !self.buffer.elements.contains_key(&id) {
+                weak_image.transform(self.buffer.master_transform);
+                // }
 
-            if weak_image.z_index > self.buffer.elements.len() {
-                self.buffer
-                    .elements
-                    .insert(weak_image.id, Element::Image(image));
-            } else {
-                self.buffer.elements.shift_insert(
-                    weak_image.z_index,
-                    weak_image.id,
-                    Element::Image(image),
-                );
-            }
-        });
+                let mut image = Image::from_weak(weak_image, &self.lb);
+                // if self.buffer.elements.contains_key(&id) {
+                //     image.diff_state.transformed = Some(self.buffer.master_transform);
+                // }
+
+                image.diff_state.transformed = None;
+
+                println!("rehydrating weak image after transform: {:#?}", weak_image);
+                println!("{:#?}", image.diff_state);
+
+                if weak_image.z_index > self.buffer.elements.len() {
+                    self.buffer.elements.insert(id, Element::Image(image))
+                } else {
+                    self.buffer
+                        .elements
+                        .shift_insert(weak_image.z_index, id, Element::Image(image))
+                };
+            });
 
         ui.painter()
             .rect_filled(self.inner_rect, 0., ui.style().visuals.extreme_bg_color);
@@ -160,6 +164,9 @@ impl SVGEditor {
 
         let global_diff = self.show_canvas(ui);
 
+        if non_empty_weak_imaegs {
+            self.has_queued_save_request = true;
+        }
         if global_diff.is_dirty() {
             self.has_queued_save_request = true;
             if global_diff.transformed.is_none() {

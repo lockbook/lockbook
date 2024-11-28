@@ -71,12 +71,41 @@ impl Buffer {
     }
 
     pub fn reload(
-        local_elements: &mut IndexMap<Uuid, Element>, local_master_transform: Transform,
-        base_content: &str, remote_content: &str,
+        local_elements: &mut IndexMap<Uuid, Element>, local_weak_images: &mut WeakImages,
+        local_master_transform: Transform, base_content: &str, remote_content: &str,
     ) {
         let base_buffer = Buffer::new(base_content, None);
 
         let remote_buffer = Buffer::new(remote_content, None);
+
+        // todo: convert weak images
+        for (id, base_img) in base_buffer.weak_images.iter() {
+            if let Some(remote_img) = remote_buffer.weak_images.get(id) {
+                if remote_img != base_img {
+                    local_weak_images.insert(*id, *remote_img);
+
+                    println!("remote changed element {:#?}", id);
+                    println!("diff (remote): {:#?}", remote_img);
+                    println!("diff (base): {:#?}", base_img);
+                }
+            } else {
+                println!("remote delete element {:#?}", id);
+                println!("remote weak images: {:#?}", remote_buffer.weak_images);
+                println!("base weak images: {:#?}", base_buffer.weak_images);
+
+                // this was deleted remotly
+                local_weak_images.remove(id);
+                local_elements.shift_remove(id);
+            }
+        }
+
+        for (id, remote_img) in remote_buffer.weak_images.iter() {
+            if !base_buffer.weak_images.contains_key(id) {
+                local_weak_images.insert(*id, *remote_img);
+
+                println!("remote inserted element {:#?}", id);
+            }
+        }
 
         for (id, base_el) in base_buffer.elements.iter() {
             if let Some(remote_el) = remote_buffer.elements.get(id) {
@@ -94,20 +123,13 @@ impl Buffer {
                             path.diff_state.data_changed = true;
                             path.diff_state.transformed = None
                         }
-                        Element::Image(ref mut image) => {
-                            image.diff_state.data_changed = true;
-                            image.diff_state.transformed = None
-                        }
                         _ => {}
                     }
 
                     local_elements.insert(*id, transformed_el.clone());
-
-                    println!("remote changed element {:#?}", id);
                 }
             } else {
                 // this was deletd remotly
-                println!("remote delete element {:#?}", id);
                 local_elements.shift_remove(id);
             }
         }
@@ -128,15 +150,10 @@ impl Buffer {
                         path.diff_state.data_changed = true;
                         path.diff_state.transformed = None
                     }
-                    Element::Image(ref mut image) => {
-                        image.diff_state.data_changed = true;
-                        image.diff_state.transformed = None
-                    }
                     _ => {}
                 }
 
                 local_elements.insert_before(i, *id, transformed_el);
-                println!("remote inserted element {:#?}", id);
             }
         }
     }
@@ -211,11 +228,17 @@ impl Buffer {
                     }
                 }
                 Element::Image(img) => {
+                    if img.deleted {
+                        continue;
+                    }
+                    println!("saving weak transforms");
+
                     let mut weak_image: WeakImage = img.into_weak(index);
+
                     weak_image.transform(self.master_transform.invert().unwrap_or_default());
 
-                    // todo: inverse the transform by changing widh height and a x,y
-                    weak_images.push(weak_image);
+                    weak_images.insert(*el.0, weak_image);
+                    println!("weak image after transform {:#?}", weak_images);
                 }
                 Element::Text(_) => {}
             }
@@ -241,7 +264,6 @@ impl Buffer {
                 "<g id=\"{}\"> <g id=\"{}\"></g></g>",
                 WEAK_IMAGE_G_ID, base64_data
             );
-            println!("{:#?}", base64_data);
         }
 
         let _ = write!(&mut root, "{} </svg>", zoom_level);
@@ -258,14 +280,12 @@ pub fn parse_child(
             if group.id().eq(ZOOM_G_ID) {
                 *master_transform = group.transform();
             } else if group.id().eq(WEAK_IMAGE_G_ID) {
-                println!("found images");
                 if let Some(usvg::Node::Group(weak_images_g)) = group.children().first() {
                     let base64 = base64::decode(weak_images_g.id().as_bytes())
                         .expect("Failed to decode base64");
 
                     let decoded: WeakImages = bincode::deserialize(&base64).unwrap();
                     *weak_images = decoded;
-                    println!("decoded weak images: {:#?}", weak_images);
                 }
             } else {
                 group.children().iter().for_each(|u_el| {
