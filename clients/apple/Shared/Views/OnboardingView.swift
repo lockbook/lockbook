@@ -6,10 +6,7 @@ struct OnboardingOneView: View {
         NavigationStack {
             VStack(alignment: .leading) {
                 HStack {
-                    Image(uiImage: UIImage(named: "logo")!)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 75)
+                    logo
                     
                     Spacer()
                 }
@@ -23,11 +20,7 @@ struct OnboardingOneView: View {
                     .font(.title2)
                     .padding(.leading)
 
-                Text("The perfect place to record, sync, and share your thoughts.")
-                    .font(.body)
-                    .frame(maxWidth: 270)
-                    .padding(.top)
-                    .padding(.leading, 12)
+                subText
                 
                 Spacer()
                 
@@ -51,15 +44,63 @@ struct OnboardingOneView: View {
                         .frame(height: 30)
                 })
                 .buttonStyle(.bordered)
+                .padding(.bottom)
                 
                 Text("By using Lockbook, you acknowledge our [Privacy Policy](https://lockbook.net/privacy-policy) and accept our [Terms of Service](https://lockbook.net/tos).")
                     .foregroundColor(.gray)
                     .font(.caption2)
-                    .padding()
             }
             .padding(.top, 35)
-            .padding(.horizontal)
+            .padding(.bottom)
+            .modifier(OnboardingOneHorizontalPadding())
         }
+    }
+    
+    var logo: some View {
+        #if os(iOS)
+        Image(uiImage: UIImage(named: "logo")!)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 75)
+        #else
+        Image(nsImage: NSImage(named: NSImage.Name("logo"))!)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 75)
+        #endif
+    }
+    
+    var subText: some View {
+        #if os(iOS)
+        Text("The perfect place to record, sync, and share your thoughts.")
+            .font(.body)
+            .frame(maxWidth: 270)
+            .padding(.top)
+            .padding(.leading, 12)
+        #else
+        Text("The perfect place to record, sync, and share your thoughts.")
+            .font(.body)
+            .frame(maxWidth: 270)
+            .padding(.top)
+            .padding(.leading)
+        #endif
+    }
+}
+
+struct OnboardingOneHorizontalPadding: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            content
+                .padding(.horizontal)
+        } else {
+            content
+                .padding(.horizontal, 25)
+        }
+        #else
+        content
+            .padding(.horizontal, 25)
+        #endif
     }
 }
 
@@ -90,7 +131,7 @@ struct OnboardingTwoView: View {
             TextField("Username", text: $username)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
+                .modifier(DisableAutoCapitalization())
                 .onSubmit(createAccount)
                 .padding(.top, 20)
             
@@ -99,7 +140,7 @@ struct OnboardingTwoView: View {
                     .foregroundStyle(.red)
                     .fontWeight(.bold)
                     .lineLimit(2, reservesSpace: false)
-                    .padding(.top, 10)
+                    .padding(.top, 5)
             }
                         
             Button(action: {
@@ -112,11 +153,12 @@ struct OnboardingTwoView: View {
             })
             .buttonStyle(.borderedProminent)
             .disabled(username.isEmpty || working)
-            .padding(.top, 30)
+            .padding(.top)
             
             Spacer()
         }
         .padding(.top, 35)
+        .padding(.bottom)
         .padding(.horizontal, 25)
         .navigationDestination(isPresented: $createdAccount, destination: {
             if let keyPhrase = keyPhrase {
@@ -149,7 +191,7 @@ struct OnboardingTwoView: View {
                             
                             createdAccount = true
                         }
-                    case .failure(let err):
+                    case .failure(_):
                         error = "An unexpected error has occurred."
                     }
                     
@@ -157,23 +199,7 @@ struct OnboardingTwoView: View {
                 case .failure(let err):
                     DispatchQueue.main.async {
                         working = false
-                        
-                        switch err.code {
-                        case .accountExists:
-                            error = "You already have an account, please file a bug report."
-                        case .clientUpdateRequired:
-                            error = "Please download the most recent version."
-                        case .serverUnreachable:
-                            error = "Could not reach the server."
-                        case .usernameInvalid:
-                            error = "That username is invalid."
-                        case .usernameTaken:
-                            error = "That username is not available."
-                        case .serverDisabled:
-                            error = "The server is not accepting any new accounts at this moment. Please try again later."
-                        default:
-                            error = "An unexpected error has occurred."
-                        }
+                        error = err.msg
                     }
                     break
                 }
@@ -262,6 +288,7 @@ struct OnboardingThreeView: View {
             .disabled(!storedSecurely || working)
         }
         .padding(.top, 35)
+        .padding(.bottom)
         .padding(.horizontal, 25)
         .navigationBarBackButtonHidden()
     }
@@ -354,16 +381,7 @@ struct ImportAccountView: View {
                         importAccount(isAutoImporting: true)
                     }
 
-                Button(action: {
-                    showQRScanner = true
-                }, label: {
-                    Image(systemName: "qrcode.viewfinder")
-                        .font(.title)
-                        .foregroundStyle(.blue)
-                })
-                .sheet(isPresented: $showQRScanner) {
-                    CodeScannerView(codeTypes: [.qr], simulatedData: "This is simulated data", completion: handleScan)
-                }
+                qrScanner
             }
             .padding(.top)
             
@@ -372,7 +390,7 @@ struct ImportAccountView: View {
                     .foregroundStyle(.red)
                     .fontWeight(.bold)
                     .lineLimit(2, reservesSpace: false)
-                    .padding(.top)
+                    .padding(.top, 5)
             }
             
             
@@ -401,18 +419,47 @@ struct ImportAccountView: View {
                         .foregroundStyle(.gray)
                 })
                 .padding(.trailing)
-                .padding(.bottom)
-                .modifier(iOSAndiPadSheetViewModifier(isPresented: $showAPIURLSheet, width: 500, height: 130) {
-                    SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
-                })
+                .background(apiURLSheet)
             }
         }
         .padding(.top, 35)
+        .padding(.bottom)
         .padding(.horizontal, 25)
         .navigationDestination(isPresented: $importedAccount, destination: {
             ImportAccountSyncView()
         })
-        
+    }
+    
+    var apiURLSheet: some View {
+        #if os(iOS)
+        EmptyView()
+            .modifier(iOSAndiPadSheetViewModifier(isPresented: $showAPIURLSheet, width: 500, height: 160) {
+                SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
+            })
+        #else
+        EmptyView()
+            .sheet(isPresented: $showAPIURLSheet) {
+                SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
+                    .frame(width: 300, height: 140)
+            }
+        #endif
+    }
+    
+    var qrScanner: some View {
+        #if os(iOS)
+        Button(action: {
+            showQRScanner = true
+        }, label: {
+            Image(systemName: "qrcode.viewfinder")
+                .font(.title)
+                .foregroundStyle(.blue)
+        })
+        .sheet(isPresented: $showQRScanner) {
+            CodeScannerView(codeTypes: [.qr], simulatedData: "This is simulated data", completion: handleScan)
+        }
+        #else
+        EmptyView()
+        #endif
     }
     
     func importAccount(isAutoImporting: Bool) {
@@ -434,38 +481,25 @@ struct ImportAccountView: View {
                     DI.sync.importSync()
                     importedAccount = true
                 case .failure(let err):
-                    switch err.code {
-                    case .accountNonexistent:
-                        error = "That account does not exist on our server"
-                    case .accountExists:
-                        error = "You already have an account, please file a bug report."
-                    case .accountStringCorrupted:
-                        if !isAutoImporting {
-                            error = "This account key is invalid."
-                        }
-                    case .clientUpdateRequired:
-                        error = "Please download the most recent version."
-                    case .serverUnreachable:
-                        error = "Could not reach the server."
-                    case .usernamePublicKeyMismatch:
-                        error = "The account key's conveyed username does not match the public key stored on the server."
-                    default:
-                        error = "An unexpected error has occurred."
+                    if !isAutoImporting {
+                        error = err.msg
                     }
                 }
             }
         }
     }
     
+    #if os(iOS)
     func handleScan(result: Result<String, CodeScannerView.ScanError>) {
         showQRScanner = false
         switch result {
         case .success(let key):
             accountKey = key
         case .failure(let err):
-            print(err) // TODO: Convert this to an ApplicationError
+            error = "Could not scan account key QR."
         }
     }
+    #endif
 }
 
 struct SetAPIURLView: View {
@@ -486,14 +520,19 @@ struct SetAPIURLView: View {
                 Spacer()
             }
             
-            TextField("Default: \(defaultAPIURL)", text: $unsavedAPIURL)
+            TextField("\(defaultAPIURL)", text: $unsavedAPIURL)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
+                .modifier(DisableAutoCapitalization())
                 .focused($focused)
                 .onAppear {
                     focused = true
                 }
+                .onSubmit {
+                    apiURL = unsavedAPIURL
+                    dismiss()
+                }
+                .padding(.bottom, 20)
             
             Button {
                 apiURL = unsavedAPIURL
@@ -535,12 +574,8 @@ struct ImportAccountSyncView: View {
             Spacer()
         }
         .padding(.top, 35)
+        .padding(.bottom)
         .padding(.horizontal, 25)
         .navigationBarBackButtonHidden()
     }
 }
-
-//#Preview("Import Account Syncing") {
-//    ImportAccountSyncView()
-//        .mockDI()
-//}

@@ -14,7 +14,6 @@ class DI {
     static let importExport = ImportExportService(core)
     static let sync = SyncService(core)
     static let share = ShareService(core)
-    static let onboarding = OnboardingService(core)
     static let sheets: SheetState = SheetState()
     static let search = SearchService(core)
     static let workspace = WorkspaceState()
@@ -25,7 +24,6 @@ class DI {
         DI.files.root = nil
         DI.files.idsAndFiles = [:]
         DI.settings.showView = false
-        DI.onboarding.username = ""
     }
 }
 
@@ -40,7 +38,6 @@ extension View {
             .environmentObject(DI.selected)
             .environmentObject(DI.importExport)
             .environmentObject(DI.sync)
-            .environmentObject(DI.onboarding)
             .environmentObject(DI.sheets)
             .environmentObject(DI.billing)
             .environmentObject(DI.share)
