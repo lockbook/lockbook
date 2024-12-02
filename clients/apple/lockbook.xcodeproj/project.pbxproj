@@ -50,7 +50,6 @@
 		47E208562C387A60002A356B /* Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E208552C387A60002A356B /* Util.swift */; };
 		47E208572C387A62002A356B /* Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E208552C387A60002A356B /* Util.swift */; };
 		47EA1B022CCEBA1F00A4DAF9 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 47F098392BCDA94800F66CED /* SystemConfiguration.framework */; };
-		47EA1B042CCEBA2B00A4DAF9 /* Bridge in Frameworks */ = {isa = PBXBuildFile; productRef = 47EA1B032CCEBA2B00A4DAF9 /* Bridge */; };
 		47EA1B062CCEBA4A00A4DAF9 /* workspace in Frameworks */ = {isa = PBXBuildFile; productRef = 47EA1B052CCEBA4A00A4DAF9 /* workspace */; };
 		47F013C22CCEB9D00076C22E /* SwiftWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 47F013C12CCEB9D00076C22E /* SwiftWorkspace */; };
 		47F0983A2BCDA94800F66CED /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 47F098392BCDA94800F66CED /* SystemConfiguration.framework */; };
@@ -248,7 +247,6 @@
 			files = (
 				47EA1B062CCEBA4A00A4DAF9 /* workspace in Frameworks */,
 				47EA1B022CCEBA1F00A4DAF9 /* SystemConfiguration.framework in Frameworks */,
-				47EA1B042CCEBA2B00A4DAF9 /* Bridge in Frameworks */,
 				47F013C22CCEB9D00076C22E /* SwiftWorkspace in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -493,7 +491,6 @@
 			name = LbSwiftTests;
 			packageProductDependencies = (
 				47F013C12CCEB9D00076C22E /* SwiftWorkspace */,
-				47EA1B032CCEBA2B00A4DAF9 /* Bridge */,
 				47EA1B052CCEBA4A00A4DAF9 /* workspace */,
 			);
 			productName = LbSwiftTests;
@@ -607,7 +604,7 @@
 				EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */,
 				47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */,
 				47159F4429CFA05B00969DDF /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */,
-				B2D3F38E2B279E7A00272937 /* XCLocalSwiftPackageReference "../../libs/content/workspace-ffi/SwiftWorkspace" */,
+				4701ADB62CFE337300497D36 /* XCLocalSwiftPackageReference "../../libs/content/workspace-ffi/SwiftWorkspace" */,
 			);
 			productRefGroup = EA5C7D702516606000F7F358 /* Products */;
 			projectDirPath = "";
@@ -1426,7 +1423,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		B2D3F38E2B279E7A00272937 /* XCLocalSwiftPackageReference "../../libs/content/workspace-ffi/SwiftWorkspace" */ = {
+		4701ADB62CFE337300497D36 /* XCLocalSwiftPackageReference "../../libs/content/workspace-ffi/SwiftWorkspace" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "../../libs/content/workspace-ffi/SwiftWorkspace";
 		};
@@ -1486,11 +1483,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */;
 			productName = AlertToast;
-		};
-		47EA1B032CCEBA2B00A4DAF9 /* Bridge */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B2D3F38E2B279E7A00272937 /* XCLocalSwiftPackageReference "../../libs/content/workspace-ffi/SwiftWorkspace" */;
-			productName = Bridge;
 		};
 		47EA1B052CCEBA4A00A4DAF9 /* workspace */ = {
 			isa = XCSwiftPackageProductDependency;

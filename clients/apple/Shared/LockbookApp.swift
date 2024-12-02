@@ -89,7 +89,7 @@ extension View {
             .onChange(of: scenePhase, perform: { newValue in
                 switch newValue {
                 case .background:
-                    if !DI.onboarding.initialSyncing {
+                    if DI.accounts.account != nil {
                         appDelegate.scheduleBackgroundTask(initialRun: true)
                     }
                 case .active:
