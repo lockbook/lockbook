@@ -33,8 +33,7 @@ class SyncService: ObservableObject {
             return
         }
         
-        if DI.accounts.account == nil {
-            print("tried to sync before having an account, ignoring")
+        if DI.accounts.account == nil || DI.files.root == nil {
             return
         }
         
