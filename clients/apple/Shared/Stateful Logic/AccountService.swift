@@ -39,7 +39,7 @@ class AccountService: ObservableObject {
             }
         }
     }
-        
+    
     func logout() {
         DI.freshState()
         core.logoutAndExit()
