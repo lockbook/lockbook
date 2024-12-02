@@ -65,15 +65,13 @@ struct SuggestedDocs: View {
                 if let suggestedDocs = fileService.suggestedDocs {
                     ForEach(suggestedDocs) { meta in
                         if let parentMeta = fileService.idsAndFiles[meta.parent] {
-                            HStack {
-                                Button(action: {
-                                    DI.workspace.requestOpenDoc(meta.id)
-                                    if isiOS {
-                                        DI.files.intoChildDirectory(meta)
-                                    }
-                                }) {
-                                    SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
+                            Button(action: {
+                                DI.workspace.requestOpenDoc(meta.id)
+                                if isiOS {
+                                    DI.files.intoChildDirectory(meta)
                                 }
+                            }) {
+                                SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
                             }
                         }
                     }
@@ -203,7 +201,6 @@ struct SuggestedDocCell: View {
     
     var body: some View {
         VStack(alignment: .leading) {
-            
             Text(name)
             
             HStack {
@@ -221,6 +218,7 @@ struct SuggestedDocCell: View {
         }
         .padding(12)
         .contentShape(Rectangle())
+        .frame(maxWidth: 200)
         .setSuggestedDocsBackground(isiOS: isiOS, colorScheme: colorScheme)
     }
 }
