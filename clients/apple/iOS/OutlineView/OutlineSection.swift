@@ -2,11 +2,7 @@ import SwiftUI
 import SwiftWorkspace
 
 struct OutlineSection: View {
-    
-    @EnvironmentObject var onboarding: OnboardingService
-    @EnvironmentObject var files: FileService
-    @EnvironmentObject var state: SheetState
-    
+        
     var root: File
 
     var body: some View {

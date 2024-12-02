@@ -34,94 +34,94 @@ impl Display for LbErr {
 impl Display for LbErrKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            LbErrKind::AccountExists => write!(f, "an account already exists"),
-            LbErrKind::AccountNonexistent => write!(f, "you need an account to do that"),
-            LbErrKind::AccountStringCorrupted => write!(f, "Account String corrupted"),
-            LbErrKind::AlreadyCanceled => write!(f, "your subscription has already been cancelled"),
-            LbErrKind::AlreadyPremium => write!(f, "your account is already premium"),
+            LbErrKind::AccountExists => write!(f, "An account already exists"),
+            LbErrKind::AccountNonexistent => write!(f, "You need an account to do that"),
+            LbErrKind::AccountStringCorrupted => write!(f, "That account key is invalid"),
+            LbErrKind::AlreadyCanceled => write!(f, "Your subscription has already been cancelled"),
+            LbErrKind::AlreadyPremium => write!(f, "Your account is already premium"),
             LbErrKind::AppStoreAccountAlreadyLinked => {
-                write!(f, "your account is already linked to the App Store")
+                write!(f, "Your account is already linked to the App Store")
             }
             LbErrKind::CannotCancelSubscriptionForAppStore => {
-                write!(f, "you cannot cancel an app store subscription from here")
+                write!(f, "You cannot cancel an app store subscription from here")
             }
-            LbErrKind::CardDecline => write!(f, "your card was declined"),
-            LbErrKind::CardExpired => write!(f, "your card is expired"),
-            LbErrKind::CardInsufficientFunds => write!(f, "this card has insufficient funds"),
-            LbErrKind::CardInvalidCvc => write!(f, "invalid cvc"),
-            LbErrKind::CardInvalidExpMonth => write!(f, "invalid expiration month"),
-            LbErrKind::CardInvalidExpYear => write!(f, "invalid expiration year"),
-            LbErrKind::CardInvalidNumber => write!(f, "invalid card number"),
-            LbErrKind::CardNotSupported => write!(f, "card not supported by stripe"),
+            LbErrKind::CardDecline => write!(f, "Your card was declined"),
+            LbErrKind::CardExpired => write!(f, "Your card is expired"),
+            LbErrKind::CardInsufficientFunds => write!(f, "This card has insufficient funds"),
+            LbErrKind::CardInvalidCvc => write!(f, "Your CVC is invalid"),
+            LbErrKind::CardInvalidExpMonth => write!(f, "Your expiration month is invalid"),
+            LbErrKind::CardInvalidExpYear => write!(f, "Your expiration year is invalid"),
+            LbErrKind::CardInvalidNumber => write!(f, "Your card number is invalid"),
+            LbErrKind::CardNotSupported => write!(f, "That card is not supported by stripe"),
             LbErrKind::ClientUpdateRequired => {
-                write!(f, "you need a newer version of lockbook to do that")
+                write!(f, "You must update your Lockbook to do that")
             }
             LbErrKind::CurrentUsageIsMoreThanNewTier => {
-                write!(f, "you need to delete some files before downgrading your usage")
+                write!(f, "You need to delete some files before downgrading your usage")
             }
-            LbErrKind::DiskPathInvalid => write!(f, "disk path invalid"),
-            LbErrKind::DiskPathTaken => write!(f, "disk path not available"),
-            LbErrKind::DrawingInvalid => write!(f, "not a valid drawing"),
+            LbErrKind::DiskPathInvalid => write!(f, "That disk path is invalid"),
+            LbErrKind::DiskPathTaken => write!(f, "That disk path is not available"),
+            LbErrKind::DrawingInvalid => write!(f, "That drawing is invalid"),
             LbErrKind::ExistingRequestPending => {
-                write!(f, "existing billing request in progress, please wait and try again")
+                write!(f, "Existing billing request in progress, please wait and try again")
             }
-            LbErrKind::FileNameContainsSlash => write!(f, "file names cannot contain slashes"),
-            LbErrKind::FileNameTooLong => write!(f, "that file name is too long"),
-            LbErrKind::FileNameEmpty => write!(f, "file name cannot be empty"),
-            LbErrKind::FileNonexistent => write!(f, "that file does not exist"),
-            LbErrKind::FileNotDocument => write!(f, "that file is not a document"),
-            LbErrKind::FileNotFolder => write!(f, "that file is not a folder"),
-            LbErrKind::FileParentNonexistent => write!(f, "could not find a parent"),
-            LbErrKind::FolderMovedIntoSelf => write!(f, "you cannot move a folder into itself"),
+            LbErrKind::FileNameContainsSlash => write!(f, "A file name cannot contain slashes"),
+            LbErrKind::FileNameTooLong => write!(f, "That file name is too long"),
+            LbErrKind::FileNameEmpty => write!(f, "A file name cannot be empty"),
+            LbErrKind::FileNonexistent => write!(f, "That file does not exist"),
+            LbErrKind::FileNotDocument => write!(f, "That file is not a document"),
+            LbErrKind::FileNotFolder => write!(f, "That file is not a folder"),
+            LbErrKind::FileParentNonexistent => write!(f, "Could not find that file parent"),
+            LbErrKind::FolderMovedIntoSelf => write!(f, "You cannot move a folder into itself"),
             LbErrKind::InsufficientPermission => {
-                write!(f, "you don't have the permission to do that")
+                write!(f, "You don't have the permission to do that")
             }
-            LbErrKind::InvalidPurchaseToken => write!(f, "invalid purchase token"),
+            LbErrKind::InvalidPurchaseToken => write!(f, "That purchase token is invalid"),
             LbErrKind::InvalidAuthDetails => {
-                write!(f, "our server failed to authenticate your request, please try again")
+                write!(f, "Our server failed to authenticate your request, please try again")
             }
             LbErrKind::KeyPhraseInvalid => {
-                write!(f, "your private key phrase is wrong")
+                write!(f, "Your private key phrase is wrong")
             }
             LbErrKind::LinkInSharedFolder => {
-                write!(f, "you cannot move a link into a shared folder")
+                write!(f, "You cannot move a link into a shared folder")
             }
             LbErrKind::LinkTargetIsOwned => {
-                write!(f, "you cannot create a link to a file that you own")
+                write!(f, "You cannot create a link to a file that you own")
             }
-            LbErrKind::LinkTargetNonexistent => write!(f, "that link target does not exist"),
+            LbErrKind::LinkTargetNonexistent => write!(f, "That link target does not exist"),
             LbErrKind::MultipleLinksToSameFile => {
-                write!(f, "you cannot have multiple links to the same file")
+                write!(f, "You cannot have multiple links to the same file")
             }
-            LbErrKind::NotPremium => write!(f, "you do not currently have a premium subscription"),
+            LbErrKind::NotPremium => write!(f, "You do not have a premium subscription"),
             LbErrKind::UsageIsOverDataCap => {
-                write!(f, "you're out of space")
+                write!(f, "You're out of space")
             }
             LbErrKind::UsageIsOverFreeTierDataCap => {
-                write!(f, "you're out of space, you can purchase additional space")
+                write!(f, "You're out of space, you can purchase additional space")
             }
-            LbErrKind::OldCardDoesNotExist => write!(f, "no existing card found"),
+            LbErrKind::OldCardDoesNotExist => write!(f, "No existing card found"),
             LbErrKind::PathContainsEmptyFileName => {
-                write!(f, "that path contains an empty file name")
+                write!(f, "That path contains an empty file name")
             }
-            LbErrKind::PathTaken => write!(f, "that path is not available"),
-            LbErrKind::RootModificationInvalid => write!(f, "you cannot modify your root"),
-            LbErrKind::RootNonexistent => write!(f, "no root found"),
+            LbErrKind::PathTaken => write!(f, "That path is not available"),
+            LbErrKind::RootModificationInvalid => write!(f, "You cannot modify your root"),
+            LbErrKind::RootNonexistent => write!(f, "Could not find your root file"),
             LbErrKind::ServerDisabled => write!(
                 f,
-                "the server is not accepting this action at the moment, please try again later"
+                "The server is not accepting this action at the moment, please try again later"
             ),
-            LbErrKind::ServerUnreachable => write!(f, "could not reach server"),
-            LbErrKind::ShareAlreadyExists => write!(f, "that share already exists"),
-            LbErrKind::ShareNonexistent => write!(f, "share non-existent"),
-            LbErrKind::TryAgain => write!(f, "please try again"),
-            LbErrKind::UsernameInvalid => write!(f, "that username is invalid"),
-            LbErrKind::UsernameNotFound => write!(f, "username not found"),
+            LbErrKind::ServerUnreachable => write!(f, "Could not reach server"),
+            LbErrKind::ShareAlreadyExists => write!(f, "That share already exists"),
+            LbErrKind::ShareNonexistent => write!(f, "That share does not exist"),
+            LbErrKind::TryAgain => write!(f, "Please try again"),
+            LbErrKind::UsernameInvalid => write!(f, "That username is invalid"),
+            LbErrKind::UsernameNotFound => write!(f, "That username not found"),
             LbErrKind::UsernamePublicKeyMismatch => {
-                write!(f, "that username doesn't match that public key")
+                write!(f, "That username doesn't match that public key")
             }
-            LbErrKind::UsernameTaken => write!(f, "username not available"),
-            LbErrKind::Unexpected(msg) => write!(f, "unexpected error: {msg}"),
+            LbErrKind::UsernameTaken => write!(f, "That username not available"),
+            LbErrKind::Unexpected(msg) => write!(f, "Unexpected error: {msg}"),
             LbErrKind::AlreadySyncing => {
                 write!(f, "A sync is already in progress, cannot begin another sync at this time!")
             }

@@ -33,8 +33,7 @@ class SyncService: ObservableObject {
             return
         }
         
-        if DI.accounts.account == nil {
-            print("tried to sync before having an account, ignoring")
+        if DI.accounts.account == nil || DI.files.root == nil {
             return
         }
         
@@ -79,7 +78,8 @@ class SyncService: ObservableObject {
                 
                 switch result {
                 case .success(_):
-                    DI.onboarding.getAccountAndFinalize()
+                    DI.accounts.getAccount()
+                    DI.files.refresh()
                 case .failure(let error):
                     DI.errors.showError(error)
                 }
