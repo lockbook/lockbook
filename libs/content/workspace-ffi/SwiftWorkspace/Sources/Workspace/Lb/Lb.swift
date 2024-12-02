@@ -26,7 +26,7 @@ public class Lb {
     }
         
     public func createAccount(username: String, apiUrl: String, welcomeDoc: Bool) -> Result<Account, LbError> {
-        let res = lb_create_account(lb, username, "http://0.0.0.0:8000", welcomeDoc)
+        let res = lb_create_account(lb, username, apiUrl, welcomeDoc)
         defer { lb_free_account(res) }
         
         guard res.err == nil else {
