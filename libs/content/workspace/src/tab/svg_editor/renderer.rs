@@ -233,13 +233,8 @@ impl Renderer {
 
                 let mut mesh = egui::Mesh::with_texture(texture.id());
                 println!("created mesh");
-                let tint_color = if ui.visuals().dark_mode {
-                    egui::Color32::BLACK
-                } else {
-                    egui::Color32::WHITE
-                };
 
-                mesh.add_rect_with_uv(rect, uv, tint_color.gamma_multiply(img.opacity));
+                mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE.gamma_multiply(img.opacity));
                 self.mesh_cache
                     .insert(id, MeshShape { shape: mesh, scale: img.transform.sx });
             }
