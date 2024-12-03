@@ -58,7 +58,7 @@ pub struct Workspace {
     pub status: WsStatus,
     pub out: Response,
 
-    pub graph: Option<KnowledgeGraphApp>,
+    pub knowledge_graph: Option<KnowledgeGraphApp>,
     pub data_given: bool,
     pub run_graph: bool,
 }
@@ -149,8 +149,7 @@ impl Workspace {
             focused_parent: None,
             last_touch_event: None,
             out: output,
-            // graph: KnowledgeGraphApp::new(data::lockbookdata(&core.clone())),
-            graph: None,
+            knowledge_graph: None,
             data_given: false,
             run_graph: false,
         }

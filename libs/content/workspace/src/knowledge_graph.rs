@@ -2,13 +2,10 @@ use crate::data::{Graph, LinkNode};
 
 use egui::ahash::{HashMap, HashMapExt};
 use egui::epaint::Shape;
-use egui::{Align2, Color32, FontId, Painter, Pos2, Stroke, Vec2};
+use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
 
-// use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
-use std::time;
 use std::time::Duration;
 use std::{f32, time::Instant};
 use std::{thread, usize};
@@ -19,7 +16,6 @@ struct Grid {
     grid: HashMap<(i32, i32), Vec<usize>>,
 }
 
-// #[derive(Default)]
 // The main reason for these are to make global variables that can be accessed through the whole code
 pub struct KnowledgeGraphApp {
     pub graph: Graph,
@@ -29,15 +25,9 @@ pub struct KnowledgeGraphApp {
     last_screen_size: egui::Vec2,
     cursor_loc: egui::Vec2,
     debug: String,
-    is_dragging: bool,
-    last_drag_pos: Option<egui::Pos2>,
-    layout_time: f64,
     graph_complete: bool,
 
-    running: bool,
     directional_links: HashMap<usize, Vec<usize>>,
-    animation: bool,
-    timer: time::Instant,
     thread_positions: Arc<RwLock<Vec<Pos2>>>,
     frame_count: usize,
     fps: f32,
@@ -95,15 +85,10 @@ impl KnowledgeGraphApp {
             last_screen_size: egui::Vec2::new(800.0, 600.0),
             cursor_loc: egui::Vec2::ZERO,
             debug: String::from("no single touch"),
-            is_dragging: false,
-            last_drag_pos: None,
-            layout_time: 0.0,
             graph_complete: false,
 
-            running: true,
             directional_links: HashMap::new(),
-            animation: true,
-            timer: Instant::now(),
+
             thread_positions: Arc::new(RwLock::new(thread_positions)),
             frame_count: 0,
             fps: 0.0,
@@ -129,11 +114,10 @@ impl KnowledgeGraphApp {
         self.directional_links = directional_links;
     }
 
-    fn initialize_positions(&mut self) {
-        let width = 800.0;
-        let height = 600.0;
-
-        let main_center = Pos2::new(width / 2.0, height / 2.0);
+    fn initialize_positions(&mut self, ui: &mut egui::Ui) {
+        let screen = ui.available_rect_before_wrap();
+        let main_center =
+            Pos2::new((screen.max.x + screen.min.x) / 2.0, (screen.max.y + screen.min.y) / 2.0);
 
         let cluster_small_radius = 10.0;
 
@@ -215,19 +199,16 @@ impl KnowledgeGraphApp {
         }
     }
 
-    // Assuming Grid and LinkNode are defined elsewhere in your code
-    // struct Grid { ... }
-    // struct LinkNode { id: usize, links: Vec<usize>, /* other fields */ }
-
     fn apply_spring_layout(
         thread_positions: Arc<RwLock<Vec<Pos2>>>, graph: &[LinkNode], max_iterations: usize,
+        screen: Rect,
     ) {
+        let center =
+            Pos2::new((screen.max.x + screen.min.x) / 2.0, (screen.max.y + screen.min.y) / 2.0);
         let mut previous_postions: VecDeque<Vec<Pos2>> = VecDeque::new();
-        let width = 700.0;
-        let height = 500.0;
         let num_nodes = graph.len() as f32;
-
-        // Spring and repulsion constants
+        let width = screen.max.x - screen.min.x;
+        let height = screen.max.y - screen.min.y; // Spring and repulsion constants
         let k_spring = 0.005;
         let k_repel = 3.0;
         let c = 0.05; // Scaling factor for movement
@@ -235,8 +216,6 @@ impl KnowledgeGraphApp {
 
         // Gravity parameters
         let gravity_strength = 0.0001; // Adjust as needed
-        let center = Pos2::new(width / 2.0, height / 2.0);
-        // let mut positions1: Vec<Pos2> = Vec::new();
 
         for _n in 0..max_iterations {
             let cell_size = (width * height / num_nodes).sqrt();
@@ -281,7 +260,6 @@ impl KnowledgeGraphApp {
             for node in graph {
                 for &link in &node.links {
                     if link >= graph.len() {
-                        // println!("Warning: Node {} has a link to invalid node {}", node.id, link);
                         continue;
                     }
 
@@ -343,7 +321,10 @@ impl KnowledgeGraphApp {
     }
 
     fn draw_graph(&mut self, ui: &mut egui::Ui, screen_size: egui::Vec2) {
-        let center = Pos2::new(screen_size.x / 2.0, screen_size.y / 2.0);
+        let screen = ui.available_rect_before_wrap();
+        let center =
+            Pos2::new((screen.max.x + screen.min.x) / 2.0, (screen.max.y + screen.min.y) / 2.0);
+        // let center = Pos2::new(screen_size.x / 2.0, screen_size.y / 2.0);
         let radius = (15.0) / ((self.graph.len() as f32).sqrt() / 3.0).max(1.0);
         let positions = {
             let pos_lock = self.thread_positions.read().unwrap();
@@ -361,13 +342,12 @@ impl KnowledgeGraphApp {
                 base_size + k * (n + 3.0).sqrt() * self.zoom_factor
             })
             .collect();
-
         let transformed_positions: Vec<Pos2> = positions
             .iter()
             .map(|pos| {
-                let zoomed = (pos.to_vec2() - center.to_vec2()) * self.zoom_factor;
-                let panned = zoomed + self.pan;
-                (center.to_vec2() + panned).to_pos2()
+                let panned = pos.to_vec2() + self.pan;
+                let zoomed = center.to_vec2() + (panned - center.to_vec2()) * self.zoom_factor;
+                (zoomed).to_pos2()
             })
             .collect();
         let mut hoveredvalue = self.graph.len() + 1;
@@ -418,7 +398,6 @@ impl KnowledgeGraphApp {
             }
 
             if node.cluster_id.is_some() {
-                println!("runnning ");
                 let pos = transformed_positions[i];
                 ui.painter().circle(
                     pos,
@@ -471,14 +450,6 @@ impl KnowledgeGraphApp {
         } else {
             false
         }
-    }
-
-    fn zoomed(&mut self, zoom: f32) {
-        self.positions = self
-            .positions
-            .iter()
-            .map(|&pos| (self.cursor_loc + ((pos.to_vec2() - self.cursor_loc) * zoom)).to_pos2())
-            .collect();
     }
 
     pub fn label_subgraphs(&mut self) {
@@ -563,6 +534,14 @@ impl KnowledgeGraphApp {
             self.dfs(id, col, redcol, greencol);
         }
     }
+    fn in_rect(&mut self, rect: Rect) -> bool {
+        let min_range = rect.min;
+        let max_range = rect.max;
+        (min_range.x < self.cursor_loc.x)
+            && self.cursor_loc.x < max_range.x
+            && (min_range.y < self.cursor_loc.y)
+            && self.cursor_loc.y < max_range.y
+    }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
         ui.input(|i| {
@@ -572,130 +551,37 @@ impl KnowledgeGraphApp {
                 self.label_clusters();
                 self.label_subgraphs();
             }
-            // let is_zoom_modifier = if cfg!(target_os = "macos") {
-            //     i.modifiers.mac_cmd
-            // } else {
-            //     i.modifiers.ctrl
-            // };
+            let rect = ui.available_rect_before_wrap();
 
-            // if is_zoom_modifier {
-            self.zoom_factor *= i.zoom_delta();
-            // self.zoomed(i.zoom_delta());
-            self.debug = (self.zoom_factor).to_string();
-            // let scrolly = i.raw_scroll_delta.y;
-            let scroll = i.raw_scroll_delta.to_pos2();
-            self.pan += (scroll).to_vec2();
-            //println!("{:?}", scroll);
-            // if scroll != 0.0 {
-            //     self.zoom_factor *= 1.0 + scroll * 0.1;
-
-            //     self.zoom_factor = self.zoom_factor.clamp(0.5, 3.0);
-            // }
-            self.debug = (self.zoom_factor).to_string();
-            // }
-        });
-
-        if ui.input(|i| i.pointer.primary_down()) {
-            if let Some(current_pos) = ui.input(|i| i.pointer.interact_pos()) {
-                if !self.is_dragging {
-                    self.is_dragging = true;
-                    self.last_drag_pos = Some(current_pos);
-                } else if let Some(last_pos) = self.last_drag_pos {
-                    let delta = current_pos - last_pos;
-
-                    self.pan += delta / self.zoom_factor;
-                    self.last_drag_pos = Some(current_pos);
-                }
+            if self.in_rect(rect) {
+                // if ui.rect_contains_pointer(ui.available_rect_before_wrap()) {
+                self.zoom_factor *= i.zoom_delta();
+                self.debug = (self.zoom_factor).to_string();
+                let scroll = i.raw_scroll_delta.to_pos2();
+                self.pan += (scroll).to_vec2();
+                self.debug = (self.zoom_factor).to_string();
             }
-        } else {
-            self.is_dragging = false;
-            self.last_drag_pos = None;
-        }
-        ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
-            // Reserve space for the button and text
-            ui.allocate_ui_with_layout(
-                Vec2::new(100.0, 50.0),
-                egui::Layout::left_to_right(egui::Align::Min),
-                |ui| {
-                    // Display the text to the left of the button
-                    ui.label("Animation");
-
-                    // Button logic
-                    let _button = egui::Button::new("")
-                        .frame(false)
-                        .sense(egui::Sense::click());
-
-                    let (rect, response) = ui.allocate_exact_size(
-                        Vec2::new(20.0, 15.0), // Circle size
-                        egui::Sense::click(),
-                    );
-
-                    // Check if button is clicked
-                    if response.clicked() {
-                        self.animation = !self.animation;
-                    }
-
-                    // Set button color based on pressed state
-                    let color = if self.animation { Color32::BLUE } else { Color32::GRAY };
-
-                    // Draw the circle button
-                    ui.painter().circle_filled(rect.center(), 5.0, color); // 15.0 is the radius
-                },
-            );
         });
-        ui.heading("Knowledge Graph");
-        ui.text_edit_singleline(&mut self.debug);
 
-        ui.label(format!("FPS: {:.2}", self.fps));
-        let screen_size = ui.available_size();
+        let screen = ui.available_rect_before_wrap();
+        ui.set_clip_rect(screen);
+        // ui.painter()
+        // .rect_filled(rect, 0.0, egui::Color32::DEBUG_COLOR);
+        let screen_size = screen.max.to_vec2();
 
         if !self.graph_complete {
-            self.initialize_positions();
+            self.initialize_positions(ui);
             self.graph_complete = true;
-            let is_finished = Arc::new(AtomicBool::new(false));
+
             let postioninfo = Arc::clone(&self.thread_positions);
             let graph = self.graph.clone();
             thread::spawn(move || {
-                Self::apply_spring_layout(postioninfo, &graph, 2500000);
+                Self::apply_spring_layout(postioninfo, &graph, 2500000, screen);
             });
-            // println!("ok done");
-            // while !is_finished.load(Ordering::SeqCst) {
-            //     // ctx.request_repaint();
-            //     // self.draw_graph(ui, screen_size);
-            //     thread::sleep(Duration::from_millis(1)); // Polling interval
-            //     println!("can redraw");
-            // }
         }
 
         self.draw_graph(ui, screen_size);
         ui.ctx().request_repaint();
-        // println!("is drawing again");
-        // let mut time: Instant = Instant::now();
-        // if !self.layout_started {
-        //     self.timer = Instant::now();
-        //     self.initialize_positions();
-        //     self.layout_started = true;
-        // } else if !self.graph_complete {
-        //     let iterations = self.iteration.clone();
-        //     let graphlen = self.graph.len();
-        //     let forces = self.forces.clone();
-        //     let postions = self.positions.clear();
-        //     let postioninfo = Arc::clone(&self.thread_positions);
-        //     // let drawgraphthread = thread::spawn(
-
-        //     //     let app_ref = Arc::new(self.clone());
-        //     //     move || {
-        //     //     Self::apply_spring_layout(self, postioninfo);
-        //     // }); // println!("iteration {}", self.iteration);
-        //     self.apply_spring_layout(postioninfo);
-        // }
-        // // println!("{:?}", time.elapsed());
-
-        // self.draw_graph(ui, screen_size);
-
-        // if !self.graph_complete {
-        //     ctx.request_repaint();
-        // }
 
         self.frame_count += 1;
         let now = Instant::now();
@@ -706,90 +592,10 @@ impl KnowledgeGraphApp {
             self.frame_count = 0;
             self.last_fps_update = now;
         }
-
-        if self.running {
-            self.debug = String::from("running");
-        } else if self.layout_time == 0.0 {
-            self.layout_time = self.timer.elapsed().as_secs_f64();
-            self.debug = String::from("done");
-        }
-
-        if let Some(cursor) = ui.input(|i| i.pointer.hover_pos()) {
-            self.cursor_loc = cursor.to_vec2();
-        }
-        if !self.running {
-            let pointer = ui.input(|i| i.pointer.clone());
-            if pointer.any_down() {
-                if let Some(current_pos) = pointer.interact_pos() {
-                    if !self.is_dragging {
-                        self.is_dragging = true;
-                        self.last_drag_pos = Some(current_pos);
-                    } else if let Some(_last_pos) = self.last_drag_pos {
-                        // let delta = current_pos - last_pos;
-
-                        self.last_drag_pos = Some(current_pos);
-                    }
-                }
-            } else {
-                self.is_dragging = false;
-                self.last_drag_pos = None;
-            }
-
-            if let Some(touches) = ui.input(|i| i.multi_touch()) {
-                self.debug = touches.num_touches.to_string();
-            }
-
-            let mut zoom = 1.0;
-            if ui.input(|i| i.key_pressed(egui::Key::Equals)) {
-                self.zoom_factor *= 1.1;
-                zoom = 1.1;
-            }
-            if ui.input(|i| i.key_pressed(egui::Key::Minus)) {
-                self.zoom_factor *= 0.9;
-                zoom = 0.9;
-            }
-            if zoom != 1.0 {
-                if let Some(cursor) = ui.input(|i| i.pointer.hover_pos()) {
-                    self.cursor_loc = cursor.to_vec2();
-                    self.zoomed(zoom);
-                }
-            }
-        }
         if let Some(cursor) = ui.input(|i| i.pointer.hover_pos()) {
             self.cursor_loc = cursor.to_vec2();
         }
     }
-}
-
-pub fn run_graph(ui: &mut egui::Ui, graph: &mut Graph) -> KnowledgeGraphApp {
-    // let graph = lockbookdata();
-    let stop_flag = Arc::new(AtomicBool::new(false));
-    let stop_flag_clone = Arc::clone(&stop_flag);
-
-    thread::spawn(move || {
-        let mut seconds = 0;
-        while !stop_flag_clone.load(Ordering::SeqCst) {
-            thread::sleep(Duration::from_secs(1));
-            seconds += 1;
-            // println!("{} second", seconds);
-        }
-    });
-
-    // let graph = fix_graph(graph);
-
-    let mut app = KnowledgeGraphApp::new(graph);
-    app.build_directional_links();
-    // println!("{:?}", app.directional_links);
-    app.bidiretional();
-    app.label_clusters();
-    app.label_subgraphs();
-    stop_flag.store(true, Ordering::SeqCst);
-    app
-}
-
-fn fix_graph(mut graph: Vec<LinkNode>) -> Vec<LinkNode> {
-    graph.sort_by_key(|node| node.id);
-    graph
 }
 
 fn draw_arrow(
@@ -847,7 +653,7 @@ fn intersectstuff(from: Pos2, to: Pos2, size: f32) -> Pos2 {
     if x < 0.0 {
         intersect = intersect;
     } else {
-        intersect = (Pos2::new(0.0, 0.0) - intersect.to_vec2());
+        intersect = Pos2::new(0.0, 0.0) - intersect.to_vec2();
     }
     intersect
 }
@@ -861,7 +667,7 @@ fn intersectstuff1(from: Pos2, to: Pos2, size: f32) -> Pos2 {
     if x > 0.0 {
         intersect = intersect;
     } else {
-        intersect = (Pos2::new(0.0, 0.0) - intersect.to_vec2());
+        intersect = Pos2::new(0.0, 0.0) - intersect.to_vec2();
     }
     intersect
 }

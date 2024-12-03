@@ -69,7 +69,6 @@ pub fn lockbookdata(core: &Lb) -> Graph {
             let doc = String::from_utf8(doc).unwrap();
             let name = file.name;
             info.push((name, doc));
-            //classify.push(Name_Id::new(classify.len(), name.clone(), vec![]));
         }
     }
 
