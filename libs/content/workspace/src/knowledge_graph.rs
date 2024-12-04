@@ -22,6 +22,7 @@ pub struct KnowledgeGraphApp {
     positions: Vec<egui::Pos2>,
     zoom_factor: f32,
     pan: Vec2,
+    last_pan: Vec2,
     last_screen_size: egui::Vec2,
     cursor_loc: egui::Vec2,
     debug: String,
@@ -82,6 +83,7 @@ impl KnowledgeGraphApp {
             zoom_factor: 1.0,
 
             pan: Vec2::ZERO,
+            last_pan: Vec2::ZERO,
             last_screen_size: egui::Vec2::new(800.0, 600.0),
             cursor_loc: egui::Vec2::ZERO,
             debug: String::from("no single touch"),
@@ -330,6 +332,14 @@ impl KnowledgeGraphApp {
             let pos_lock = self.thread_positions.read().unwrap();
             pos_lock.clone()
         };
+        ui.painter().circle(
+            center,
+            5.0,
+            egui::Color32::DEBUG_COLOR,
+            Stroke::new(1.0, egui::Color32::BLACK),
+        );
+        self.last_pan = self.last_pan + self.pan / self.zoom_factor;
+        self.pan = Vec2::ZERO;
 
         let base_size = radius;
         let k = 1.0;
@@ -345,8 +355,10 @@ impl KnowledgeGraphApp {
         let transformed_positions: Vec<Pos2> = positions
             .iter()
             .map(|pos| {
-                let panned = pos.to_vec2() + self.pan;
-                let zoomed = center.to_vec2() + (panned - center.to_vec2()) * self.zoom_factor;
+                let panning = self.last_pan;
+                // let center = center + panning;
+                let panned = pos.to_vec2() + panning;
+                let zoomed = center.to_vec2() + ((panned - (center.to_vec2())) * self.zoom_factor);
                 (zoomed).to_pos2()
             })
             .collect();
