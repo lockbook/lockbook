@@ -117,26 +117,23 @@ impl SVGEditor {
             .weak_images
             .drain()
             .for_each(|(id, mut weak_image)| {
-                // if !self.buffer.elements.contains_key(&id) {
                 weak_image.transform(self.buffer.master_transform);
-                // }
 
                 let mut image = Image::from_weak(weak_image, &self.lb);
-                // if self.buffer.elements.contains_key(&id) {
-                //     image.diff_state.transformed = Some(self.buffer.master_transform);
-                // }
 
                 image.diff_state.transformed = None;
 
                 println!("rehydrating weak image after transform: {:#?}", weak_image);
                 println!("{:#?}", image.diff_state);
 
-                if weak_image.z_index > self.buffer.elements.len() {
-                    self.buffer.elements.insert(id, Element::Image(image))
+                if weak_image.z_index >= self.buffer.elements.len() {
+                    self.buffer.elements.insert(id, Element::Image(image));
                 } else {
-                    self.buffer
-                        .elements
-                        .shift_insert(weak_image.z_index, id, Element::Image(image))
+                    self.buffer.elements.shift_insert(
+                        weak_image.z_index,
+                        id,
+                        Element::Image(image),
+                    );
                 };
             });
 

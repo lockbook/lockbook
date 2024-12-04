@@ -978,9 +978,9 @@ impl Workspace {
                     // }
                 }
                 WsMsg::BgSignal(Signal::MaybeSync) => {
-                    if self.last_sync.elapsed() > Duration::from_secs(1) {
-                        self.perform_sync()
-                    }
+                    // if self.last_sync.elapsed() > Duration::from_secs(1) {
+                    //     self.perform_sync()
+                    // }
 
                     if !self.cfg.auto_sync.load(Ordering::Relaxed) {
                         // auto sync disabled

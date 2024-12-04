@@ -107,55 +107,49 @@ impl Buffer {
             }
         }
 
-        for (id, base_el) in base_buffer.elements.iter() {
-            if let Some(remote_el) = remote_buffer.elements.get(id) {
-                if remote_el != base_el {
-                    // this element was changed remotly
-                    let mut transformed_el = remote_el.clone();
-                    if let Element::Path(path) = &mut transformed_el {
-                        path.diff_state.transformed = Some(local_master_transform);
-                        path.data
+        base_buffer
+            .elements
+            .iter()
+            .filter_map(|(id, el)| if let Element::Path(p) = el { Some((id, p)) } else { None })
+            .for_each(|(id, base_path)| {
+                if let Some(Element::Path(remote_path)) = remote_buffer.elements.get(id) {
+                    if remote_path != base_path {
+                        // this element was changed remotly
+                        let mut transformed_path = remote_path.clone();
+                        transformed_path.diff_state.transformed = Some(local_master_transform);
+                        transformed_path.diff_state.transformed = None;
+                        transformed_path
+                            .data
                             .apply_transform(u_transform_to_bezier(&local_master_transform));
-                    }
+                        transformed_path.diff_state.data_changed = true;
 
-                    match transformed_el {
-                        Element::Path(ref mut path) => {
-                            path.diff_state.data_changed = true;
-                            path.diff_state.transformed = None
-                        }
-                        _ => {}
+                        local_elements.insert(*id, Element::Path(transformed_path.clone()));
                     }
-
-                    local_elements.insert(*id, transformed_el.clone());
+                } else {
+                    // this was deletd remotly
+                    local_elements.shift_remove(id);
                 }
-            } else {
-                // this was deletd remotly
-                local_elements.shift_remove(id);
-            }
-        }
+            });
 
-        for (i, (id, remote_el)) in remote_buffer.elements.iter().enumerate() {
-            if !base_buffer.elements.contains_key(id) {
-                // this was created remotly
-
-                let mut transformed_el = remote_el.clone();
-                if let Element::Path(path) = &mut transformed_el {
-                    path.diff_state.transformed = Some(local_master_transform);
-                    path.data
+        remote_buffer
+            .elements
+            .iter()
+            .filter_map(|(id, el)| if let Element::Path(p) = el { Some((id, p)) } else { None })
+            .enumerate()
+            .for_each(|(i, (id, remote_el))| {
+                if !base_buffer.elements.contains_key(id) {
+                    let mut transformed_path = remote_el.clone();
+                    transformed_path.diff_state.transformed = Some(local_master_transform);
+                    transformed_path
+                        .data
                         .apply_transform(u_transform_to_bezier(&local_master_transform));
-                }
 
-                match transformed_el {
-                    Element::Path(ref mut path) => {
-                        path.diff_state.data_changed = true;
-                        path.diff_state.transformed = None
-                    }
-                    _ => {}
-                }
+                    transformed_path.diff_state.data_changed = true;
+                    transformed_path.diff_state.transformed = None;
 
-                local_elements.insert_before(i, *id, transformed_el);
-            }
-        }
+                    local_elements.insert_before(i, *id, Element::Path(transformed_path));
+                }
+            });
     }
 
     pub fn insert(&mut self, id: Uuid, mut el: Element) {
@@ -229,9 +223,10 @@ impl Buffer {
                 }
                 Element::Image(img) => {
                     if img.deleted {
+                        println!("IMG DELETED SKIP");
                         continue;
                     }
-                    println!("saving weak transforms");
+                    println!("saving weak img");
 
                     let mut weak_image: WeakImage = img.into_weak(index);
 
@@ -254,6 +249,8 @@ impl Buffer {
             self.master_transform.tx,
             self.master_transform.ty
         );
+
+        weak_images.extend(self.weak_images.iter());
 
         if !weak_images.is_empty() {
             let binary_data = bincode::serialize(&weak_images).expect("Failed to serialize");

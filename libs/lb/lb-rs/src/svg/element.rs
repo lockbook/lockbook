@@ -18,17 +18,6 @@ pub enum Element {
     Text(Text),
 }
 
-impl PartialEq for Element {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Path(l0), Self::Path(r0)) => l0 == r0,
-            (Self::Image(_), Self::Image(_)) => todo!(),
-            (Self::Text(_), Self::Text(_)) => todo!(),
-            _ => false,
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct Path {
     pub data: Subpath<ManipulatorGroupId>,
@@ -153,11 +142,14 @@ impl WeakImage {
         if transform.is_identity() {
             return;
         }
-        self.x = transform.sx * self.x + transform.kx * self.x + transform.tx;
-        self.y = transform.ky * self.y + transform.sy * self.y + transform.ty;
-
-        self.width = self.width / transform.sx;
-        self.height = self.height / transform.sy;
+        if let Some(view_box) = NonZeroRect::from_xywh(self.x, self.y, self.width, self.height) {
+            if let Some(ts_view_box) = view_box.transform(transform) {
+                self.x = ts_view_box.x();
+                self.y = ts_view_box.y();
+                self.width = ts_view_box.width();
+                self.height = ts_view_box.height();
+            }
+        }
     }
 }
 
