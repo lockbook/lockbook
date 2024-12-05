@@ -21,8 +21,6 @@ jobs:
 #     - name: Install udeps
 #       run: cargo install cargo-udeps --locked
     - name: Check Workspace Fmt
-      run: env
-    - name: Check Workspace Fmt
       run: cargo run -p lockbook-dev -- check-workspace-fmt
     - name: Check Workspace Clippy
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lockbook-dev -- check-workspace-clippy"
@@ -31,7 +29,7 @@ jobs:
     - name: Run Server
       run: cargo run -p lockbook-dev -- run-server
     - name: Run Rust Tests
-      run: cargo run -p lockbook-dev -- run-rust-tests
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lockbook-dev -- run-rust-tests"
       # - name: Run Swift Tests
       #   run: cargo run -p lockbook-dev -- run-swift-tests
       # - name: Run Android Fmt
