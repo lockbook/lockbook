@@ -23,7 +23,7 @@ jobs:
     - name: Check Workspace Fmt
       run: whoami
     - name: Check Workspace Fmt
-      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --comand 'cargo run -p lockbook-dev -- check-workspace-fmt'
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command 'cargo run -p lockbook-dev -- check-workspace-fmt'
     - name: Check Workspace Clippy
       run: cargo run -p lockbook-dev -- check-workspace-clippy
 # - name: Check Unused Dependencies
