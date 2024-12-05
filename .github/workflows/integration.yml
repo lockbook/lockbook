@@ -14,7 +14,6 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CARGO_TARGET_DIR: /tmp/lockbook-ci-cache/target
-      NIX_PATH: $NIX_PATH
     steps:
     - uses: actions/checkout@v2
 #     - name: Install Nightly
