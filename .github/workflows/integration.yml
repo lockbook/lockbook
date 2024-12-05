@@ -21,6 +21,8 @@ jobs:
 #     - name: Install udeps
 #       run: cargo install cargo-udeps --locked
     - name: Check Workspace Fmt
+      run: whoami
+    - name: Check Workspace Fmt
       run: cargo run -p lockbook-dev -- check-workspace-fmt
     - name: Check Workspace Clippy
       run: cargo run -p lockbook-dev -- check-workspace-clippy
