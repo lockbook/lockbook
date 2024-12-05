@@ -14,7 +14,6 @@ use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::svg::buffer::Buffer;
 use lb_rs::Uuid;
-use rand::seq::SliceRandom;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -22,14 +21,14 @@ use std::time::{Duration, Instant};
 use std::{mem, thread};
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
-use crate::data::{self, lockbookdata, Graph};
+use crate::data::lockbookdata;
 use crate::knowledge_graph::KnowledgeGraphApp;
 use crate::output::{DirtynessMsg, Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
-use crate::tab::{self, SaveRequest, Tab, TabContent, TabFailure};
+use crate::tab::{SaveRequest, Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 
@@ -287,7 +286,7 @@ impl Workspace {
         self.set_tooltip_visibility(ui);
 
         self.process_updates();
-        self.process_keys(ui);
+        self.process_keys();
         self.status.populate_message();
 
         if self.is_empty() {
@@ -752,7 +751,7 @@ impl Workspace {
         self.active_tab_changed = true;
     }
 
-    fn process_keys(&mut self, ui: &mut egui::Ui) {
+    fn process_keys(&mut self) {
         const COMMAND: Modifiers = Modifiers::COMMAND;
         const SHIFT: Modifiers = Modifiers::SHIFT;
         const NUM_KEYS: [Key; 10] = [
