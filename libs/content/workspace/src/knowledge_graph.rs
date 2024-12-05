@@ -332,12 +332,12 @@ impl KnowledgeGraphApp {
             let pos_lock = self.thread_positions.read().unwrap();
             pos_lock.clone()
         };
-        ui.painter().circle(
-            center,
-            5.0,
-            egui::Color32::DEBUG_COLOR,
-            Stroke::new(1.0, egui::Color32::BLACK),
-        );
+        // ui.painter().circle(
+        //     center,
+        //     5.0,
+        //     egui::Color32::DEBUG_COLOR,
+        //     Stroke::new(1.0, egui::Color32::BLACK),
+        // );
         self.last_pan = self.last_pan + self.pan / self.zoom_factor;
         self.pan = Vec2::ZERO;
 
@@ -456,6 +456,7 @@ impl KnowledgeGraphApp {
 
         self.last_screen_size = screen_size;
     }
+
     fn has_directed_link(&self, from_node: usize, to_node: usize) -> bool {
         if let Some(links) = self.directional_links.get(&from_node) {
             links.contains(&to_node)

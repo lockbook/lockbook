@@ -60,7 +60,7 @@ pub fn lockbookdata(core: &Lb) -> Graph {
     let mut classify: Vec<NameId> = Vec::new();
     // let core = core();
     let mut id: usize = 0;
-    let mut num_links = 1;
+    let mut _num_links = 1;
     let mut info: Vec<(String, String)> = Vec::new();
 
     for file in core.list_metadatas().unwrap() {
@@ -79,7 +79,7 @@ pub fn lockbookdata(core: &Lb) -> Graph {
         let name = n.0;
         let links = checkforlinks(&mut classify, &mut id, &doc);
         id += 1;
-        num_links += links.len();
+        _num_links += links.len();
         classify.push(NameId::new(classify.len(), name.clone(), links));
     }
     // Add remaining links in classify to the graph if they don't exist
