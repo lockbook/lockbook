@@ -13,6 +13,7 @@ jobs:
     runs-on: [self-hosted, ci]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CARGO_HOME: /tmp/lockbook-ci-cache/home
       CARGO_TARGET_DIR: /tmp/lockbook-ci-cache/target
     steps:
     - uses: actions/checkout@v2
