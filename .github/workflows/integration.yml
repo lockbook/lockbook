@@ -14,6 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CARGO_TARGET_DIR: /tmp/lockbook-ci-cache/target
+      NIX_PATH: $NIX_PATH
     steps:
     - uses: actions/checkout@v2
 #     - name: Install Nightly
@@ -22,8 +23,8 @@ jobs:
 #       run: cargo install cargo-udeps --locked
     - name: Check Workspace Fmt
       run: env
-        # - name: Check Workspace Fmt
-        #   run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lockbook-dev -- check-workspace-fmt"
+    - name: Check Workspace Fmt
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lockbook-dev -- check-workspace-fmt"
     - name: Check Workspace Clippy
       run: cargo run -p lockbook-dev -- check-workspace-clippy
 # - name: Check Unused Dependencies
