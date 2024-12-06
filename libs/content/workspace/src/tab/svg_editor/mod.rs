@@ -28,12 +28,10 @@ use lb_rs::Uuid;
 pub use path_builder::PathBuilder;
 pub use pen::Pen;
 use renderer::Renderer;
-use resvg::usvg::ImageKind;
 pub use toolbar::Tool;
 use toolbar::ToolContext;
 use tracing::span;
 use tracing::Level;
-use usvg_parser::Options;
 
 pub struct SVGEditor {
     pub buffer: Buffer,
@@ -122,9 +120,6 @@ impl SVGEditor {
                 let mut image = Image::from_weak(weak_image, &self.lb);
 
                 image.diff_state.transformed = None;
-
-                println!("rehydrating weak image after transform: {:#?}", weak_image);
-                println!("{:#?}", image.diff_state);
 
                 if weak_image.z_index >= self.buffer.elements.len() {
                     self.buffer.elements.insert(id, Element::Image(image));

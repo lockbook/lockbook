@@ -45,7 +45,6 @@ impl Buffer {
 
         if let Err(err) = maybe_tree {
             println!("{:#?}", err);
-            println!("couldn't parse the base content");
         } else {
             let utree = maybe_tree.unwrap();
 
@@ -83,16 +82,8 @@ impl Buffer {
             if let Some(remote_img) = remote_buffer.weak_images.get(id) {
                 if remote_img != base_img {
                     local_weak_images.insert(*id, *remote_img);
-
-                    println!("remote changed element {:#?}", id);
-                    println!("diff (remote): {:#?}", remote_img);
-                    println!("diff (base): {:#?}", base_img);
                 }
             } else {
-                println!("remote delete element {:#?}", id);
-                println!("remote weak images: {:#?}", remote_buffer.weak_images);
-                println!("base weak images: {:#?}", base_buffer.weak_images);
-
                 // this was deleted remotly
                 local_weak_images.remove(id);
                 local_elements.shift_remove(id);
@@ -102,8 +93,6 @@ impl Buffer {
         for (id, remote_img) in remote_buffer.weak_images.iter() {
             if !base_buffer.weak_images.contains_key(id) {
                 local_weak_images.insert(*id, *remote_img);
-
-                println!("remote inserted element {:#?}", id);
             }
         }
 
@@ -223,17 +212,14 @@ impl Buffer {
                 }
                 Element::Image(img) => {
                     if img.deleted {
-                        println!("IMG DELETED SKIP");
                         continue;
                     }
-                    println!("saving weak img");
 
                     let mut weak_image: WeakImage = img.into_weak(index);
 
                     weak_image.transform(self.master_transform.invert().unwrap_or_default());
 
                     weak_images.insert(*el.0, weak_image);
-                    println!("weak image after transform {:#?}", weak_images);
                 }
                 Element::Text(_) => {}
             }

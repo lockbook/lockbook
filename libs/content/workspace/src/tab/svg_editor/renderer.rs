@@ -82,7 +82,6 @@ impl Renderer {
             .par_iter_mut()
             .filter_map(|(id, el)| -> Option<(Uuid, RenderOp<'_>)> {
                 if el.deleted() && el.delete_changed() {
-                    println!("issuning delete on el: {}", id);
                     return Some((*id, RenderOp::Delete));
                 };
 
@@ -196,31 +195,25 @@ impl Renderer {
     }
 
     fn alloc_image_mesh(&mut self, id: Uuid, img: &mut Image, ui: &mut egui::Ui) {
-        // if self.mesh_cache.contains_key(&id) {
-        //     return;
-        // }
         match &img.data {
             ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
-                let image = image::load_from_memory(&bytes).unwrap();
+                let image = image::load_from_memory(bytes).unwrap();
 
                 let egui_image = egui::ColorImage::from_rgba_unmultiplied(
                     [image.width() as usize, image.height() as usize],
                     &image.to_rgba8(),
                 );
-                println!("created egui image");
 
-                if !self.tex_cache.contains_key(&id) {
+                self.tex_cache.entry(id).or_insert_with(|| {
                     let texture = ui.ctx().load_texture(
                         format!("canvas_img_{}", id),
                         egui_image,
                         Default::default(),
                     );
-                    self.tex_cache.insert(id, texture);
-                }
+                    texture
+                });
 
                 let texture = self.tex_cache.get(&id).unwrap();
-
-                println!("created texture");
 
                 let rect = egui::Rect {
                     min: egui::pos2(img.view_box.left(), img.view_box.top()),
@@ -232,7 +225,6 @@ impl Renderer {
                 };
 
                 let mut mesh = egui::Mesh::with_texture(texture.id());
-                println!("created mesh");
 
                 mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE.gamma_multiply(img.opacity));
                 self.mesh_cache
