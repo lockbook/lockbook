@@ -49,7 +49,6 @@ impl<'window> WgpuWorkspace<'window> {
                 return Default::default();
             }
         };
-
         let output_view = output_frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
