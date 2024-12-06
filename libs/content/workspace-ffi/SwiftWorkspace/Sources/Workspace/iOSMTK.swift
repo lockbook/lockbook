@@ -24,9 +24,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         return textUndoManager
     }
 
-    var pasteBoardEventId: Int = 0
-    var pasteboardString: String?
-
     var lastFloatingCursorRect: CGRect? = nil
     var floatingCursor: UIView = UIView()
     var floatingCursorWidth = 1.0
@@ -309,45 +306,14 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             }
         }
     }
-
-    func sendImage(img: Data, isPaste: Bool) {
-        let imgPtr = img.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) -> UnsafePointer<UInt8> in
-            return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
-        }
-
-        clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
-    }
-
+    
     func importContent(_ importFormat: SupportedImportFormat, isPaste: Bool) {
         inputDelegate?.textWillChange(self)
         inputDelegate?.selectionWillChange(self)
-        switch importFormat {
-        case .url(let url):
-            if url.pathExtension.lowercased() == "png" {
-                guard let data = try? Data(contentsOf: url) else {
-                    return
-                }
-
-                sendImage(img: data, isPaste: isPaste)
-            } else {
-                clipboard_send_file(wsHandle, url.path(percentEncoded: false), isPaste)
-            }
-        case .image(let image):
-            if let img = image.pngData() ?? image.jpegData(compressionQuality: 1.0) {
-                sendImage(img: img, isPaste: isPaste)
-            }
-        case .text(let text):
-            clipboard_paste(wsHandle, text)
-            workspaceState?.pasted = true
-        }
+        mtkView.importContent(importFormat, isPaste: isPaste)
         mtkView.drawImmediately()
         inputDelegate?.selectionDidChange(self)
         inputDelegate?.textDidChange(self)
-    }
-
-    func setClipboard() {
-        pasteboardString = UIPasteboard.general.string
-        self.pasteBoardEventId = UIPasteboard.general.changeCount
     }
     
     public func insertText(_ text: String) {
@@ -641,12 +607,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public override func paste(_ sender: Any?) {
-        self.setClipboard()
-
         if let image = UIPasteboard.general.image {
             importContent(.image(image), isPaste: true)
-        } else if let pastedString = pasteboardString {
-            importContent(.text(pastedString), isPaste: true)
+        } else if let string = UIPasteboard.general.string {
+            importContent(.text(string), isPaste: true)
         }
     }
     
@@ -713,12 +677,13 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
 }
 
-public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
+public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMenuInteractionDelegate {
 
     public static let TOOL_BAR_HEIGHT: CGFloat = 50
 
     let pencilInteraction = UIPencilInteraction()
-
+    lazy var editMenuInteraction = UIEditMenuInteraction(delegate: self)
+    
     let mtkView: iOSMTK
 
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
@@ -737,17 +702,39 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
         
+        
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
         pan.maximumNumberOfTouches = 0
         self.addGestureRecognizer(pan)
         
+        // edit menu support
+        self.addInteraction(editMenuInteraction)
+        
         let pointerInteraction = UIPointerInteraction(delegate: mtkView)
         self.addInteraction(pointerInteraction)
         
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(self.handleLongPress(_:)))
+        self.addGestureRecognizer(longPress)
+        
         self.isMultipleTouchEnabled = true
         set_pencil_only_drawing(wsHandle, prefersPencilOnlyDrawing)
+    }
+    
+    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        
+        let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: gesture.location(in: self))
+        editMenuInteraction.presentEditMenu(with: config)
+    }
+    
+    public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if action == #selector(paste(_:)) {
+            return UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
+        }
+
+        return false
     }
     
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
@@ -794,6 +781,14 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
         mtkView.touchesCancelled(touches, with: event)
         
     }
+    
+    public override func paste(_ sender: Any?) {
+        if let image = UIPasteboard.general.image {
+            mtkView.importContent(.image(image), isPaste: true)
+        } else if let string = UIPasteboard.general.string {
+            mtkView.importContent(.text(string), isPaste: true)
+        }
+    }
 
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -826,7 +821,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     
     var cursorTracked = false
     var scrollId = 0
-    
+        
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         
@@ -1220,6 +1215,36 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             ios_key_event(wsHandle, key.keyCode.rawValue, shift, ctrl, option, command, pressBegan)
             self.setNeedsDisplay(self.frame)
         }
+    }
+    
+    func importContent(_ importFormat: SupportedImportFormat, isPaste: Bool) {
+        switch importFormat {
+        case .url(let url):
+            if url.pathExtension.lowercased() == "png" {
+                guard let data = try? Data(contentsOf: url) else {
+                    return
+                }
+
+                sendImage(img: data, isPaste: isPaste)
+            } else {
+                clipboard_send_file(wsHandle, url.path(percentEncoded: false), isPaste)
+            }
+        case .image(let image):
+            if let img = image.pngData() ?? image.jpegData(compressionQuality: 1.0) {
+                sendImage(img: img, isPaste: isPaste)
+            }
+        case .text(let text):
+            clipboard_paste(wsHandle, text)
+            workspaceState?.pasted = true
+        }
+    }
+    
+    func sendImage(img: Data, isPaste: Bool) {
+        let imgPtr = img.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) -> UnsafePointer<UInt8> in
+            return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
+        }
+
+        clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
     }
 
     func isDarkMode() -> Bool {
