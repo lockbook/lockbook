@@ -32,9 +32,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     var floatingCursorWidth = 1.0
     var floatingCursorNewStartX = 0.0
     var floatingCursorNewEndX = 0.0
-
     var floatingCursorNewStartY = 0.0
     var floatingCursorNewEndY = 0.0
+    var autoScroll: Timer? = nil
         
     var isLongPressCursorDrag = false
     
@@ -214,12 +214,27 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         let x = point.x - self.floatingCursorNewStartX
         let y = point.y - self.floatingCursorNewStartY
 
-        if y >= bounds.height - 5 {
-            scroll_wheel(wsHandle, 0, -20, false, false, false, false)
-        } else if y <= 5 {
-            scroll_wheel(wsHandle, 0, 20, false, false, false, false)
+        let scrollUp = y >= bounds.height - 20
+        let scrollDown = y <= 20
+        
+        if (scrollUp || scrollDown) && autoScroll == nil {
+            autoScroll = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
+                if floatingCursor.isHidden {
+                    timer.invalidate()
+                }
+                
+                mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
+                scroll_wheel(wsHandle, 0, scrollUp ? -20 : 20, false, false, false, false)
+                mouse_gone(wsHandle)
+                
+                mtkView.drawImmediately()
+            }
+        } else if let autoScroll,
+            !scrollUp && !scrollDown {
+            autoScroll.invalidate()
+            self.autoScroll = nil
         }
-
+        
         if animate {
             UIView.animate(withDuration: 0.15, animations: { [weak self] in
                 if let textWrapper = self {
@@ -1045,8 +1060,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             self.workspaceState?.openDoc = nil
         }
         
-        if currentTab == .Markdown && currentWrapper is iOSMTKTextInputWrapper {
-            if(output.has_virtual_keyboard_shown && !output.virtual_keyboard_shown) {
+        if let currentWrapper = currentWrapper as? iOSMTKTextInputWrapper,
+           currentTab == .Markdown {
+            if(output.has_virtual_keyboard_shown && !output.virtual_keyboard_shown && currentWrapper.floatingCursor.isHidden) {
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
             
@@ -1062,7 +1078,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                 onSelectionChanged?()
             }
 
-            let keyboard_shown = currentWrapper?.isFirstResponder ?? false && GCKeyboard.coalesced == nil;
+            let keyboard_shown = currentWrapper.isFirstResponder && GCKeyboard.coalesced == nil;
             update_virtual_keyboard(wsHandle, keyboard_shown)
         }
 
