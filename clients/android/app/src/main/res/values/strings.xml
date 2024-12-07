@@ -38,13 +38,13 @@
     <string name="settings_preference_title_incremental_sync">Incremental Sync</string>
     <string name="qr_code_content_description">QR code</string>
 
-    <string name="settings_preference_logs">View logs</string>
-    <string name="settings_preference_clear_logs">Clear logs</string>
     <string name="dialog_duration_hours_label">Hours</string>
     <string name="dialog_duration_minutes_label">Minutes</string>
     <string name="dialog_duration_days_label">Days</string>
     <string name="dialog_duration_error">Your duration cannot be less than 15 minutes.</string>
 
+    <string name="debug_info">Debug Info</string>
+    <string name="debug_info_copy">Copy</string>
     <string name="settings_preference_debug">Debug</string>
     <string name="settings_preference_usage">Usage</string>
     <string name="settings_usage_current">Usage:</string>
@@ -166,9 +166,6 @@
     <string name="background_sync_enabled_key" translatable="false">background_sync_enabled</string>
     <string name="sync_automatically_key" translatable="false">sync_automatically_in_app</string>
 
-    <string name="view_logs_key" translatable="false">view_logs</string>
-    <string name="clear_logs_key" translatable="false">clear_logs</string>
-
     <string name="open_new_doc_automatically_key" translatable="false">open_new_doc_automatically</string>
     <string name="cancel_subscription_key" translatable="false">cancel_subscription</string>
 
@@ -180,6 +177,7 @@
     <string name="privacy_key" translatable="false">privacy</string>
     <string name="logout_key" translatable="false">logout</string>
     <string name="delete_account_key" translatable="false">delete_account</string>
+    <string name="debug_info_key" translatable="false">debug_info</string>
 
     <string name="theme_mode_key" translatable="false">theme_mode</string>
     <string name="theme_light">Light</string>
