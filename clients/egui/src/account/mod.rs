@@ -65,14 +65,6 @@ impl AccountScreen {
         let toasts = egui_notify::Toasts::default()
             .with_margin(egui::vec2(40.0, 30.0))
             .with_padding(egui::vec2(20.0, 20.0));
-        let reference_settings = settings.read().unwrap();
-        let ws_cfg = WsConfig::new(
-            data_dir().unwrap(),
-            reference_settings.auto_save,
-            reference_settings.auto_sync,
-            reference_settings.zen_mode,
-        );
-        drop(reference_settings);
 
         let sidebar_expanded = !settings.read().unwrap().zen_mode;
         let mut result = Self {
@@ -86,7 +78,7 @@ impl AccountScreen {
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(sync_status),
             usage,
-            workspace: Workspace::new(ws_cfg, &core_clone, &ctx.clone()),
+            workspace: Workspace::new(&core_clone, &ctx.clone()),
             modals: Modals::default(),
             shutdown: None,
             sidebar_expanded,

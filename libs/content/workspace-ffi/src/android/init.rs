@@ -124,7 +124,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
             .invalidate_egui_references(&context, core);
         old_wgpu.workspace
     } else {
-        Workspace::new(ws_cfg, core, &context)
+        Workspace::new(core, &context)
     };
 
     let mut fonts = FontDefinitions::default();

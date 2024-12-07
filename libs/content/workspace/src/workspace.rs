@@ -5,9 +5,12 @@ use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::svg::buffer::Buffer;
 use lb_rs::Uuid;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+use std::{fs, io, mem, thread};
 
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
@@ -47,30 +50,43 @@ pub struct Workspace {
     pub last_touch_event: Option<Instant>, // used to disable tooltips on touch devices
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct WsConfig {
-    pub data_dir: String,
-
     pub auto_save: Arc<AtomicBool>,
     pub auto_sync: Arc<AtomicBool>,
     pub zen_mode: Arc<AtomicBool>,
+
+    pub last_open_tabs: Arc<Vec<Uuid>>,
+
+    #[serde(skip_serializing, skip_deserializing)]
+    pub path: String,
 }
 
 impl Default for WsConfig {
     fn default() -> Self {
         Self {
-            data_dir: "".to_string(), // todo: potentially a bad idea
+            path: "".to_string(), // todo: potentially a bad idea
             auto_save: Arc::new(AtomicBool::new(true)),
             auto_sync: Arc::new(AtomicBool::new(true)),
             zen_mode: Arc::new(AtomicBool::new(false)),
+            last_open_tabs: Arc::new(vec![]),
         }
     }
 }
 
 impl WsConfig {
     pub fn new(dir: String, auto_save: bool, auto_sync: bool, zen_mode: bool) -> Self {
-        let mut s = Self { data_dir: dir, ..Default::default() };
+        let mut s = Self { path: dir, ..Default::default() };
         s.update(auto_save, auto_sync, zen_mode);
+        s
+    }
+
+    pub fn from_file(path: PathBuf) -> Self {
+        let mut s: Self = match fs::File::open(&path) {
+            Ok(f) => serde_json::from_reader(f).unwrap_or_default(),
+            Err(_) => Self::default(),
+        };
+        s.path = path.to_string_lossy().to_string();
         s
     }
 
@@ -79,13 +95,55 @@ impl WsConfig {
         self.auto_sync.store(auto_sync, Ordering::Relaxed);
         self.zen_mode.store(zen_mode, Ordering::Relaxed);
     }
+
+    pub fn update_last_open_tabs(&mut self, tabs: &Vec<Tab>, active_tab_index: usize) {
+        let mut active_tab = None;
+        let mut tab_ids: Vec<Uuid> = tabs
+            .iter()
+            .enumerate()
+            .filter_map(|(i, t)| {
+                if i == active_tab_index {
+                    active_tab = Some(t.id);
+                    None
+                } else {
+                    Some(t.id)
+                }
+            })
+            .collect();
+
+        if let Some(tab) = active_tab {
+            tab_ids.push(tab);
+        }
+
+        self.last_open_tabs = Arc::new(tab_ids);
+
+        if let Err(msg) = self.to_file() {
+            println!("{:#?}", msg);
+        }
+    }
+
+    pub fn to_file(&self) -> io::Result<()> {
+        let content = serde_json::to_string(&self).ok().unwrap();
+        fs::write(&self.path, content)
+    }
 }
 
 impl Workspace {
-    pub fn new(cfg: WsConfig, core: &Lb, ctx: &Context) -> Self {
+    pub fn new(core: &Lb, ctx: &Context) -> Self {
+        let (updates_tx, updates_rx) = channel();
+        let background = BackgroundWorker::new(ctx, &updates_tx);
+        let background_tx = background.spawn_worker();
+        let status = Default::default();
+        let output = Default::default();
+
+        let writable_dir = core.get_config().writeable_path;
+        let writeable_dir = Path::new(&writable_dir);
+        let writeable_path = writeable_dir.join("ws_conf.json");
         Self {
-            tabs: Default::default(),
-            active_tab: Default::default(),
+            cfg: WsConfig::from_file(writeable_path),
+            tabs: vec![],
+            active_tab: 0,
+            active_tab_changed: false,
             user_last_seen: Instant::now(),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
@@ -228,6 +286,346 @@ impl Workspace {
         }
         false
     }
+    pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        if self.ctx.frame_nr() == 0 {
+            self.cfg.last_open_tabs.clone().iter().for_each(|&file_id| {
+                self.open_file(file_id, true, true);
+            });
+        }
+
+        if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
+            self.user_last_seen = Instant::now();
+        }
+
+        self.set_tooltip_visibility(ui);
+
+        self.process_updates();
+        self.process_keys();
+        self.status.populate_message();
+
+        if self.is_empty() {
+            self.show_empty_workspace(ui);
+        } else {
+            ui.centered_and_justified(|ui| self.show_tabs(ui));
+        }
+
+        if self.cfg.zen_mode.load(Ordering::Relaxed) {
+            let mut min = ui.clip_rect().left_bottom();
+            min.y -= 37.0; // 37 is approximating the height of the button
+            let max = ui.clip_rect().left_bottom();
+
+            let rect = egui::Rect { min, max };
+            ui.allocate_ui_at_rect(rect, |ui| {
+                let zen_mode_btn = Button::default()
+                    .icon(&Icon::TOGGLE_SIDEBAR)
+                    .frame(true)
+                    .show(ui);
+                if zen_mode_btn.clicked() {
+                    self.cfg.zen_mode.store(false, Ordering::Relaxed);
+                    self.out.settings_updated = true;
+                }
+                zen_mode_btn.on_hover_text("Show side panel");
+            });
+        }
+
+        mem::take(&mut self.out)
+    }
+
+    fn set_tooltip_visibility(&mut self, ui: &mut egui::Ui) {
+        let has_touch = ui.input(|r| {
+            r.events.iter().any(|e| {
+                matches!(e, egui::Event::Touch { device_id: _, id: _, phase: _, pos: _, force: _ })
+            })
+        });
+        if has_touch && self.last_touch_event.is_none() {
+            self.last_touch_event = Some(Instant::now());
+        }
+
+        if let Some(last_touch_event) = self.last_touch_event {
+            if Instant::now() - last_touch_event > Duration::from_secs(5) {
+                self.ctx
+                    .style_mut(|style| style.interaction.tooltip_delay = 0.0);
+                self.last_touch_event = None;
+            } else {
+                self.ctx
+                    .style_mut(|style| style.interaction.tooltip_delay = f32::MAX);
+            }
+        }
+    }
+
+    fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+            ui.add_space(ui.clip_rect().height() / 3.0);
+            ui.add(self.backdrop.clone().fit_to_exact_size(vec2(100.0, 100.0)));
+
+            ui.label(egui::RichText::new("Welcome to your Lockbook").size(40.0));
+            ui.label(
+                "Right click on your file tree to explore all that your lockbook has to offer",
+            );
+
+            ui.add_space(40.0);
+
+            ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
+            ui.visuals_mut().widgets.hovered.bg_fill = ui.visuals().widgets.active.bg_fill;
+
+            let text_stroke =
+                egui::Stroke { color: ui.visuals().extreme_bg_color, ..Default::default() };
+            ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
+            ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
+            ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+
+            if Button::default()
+                .text("New document")
+                .rounding(egui::Rounding::same(3.0))
+                .frame(true)
+                .show(ui)
+                .clicked()
+            {
+                self.create_file(false);
+            }
+            if Button::default()
+                .text("New drawing")
+                .rounding(egui::Rounding::same(3.0))
+                .frame(true)
+                .show(ui)
+                .clicked()
+            {
+                self.create_file(true);
+            }
+            ui.visuals_mut().widgets.inactive.fg_stroke =
+                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+            ui.visuals_mut().widgets.hovered.fg_stroke =
+                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+            if Button::default().text("New folder").show(ui).clicked() {
+                self.out.new_folder_clicked = true;
+            }
+        });
+    }
+
+    fn show_tabs(&mut self, ui: &mut egui::Ui) {
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+
+        if self.active_tab_changed {
+            self.cfg.update_last_open_tabs(&self.tabs, self.active_tab);
+        }
+
+        ui.vertical(|ui| {
+            if !self.tabs.is_empty() {
+                if self.show_tabs {
+                    self.show_tab_strip(ui);
+                } else {
+                    self.show_mobile_title(ui);
+                }
+            }
+
+            ui.centered_and_justified(|ui| {
+                let mut rename_req = None;
+                if let Some(tab) = self.tabs.get_mut(self.active_tab) {
+                    if let Some(fail) = &tab.failure {
+                        match fail {
+                            TabFailure::DeletedFromSync => {
+                                ui.vertical_centered(|ui| {
+                                    ui.add_space(50.0);
+                                    ui.label(format!(
+                                        "This file ({}) was deleted after syncing.",
+                                        tab.path
+                                    ));
+                                });
+                            }
+                            TabFailure::SimpleMisc(msg) => {
+                                ui.label(msg);
+                            }
+                            TabFailure::Unexpected(msg) => {
+                                ui.label(msg);
+                            }
+                        };
+                    } else if let Some(content) = &mut tab.content {
+                        match content {
+                            TabContent::Markdown(md) => {
+                                let resp = md.show(ui);
+                                // The editor signals a text change when the buffer is initially
+                                // loaded. Since we use that signal to trigger saves, we need to
+                                // check that this change was not from the initial frame.
+                                if resp.text_updated && md.past_first_frame() {
+                                    tab.last_changed = Instant::now();
+                                }
+
+                                if let Some(new_name) = resp.suggest_rename {
+                                    rename_req = Some((tab.id, new_name))
+                                }
+
+                                if resp.text_updated {
+                                    self.out.markdown_editor_text_updated = true;
+                                }
+                                if resp.selection_updated {
+                                    // markdown_editor_selection_updated represents a change to the screen position of
+                                    // the cursor, which is also updated when scrolling
+                                    self.out.markdown_editor_selection_updated = true;
+                                }
+                                if resp.scroll_updated {
+                                    self.out.markdown_editor_scroll_updated = true;
+                                }
+                            }
+                            TabContent::Image(img) => img.show(ui),
+                            TabContent::Pdf(pdf) => pdf.show(ui),
+                            TabContent::Svg(svg) => {
+                                let res = svg.show(ui);
+                                if res.request_save {
+                                    tab.last_changed = Instant::now();
+                                }
+                            }
+                        };
+                    } else {
+                        ui.spinner();
+                    }
+                }
+                if let Some(req) = rename_req {
+                    self.rename_file(req);
+                }
+            });
+        });
+    }
+
+    fn show_mobile_title(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            let selectable_label =
+                egui::widgets::Button::new(egui::RichText::new(self.tabs[0].name.clone()))
+                    .frame(false)
+                    .wrap_mode(TextWrapMode::Truncate)
+                    .fill(if ui.visuals().dark_mode {
+                        egui::Color32::BLACK
+                    } else {
+                        egui::Color32::WHITE
+                    }); // matches iOS native toolbar
+
+            ui.allocate_ui(ui.available_size(), |ui| {
+                ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
+                    if ui.add(selectable_label).clicked() {
+                        self.out.tab_title_clicked = true
+                    }
+                });
+            })
+        });
+    }
+
+    fn show_tab_strip(&mut self, parent_ui: &mut egui::Ui) {
+        let active_tab_changed = self.active_tab_changed;
+        self.active_tab_changed = false;
+
+        let mut ui =
+            parent_ui.child_ui(parent_ui.painter().clip_rect(), egui::Layout::default(), None);
+
+        let is_tab_strip_visible = self.tabs.len() > 1;
+        let cursor = ui
+            .horizontal(|ui| {
+                egui::ScrollArea::horizontal()
+                    .max_width(ui.available_width())
+                    .show(ui, |ui| {
+                        for (i, maybe_resp) in self
+                            .tabs
+                            .iter_mut()
+                            .enumerate()
+                            .map(|(i, t)| {
+                                if is_tab_strip_visible {
+                                    tab_label(ui, t, self.active_tab == i, active_tab_changed)
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect::<Vec<Option<TabLabelResponse>>>()
+                            .iter()
+                            .enumerate()
+                        {
+                            if let Some(resp) = maybe_resp {
+                                match resp {
+                                    TabLabelResponse::Clicked => {
+                                        if self.active_tab == i {
+                                            // we should rename the file.
+
+                                            self.out.tab_title_clicked = true;
+                                            let active_name = self.tabs[i].name.clone();
+
+                                            let mut rename_edit_state =
+                                                egui::text_edit::TextEditState::default();
+                                            rename_edit_state.cursor.set_char_range(Some(
+                                                egui::text::CCursorRange {
+                                                    primary: egui::text::CCursor::new(
+                                                        active_name
+                                                            .rfind('.')
+                                                            .unwrap_or(active_name.len()),
+                                                    ),
+                                                    secondary: egui::text::CCursor::new(0),
+                                                },
+                                            ));
+                                            egui::TextEdit::store_state(
+                                                ui.ctx(),
+                                                egui::Id::new("rename_tab"),
+                                                rename_edit_state,
+                                            );
+                                            self.tabs[i].rename = Some(active_name);
+                                        } else {
+                                            self.tabs[i].rename = None;
+                                            self.active_tab = i;
+                                            self.active_tab_changed = true;
+                                            self.ctx.send_viewport_cmd(ViewportCommand::Title(
+                                                self.tabs[i].name.clone(),
+                                            ));
+                                            self.out.selected_file = Some(self.tabs[i].id);
+                                        }
+                                    }
+                                    TabLabelResponse::Closed => {
+                                        self.close_tab(i);
+
+                                        let title = match self.current_tab() {
+                                            Some(tab) => tab.name.clone(),
+                                            None => "Lockbook".to_owned(),
+                                        };
+                                        self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
+
+                                        self.out.selected_file =
+                                            self.current_tab().map(|tab| tab.id);
+                                    }
+                                    TabLabelResponse::Renamed(name) => {
+                                        self.tabs[i].rename = None;
+                                        let id = self.current_tab().unwrap().id;
+                                        if let Some(tab) = self.get_mut_tab_by_id(id) {
+                                            if let Some(TabContent::Markdown(md)) = &mut tab.content
+                                            {
+                                                md.needs_name = false;
+                                            }
+                                        }
+                                        self.rename_file((id, name.clone()));
+                                    }
+                                }
+                                ui.ctx().request_repaint();
+                            }
+                        }
+                    });
+                ui.cursor()
+            })
+            .inner;
+
+        ui.style_mut().animation_time = 2.0;
+
+        let how_on = ui.ctx().animate_bool_with_easing(
+            "toolbar_height".into(),
+            is_tab_strip_visible,
+            easing::cubic_in_out,
+        );
+        parent_ui.add_space(cursor.height() * how_on);
+        ui.set_opacity(how_on);
+
+        if is_tab_strip_visible {
+            let end_of_tabs = cursor.min.x;
+            let available_width = ui.available_width();
+            let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+            ui.painter().hline(
+                egui::Rangef { min: end_of_tabs, max: end_of_tabs + available_width },
+                cursor.max.y,
+                sep_stroke,
+            );
+        }
+    }
 
     pub fn save_all_tabs(&mut self) {
         for i in 0..self.tabs.len() {
@@ -244,6 +642,34 @@ impl Workspace {
                 }
             }
         }
+    }
+
+    pub fn create_file(&mut self, is_drawing: bool) {
+        let core = self.core.clone();
+        let update_tx = self.updates_tx.clone();
+        let focused_parent = self
+            .focused_parent
+            .unwrap_or_else(|| core.get_root().unwrap().id);
+
+        thread::spawn(move || {
+            let focused_parent = core.get_file_by_id(focused_parent).unwrap();
+            let focused_parent = if focused_parent.file_type == FileType::Document {
+                focused_parent.parent
+            } else {
+                focused_parent.id
+            };
+
+            let file_format = if is_drawing { "svg" } else { "md" };
+            let new_file = NameComponents::from(&format!("untitled.{}", file_format))
+                .next_in_children(core.get_children(&focused_parent).unwrap());
+
+            let result = core
+                .create_file(new_file.to_name().as_str(), &focused_parent, FileType::Document)
+                .map_err(|err| format!("{:?}", err));
+            update_tx.send(WsMsg::FileCreated(result)).unwrap();
+        });
+
+        // self.cfg.update_last_open_tabs(&self.tabs, self.active_tab);
     }
 
     pub fn open_file(&mut self, id: Uuid, is_new_file: bool, make_active: bool) {
@@ -266,6 +692,19 @@ impl Workspace {
 
         self.tasks
             .queue_load(LoadRequest { id, is_new_file, tab_created });
+        let core = self.core.clone();
+        let ctx = self.ctx.clone();
+        let update_tx = self.updates_tx.clone();
+
+        thread::spawn(move || {
+            let content = core
+                .read_document_with_hmac(id)
+                .map_err(|err| TabFailure::Unexpected(format!("{:?}", err)));
+            update_tx
+                .send(WsMsg::FileLoaded(FileLoadedMsg { id, is_new_file, tab_created, content }))
+                .unwrap();
+            ctx.request_repaint();
+        });
     }
 
     pub fn close_tab(&mut self, i: usize) {
@@ -277,6 +716,8 @@ impl Workspace {
             self.active_tab = n_tabs - 1;
         }
         self.active_tab_changed = true;
+
+        // self.cfg.update_last_open_tabs(&self.tabs, self.active_tab);
     }
 
     pub fn process_updates(&mut self) {
@@ -301,7 +742,7 @@ impl Workspace {
                     };
 
                     let ctx = self.ctx.clone();
-                    let cfg = self.cfg.clone();
+                    let writeable_dir = &self.core.get_config().writeable_path;
                     let core = self.core.clone();
                     let show_tabs = self.show_tabs;
 
@@ -334,7 +775,7 @@ impl Workspace {
                             tab.content = Some(TabContent::Pdf(PdfViewer::new(
                                 &bytes,
                                 &ctx,
-                                &cfg.data_dir,
+                                writeable_dir,
                                 !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         } else if ext == "svg" {
