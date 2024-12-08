@@ -20,11 +20,10 @@ use lb::Uuid;
 use tree::FilesExt;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
-use workspace_rs::workspace::{Workspace, WsConfig};
+use workspace_rs::workspace::Workspace;
 
 use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
-use crate::util::data_dir;
 
 use self::full_doc_search::FullDocSearch;
 use self::modals::*;

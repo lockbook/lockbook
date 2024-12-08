@@ -7,7 +7,7 @@ use std::ffi::c_void;
 use std::time::Instant;
 use workspace_rs::register_fonts;
 use workspace_rs::theme::visuals;
-use workspace_rs::workspace::{Workspace, WsConfig};
+use workspace_rs::workspace::Workspace;
 
 /// # Safety
 #[no_mangle]
