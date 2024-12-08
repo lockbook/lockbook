@@ -18,11 +18,10 @@ use lb::Uuid;
 use workspace_rs::background::BwIncomingMsg;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
-use workspace_rs::workspace::{Workspace, WsConfig};
+use workspace_rs::workspace::Workspace;
 
 use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
-use crate::util::data_dir;
 
 use self::full_doc_search::FullDocSearch;
 use self::modals::*;
@@ -64,14 +63,6 @@ impl AccountScreen {
         let toasts = egui_notify::Toasts::default()
             .with_margin(egui::vec2(40.0, 30.0))
             .with_padding(egui::vec2(20.0, 20.0));
-        let reference_settings = settings.read().unwrap();
-        let ws_cfg = WsConfig::new(
-            data_dir().unwrap(),
-            reference_settings.auto_save,
-            reference_settings.auto_sync,
-            reference_settings.zen_mode,
-        );
-        drop(reference_settings);
 
         Self {
             settings,
@@ -85,7 +76,7 @@ impl AccountScreen {
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(sync_status),
             usage,
-            workspace: Workspace::new(ws_cfg, &core_clone, &ctx.clone()),
+            workspace: Workspace::new(&core_clone, &ctx.clone()),
             modals: Modals::default(),
             shutdown: None,
         }

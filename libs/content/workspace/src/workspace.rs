@@ -13,11 +13,12 @@ use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::svg::buffer::Buffer;
 use lb_rs::Uuid;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{mem, thread};
+use std::{fs, io, mem, thread};
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
 use crate::output::{DirtynessMsg, Response, WsStatus};
@@ -81,30 +82,43 @@ pub struct SaveResult {
     seq: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct WsConfig {
-    pub data_dir: String,
-
     pub auto_save: Arc<AtomicBool>,
     pub auto_sync: Arc<AtomicBool>,
     pub zen_mode: Arc<AtomicBool>,
+
+    pub last_open_tabs: Arc<Vec<Uuid>>,
+
+    #[serde(skip_serializing, skip_deserializing)]
+    pub path: String,
 }
 
 impl Default for WsConfig {
     fn default() -> Self {
         Self {
-            data_dir: "".to_string(), // todo: potentially a bad idea
+            path: "".to_string(), // todo: potentially a bad idea
             auto_save: Arc::new(AtomicBool::new(true)),
             auto_sync: Arc::new(AtomicBool::new(true)),
             zen_mode: Arc::new(AtomicBool::new(false)),
+            last_open_tabs: Arc::new(vec![]),
         }
     }
 }
 
 impl WsConfig {
     pub fn new(dir: String, auto_save: bool, auto_sync: bool, zen_mode: bool) -> Self {
-        let mut s = Self { data_dir: dir, ..Default::default() };
+        let mut s = Self { path: dir, ..Default::default() };
         s.update(auto_save, auto_sync, zen_mode);
+        s
+    }
+
+    pub fn from_file(path: PathBuf) -> Self {
+        let mut s: Self = match fs::File::open(&path) {
+            Ok(f) => serde_json::from_reader(f).unwrap_or_default(),
+            Err(_) => Self::default(),
+        };
+        s.path = path.to_string_lossy().to_string();
         s
     }
 
@@ -113,18 +127,52 @@ impl WsConfig {
         self.auto_sync.store(auto_sync, Ordering::Relaxed);
         self.zen_mode.store(zen_mode, Ordering::Relaxed);
     }
+
+    pub fn update_last_open_tabs(&mut self, tabs: &[Tab], active_tab_index: usize) {
+        let mut active_tab = None;
+        let mut tab_ids: Vec<Uuid> = tabs
+            .iter()
+            .enumerate()
+            .filter_map(|(i, t)| {
+                if i == active_tab_index {
+                    active_tab = Some(t.id);
+                    None
+                } else {
+                    Some(t.id)
+                }
+            })
+            .collect();
+
+        if let Some(tab) = active_tab {
+            tab_ids.push(tab);
+        }
+
+        self.last_open_tabs = Arc::new(tab_ids);
+
+        if let Err(msg) = self.to_file() {
+            println!("{:#?}", msg);
+        }
+    }
+
+    pub fn to_file(&self) -> io::Result<()> {
+        let content = serde_json::to_string(&self).ok().unwrap();
+        fs::write(&self.path, content)
+    }
 }
 
 impl Workspace {
-    pub fn new(cfg: WsConfig, core: &Lb, ctx: &Context) -> Self {
+    pub fn new(core: &Lb, ctx: &Context) -> Self {
         let (updates_tx, updates_rx) = channel();
         let background = BackgroundWorker::new(ctx, &updates_tx);
         let background_tx = background.spawn_worker();
         let status = Default::default();
         let output = Default::default();
 
+        let writable_dir = core.get_config().writeable_path;
+        let writeable_dir = Path::new(&writable_dir);
+        let writeable_path = writeable_dir.join("ws_conf.json");
         Self {
-            cfg,
+            cfg: WsConfig::from_file(writeable_path),
             tabs: vec![],
             active_tab: 0,
             active_tab_changed: false,
@@ -270,6 +318,12 @@ impl Workspace {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        if self.ctx.frame_nr() == 0 {
+            self.cfg.last_open_tabs.clone().iter().for_each(|&file_id| {
+                self.open_file(file_id, true, true);
+            });
+        }
+
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
             self.user_last_seen = Instant::now();
         }
@@ -381,6 +435,10 @@ impl Workspace {
 
     fn show_tabs(&mut self, ui: &mut egui::Ui) {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+
+        if self.active_tab_changed {
+            self.cfg.update_last_open_tabs(&self.tabs, self.active_tab);
+        }
 
         ui.vertical(|ui| {
             if !self.tabs.is_empty() {
@@ -674,6 +732,8 @@ impl Workspace {
                 .map_err(|err| format!("{:?}", err));
             update_tx.send(WsMsg::FileCreated(result)).unwrap();
         });
+
+        // self.cfg.update_last_open_tabs(&self.tabs, self.active_tab);
     }
 
     pub fn open_file(&mut self, id: Uuid, is_new_file: bool, make_active: bool) {
@@ -712,12 +772,14 @@ impl Workspace {
         thread::spawn(move || {
             let content = core
                 .read_document_with_hmac(id)
-                .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))); // todo(steve)
+                .map_err(|err| TabFailure::Unexpected(format!("{:?}", err)));
             update_tx
                 .send(WsMsg::FileLoaded(FileLoadedMsg { id, is_new_file, tab_created, content }))
                 .unwrap();
             ctx.request_repaint();
         });
+
+        // self.cfg.update_last_open_tabs(&self.tabs, self.active_tab);
     }
 
     pub fn close_tab(&mut self, i: usize) {
@@ -729,6 +791,8 @@ impl Workspace {
             self.active_tab = n_tabs - 1;
         }
         self.active_tab_changed = true;
+
+        // self.cfg.update_last_open_tabs(&self.tabs, self.active_tab);
     }
 
     fn process_keys(&mut self) {
@@ -828,7 +892,7 @@ impl Workspace {
                     };
 
                     let ctx = self.ctx.clone();
-                    let cfg = self.cfg.clone();
+                    let writeable_dir = &self.core.get_config().writeable_path;
                     let core = self.core.clone();
                     let show_tabs = self.show_tabs;
 
@@ -861,7 +925,7 @@ impl Workspace {
                             tab.content = Some(TabContent::Pdf(PdfViewer::new(
                                 &bytes,
                                 &ctx,
-                                &cfg.data_dir,
+                                writeable_dir,
                                 !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         } else if ext == "svg" {
