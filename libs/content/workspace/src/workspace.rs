@@ -96,7 +96,7 @@ impl WsConfig {
         self.zen_mode.store(zen_mode, Ordering::Relaxed);
     }
 
-    pub fn update_last_open_tabs(&mut self, tabs: &Vec<Tab>, active_tab_index: usize) {
+    pub fn update_last_open_tabs(&mut self, tabs: &[Tab], active_tab_index: usize) {
         let mut active_tab = None;
         let mut tab_ids: Vec<Uuid> = tabs
             .iter()
