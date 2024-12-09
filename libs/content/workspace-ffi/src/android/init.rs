@@ -19,7 +19,6 @@ use std::ptr::NonNull;
 use std::time::Instant;
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::Workspace;
-use workspace_rs::workspace::WsConfig;
 
 use crate::WgpuWorkspace;
 
@@ -80,7 +79,6 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     old_wgpu: jlong,
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Lb) };
-    let writable_dir = core.get_config().writeable_path;
 
     let mut native_window = NativeWindow::new(&env, surface);
     let backends = wgpu::Backends::VULKAN;
@@ -114,7 +112,6 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
 
     let context = Context::default();
     visuals::init(&context, dark_mode);
-    let ws_cfg = WsConfig { data_dir: writable_dir, ..Default::default() };
 
     let workspace = if old_wgpu != jlong::MAX {
         let mut old_wgpu: Box<WgpuWorkspace> = unsafe { Box::from_raw(old_wgpu as *mut _) };

@@ -75,25 +75,13 @@ impl Default for WsConfig {
 }
 
 impl WsConfig {
-    pub fn new(dir: String, auto_save: bool, auto_sync: bool, zen_mode: bool) -> Self {
-        let mut s = Self { path: dir, ..Default::default() };
-        s.update(auto_save, auto_sync, zen_mode);
-        s
-    }
-
-    pub fn from_file(path: PathBuf) -> Self {
+    pub fn new(path: PathBuf) -> Self {
         let mut s: Self = match fs::File::open(&path) {
             Ok(f) => serde_json::from_reader(f).unwrap_or_default(),
             Err(_) => Self::default(),
         };
         s.path = path.to_string_lossy().to_string();
         s
-    }
-
-    pub fn update(&mut self, auto_save: bool, auto_sync: bool, zen_mode: bool) {
-        self.auto_save.store(auto_save, Ordering::Relaxed);
-        self.auto_sync.store(auto_sync, Ordering::Relaxed);
-        self.zen_mode.store(zen_mode, Ordering::Relaxed);
     }
 
     pub fn update_last_open_tabs(&mut self, tabs: &[Tab], active_tab_index: usize) {
@@ -140,7 +128,7 @@ impl Workspace {
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_conf.json");
         Self {
-            cfg: WsConfig::from_file(writeable_path),
+            cfg: WsConfig::new(writeable_path),
             tabs: vec![],
             active_tab: 0,
             active_tab_changed: false,
@@ -668,8 +656,6 @@ impl Workspace {
                 .map_err(|err| format!("{:?}", err));
             update_tx.send(WsMsg::FileCreated(result)).unwrap();
         });
-
-        // self.cfg.update_last_open_tabs(&self.tabs, self.active_tab);
     }
 
     pub fn open_file(&mut self, id: Uuid, is_new_file: bool, make_active: bool) {
@@ -716,8 +702,6 @@ impl Workspace {
             self.active_tab = n_tabs - 1;
         }
         self.active_tab_changed = true;
-
-        // self.cfg.update_last_open_tabs(&self.tabs, self.active_tab);
     }
 
     pub fn process_updates(&mut self) {
