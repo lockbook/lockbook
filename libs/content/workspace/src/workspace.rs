@@ -84,6 +84,12 @@ impl WsConfig {
         s
     }
 
+    pub fn update(&mut self, auto_save: bool, auto_sync: bool, zen_mode: bool) {
+        self.auto_save.store(auto_save, Ordering::Relaxed);
+        self.auto_sync.store(auto_sync, Ordering::Relaxed);
+        self.zen_mode.store(zen_mode, Ordering::Relaxed);
+    }
+
     pub fn update_last_open_tabs(&mut self, tabs: &[Tab], active_tab_index: usize) {
         let mut active_tab = None;
         let mut tab_ids: Vec<Uuid> = tabs
