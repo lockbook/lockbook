@@ -4,6 +4,7 @@ use egui::os::OperatingSystem;
 use egui::{
     vec2, Context, EventFilter, Id, Image, Key, Modifiers, Sense, TextWrapMode, ViewportCommand,
 };
+
 use lb_rs::blocking::Lb;
 use lb_rs::logic::crypto::DecryptedDocument;
 use lb_rs::logic::filename::NameComponents;
@@ -20,6 +21,8 @@ use std::time::{Duration, Instant};
 use std::{mem, thread};
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
+use crate::data::lockbookdata;
+use crate::knowledge_graph::KnowledgeGraphApp;
 use crate::output::{DirtynessMsg, Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
@@ -53,6 +56,10 @@ pub struct Workspace {
 
     pub status: WsStatus,
     pub out: Response,
+
+    pub knowledge_graph: Option<KnowledgeGraphApp>,
+    pub data_given: bool,
+    pub run_graph: bool,
 }
 
 pub enum WsMsg {
@@ -141,6 +148,9 @@ impl Workspace {
             focused_parent: None,
             last_touch_event: None,
             out: output,
+            knowledge_graph: None,
+            data_given: false,
+            run_graph: false,
         }
     }
 
@@ -247,7 +257,6 @@ impl Workspace {
 
         None
     }
-
     pub fn current_tab_svg_mut(&mut self) -> Option<&mut SVGEditor> {
         let current_tab = self.current_tab_mut()?;
 
@@ -369,6 +378,16 @@ impl Workspace {
             {
                 self.create_file(true);
             }
+            if Button::default()
+                .text("graph")
+                .rounding(egui::Rounding::same(3.0))
+                .frame(true)
+                .show(ui)
+                .clicked()
+            {
+                self.graph_called();
+            }
+
             ui.visuals_mut().widgets.inactive.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
             ui.visuals_mut().widgets.hovered.fg_stroke =
@@ -447,6 +466,7 @@ impl Workspace {
                                     tab.last_changed = Instant::now();
                                 }
                             }
+                            TabContent::Graph(kg) => kg.show(ui),
                         };
                     } else {
                         ui.spinner();
@@ -769,6 +789,9 @@ impl Workspace {
 
             self.out.selected_file = self.current_tab().map(|tab| tab.id);
         }
+        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::G)) {
+            self.graph_called();
+        }
 
         // tab navigation
         let mut goto_tab = None;
@@ -808,6 +831,16 @@ impl Workspace {
                 self.ctx.send_viewport_cmd(ViewportCommand::Title(name));
                 self.out.selected_file = Some(id);
             };
+        }
+    }
+    fn graph_called(&mut self) {
+        if !self.tabs.iter().any(|t| t.name == "graph") {
+            let id = Uuid::new_v4();
+            self.upsert_tab(id, "graph", "", false, true);
+            let mut graph = lockbookdata(&self.core);
+            if let Some(tab) = self.get_mut_tab_by_id(id) {
+                tab.content = Some(TabContent::Graph(KnowledgeGraphApp::new(&mut graph)));
+            }
         }
     }
 

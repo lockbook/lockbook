@@ -1,4 +1,6 @@
 pub mod background;
+pub mod data;
+pub mod knowledge_graph;
 pub mod output;
 mod status;
 pub mod syncing;
