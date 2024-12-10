@@ -44,11 +44,7 @@ public class WorkspaceState: ObservableObject {
     @Published public var closeActiveTab: Bool = false
     
     @Published public var openTabs: Int = 0
-    
-    #if os(iOS)
-    @Published public var dragOffset: CGFloat = 0.0
-    #endif
-    
+        
     public init() {}
     
     public func requestSync() {
