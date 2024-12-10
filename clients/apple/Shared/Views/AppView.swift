@@ -6,6 +6,9 @@ struct AppView: View {
     @EnvironmentObject var files: FileService
     @EnvironmentObject var errors: ErrorService
     
+    @Environment(\.horizontalSizeClass) var horizontal
+    @Environment(\.verticalSizeClass) var vertical
+    
     @ViewBuilder
     var body: some View {
         VStack {
@@ -48,17 +51,25 @@ struct AppView: View {
     }
     
     func handleImportLink(url: URL) {
-        if let filePathsQuery = url.query,
-           let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") {
-            let filePaths = filePathsQuery.components(separatedBy: ",")
-            
-            var res: [String] = []
-            
-            for filePath in filePaths {
-                res.append(containerURL.appendingPathComponent(filePath.removingPercentEncoding!).path(percentEncoded: false))
+        DispatchQueue.global(qos: .userInitiated).async {
+            while DI.files.root == nil {
+                Thread.sleep(until: .now + 0.1)
             }
-                                                            
-            DI.sheets.movingInfo = .Import(res)
+                        
+            if let filePathsQuery = url.query,
+               let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") {
+                let filePaths = filePathsQuery.components(separatedBy: ",")
+                
+                var res: [String] = []
+                
+                for filePath in filePaths {
+                    res.append(containerURL.appendingPathComponent(filePath.removingPercentEncoding!).path(percentEncoded: false))
+                }
+                
+                DispatchQueue.main.async {
+                    DI.sheets.movingInfo = .Import(res)
+                }
+            }
         }
 
     }
@@ -70,18 +81,22 @@ struct AppView: View {
         }
 
         DispatchQueue.global(qos: .userInitiated).async {
-            while !DI.files.hasRootLoaded {
+            while DI.files.root == nil {
                 Thread.sleep(until: .now + 1)
             }
 
-            Thread.sleep(until: .now + 0.1)
-
-            if DI.files.idsAndFiles[id] == nil {
+            guard let meta = DI.files.idsAndFiles[id] else {
                 DI.errors.showErrorWithTitle("File not found", "That file does not exist in your lockbook")
+                return
             }
-
+            
             DispatchQueue.main.async {
                 DI.workspace.requestOpenDoc(id)
+                #if os(iOS)
+                if horizontal == .compact {
+                    DI.files.intoChildDirectory(meta)
+                }
+                #endif
             }
         }
 
