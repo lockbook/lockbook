@@ -746,7 +746,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     
     public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
         if action == #selector(paste(_:)) {
-            return UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
+            return UIPasteboard.general.hasImages
         }
 
         return false
