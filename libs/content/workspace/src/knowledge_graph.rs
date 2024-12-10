@@ -615,8 +615,8 @@ fn draw_arrow(
     painter: &Painter, from: Pos2, to: Pos2, color: Color32, zoom_factor: f32, size: f32,
     self_size: f32,
 ) {
-    let intersect = intersectstuff(from, to, size);
-    let intersect2 = intersectstuff1(from, to, self_size);
+    let intersect = intersect_stuff(from, to, size);
+    let intersect2 = intersect_stuff1(from, to, self_size);
 
     let to = to - intersect.to_vec2();
     let from = from - intersect2.to_vec2();
@@ -656,7 +656,7 @@ fn cursorin(cursor: Vec2, center: Pos2, size: f32) -> bool {
     }
     false
 }
-fn intersectstuff(from: Pos2, to: Pos2, size: f32) -> Pos2 {
+fn intersect_stuff(from: Pos2, to: Pos2, size: f32) -> Pos2 {
     let x = from.x - to.x;
     let y = from.y - to.y;
     let angle = (y / x).atan();
@@ -670,7 +670,7 @@ fn intersectstuff(from: Pos2, to: Pos2, size: f32) -> Pos2 {
     }
     intersect
 }
-fn intersectstuff1(from: Pos2, to: Pos2, size: f32) -> Pos2 {
+fn intersect_stuff1(from: Pos2, to: Pos2, size: f32) -> Pos2 {
     let x = from.x - to.x;
     let y = from.y - to.y;
     let angle = (y / x).atan();
