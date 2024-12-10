@@ -6,7 +6,6 @@ import AlertToast
 struct PlatformView: View {
     
     @EnvironmentObject var sheets: SheetState
-    @EnvironmentObject var onboarding: OnboardingService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var share: ShareService
     @EnvironmentObject var search: SearchService
@@ -14,7 +13,6 @@ struct PlatformView: View {
         
     var body: some View {
         platform
-            .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
             .sheet(isPresented: $sheets.moving, content: {
                 if let action = sheets.movingInfo {
                     SelectFolderView(action: action)

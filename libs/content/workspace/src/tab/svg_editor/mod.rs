@@ -12,6 +12,7 @@ mod util;
 
 use self::history::History;
 use crate::tab::svg_editor::toolbar::Toolbar;
+use element::PromoteWeakImage;
 pub use eraser::Eraser;
 pub use history::DeleteElement;
 pub use history::Event;
@@ -22,26 +23,22 @@ use lb_rs::svg::buffer::u_transform_to_bezier;
 use lb_rs::svg::buffer::Buffer;
 use lb_rs::svg::diff::DiffState;
 use lb_rs::svg::element::Element;
+use lb_rs::svg::element::Image;
 use lb_rs::Uuid;
 pub use path_builder::PathBuilder;
 pub use pen::Pen;
 use renderer::Renderer;
-use resvg::usvg::ImageKind;
 pub use toolbar::Tool;
 use toolbar::ToolContext;
 use tracing::span;
 use tracing::Level;
-use usvg_parser::Options;
-
-/// A shorthand for [ImageHrefResolver]'s string function.
-pub type ImageHrefStringResolverFn = Box<dyn Fn(&str, &Options) -> Option<ImageKind> + Send + Sync>;
 
 pub struct SVGEditor {
     pub buffer: Buffer,
     history: History,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
-    core: Lb,
+    lb: Lb,
     open_file: Uuid,
     skip_frame: bool,
     // last_render: Instant,
@@ -69,12 +66,12 @@ pub enum CanvasOp {
 }
 impl SVGEditor {
     pub fn new(
-        bytes: &[u8], ctx: &egui::Context, core: lb_rs::blocking::Lb, open_file: Uuid,
+        bytes: &[u8], ctx: &egui::Context, lb: lb_rs::blocking::Lb, open_file: Uuid,
         hmac: Option<DocumentHmac>, maybe_settings: Option<CanvasSettings>,
     ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
-        let mut buffer = Buffer::new(content, Some(&core), hmac);
+        let mut buffer = Buffer::new(content, hmac);
         for (_, el) in buffer.elements.iter_mut() {
             if let Element::Path(path) = el {
                 path.data
@@ -91,10 +88,9 @@ impl SVGEditor {
             history: History::default(),
             toolbar,
             inner_rect: egui::Rect::NOTHING,
-            core,
+            lb,
             open_file,
             skip_frame: false,
-            // last_render: Instant::now(),
             painter: egui::Painter::new(
                 ctx.to_owned(),
                 egui::LayerId::new(egui::Order::Background, "canvas_painter".into()),
@@ -113,6 +109,28 @@ impl SVGEditor {
         let _ = span.enter();
 
         self.inner_rect = ui.available_rect_before_wrap();
+
+        let non_empty_weak_imaegs = !self.buffer.weak_images.is_empty();
+        self.buffer
+            .weak_images
+            .drain()
+            .for_each(|(id, mut weak_image)| {
+                weak_image.transform(self.buffer.master_transform);
+
+                let mut image = Image::from_weak(weak_image, &self.lb);
+
+                image.diff_state.transformed = None;
+
+                if weak_image.z_index >= self.buffer.elements.len() {
+                    self.buffer.elements.insert(id, Element::Image(image));
+                } else {
+                    self.buffer.elements.shift_insert(
+                        weak_image.z_index,
+                        id,
+                        Element::Image(image),
+                    );
+                };
+            });
 
         ui.painter()
             .rect_filled(self.inner_rect, 0., ui.style().visuals.extreme_bg_color);
@@ -133,10 +151,14 @@ impl SVGEditor {
                 );
             },
         );
+
         self.process_events(ui);
 
         let global_diff = self.show_canvas(ui);
 
+        if non_empty_weak_imaegs {
+            self.has_queued_save_request = true;
+        }
         if global_diff.is_dirty() {
             self.has_queued_save_request = true;
             if global_diff.transformed.is_none() {
@@ -162,6 +184,7 @@ impl SVGEditor {
         if !ui.is_enabled() {
             return;
         }
+        self.handle_clip_input(ui);
 
         let mut tool_context = ToolContext {
             painter: &self.painter,

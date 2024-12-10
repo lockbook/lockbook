@@ -16,4 +16,7 @@ impl DiffState {
             || self.opacity_changed
             || self.transformed.is_some()
     }
+    pub fn new() -> Self {
+        Self { data_changed: true, ..Default::default() }
+    }
 }
