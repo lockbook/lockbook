@@ -402,6 +402,8 @@ impl AccountScreen {
     fn show_tree(&mut self, ui: &mut egui::Ui) {
         // avoids flickering due to hover conflict with sidebar resize
         ui.style_mut().spacing.scroll = ScrollStyle::solid();
+        ui.style_mut().spacing.scroll.floating = true;
+        ui.style_mut().spacing.scroll.bar_width *= 2.;
 
         let resp = ScrollArea::vertical()
             .show(ui, |ui| {
