@@ -8,8 +8,8 @@ use std::{
 };
 
 use egui::{
-    text_edit::TextEditState, Color32, Event, Id, Key, LayerId, Modifiers, Order, Pos2, TextEdit,
-    Ui, Vec2, WidgetText,
+    text_edit::TextEditState, Color32, Context, Event, EventFilter, Id, Key, LayerId, Modifiers,
+    Order, Pos2, TextEdit, Ui, Vec2, WidgetText,
 };
 use lb::{
     blocking::Lb,
@@ -84,7 +84,7 @@ impl FileTree {
         if let Some(cursor) = self.cursor {
             if !self.files.iter().any(|f| f.id == cursor) && cursor != self.suggested_docs_folder_id
             {
-                self.cursor = None;
+                self.cursor = Some(self.files.root());
             }
         }
     }
@@ -418,7 +418,10 @@ impl FileTree {
         let file_tree_id = Id::from("file_tree");
         if ui.memory(|m| m.has_focus(suggested_docs_id)) {
             // left arrow: collapse folder or move to folder (or surrender focus)
-            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowLeft)) {
+            if ui.input_mut(|i| {
+                i.consume_key(Modifiers::NONE, Key::ArrowLeft)
+                    || i.consume_key(Modifiers::NONE, Key::A)
+            }) {
                 if self.cursor == Some(self.suggested_docs_folder_id) {
                     if self.expanded.contains(&self.suggested_docs_folder_id) {
                         self.expanded.remove(&self.suggested_docs_folder_id);
@@ -436,7 +439,10 @@ impl FileTree {
             }
 
             // right arrow: expand folder or move to first child (or surrender focus)
-            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowRight)) {
+            if ui.input_mut(|i| {
+                i.consume_key(Modifiers::NONE, Key::ArrowRight)
+                    || i.consume_key(Modifiers::NONE, Key::D)
+            }) {
                 if self.cursor == Some(self.suggested_docs_folder_id) {
                     if self.expanded.contains(&self.suggested_docs_folder_id) {
                         self.cursor = self.suggested_docs.lock().unwrap().first().copied();
@@ -463,7 +469,10 @@ impl FileTree {
             }
 
             // up arrow: move cursor up
-            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp)) {
+            if ui.input_mut(|i| {
+                i.consume_key(Modifiers::NONE, Key::ArrowUp)
+                    || i.consume_key(Modifiers::NONE, Key::W)
+            }) {
                 if let Some(cursor) = self.cursor {
                     if let Some(prev) = self.prev_suggested(cursor) {
                         self.cursor = Some(prev);
@@ -482,7 +491,10 @@ impl FileTree {
             }
 
             // down arrow: move cursor down
-            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown)) {
+            if ui.input_mut(|i| {
+                i.consume_key(Modifiers::NONE, Key::ArrowDown)
+                    || i.consume_key(Modifiers::NONE, Key::S)
+            }) {
                 if let Some(cursor) = self.cursor {
                     if let Some(next) = self.next_suggested(cursor) {
                         self.cursor = Some(next);
@@ -501,11 +513,17 @@ impl FileTree {
             }
         } else if ui.memory(|m| m.has_focus(file_tree_id)) {
             // shift + left arrow: incremental recursive collapse
-            if ui.input_mut(|i| i.consume_key(Modifiers::SHIFT, Key::ArrowLeft)) {
+            if ui.input_mut(|i| {
+                i.consume_key(Modifiers::SHIFT, Key::ArrowLeft)
+                    || i.consume_key(Modifiers::SHIFT, Key::A)
+            }) {
                 self.collapse_leaves(&Vec::from_iter(self.selected.iter().cloned()));
             }
             // left arrow: collapse selected or move selection to parent
-            else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowLeft)) {
+            else if ui.input_mut(|i| {
+                i.consume_key(Modifiers::NONE, Key::ArrowLeft)
+                    || i.consume_key(Modifiers::NONE, Key::A)
+            }) {
                 scroll_to_cursor = true;
 
                 // prefer to collapse all selected folders
@@ -558,11 +576,17 @@ impl FileTree {
             }
 
             // shift + right arrow: incremental recursive expand
-            if ui.input_mut(|i| i.consume_key(Modifiers::SHIFT, Key::ArrowRight)) {
+            if ui.input_mut(|i| {
+                i.consume_key(Modifiers::SHIFT, Key::ArrowRight)
+                    || i.consume_key(Modifiers::SHIFT, Key::D)
+            }) {
                 self.expand_incremental(&Vec::from_iter(self.selected.clone()));
             }
             // right arrow: expand selected or move selection to first child
-            else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowRight)) {
+            else if ui.input_mut(|i| {
+                i.consume_key(Modifiers::NONE, Key::ArrowRight)
+                    || i.consume_key(Modifiers::NONE, Key::D)
+            }) {
                 scroll_to_cursor = true;
 
                 // prefer to expand all selected folders
@@ -693,7 +717,10 @@ impl FileTree {
             }
 
             // up arrow: move selection to previous visible node (or surrender focus)
-            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp)) {
+            if ui.input_mut(|i| {
+                i.consume_key(Modifiers::NONE, Key::ArrowUp)
+                    || i.consume_key(Modifiers::NONE, Key::W)
+            }) {
                 scroll_to_cursor = true;
 
                 if let Some(cursor) = self.cursor {
@@ -719,7 +746,10 @@ impl FileTree {
             }
 
             // down arrow: move selection to next visible node (or surrender focus)
-            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown)) {
+            if ui.input_mut(|i| {
+                i.consume_key(Modifiers::NONE, Key::ArrowDown)
+                    || i.consume_key(Modifiers::NONE, Key::S)
+            }) {
                 scroll_to_cursor = true;
 
                 if let Some(cursor) = self.cursor {
@@ -756,24 +786,65 @@ impl FileTree {
                     }
                 }
             }
+
+            // cmd + r: rename cursored file
+            if ui.input_mut(|i| {
+                i.consume_key(Modifiers::COMMAND, Key::R) || i.consume_key(Modifiers::NONE, Key::F2)
+            }) {
+                if let Some(cursor) = self.cursor {
+                    self.init_rename(ui.ctx(), cursor);
+                }
+            }
+
+            // cmd + a: select all files in folder containing cursor
+            if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::A)) {
+                if let Some(cursor) = self.cursor {
+                    let parent = self.files.get_by_id(cursor).parent;
+                    self.selected.clear();
+                    for file in self.files.children(parent) {
+                        self.selected.insert(file.id);
+                    }
+                }
+            }
+
+            // backspace or delete: delete selected files
+            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Backspace))
+                || ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete))
+            {
+                for id in &self.selected {
+                    resp.delete_requests.insert(*id);
+                }
+            }
         }
 
         if ui
             .memory(|m| m.has_focus(Id::new("suggested_docs")) || m.has_focus(Id::new("file_tree")))
         {
-            // enter: open selected files
-            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
-                // inefficient but works
-                let mut id = self.files.root();
-                loop {
-                    if self.selected.contains(&id) && self.files.get_by_id(id).is_document() {
-                        resp.open_requests.insert(id);
-                    }
-                    if let Some(next_id) = self.next(id, false) {
-                        id = next_id;
+            // enter/space: open selected files or toggle folder expansion
+            if ui.input_mut(|i| {
+                i.consume_key(Modifiers::NONE, Key::Enter)
+                    || i.consume_key(Modifiers::NONE, Key::Space)
+            }) {
+                let mut documents = Vec::new();
+                let mut collapsed_folders = Vec::new();
+                let mut expanded_folders = Vec::new();
+
+                for &id in &self.selected {
+                    if self.files.get_by_id(id).is_document() {
+                        documents.push(id);
+                    } else if self.expanded.contains(&id) {
+                        expanded_folders.push(id);
                     } else {
-                        break;
+                        collapsed_folders.push(id);
                     }
+                }
+
+                if !documents.is_empty() {
+                    resp.open_requests.extend(documents);
+                } else if !collapsed_folders.is_empty() {
+                    self.expanded.extend(collapsed_folders);
+                } else {
+                    self.expanded.retain(|id| !expanded_folders.contains(id));
                 }
             }
         }
@@ -894,7 +965,7 @@ impl FileTree {
     ) -> Response {
         let mut resp = Response::default();
 
-        let file = self.files.get_by_id(id);
+        let file = self.files.get_by_id(id).clone();
         let is_selected = self.selected.contains(&id);
         let is_cursored = self.cursor == Some(id);
         let is_cut = self.cut.contains(&id);
@@ -916,6 +987,57 @@ impl FileTree {
             text = text.strikethrough();
         }
 
+        // renaming (early return)
+        if is_renaming {
+            ui.spacing_mut().indent = indent;
+            ui.visuals_mut().indent_has_left_vline = false;
+            let rename_resp = ui
+                .indent("rename_file_indent", |ui| {
+                    ui.add(
+                        TextEdit::singleline(&mut self.rename_buffer)
+                            .frame(false)
+                            .margin(ui.spacing().button_padding)
+                            .id(Id::new("rename_file")),
+                    )
+                })
+                .inner;
+
+            if !rename_resp.has_focus() && !rename_resp.lost_focus() {
+                // request focus on the first frame (todo: wrong but works)
+                rename_resp.request_focus();
+            }
+            if rename_resp.has_focus() {
+                // focus lock filter must be set every frame
+                ui.memory_mut(|m| {
+                    m.set_focus_lock_filter(
+                        rename_resp.id,
+                        EventFilter {
+                            tab: true, // suppress 'tab' behavior
+                            horizontal_arrows: true,
+                            vertical_arrows: true,
+                            escape: false, // press 'esc' to release focus
+                        },
+                    )
+                })
+            }
+
+            // submit
+            if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                resp.rename_request = Some((id, self.rename_buffer.clone()));
+                self.rename_target = None;
+                ui.memory_mut(|m| m.request_focus(file_tree_id));
+            }
+
+            // release focus to cancel ('esc' or click elsewhere)
+            if rename_resp.lost_focus() {
+                self.rename_target = None;
+                ui.memory_mut(|m| m.request_focus(file_tree_id));
+            }
+
+            return resp;
+        }
+
+        // render
         let file_resp = if file.is_document() {
             let doc_type = DocumentType::from_file_name_using_extension(&file.name);
 
@@ -999,7 +1121,12 @@ impl FileTree {
             file_resp
         };
 
-        if file_resp.clicked() {
+        // init rename
+        if file_resp.double_clicked() {
+            self.init_rename(ui.ctx(), file.id);
+        }
+        // select
+        else if file_resp.clicked() {
             let mut shift_clicked = false;
             if let Some(cursored_file) = self.cursor {
                 // shift-click to add visible files between cursor and target to selection
@@ -1060,11 +1187,14 @@ impl FileTree {
             ui.ctx().request_repaint();
         }
 
+        // context menu
         let mut context_menu_resp = Response::default();
         file_resp.context_menu(|ui| {
             context_menu_resp = self.context_menu(ui, id);
         });
         resp = resp.union(context_menu_resp);
+
+        // file export
         let mut export = self.export.lock().unwrap();
         if export.is_some() {
             resp.export_file = export.clone();
@@ -1096,6 +1226,7 @@ impl FileTree {
             }
         }
         // during drag, drop target renders indicator
+        let mut hovering_file_center = false;
         if let (Some(pointer), Some(_)) =
             (ui.input(|i| i.pointer.interact_pos()), file_resp.dnd_hover_payload::<Uuid>())
         {
@@ -1106,8 +1237,10 @@ impl FileTree {
                 // awkwardly we can't use the drag 'n' drop state to adjust how the button is rendered because we don't
                 // have the response until after we draw it, so we'll just draw something on top of it instead
                 let stroke = ui.style().visuals.widgets.active.fg_stroke;
-                if file.is_folder() {
-                    // folders are indicated by a rectangle around the file
+                hovering_file_center =
+                    (pointer.y - file_resp.rect.center().y).abs() < file_resp.rect.height() / 4.;
+                if file.is_folder() && hovering_file_center {
+                    // drop into hovered folder (indicated by a rectangle)
                     ui.with_layer_id(
                         LayerId::new(Order::PanelResizeLine, Id::from("file_tree_drop_indicator")),
                         |ui| {
@@ -1116,7 +1249,7 @@ impl FileTree {
                         },
                     );
                 } else {
-                    // documents are indicated by a line above or below the file
+                    // drop as sibling to hovered file (indicated by a line)
                     let y = if pointer.y < file_resp.rect.center().y {
                         file_resp.rect.min.y
                     } else {
@@ -1146,7 +1279,8 @@ impl FileTree {
         // when drag ends, dropped file consumes dnd payload and emits move operation
         // the dnd payload itself is ignored because we always move the selection
         if file_resp.dnd_release_payload::<Uuid>().is_some() {
-            let destination = if file.is_folder() { id } else { file.parent };
+            let destination =
+                if file.is_folder() && hovering_file_center { id } else { file.parent };
             for &selected in &self.selected {
                 resp.move_requests.push((selected, destination));
             }
@@ -1203,20 +1337,7 @@ impl FileTree {
         ui.separator();
 
         if ui.button("Rename").clicked() {
-            self.rename_target = Some(file.id);
-
-            let name = &self.rename_buffer;
-            let end_pos = name.rfind('.').unwrap_or(name.len());
-
-            let mut rename_edit_state = TextEditState::default();
-            rename_edit_state
-                .cursor
-                .set_char_range(Some(egui::text::CCursorRange {
-                    primary: egui::text::CCursor::new(end_pos),
-                    secondary: egui::text::CCursor::new(0),
-                }));
-            TextEdit::store_state(ui.ctx(), Id::new("rename_field"), rename_edit_state);
-
+            self.init_rename(ui.ctx(), file.id);
             ui.close_menu();
         }
 
@@ -1254,6 +1375,25 @@ impl FileTree {
         }
 
         resp
+    }
+
+    fn init_rename(&mut self, ctx: &Context, file: Uuid) {
+        let file = self.files.get_by_id(file);
+
+        self.rename_target = Some(file.id);
+        self.rename_buffer = file.name.clone();
+
+        let name = &self.rename_buffer;
+        let end_pos = name.rfind('.').unwrap_or(name.len());
+
+        let mut rename_edit_state = TextEditState::default();
+        rename_edit_state
+            .cursor
+            .set_char_range(Some(egui::text::CCursorRange {
+                primary: egui::text::CCursor::new(end_pos),
+                secondary: egui::text::CCursor::new(0),
+            }));
+        TextEdit::store_state(ctx, Id::new("rename_file"), rename_edit_state);
     }
 }
 

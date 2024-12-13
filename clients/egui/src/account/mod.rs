@@ -223,6 +223,7 @@ impl AccountScreen {
                     self.settings.write().unwrap().zen_mode =
                         self.workspace.cfg.zen_mode.load(Ordering::Relaxed);
                     self.settings.read().unwrap().to_file().unwrap();
+                    self.sidebar_expanded = !self.settings.read().unwrap().zen_mode;
                 }
                 if let Some((id, new_name)) = wso.file_renamed {
                     for file in self.tree.files.iter_mut() {
@@ -241,6 +242,7 @@ impl AccountScreen {
 
                 if let Some(file) = wso.selected_file {
                     self.tree.cursor = Some(file);
+                    self.tree.selected.clear();
                     self.tree.selected.insert(file);
                 }
 
@@ -509,6 +511,7 @@ impl AccountScreen {
                         if let Err(err) = self.settings.read().unwrap().to_file() {
                             self.modals.error = Some(ErrorModal::new(err));
                         }
+                        self.sidebar_expanded = false;
                     }
 
                     zen_mode_btn.on_hover_text("Hide side panel");
@@ -573,10 +576,13 @@ impl AccountScreen {
 
     fn focused_parent(&mut self) -> Option<Uuid> {
         if let Some(cursor) = self.tree.cursor {
-            if cursor != self.tree.suggested_docs_folder_id
-                && self.tree.files.get_by_id(cursor).is_folder()
-            {
-                return Some(cursor);
+            if cursor != self.tree.suggested_docs_folder_id {
+                let cursor = self.tree.files.get_by_id(cursor);
+                if cursor.is_folder() {
+                    return Some(cursor.id);
+                } else {
+                    return Some(cursor.parent);
+                }
             }
         }
         None
