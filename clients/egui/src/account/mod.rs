@@ -140,22 +140,6 @@ impl AccountScreen {
                 ctx.memory_mut(|m| m.request_focus(full_doc_search_id));
             }
         }
-        // whatever is focused, lock focus on it
-        // while the sidebar is expanding, it isn't rendered, so its contents lose focus
-        if let Some(focused) = ctx.memory(|m| m.focused()) {
-            // "register" the widget id - this keeps the id and its focus from being garbage collected
-            // in debug builds, this will render some errors if the id is also used elsewhere
-            ctx.check_for_id_clash(focused, egui::Rect::ZERO, "");
-
-            // focus lock filter happens to be the same for all widgets we're managing here
-            let event_filter = EventFilter {
-                tab: true, // we don't need to capture tab input but tab focus navigation is unimplemented
-                horizontal_arrows: true, // horizontal arrows move cursor in search and navigate file tree
-                vertical_arrows: true, // vertical arrows navigate file tree and only change focus at widget discretion
-                escape: false, // escape releases focus which is generally grabbed by the editor
-            };
-            ctx.memory_mut(|m| m.set_focus_lock_filter(focused, event_filter))
-        }
 
         egui::SidePanel::left("sidebar_panel")
             .frame(egui::Frame::none().fill(ctx.style().visuals.extreme_bg_color))
@@ -254,6 +238,23 @@ impl AccountScreen {
         if self.is_new_user {
             self.modals.account_backup = Some(AccountBackup);
             self.is_new_user = false;
+        }
+
+        // whatever is focused, lock focus on it
+        // while the sidebar is expanding, it isn't rendered, so its contents lose focus
+        if let Some(focused) = ctx.memory(|m| m.focused()) {
+            // "register" the widget id - this keeps the id and its focus from being garbage collected
+            // in debug builds, this will render some errors if the id is also used elsewhere
+            ctx.check_for_id_clash(focused, egui::Rect::ZERO, "");
+
+            // focus lock filter happens to be the same for all widgets we're managing here
+            let event_filter = EventFilter {
+                tab: true, // we don't need to capture tab input but tab focus navigation is unimplemented
+                horizontal_arrows: true, // horizontal arrows move cursor in search and navigate file tree
+                vertical_arrows: true, // vertical arrows navigate file tree and only change focus at widget discretion
+                escape: false, // escape releases focus which is generally grabbed by the editor
+            };
+            ctx.memory_mut(|m| m.set_focus_lock_filter(focused, event_filter))
         }
     }
 

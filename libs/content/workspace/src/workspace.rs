@@ -1233,7 +1233,7 @@ fn tab_label(
 // "you should match most specific shortcuts first", but this doesn't go well with egui's usual pattern where widgets
 // process input in the order in which they're drawn, with parent widgets (e.g. workspace) drawn before children
 // (e.g. editor). Using this older way of doing things affects matching keyboard shortcuts with shift included e.g. '+'
-trait InputStateExt {
+pub trait InputStateExt {
     fn count_and_consume_key_exact(
         &mut self, modifiers: egui::Modifiers, logical_key: egui::Key,
     ) -> usize;

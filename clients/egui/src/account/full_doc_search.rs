@@ -10,6 +10,7 @@ use lb::service::search::{ContentMatch, SearchConfig, SearchResult};
 use lb::Uuid;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
+use workspace_rs::workspace::InputStateExt;
 
 use crate::model::DocType;
 
@@ -41,7 +42,10 @@ impl FullDocSearch {
 
                 let id = Id::new("full_doc_search");
                 if ui.memory(|m| m.has_focus(id))
-                    && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown))
+                    && ui.input_mut(|i| {
+                        i.consume_key(Modifiers::NONE, Key::ArrowDown)
+                            || i.consume_key_exact(Modifiers::NONE, Key::Tab)
+                    })
                     && query.is_empty()
                 {
                     resp.advance_focus = true;

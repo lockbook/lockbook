@@ -416,6 +416,9 @@ impl FileTree {
         let full_doc_search_id = Id::from("full_doc_search");
         let suggested_docs_id = Id::from("suggested_docs");
         let file_tree_id = Id::from("file_tree");
+
+        let tab_input = ui.input(|i| i.key_pressed(Key::Tab));
+
         if ui.memory(|m| m.has_focus(suggested_docs_id)) {
             // left arrow: collapse folder or move to folder (or surrender focus)
             if ui.input_mut(|i| {
@@ -472,12 +475,13 @@ impl FileTree {
             if ui.input_mut(|i| {
                 i.consume_key(Modifiers::NONE, Key::ArrowUp)
                     || i.consume_key(Modifiers::NONE, Key::W)
+                    || i.consume_key(Modifiers::SHIFT, Key::Tab)
             }) {
                 if let Some(cursor) = self.cursor {
                     if let Some(prev) = self.prev_suggested(cursor) {
                         self.cursor = Some(prev);
 
-                        if !ui.input(|i| i.raw.modifiers.shift) {
+                        if !ui.input(|i| i.raw.modifiers.shift) || tab_input {
                             self.selected.clear();
                         }
                         self.selected.insert(prev);
@@ -494,12 +498,13 @@ impl FileTree {
             if ui.input_mut(|i| {
                 i.consume_key(Modifiers::NONE, Key::ArrowDown)
                     || i.consume_key(Modifiers::NONE, Key::S)
+                    || i.consume_key(Modifiers::NONE, Key::Tab)
             }) {
                 if let Some(cursor) = self.cursor {
                     if let Some(next) = self.next_suggested(cursor) {
                         self.cursor = Some(next);
 
-                        if !ui.input(|i| i.raw.modifiers.shift) {
+                        if !ui.input(|i| i.raw.modifiers.shift) || tab_input {
                             self.selected.clear();
                         }
                         self.selected.insert(next);
@@ -720,6 +725,7 @@ impl FileTree {
             if ui.input_mut(|i| {
                 i.consume_key(Modifiers::NONE, Key::ArrowUp)
                     || i.consume_key(Modifiers::NONE, Key::W)
+                    || i.consume_key(Modifiers::SHIFT, Key::Tab)
             }) {
                 scroll_to_cursor = true;
 
@@ -727,7 +733,7 @@ impl FileTree {
                     if let Some(prev) = self.prev(cursor, true) {
                         self.cursor = Some(prev);
 
-                        if !ui.input(|i| i.raw.modifiers.shift) {
+                        if !ui.input(|i| i.raw.modifiers.shift) || tab_input {
                             self.selected.clear();
                         }
                         self.selected.insert(prev);
@@ -745,10 +751,11 @@ impl FileTree {
                 }
             }
 
-            // down arrow: move selection to next visible node (or surrender focus)
+            // down arrow: move selection to next visible node
             if ui.input_mut(|i| {
                 i.consume_key(Modifiers::NONE, Key::ArrowDown)
                     || i.consume_key(Modifiers::NONE, Key::S)
+                    || i.consume_key(Modifiers::NONE, Key::Tab)
             }) {
                 scroll_to_cursor = true;
 
@@ -756,7 +763,7 @@ impl FileTree {
                     if let Some(next) = self.next(cursor, true) {
                         self.cursor = Some(next);
 
-                        if !ui.input(|i| i.raw.modifiers.shift) {
+                        if !ui.input(|i| i.raw.modifiers.shift) || tab_input {
                             self.selected.clear();
                         }
                         self.selected.insert(next);
@@ -830,7 +837,13 @@ impl FileTree {
                 let mut expanded_folders = Vec::new();
 
                 for &id in &self.selected {
-                    if self.files.get_by_id(id).is_document() {
+                    if id == self.suggested_docs_folder_id {
+                        if self.expanded.contains(&id) {
+                            expanded_folders.push(id);
+                        } else {
+                            collapsed_folders.push(id);
+                        }
+                    } else if self.files.get_by_id(id).is_document() {
                         documents.push(id);
                     } else if self.expanded.contains(&id) {
                         expanded_folders.push(id);
