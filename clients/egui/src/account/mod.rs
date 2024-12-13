@@ -186,6 +186,9 @@ impl AccountScreen {
                         if full_doc_search_resp.advance_focus {
                             ctx.memory_mut(|m| m.request_focus(suggested_docs_id));
                             self.tree.cursor = Some(self.tree.suggested_docs_folder_id);
+                            self.tree.selected = Some(self.tree.suggested_docs_folder_id)
+                                .into_iter()
+                                .collect();
                         }
 
                         let full_doc_search_term_empty = self
