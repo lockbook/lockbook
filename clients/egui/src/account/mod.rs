@@ -221,6 +221,15 @@ impl AccountScreen {
                     self.tree.recalc_suggested_files(&self.core, ctx);
                     ctx.request_repaint();
                 }
+                if let Some((id, new_parent)) = wso.file_moved {
+                    for file in self.tree.files.iter_mut() {
+                        if file.id == id {
+                            file.parent = new_parent;
+                            break;
+                        }
+                    }
+                    ctx.request_repaint();
+                }
 
                 if let Some(result) = wso.file_created {
                     self.file_created(ctx, result);
