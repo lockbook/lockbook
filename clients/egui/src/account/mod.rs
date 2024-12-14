@@ -11,7 +11,7 @@ use std::time::Duration;
 use std::{path, process, thread};
 
 use egui::style::ScrollStyle;
-use egui::{EventFilter, Frame, Id, Key, ScrollArea, Stroke, Vec2};
+use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, Vec2};
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
@@ -181,8 +181,10 @@ impl AccountScreen {
                             .lock()
                             .map(|q| q.is_empty())
                             .unwrap_or(true);
+                        let mut max_rect = ui.max_rect(); // used to size end-of-tree padding
+                        max_rect.min.y = ui.min_rect().max.y;
                         if full_doc_search_term_empty {
-                            self.show_tree(ui);
+                            self.show_tree(ui, max_rect);
                         }
                     });
                 });
@@ -400,7 +402,7 @@ impl AccountScreen {
         }
     }
 
-    fn show_tree(&mut self, ui: &mut egui::Ui) {
+    fn show_tree(&mut self, ui: &mut egui::Ui, max_rect: Rect) {
         // avoids flickering due to hover conflict with sidebar resize
         ui.style_mut().spacing.scroll = ScrollStyle::solid();
         ui.style_mut().spacing.scroll.floating = true;
@@ -414,7 +416,7 @@ impl AccountScreen {
                         .stroke(Stroke::NONE)
                         .show(ui, |ui| {
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
-                            self.tree.show(ui)
+                            self.tree.show(ui, max_rect)
                         })
                 })
             })

@@ -9,7 +9,7 @@ use std::{
 
 use egui::{
     text_edit::TextEditState, Color32, Context, Event, EventFilter, Id, Key, LayerId, Modifiers,
-    Order, Pos2, TextEdit, Ui, Vec2, WidgetText,
+    Order, Pos2, Rect, Sense, TextEdit, Ui, Vec2, WidgetText,
 };
 use lb::{
     blocking::Lb,
@@ -112,13 +112,13 @@ impl FileTree {
     }
 
     /// Expands `ids`. Does not select or deselect anything.
-    pub fn expand(&mut self, ids: &[Uuid]) {
+    fn expand(&mut self, ids: &[Uuid]) {
         self.expand_recursive(ids, Some(0));
     }
 
     /// Expands `ids` recursively to a maximum depth of `depth`. If `depth` is `None`, expands all the way. Does not
     /// select or deselect anything.
-    pub fn expand_recursive(&mut self, ids: &[Uuid], depth: Option<usize>) {
+    fn expand_recursive(&mut self, ids: &[Uuid], depth: Option<usize>) {
         let ids = ids
             .iter()
             .copied()
@@ -142,7 +142,7 @@ impl FileTree {
     }
 
     /// Expands nodes to increment the shortest distance from any id in `ids` to a collapsed descendent.
-    pub fn expand_incremental(&mut self, ids: &[Uuid]) {
+    fn expand_incremental(&mut self, ids: &[Uuid]) {
         for &id in ids {
             self.expand_recursive(ids, self.shortest_collapsed_distance(id));
         }
@@ -170,13 +170,13 @@ impl FileTree {
     }
 
     /// Collapses `ids`. Selections that are hidden are replaced with their closest visible ancestor.
-    pub fn collapse(&mut self, ids: &[Uuid]) {
+    fn collapse(&mut self, ids: &[Uuid]) {
         self.expanded.retain(|&id| !ids.contains(&id));
         self.select_visible_ancestors();
     }
 
     /// Collapses all leaves under `ids`. Selections that are hidden are replaced with their closest visible ancestor.
-    pub fn collapse_leaves(&mut self, ids: &[Uuid]) {
+    fn collapse_leaves(&mut self, ids: &[Uuid]) {
         let mut all_children = Vec::new();
         for &id in ids {
             let mut leaf_node = true; // guilty until proven innocent
@@ -237,7 +237,7 @@ impl FileTree {
     }
 
     /// Returns the file after id in depth-first order, folders first then alphabetically.
-    pub fn next(&self, id: Uuid, visible_only: bool) -> Option<Uuid> {
+    fn next(&self, id: Uuid, visible_only: bool) -> Option<Uuid> {
         // if the file has children, return the first child
         // if `visible_only` is true then the child must be visible i.e. the file must be visible and expanded
         if !visible_only || (self.is_visible(id) && self.expanded.contains(&id)) {
@@ -270,7 +270,7 @@ impl FileTree {
     }
 
     /// Returns the file before id in depth-first order, folders first then alphabetically.
-    pub fn prev(&self, id: Uuid, visible_only: bool) -> Option<Uuid> {
+    fn prev(&self, id: Uuid, visible_only: bool) -> Option<Uuid> {
         let parent = self.files.get_by_id(id).parent;
         if id == parent {
             return None;
@@ -327,7 +327,7 @@ impl FileTree {
 
     /// Returns the file after id in the order of suggested docs. Returns None if suggested docs are collapsed, if id
     /// is not suggested, or if there is no next suggested doc.
-    pub fn next_suggested(&self, id: Uuid) -> Option<Uuid> {
+    fn next_suggested(&self, id: Uuid) -> Option<Uuid> {
         let Ok(suggested_docs) = self.suggested_docs.lock() else {
             return None;
         };
@@ -348,7 +348,7 @@ impl FileTree {
 
     /// Returns the file before id in the order of suggested docs. Returns None if suggested docs are collapsed, if id
     /// is not suggested, or if there is no previous suggested doc.
-    pub fn prev_suggested(&self, id: Uuid) -> Option<Uuid> {
+    fn prev_suggested(&self, id: Uuid) -> Option<Uuid> {
         let Ok(suggested_docs) = self.suggested_docs.lock() else {
             return None;
         };
@@ -368,7 +368,7 @@ impl FileTree {
     }
 
     /// A file is visible if all its ancestors are expanded.
-    pub fn is_visible(&self, id: Uuid) -> bool {
+    fn is_visible(&self, id: Uuid) -> bool {
         let file = self.files.get_by_id(id);
         if file.parent == file.id {
             return true;
@@ -392,7 +392,7 @@ pub struct Response {
 }
 
 impl Response {
-    pub fn union(self, other: Self) -> Self {
+    fn union(self, other: Self) -> Self {
         let mut this = self;
         this.new_file = this.new_file.or(other.new_file);
         this.new_drawing = this.new_drawing.or(other.new_drawing);
@@ -409,7 +409,7 @@ impl Response {
 }
 
 impl FileTree {
-    pub fn show(&mut self, ui: &mut Ui) -> Response {
+    pub fn show(&mut self, ui: &mut Ui, max_rect: Rect) -> Response {
         let mut resp = Response::default();
         let mut scroll_to_cursor = false;
 
@@ -866,13 +866,14 @@ impl FileTree {
             // show suggested docs
             .union(ui.vertical(|ui| self.show_suggested(ui)).inner)
             // show file tree
-            .union(
+            .union({
                 ui.vertical(|ui| self.show_recursive(ui, self.files.root(), 0, scroll_to_cursor))
-                    .inner,
-            )
+                    .inner
+                    .union(self.show_padding(ui, max_rect))
+            })
     }
 
-    pub fn show_suggested(&mut self, ui: &mut Ui) -> Response {
+    fn show_suggested(&mut self, ui: &mut Ui) -> Response {
         let mut resp = Response::default();
 
         let suggested_docs_id = Id::new("suggested_docs");
@@ -973,7 +974,7 @@ impl FileTree {
         resp
     }
 
-    pub fn show_recursive(
+    fn show_recursive(
         &mut self, ui: &mut Ui, id: Uuid, depth: usize, scroll_to_cursor: bool,
     ) -> Response {
         let mut resp = Response::default();
@@ -1000,7 +1001,7 @@ impl FileTree {
             text = text.strikethrough();
         }
 
-        // renaming (early return)
+        // renaming
         if is_renaming {
             ui.spacing_mut().indent = indent;
             ui.visuals_mut().indent_has_left_vline = false;
@@ -1203,7 +1204,7 @@ impl FileTree {
         // context menu
         let mut context_menu_resp = Response::default();
         file_resp.context_menu(|ui| {
-            context_menu_resp = self.context_menu(ui, id);
+            context_menu_resp = self.context_menu(ui, Some(id));
         });
         resp = resp.union(context_menu_resp);
 
@@ -1289,7 +1290,7 @@ impl FileTree {
         if file_resp.drag_stopped() {
             self.drag = None;
         }
-        // when drag ends, dropped file consumes dnd payload and emits move operation
+        // when drag ends, dropped-on file consumes dnd payload and emits move operation
         // the dnd payload itself is ignored because we always move the selection
         if file_resp.dnd_release_payload::<Uuid>().is_some() {
             let destination =
@@ -1306,7 +1307,7 @@ impl FileTree {
         resp
     }
 
-    pub fn show_children_recursive(
+    fn show_children_recursive(
         &mut self, ui: &mut Ui, id: Uuid, depth: usize, scroll_to_cursor: bool,
     ) -> Response {
         let children_ids = self
@@ -1322,15 +1323,63 @@ impl FileTree {
         resp
     }
 
-    fn context_menu(&mut self, ui: &mut egui::Ui, file: Uuid) -> Response {
-        let file = self.files.get_by_id(file).clone();
+    fn show_padding(&mut self, ui: &mut Ui, max_rect: Rect) -> Response {
         let mut resp = Response::default();
+
+        let mut desired_size = Vec2::new(max_rect.width(), 0.);
+        let min_rect = ui.min_rect();
+        desired_size.y = if min_rect.height() < max_rect.height() {
+            // fill available space
+            max_rect.height() - min_rect.height()
+        } else {
+            0.
+        };
+        let padding_resp = ui.allocate_response(desired_size, Sense::click());
+
+        // context menu
+        let mut context_menu_resp = Response::default();
+        padding_resp.context_menu(|ui| {
+            context_menu_resp = self.context_menu(ui, None);
+        });
+        resp = resp.union(context_menu_resp);
+
+        // during drag, render indicator
+        if let (Some(pointer), Some(_)) =
+            (ui.input(|i| i.pointer.interact_pos()), padding_resp.dnd_hover_payload::<Uuid>())
+        {
+            if padding_resp.rect.contains(pointer)
+            // ^ you'd think this would always be true (some suffering occurred here)
+            // either something is deeply wrong with egui or something is deeply wrong with me
+            {
+                let stroke = ui.style().visuals.widgets.active.fg_stroke;
+                ui.with_layer_id(
+                    LayerId::new(Order::PanelResizeLine, Id::from("file_tree_drop_indicator")),
+                    |ui| {
+                        ui.painter()
+                            .rect(padding_resp.rect, 2., Color32::TRANSPARENT, stroke);
+                    },
+                );
+            }
+        }
+
+        // when drag ends, consume dnd payload and emit move operation
+        // the dnd payload itself is ignored because we always move the selection
+        if padding_resp.dnd_release_payload::<Uuid>().is_some() {
+            for &selected in &self.selected {
+                resp.move_requests.push((selected, self.files.root()));
+            }
+        }
+
+        resp
+    }
+
+    fn context_menu(&mut self, ui: &mut egui::Ui, file: Option<Uuid>) -> Response {
+        let mut resp = Response::default();
+        ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
 
         if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
             ui.close_menu();
         }
-
-        ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
 
         if ui.button("New Document").clicked() {
             resp.new_file = Some(true);
@@ -1343,48 +1392,50 @@ impl FileTree {
         }
 
         if ui.button("New Folder").clicked() {
-            resp.new_folder_modal = Some(self.files.get_by_id(file.id).clone());
+            let file = if let Some(file) = file { file } else { self.files.root() };
+            resp.new_folder_modal = Some(self.files.get_by_id(file).clone());
             ui.close_menu();
         }
 
-        ui.separator();
+        if let Some(file) = file {
+            ui.separator();
 
-        if ui.button("Rename").clicked() {
-            self.init_rename(ui.ctx(), file.id);
-            ui.close_menu();
-        }
-
-        if ui.button("Delete").clicked() {
-            if self.selected.contains(&file.id) {
-                resp.delete_requests.extend(&self.selected);
-            } else {
-                resp.delete_requests.insert(file.id);
+            if ui.button("Rename").clicked() {
+                self.init_rename(ui.ctx(), file);
+                ui.close_menu();
             }
-            ui.close_menu();
-        }
 
-        ui.separator();
-
-        if ui.button("Export").clicked() {
-            let file = file.clone();
-            let export = self.export.clone();
-            let ctx = ui.ctx().clone();
-
-            thread::spawn(move || {
-                if let Some(folder) = FileDialog::new().pick_folder() {
-                    let mut export = export.lock().unwrap();
-                    *export = Some((file, folder.clone()));
+            if ui.button("Delete").clicked() {
+                if self.selected.contains(&file) {
+                    resp.delete_requests.extend(&self.selected);
+                } else {
+                    resp.delete_requests.insert(file);
                 }
-                ctx.request_repaint();
-            });
-            ui.close_menu();
-        }
+                ui.close_menu();
+            }
 
-        let share = ui.add(egui::Button::new(egui::RichText::new("Share")));
+            ui.separator();
 
-        if share.clicked() {
-            resp.create_share_modal = Some(file);
-            ui.close_menu();
+            if ui.button("Export").clicked() {
+                let file = self.files.get_by_id(file).clone();
+                let export = self.export.clone();
+                let ctx = ui.ctx().clone();
+
+                thread::spawn(move || {
+                    if let Some(folder) = FileDialog::new().pick_folder() {
+                        let mut export = export.lock().unwrap();
+                        *export = Some((file, folder.clone()));
+                    }
+                    ctx.request_repaint();
+                });
+                ui.close_menu();
+            }
+
+            if ui.button("Share").clicked() {
+                let file = self.files.get_by_id(file).clone();
+                resp.create_share_modal = Some(file);
+                ui.close_menu();
+            }
         }
 
         resp
