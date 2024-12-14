@@ -896,7 +896,7 @@ impl FileTree {
 
         if Button::default()
             .icon(&Icon::SCHEDULE)
-            .text("Recent Documents")
+            .text("Suggested Documents")
             .default_fill(default_fill)
             .frame(true)
             .hexpand(true)
