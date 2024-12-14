@@ -30,6 +30,7 @@ pub struct KnowledgeGraphApp {
 
     directional_links: HashMap<usize, Vec<usize>>,
     thread_positions: Arc<RwLock<Vec<Pos2>>>,
+    stop: Arc<RwLock<bool>>,
     frame_count: usize,
     fps: f32,
     last_fps_update: Instant,
@@ -92,6 +93,7 @@ impl KnowledgeGraphApp {
             directional_links: HashMap::new(),
 
             thread_positions: Arc::new(RwLock::new(thread_positions)),
+            stop: Arc::new(RwLock::new(false)),
             frame_count: 0,
             fps: 0.0,
             last_fps_update: Instant::now(),
@@ -203,7 +205,7 @@ impl KnowledgeGraphApp {
 
     fn apply_spring_layout(
         thread_positions: Arc<RwLock<Vec<Pos2>>>, graph: &[LinkNode], max_iterations: usize,
-        screen: Rect,
+        screen: Rect, stop: Arc<RwLock<bool>>,
     ) {
         let center =
             Pos2::new((screen.max.x + screen.min.x) / 2.0, (screen.max.y + screen.min.y) / 2.0);
@@ -318,6 +320,14 @@ impl KnowledgeGraphApp {
             if total_change < 0.01 * num_nodes || _n >= max_iterations {
                 break;
             }
+            let stop = {
+                let stop2 = stop.read().unwrap();
+                stop2.clone()
+            };
+            if stop {
+                break;
+            }
+
             grid.clear();
         }
     }
@@ -556,7 +566,15 @@ impl KnowledgeGraphApp {
             && self.cursor_loc.y < max_range.y
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui) {
+    pub fn stop(&mut self, stop: bool) {
+        self.graph_complete = true;
+        {
+            let mut stop_lock = self.stop.write().unwrap();
+            *stop_lock = stop;
+        }
+    }
+
+    pub fn show(&mut self, ui: &mut egui::Ui, stop: bool) {
         ui.input(|i| {
             if !self.graph_complete {
                 self.build_directional_links();
@@ -575,6 +593,10 @@ impl KnowledgeGraphApp {
                 self.debug = (self.zoom_factor).to_string();
             }
         });
+        {
+            let mut stop_write = self.stop.write().unwrap();
+            *stop_write = stop.clone();
+        }
 
         let screen = ui.available_rect_before_wrap();
         ui.set_clip_rect(screen);
@@ -587,9 +609,10 @@ impl KnowledgeGraphApp {
             self.graph_complete = true;
 
             let postioninfo = Arc::clone(&self.thread_positions);
+            let stop = Arc::clone(&self.stop);
             let graph = self.graph.clone();
             thread::spawn(move || {
-                Self::apply_spring_layout(postioninfo, &graph, 2500000, screen);
+                Self::apply_spring_layout(postioninfo, &graph, 2500000, screen, stop);
             });
         }
 
@@ -664,7 +687,6 @@ fn intersect_stuff(from: Pos2, to: Pos2, size: f32) -> Pos2 {
     let new_y: f32 = size * angle.sin();
     let mut intersect = Pos2::new(new_x, new_y);
     if x < 0.0 {
-        intersect = intersect;
     } else {
         intersect = Pos2::new(0.0, 0.0) - intersect.to_vec2();
     }
@@ -678,7 +700,6 @@ fn intersect_stuff1(from: Pos2, to: Pos2, size: f32) -> Pos2 {
     let new_y: f32 = size * angle.sin();
     let mut intersect = Pos2::new(new_x, new_y);
     if x > 0.0 {
-        intersect = intersect;
     } else {
         intersect = Pos2::new(0.0, 0.0) - intersect.to_vec2();
     }
