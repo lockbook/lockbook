@@ -836,7 +836,7 @@ impl FileTree {
                 let mut collapsed_folders = Vec::new();
                 let mut expanded_folders = Vec::new();
 
-                for &id in &self.selected {
+                for &id in self.selected.iter().chain(self.cursor.iter()) {
                     if id == self.suggested_docs_folder_id {
                         if self.expanded.contains(&id) {
                             expanded_folders.push(id);
