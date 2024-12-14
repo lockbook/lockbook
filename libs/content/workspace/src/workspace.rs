@@ -4,6 +4,7 @@ use egui::os::OperatingSystem;
 use egui::{
     vec2, Context, EventFilter, Id, Image, Key, Modifiers, Sense, TextWrapMode, ViewportCommand,
 };
+use std::ops::Index;
 
 use lb_rs::blocking::Lb;
 use lb_rs::logic::crypto::DecryptedDocument;
@@ -21,7 +22,7 @@ use std::time::{Duration, Instant};
 use std::{mem, thread};
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
-use crate::data::lockbookdata;
+use crate::data::lockbook_data;
 use crate::knowledge_graph::KnowledgeGraphApp;
 use crate::output::{DirtynessMsg, Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
@@ -154,7 +155,7 @@ impl Workspace {
         }
     }
 
-    pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &Lb) {
+    pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &Lb, ui: &mut egui::Ui) {
         self.ctx = ctx.clone();
         self.core = core.clone();
 
@@ -286,7 +287,7 @@ impl Workspace {
         self.set_tooltip_visibility(ui);
 
         self.process_updates();
-        self.process_keys();
+        self.process_keys(ui);
         self.status.populate_message();
 
         if self.is_empty() {
@@ -466,7 +467,7 @@ impl Workspace {
                                     tab.last_changed = Instant::now();
                                 }
                             }
-                            TabContent::Graph(kg) => kg.show(ui),
+                            TabContent::Graph(kg) => kg.show(ui, false),
                         };
                     } else {
                         ui.spinner();
@@ -741,6 +742,17 @@ impl Workspace {
     }
 
     pub fn close_tab(&mut self, i: usize) {
+        if (self.tabs[i].name == "graph") {
+            let tab = &self.tabs[i];
+            if let Some(content) = self.tabs[i].content.take() {
+                match content {
+                    TabContent::Graph(mut graph_app) => {
+                        graph_app.stop(true);
+                    }
+                    _ => {}
+                }
+            }
+        }
         self.save_tab(i);
         self.tabs.remove(i);
         let n_tabs = self.tabs.len();
@@ -751,7 +763,7 @@ impl Workspace {
         self.active_tab_changed = true;
     }
 
-    fn process_keys(&mut self) {
+    fn process_keys(&mut self, ui: &mut egui::Ui) {
         const COMMAND: Modifiers = Modifiers::COMMAND;
         const SHIFT: Modifiers = Modifiers::SHIFT;
         const NUM_KEYS: [Key; 10] = [
@@ -789,6 +801,7 @@ impl Workspace {
 
             self.out.selected_file = self.current_tab().map(|tab| tab.id);
         }
+        // Ctrl-G to open graph
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::G)) {
             self.graph_called();
         }
@@ -837,7 +850,7 @@ impl Workspace {
         if !self.tabs.iter().any(|t| t.name == "graph") {
             let id = Uuid::new_v4();
             self.upsert_tab(id, "graph", "", false, true);
-            let mut graph = lockbookdata(&self.core);
+            let mut graph = lockbook_data(&self.core);
             if let Some(tab) = self.get_mut_tab_by_id(id) {
                 tab.content = Some(TabContent::Graph(KnowledgeGraphApp::new(&mut graph)));
             }
