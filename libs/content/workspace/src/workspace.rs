@@ -4,7 +4,6 @@ use egui::os::OperatingSystem;
 use egui::{
     vec2, Context, EventFilter, Id, Image, Key, Modifiers, Sense, TextWrapMode, ViewportCommand,
 };
-use std::ops::Index;
 
 use lb_rs::blocking::Lb;
 use lb_rs::logic::crypto::DecryptedDocument;
@@ -155,7 +154,7 @@ impl Workspace {
         }
     }
 
-    pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &Lb, ui: &mut egui::Ui) {
+    pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &Lb) {
         self.ctx = ctx.clone();
         self.core = core.clone();
 
@@ -287,7 +286,7 @@ impl Workspace {
         self.set_tooltip_visibility(ui);
 
         self.process_updates();
-        self.process_keys(ui);
+        self.process_keys();
         self.status.populate_message();
 
         if self.is_empty() {
@@ -742,15 +741,9 @@ impl Workspace {
     }
 
     pub fn close_tab(&mut self, i: usize) {
-        if (self.tabs[i].name == "graph") {
-            let tab = &self.tabs[i];
-            if let Some(content) = self.tabs[i].content.take() {
-                match content {
-                    TabContent::Graph(mut graph_app) => {
-                        graph_app.stop(true);
-                    }
-                    _ => {}
-                }
+        if self.tabs[i].name == "graph" {
+            if let Some(TabContent::Graph(mut graph_app)) = self.tabs[i].content.take() {
+                graph_app.stop(true);
             }
         }
         self.save_tab(i);
@@ -763,7 +756,7 @@ impl Workspace {
         self.active_tab_changed = true;
     }
 
-    fn process_keys(&mut self, ui: &mut egui::Ui) {
+    fn process_keys(&mut self) {
         const COMMAND: Modifiers = Modifiers::COMMAND;
         const SHIFT: Modifiers = Modifiers::SHIFT;
         const NUM_KEYS: [Key; 10] = [

@@ -6,17 +6,15 @@ use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
 
 use std::collections::VecDeque;
 use std::sync::{Arc, RwLock};
+use std::thread;
 use std::time::Duration;
 use std::{f32, time::Instant};
-use std::{thread, usize};
 
-// The makes it the code runs faster making it into grids
 struct Grid {
     cell_size: f32,
     grid: HashMap<(i32, i32), Vec<usize>>,
 }
 
-// The main reason for these are to make global variables that can be accessed through the whole code
 pub struct KnowledgeGraphApp {
     pub graph: Graph,
     positions: Vec<egui::Pos2>,
@@ -43,10 +41,7 @@ impl Grid {
 
     fn insert_node(&mut self, pos: egui::Pos2, index: usize) {
         let grid_pos = self.get_grid_pos(pos);
-        self.grid
-            .entry(grid_pos)
-            .or_insert_with(Vec::new)
-            .push(index);
+        self.grid.entry(grid_pos).or_default().push(index);
     }
 
     fn get_grid_pos(&self, pos: egui::Pos2) -> (i32, i32) {
@@ -106,10 +101,8 @@ impl KnowledgeGraphApp {
         for node in &self.graph {
             let mut directional = Vec::new();
             for &link in &node.links {
-                if link < self.graph.len() {
-                    if !self.graph[link].links.contains(&node.id) {
-                        directional.push(link);
-                    }
+                if link < self.graph.len() && !self.graph[link].links.contains(&node.id) {
+                    directional.push(link);
                 }
             }
             directional_links.insert(node.id, directional);
@@ -133,10 +126,7 @@ impl KnowledgeGraphApp {
             if node.links.is_empty() {
                 unlinked_nodes.push(node.id);
             } else {
-                clusters
-                    .entry(node.cluster_id)
-                    .or_insert_with(Vec::new)
-                    .push(node.id);
+                clusters.entry(node.cluster_id).or_default().push(node.id);
             }
         }
 
@@ -161,7 +151,7 @@ impl KnowledgeGraphApp {
                 let angle_step_nodes = 2.0 * std::f32::consts::PI / number_nodes as f32;
                 let mut count: f32 = 0.0;
 
-                let is_largest = Some(cluster_id).unwrap() == largest_cluster_id;
+                let is_largest = cluster_id == largest_cluster_id;
 
                 let cluster_center = if is_largest {
                     main_center
@@ -188,7 +178,7 @@ impl KnowledgeGraphApp {
         let total_outer_nodes = unlinked_nodes.len();
 
         if total_outer_nodes > 0 {
-            for (_i, &node_id) in unlinked_nodes.iter().enumerate() {
+            for &node_id in unlinked_nodes.iter() {
                 let nocluster: Option<usize> = None;
                 self.graph[node_id].cluster_id = nocluster;
             }
@@ -212,34 +202,29 @@ impl KnowledgeGraphApp {
         let mut previous_postions: VecDeque<Vec<Pos2>> = VecDeque::new();
         let num_nodes = graph.len() as f32;
         let width = screen.max.x - screen.min.x;
-        let height = screen.max.y - screen.min.y; // Spring and repulsion constants
+        let height = screen.max.y - screen.min.y;
         let k_spring = 0.005;
         let k_repel = 3.0;
-        let c = 0.05; // Scaling factor for movement
+        let c = 0.05;
         let max_movement = 100.0;
 
-        // Gravity parameters
-        let gravity_strength = 0.0001; // Adjust as needed
+        let gravity_strength = 0.0001;
 
         for _n in 0..max_iterations {
             let cell_size = (width * height / num_nodes).sqrt();
             let mut grid = Grid::new(cell_size);
 
-            // Read current positions
             let positions = {
                 let pos_lock = thread_positions.read().unwrap();
                 pos_lock.clone()
             };
 
-            // Insert nodes into the grid for spatial partitioning
             for (i, &pos) in positions.iter().enumerate() {
                 grid.insert_node(pos, i);
             }
 
-            // Initialize forces
             let mut forces = vec![Vec2::ZERO; graph.len()];
 
-            // Calculate repulsive forces
             for i in 0..graph.len() {
                 let pos_i = positions[i];
 
@@ -249,7 +234,6 @@ impl KnowledgeGraphApp {
                             let delta = pos_i - positions[j];
                             let distance = delta.length().max(0.01);
 
-                            // Repulsive force calculation (inverse quartic)
                             let repulsive_force = k_repel / (distance * distance / 20.0);
                             let repulsion = delta.normalized() * repulsive_force;
 
@@ -260,7 +244,6 @@ impl KnowledgeGraphApp {
                 }
             }
 
-            // Calculate attractive forces
             for node in graph {
                 for &link in &node.links {
                     if link >= graph.len() {
@@ -270,8 +253,7 @@ impl KnowledgeGraphApp {
                     let delta = positions[node.id] - positions[link];
                     let distance = delta.length().max(0.01);
 
-                    // Attractive force calculation (custom formula)
-                    let attractive_force = k_spring * distance * (distance / 20.0) as f32;
+                    let attractive_force = k_spring * distance * (distance / 20.0);
                     let attraction = delta.normalized() * attractive_force;
 
                     forces[node.id] -= attraction;
@@ -279,7 +261,6 @@ impl KnowledgeGraphApp {
                 }
             }
 
-            // Apply gravity to pull nodes toward the center
             for i in 0..graph.len() {
                 let delta = positions[i] - center;
                 let distance = delta.length();
@@ -288,7 +269,6 @@ impl KnowledgeGraphApp {
             }
 
             let mut new_positions = positions.clone();
-            // Update positions based on forces
             for i in 0..graph.len() {
                 let force_magnitude = forces[i].length();
 
@@ -300,8 +280,6 @@ impl KnowledgeGraphApp {
                 new_positions[i] += movement * c;
             }
 
-            // Write updated positions back to thread_positions
-
             let clone_positions = positions.clone();
             previous_postions.push_back(clone_positions);
 
@@ -310,19 +288,12 @@ impl KnowledgeGraphApp {
                 *pos_lock = new_positions.clone();
             }
 
-            // Calculate total change for convergence
-            let total_change: f32 = forces.iter().map(|f| f.length()).sum();
-
-            // Debugging: Print iteration and total change
-            if _n % 1000 == 0 {}
-
-            // Convergence check
-            if total_change < 0.01 * num_nodes || _n >= max_iterations {
+            if _n >= max_iterations {
                 break;
             }
             let stop = {
                 let stop2 = stop.read().unwrap();
-                stop2.clone()
+                *stop2
             };
             if stop {
                 break;
@@ -336,19 +307,12 @@ impl KnowledgeGraphApp {
         let screen = ui.available_rect_before_wrap();
         let center =
             Pos2::new((screen.max.x + screen.min.x) / 2.0, (screen.max.y + screen.min.y) / 2.0);
-        // let center = Pos2::new(screen_size.x / 2.0, screen_size.y / 2.0);
         let radius = (15.0) / ((self.graph.len() as f32).sqrt() / 3.0).max(1.0);
         let positions = {
             let pos_lock = self.thread_positions.read().unwrap();
             pos_lock.clone()
         };
-        // ui.painter().circle(
-        //     center,
-        //     5.0,
-        //     egui::Color32::DEBUG_COLOR,
-        //     Stroke::new(1.0, egui::Color32::BLACK),
-        // );
-        self.last_pan = self.last_pan + self.pan / self.zoom_factor;
+        self.last_pan += self.pan / self.zoom_factor;
         self.pan = Vec2::ZERO;
 
         let base_size = radius;
@@ -366,7 +330,6 @@ impl KnowledgeGraphApp {
             .iter()
             .map(|pos| {
                 let panning = self.last_pan;
-                // let center = center + panning;
                 let panned = pos.to_vec2() + panning;
                 let zoomed = center.to_vec2() + ((panned - (center.to_vec2())) * self.zoom_factor);
                 (zoomed).to_pos2()
@@ -429,7 +392,7 @@ impl KnowledgeGraphApp {
                 );
 
                 if size > 5.0 && cursorin(self.cursor_loc, pos, size) {
-                    let font_id = egui::FontId::proportional(15.0 * (self.zoom_factor.sqrt())); // Adjust font size based on zoom
+                    let font_id = egui::FontId::proportional(15.0 * (self.zoom_factor.sqrt()));
                     text_info =
                         Some((pos, egui::Align2::CENTER_CENTER, text, font_id, Color32::WHITE));
                 }
@@ -451,7 +414,7 @@ impl KnowledgeGraphApp {
                             ui.painter(),
                             pos,
                             target,
-                            Color32::from_rgba_unmultiplied(66, 135, 245, 150), // Semi-transparent blue
+                            Color32::from_rgba_unmultiplied(66, 135, 245, 150),
                             self.zoom_factor,
                             target_size,
                             size,
@@ -545,7 +508,6 @@ impl KnowledgeGraphApp {
                 .collect()
         };
 
-        // Update the color of the current node
         self.graph[node_id].color[0] = redcol;
         self.graph[node_id].color[1] = greencol;
         self.graph[node_id].color[2] = col;
@@ -585,7 +547,6 @@ impl KnowledgeGraphApp {
             let rect = ui.available_rect_before_wrap();
 
             if self.in_rect(rect) {
-                // if ui.rect_contains_pointer(ui.available_rect_before_wrap()) {
                 self.zoom_factor *= i.zoom_delta();
                 self.debug = (self.zoom_factor).to_string();
                 let scroll = i.raw_scroll_delta.to_pos2();
@@ -595,13 +556,11 @@ impl KnowledgeGraphApp {
         });
         {
             let mut stop_write = self.stop.write().unwrap();
-            *stop_write = stop.clone();
+            *stop_write = stop;
         }
 
         let screen = ui.available_rect_before_wrap();
         ui.set_clip_rect(screen);
-        // ui.painter()
-        // .rect_filled(rect, 0.0, egui::Color32::DEBUG_COLOR);
         let screen_size = screen.max.to_vec2();
 
         if !self.graph_complete {
@@ -672,10 +631,12 @@ fn draw_arrow(
 }
 
 fn cursorin(cursor: Vec2, center: Pos2, size: f32) -> bool {
-    if cursor.x > (center.x - size) && (center.x + size) > cursor.x {
-        if cursor.y > (center.y - size) && (center.y + size) > cursor.y {
-            return true;
-        }
+    if cursor.x > (center.x - size)
+        && (center.x + size) > cursor.x
+        && cursor.y > (center.y - size)
+        && (center.y + size) > cursor.y
+    {
+        return true;
     }
     false
 }
