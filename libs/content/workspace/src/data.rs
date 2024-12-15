@@ -1,4 +1,3 @@
-use egui::{TextBuffer, Vec2};
 use lb_rs::blocking::Lb;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -84,15 +83,13 @@ pub fn lockbook_data(core: &Lb) -> Graph {
 fn remove(links: Vec<usize>, id: &usize) -> Vec<usize> {
     let mut output = links.clone();
     let mut index;
-    let mut count = 0;
-    for link in links {
+    for (count, link) in links.into_iter().enumerate() {
         if &link == id {
             index = count;
             output.remove(index);
         }
-        count += 1;
     }
-    return output;
+    output
 }
 
 fn check_for_links(classify: &mut Vec<NameId>, id: &mut usize, doc: &str) -> Vec<usize> {
@@ -100,7 +97,7 @@ fn check_for_links(classify: &mut Vec<NameId>, id: &mut usize, doc: &str) -> Vec
     let link_names = find_links(doc);
 
     for link in link_names {
-        let link_id = in_classify(&link, &classify);
+        let link_id = in_classify(&link, classify);
         if let Some(link_id) = link_id {
             if !links.contains(&link_id) {
                 links.push(link_id);
