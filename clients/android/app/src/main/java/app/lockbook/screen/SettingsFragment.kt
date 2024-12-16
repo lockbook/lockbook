@@ -30,7 +30,6 @@ import net.lockbook.LbError
 import net.lockbook.SubscriptionInfo.AppStore
 import net.lockbook.SubscriptionInfo.GooglePlay
 import net.lockbook.SubscriptionInfo.Stripe
-import java.io.File
 import java.lang.ref.WeakReference
 import kotlin.system.exitProcess
 
