@@ -9,7 +9,6 @@ class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
-
         findViewById<MaterialToolbar>(R.id.settings_toolbar).setNavigationOnClickListener {
             finish()
         }
