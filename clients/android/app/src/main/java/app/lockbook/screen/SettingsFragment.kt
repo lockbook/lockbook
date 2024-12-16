@@ -30,7 +30,6 @@ import net.lockbook.LbError
 import net.lockbook.SubscriptionInfo.AppStore
 import net.lockbook.SubscriptionInfo.GooglePlay
 import net.lockbook.SubscriptionInfo.Stripe
-import java.io.File
 import java.lang.ref.WeakReference
 import kotlin.system.exitProcess
 
@@ -168,10 +167,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 VerificationItem.ViewPrivateKey,
                 ::exportAccountRaw
             )
-            getString(R.string.view_logs_key) -> startActivity(Intent(context, LogActivity::class.java))
-            getString(R.string.clear_logs_key) -> File("${requireContext().filesDir.absolutePath}/${LogActivity.LOG_FILE_NAME}").writeText(
-                ""
-            )
+            getString(R.string.debug_info_key) -> startActivity(Intent(context, DebugInfoActivity::class.java))
             getString(R.string.background_sync_enabled_key) ->
                 findPreference<Preference>(getString(R.string.background_sync_period_key))?.isEnabled =
                     (preference as SwitchPreference).isChecked

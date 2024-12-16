@@ -113,13 +113,8 @@
         android:icon="@drawable/ic_baseline_bug_report_24"
         android:title="@string/settings_preference_debug">
         <Preference
-            android:id="@+id/view_logs"
-            android:key="@string/view_logs_key"
-            android:title="@string/settings_preference_logs"
-            app:iconSpaceReserved="false" />
-        <Preference
-            android:key="@string/clear_logs_key"
-            android:title="@string/settings_preference_clear_logs"
+            android:key="@string/debug_info_key"
+            app:title="@string/debug_info"
             app:iconSpaceReserved="false" />
     </PreferenceCategory>
 </PreferenceScreen>
