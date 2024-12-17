@@ -5,6 +5,7 @@ use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
     thread,
+    time::{Duration, Instant},
 };
 
 use egui::{
@@ -53,6 +54,9 @@ pub struct FileTree {
 
     /// Which file is being dragged and how far has it been dragged?
     pub drag: Option<(Uuid, Vec2)>,
+
+    /// Which file is the drag 'n' drop payload being hovered over and since when? Used to expand folders during dnd.
+    pub drop: Option<(Uuid, Instant)>,
 }
 
 impl FileTree {
@@ -69,6 +73,7 @@ impl FileTree {
             rename_buffer: Default::default(),
             export: Default::default(),
             drag: None,
+            drop: None,
         }
     }
 
@@ -1244,7 +1249,8 @@ impl FileTree {
         if let (Some(pointer), Some(_)) =
             (ui.input(|i| i.pointer.interact_pos()), file_resp.dnd_hover_payload::<Uuid>())
         {
-            if file_resp.rect.contains(pointer)
+            let contains_pointer = file_resp.rect.contains(pointer);
+            if contains_pointer
             // ^ you'd think this would always be true (some suffering occurred here)
             // either something is deeply wrong with egui or something is deeply wrong with me
             {
@@ -1285,10 +1291,28 @@ impl FileTree {
                     );
                 }
             }
+
+            // during drag, drop target expands after debounce if folder
+            if file.is_folder() {
+                if let Some((drop_id, drop_start)) = self.drop.as_mut() {
+                    if !contains_pointer {
+                        self.drop = None; // pointer left
+                    } else if *drop_id != id {
+                        *drop_id = id;
+                        *drop_start = Instant::now(); // drop target changed
+                    } else if drop_start.elapsed() > Duration::from_millis(600) {
+                        self.expanded.insert(id); // expand after debounce
+                    }
+                } else if contains_pointer {
+                    self.drop = Some((id, Instant::now())); // pointer entered
+                }
+            }
         }
+
         // when drag ends, dragged file clears drag state
         if file_resp.drag_stopped() {
             self.drag = None;
+            self.drop = None;
         }
         // when drag ends, dropped-on file consumes dnd payload and emits move operation
         // the dnd payload itself is ignored because we always move the selection
