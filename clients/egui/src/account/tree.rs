@@ -52,9 +52,6 @@ pub struct FileTree {
     /// File export targets are selected asynchronously using the system file dialog.
     pub export: Arc<Mutex<Option<(File, PathBuf)>>>,
 
-    /// Which file is being dragged and how far has it been dragged?
-    pub drag: Option<(Uuid, Vec2)>,
-
     /// Which file is the drag 'n' drop payload being hovered over and since when? Used to expand folders during dnd.
     pub drop: Option<(Uuid, Instant)>,
 }
@@ -72,7 +69,6 @@ impl FileTree {
             rename_target: Default::default(),
             rename_buffer: Default::default(),
             export: Default::default(),
-            drag: None,
             drop: None,
         }
     }
@@ -1059,33 +1055,19 @@ impl FileTree {
         // render
         let file_resp = if file.is_document() {
             let doc_type = DocumentType::from_file_name_using_extension(&file.name);
-
-            let file_resp = match doc_type {
-                DocumentType::Text => Button::default()
-                    .icon(&Icon::DOC_TEXT)
-                    .text(text)
-                    .default_fill(default_fill)
-                    .frame(true)
-                    .hexpand(true)
-                    .indent(indent)
-                    .show(ui),
-                DocumentType::Drawing => Button::default()
-                    .icon(&Icon::DRAW)
-                    .text(text)
-                    .default_fill(default_fill)
-                    .frame(true)
-                    .hexpand(true)
-                    .indent(indent)
-                    .show(ui),
-                DocumentType::Other => Button::default()
-                    .icon(&Icon::DOC_UNKNOWN)
-                    .text(text)
-                    .default_fill(default_fill)
-                    .frame(true)
-                    .hexpand(true)
-                    .indent(indent)
-                    .show(ui),
+            let icon = match doc_type {
+                DocumentType::Text => &Icon::DOC_TEXT,
+                DocumentType::Drawing => &Icon::DRAW,
+                DocumentType::Other => &Icon::DOC_UNKNOWN,
             };
+            let file_resp = Button::default()
+                .icon(icon)
+                .text(text)
+                .default_fill(default_fill)
+                .frame(true)
+                .hexpand(true)
+                .indent(indent)
+                .show(ui);
 
             if file_resp.clicked() {
                 resp.open_requests.insert(id);
@@ -1096,37 +1078,25 @@ impl FileTree {
             let is_expanded = self.expanded.contains(&id);
             let is_shared = !file.shares.is_empty();
 
-            let file_resp = if is_expanded {
-                let file_resp = Button::default()
-                    .icon(&Icon::FOLDER_OPEN)
-                    .text(text)
-                    .default_fill(default_fill)
-                    .frame(true)
-                    .hexpand(true)
-                    .indent(indent)
-                    .show(ui);
+            let icon = if is_expanded {
+                &Icon::FOLDER_OPEN
+            } else if is_shared {
+                &Icon::SHARED_FOLDER
+            } else {
+                &Icon::FOLDER
+            };
+
+            let file_resp = Button::default()
+                .icon(icon)
+                .text(text)
+                .default_fill(default_fill)
+                .frame(true)
+                .hexpand(true)
+                .indent(indent)
+                .show(ui);
+            if is_expanded {
                 resp =
                     resp.union(self.show_children_recursive(ui, id, depth + 1, scroll_to_cursor));
-
-                file_resp
-            } else if is_shared {
-                Button::default()
-                    .icon(&Icon::SHARED_FOLDER)
-                    .text(text)
-                    .default_fill(default_fill)
-                    .frame(true)
-                    .hexpand(true)
-                    .indent(indent)
-                    .show(ui)
-            } else {
-                Button::default()
-                    .icon(&Icon::FOLDER)
-                    .text(text)
-                    .default_fill(default_fill)
-                    .frame(true)
-                    .hexpand(true)
-                    .indent(indent)
-                    .show(ui)
             };
 
             if file_resp.clicked() {
@@ -1222,10 +1192,9 @@ impl FileTree {
         mem::drop(export);
 
         // drag 'n' drop:
-        // when drag starts, dragged file sets dnd payload and starts tracking cumulative drag delta
+        // when drag starts, dragged file sets dnd payload
         if file_resp.drag_started() {
             file_resp.dnd_set_drag_payload(id);
-            self.drag = Some((id, file_resp.drag_delta()));
 
             // the selection is what's actually moved
             // dragging a selected file moves all selected files
@@ -1236,14 +1205,6 @@ impl FileTree {
             }
         }
         let file = self.files.get_by_id(id);
-        // during drag, dragged file accumulates delta
-        if file_resp.dragged() {
-            if let Some((drag_id, drag_acc)) = self.drag.as_mut() {
-                if *drag_id == id {
-                    *drag_acc += file_resp.drag_delta();
-                }
-            }
-        }
         // during drag, drop target renders indicator
         let mut hovering_file_center = false;
         if let (Some(pointer), Some(_)) =
@@ -1311,7 +1272,6 @@ impl FileTree {
 
         // when drag ends, dragged file clears drag state
         if file_resp.drag_stopped() {
-            self.drag = None;
             self.drop = None;
         }
         // when drag ends, dropped-on file consumes dnd payload and emits move operation
