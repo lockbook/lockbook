@@ -236,9 +236,11 @@ impl AccountScreen {
                 }
 
                 if let Some(file) = wso.selected_file {
-                    self.tree.cursor = Some(file);
-                    self.tree.selected.clear();
-                    self.tree.selected.insert(file);
+                    if !self.tree.selected.contains(&file) {
+                        self.tree.cursor = Some(file);
+                        self.tree.selected.clear();
+                        self.tree.selected.insert(file);
+                    }
                 }
 
                 if wso.sync_done.is_some() {

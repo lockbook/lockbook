@@ -981,7 +981,9 @@ impl FileTree {
         let mut resp = Response::default();
 
         let file = self.files.get_by_id(id).clone();
+
         let is_selected = self.selected.contains(&id);
+        let is_expanded = self.expanded.contains(&id);
         let is_cursored = self.cursor == Some(id);
         let is_cut = self.cut.contains(&id);
         let is_renaming = self.rename_target == Some(id);
@@ -1069,13 +1071,8 @@ impl FileTree {
                 .indent(indent)
                 .show(ui);
 
-            if file_resp.clicked() {
-                resp.open_requests.insert(id);
-            }
-
             file_resp
         } else {
-            let is_expanded = self.expanded.contains(&id);
             let is_shared = !file.shares.is_empty();
 
             let icon = if is_expanded {
@@ -1098,14 +1095,6 @@ impl FileTree {
                 resp =
                     resp.union(self.show_children_recursive(ui, id, depth + 1, scroll_to_cursor));
             };
-
-            if file_resp.clicked() {
-                if !is_expanded {
-                    self.expand(&[id]);
-                } else {
-                    self.collapse(&[id]);
-                }
-            }
 
             file_resp
         };
@@ -1168,6 +1157,14 @@ impl FileTree {
             if !shift_clicked && !cmd_clicked {
                 self.selected.clear();
                 self.selected.insert(id);
+
+                if file.is_document() {
+                    resp.open_requests.insert(id);
+                } else if !is_expanded {
+                    self.expand(&[id]);
+                } else {
+                    self.collapse(&[id]);
+                }
             }
 
             self.cut.clear();
