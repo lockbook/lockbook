@@ -8,6 +8,7 @@ pub struct Response {
     pub selected_file: Option<Uuid>,
 
     pub file_renamed: Option<(Uuid, String)>,
+    pub file_moved: Option<(Uuid, Uuid)>,
 
     pub new_folder_clicked: bool,
     pub tab_title_clicked: bool,

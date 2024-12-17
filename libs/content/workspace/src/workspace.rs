@@ -60,6 +60,7 @@ pub enum WsMsg {
     FileLoaded(FileLoadedMsg),
     SaveResult(Uuid, Result<SaveResult, LbErr>),
     FileRenamed { id: Uuid, new_name: String },
+    FileMoved { id: Uuid, new_parent: Uuid },
 
     BgSignal(Signal),
     SyncMsg(SyncProgress),
@@ -1031,6 +1032,9 @@ impl Workspace {
                         self.open_file(id, false, is_tab_active);
                     }
                 }
+                WsMsg::FileMoved { id, new_parent } => {
+                    self.out.file_moved = Some((id, new_parent));
+                }
                 WsMsg::SyncDone(sync_outcome) => self.sync_done(sync_outcome),
                 WsMsg::Dirtyness(dirty_msg) => self.dirty_msg(dirty_msg),
                 WsMsg::FileCreated(result) => self.out.file_created = Some(result),
@@ -1048,6 +1052,20 @@ impl Workspace {
             core.rename_file(&id, &new_name).unwrap(); // TODO
 
             update_tx.send(WsMsg::FileRenamed { id, new_name }).unwrap();
+            ctx.request_repaint();
+        });
+    }
+
+    pub fn move_file(&self, req: (Uuid, Uuid)) {
+        let core = self.core.clone();
+        let update_tx = self.updates_tx.clone();
+        let ctx = self.ctx.clone();
+
+        thread::spawn(move || {
+            let (id, new_parent) = req;
+            core.move_file(&id, &new_parent).unwrap(); // TODO
+
+            update_tx.send(WsMsg::FileMoved { id, new_parent }).unwrap();
             ctx.request_repaint();
         });
     }
@@ -1236,7 +1254,7 @@ fn tab_label(
 // "you should match most specific shortcuts first", but this doesn't go well with egui's usual pattern where widgets
 // process input in the order in which they're drawn, with parent widgets (e.g. workspace) drawn before children
 // (e.g. editor). Using this older way of doing things affects matching keyboard shortcuts with shift included e.g. '+'
-trait InputStateExt {
+pub trait InputStateExt {
     fn count_and_consume_key_exact(
         &mut self, modifiers: egui::Modifiers, logical_key: egui::Key,
     ) -> usize;
