@@ -30,6 +30,7 @@ impl From<crate::Response> for MacOSResponse {
                 workspace_rs::Response {
                     selected_file,
                     file_renamed,
+                    file_moved: _,
                     new_folder_clicked,
                     tab_title_clicked: _,
                     file_created,

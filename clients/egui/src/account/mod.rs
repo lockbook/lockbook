@@ -1,20 +1,23 @@
 mod full_doc_search;
 mod modals;
-mod suggested_docs;
 mod syncing;
 mod tree;
 
 use std::ffi::OsStr;
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc, RwLock};
 use std::time::Duration;
 use std::{path, process, thread};
 
+use egui::style::ScrollStyle;
+use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, Vec2};
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
 use lb::service::import_export::ImportStatus;
 use lb::Uuid;
+use tree::FilesExt;
 use workspace_rs::background::BwIncomingMsg;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
@@ -27,9 +30,8 @@ use crate::util::data_dir;
 use self::full_doc_search::FullDocSearch;
 use self::modals::*;
 
-use self::suggested_docs::SuggestedDocs;
 use self::syncing::SyncPanel;
-use self::tree::{FileTree, TreeNode};
+use self::tree::FileTree;
 
 pub struct AccountScreen {
     settings: Arc<RwLock<Settings>>,
@@ -41,13 +43,13 @@ pub struct AccountScreen {
 
     tree: FileTree,
     is_new_user: bool,
-    suggested: SuggestedDocs,
     full_search_doc: FullDocSearch,
     sync: SyncPanel,
     usage: Result<Usage, String>,
     workspace: Workspace,
     modals: Modals,
     shutdown: Option<AccountShutdownProgress>,
+    sidebar_expanded: bool,
 }
 
 impl AccountScreen {
@@ -73,22 +75,25 @@ impl AccountScreen {
         );
         drop(reference_settings);
 
-        Self {
+        let sidebar_expanded = !settings.read().unwrap().zen_mode;
+        let mut result = Self {
             settings,
-            core,
+            core: core.clone(),
             toasts,
             update_tx,
             update_rx,
             is_new_user,
-            tree: FileTree::new(files, &core_clone),
-            suggested: SuggestedDocs::new(&core_clone),
+            tree: FileTree::new(files),
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(ws_cfg, &core_clone, &ctx.clone()),
             modals: Modals::default(),
             shutdown: None,
-        }
+            sidebar_expanded,
+        };
+        result.tree.recalc_suggested_files(&core, ctx);
+        result
     }
 
     pub fn begin_shutdown(&mut self) {
@@ -119,13 +124,27 @@ impl AccountScreen {
             return Default::default();
         }
 
-        let is_expanded = !self.settings.read().unwrap().zen_mode;
         self.show_any_modals(ctx, 0.0);
 
+        // focus management
+        let full_doc_search_id = Id::from("full_doc_search");
+        let suggested_docs_id = Id::from("suggested_docs");
+        if ctx.input(|i| i.key_pressed(Key::F) && i.modifiers.command && i.modifiers.shift) {
+            if !self.sidebar_expanded {
+                self.sidebar_expanded = true;
+                ctx.memory_mut(|m| m.request_focus(full_doc_search_id));
+            } else if ctx.memory(|m| m.has_focus(full_doc_search_id)) {
+                self.sidebar_expanded = false;
+                ctx.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
+            } else {
+                ctx.memory_mut(|m| m.request_focus(full_doc_search_id));
+            }
+        }
+
         egui::SidePanel::left("sidebar_panel")
-            .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
+            .frame(egui::Frame::none().fill(ctx.style().visuals.extreme_bg_color))
             .min_width(300.0)
-            .show_animated(ctx, is_expanded, |ui| {
+            .show_animated(ctx, self.sidebar_expanded, |ui| {
                 if self.is_any_modal_open() {
                     ui.disable();
                 }
@@ -144,24 +163,28 @@ impl AccountScreen {
                         });
 
                     ui.vertical(|ui| {
-                        ui.add_space(15.0);
-                        if let Some(file) = self.full_search_doc.show(ui, &self.core) {
+                        let full_doc_search_resp = self.full_search_doc.show(ui, &self.core);
+                        if let Some(file) = full_doc_search_resp.file_to_open {
                             self.workspace.open_file(file, false, true);
                         }
-                        ui.add_space(15.0);
+                        if full_doc_search_resp.advance_focus {
+                            ctx.memory_mut(|m| m.request_focus(suggested_docs_id));
+                            self.tree.cursor = Some(self.tree.suggested_docs_folder_id);
+                            self.tree.selected = Some(self.tree.suggested_docs_folder_id)
+                                .into_iter()
+                                .collect();
+                        }
 
-                        let full_doc_search_results_empty = self
+                        let full_doc_search_term_empty = self
                             .full_search_doc
-                            .results
+                            .query
                             .lock()
-                            .map(|r| r.is_empty())
+                            .map(|q| q.is_empty())
                             .unwrap_or(true);
-                        if full_doc_search_results_empty {
-                            if let Some(file) = self.suggested.show(ui) {
-                                self.workspace.open_file(file, false, true);
-                            }
-                            ui.add_space(15.0);
-                            self.show_tree(ui);
+                        let mut max_rect = ui.max_rect(); // used to size end-of-tree padding
+                        max_rect.min.y = ui.min_rect().max.y;
+                        if full_doc_search_term_empty {
+                            self.show_tree(ui, max_rect);
                         }
                     });
                 });
@@ -180,18 +203,31 @@ impl AccountScreen {
                     settings.zen_mode,
                 );
                 drop(settings);
-                self.workspace.focused_parent = Some(self.focused_parent());
+                self.workspace.focused_parent = self.focused_parent();
                 let wso = self.workspace.show(ui);
                 if wso.settings_updated {
                     self.settings.write().unwrap().zen_mode =
                         self.workspace.cfg.zen_mode.load(Ordering::Relaxed);
                     self.settings.read().unwrap().to_file().unwrap();
+                    self.sidebar_expanded = !self.settings.read().unwrap().zen_mode;
                 }
                 if let Some((id, new_name)) = wso.file_renamed {
-                    if let Some(node) = self.tree.root.find_mut(id) {
-                        node.file.name = new_name.clone();
+                    for file in self.tree.files.iter_mut() {
+                        if file.id == id {
+                            file.name = new_name;
+                            break;
+                        }
                     }
-                    self.suggested.recalc_and_redraw(ctx, &self.core);
+                    self.tree.recalc_suggested_files(&self.core, ctx);
+                    ctx.request_repaint();
+                }
+                if let Some((id, new_parent)) = wso.file_moved {
+                    for file in self.tree.files.iter_mut() {
+                        if file.id == id {
+                            file.parent = new_parent;
+                            break;
+                        }
+                    }
                     ctx.request_repaint();
                 }
 
@@ -200,7 +236,11 @@ impl AccountScreen {
                 }
 
                 if let Some(file) = wso.selected_file {
-                    self.tree.reveal_file(file, ctx);
+                    if !self.tree.selected.contains(&file) {
+                        self.tree.cursor = Some(file);
+                        self.tree.selected.clear();
+                        self.tree.selected.insert(file);
+                    }
                 }
 
                 if wso.sync_done.is_some() {
@@ -211,6 +251,23 @@ impl AccountScreen {
         if self.is_new_user {
             self.modals.account_backup = Some(AccountBackup);
             self.is_new_user = false;
+        }
+
+        // whatever is focused, lock focus on it
+        // while the sidebar is expanding, it isn't rendered, so its contents lose focus
+        if let Some(focused) = ctx.memory(|m| m.focused()) {
+            // "register" the widget id - this keeps the id and its focus from being garbage collected
+            // in debug builds, this will render some errors if the id is also used elsewhere
+            ctx.check_for_id_clash(focused, egui::Rect::ZERO, "");
+
+            // focus lock filter happens to be the same for all widgets we're managing here
+            let event_filter = EventFilter {
+                tab: true, // we don't need to capture tab input but tab focus navigation is unimplemented
+                horizontal_arrows: true, // horizontal arrows move cursor in search and navigate file tree
+                vertical_arrows: true, // vertical arrows navigate file tree and only change focus at widget discretion
+                escape: false, // escape releases focus which is generally grabbed by the editor
+            };
+            ctx.memory_mut(|m| m.set_focus_lock_filter(focused, event_filter))
         }
     }
 
@@ -251,19 +308,22 @@ impl AccountScreen {
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
                 AccountUpdate::FileImported(result) => match result {
-                    Ok(root) => {
-                        self.tree.root = root;
+                    Ok(files) => {
+                        self.tree.update_files(files);
                         self.modals.file_picker = None;
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
                 AccountUpdate::FileCreated(result) => self.file_created(ctx, result),
                 AccountUpdate::FileDeleted(f) => {
-                    self.tree.remove(&f);
-                    self.suggested.recalc_and_redraw(ctx, &self.core);
+                    // inefficient but fine
+                    let mut files = self.tree.files.clone();
+                    files.retain(|file| file.id != f.id);
+                    self.tree.update_files(files);
+                    self.tree.recalc_suggested_files(&self.core, ctx);
                 }
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
-                AccountUpdate::ReloadTree(root) => self.tree.root = root,
+                AccountUpdate::ReloadTree(files) => self.tree.update_files(files),
 
                 AccountUpdate::FinalSyncAttemptDone => {
                     if let Some(s) = &mut self.shutdown {
@@ -353,13 +413,31 @@ impl AccountScreen {
         }
     }
 
-    fn show_tree(&mut self, ui: &mut egui::Ui) {
-        let resp = egui::ScrollArea::both()
-            .show(ui, |ui| self.tree.show(ui))
+    fn show_tree(&mut self, ui: &mut egui::Ui, max_rect: Rect) {
+        // avoids flickering due to hover conflict with sidebar resize
+        ui.style_mut().spacing.scroll = ScrollStyle::solid();
+        ui.style_mut().spacing.scroll.floating = true;
+        ui.style_mut().spacing.scroll.bar_width *= 2.;
+
+        let resp = ScrollArea::vertical()
+            .show(ui, |ui| {
+                ui.vertical_centered_justified(|ui| {
+                    Frame::canvas(ui.style())
+                        .inner_margin(0.)
+                        .stroke(Stroke::NONE)
+                        .show(ui, |ui| {
+                            ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
+                            self.tree.show(ui, max_rect)
+                        })
+                })
+            })
+            .inner
+            .inner
             .inner;
 
         if resp.new_file.is_some() {
             self.workspace.create_file(false);
+            ui.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
         }
 
         if resp.new_drawing.is_some() {
@@ -380,6 +458,10 @@ impl AccountScreen {
             ui.ctx().request_repaint();
         }
 
+        for move_req in resp.move_requests {
+            self.workspace.move_file(move_req);
+        }
+
         if let Some(rename_req) = resp.rename_request {
             self.workspace.rename_file(rename_req);
         }
@@ -388,37 +470,25 @@ impl AccountScreen {
             self.workspace.open_file(id, false, true);
         }
 
-        if resp.delete_request {
-            let selected_files = self.tree.get_selected_files();
-            if !selected_files.is_empty() {
-                self.update_tx
-                    .send(OpenModal::ConfirmDelete(selected_files).into())
-                    .unwrap();
-            }
+        if !resp.delete_requests.is_empty() {
+            let files = resp
+                .delete_requests
+                .iter()
+                .map(|&id| self.tree.files.get_by_id(id))
+                .cloned()
+                .collect();
+            self.update_tx
+                .send(OpenModal::ConfirmDelete(files).into())
+                .unwrap();
         }
 
         if let Some(id) = resp.dropped_on {
+            // todo: async
             self.move_selected_files_to(ui.ctx(), id);
         }
 
-        if let Some(res) = resp.export_file {
-            match res {
-                Ok((src, dest)) => self.toasts.success(format!(
-                    "Exported \"{}\" to \"{}\"",
-                    src.name,
-                    dest.file_name()
-                        .unwrap_or(OsStr::new("/"))
-                        .to_string_lossy()
-                )),
-                Err(err) => {
-                    eprintln!("couldn't export file {:#?}", err.backtrace);
-                    self.toasts
-                        .error(format!("{:#?}, failed to export file", err.kind))
-                }
-            }
-            .set_closable(false)
-            .set_show_progress_bar(false)
-            .set_duration(Some(Duration::from_secs(7)));
+        if let Some((f, dest)) = resp.export_file {
+            self.export_file(f, dest);
         }
     }
 
@@ -457,6 +527,7 @@ impl AccountScreen {
                         if let Err(err) = self.settings.read().unwrap().to_file() {
                             self.modals.error = Some(ErrorModal::new(err));
                         }
+                        self.sidebar_expanded = false;
                     }
 
                     zen_mode_btn.on_hover_text("Hide side panel");
@@ -479,8 +550,9 @@ impl AccountScreen {
 
         thread::spawn(move || {
             let all_metas = core.list_metadatas().unwrap();
-            let root = tree::create_root_node(all_metas);
-            update_tx.send(AccountUpdate::ReloadTree(root)).unwrap();
+            update_tx
+                .send(AccountUpdate::ReloadTree(all_metas))
+                .unwrap();
             ctx.request_repaint();
         });
     }
@@ -518,13 +590,18 @@ impl AccountScreen {
         });
     }
 
-    fn focused_parent(&mut self) -> Uuid {
-        let mut focused_parent = self.tree.root.file.id;
-        for id in self.tree.state.selected.iter() {
-            focused_parent = *id;
+    fn focused_parent(&mut self) -> Option<Uuid> {
+        if let Some(cursor) = self.tree.cursor {
+            if cursor != self.tree.suggested_docs_folder_id {
+                let cursor = self.tree.files.get_by_id(cursor);
+                if cursor.is_folder() {
+                    return Some(cursor.id);
+                } else {
+                    return Some(cursor.parent);
+                }
+            }
         }
-
-        focused_parent
+        None
     }
 
     fn create_share(&mut self, params: CreateShareParams) {
@@ -540,28 +617,80 @@ impl AccountScreen {
     }
 
     fn move_selected_files_to(&mut self, ctx: &egui::Context, target: Uuid) {
-        let files = self.tree.get_selected_files();
+        // pre-check cyclic moves for atomicity
+        for &file in &self.tree.selected {
+            let descendents = self
+                .tree
+                .files
+                .descendents(file)
+                .into_iter()
+                .map(|f| f.id)
+                .collect::<Vec<_>>();
+            if descendents.contains(&target) {
+                // todo: show error
+                println!("cannot move folder into self");
+                return;
+            }
+        }
 
-        for f in files {
-            if f.parent == target {
+        // pre-check name conflicts for atomicity
+        let target_children = self.tree.files.children(target);
+        for &file in &self.tree.selected {
+            let name = self.tree.files.get_by_id(file).name.clone();
+            if target_children.iter().any(|f| f.name == name) {
+                // todo: show error
+                println!("cannot move file into folder containing file with same name");
+                return;
+            }
+        }
+
+        // move files
+        for &f in &self.tree.selected {
+            if self.tree.files.get_by_id(f).parent == target {
                 continue;
             }
-            if let Err(err) = self.core.move_file(&f.id, &target) {
-                println!("{:?}", err);
+            if let Err(err) = self.core.move_file(&f, &target) {
+                // todo: show error
+                println!("error moving file: {:?}", err);
                 return;
             } else {
-                let parent = self.tree.root.find_mut(f.parent).unwrap();
-                let node = parent.remove(f.id).unwrap();
-                let target_node = self.tree.root.find_mut(target).unwrap();
-                target_node.insert_node(node);
-                if let Some(tab) = self.workspace.get_mut_tab_by_id(f.id) {
-                    tab.path = self.core.get_path_by_id(f.id).unwrap();
+                if let Some(tab) = self.workspace.get_mut_tab_by_id(f) {
+                    tab.path = self.core.get_path_by_id(f).unwrap();
                 }
                 ctx.request_repaint();
             }
         }
 
+        self.refresh_tree(ctx);
+
         ctx.request_repaint();
+    }
+
+    fn export_file(&mut self, f: File, dest: PathBuf) {
+        println!("export_file");
+        let res = self.core.export_files(
+            f.id,
+            dest.clone(),
+            true,
+            &Some(Box::new(|info| println!("{:?}", info))),
+        );
+        match res {
+            Ok(()) => self.toasts.success(format!(
+                "Exported \"{}\" to \"{}\"",
+                f.name,
+                dest.file_name()
+                    .unwrap_or(OsStr::new("/"))
+                    .to_string_lossy()
+            )),
+            Err(err) => {
+                eprintln!("couldn't export file {:#?}", err.backtrace);
+                self.toasts
+                    .error(format!("{:#?}, failed to export file", err.kind))
+            }
+        }
+        .set_closable(false)
+        .set_show_progress_bar(false)
+        .set_duration(Some(Duration::from_secs(7)));
     }
 
     fn accept_share(&self, ctx: &egui::Context, target: File, parent: File) {
@@ -615,9 +744,10 @@ impl AccountScreen {
             });
 
             let all_metas = core.list_metadatas().unwrap();
-            let root = tree::create_root_node(all_metas);
 
-            let result = result.map(|_| root).map_err(|err| format!("{:?}", err));
+            let result = result
+                .map(|_| all_metas)
+                .map_err(|err| format!("{:?}", err));
 
             update_tx.send(AccountUpdate::FileImported(result)).unwrap();
             ctx.request_repaint();
@@ -655,12 +785,15 @@ impl AccountScreen {
         match result {
             Ok(f) => {
                 let (id, is_doc) = (f.id, f.is_document());
-                self.tree.root.insert(f);
-                self.tree.reveal_file(id, ctx);
+
+                // inefficient but works
+                let mut files = self.tree.files.clone();
+                files.push(f);
+                self.tree.update_files(files);
+
                 if is_doc {
                     self.workspace.open_file(id, true, true);
                 }
-                // Close whichever new file modal was open.
                 self.modals.new_folder = None;
                 ctx.request_repaint();
             }
@@ -684,13 +817,13 @@ pub enum AccountUpdate {
     FileDeleted(File),
 
     /// if a file has been imported successfully refresh the tree, otherwise show what went wrong
-    FileImported(Result<TreeNode, String>),
+    FileImported(Result<Vec<File>, String>),
 
     ShareAccepted(Result<File, String>),
 
     DoneDeleting,
 
-    ReloadTree(TreeNode),
+    ReloadTree(Vec<File>),
 
     FinalSyncAttemptDone,
 }
