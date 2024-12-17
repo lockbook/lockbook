@@ -49,7 +49,7 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_getDebugInfo<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, os_info: JString<'local>
+    mut env: JNIEnv<'local>, class: JClass<'local>, os_info: JString<'local>,
 ) -> jstring {
     let lb = rlb(&mut env, &class);
 
