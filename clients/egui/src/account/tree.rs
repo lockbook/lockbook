@@ -10,7 +10,7 @@ use std::{
 
 use egui::{
     text_edit::TextEditState, Color32, Context, Event, EventFilter, Id, Key, LayerId, Modifiers,
-    Order, Pos2, Rect, Sense, TextEdit, Ui, Vec2, WidgetText,
+    Order, Pos2, Rect, Sense, Style, TextEdit, Ui, Vec2, WidgetText,
 };
 use lb::{
     blocking::Lb,
@@ -1051,7 +1051,7 @@ impl FileTree {
                 ui.memory_mut(|m| m.request_focus(file_tree_id));
             }
 
-            return resp;
+            return resp; // note: early return
         }
 
         // render
@@ -1085,6 +1085,7 @@ impl FileTree {
 
             let file_resp = Button::default()
                 .icon(icon)
+                .icon_color(ui.style().visuals.widgets.active.bg_fill)
                 .text(text)
                 .default_fill(default_fill)
                 .frame(true)
