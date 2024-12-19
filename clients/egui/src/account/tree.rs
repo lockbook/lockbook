@@ -741,8 +741,6 @@ impl FileTree {
                     } else {
                         // focus to suggested
                         ui.memory_mut(|m| m.request_focus(suggested_docs_id));
-                        self.selected.clear();
-                        self.cut.clear();
                         self.cursor = if self.expanded.contains(&self.suggested_docs_folder_id) {
                             self.suggested_docs.lock().unwrap().last().copied()
                         } else {
@@ -825,9 +823,7 @@ impl FileTree {
             }
         }
 
-        if ui
-            .memory(|m| m.has_focus(Id::new("suggested_docs")) || m.has_focus(Id::new("file_tree")))
-        {
+        if ui.memory(|m| m.has_focus(suggested_docs_id) || m.has_focus(file_tree_id)) {
             // enter/space: open selected files or toggle folder expansion
             if ui.input_mut(|i| {
                 i.consume_key(Modifiers::NONE, Key::Enter)
@@ -861,6 +857,11 @@ impl FileTree {
                     self.expanded.retain(|id| !expanded_folders.contains(id));
                 }
             }
+        }
+
+        if !ui.memory(|m| m.has_focus(file_tree_id)) {
+            self.selected.clear();
+            self.cut.clear();
         }
 
         resp
