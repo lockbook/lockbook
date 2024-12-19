@@ -7,7 +7,7 @@ pub struct Button<'a> {
     icon: Option<&'a Icon>,
     text: Option<WidgetText>,
     text_style: Option<egui::TextStyle>,
-    icon_style: Option<egui::Style>,
+    icon_color: Option<egui::Color32>,
     icon_alignment: Option<egui::Align>,
     padding: Option<egui::Vec2>,
     is_loading: bool,
@@ -41,8 +41,8 @@ impl<'a> Button<'a> {
         Self { text_style: Some(text_style), ..self }
     }
 
-    pub fn icon_style(self, icon_style: egui::Style) -> Self {
-        Self { icon_style: Some(icon_style), ..self }
+    pub fn icon_color(self, icon_color: egui::Color32) -> Self {
+        Self { icon_color: Some(icon_color), ..self }
     }
 
     pub fn padding(self, padding: impl Into<egui::Vec2>) -> Self {
@@ -109,9 +109,7 @@ impl<'a> Button<'a> {
 
         if ui.is_rect_visible(rect) {
             let text_visuals = ui.style().interact(&resp).to_owned();
-            let icon_visuals = self.icon_style.as_ref().unwrap_or(ui.style().as_ref());
-            let icon_visuals = icon_visuals.interact(&resp);
-            let icon_color = icon_visuals.text_color();
+            let icon_color = self.icon_color.unwrap_or(text_visuals.text_color());
 
             // In stark contrast to its documentation, resp.hovered() is often true even if something is being dragged
             // and even when it does not contain the pointer! Some suffering occurred here to get desirable behavior.

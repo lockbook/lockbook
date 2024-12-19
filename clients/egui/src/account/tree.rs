@@ -9,8 +9,8 @@ use std::{
 };
 
 use egui::{
-    text_edit::TextEditState, Color32, Context, Event, EventFilter, Id, Key, LayerId, Modifiers,
-    Order, Pos2, Rect, Sense, TextEdit, Ui, Vec2, WidgetText,
+    text_edit::TextEditState, Color32, Context, DragAndDrop, Event, EventFilter, Id, Key, LayerId,
+    Modifiers, Order, Pos2, Rect, Sense, TextEdit, Ui, Vec2, WidgetText,
 };
 use lb::{
     blocking::Lb,
@@ -69,7 +69,7 @@ impl FileTree {
             rename_target: Default::default(),
             rename_buffer: Default::default(),
             export: Default::default(),
-            drop: None,
+            drop: Default::default(),
         }
     }
 
@@ -741,8 +741,6 @@ impl FileTree {
                     } else {
                         // focus to suggested
                         ui.memory_mut(|m| m.request_focus(suggested_docs_id));
-                        self.selected.clear();
-                        self.cut.clear();
                         self.cursor = if self.expanded.contains(&self.suggested_docs_folder_id) {
                             self.suggested_docs.lock().unwrap().last().copied()
                         } else {
@@ -825,9 +823,7 @@ impl FileTree {
             }
         }
 
-        if ui
-            .memory(|m| m.has_focus(Id::new("suggested_docs")) || m.has_focus(Id::new("file_tree")))
-        {
+        if ui.memory(|m| m.has_focus(suggested_docs_id) || m.has_focus(file_tree_id)) {
             // enter/space: open selected files or toggle folder expansion
             if ui.input_mut(|i| {
                 i.consume_key(Modifiers::NONE, Key::Enter)
@@ -861,6 +857,11 @@ impl FileTree {
                     self.expanded.retain(|id| !expanded_folders.contains(id));
                 }
             }
+        }
+
+        if !ui.memory(|m| m.has_focus(file_tree_id)) {
+            self.selected.clear();
+            self.cut.clear();
         }
 
         resp
@@ -1051,7 +1052,7 @@ impl FileTree {
                 ui.memory_mut(|m| m.request_focus(file_tree_id));
             }
 
-            return resp;
+            return resp; // note: early return
         }
 
         // render
@@ -1085,6 +1086,7 @@ impl FileTree {
 
             let file_resp = Button::default()
                 .icon(icon)
+                .icon_color(ui.style().visuals.widgets.active.bg_fill)
                 .text(text)
                 .default_fill(default_fill)
                 .frame(true)
@@ -1190,8 +1192,18 @@ impl FileTree {
 
         // drag 'n' drop:
         // when drag starts, dragged file sets dnd payload
-        if file_resp.drag_started() {
-            file_resp.dnd_set_drag_payload(id);
+        if file_resp.dragged()
+            && ui.input(|i| {
+                let (Some(pos), Some(origin)) =
+                    (i.pointer.interact_pos(), i.pointer.press_origin())
+                else {
+                    return false;
+                };
+
+                pos.distance(origin) > 8. // egui's drag detection is too sensitive and not configurable
+            })
+        {
+            DragAndDrop::set_payload(ui.ctx(), id);
 
             // the selection is what's actually moved
             // dragging a selected file moves all selected files
@@ -1201,11 +1213,12 @@ impl FileTree {
                 self.selected.insert(id);
             }
         }
+
         let file = self.files.get_by_id(id);
         // during drag, drop target renders indicator
         let mut hovering_file_center = false;
-        if let (Some(pointer), Some(_)) =
-            (ui.input(|i| i.pointer.interact_pos()), file_resp.dnd_hover_payload::<Uuid>())
+        if let (Some(pointer), true) =
+            (ui.input(|i| i.pointer.interact_pos()), DragAndDrop::has_any_payload(ui.ctx()))
         {
             let contains_pointer = file_resp.rect.contains(pointer);
             if contains_pointer
@@ -1251,7 +1264,7 @@ impl FileTree {
             }
 
             // during drag, drop target expands after debounce if folder
-            if file.is_folder() {
+            if file.is_folder() && hovering_file_center {
                 if let Some((drop_id, drop_start)) = self.drop.as_mut() {
                     if !contains_pointer {
                         self.drop = None; // pointer left

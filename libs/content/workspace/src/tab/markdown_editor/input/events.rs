@@ -261,6 +261,8 @@ impl Editor {
                     continue;
                 }
 
+                ctx.memory_mut(|m| m.request_focus(self.id()));
+
                 return vec![Event::Select { region }];
             }
         }
