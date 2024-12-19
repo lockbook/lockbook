@@ -1,3 +1,4 @@
+use crate::knowledge_graph::KnowledgeGraphApp;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -75,6 +76,7 @@ pub enum TabContent {
     Markdown(Markdown),
     Pdf(PdfViewer),
     Svg(SVGEditor),
+    Graph(KnowledgeGraphApp),
 }
 
 impl std::fmt::Debug for TabContent {
@@ -84,6 +86,7 @@ impl std::fmt::Debug for TabContent {
             TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
+            TabContent::Graph(_) => write!(f, "TabContent::Graph"),
         }
     }
 }
