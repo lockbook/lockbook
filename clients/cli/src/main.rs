@@ -217,22 +217,8 @@ fn main() {
     run().exit();
 }
 
-fn writable_path() -> CliResult<String> {
-    let specified_path = env::var("LOCKBOOK_PATH");
-
-    let default_path = env::var("HOME") // unix
-        .or(env::var("HOMEPATH")) // windows
-        .map(|home| format!("{home}/.lockbook/cli"));
-
-    Ok(specified_path
-        .or(default_path)
-        .map_err(|_| "no cli location")?)
-}
-
 pub async fn core() -> CliResult<Lb> {
-    let writeable_path = writable_path()?;
-
-    Lb::init(Config { writeable_path, logs: true, colored_logs: true, background_work: false })
+    Lb::init(Config::cli_config())
         .await
         .map_err(|err| CliError::from(err.to_string()))
 }

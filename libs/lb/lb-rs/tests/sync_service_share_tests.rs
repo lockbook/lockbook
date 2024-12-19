@@ -1,3 +1,4 @@
+use lb_rs::model::core_config::Config;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
 use lb_rs::Lb;
@@ -645,4 +646,13 @@ async fn test_share_link_read() {
     cores[1].sync(None).await.unwrap();
 
     cores[2].sync(None).await.unwrap();
+}
+
+#[tokio::test]
+// #[ignore]
+async fn pending_shares_perf() {
+    let lb = Lb::init(Config::cli_config()).await.unwrap();
+    for _ in 0..10 {
+        lb.get_pending_shares().await.unwrap();
+    }
 }
