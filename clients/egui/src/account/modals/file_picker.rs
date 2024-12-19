@@ -222,7 +222,6 @@ fn show_node(
     if Button::default()
         .text(node.name.clone().as_str())
         .icon(&Icon::FOLDER)
-        .icon_style(icon_style)
         .show(ui)
         .clicked()
     {
