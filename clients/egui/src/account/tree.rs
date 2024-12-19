@@ -9,8 +9,8 @@ use std::{
 };
 
 use egui::{
-    text_edit::TextEditState, Color32, Context, Event, EventFilter, Id, Key, LayerId, Modifiers,
-    Order, Pos2, Rect, Sense, Style, TextEdit, Ui, Vec2, WidgetText,
+    text_edit::TextEditState, Color32, Context, DragAndDrop, Event, EventFilter, Id, Key, LayerId,
+    Modifiers, Order, Pos2, Rect, Sense, TextEdit, Ui, Vec2, WidgetText,
 };
 use lb::{
     blocking::Lb,
@@ -69,7 +69,7 @@ impl FileTree {
             rename_target: Default::default(),
             rename_buffer: Default::default(),
             export: Default::default(),
-            drop: None,
+            drop: Default::default(),
         }
     }
 
@@ -1191,8 +1191,18 @@ impl FileTree {
 
         // drag 'n' drop:
         // when drag starts, dragged file sets dnd payload
-        if file_resp.drag_started() {
-            file_resp.dnd_set_drag_payload(id);
+        if file_resp.dragged()
+            && ui.input(|i| {
+                let (Some(pos), Some(origin)) =
+                    (i.pointer.interact_pos(), i.pointer.press_origin())
+                else {
+                    return false;
+                };
+
+                pos.distance(origin) > 8. // egui's drag detection is too sensitive and not configurable
+            })
+        {
+            DragAndDrop::set_payload(ui.ctx(), id);
 
             // the selection is what's actually moved
             // dragging a selected file moves all selected files
@@ -1202,11 +1212,12 @@ impl FileTree {
                 self.selected.insert(id);
             }
         }
+
         let file = self.files.get_by_id(id);
         // during drag, drop target renders indicator
         let mut hovering_file_center = false;
-        if let (Some(pointer), Some(_)) =
-            (ui.input(|i| i.pointer.interact_pos()), file_resp.dnd_hover_payload::<Uuid>())
+        if let (Some(pointer), true) =
+            (ui.input(|i| i.pointer.interact_pos()), DragAndDrop::has_any_payload(ui.ctx()))
         {
             let contains_pointer = file_resp.rect.contains(pointer);
             if contains_pointer
@@ -1252,7 +1263,7 @@ impl FileTree {
             }
 
             // during drag, drop target expands after debounce if folder
-            if file.is_folder() {
+            if file.is_folder() && hovering_file_center {
                 if let Some((drop_id, drop_start)) = self.drop.as_mut() {
                     if !contains_pointer {
                         self.drop = None; // pointer left
