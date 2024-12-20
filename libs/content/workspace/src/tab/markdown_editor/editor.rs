@@ -35,7 +35,7 @@ use std::time::{Duration, Instant};
 pub struct Response {
     // state changes
     pub text_updated: bool,
-    pub selection_updated: bool,
+    pub cursor_screen_postition_updated: bool,
     pub scroll_updated: bool,
 
     // actions taken
@@ -283,7 +283,9 @@ impl Editor {
                 bounds::calc_words(&self.buffer, &self.ast, &self.bounds.ast, &self.appearance);
             self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer);
         }
-        if text_updated || selection_updated || self.capture.mark_changes_processed() {
+        let cursor_screen_postition_updated =
+            text_updated || selection_updated || self.capture.mark_changes_processed();
+        if cursor_screen_postition_updated {
             self.bounds.text = bounds::calc_text(
                 &self.ast,
                 &self.bounds.ast,
@@ -372,7 +374,7 @@ impl Editor {
 
         Response {
             text_updated,
-            selection_updated,
+            cursor_screen_postition_updated,
             scroll_updated: false, // set by scroll_ui
             suggest_rename,
         }
