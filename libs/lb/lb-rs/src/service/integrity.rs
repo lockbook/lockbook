@@ -18,16 +18,15 @@ impl Lb {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let account = db.account.get().ok_or(TestRepoError::NoAccount)?;
 
         if db.last_synced.get().unwrap_or(&0) != &0 && db.root.get().is_none() {
             return Err(TestRepoError::NoRootFolder);
         }
 
-        tree.validate(Owner(account.public_key()))?;
+        tree.validate(Owner(self.keychain.get_pk()?))?;
 
         for id in tree.owned_ids() {
-            let name = tree.name(&id, account)?;
+            let name = tree.name(&id, &self.keychain)?;
             if name.is_empty() {
                 return Err(TestRepoError::FileNameEmpty(id));
             }
@@ -51,7 +50,7 @@ impl Lb {
                     continue;
                 }
 
-                let name = tree.name(&id, account)?;
+                let name = tree.name(&id, &self.keychain)?;
                 let extension = Path::new(&name)
                     .extension()
                     .and_then(|ext| ext.to_str())

@@ -189,7 +189,6 @@ pub async fn local_work_paths(lb: &Lb, expected_paths: &[&'static str]) {
     let tx = lb.ro_tx().await;
     let db = tx.db();
 
-    let account = db.account.get().unwrap().clone();
     let mut local = db.base_metadata.stage(&db.local_metadata).to_lazy();
     let mut actual_paths = dirty
         .iter()
@@ -199,7 +198,7 @@ pub async fn local_work_paths(lb: &Lb, expected_paths: &[&'static str]) {
         .filter(|id| !local.in_pending_share(id).unwrap())
         .collect::<Vec<_>>()
         .iter()
-        .map(|id| local.id_to_path(id, &account))
+        .map(|id| local.id_to_path(id, &lb.keychain))
         .collect::<Result<Vec<String>, _>>()
         .unwrap();
     actual_paths.sort_unstable();
@@ -247,7 +246,7 @@ pub async fn server_work_paths(core: &Lb, expected_paths: &[&'static str]) {
         .filter(|id| !remote.in_pending_share(id).unwrap())
         .collect::<Vec<_>>()
         .iter()
-        .map(|id| remote.id_to_path(id, account))
+        .map(|id| remote.id_to_path(id, &core.keychain))
         .collect::<Result<Vec<String>, _>>()
         .unwrap();
     actual_paths.sort_unstable();

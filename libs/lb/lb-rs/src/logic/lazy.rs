@@ -4,8 +4,9 @@ use crate::logic::staged::StagedTree;
 use crate::logic::tree_like::{TreeLike, TreeLikeMut};
 use crate::logic::{symkey, SharedErrorKind, SharedResult};
 use crate::model::access_info::UserAccessMode;
-use crate::model::account::Account;
+use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_metadata::{FileType, Owner};
+use crate::service::keychain::Keychain;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
@@ -14,7 +15,6 @@ use uuid::Uuid;
 pub struct LazyTree<T: TreeLike> {
     pub tree: T,
     pub name: HashMap<Uuid, String>,
-    pub key: HashMap<Uuid, AESKey>,
     pub implicit_deleted: HashMap<Uuid, bool>,
     pub children: HashMap<Uuid, HashSet<Uuid>>,
 }
@@ -23,7 +23,6 @@ impl<T: TreeLike> LazyTree<T> {
     pub fn new(tree: T) -> Self {
         Self {
             name: HashMap::new(),
-            key: HashMap::new(),
             implicit_deleted: HashMap::new(),
             children: HashMap::new(),
             tree,
@@ -127,16 +126,16 @@ impl<T: TreeLike> LazyTree<T> {
         Ok(deleted)
     }
 
-    pub fn decrypt_key(&mut self, id: &Uuid, account: &Account) -> SharedResult<AESKey> {
+    pub fn decrypt_key(&mut self, id: &Uuid, keychain: &Keychain) -> LbResult<AESKey> {
         let mut file_id = *self.find(id)?.id();
         let mut visited_ids = vec![];
 
         loop {
-            if self.key.contains_key(&file_id) {
+            if keychain.contains_aes_key(&file_id)? {
                 break;
             }
 
-            let my_pk = account.public_key();
+            let my_pk = keychain.get_pk()?;
 
             let maybe_file_key = if let Some(user_access) = self
                 .find(&file_id)?
@@ -144,12 +143,12 @@ impl<T: TreeLike> LazyTree<T> {
                 .iter()
                 .find(|access| access.encrypted_for == my_pk)
             {
-                Some(user_access.decrypt(account)?)
+                Some(user_access.decrypt(keychain.get_account()?)?)
             } else {
                 None
             };
             if let Some(file_key) = maybe_file_key {
-                self.key.insert(file_id, file_key);
+                keychain.insert_aes_key(file_id, file_key)?;
                 break;
             }
 
@@ -161,36 +160,36 @@ impl<T: TreeLike> LazyTree<T> {
             let decrypted_key = {
                 let file = self.find(id)?;
                 let parent = self.find_parent(file)?;
-                let parent_key = self
-                    .key
-                    .get(parent.id())
-                    .ok_or(SharedErrorKind::Unexpected(
-                        "parent key should have been populated by prior routine",
-                    ))?;
+                let parent_key =
+                    keychain
+                        .get_aes_key(parent.id())?
+                        .ok_or(LbErrKind::Unexpected(
+                            "parent key should have been populated by prior routine".to_string(),
+                        ))?;
                 let encrypted_key = file.folder_access_key();
-                symkey::decrypt(parent_key, encrypted_key)?
+                symkey::decrypt(&parent_key, encrypted_key)?
             };
-            self.key.insert(*id, decrypted_key);
+            keychain.insert_aes_key(*id, decrypted_key)?;
         }
 
-        Ok(*self.key.get(id).ok_or(SharedErrorKind::Unexpected(
-            "parent key should have been populated by prior routine (2)",
+        Ok(keychain.get_aes_key(id)?.ok_or(LbErrKind::Unexpected(
+            "parent key should have been populated by prior routine (2)".to_string(),
         ))?)
     }
 
-    pub fn name(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
+    pub fn name(&mut self, id: &Uuid, keychain: &Keychain) -> LbResult<String> {
         if let Some(name) = self.name.get(id) {
             return Ok(name.clone());
         }
-        let key = self.decrypt_key(id, account)?;
+        let key = self.decrypt_key(id, keychain)?;
         let name = self.find(id)?.secret_name().to_string(&key)?;
         self.name.insert(*id, name.clone());
         Ok(name)
     }
 
-    pub fn name_using_links(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
+    pub fn name_using_links(&mut self, id: &Uuid, keychain: &Keychain) -> LbResult<String> {
         let id = if let Some(link) = self.linked_by(id)? { link } else { *id };
-        self.name(&id, account)
+        self.name(&id, keychain)
     }
 
     pub fn parent_using_links(&mut self, id: &Uuid) -> SharedResult<Uuid> {
@@ -311,7 +310,6 @@ impl<T: TreeLike> LazyTree<T> {
         LazyTree::<StagedTree<T, T2>> {
             tree: StagedTree::new(self.tree, staged),
             name: HashMap::new(),
-            key: self.key,
             implicit_deleted: HashMap::new(),
             children: HashMap::new(),
         }
@@ -322,16 +320,15 @@ impl<T: TreeLike> LazyTree<T> {
         LazyTree::<StagedTree<T, Option<T::F>>> {
             tree: StagedTree::removal(self.tree, removed),
             name: HashMap::new(),
-            key: self.key,
             implicit_deleted: HashMap::new(),
             children: HashMap::new(),
         }
     }
 
     // todo: optimize
-    pub fn assert_names_decryptable(&mut self, account: &Account) -> SharedResult<()> {
+    pub fn assert_names_decryptable(&mut self, keychain: &Keychain) -> SharedResult<()> {
         for id in self.owned_ids() {
-            if self.name(&id, account).is_err() {
+            if self.name(&id, keychain).is_err() {
                 return Err(SharedErrorKind::ValidationFailure(
                     ValidationFailure::NonDecryptableFileName(id),
                 )
@@ -424,7 +421,6 @@ where
         Ok(LazyTree {
             tree: base,
             name: HashMap::new(),
-            key: self.key,
             implicit_deleted: HashMap::new(),
             children: HashMap::new(),
         })
@@ -442,7 +438,6 @@ where
             LazyTree {
                 tree: self.tree.base,
                 name: HashMap::new(),
-                key: self.key,
                 implicit_deleted: HashMap::new(),
                 children: HashMap::new(),
             },

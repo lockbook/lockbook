@@ -22,5 +22,8 @@ members = [
 ]
 
 # restore for big binaries but good backtraces
-# [profile.release]
+ [profile.release]
+ debug = true
+
+# [profile.bench]
 # debug = true

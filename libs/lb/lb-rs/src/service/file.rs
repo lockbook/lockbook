@@ -25,12 +25,16 @@ impl Lb {
             .to_staged(&mut db.local_metadata)
             .to_lazy();
 
-        let account = db.account.get().ok_or(LbErrKind::AccountNonexistent)?;
+        let id = tree.create(
+            Uuid::new_v4(),
+            symkey::generate_key(),
+            parent,
+            name,
+            file_type,
+            &self.keychain,
+        )?;
 
-        let id =
-            tree.create(Uuid::new_v4(), symkey::generate_key(), parent, name, file_type, account)?;
-
-        let ui_file = tree.decrypt(account, &id, &db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
         info!("created {:?} with id {id}", file_type);
 
@@ -50,11 +54,10 @@ impl Lb {
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
             .to_lazy();
-        let account = self.get_account()?;
 
         let id = &tree.linked_by(id)?.unwrap_or(*id);
 
-        tree.rename(id, new_name, account)?;
+        tree.rename(id, new_name, &self.keychain)?;
 
         self.spawn_build_index();
 
@@ -69,11 +72,10 @@ impl Lb {
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
             .to_lazy();
-        let account = self.get_account()?;
 
         let id = &tree.linked_by(id)?.unwrap_or(*id);
 
-        tree.move_file(id, new_parent, account)?;
+        tree.move_file(id, new_parent, &self.keychain)?;
 
         self.spawn_build_index();
 
@@ -88,11 +90,10 @@ impl Lb {
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
             .to_lazy();
-        let account = self.get_account()?;
 
         let id = &tree.linked_by(id)?.unwrap_or(*id);
 
-        tree.delete(id, account)?;
+        tree.delete(id, &self.keychain)?;
 
         self.spawn_build_index();
 
@@ -106,11 +107,10 @@ impl Lb {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let account = self.get_account()?;
 
         let root_id = db.root.get().ok_or(LbErrKind::RootNonexistent)?;
 
-        let root = tree.decrypt(account, root_id, &db.pub_key_lookup)?;
+        let root = tree.decrypt(&self.keychain, root_id, &db.pub_key_lookup)?;
 
         Ok(root)
     }
@@ -121,11 +121,10 @@ impl Lb {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let account = self.get_account()?;
 
         let ids = tree.owned_ids().into_iter();
 
-        Ok(tree.decrypt_all(account, ids, &db.pub_key_lookup, true)?)
+        tree.decrypt_all(&self.keychain, ids, &db.pub_key_lookup, true)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -134,11 +133,10 @@ impl Lb {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let account = self.get_account()?;
 
         let ids = tree.children_using_links(id)?.into_iter();
 
-        Ok(tree.decrypt_all(account, ids, &db.pub_key_lookup, true)?)
+        tree.decrypt_all(&self.keychain, ids, &db.pub_key_lookup, true)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -147,16 +145,15 @@ impl Lb {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let account = self.get_account()?;
 
         let descendants = tree.descendants_using_links(id)?;
 
-        Ok(tree.decrypt_all(
-            account,
+        tree.decrypt_all(
+            &self.keychain,
             descendants.into_iter().chain(iter::once(*id)),
             &db.pub_key_lookup,
             false,
-        )?)
+        )
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -166,8 +163,6 @@ impl Lb {
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
-        let account = self.get_account()?;
-
         if tree.calculate_deleted(&id)? {
             return Err(LbErrKind::FileNonexistent.into());
         }
@@ -175,7 +170,7 @@ impl Lb {
             return Err(LbErrKind::FileNonexistent.into());
         }
 
-        let file = tree.decrypt(account, &id, &db.pub_key_lookup)?;
+        let file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
         Ok(file)
     }

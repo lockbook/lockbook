@@ -365,9 +365,9 @@ impl Lb {
                                 id,
                                 symkey::generate_key(),
                                 local_file.parent(),
-                                &local.name(&id, self.get_account()?)?,
+                                &local.name(&id, &self.keychain)?,
                                 local_file.file_type(),
-                                self.get_account()?,
+                                &self.keychain,
                             );
                             match result {
                                 Ok(_) => {
@@ -375,7 +375,7 @@ impl Lb {
                                     continue 'drain_creations;
                                 }
                                 Err(ref err) => match err.kind {
-                                    SharedErrorKind::FileParentNonexistent => {
+                                    LbErrKind::FileParentNonexistent => {
                                         continue 'choose_a_creation;
                                     }
                                     _ => {
@@ -403,7 +403,7 @@ impl Lb {
                                 deletions.move_unvalidated(
                                     &id,
                                     local_file.parent(),
-                                    self.get_account()?,
+                                    &self.keychain,
                                 )?;
                             }
                         }
@@ -414,7 +414,7 @@ impl Lb {
                         let local_file = local.find(&id)?.clone();
                         if local_file.explicitly_deleted() {
                             // delete
-                            deletions.delete_unvalidated(&id, self.get_account()?)?;
+                            deletions.delete_unvalidated(&id, &self.keychain)?;
                         }
                     }
                     deletions
@@ -442,11 +442,11 @@ impl Lb {
                             let local_file = local.find(&id)?.clone();
                             let result = merge.create_unvalidated(
                                 id,
-                                local.decrypt_key(&id, self.get_account()?)?,
+                                local.decrypt_key(&id, &self.keychain)?,
                                 local_file.parent(),
-                                &local.name(&id, self.get_account()?)?,
+                                &local.name(&id, &self.keychain)?,
                                 local_file.file_type(),
-                                self.get_account()?,
+                                &self.keychain,
                             );
                             match result {
                                 Ok(_) => {
@@ -454,7 +454,7 @@ impl Lb {
                                     continue 'drain_creations;
                                 }
                                 Err(ref err) => match err.kind {
-                                    SharedErrorKind::FileParentNonexistent => {
+                                    LbErrKind::FileParentNonexistent => {
                                         continue 'choose_a_creation;
                                     }
                                     _ => {
@@ -483,29 +483,25 @@ impl Lb {
                         }
 
                         let local_file = local.find(&id)?.clone();
-                        let local_name = local.name(&id, self.get_account()?)?;
+                        let local_name = local.name(&id, &self.keychain)?;
                         let maybe_base_file = base.maybe_find(&id).cloned();
                         let maybe_remote_file = remote.maybe_find(&id).cloned();
                         if let Some(ref base_file) = maybe_base_file {
-                            let base_name = base.name(&id, self.get_account()?)?;
+                            let base_name = base.name(&id, &self.keychain)?;
                             let remote_file = remote.find(&id)?.clone();
-                            let remote_name = remote.name(&id, self.get_account()?)?;
+                            let remote_name = remote.name(&id, &self.keychain)?;
 
                             // move
                             if local_file.parent() != base_file.parent()
                                 && remote_file.parent() == base_file.parent()
                                 && !files_to_unmove.contains(&id)
                             {
-                                merge.move_unvalidated(
-                                    &id,
-                                    local_file.parent(),
-                                    self.get_account()?,
-                                )?;
+                                merge.move_unvalidated(&id, local_file.parent(), &self.keychain)?;
                             }
 
                             // rename
                             if local_name != base_name && remote_name == base_name {
-                                merge.rename_unvalidated(&id, &local_name, self.get_account()?)?;
+                                merge.rename_unvalidated(&id, &local_name, &self.keychain)?;
                             }
                         }
 
@@ -531,19 +527,14 @@ impl Lb {
                                         UserAccessMode::Write => ShareMode::Write,
                                         UserAccessMode::Owner => continue,
                                     };
-                                    merge.add_share_unvalidated(
-                                        id,
-                                        for_,
-                                        mode,
-                                        self.get_account()?,
-                                    )?;
+                                    merge.add_share_unvalidated(id, for_, mode, &self.keychain)?;
                                 }
                                 // delete share
                                 if key.deleted && !remote_deleted {
                                     merge.delete_share_unvalidated(
                                         &id,
                                         Some(for_.0),
-                                        self.get_account()?,
+                                        &self.keychain,
                                     )?;
                                 }
                             } else {
@@ -553,13 +544,13 @@ impl Lb {
                                     UserAccessMode::Write => ShareMode::Write,
                                     UserAccessMode::Owner => continue,
                                 };
-                                merge.add_share_unvalidated(id, for_, mode, self.get_account()?)?;
+                                merge.add_share_unvalidated(id, for_, mode, &self.keychain)?;
                             }
                         }
 
                         // share deletion due to conflicts
                         if files_to_unshare.contains(&id) {
-                            merge.delete_share_unvalidated(&id, None, self.get_account()?)?;
+                            merge.delete_share_unvalidated(&id, None, &self.keychain)?;
                         }
 
                         // rename due to path conflict
@@ -567,7 +558,7 @@ impl Lb {
                             let name = NameComponents::from(&local_name)
                                 .generate_incremented(rename_increment)
                                 .to_name();
-                            merge.rename_unvalidated(&id, &name, self.get_account()?)?;
+                            merge.rename_unvalidated(&id, &name, &self.keychain)?;
                         }
 
                         // edit
@@ -580,7 +571,7 @@ impl Lb {
                         {
                             if remote_hmac != base_hmac && remote_hmac != local_hmac {
                                 // merge
-                                let merge_name = merge.name(&id, self.get_account()?)?;
+                                let merge_name = merge.name(&id, &self.keychain)?;
                                 let document_type =
                                     DocumentType::from_file_name_using_extension(&merge_name);
 
@@ -609,7 +600,7 @@ impl Lb {
                                             .update_document_unvalidated(
                                                 &id,
                                                 &merged_document.into_bytes(),
-                                                self.get_account()?,
+                                                &self.keychain,
                                             )?;
                                         let hmac = merge.find(&id)?.document_hmac().copied();
                                         self.docs.insert(id, hmac, &encrypted_document).await?;
@@ -646,7 +637,7 @@ impl Lb {
                                             .update_document_unvalidated(
                                                 &id,
                                                 &merged_document.into_bytes(),
-                                                self.get_account()?,
+                                                &self.keychain,
                                             )?;
                                         let hmac = merge.find(&id)?.document_hmac().copied();
                                         self.docs.insert(id, hmac, &encrypted_document).await?;
@@ -681,13 +672,13 @@ impl Lb {
                                             &merge_parent,
                                             &merge_name,
                                             FileType::Document,
-                                            self.get_account()?,
+                                            &self.keychain,
                                         )?;
                                         let encrypted_document = merge
                                             .update_document_unvalidated(
                                                 &duplicate_id,
                                                 &local_document,
-                                                self.get_account()?,
+                                                &self.keychain,
                                             )?;
                                         let duplicate_hmac =
                                             merge.find(&duplicate_id)?.document_hmac().copied();
@@ -706,7 +697,7 @@ impl Lb {
                                 merge.update_document_unvalidated(
                                     &id,
                                     &document,
-                                    self.get_account()?,
+                                    &self.keychain,
                                 )?;
                             }
                         }
@@ -720,13 +711,13 @@ impl Lb {
                             && !merge.calculate_deleted(&id)?
                         {
                             // delete
-                            merge.delete_unvalidated(&id, self.get_account()?)?;
+                            merge.delete_unvalidated(&id, &self.keychain)?;
                         }
                     }
                     for &id in &links_to_delete {
                         // delete
                         if merge.maybe_find(&id).is_some() && !merge.calculate_deleted(&id)? {
-                            merge.delete_unvalidated(&id, self.get_account()?)?;
+                            merge.delete_unvalidated(&id, &self.keychain)?;
                         }
                     }
 
@@ -935,7 +926,7 @@ impl Lb {
             // change everything but document hmac and re-sign
             local_change.document_hmac =
                 maybe_base_file.and_then(|f| f.timestamped_value.value.document_hmac);
-            let local_change = local_change.sign(self.get_account()?)?;
+            let local_change = local_change.sign(&self.keychain)?;
 
             local_changes_no_digests.push(local_change.clone());
             let file_diff = FileDiff { old: maybe_base_file.cloned(), new: local_change };
@@ -990,7 +981,7 @@ impl Lb {
                 continue;
             }
 
-            let local_change = local_change.sign(self.get_account()?)?;
+            let local_change = local_change.sign(&self.keychain)?;
 
             updates.push(FileDiff { old: Some(base_file), new: local_change.clone() });
             local_changes_digests_only.push(local_change);

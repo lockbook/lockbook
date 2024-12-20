@@ -58,7 +58,8 @@ impl Network {
         &self, account: &Account, request: T,
     ) -> Result<T::Response, ApiError<T::Error>> {
         let signed_request =
-            pubkey::sign(&account.private_key, request, self.get_time).map_err(ApiError::Sign)?;
+            pubkey::sign(&account.private_key, &account.public_key(), request, self.get_time)
+                .map_err(ApiError::Sign)?;
 
         let client_version = String::from((self.get_code_version)());
 

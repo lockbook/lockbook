@@ -3,11 +3,11 @@ use crate::logic::lazy::{LazyStaged1, LazyTree};
 use crate::logic::signed_file::SignedFile;
 use crate::logic::staged::StagedTreeLike;
 use crate::logic::tree_like::{TreeLike, TreeLikeMut};
-use crate::logic::{symkey, validate, SharedErrorKind, SharedResult};
+use crate::logic::{symkey, validate};
 use crate::model::access_info::UserAccessMode;
-use crate::model::account::Account;
+use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_metadata::{FileType, Owner};
-use libsecp256k1::PublicKey;
+use crate::service::keychain::Keychain;
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -17,7 +17,7 @@ where
     Local: TreeLike<F = Base::F>,
     Staged: StagedTreeLike<Base = Base, Staged = Local>,
 {
-    pub fn path_to_id(&mut self, path: &str, root: &Uuid, account: &Account) -> SharedResult<Uuid> {
+    pub fn path_to_id(&mut self, path: &str, root: &Uuid, keychain: &Keychain) -> LbResult<Uuid> {
         let mut current = *root;
         'path: for name in split_path(path) {
             let id = if let FileType::Link { target } = self.find(&current)?.file_type() {
@@ -30,7 +30,7 @@ where
                     continue 'child;
                 }
 
-                if self.name_using_links(&child, account)? == name {
+                if self.name_using_links(&child, keychain)? == name {
                     current = match self.find(&child)?.file_type() {
                         FileType::Link { target } => target,
                         _ => child,
@@ -40,13 +40,13 @@ where
                 }
             }
 
-            return Err(SharedErrorKind::FileNonexistent.into());
+            return Err(LbErrKind::FileNonexistent.into());
         }
 
         Ok(current)
     }
 
-    pub fn id_to_path(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
+    pub fn id_to_path(&mut self, id: &Uuid, keychain: &Keychain) -> LbResult<String> {
         let meta = self.find(id)?;
 
         if meta.is_root() {
@@ -71,21 +71,21 @@ where
                 self.find(&current)?
             };
             if self.maybe_find(current_meta.parent()).is_none() {
-                return Err(SharedErrorKind::FileParentNonexistent.into());
+                return Err(LbErrKind::FileParentNonexistent.into());
             }
             if current_meta.is_root() {
                 return Ok(path);
             }
             let next = *current_meta.parent();
-            let current_name = self.name_using_links(&current, account)?;
+            let current_name = self.name_using_links(&current, keychain)?;
             path = format!("/{}{}", current_name, path);
             current = next;
         }
     }
 
     pub fn list_paths(
-        &mut self, filter: Option<Filter>, account: &Account,
-    ) -> SharedResult<Vec<String>> {
+        &mut self, filter: Option<Filter>, keychain: &Keychain,
+    ) -> LbResult<Vec<String>> {
         // Deal with filter
         let filtered = match filter {
             Some(Filter::DocumentsOnly) => {
@@ -130,7 +130,7 @@ where
             };
 
             if !self.calculate_deleted(&id)? && !self.in_pending_share(&id)? {
-                paths.push(self.id_to_path(&id, account)?);
+                paths.push(self.id_to_path(&id, keychain)?);
             }
         }
 
@@ -144,27 +144,27 @@ where
     Local: TreeLikeMut<F = Base::F>,
 {
     pub fn create_link_at_path(
-        &mut self, path: &str, target_id: Uuid, root: &Uuid, account: &Account, pub_key: &PublicKey,
-    ) -> SharedResult<Uuid> {
+        &mut self, path: &str, target_id: Uuid, root: &Uuid, keychain: &Keychain,
+    ) -> LbResult<Uuid> {
         validate::path(path)?;
         let file_type = FileType::Link { target: target_id };
         let path_components = split_path(path);
-        self.create_at_path_helper(file_type, path_components, root, account, pub_key)
+        self.create_at_path_helper(file_type, path_components, root, keychain)
     }
 
     pub fn create_at_path(
-        &mut self, path: &str, root: &Uuid, account: &Account, pub_key: &PublicKey,
-    ) -> SharedResult<Uuid> {
+        &mut self, path: &str, root: &Uuid, keychain: &Keychain,
+    ) -> LbResult<Uuid> {
         validate::path(path)?;
         let file_type = if path.ends_with('/') { FileType::Folder } else { FileType::Document };
         let path_components = split_path(path);
-        self.create_at_path_helper(file_type, path_components, root, account, pub_key)
+        self.create_at_path_helper(file_type, path_components, root, keychain)
     }
 
     fn create_at_path_helper(
-        &mut self, file_type: FileType, path_components: Vec<&str>, root: &Uuid, account: &Account,
-        pub_key: &PublicKey,
-    ) -> SharedResult<Uuid> {
+        &mut self, file_type: FileType, path_components: Vec<&str>, root: &Uuid,
+        keychain: &Keychain,
+    ) -> LbResult<Uuid> {
         let mut current = *root;
 
         'path: for index in 0..path_components.len() {
@@ -173,20 +173,22 @@ where
                     continue 'child;
                 }
 
-                if self.name_using_links(&child, account)? == path_components[index] {
+                if self.name_using_links(&child, keychain)? == path_components[index] {
                     if index == path_components.len() - 1 {
-                        return Err(SharedErrorKind::PathTaken.into());
+                        return Err(LbErrKind::PathTaken.into());
                     }
 
                     current = match self.find(&child)?.file_type() {
                         FileType::Document => {
-                            return Err(SharedErrorKind::FileNotFolder.into());
+                            return Err(LbErrKind::FileNotFolder.into());
                         }
                         FileType::Folder => child,
                         FileType::Link { target } => {
                             let current = self.find(&target)?;
-                            if current.access_mode(&Owner(*pub_key)) < Some(UserAccessMode::Write) {
-                                return Err(SharedErrorKind::InsufficientPermission.into());
+                            if current.access_mode(&Owner(keychain.get_pk()?))
+                                < Some(UserAccessMode::Write)
+                            {
+                                return Err(LbErrKind::InsufficientPermission.into());
                             }
                             *current.id()
                         }
@@ -205,7 +207,7 @@ where
                 &current,
                 path_components[index],
                 this_file_type,
-                account,
+                keychain,
             )?;
         }
 
