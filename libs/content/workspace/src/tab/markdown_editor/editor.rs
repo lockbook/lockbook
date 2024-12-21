@@ -9,8 +9,8 @@ use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
 use lb_rs::Uuid;
 
+use crate::tab::markdown_editor;
 use crate::tab::ExtendedInput as _;
-use crate::tab::{markdown_editor, ExtendedOutput as _};
 use markdown_editor::appearance::Appearance;
 use markdown_editor::ast::{Ast, AstTextRangeType};
 use markdown_editor::bounds::BoundExt as _;
@@ -68,7 +68,6 @@ pub struct Editor {
     pub event: EventState,
 
     pub virtual_keyboard_shown: bool,
-    pub started_scrolling: Option<Instant>,
 }
 
 impl Editor {
@@ -99,7 +98,6 @@ impl Editor {
             event: Default::default(),
 
             virtual_keyboard_shown: false,
-            started_scrolling: None,
         }
     }
 
@@ -237,19 +235,6 @@ impl Editor {
                 let mut resp = scroll_area_output.inner;
 
                 resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
-
-                if resp.scroll_updated {
-                    if self.started_scrolling.is_none() {
-                        self.started_scrolling = Some(Instant::now());
-                    }
-                } else {
-                    self.started_scrolling = None;
-                }
-                if self.started_scrolling.unwrap_or(Instant::now()).elapsed()
-                    > Duration::from_millis(300)
-                {
-                    ui.ctx().set_virtual_keyboard_shown(false);
-                }
 
                 resp
             })
