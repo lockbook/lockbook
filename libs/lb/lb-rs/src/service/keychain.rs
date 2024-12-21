@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     model::account::Account,
     model::errors::{LbErrKind, LbResult},
@@ -8,8 +10,8 @@ use tokio::sync::OnceCell;
 
 #[derive(Default, Clone)]
 pub struct Keychain {
-    account: OnceCell<Account>,
-    public_key: OnceCell<PublicKey>,
+    account: Arc<OnceCell<Account>>,
+    public_key: Arc<OnceCell<PublicKey>>,
 }
 
 impl From<Option<&Account>> for Keychain {
@@ -19,7 +21,10 @@ impl From<Option<&Account>> for Keychain {
                 let account = account.clone();
                 let pk = account.public_key();
 
-                Self { account: OnceCell::from(account), public_key: OnceCell::from(pk) }
+                Self {
+                    account: Arc::new(OnceCell::from(account)),
+                    public_key: Arc::new(OnceCell::from(pk)),
+                }
             }
             None => Self::default(),
         }
