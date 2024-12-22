@@ -146,7 +146,7 @@ impl Lb {
 
         // construct replacement index
         let mut replacement_index = Vec::new();
-        for id in tree.owned_ids() {
+        for id in tree.ids() {
             if tree.calculate_deleted(&id)? {
                 continue;
             }

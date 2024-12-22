@@ -91,8 +91,8 @@ where
             Some(Filter::DocumentsOnly) => {
                 let mut ids = HashSet::new();
                 for id in self.ids() {
-                    if self.find(id)?.is_document() {
-                        ids.insert(*id);
+                    if self.find(&id)?.is_document() {
+                        ids.insert(id);
                     }
                 }
                 ids
@@ -100,20 +100,20 @@ where
             Some(Filter::FoldersOnly) => {
                 let mut ids = HashSet::new();
                 for id in self.ids() {
-                    if self.find(id)?.is_folder() {
-                        ids.insert(*id);
+                    if self.find(&id)?.is_folder() {
+                        ids.insert(id);
                     }
                 }
                 ids
             }
             Some(Filter::LeafNodesOnly) => {
-                let mut retained = self.owned_ids();
+                let mut retained: HashSet<Uuid> = self.ids().into_iter().collect();
                 for id in self.ids() {
-                    retained.remove(self.find(id)?.parent());
+                    retained.remove(self.find(&id)?.parent());
                 }
                 retained
             }
-            None => self.owned_ids(),
+            None => self.ids().into_iter().collect(),
         };
 
         // remove deleted; include links not linked files

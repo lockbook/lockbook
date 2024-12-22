@@ -25,7 +25,7 @@ impl Lb {
 
         tree.validate(Owner(self.keychain.get_pk()?))?;
 
-        for id in tree.owned_ids() {
+        for id in tree.ids() {
             let name = tree.name(&id, &self.keychain)?;
             if name.is_empty() {
                 return Err(TestRepoError::FileNameEmpty(id));
@@ -36,7 +36,7 @@ impl Lb {
         }
 
         let mut warnings = Vec::new();
-        for id in tree.owned_ids() {
+        for id in tree.ids() {
             let file = tree.find(&id)?;
             let id = *file.id();
             let doc = file.is_document();

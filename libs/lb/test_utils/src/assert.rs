@@ -238,7 +238,7 @@ pub async fn server_work_paths(core: &Lb, expected_paths: &[&'static str]) {
     let mut actual_paths = remote
         .tree
         .staged
-        .owned_ids()
+        .ids()
         .iter()
         .filter(|id| !matches!(remote.find(id).unwrap().file_type(), FileType::Link { .. }))
         .collect::<Vec<_>>()

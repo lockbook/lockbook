@@ -198,7 +198,7 @@ impl<T: TreeLike> LazyTree<T> {
     }
 
     pub fn linked_by(&mut self, id: &Uuid) -> SharedResult<Option<Uuid>> {
-        for link_id in self.owned_ids() {
+        for link_id in self.ids() {
             if let FileType::Link { target } = self.find(&link_id)?.file_type() {
                 if id == &target && !self.calculate_deleted(&link_id)? {
                     return Ok(Some(link_id));
@@ -315,6 +315,7 @@ impl<T: TreeLike> LazyTree<T> {
         }
     }
 
+    // todo: this is dead code
     pub fn stage_removals(self, removed: HashSet<Uuid>) -> LazyTree<StagedTree<T, Option<T::F>>> {
         // todo: optimize by performing minimal updates on self caches
         LazyTree::<StagedTree<T, Option<T::F>>> {
@@ -327,7 +328,7 @@ impl<T: TreeLike> LazyTree<T> {
 
     // todo: optimize
     pub fn assert_names_decryptable(&mut self, keychain: &Keychain) -> SharedResult<()> {
-        for id in self.owned_ids() {
+        for id in self.ids() {
             if self.name(&id, keychain).is_err() {
                 return Err(SharedErrorKind::ValidationFailure(
                     ValidationFailure::NonDecryptableFileName(id),
@@ -366,7 +367,7 @@ where
     pub fn stage_and_promote<S: TreeLikeMut<F = T::F>>(
         &mut self, mut staged: S,
     ) -> SharedResult<()> {
-        for id in staged.owned_ids() {
+        for id in staged.ids() {
             if let Some(removed) = staged.remove(id)? {
                 self.tree.insert(removed)?;
             }
@@ -388,6 +389,7 @@ where
         Ok(())
     }
 
+    // todo: this is dead code
     pub fn stage_removals_and_promote(&mut self, removed: HashSet<Uuid>) -> SharedResult<()> {
         for id in removed {
             self.tree.remove(id)?;
@@ -409,7 +411,7 @@ where
     pub fn promote(self) -> SharedResult<LazyTree<Base>> {
         let mut staged = self.tree.staged;
         let mut base = self.tree.base;
-        for id in staged.owned_ids() {
+        for id in staged.ids() {
             if let Some(removed) = staged.remove(id)? {
                 base.insert(removed)?;
             }
@@ -449,7 +451,7 @@ where
 impl<T: TreeLike> TreeLike for LazyTree<T> {
     type F = T::F;
 
-    fn ids(&self) -> HashSet<&Uuid> {
+    fn ids(&self) -> Vec<Uuid> {
         self.tree.ids()
     }
 

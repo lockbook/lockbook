@@ -25,10 +25,10 @@ where
     fn prune(&mut self) -> SharedResult<()> {
         let mut prunable = vec![];
         for id in self.staged().ids() {
-            if let Some(staged) = self.staged().maybe_find(id) {
-                if let Some(base) = self.base().maybe_find(id) {
+            if let Some(staged) = self.staged().maybe_find(&id) {
+                if let Some(base) = self.base().maybe_find(&id) {
                     if staged == base {
-                        prunable.push(*id);
+                        prunable.push(id);
                     }
                 }
             }
@@ -54,6 +54,7 @@ where
 {
     pub base: Base,
     pub staged: Staged,
+    pub new: HashSet<Uuid>,
     pub removed: HashSet<Uuid>,
 }
 
@@ -63,7 +64,16 @@ where
     Staged: TreeLike<F = Base::F>,
 {
     pub fn new(base: Base, staged: Staged) -> Self {
-        Self { base, staged, removed: HashSet::new() }
+        let mut new = HashSet::new();
+        tracing::debug!("base: {:?}, staged: {:?}, new: {:?}", base.ids(), staged.ids(), new);
+        for id in staged.ids() {
+            if base.maybe_find(&id).is_none() {
+                tracing::debug!("base is missing {id}, so we insert to new");
+                new.insert(id);
+            }
+        }
+        tracing::debug!("base: {:?}, staged: {:?}, new: {:?}", base.ids(), staged.ids(), new);
+        Self { base, staged, removed: HashSet::new(), new }
     }
 }
 
@@ -71,8 +81,9 @@ impl<Base> StagedTree<Base, Option<Base::F>>
 where
     Base: TreeLike,
 {
+    // todo: this is dead code
     pub fn removal(base: Base, removed: HashSet<Uuid>) -> Self {
-        Self { base, staged: None, removed }
+        Self { base, staged: None, removed, new: Default::default() }
     }
 }
 
@@ -124,13 +135,19 @@ where
 {
     type F = Base::F;
 
-    fn ids(&self) -> HashSet<&Uuid> {
-        self.base()
-            .ids()
-            .into_iter()
-            .chain(self.staged().ids())
-            .filter(|id| !self.removed.contains(id))
-            .collect()
+    fn ids(&self) -> Vec<Uuid> {
+        let mut all_ids = self.base.ids();
+        all_ids.extend(&self.new);
+        all_ids.retain(|id| !self.removed.contains(id));
+
+        let mut ids = HashSet::new();
+        for id in &all_ids {
+            if ids.contains(id) {
+                panic!("duplicate id found, base ids: {:?}, new: {:?}", self.base.ids(), self.new);
+            }
+            ids.insert(id);
+        }
+        all_ids
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
@@ -150,11 +167,15 @@ where
     Staged: TreeLikeMut<F = Base::F>,
 {
     fn insert(&mut self, f: Self::F) -> SharedResult<Option<Self::F>> {
+        // if we're inserting it, it can't be removed
         self.removed.remove(f.id());
+
         if let Some(base) = self.base.maybe_find(f.id()) {
             if *base == f {
                 return self.staged.remove(*f.id());
             }
+        } else {
+            self.new.insert(*f.id());
         }
 
         self.staged.insert(f)
@@ -170,7 +191,7 @@ where
     }
 
     fn clear(&mut self) -> SharedResult<()> {
-        self.removed.extend(self.owned_ids());
+        self.removed.extend(self.ids());
         Ok(())
     }
 }

@@ -122,7 +122,7 @@ impl Lb {
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
-        let ids = tree.owned_ids().into_iter();
+        let ids = tree.ids().into_iter();
 
         tree.decrypt_all(&self.keychain, ids, &db.pub_key_lookup, true)
     }

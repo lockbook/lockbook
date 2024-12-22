@@ -166,7 +166,7 @@ impl Lb {
         let db = tx.db();
 
         let mut local = db.base_metadata.stage(&db.local_metadata).to_lazy();
-        let base_ids = local.tree.base.owned_ids();
+        let base_ids = local.tree.base.ids();
 
         let mut prunable_ids = base_ids;
         prunable_ids.retain(|id| !server_ids.contains(id));
@@ -187,11 +187,12 @@ impl Lb {
         }
 
         let mut base_staged = (&mut db.base_metadata).to_lazy().stage(None);
-        base_staged.tree.removed = prunable_ids.clone();
+        // todo this deserves more scrutiny before this is merged
+        base_staged.tree.removed = prunable_ids.clone().into_iter().collect();
         base_staged.promote()?;
 
         let mut local_staged = (&mut db.local_metadata).to_lazy().stage(None);
-        local_staged.tree.removed = prunable_ids;
+        local_staged.tree.removed = prunable_ids.into_iter().collect();
         local_staged.promote()?;
 
         Ok(())
@@ -263,7 +264,7 @@ impl Lb {
         let db = tx.db();
 
         let mut remote = db.base_metadata.stage(ctx.remote_changes.clone()).to_lazy(); // this used to be owned remote changes
-        for id in remote.tree.staged.owned_ids() {
+        for id in remote.tree.staged.ids() {
             if remote.calculate_deleted(&id)? {
                 continue;
             }
@@ -351,7 +352,7 @@ impl Lb {
 
                     // creations
                     let mut deletion_creations = HashSet::new();
-                    for id in db.local_metadata.owned_ids() {
+                    for id in db.local_metadata.ids() {
                         if remote.maybe_find(&id).is_none() && !links_to_delete.contains(&id) {
                             deletion_creations.insert(id);
                         }
@@ -392,7 +393,7 @@ impl Lb {
                     }
 
                     // moves (creations happen first in case a file is moved into a new folder)
-                    for id in db.local_metadata.owned_ids() {
+                    for id in db.local_metadata.ids() {
                         let local_file = local.find(&id)?.clone();
                         if let Some(base_file) = db.base_metadata.maybe_find(&id).cloned() {
                             if !local_file.explicitly_deleted()
@@ -410,7 +411,7 @@ impl Lb {
                     }
 
                     // deletions (moves happen first in case a file is moved into a deleted folder)
-                    for id in db.local_metadata.owned_ids() {
+                    for id in db.local_metadata.ids() {
                         let local_file = local.find(&id)?.clone();
                         if local_file.explicitly_deleted() {
                             // delete
@@ -426,7 +427,7 @@ impl Lb {
 
                     // creations and edits of created documents
                     let mut creations = HashSet::new();
-                    for id in db.local_metadata.owned_ids() {
+                    for id in db.local_metadata.ids() {
                         if deletions.maybe_find(&id).is_some()
                             && !deletions.calculate_deleted(&id)?
                             && remote.maybe_find(&id).is_none()
@@ -472,7 +473,7 @@ impl Lb {
 
                     // moves, renames, edits, and shares
                     // creations happen first in case a file is moved into a new folder
-                    for id in db.local_metadata.owned_ids() {
+                    for id in db.local_metadata.ids() {
                         // skip files that are already deleted or will be deleted
                         if deletions.maybe_find(&id).is_none()
                             || deletions.calculate_deleted(&id)?
@@ -705,7 +706,7 @@ impl Lb {
 
                     // deletes
                     // moves happen first in case a file is moved into a deleted folder
-                    for id in db.local_metadata.owned_ids() {
+                    for id in db.local_metadata.ids() {
                         if db.base_metadata.maybe_find(&id).is_some()
                             && deletions.calculate_deleted(&id)?
                             && !merge.calculate_deleted(&id)?
@@ -725,7 +726,7 @@ impl Lb {
                 };
 
                 // validate; handle failures by introducing changeset constraints
-                for link in merge.owned_ids() {
+                for link in merge.ids() {
                     if !merge.calculate_deleted(&link)? {
                         if let FileType::Link { target } = merge.find(&link)?.file_type() {
                             if merge.maybe_find(&target).is_some()
@@ -919,7 +920,7 @@ impl Lb {
         // remote = local
         let local = db.base_metadata.stage(&db.local_metadata).to_lazy();
 
-        for id in local.tree.staged.owned_ids() {
+        for id in local.tree.staged.ids() {
             let mut local_change = local.tree.staged.find(&id)?.timestamped_value.value.clone();
             let maybe_base_file = local.tree.base.maybe_find(&id);
 
@@ -968,7 +969,7 @@ impl Lb {
 
         let local = db.base_metadata.stage(&db.local_metadata).to_lazy();
 
-        for id in local.tree.staged.owned_ids() {
+        for id in local.tree.staged.ids() {
             let base_file = local.tree.base.find(&id)?.clone();
 
             // change only document hmac and re-sign
@@ -1078,7 +1079,7 @@ impl Lb {
         let remote = db.base_metadata.stage(remote_changes).to_lazy();
         let mut result = Vec::new();
 
-        for id in remote.tree.staged.owned_ids() {
+        for id in remote.tree.staged.ids() {
             let meta = remote.find(&id)?;
             if remote.maybe_find_parent(meta).is_some()
                 || meta

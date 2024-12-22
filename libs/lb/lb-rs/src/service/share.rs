@@ -47,7 +47,7 @@ impl Lb {
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
         let mut result = Vec::new();
-        for id in tree.owned_ids() {
+        for id in tree.ids() {
             // file must not be deleted
             if tree.calculate_deleted(&id)? {
                 continue;
