@@ -103,18 +103,12 @@ impl fmt::Display for FileMetadata {
     }
 }
 
-#[derive(Serialize, Deserialize, Eq, Clone, Copy)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
 pub struct Owner(pub PublicKey);
 
 impl Hash for Owner {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.serialize().hash(state)
-    }
-}
-
-impl PartialEq for Owner {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.serialize() == other.0.serialize()
     }
 }
 
