@@ -19,9 +19,9 @@ pub type KeyCache = Arc<RwLock<HashMap<Uuid, AESKey>>>;
 
 #[derive(Default, Clone)]
 pub struct Keychain {
-    account: OnceCell<Account>,
-    public_key: OnceCell<PublicKey>,
     key_cache: KeyCache,
+    account: Arc<OnceCell<Account>>,
+    public_key: Arc<OnceCell<PublicKey>>,
 }
 
 impl From<Option<&Account>> for Keychain {
@@ -32,7 +32,11 @@ impl From<Option<&Account>> for Keychain {
                 let pk = account.public_key();
                 let key_cache = Default::default();
 
-                Self { account: OnceCell::from(account), public_key: OnceCell::from(pk), key_cache }
+                Self {
+                    account: Arc::new(OnceCell::from(account)),
+                    public_key: Arc::new(OnceCell::from(pk)),
+                    key_cache,
+                }
             }
             None => Self::default(),
         }
