@@ -48,18 +48,21 @@ impl Lb {
 
         let mut result = Vec::new();
         for id in tree.ids() {
-            // file must not be deleted
-            if tree.calculate_deleted(&id)? {
-                continue;
-            }
             // file must be owned by another user
             if tree.find(&id)?.owner() == owner {
                 continue;
             }
+
             // file must be shared with this user
             if tree.find(&id)?.access_mode(&owner).is_none() {
                 continue;
             }
+
+            // file must not be deleted
+            if tree.calculate_deleted(&id)? {
+                continue;
+            }
+
             // file must not have any links pointing to it
             if tree.linked_by(&id)?.is_some() {
                 continue;

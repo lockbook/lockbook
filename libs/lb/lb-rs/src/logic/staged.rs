@@ -65,14 +65,11 @@ where
 {
     pub fn new(base: Base, staged: Staged) -> Self {
         let mut new = HashSet::new();
-        tracing::debug!("base: {:?}, staged: {:?}, new: {:?}", base.ids(), staged.ids(), new);
         for id in staged.ids() {
             if base.maybe_find(&id).is_none() {
-                tracing::debug!("base is missing {id}, so we insert to new");
                 new.insert(id);
             }
         }
-        tracing::debug!("base: {:?}, staged: {:?}, new: {:?}", base.ids(), staged.ids(), new);
         Self { base, staged, removed: HashSet::new(), new }
     }
 }
@@ -140,13 +137,6 @@ where
         all_ids.extend(&self.new);
         all_ids.retain(|id| !self.removed.contains(id));
 
-        let mut ids = HashSet::new();
-        for id in &all_ids {
-            if ids.contains(id) {
-                panic!("duplicate id found, base ids: {:?}, new: {:?}", self.base.ids(), self.new);
-            }
-            ids.insert(id);
-        }
         all_ids
     }
 

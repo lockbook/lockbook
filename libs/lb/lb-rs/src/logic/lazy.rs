@@ -16,6 +16,7 @@ pub struct LazyTree<T: TreeLike> {
     pub tree: T,
     pub name: HashMap<Uuid, String>,
     pub implicit_deleted: HashMap<Uuid, bool>,
+    pub linked_by: HashMap<Uuid, Uuid>,
     pub children: HashMap<Uuid, HashSet<Uuid>>,
 }
 
@@ -25,6 +26,7 @@ impl<T: TreeLike> LazyTree<T> {
             name: HashMap::new(),
             implicit_deleted: HashMap::new(),
             children: HashMap::new(),
+            linked_by: HashMap::new(),
             tree,
         }
     }
@@ -198,14 +200,17 @@ impl<T: TreeLike> LazyTree<T> {
     }
 
     pub fn linked_by(&mut self, id: &Uuid) -> SharedResult<Option<Uuid>> {
-        for link_id in self.ids() {
-            if let FileType::Link { target } = self.find(&link_id)?.file_type() {
-                if id == &target && !self.calculate_deleted(&link_id)? {
-                    return Ok(Some(link_id));
+        if self.linked_by.is_empty() {
+            for link_id in self.ids() {
+                if let FileType::Link { target } = self.find(&link_id)?.file_type() {
+                    if !self.calculate_deleted(&link_id)? {
+                        self.linked_by.insert(target, link_id);
+                    }
                 }
             }
         }
-        Ok(None)
+
+        Ok(self.linked_by.get(id).copied())
     }
 
     /// Returns ids of files whose parent is the argument. Does not include the argument.
@@ -312,6 +317,7 @@ impl<T: TreeLike> LazyTree<T> {
             name: HashMap::new(),
             implicit_deleted: HashMap::new(),
             children: HashMap::new(),
+            linked_by: HashMap::new(),
         }
     }
 
@@ -323,6 +329,7 @@ impl<T: TreeLike> LazyTree<T> {
             name: HashMap::new(),
             implicit_deleted: HashMap::new(),
             children: HashMap::new(),
+            linked_by: HashMap::new(),
         }
     }
 
@@ -376,6 +383,7 @@ where
         self.name = HashMap::new();
         self.implicit_deleted = HashMap::new();
         self.children = HashMap::new();
+        self.linked_by = HashMap::new();
         Ok(())
     }
 
@@ -398,6 +406,7 @@ where
         self.name = HashMap::new();
         self.implicit_deleted = HashMap::new();
         self.children = HashMap::new();
+        self.linked_by = HashMap::new();
         Ok(())
     }
 }
@@ -425,6 +434,7 @@ where
             name: HashMap::new(),
             implicit_deleted: HashMap::new(),
             children: HashMap::new(),
+            linked_by: HashMap::new(),
         })
     }
 }
@@ -442,6 +452,7 @@ where
                 name: HashMap::new(),
                 implicit_deleted: HashMap::new(),
                 children: HashMap::new(),
+                linked_by: HashMap::new(),
             },
             self.tree.staged,
         )
