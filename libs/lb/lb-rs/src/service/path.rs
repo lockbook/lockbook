@@ -11,17 +11,15 @@ impl Lb {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
-        let pub_key = self.get_pk()?;
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
             .to_lazy();
-        let account = self.get_account()?;
 
         let root = db.root.get().ok_or(LbErrKind::RootNonexistent)?;
 
-        let id = tree.create_link_at_path(path, target_id, root, account, &pub_key)?;
+        let id = tree.create_link_at_path(path, target_id, root, &self.keychain)?;
 
-        let ui_file = tree.decrypt(account, &id, &db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
         self.spawn_build_index();
 
@@ -30,20 +28,18 @@ impl Lb {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_at_path(&self, path: &str) -> LbResult<File> {
-        let pub_key = self.get_pk()?;
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
             .to_lazy();
-        let account = self.get_account()?;
 
         let root = db.root.get().ok_or(LbErrKind::RootNonexistent)?;
 
-        let id = tree.create_at_path(path, root, account, &pub_key)?;
+        let id = tree.create_at_path(path, root, &self.keychain)?;
 
-        let ui_file = tree.decrypt(account, &id, &db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
         self.spawn_build_index();
 
@@ -56,13 +52,12 @@ impl Lb {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let account = self.get_account()?;
 
         let root = db.root.get().ok_or(LbErrKind::RootNonexistent)?;
 
-        let id = tree.path_to_id(path, root, account)?;
+        let id = tree.path_to_id(path, root, &self.keychain)?;
 
-        let ui_file = tree.decrypt(account, &id, &db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
         Ok(ui_file)
     }
@@ -73,8 +68,7 @@ impl Lb {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let account = self.get_account()?;
-        let path = tree.id_to_path(&id, account)?;
+        let path = tree.id_to_path(&id, &self.keychain)?;
 
         Ok(path)
     }
@@ -85,8 +79,7 @@ impl Lb {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let account = self.get_account()?;
-        let paths = tree.list_paths(filter, account)?;
+        let paths = tree.list_paths(filter, &self.keychain)?;
 
         Ok(paths)
     }

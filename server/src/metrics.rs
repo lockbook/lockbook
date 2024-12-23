@@ -215,7 +215,7 @@ where
 
         let mut ids = Vec::new();
 
-        for id in tree.owned_ids() {
+        for id in tree.ids() {
             if !tree.calculate_deleted(&id)? {
                 ids.push(id);
             }

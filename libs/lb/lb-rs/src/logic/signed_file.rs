@@ -3,7 +3,6 @@ use crate::logic::file_like::FileLike;
 use crate::logic::tree_like::{TreeLike, TreeLikeMut};
 use crate::logic::SharedResult;
 use crate::model::file_metadata::FileMetadata;
-use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
@@ -29,12 +28,11 @@ where
 {
     type F = F;
 
-    fn ids(&self) -> HashSet<&Uuid> {
-        let mut hashset = HashSet::new();
-        if let Some(f) = self {
-            hashset.insert(f.id());
+    fn ids(&self) -> Vec<Uuid> {
+        match self {
+            Some(f) => vec![*f.id()],
+            None => vec![],
         }
-        hashset
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&F> {

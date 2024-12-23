@@ -3,6 +3,7 @@ use lb_rs::logic::symkey;
 use lb_rs::logic::tree_like::TreeLike;
 use lb_rs::model::account::Account;
 use lb_rs::model::file_metadata::{FileMetadata, FileType};
+use lb_rs::service::keychain::Keychain;
 use test_utils::*;
 use uuid::Uuid;
 
@@ -18,9 +19,10 @@ async fn test_empty() {
 #[tokio::test]
 async fn test_stage_promote() {
     let account = &Account::new(random_name(), url());
+    let keychain = Keychain::from(Some(account));
     let root = FileMetadata::create_root(account)
         .unwrap()
-        .sign(account)
+        .sign(&keychain)
         .unwrap();
 
     let mut files = vec![root.clone()].to_lazy().stage(vec![]);
@@ -31,7 +33,7 @@ async fn test_stage_promote() {
             root.id(),
             "test",
             FileType::Folder,
-            account,
+            &keychain,
         )
         .unwrap();
     let files = files.tree.to_staged(Some(op)).to_lazy();
@@ -48,9 +50,10 @@ async fn test_stage_promote() {
 #[tokio::test]
 async fn test_stage_unstage() {
     let account = &Account::new(random_name(), url());
+    let keychain = Keychain::from(Some(account));
     let root = FileMetadata::create_root(account)
         .unwrap()
-        .sign(account)
+        .sign(&keychain)
         .unwrap();
 
     let mut files = vec![root.clone()].to_lazy().stage(vec![]);
@@ -61,7 +64,7 @@ async fn test_stage_unstage() {
             root.id(),
             "test",
             FileType::Folder,
-            account,
+            &keychain,
         )
         .unwrap();
     let files = files.tree.stage(Some(op)).to_lazy();

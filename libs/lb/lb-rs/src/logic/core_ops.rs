@@ -4,11 +4,12 @@ use crate::logic::secret_filename::{HmacSha256, SecretFileName};
 use crate::logic::signed_file::SignedFile;
 use crate::logic::staged::{StagedTree, StagedTreeLike};
 use crate::logic::tree_like::{TreeLike, TreeLikeMut};
-use crate::logic::{compression_service, symkey, validate, SharedErrorKind, SharedResult};
+use crate::logic::{compression_service, symkey, validate};
 use crate::model::access_info::{UserAccessInfo, UserAccessMode};
-use crate::model::account::Account;
+use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
 use crate::model::file_metadata::{FileMetadata, FileType, Owner};
+use crate::service::keychain::Keychain;
 use db_rs::LookupTable;
 use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
@@ -26,12 +27,15 @@ where
 {
     /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.
     pub fn decrypt(
-        &mut self, account: &Account, id: &Uuid, public_key_cache: &LookupTable<Owner, String>,
-    ) -> SharedResult<File> {
+        &mut self, keychain: &Keychain, id: &Uuid, public_key_cache: &LookupTable<Owner, String>,
+    ) -> LbResult<File> {
+        let account = keychain.get_account()?;
+        let pk = keychain.get_pk()?;
+
         let meta = self.find(id)?.clone();
         let file_type = meta.file_type();
         let last_modified = meta.timestamped_value.timestamp as u64;
-        let name = self.name_using_links(id, account)?;
+        let name = self.name_using_links(id, keychain)?;
         let parent = self.parent_using_links(id)?;
         let last_modified_by = account.username.clone();
         let id = *id;
@@ -48,7 +52,7 @@ where
             };
             shares.push(Share {
                 mode,
-                shared_by: if user_access_key.encrypted_by == account.public_key() {
+                shared_by: if user_access_key.encrypted_by == pk {
                     account.username.clone()
                 } else {
                     public_key_cache
@@ -57,7 +61,7 @@ where
                         .cloned()
                         .unwrap_or_else(|| String::from("<unknown>"))
                 },
-                shared_with: if user_access_key.encrypted_for == account.public_key() {
+                shared_with: if user_access_key.encrypted_for == pk {
                     account.username.clone()
                 } else {
                     public_key_cache
@@ -74,9 +78,9 @@ where
 
     /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.
     pub fn decrypt_all<I>(
-        &mut self, account: &Account, ids: I, public_key_cache: &LookupTable<Owner, String>,
+        &mut self, keychain: &Keychain, ids: I, public_key_cache: &LookupTable<Owner, String>,
         skip_invisible: bool,
-    ) -> SharedResult<Vec<File>>
+    ) -> LbResult<Vec<File>>
     where
         I: Iterator<Item = Uuid>,
     {
@@ -87,14 +91,14 @@ where
                 continue;
             }
 
-            let finalized = self.decrypt(account, &id, public_key_cache)?;
+            let finalized = self.decrypt(keychain, &id, public_key_cache)?;
             files.push(finalized);
         }
 
         Ok(files)
     }
 
-    fn is_invisible_id(&mut self, id: Uuid) -> SharedResult<bool> {
+    fn is_invisible_id(&mut self, id: Uuid) -> LbResult<bool> {
         Ok(self.find(&id)?.is_link()
             || self.calculate_deleted(&id)?
             || self.in_pending_share(&id)?)
@@ -102,18 +106,18 @@ where
 
     pub fn create_op(
         &mut self, id: Uuid, key: AESKey, parent: &Uuid, name: &str, file_type: FileType,
-        account: &Account,
-    ) -> SharedResult<(SignedFile, Uuid)> {
+        keychain: &Keychain,
+    ) -> LbResult<(SignedFile, Uuid)> {
         validate::file_name(name)?;
 
         if self.maybe_find(parent).is_none() {
-            return Err(SharedErrorKind::FileParentNonexistent.into());
+            return Err(LbErrKind::FileParentNonexistent.into());
         }
         let parent_owner = self.find(parent)?.owner().0;
-        let parent_key = self.decrypt_key(parent, account)?;
+        let parent_key = self.decrypt_key(parent, keychain)?;
         let file =
             FileMetadata::create(id, key, &parent_owner, *parent, &parent_key, name, file_type)?
-                .sign(account)?;
+                .sign(keychain)?;
         let id = *file.id();
 
         debug!("new {:?} with id: {}", file_type, id);
@@ -121,37 +125,37 @@ where
     }
 
     pub fn rename_op(
-        &mut self, id: &Uuid, name: &str, account: &Account,
-    ) -> SharedResult<SignedFile> {
+        &mut self, id: &Uuid, name: &str, keychain: &Keychain,
+    ) -> LbResult<SignedFile> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
         validate::file_name(name)?;
         if self.maybe_find(file.parent()).is_none() {
-            return Err(SharedErrorKind::InsufficientPermission.into());
+            return Err(LbErrKind::InsufficientPermission.into());
         }
-        let parent_key = self.decrypt_key(file.parent(), account)?;
-        let key = self.decrypt_key(id, account)?;
+        let parent_key = self.decrypt_key(file.parent(), keychain)?;
+        let key = self.decrypt_key(id, keychain)?;
         file.name = SecretFileName::from_str(name, &key, &parent_key)?;
-        let file = file.sign(account)?;
+        let file = file.sign(keychain)?;
 
         Ok(file)
     }
 
     pub fn move_op(
-        &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
-    ) -> SharedResult<Vec<SignedFile>> {
+        &mut self, id: &Uuid, new_parent: &Uuid, keychain: &Keychain,
+    ) -> LbResult<Vec<SignedFile>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
         if self.maybe_find(new_parent).is_none() {
-            return Err(SharedErrorKind::FileParentNonexistent.into());
+            return Err(LbErrKind::FileParentNonexistent.into());
         }
-        let key = self.decrypt_key(id, account)?;
-        let parent_key = self.decrypt_key(new_parent, account)?;
+        let key = self.decrypt_key(id, keychain)?;
+        let parent_key = self.decrypt_key(new_parent, keychain)?;
         let owner = self.find(new_parent)?.owner();
         file.owner = owner;
         file.parent = *new_parent;
         file.folder_access_key = symkey::encrypt(&parent_key, &key)?;
-        file.name = SecretFileName::from_str(&self.name(id, account)?, &key, &parent_key)?;
-        let file = file.sign(account)?;
+        file.name = SecretFileName::from_str(&self.name(id, keychain)?, &key, &parent_key)?;
+        let file = file.sign(keychain)?;
 
         let mut result = vec![file];
         for id in self.descendants(id)? {
@@ -160,38 +164,38 @@ where
             }
             let mut descendant = self.find(&id)?.timestamped_value.value.clone();
             descendant.owner = owner;
-            result.push(descendant.sign(account)?);
+            result.push(descendant.sign(keychain)?);
         }
 
         Ok(result)
     }
 
-    pub fn delete_op(&self, id: &Uuid, account: &Account) -> SharedResult<SignedFile> {
+    pub fn delete_op(&self, id: &Uuid, keychain: &Keychain) -> LbResult<SignedFile> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
         file.is_deleted = true;
-        let file = file.sign(account)?;
+        let file = file.sign(keychain)?;
 
         Ok(file)
     }
 
     pub fn add_share_op(
-        &mut self, id: Uuid, sharee: Owner, mode: ShareMode, account: &Account,
-    ) -> SharedResult<SignedFile> {
-        let owner = Owner(account.public_key());
+        &mut self, id: Uuid, sharee: Owner, mode: ShareMode, keychain: &Keychain,
+    ) -> LbResult<SignedFile> {
+        let owner = Owner(keychain.get_pk()?);
         let access_mode = match mode {
             ShareMode::Write => UserAccessMode::Write,
             ShareMode::Read => UserAccessMode::Read,
         };
         if self.calculate_deleted(&id)? {
-            return Err(SharedErrorKind::FileNonexistent.into());
+            return Err(LbErrKind::FileNonexistent.into());
         }
         let id =
             if let FileType::Link { target } = self.find(&id)?.file_type() { target } else { id };
         let mut file = self.find(&id)?.timestamped_value.value.clone();
         validate::not_root(&file)?;
         if mode == ShareMode::Write && file.owner.0 != owner.0 {
-            return Err(SharedErrorKind::InsufficientPermission.into());
+            return Err(LbErrKind::InsufficientPermission.into());
         }
         // check for and remove duplicate shares
         let mut found = false;
@@ -199,7 +203,7 @@ where
             if user_access.encrypted_for == sharee.0 {
                 found = true;
                 if user_access.mode == access_mode && !user_access.deleted {
-                    return Err(SharedErrorKind::DuplicateShare.into());
+                    return Err(LbErrKind::ShareAlreadyExists.into());
                 }
             }
         }
@@ -208,20 +212,20 @@ where
                 .retain(|k| k.encrypted_for != sharee.0);
         }
         file.user_access_keys.push(UserAccessInfo::encrypt(
-            account,
+            keychain.get_account()?,
             &owner.0,
             &sharee.0,
-            &self.decrypt_key(&id, account)?,
+            &self.decrypt_key(&id, keychain)?,
             access_mode,
         )?);
-        let file = file.sign(account)?;
+        let file = file.sign(keychain)?;
 
         Ok(file)
     }
 
     pub fn delete_share_op(
-        &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
-    ) -> SharedResult<Vec<SignedFile>> {
+        &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, keychain: &Keychain,
+    ) -> LbResult<Vec<SignedFile>> {
         let mut result = Vec::new();
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
@@ -238,17 +242,17 @@ where
             }
         }
         if !found {
-            return Err(SharedErrorKind::ShareNonexistent.into());
+            return Err(LbErrKind::ShareNonexistent.into());
         }
-        result.push(file.sign(account)?);
+        result.push(file.sign(keychain)?);
 
         // delete any links pointing to file
         if let Some(encrypted_for) = maybe_encrypted_for {
-            if encrypted_for == account.public_key() {
+            if encrypted_for == keychain.get_pk()? {
                 if let Some(link) = self.linked_by(id)? {
                     let mut link = self.find(&link)?.timestamped_value.value.clone();
                     link.is_deleted = true;
-                    result.push(link.sign(account)?);
+                    result.push(link.sign(keychain)?);
                 }
             }
         }
@@ -257,9 +261,9 @@ where
     }
 
     pub fn decrypt_document(
-        &mut self, id: &Uuid, doc: &EncryptedDocument, account: &Account,
-    ) -> SharedResult<DecryptedDocument> {
-        let key = self.decrypt_key(id, account)?;
+        &mut self, id: &Uuid, doc: &EncryptedDocument, keychain: &Keychain,
+    ) -> LbResult<DecryptedDocument> {
+        let key = self.decrypt_key(id, keychain)?;
         let compressed = symkey::decrypt(&key, doc)?;
         let doc = compression_service::decompress(&compressed)?;
 
@@ -267,24 +271,24 @@ where
     }
 
     pub fn update_document_op(
-        &mut self, id: &Uuid, document: &[u8], account: &Account,
-    ) -> SharedResult<(SignedFile, EncryptedDocument)> {
+        &mut self, id: &Uuid, document: &[u8], keychain: &Keychain,
+    ) -> LbResult<(SignedFile, EncryptedDocument)> {
         let id = match self.find(id)?.file_type() {
             FileType::Document | FileType::Folder => *id,
             FileType::Link { target } => target,
         };
         let mut file: FileMetadata = self.find(&id)?.timestamped_value.value.clone();
         validate::is_document(&file)?;
-        let key = self.decrypt_key(&id, account)?;
+        let key = self.decrypt_key(&id, keychain)?;
         let hmac = {
-            let mut mac =
-                HmacSha256::new_from_slice(&key).map_err(SharedErrorKind::HmacCreationError)?;
+            let mut mac = HmacSha256::new_from_slice(&key)
+                .map_err(|err| LbErrKind::Unexpected(format!("hmac creation error: {:?}", err)))?;
             mac.update(document);
             mac.finalize().into_bytes()
         }
         .into();
         file.document_hmac = Some(hmac);
-        let file = file.sign(account)?;
+        let file = file.sign(keychain)?;
         let document = compression_service::compress(document)?;
         let document = symkey::encrypt(&key, &document)?;
 
@@ -300,116 +304,114 @@ where
 {
     pub fn create_unvalidated(
         &mut self, id: Uuid, key: AESKey, parent: &Uuid, name: &str, file_type: FileType,
-        account: &Account,
-    ) -> SharedResult<Uuid> {
-        let (op, id) = self.create_op(id, key, parent, name, file_type, account)?;
+        keychain: &Keychain,
+    ) -> LbResult<Uuid> {
+        let (op, id) = self.create_op(id, key, parent, name, file_type, keychain)?;
         self.stage_and_promote(Some(op))?;
         Ok(id)
     }
 
     pub fn create(
         &mut self, id: Uuid, key: AESKey, parent: &Uuid, name: &str, file_type: FileType,
-        account: &Account,
-    ) -> SharedResult<Uuid> {
+        keychain: &Keychain,
+    ) -> LbResult<Uuid> {
         if self.calculate_deleted(parent)? {
-            return Err(SharedErrorKind::FileParentNonexistent.into());
+            return Err(LbErrKind::FileParentNonexistent.into());
         }
 
-        let (op, id) = self.create_op(id, key, parent, name, file_type, account)?;
-        self.stage_validate_and_promote(Some(op), Owner(account.public_key()))?;
+        let (op, id) = self.create_op(id, key, parent, name, file_type, keychain)?;
+        self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
         Ok(id)
     }
 
     pub fn rename_unvalidated(
-        &mut self, id: &Uuid, name: &str, account: &Account,
-    ) -> SharedResult<()> {
-        let op = self.rename_op(id, name, account)?;
+        &mut self, id: &Uuid, name: &str, keychain: &Keychain,
+    ) -> LbResult<()> {
+        let op = self.rename_op(id, name, keychain)?;
         self.stage_and_promote(Some(op))?;
         Ok(())
     }
 
-    pub fn rename(&mut self, id: &Uuid, name: &str, account: &Account) -> SharedResult<()> {
-        let op = self.rename_op(id, name, account)?;
-        self.stage_validate_and_promote(Some(op), Owner(account.public_key()))?;
+    pub fn rename(&mut self, id: &Uuid, name: &str, keychain: &Keychain) -> LbResult<()> {
+        let op = self.rename_op(id, name, keychain)?;
+        self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
         Ok(())
     }
 
     pub fn move_unvalidated(
-        &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
-    ) -> SharedResult<()> {
-        let op = self.move_op(id, new_parent, account)?;
+        &mut self, id: &Uuid, new_parent: &Uuid, keychain: &Keychain,
+    ) -> LbResult<()> {
+        let op = self.move_op(id, new_parent, keychain)?;
         self.stage_and_promote(op)?;
         Ok(())
     }
 
-    pub fn move_file(
-        &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
-    ) -> SharedResult<()> {
+    pub fn move_file(&mut self, id: &Uuid, new_parent: &Uuid, keychain: &Keychain) -> LbResult<()> {
         if self.maybe_find(new_parent).is_none() || self.calculate_deleted(new_parent)? {
-            return Err(SharedErrorKind::FileParentNonexistent.into());
+            return Err(LbErrKind::FileParentNonexistent.into());
         }
-        let op = self.move_op(id, new_parent, account)?;
-        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        let op = self.move_op(id, new_parent, keychain)?;
+        self.stage_validate_and_promote(op, Owner(keychain.get_pk()?))?;
         Ok(())
     }
 
-    pub fn delete_unvalidated(&mut self, id: &Uuid, account: &Account) -> SharedResult<()> {
-        let op = self.delete_op(id, account)?;
+    pub fn delete_unvalidated(&mut self, id: &Uuid, keychain: &Keychain) -> LbResult<()> {
+        let op = self.delete_op(id, keychain)?;
         self.stage_and_promote(Some(op))?;
         Ok(())
     }
 
-    pub fn delete(&mut self, id: &Uuid, account: &Account) -> SharedResult<()> {
-        let op = self.delete_op(id, account)?;
-        self.stage_validate_and_promote(Some(op), Owner(account.public_key()))?;
+    pub fn delete(&mut self, id: &Uuid, keychain: &Keychain) -> LbResult<()> {
+        let op = self.delete_op(id, keychain)?;
+        self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
         Ok(())
     }
 
     pub fn add_share_unvalidated(
-        &mut self, id: Uuid, sharee: Owner, mode: ShareMode, account: &Account,
-    ) -> SharedResult<()> {
-        let op = self.add_share_op(id, sharee, mode, account)?;
+        &mut self, id: Uuid, sharee: Owner, mode: ShareMode, keychain: &Keychain,
+    ) -> LbResult<()> {
+        let op = self.add_share_op(id, sharee, mode, keychain)?;
         self.stage_and_promote(Some(op))?;
         Ok(())
     }
 
     pub fn add_share(
-        &mut self, id: Uuid, sharee: Owner, mode: ShareMode, account: &Account,
-    ) -> SharedResult<()> {
-        let op = self.add_share_op(id, sharee, mode, account)?;
-        self.stage_validate_and_promote(Some(op), Owner(account.public_key()))?;
+        &mut self, id: Uuid, sharee: Owner, mode: ShareMode, keychain: &Keychain,
+    ) -> LbResult<()> {
+        let op = self.add_share_op(id, sharee, mode, keychain)?;
+        self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
         Ok(())
     }
 
     pub fn delete_share_unvalidated(
-        &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
-    ) -> SharedResult<()> {
-        let op = self.delete_share_op(id, maybe_encrypted_for, account)?;
+        &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, keychain: &Keychain,
+    ) -> LbResult<()> {
+        let op = self.delete_share_op(id, maybe_encrypted_for, keychain)?;
         self.stage_and_promote(op)?;
         Ok(())
     }
 
     pub fn delete_share(
-        &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
-    ) -> SharedResult<()> {
-        let op = self.delete_share_op(id, maybe_encrypted_for, account)?;
-        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, keychain: &Keychain,
+    ) -> LbResult<()> {
+        let op = self.delete_share_op(id, maybe_encrypted_for, keychain)?;
+        self.stage_validate_and_promote(op, Owner(keychain.get_pk()?))?;
         Ok(())
     }
 
     pub fn update_document_unvalidated(
-        &mut self, id: &Uuid, document: &[u8], account: &Account,
-    ) -> SharedResult<EncryptedDocument> {
-        let (op, document) = self.update_document_op(id, document, account)?;
+        &mut self, id: &Uuid, document: &[u8], keychain: &Keychain,
+    ) -> LbResult<EncryptedDocument> {
+        let (op, document) = self.update_document_op(id, document, keychain)?;
         self.stage_and_promote(Some(op))?;
         Ok(document)
     }
 
     pub fn update_document(
-        &mut self, id: &Uuid, document: &[u8], account: &Account,
-    ) -> SharedResult<EncryptedDocument> {
-        let (op, document) = self.update_document_op(id, document, account)?;
-        self.stage_validate_and_promote(Some(op), Owner(account.public_key()))?;
+        &mut self, id: &Uuid, document: &[u8], keychain: &Keychain,
+    ) -> LbResult<EncryptedDocument> {
+        let (op, document) = self.update_document_op(id, document, keychain)?;
+        self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
         Ok(document)
     }
 }

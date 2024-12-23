@@ -1,3 +1,5 @@
+use std::env;
+
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -7,6 +9,22 @@ pub struct Config {
     pub writeable_path: String,
     /// Should lb do background work like keep search indexes up to date?
     pub background_work: bool,
+}
+
+impl Config {
+    pub fn cli_config() -> Config {
+        let specified_path = env::var("LOCKBOOK_PATH");
+
+        let default_path = env::var("HOME") // unix
+            .or(env::var("HOMEPATH")) // windows
+            .map(|home| format!("{home}/.lockbook/cli"));
+
+        let Ok(writeable_path) = specified_path.or(default_path) else {
+            panic!("no location for lockbook to initialize");
+        };
+
+        Config { writeable_path, logs: true, colored_logs: true, background_work: false }
+    }
 }
 
 // todo: we added background work as a flag to speed up test execution in debug mode

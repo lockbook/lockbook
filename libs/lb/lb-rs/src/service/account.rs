@@ -37,7 +37,7 @@ impl Lb {
 
         let account = Account::new(username.clone(), api_url.to_string());
 
-        let root = FileMetadata::create_root(&account)?.sign(&account)?;
+        let root = FileMetadata::create_root(&account)?.sign_with(&account)?;
         let root_id = *root.id();
 
         let last_synced = self

@@ -2,7 +2,7 @@ use crate::logic::file_like::FileLike;
 use crate::logic::lazy::LazyTree;
 use crate::logic::staged::StagedTree;
 use crate::logic::{SharedErrorKind, SharedResult};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use uuid::Uuid;
 
@@ -10,7 +10,7 @@ pub trait TreeLike: Sized {
     type F: FileLike + Debug;
 
     // todo: iterator using const generics
-    fn ids(&self) -> HashSet<&Uuid>;
+    fn ids(&self) -> Vec<Uuid>;
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F>;
 
     fn find(&self, id: &Uuid) -> SharedResult<&Self::F> {
@@ -27,14 +27,11 @@ pub trait TreeLike: Sized {
             .ok_or_else(|| SharedErrorKind::FileParentNonexistent.into())
     }
 
-    fn owned_ids(&self) -> HashSet<Uuid> {
-        self.ids().iter().map(|id| **id).collect()
-    }
-
     fn all_files(&self) -> SharedResult<Vec<&Self::F>> {
-        let mut all = vec![];
+        let ids = self.ids();
+        let mut all = Vec::with_capacity(ids.len());
         for id in self.ids() {
-            let meta = self.find(id)?;
+            let meta = self.find(&id)?;
             all.push(meta);
         }
 
@@ -78,7 +75,7 @@ where
 {
     type F = T::F;
 
-    fn ids(&self) -> HashSet<&Uuid> {
+    fn ids(&self) -> Vec<Uuid> {
         T::ids(self)
     }
 
@@ -93,7 +90,7 @@ where
 {
     type F = T::F;
 
-    fn ids(&self) -> HashSet<&Uuid> {
+    fn ids(&self) -> Vec<Uuid> {
         T::ids(self)
     }
 
@@ -125,8 +122,8 @@ where
 {
     type F = F;
 
-    fn ids(&self) -> HashSet<&Uuid> {
-        self.iter().map(|f| f.id()).collect()
+    fn ids(&self) -> Vec<Uuid> {
+        self.iter().map(|f| *f.id()).collect()
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&F> {
@@ -173,8 +170,8 @@ where
 {
     type F = F;
 
-    fn ids(&self) -> HashSet<&Uuid> {
-        self.keys().collect()
+    fn ids(&self) -> Vec<Uuid> {
+        self.keys().copied().collect()
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&F> {

@@ -45,13 +45,12 @@ impl Lb {
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
             .to_lazy();
-        let account = db.account.get().ok_or(LbErrKind::AccountNonexistent)?;
 
         let id = match tree.find(&id)?.file_type() {
             FileType::Document | FileType::Folder => id,
             FileType::Link { target } => target,
         };
-        let encrypted_document = tree.update_document(&id, content, account)?;
+        let encrypted_document = tree.update_document(&id, content, &self.keychain)?;
         let hmac = tree.find(&id)?.document_hmac().copied();
         self.docs.insert(id, hmac, &encrypted_document).await?;
         tx.end();
@@ -105,7 +104,6 @@ impl Lb {
             .to_staged(&mut db.local_metadata)
             .to_lazy();
 
-        let account = self.get_account()?;
         let file = tree.find(&id)?;
         if file.document_hmac() != old_hmac.as_ref() {
             return Err(LbErrKind::ReReadRequired.into());
@@ -115,7 +113,7 @@ impl Lb {
             FileType::Link { target } => target,
         };
         // todo can we not borrow here?
-        let encrypted_document = tree.update_document(&id, &content, account)?;
+        let encrypted_document = tree.update_document(&id, &content, &self.keychain)?;
         let hmac = tree.find(&id)?.document_hmac();
         let hmac = *hmac.ok_or_else(|| {
             LbErrKind::Unexpected(format!("hmac missing for a document we just wrote {}", id))
@@ -184,7 +182,7 @@ impl Lb {
         let doc = match hmac {
             Some(hmac) => {
                 let doc = self.docs.get(id, Some(hmac)).await?;
-                tree.decrypt_document(&id, &doc, self.get_account()?)?
+                tree.decrypt_document(&id, &doc, &self.keychain)?
             }
             None => vec![],
         };
