@@ -13,11 +13,12 @@ use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::svg::buffer::Buffer;
 use lb_rs::Uuid;
-use std::sync::atomic::{AtomicBool, Ordering};
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
-use std::{mem, thread};
+use std::{fs, mem, thread};
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
 use crate::output::{DirtynessMsg, Response, WsStatus};
@@ -30,7 +31,7 @@ use crate::theme::icons::Icon;
 use crate::widgets::Button;
 
 pub struct Workspace {
-    pub cfg: WsConfig,
+    pub cfg: WsPersistentStore,
 
     pub tabs: Vec<Tab>,
     pub active_tab: usize,
@@ -83,49 +84,100 @@ pub struct SaveResult {
 }
 
 #[derive(Clone)]
-pub struct WsConfig {
-    pub data_dir: String,
-
-    pub auto_save: Arc<AtomicBool>,
-    pub auto_sync: Arc<AtomicBool>,
-    pub zen_mode: Arc<AtomicBool>,
+pub struct WsPersistentStore {
+    pub path: String,
+    pub data: Arc<RwLock<WsPresistentData>>,
 }
 
-impl Default for WsConfig {
+#[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct WsPresistentData {
+    pub last_open_tabs: Vec<Uuid>,
+    pub auto_save: bool,
+    pub auto_sync: bool,
+}
+
+impl Default for WsPresistentData {
     fn default() -> Self {
-        Self {
-            data_dir: "".to_string(), // todo: potentially a bad idea
-            auto_save: Arc::new(AtomicBool::new(true)),
-            auto_sync: Arc::new(AtomicBool::new(true)),
-            zen_mode: Arc::new(AtomicBool::new(false)),
+        Self { auto_save: true, auto_sync: true, last_open_tabs: Vec::default() }
+    }
+}
+
+impl WsPersistentStore {
+    pub fn new(path: PathBuf) -> Self {
+        match fs::File::open(&path) {
+            Ok(f) => WsPersistentStore {
+                path: path.to_string_lossy().to_string(),
+                data: Arc::new(RwLock::new(serde_json::from_reader(f).unwrap_or_default())),
+            },
+            Err(_) => WsPersistentStore {
+                path: path.to_string_lossy().to_string(),
+                data: Arc::new(RwLock::new(WsPresistentData::default())),
+            },
         }
     }
-}
 
-impl WsConfig {
-    pub fn new(dir: String, auto_save: bool, auto_sync: bool, zen_mode: bool) -> Self {
-        let mut s = Self { data_dir: dir, ..Default::default() };
-        s.update(auto_save, auto_sync, zen_mode);
-        s
+    pub fn update<F>(&mut self, updater: F)
+    where
+        F: FnOnce(&mut WsPresistentData),
+    {
+        let mut data_lock = self.data.write().unwrap();
+        let old_data = data_lock.clone();
+
+        updater(&mut data_lock);
+
+        // only write if the contents have been changed.
+        if old_data != *data_lock {
+            self.to_file();
+        }
     }
 
-    pub fn update(&mut self, auto_save: bool, auto_sync: bool, zen_mode: bool) {
-        self.auto_save.store(auto_save, Ordering::Relaxed);
-        self.auto_sync.store(auto_sync, Ordering::Relaxed);
-        self.zen_mode.store(zen_mode, Ordering::Relaxed);
+    pub fn update_last_open_tabs(&mut self, tabs: &[Tab], active_tab_index: usize) {
+        let mut active_tab = None;
+        let mut tab_ids: Vec<Uuid> = tabs
+            .iter()
+            .enumerate()
+            .filter_map(|(i, t)| {
+                if i == active_tab_index {
+                    active_tab = Some(t.id);
+                    None
+                } else {
+                    Some(t.id)
+                }
+            })
+            .collect();
+
+        if let Some(tab) = active_tab {
+            tab_ids.push(tab);
+        }
+
+        self.update(|data| data.last_open_tabs = tab_ids);
+    }
+
+    pub fn to_file(&self) {
+        let data = self.data.clone();
+        let path = self.path.clone();
+        thread::spawn(move || {
+            let data = data.read().unwrap();
+            let content = serde_json::to_string(&*data).unwrap();
+            fs::write(path, content)
+        });
     }
 }
 
 impl Workspace {
-    pub fn new(cfg: WsConfig, core: &Lb, ctx: &Context) -> Self {
+    pub fn new(core: &Lb, ctx: &Context) -> Self {
         let (updates_tx, updates_rx) = channel();
         let background = BackgroundWorker::new(ctx, &updates_tx);
         let background_tx = background.spawn_worker();
         let status = Default::default();
         let output = Default::default();
 
-        Self {
-            cfg,
+        let writable_dir = core.get_config().writeable_path;
+        let writeable_dir = Path::new(&writable_dir);
+        let writeable_path = writeable_dir.join("ws_presistance.json");
+
+        let mut ws = Self {
+            cfg: WsPersistentStore::new(writeable_path),
             tabs: vec![],
             active_tab: 0,
             active_tab_changed: false,
@@ -142,7 +194,17 @@ impl Workspace {
             focused_parent: None,
             last_touch_event: None,
             out: output,
-        }
+        };
+
+        let last_open_tabs = ws.cfg.data.read().unwrap().last_open_tabs.clone();
+
+        last_open_tabs.iter().for_each(|&file_id| {
+            if core.get_file_by_id(file_id).is_ok() {
+                ws.open_file(file_id, true, true);
+            }
+        });
+
+        ws
     }
 
     pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &Lb) {
@@ -287,25 +349,6 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
         }
 
-        if self.cfg.zen_mode.load(Ordering::Relaxed) {
-            let mut min = ui.clip_rect().left_bottom();
-            min.y -= 37.0; // 37 is approximating the height of the button
-            let max = ui.clip_rect().left_bottom();
-
-            let rect = egui::Rect { min, max };
-            ui.allocate_ui_at_rect(rect, |ui| {
-                let zen_mode_btn = Button::default()
-                    .icon(&Icon::TOGGLE_SIDEBAR)
-                    .frame(true)
-                    .show(ui);
-                if zen_mode_btn.clicked() {
-                    self.cfg.zen_mode.store(false, Ordering::Relaxed);
-                    self.out.settings_updated = true;
-                }
-                zen_mode_btn.on_hover_text("Show side panel");
-            });
-        }
-
         mem::take(&mut self.out)
     }
 
@@ -382,6 +425,10 @@ impl Workspace {
 
     fn show_tabs(&mut self, ui: &mut egui::Ui) {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+
+        if self.active_tab_changed {
+            self.cfg.update_last_open_tabs(&self.tabs, self.active_tab);
+        }
 
         ui.vertical(|ui| {
             if !self.tabs.is_empty() {
@@ -713,7 +760,7 @@ impl Workspace {
         thread::spawn(move || {
             let content = core
                 .read_document_with_hmac(id)
-                .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))); // todo(steve)
+                .map_err(|err| TabFailure::Unexpected(format!("{:?}", err)));
             update_tx
                 .send(WsMsg::FileLoaded(FileLoadedMsg { id, is_new_file, tab_created, content }))
                 .unwrap();
@@ -829,7 +876,7 @@ impl Workspace {
                     };
 
                     let ctx = self.ctx.clone();
-                    let cfg = self.cfg.clone();
+                    let writeable_dir = &self.core.get_config().writeable_path;
                     let core = self.core.clone();
                     let show_tabs = self.show_tabs;
 
@@ -862,7 +909,7 @@ impl Workspace {
                             tab.content = Some(TabContent::Pdf(PdfViewer::new(
                                 &bytes,
                                 &ctx,
-                                &cfg.data_dir,
+                                writeable_dir,
                                 !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         } else if ext == "svg" {
@@ -926,7 +973,7 @@ impl Workspace {
                     };
                 }
                 WsMsg::BgSignal(Signal::SaveAll) => {
-                    if self.cfg.auto_save.load(Ordering::Relaxed) {
+                    if self.cfg.data.read().unwrap().auto_save {
                         self.save_all_tabs();
                     }
                 }
@@ -979,14 +1026,9 @@ impl Workspace {
                     // }
                 }
                 WsMsg::BgSignal(Signal::MaybeSync) => {
-                    // if self.last_sync.elapsed() > Duration::from_secs(1) {
-                    //     self.perform_sync()
-                    // }
-
-                    if !self.cfg.auto_sync.load(Ordering::Relaxed) {
-                        // auto sync disabled
+                    if !self.cfg.data.read().unwrap().auto_sync {
+                        continue;
                     }
-                    // continue;
 
                     let focused = self.ctx.input(|i| i.focused);
 
