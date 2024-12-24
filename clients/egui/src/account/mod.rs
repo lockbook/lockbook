@@ -6,7 +6,7 @@ mod tree;
 use std::ffi::OsStr;
 
 use std::path::PathBuf;
-use std::sync::{mpsc, Arc, RwLock, atomic::Ordering};
+use std::sync::{mpsc, Arc, RwLock};
 use std::time::Duration;
 use std::{path, process, thread};
 
@@ -187,17 +187,10 @@ impl AccountScreen {
                 if self.is_any_modal_open() {
                     ui.disable();
                 }
-                let settings = self.settings.read().unwrap();
-
-                drop(settings);
-                self.workspace.focused_parent = Some(self.focused_parent());
-
-                let wso = self.workspace.show(ui);
-
- 
 
                 self.workspace.focused_parent = self.focused_parent();
                 let wso = self.workspace.show(ui);
+
                 if self.settings.read().unwrap().zen_mode {
                     let mut min = ui.clip_rect().left_bottom();
                     min.y -= 37.0; // 37 is approximating the height of the button
@@ -214,6 +207,7 @@ impl AccountScreen {
                         }
                         zen_mode_btn.on_hover_text("Show side panel");
                     });
+                }
 
                 if let Some((id, new_name)) = wso.file_renamed {
                     for file in self.tree.files.iter_mut() {

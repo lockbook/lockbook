@@ -1026,15 +1026,9 @@ impl Workspace {
                     // }
                 }
                 WsMsg::BgSignal(Signal::MaybeSync) => {
-
-                    // if self.last_sync.elapsed() > Duration::from_secs(1) {
-                    //     self.perform_sync()
-                    // }
-
-                    if !self.cfg.data.read().auto_sync.load(Ordering::Relaxed) {
-                        // auto sync disabled
+                    if !self.cfg.data.read().unwrap().auto_sync {
+                        continue;
                     }
-                    // continue;
 
                     let focused = self.ctx.input(|i| i.focused);
 
