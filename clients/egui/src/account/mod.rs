@@ -5,7 +5,6 @@ mod syncing;
 mod tree;
 
 use std::ffi::OsStr;
-use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc, RwLock};
 use std::time::Duration;
 use std::{path, process, thread};
@@ -165,19 +164,30 @@ impl AccountScreen {
                     ui.disable();
                 }
                 let settings = self.settings.read().unwrap();
-                self.workspace.cfg.update(
-                    settings.auto_save,
-                    settings.auto_sync,
-                    settings.zen_mode,
-                );
+
                 drop(settings);
                 self.workspace.focused_parent = Some(self.focused_parent());
+
                 let wso = self.workspace.show(ui);
-                if wso.settings_updated {
-                    self.settings.write().unwrap().zen_mode =
-                        self.workspace.cfg.zen_mode.load(Ordering::Relaxed);
-                    self.settings.read().unwrap().to_file().unwrap();
+
+                if self.settings.read().unwrap().zen_mode {
+                    let mut min = ui.clip_rect().left_bottom();
+                    min.y -= 37.0; // 37 is approximating the height of the button
+                    let max = ui.clip_rect().left_bottom();
+
+                    let rect = egui::Rect { min, max };
+                    ui.allocate_ui_at_rect(rect, |ui| {
+                        let zen_mode_btn = Button::default()
+                            .icon(&Icon::TOGGLE_SIDEBAR)
+                            .frame(true)
+                            .show(ui);
+                        if zen_mode_btn.clicked() {
+                            self.settings.write().unwrap().zen_mode = false;
+                        }
+                        zen_mode_btn.on_hover_text("Show side panel");
+                    });
                 }
+
                 if let Some((id, new_name)) = wso.file_renamed {
                     if let Some(node) = self.tree.root.find_mut(id) {
                         node.file.name = new_name.clone();
@@ -230,7 +240,11 @@ impl AccountScreen {
                     OpenModal::InitiateShare(target) => self.open_share_modal(target),
                     OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
                     OpenModal::Settings => {
-                        self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
+                        self.modals.settings = Some(SettingsModal::new(
+                            &self.core,
+                            &self.settings,
+                            &self.workspace.cfg,
+                        ));
                     }
                 },
                 AccountUpdate::ShareAccepted(result) => match result {
@@ -315,7 +329,8 @@ impl AccountScreen {
         if self.modals.settings.is_none()
             && ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::Comma))
         {
-            self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
+            self.modals.settings =
+                Some(SettingsModal::new(&self.core, &self.settings, &self.workspace.cfg));
         }
 
         // Alt-H pressed to toggle the help modal.

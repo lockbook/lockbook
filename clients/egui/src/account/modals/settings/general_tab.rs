@@ -6,6 +6,7 @@ impl super::SettingsModal {
         ui.add_space(12.0);
 
         let s = &mut self.settings.write().unwrap();
+        let a = &mut self.ws_persistent_store.data.write().unwrap();
 
         ui.group(|ui| {
             ui.horizontal(|ui| {
@@ -16,21 +17,25 @@ impl super::SettingsModal {
             ui.add_space(5.0);
 
             ui.horizontal(|ui| {
-                switch(ui, &mut s.auto_sync);
+                if switch(ui, &mut a.auto_sync).changed() {
+                    self.ws_persistent_store.to_file();
+                }
                 ui.label("Auto-sync");
             });
 
             ui.add_space(5.0);
 
             ui.horizontal(|ui| {
-                switch(ui, &mut s.auto_save);
+                if switch(ui, &mut a.auto_save).changed() {
+                    self.ws_persistent_store.to_file();
+                }
                 ui.label("Auto-save");
             });
 
             ui.add_space(5.0);
 
             ui.horizontal(|ui| {
-                switch(ui, &mut s.sidebar_usage);
+                // switch(ui, &mut s.sidebar_usage);
                 ui.label("Show usage in sidebar");
             });
         });
