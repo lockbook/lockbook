@@ -38,7 +38,7 @@ impl Find {
             Response::default()
         };
 
-        if ui.input(|i| i.key_pressed(Key::F) && i.modifiers.command) {
+        if ui.input(|i| i.key_pressed(Key::F) && i.modifiers.command && !i.modifiers.shift) {
             if self.term.is_none() {
                 self.term = Some(String::from(&buffer[buffer.current.selection]));
                 ui.memory_mut(|m| m.request_focus(self.id));

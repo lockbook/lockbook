@@ -255,9 +255,18 @@ pub fn transform_canvas(buffer: &mut Buffer, t: Transform) {
     }
     buffer.master_transform = new_transform;
     for el in buffer.elements.values_mut() {
-        if let Element::Path(path) = el {
-            path.diff_state.transformed = Some(t);
-            path.data.apply_transform(u_transform_to_bezier(&t));
+        match el {
+            Element::Path(path) => {
+                path.diff_state.transformed = Some(t);
+                path.data.apply_transform(u_transform_to_bezier(&t));
+            }
+            Element::Image(image) => {
+                if let Some(new_vbox) = image.view_box.transform(t) {
+                    image.view_box = new_vbox;
+                }
+                image.diff_state.transformed = Some(t);
+            }
+            Element::Text(_) => todo!(),
         }
     }
 }

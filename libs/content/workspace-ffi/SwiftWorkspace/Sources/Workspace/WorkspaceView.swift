@@ -107,11 +107,7 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
         mtkView.setInitialContent(coreHandle)
         
         super.init(frame: .infinite)
-        
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.onPan(_:)))
-        pan.delegate = self
-        addGestureRecognizer(pan)
-                
+                        
         mtkView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(mtkView)
         NSLayoutConstraint.activate([
@@ -121,46 +117,7 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
             mtkView.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
     }
-    
-    
-    public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        return gestureRecognizer is UIPanGestureRecognizer && touch.location(in: self).x < 40 && !mtkView.showTabs
-    }
-    
-    @objc func onPan(_ sender: UIPanGestureRecognizer? = nil) {
-        if mtkView.showTabs {
-            return
-        }
-        
-        guard let sender = sender else {
-            return
-        }
-                
-        switch sender.state {
-        case .ended:
-            if sender.translation(in: self).x > 100 || sender.velocity(in: self).x > 200 {
-                withAnimation {
-                    mtkView.workspaceState?.closeActiveTab = true
-                    mtkView.workspaceState!.dragOffset = 0
-                }
-            } else {
-                withAnimation {
-                    mtkView.workspaceState!.dragOffset = 0
-                }
-            }
-        case .changed:
-            let translation = sender.translation(in: self).x
             
-            if translation > 0 {
-                withAnimation {
-                    mtkView.workspaceState!.dragOffset = sender.translation(in: self).x
-                }
-            }
-        default:
-            print("unrecognized drag state")
-        }
-    }
-    
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }

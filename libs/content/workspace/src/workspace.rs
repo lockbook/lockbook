@@ -61,6 +61,7 @@ pub enum WsMsg {
     FileLoaded(FileLoadedMsg),
     SaveResult(Uuid, Result<SaveResult, LbErr>),
     FileRenamed { id: Uuid, new_name: String },
+    FileMoved { id: Uuid, new_parent: Uuid },
 
     BgSignal(Signal),
     SyncMsg(SyncProgress),
@@ -477,7 +478,7 @@ impl Workspace {
                                 if resp.text_updated {
                                     self.out.markdown_editor_text_updated = true;
                                 }
-                                if resp.selection_updated {
+                                if resp.cursor_screen_postition_updated {
                                     // markdown_editor_selection_updated represents a change to the screen position of
                                     // the cursor, which is also updated when scrolling
                                     self.out.markdown_editor_selection_updated = true;
@@ -926,6 +927,7 @@ impl Workspace {
                                     Some(TabContent::Svg(svg)) => {
                                         Buffer::reload(
                                             &mut svg.buffer.elements,
+                                            &mut svg.buffer.weak_images,
                                             svg.buffer.master_transform,
                                             &svg.buffer.opened_content,
                                             String::from_utf8_lossy(&bytes).as_ref(),
@@ -1024,10 +1026,15 @@ impl Workspace {
                     // }
                 }
                 WsMsg::BgSignal(Signal::MaybeSync) => {
-                    if !self.cfg.data.read().unwrap().auto_sync {
+
+                    // if self.last_sync.elapsed() > Duration::from_secs(1) {
+                    //     self.perform_sync()
+                    // }
+
+                    if !self.cfg.data.read().auto_sync.load(Ordering::Relaxed) {
                         // auto sync disabled
-                        continue;
                     }
+                    // continue;
 
                     let focused = self.ctx.input(|i| i.focused);
 
@@ -1073,6 +1080,9 @@ impl Workspace {
                         self.open_file(id, false, is_tab_active);
                     }
                 }
+                WsMsg::FileMoved { id, new_parent } => {
+                    self.out.file_moved = Some((id, new_parent));
+                }
                 WsMsg::SyncDone(sync_outcome) => self.sync_done(sync_outcome),
                 WsMsg::Dirtyness(dirty_msg) => self.dirty_msg(dirty_msg),
                 WsMsg::FileCreated(result) => self.out.file_created = Some(result),
@@ -1090,6 +1100,20 @@ impl Workspace {
             core.rename_file(&id, &new_name).unwrap(); // TODO
 
             update_tx.send(WsMsg::FileRenamed { id, new_name }).unwrap();
+            ctx.request_repaint();
+        });
+    }
+
+    pub fn move_file(&self, req: (Uuid, Uuid)) {
+        let core = self.core.clone();
+        let update_tx = self.updates_tx.clone();
+        let ctx = self.ctx.clone();
+
+        thread::spawn(move || {
+            let (id, new_parent) = req;
+            core.move_file(&id, &new_parent).unwrap(); // TODO
+
+            update_tx.send(WsMsg::FileMoved { id, new_parent }).unwrap();
             ctx.request_repaint();
         });
     }
@@ -1278,7 +1302,7 @@ fn tab_label(
 // "you should match most specific shortcuts first", but this doesn't go well with egui's usual pattern where widgets
 // process input in the order in which they're drawn, with parent widgets (e.g. workspace) drawn before children
 // (e.g. editor). Using this older way of doing things affects matching keyboard shortcuts with shift included e.g. '+'
-trait InputStateExt {
+pub trait InputStateExt {
     fn count_and_consume_key_exact(
         &mut self, modifiers: egui::Modifiers, logical_key: egui::Key,
     ) -> usize;

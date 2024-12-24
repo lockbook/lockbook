@@ -110,16 +110,16 @@ class ShareViewController: UIViewController {
         }
     }
     
-    @objc
     @discardableResult
-    func openURL(_ url: URL) -> Bool {
-        var responder: UIResponder? = self
-        while responder != nil {
-            if let application = responder as? UIApplication {
-                return application.perform(#selector(openURL(_:)), with: url) != nil
-            }
-            responder = responder?.next
-        }
-        return false
-    }
+       @objc func openURL(_ url: URL) -> Bool {
+           var responder: UIResponder? = self
+           while responder != nil {
+               if let application = responder as? UIApplication {
+                   application.open(url, options: [:]) {_ in }
+                   return true
+               }
+               responder = responder?.next
+           }
+           return false
+       }
 }

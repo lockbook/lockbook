@@ -25,6 +25,7 @@ pub struct Pen {
     pub active_color: DynamicColor,
     pub active_stroke_width: f32,
     pub active_opacity: f32,
+    pub has_inf_thick: bool,
     path_builder: PathBuilder,
     pub current_id: Uuid, // todo: this should be at a higher component state, maybe in buffer
     maybe_snap_started: Option<Instant>,
@@ -46,6 +47,7 @@ impl Pen {
             maybe_snap_started: None,
             active_opacity: 1.0,
             hover_pos: None,
+            has_inf_thick: false,
         }
     }
 
@@ -113,9 +115,15 @@ impl Pen {
             if is_current_path_empty
                 && !(pen_ctx.settings.pencil_only_drawing && pen_ctx.is_locked_vw_pen_only)
             {
+                let mut radius = self.active_stroke_width / 2.0;
+                if self.has_inf_thick {
+                    radius /= pen_ctx.buffer.master_transform.sx / 2.0;
+                } else {
+                    radius *= pen_ctx.buffer.master_transform.sx;
+                }
                 pen_ctx.painter.circle_filled(
                     pos,
-                    self.active_stroke_width * pen_ctx.buffer.master_transform.sx / 2.0,
+                    radius,
                     ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode)
                         .gamma_multiply(self.active_opacity * opacity),
                 );
@@ -180,10 +188,14 @@ impl Pen {
                     self.cancel_path(pen_ctx);
                 }
 
-                let path_stroke = Stroke {
+                let mut path_stroke = Stroke {
                     color: self.active_color,
                     opacity: self.active_opacity,
                     width: self.active_stroke_width,
+                };
+
+                if self.has_inf_thick {
+                    path_stroke.width /= pen_ctx.buffer.master_transform.sx;
                 };
 
                 if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
