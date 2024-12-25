@@ -123,11 +123,10 @@ impl Pen {
                 && !(pen_ctx.settings.pencil_only_drawing && pen_ctx.is_locked_vw_pen_only)
             {
                 let mut radius = self.active_stroke_width / 2.0;
-                if self.has_inf_thick {
-                    radius /= pen_ctx.buffer.master_transform.sx / 2.0;
-                } else {
+                if !self.has_inf_thick {
                     radius *= pen_ctx.buffer.master_transform.sx;
                 }
+
                 pen_ctx.painter.circle_filled(
                     pos,
                     radius,
