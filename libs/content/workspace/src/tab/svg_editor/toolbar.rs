@@ -60,7 +60,7 @@ pub enum Tool {
 }
 
 pub struct ToolContext<'a> {
-    pub painter: &'a egui::Painter,
+    pub painter: &'a mut egui::Painter,
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
     pub allow_viewport_changes: &'a mut bool,
