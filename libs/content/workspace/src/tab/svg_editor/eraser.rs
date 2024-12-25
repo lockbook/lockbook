@@ -41,7 +41,7 @@ impl Eraser {
             return;
         }
 
-        if let Some(event) = self.setup_events(ui, &mut eraser_ctx.painter) {
+        if let Some(event) = self.setup_events(ui, eraser_ctx.painter) {
             match event {
                 EraseEvent::Start(pos) => {
                     eraser_ctx
@@ -130,7 +130,7 @@ impl Eraser {
                 return None;
             }
 
-            let old_layer = painter.layer_id().clone();
+            let old_layer = painter.layer_id();
             painter.set_layer_id(egui::LayerId {
                 order: egui::Order::PanelResizeLine,
                 id: "eraser_overlay".into(),

@@ -95,7 +95,7 @@ impl Pen {
     }
 
     fn show_hover_point(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext<'_>) {
-        let old_layer = pen_ctx.painter.layer_id().clone();
+        let old_layer = pen_ctx.painter.layer_id();
 
         pen_ctx.painter.set_layer_id(egui::LayerId {
             order: egui::Order::PanelResizeLine,
