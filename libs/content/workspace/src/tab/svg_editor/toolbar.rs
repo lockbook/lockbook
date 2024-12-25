@@ -60,7 +60,7 @@ pub enum Tool {
 }
 
 pub struct ToolContext<'a> {
-    pub painter: &'a egui::Painter,
+    pub painter: &'a mut egui::Painter,
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
     pub allow_viewport_changes: &'a mut bool,
@@ -598,7 +598,7 @@ impl Toolbar {
         painter.set_clip_rect(preview_rect);
 
         self.eraser
-            .draw_eraser_cursor(ui, &painter, preview_rect.center());
+            .draw_eraser_cursor(ui, &mut painter, preview_rect.center());
 
         ui.add_space(20.0);
         show_thickness_slider(
