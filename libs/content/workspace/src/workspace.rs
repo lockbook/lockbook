@@ -921,6 +921,7 @@ impl Workspace {
                         if tab.load_queued {
                             self.open_file(id, false, false);
                         }
+                        self.out.tabs_changed = true;
                     } else {
                         println!("failed to load file: tab not found");
                     };

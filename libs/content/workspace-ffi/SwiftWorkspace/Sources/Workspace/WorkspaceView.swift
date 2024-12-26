@@ -53,9 +53,9 @@ public struct UIWS: UIViewRepresentable {
     }
     
     public func updateUIView(_ uiView: iOSMTKInputManager, context: Context) {
-        let showTabs = horizontal == .regular && vertical == .regular
-        if uiView.mtkView.showTabs != showTabs {
-            uiView.mtkView.showHideTabs(show: showTabs)
+        workspaceState.showTabs = horizontal == .regular && vertical == .regular
+        if uiView.mtkView.showTabs != workspaceState.showTabs {
+            uiView.mtkView.showHideTabs(show: workspaceState.showTabs)
         }
         
         if let id = workspaceState.openDocRequested {
@@ -145,7 +145,7 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
                     drawingWrapper.translatesAutoresizingMaskIntoConstraints = false
                     inputManager.addSubview(drawingWrapper)
                     NSLayoutConstraint.activate([
-                        drawingWrapper.topAnchor.constraint(equalTo: inputManager.topAnchor, constant: inputManager.tabCount > 1 ? iOSMTK.TAB_BAR_HEIGHT : 0),
+                        drawingWrapper.topAnchor.constraint(equalTo: inputManager.topAnchor, constant: inputManager.mtkView.docHeaderSize),
                         drawingWrapper.leftAnchor.constraint(equalTo: inputManager.leftAnchor),
                         drawingWrapper.rightAnchor.constraint(equalTo: inputManager.rightAnchor),
                         drawingWrapper.bottomAnchor.constraint(equalTo: inputManager.bottomAnchor)
@@ -158,7 +158,7 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
                     textWrapper.translatesAutoresizingMaskIntoConstraints = false
                     inputManager.addSubview(textWrapper)
                     NSLayoutConstraint.activate([
-                        textWrapper.topAnchor.constraint(equalTo: inputManager.topAnchor, constant: inputManager.tabCount > 1 ? iOSMTK.TAB_BAR_HEIGHT : 0),
+                        textWrapper.topAnchor.constraint(equalTo: inputManager.topAnchor, constant: inputManager.mtkView.docHeaderSize),
                         textWrapper.leftAnchor.constraint(equalTo: inputManager.leftAnchor),
                         textWrapper.rightAnchor.constraint(equalTo: inputManager.rightAnchor),
                         textWrapper.bottomAnchor.constraint(equalTo: inputManager.bottomAnchor, constant: -iOSMTKTextInputWrapper.TOOL_BAR_HEIGHT)
