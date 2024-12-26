@@ -187,7 +187,7 @@ impl SVGEditor {
         self.handle_clip_input(ui);
 
         let mut tool_context = ToolContext {
-            painter: &self.painter,
+            painter: &mut self.painter,
             buffer: &mut self.buffer,
             history: &mut self.history,
             allow_viewport_changes: &mut self.allow_viewport_changes,
