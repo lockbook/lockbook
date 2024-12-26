@@ -43,7 +43,7 @@ public class WorkspaceState: ObservableObject {
     @Published public var fileOpCompleted: WSFileOpCompleted? = nil
     @Published public var closeActiveTab: Bool = false
     
-    @Published public var openTabs: Int = 0
+    @Published public var tabCount: Int = 0
         
     public init() {}
     
