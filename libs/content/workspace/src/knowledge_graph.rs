@@ -1,8 +1,9 @@
-use crate::data::{Graph, LinkNode};
+use crate::data::{lockbook_data, Graph, LinkNode};
 
 use egui::ahash::{HashMap, HashMapExt};
 use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
+use lb_rs::blocking::Lb;
 
 use std::collections::VecDeque;
 use std::sync::{Arc, RwLock};
@@ -25,7 +26,7 @@ pub struct KnowledgeGraphApp {
     cursor_loc: egui::Vec2,
     debug: String,
     graph_complete: bool,
-
+    linkless_nodes: Vec<bool>,
     directional_links: HashMap<usize, Vec<usize>>,
     thread_positions: Arc<RwLock<Vec<Pos2>>>,
     stop: Arc<RwLock<bool>>,
@@ -69,24 +70,22 @@ impl Grid {
 }
 
 impl KnowledgeGraphApp {
-    pub fn new(graph: &mut Graph) -> Self {
+    pub fn new(core: &Lb) -> Self {
+        let graph = lockbook_data(core);
         let positions = vec![egui::Pos2::ZERO; graph.len()];
         let thread_positions = vec![egui::Pos2::ZERO; graph.len()];
         Self {
             graph: graph.clone(),
             positions,
-
             zoom_factor: 1.0,
-
             pan: Vec2::ZERO,
             last_pan: Vec2::ZERO,
             last_screen_size: egui::Vec2::new(800.0, 600.0),
             cursor_loc: egui::Vec2::ZERO,
             debug: String::from("no single touch"),
             graph_complete: false,
-
+            linkless_nodes: vec![false; graph.len()],
             directional_links: HashMap::new(),
-
             thread_positions: Arc::new(RwLock::new(thread_positions)),
             stop: Arc::new(RwLock::new(false)),
             frame_count: 0,
@@ -180,7 +179,10 @@ impl KnowledgeGraphApp {
         if total_outer_nodes > 0 {
             for &node_id in unlinked_nodes.iter() {
                 let nocluster: Option<usize> = None;
+                self.linkless_nodes[node_id] = true;
                 self.graph[node_id].cluster_id = nocluster;
+                let node_pos = Pos2::new(main_circle_radius * 3.0, main_circle_radius * 3.0);
+                positions_map.insert(node_id, node_pos);
             }
         }
 
@@ -195,7 +197,7 @@ impl KnowledgeGraphApp {
 
     fn apply_spring_layout(
         thread_positions: Arc<RwLock<Vec<Pos2>>>, graph: &[LinkNode], max_iterations: usize,
-        screen: Rect, stop: Arc<RwLock<bool>>,
+        screen: Rect, stop: Arc<RwLock<bool>>, linkless_node: Vec<bool>,
     ) {
         let center =
             Pos2::new((screen.max.x + screen.min.x) / 2.0, (screen.max.y + screen.min.y) / 2.0);
@@ -226,11 +228,15 @@ impl KnowledgeGraphApp {
             let mut forces = vec![Vec2::ZERO; graph.len()];
 
             for i in 0..graph.len() {
+                if linkless_node[i] {
+                    continue;
+                }
+
                 let pos_i = positions[i];
 
                 for cell in grid.get_neighboring_cells(pos_i) {
                     for &j in cell {
-                        if i != j {
+                        if i != j && !linkless_node[j] {
                             let delta = pos_i - positions[j];
                             let distance = delta.length().max(0.01);
 
@@ -245,8 +251,12 @@ impl KnowledgeGraphApp {
             }
 
             for node in graph {
+                if linkless_node[node.id] {
+                    continue;
+                }
+
                 for &link in &node.links {
-                    if link >= graph.len() {
+                    if link >= graph.len() || linkless_node[link] {
                         continue;
                     }
 
@@ -262,6 +272,10 @@ impl KnowledgeGraphApp {
             }
 
             for i in 0..graph.len() {
+                if linkless_node[i] {
+                    continue;
+                }
+
                 let delta = positions[i] - center;
                 let distance = delta.length();
                 let gravity_force = delta.normalized() * (distance * gravity_strength);
@@ -270,6 +284,10 @@ impl KnowledgeGraphApp {
 
             let mut new_positions = positions.clone();
             for i in 0..graph.len() {
+                if linkless_node[i] {
+                    continue;
+                }
+
                 let force_magnitude = forces[i].length();
 
                 let movement = if force_magnitude > max_movement {
@@ -382,21 +400,20 @@ impl KnowledgeGraphApp {
                 text = node.title.trim_end_matches(".md").to_string();
             }
 
-            if node.cluster_id.is_some() {
-                let pos = transformed_positions[i];
-                ui.painter().circle(
-                    pos,
-                    size,
-                    rgb_color,
-                    Stroke::new(0.75 * self.zoom_factor, text_color),
-                );
+            // if node.cluster_id.is_some() {
+            let pos = transformed_positions[i];
+            ui.painter().circle(
+                pos,
+                size,
+                rgb_color,
+                Stroke::new(0.75 * self.zoom_factor, text_color),
+            );
 
-                if size > 5.0 && cursorin(self.cursor_loc, pos, size) {
-                    let font_id = egui::FontId::proportional(15.0 * (self.zoom_factor.sqrt()));
-                    text_info =
-                        Some((pos, egui::Align2::CENTER_CENTER, text, font_id, Color32::WHITE));
-                }
+            if size > 5.0 && cursorin(self.cursor_loc, pos, size) {
+                let font_id = egui::FontId::proportional(15.0 * (self.zoom_factor.sqrt()));
+                text_info = Some((pos, egui::Align2::CENTER_CENTER, text, font_id, Color32::WHITE));
             }
+            // }
         }
         if let Some((i, node)) = drawingstuf {
             for &link in &node.links {
@@ -566,12 +583,13 @@ impl KnowledgeGraphApp {
         if !self.graph_complete {
             self.initialize_positions(ui);
             self.graph_complete = true;
+            let linkess = self.linkless_nodes.clone();
 
             let postioninfo = Arc::clone(&self.thread_positions);
             let stop = Arc::clone(&self.stop);
             let graph = self.graph.clone();
             thread::spawn(move || {
-                Self::apply_spring_layout(postioninfo, &graph, 2500000, screen, stop);
+                Self::apply_spring_layout(postioninfo, &graph, 2500000, screen, stop, linkess);
             });
         }
 

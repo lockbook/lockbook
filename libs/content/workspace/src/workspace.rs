@@ -21,7 +21,6 @@ use std::time::{Duration, Instant};
 use std::{mem, thread};
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
-use crate::data::lockbook_data;
 use crate::knowledge_graph::KnowledgeGraphApp;
 use crate::output::{DirtynessMsg, Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
@@ -56,10 +55,6 @@ pub struct Workspace {
 
     pub status: WsStatus,
     pub out: Response,
-
-    pub knowledge_graph: Option<KnowledgeGraphApp>,
-    pub data_given: bool,
-    pub run_graph: bool,
 }
 
 pub enum WsMsg {
@@ -148,9 +143,6 @@ impl Workspace {
             focused_parent: None,
             last_touch_event: None,
             out: output,
-            knowledge_graph: None,
-            data_given: false,
-            run_graph: false,
         }
     }
 
@@ -379,13 +371,13 @@ impl Workspace {
                 self.create_file(true);
             }
             if Button::default()
-                .text("graph")
+                .text("Graph")
                 .rounding(egui::Rounding::same(3.0))
                 .frame(true)
                 .show(ui)
                 .clicked()
             {
-                self.graph_called();
+                self.graph_called(self.core.clone());
             }
 
             ui.visuals_mut().widgets.inactive.fg_stroke =
@@ -796,7 +788,7 @@ impl Workspace {
         }
         // Ctrl-G to open graph
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::G)) {
-            self.graph_called();
+            self.graph_called(self.core.clone());
         }
 
         // tab navigation
@@ -839,13 +831,13 @@ impl Workspace {
             };
         }
     }
-    fn graph_called(&mut self) {
+    fn graph_called(&mut self, core: Lb) {
         if !self.tabs.iter().any(|t| t.name == "graph") {
             let id = Uuid::new_v4();
             self.upsert_tab(id, "graph", "", false, true);
-            let mut graph = lockbook_data(&self.core);
+            // let mut graph = lockbook_data(&self.core);
             if let Some(tab) = self.get_mut_tab_by_id(id) {
-                tab.content = Some(TabContent::Graph(KnowledgeGraphApp::new(&mut graph)));
+                tab.content = Some(TabContent::Graph(KnowledgeGraphApp::new(&core)));
             }
         }
     }
