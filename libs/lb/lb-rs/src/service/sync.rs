@@ -187,7 +187,6 @@ impl Lb {
         }
 
         let mut base_staged = (&mut db.base_metadata).to_lazy().stage(None);
-        // todo this deserves more scrutiny before this is merged
         base_staged.tree.removed = prunable_ids.clone().into_iter().collect();
         base_staged.promote()?;
 
