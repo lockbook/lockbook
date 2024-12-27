@@ -95,6 +95,13 @@ impl Pen {
     }
 
     fn show_hover_point(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext<'_>) {
+        let old_layer = pen_ctx.painter.layer_id();
+
+        pen_ctx.painter.set_layer_id(egui::LayerId {
+            order: egui::Order::PanelResizeLine,
+            id: "eraser_overlay".into(),
+        });
+
         if let Some((pos, instant)) = self.hover_pos {
             let is_current_path_empty = if let Some(Element::Path(path)) =
                 pen_ctx.buffer.elements.get_mut(&self.current_id)
@@ -116,11 +123,10 @@ impl Pen {
                 && !(pen_ctx.settings.pencil_only_drawing && pen_ctx.is_locked_vw_pen_only)
             {
                 let mut radius = self.active_stroke_width / 2.0;
-                if self.has_inf_thick {
-                    radius /= pen_ctx.buffer.master_transform.sx / 2.0;
-                } else {
+                if !self.has_inf_thick {
                     radius *= pen_ctx.buffer.master_transform.sx;
                 }
+
                 pen_ctx.painter.circle_filled(
                     pos,
                     radius,
@@ -129,6 +135,8 @@ impl Pen {
                 );
             }
         }
+
+        pen_ctx.painter.set_layer_id(old_layer);
     }
 
     pub fn end_path(&mut self, pen_ctx: &mut ToolContext, is_snapped: bool) {
@@ -490,7 +498,7 @@ pub struct DrawPayload {
 fn correct_start_of_path() {
     let mut pen = Pen::new(DynamicColor::default(), 1.0);
     let mut pen_ctx = ToolContext {
-        painter: &egui::Painter::new(
+        painter: &mut egui::Painter::new(
             egui::Context::default(),
             egui::LayerId::background(),
             egui::Rect::EVERYTHING,
@@ -544,7 +552,7 @@ fn cancel_touch_ui_event() {
 
     let mut pen = Pen::new(DynamicColor::default(), 1.0);
     let mut pen_ctx = ToolContext {
-        painter: &egui::Painter::new(
+        painter: &mut egui::Painter::new(
             egui::Context::default(),
             egui::LayerId::background(),
             egui::Rect::EVERYTHING,
