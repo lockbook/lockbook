@@ -2,26 +2,24 @@ use lb_rs::logic::file_like::FileLike;
 use lb_rs::logic::tree_like::TreeLike;
 use lb_rs::model::account::Account;
 use lb_rs::model::file_metadata::{FileMetadata, FileType};
+use lb_rs::service::keychain::Keychain;
 use test_utils::*;
 
 #[tokio::test]
 async fn test_create_path() {
     let account = &Account::new(random_name(), url());
-    let pk = &account.public_key();
+    let keychain = Keychain::from(Some(account));
     let root = FileMetadata::create_root(account)
         .unwrap()
-        .sign(account)
+        .sign(&keychain)
         .unwrap();
 
     let mut tree = vec![root.clone()].to_lazy().stage(vec![]);
-    tree.create_at_path("test1", root.id(), account, pk)
-        .unwrap();
-    tree.create_at_path("test2", root.id(), account, pk)
-        .unwrap();
-    tree.create_at_path("test3", root.id(), account, pk)
-        .unwrap();
+    tree.create_at_path("test1", root.id(), &keychain).unwrap();
+    tree.create_at_path("test2", root.id(), &keychain).unwrap();
+    tree.create_at_path("test3", root.id(), &keychain).unwrap();
 
-    let paths = tree.list_paths(None, account).unwrap();
+    let paths = tree.list_paths(None, &keychain).unwrap();
     assert_eq!(paths.len(), 4);
     assert!(paths.contains(&"/".to_string()));
     assert!(paths.contains(&"/test1".to_string()));
@@ -32,17 +30,17 @@ async fn test_create_path() {
 #[tokio::test]
 async fn test_path2() {
     let account = &Account::new(random_name(), url());
-    let pk = &account.public_key();
+    let keychain = Keychain::from(Some(account));
     let root = FileMetadata::create_root(account)
         .unwrap()
-        .sign(account)
+        .sign(&keychain)
         .unwrap();
 
     let mut tree = vec![root.clone()].to_lazy().stage(vec![]);
-    tree.create_at_path("test1/2/3", root.id(), account, pk)
+    tree.create_at_path("test1/2/3", root.id(), &keychain)
         .unwrap();
 
-    let paths = tree.list_paths(None, account).unwrap();
+    let paths = tree.list_paths(None, &keychain).unwrap();
 
     assert_eq!(paths.len(), 4);
     assert!(paths.contains(&"/".to_string()));
@@ -54,49 +52,49 @@ async fn test_path2() {
 #[tokio::test]
 async fn test_path_to_id() {
     let account = &Account::new(random_name(), url());
-    let pk = &account.public_key();
+    let keychain = Keychain::from(Some(account));
     let root = FileMetadata::create_root(account)
         .unwrap()
-        .sign(account)
+        .sign(&keychain)
         .unwrap();
 
     let mut tree = vec![root.clone()].to_lazy().stage(vec![]);
-    tree.create_at_path("test1/2/3", root.id(), account, pk)
+    tree.create_at_path("test1/2/3", root.id(), &keychain)
         .unwrap();
 
-    assert_eq!(tree.path_to_id("/", root.id(), account).unwrap(), *root.id());
+    assert_eq!(tree.path_to_id("/", root.id(), &keychain).unwrap(), *root.id());
 
-    let test1_id = tree.path_to_id("/test1", root.id(), account).unwrap();
-    assert_eq!(tree.name_using_links(&test1_id, account).unwrap(), "test1");
+    let test1_id = tree.path_to_id("/test1", root.id(), &keychain).unwrap();
+    assert_eq!(tree.name_using_links(&test1_id, &keychain).unwrap(), "test1");
 
-    let two_id = tree.path_to_id("/test1/2", root.id(), account).unwrap();
-    assert_eq!(tree.name_using_links(&two_id, account).unwrap(), "2");
+    let two_id = tree.path_to_id("/test1/2", root.id(), &keychain).unwrap();
+    assert_eq!(tree.name_using_links(&two_id, &keychain).unwrap(), "2");
 
-    let three_id = tree.path_to_id("/test1/2/3", root.id(), account).unwrap();
-    assert_eq!(tree.name_using_links(&three_id, account).unwrap(), "3");
+    let three_id = tree.path_to_id("/test1/2/3", root.id(), &keychain).unwrap();
+    assert_eq!(tree.name_using_links(&three_id, &keychain).unwrap(), "3");
 }
 
 #[tokio::test]
 async fn test_path_file_types() {
     let account = &Account::new(random_name(), url());
-    let pk = &account.public_key();
+    let keychain = Keychain::from(Some(account));
     let root = FileMetadata::create_root(account)
         .unwrap()
-        .sign(account)
+        .sign(&keychain)
         .unwrap();
 
     let mut tree = vec![root.clone()].to_lazy().stage(vec![]);
-    tree.create_at_path("test1/2/3", root.id(), account, pk)
+    tree.create_at_path("test1/2/3", root.id(), &keychain)
         .unwrap();
 
-    assert_eq!(tree.path_to_id("/", root.id(), account).unwrap(), *root.id());
+    assert_eq!(tree.path_to_id("/", root.id(), &keychain).unwrap(), *root.id());
 
-    let test1_id = tree.path_to_id("/test1", root.id(), account).unwrap();
+    let test1_id = tree.path_to_id("/test1", root.id(), &keychain).unwrap();
     assert_eq!(tree.find(&test1_id).unwrap().file_type(), FileType::Folder);
 
-    let two_id = tree.path_to_id("/test1/2", root.id(), account).unwrap();
+    let two_id = tree.path_to_id("/test1/2", root.id(), &keychain).unwrap();
     assert_eq!(tree.find(&two_id).unwrap().file_type(), FileType::Folder);
 
-    let three_id = tree.path_to_id("/test1/2/3", root.id(), account).unwrap();
+    let three_id = tree.path_to_id("/test1/2/3", root.id(), &keychain).unwrap();
     assert_eq!(tree.find(&three_id).unwrap().file_type(), FileType::Document);
 }

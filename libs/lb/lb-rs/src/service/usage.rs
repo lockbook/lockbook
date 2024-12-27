@@ -37,7 +37,7 @@ impl Lb {
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let mut breakdown = HashMap::default();
 
-        for id in tree.owned_ids() {
+        for id in tree.ids() {
             let is_file_deleted = tree.calculate_deleted(&id)?;
             let file = tree.find(&id)?;
 
@@ -60,7 +60,7 @@ impl Lb {
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
         let mut local_usage: u64 = 0;
-        for id in tree.owned_ids() {
+        for id in tree.ids() {
             let is_file_deleted = tree.calculate_deleted(&id)?;
             let file = tree.find(&id)?;
 

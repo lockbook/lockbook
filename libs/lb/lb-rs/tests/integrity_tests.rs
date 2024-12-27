@@ -62,12 +62,8 @@ async fn test_invalid_file_name_slash() {
     let mut tx = core.begin_tx().await;
     let db = tx.db();
     let mut tree = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
-    let key = tree
-        .decrypt_key(&doc.id, &db.account.get().unwrap().clone())
-        .unwrap();
-    let parent = tree
-        .decrypt_key(&doc.parent, &db.account.get().unwrap().clone())
-        .unwrap();
+    let key = tree.decrypt_key(&doc.id, &core.keychain).unwrap();
+    let parent = tree.decrypt_key(&doc.parent, &core.keychain).unwrap();
     let new_name = SecretFileName::from_str("te/st", &key, &parent).unwrap();
     let mut doc = tree.find(&doc.id).unwrap().clone();
     doc.timestamped_value.value.name = new_name;
@@ -85,12 +81,8 @@ async fn empty_filename() {
     let mut tx = core.begin_tx().await;
     let db = tx.db();
     let mut tree = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
-    let key = tree
-        .decrypt_key(&doc.id, &db.account.get().unwrap().clone())
-        .unwrap();
-    let parent = tree
-        .decrypt_key(&doc.parent, &db.account.get().unwrap().clone())
-        .unwrap();
+    let key = tree.decrypt_key(&doc.id, &core.keychain).unwrap();
+    let parent = tree.decrypt_key(&doc.parent, &core.keychain).unwrap();
     let new_name = SecretFileName::from_str("", &key, &parent).unwrap();
     let mut doc = tree.find(&doc.id).unwrap().clone();
     doc.timestamped_value.value.name = new_name;
@@ -169,12 +161,8 @@ async fn test_name_conflict() {
     let mut tx = core.begin_tx().await;
     let db = tx.db();
     let mut tree = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
-    let key = tree
-        .decrypt_key(&doc.id, &db.account.get().unwrap().clone())
-        .unwrap();
-    let parent = tree
-        .decrypt_key(&doc.parent, &db.account.get().unwrap().clone())
-        .unwrap();
+    let key = tree.decrypt_key(&doc.id, &core.keychain).unwrap();
+    let parent = tree.decrypt_key(&doc.parent, &core.keychain).unwrap();
     let new_name = SecretFileName::from_str("document2.md", &key, &parent).unwrap();
     let mut doc = tree.find(&doc.id).unwrap().clone();
     doc.timestamped_value.value.name = new_name;
