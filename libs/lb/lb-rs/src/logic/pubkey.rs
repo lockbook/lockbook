@@ -13,7 +13,7 @@ pub fn generate_key() -> SecretKey {
 }
 
 pub fn sign<T: Serialize>(
-    sk: &SecretKey, to_sign: T, time_getter: TimeGetter,
+    sk: &SecretKey, pk: &PublicKey, to_sign: T, time_getter: TimeGetter,
 ) -> SharedResult<ECSigned<T>> {
     let timestamped = timestamp(to_sign, time_getter);
     let serialized = bincode::serialize(&timestamped)?;
@@ -23,7 +23,7 @@ pub fn sign<T: Serialize>(
     Ok(ECSigned {
         timestamped_value: timestamped,
         signature: signature.serialize().to_vec(),
-        public_key: PublicKey::from_secret_key(sk),
+        public_key: *pk,
     })
 }
 
@@ -88,16 +88,18 @@ mod unit_tests {
 
     #[test]
     fn ec_test_sign_verify() {
-        let key = generate_key();
-        let value = sign(&key, "Test", EARLY_CLOCK).unwrap();
-        verify(&PublicKey::from_secret_key(&key), &value, 20, 20, LATE_CLOCK).unwrap();
+        let sk = generate_key();
+        let pk = PublicKey::from_secret_key(&sk);
+        let value = sign(&sk, &pk, "Test", EARLY_CLOCK).unwrap();
+        verify(&pk, &value, 20, 20, LATE_CLOCK).unwrap();
     }
 
     #[test]
     fn ec_test_sign_verify_late() {
-        let key = generate_key();
-        let value = sign(&key, "Test", EARLY_CLOCK).unwrap();
-        verify(&PublicKey::from_secret_key(&key), &value, 10, 10, LATE_CLOCK).unwrap_err();
+        let sk = generate_key();
+        let pk = PublicKey::from_secret_key(&sk);
+        let value = sign(&sk, &pk, "Test", EARLY_CLOCK).unwrap();
+        verify(&pk, &value, 10, 10, LATE_CLOCK).unwrap_err();
     }
 
     #[test]

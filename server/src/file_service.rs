@@ -62,14 +62,14 @@ where
                 .map(|f| f.size_bytes)
                 .sum::<u64>();
 
-            for id in tree.owned_ids() {
+            for id in tree.ids() {
                 if tree.calculate_deleted(&id)? {
                     prior_deleted.insert(id);
                 }
             }
 
             let mut tree = tree.stage_diff(request.updates.clone())?;
-            for id in tree.owned_ids() {
+            for id in tree.ids() {
                 if tree.calculate_deleted(&id)? {
                     current_deleted.insert(id);
                 }
@@ -91,7 +91,7 @@ where
 
             let tree = tree.promote()?;
 
-            for id in tree.owned_ids() {
+            for id in tree.ids() {
                 if tree.find(&id)?.is_document()
                     && current_deleted.contains(&id)
                     && !prior_deleted.contains(&id)
@@ -445,7 +445,9 @@ where
                 &mut db.file_children,
                 &mut db.metas,
             )?
-            .owned_ids(),
+            .ids()
+            .into_iter()
+            .collect(),
         })
     }
 
@@ -467,7 +469,7 @@ where
         .to_lazy();
 
         let mut result_ids = HashSet::new();
-        for id in tree.owned_ids() {
+        for id in tree.ids() {
             let file = tree.find(&id)?;
             if file.version >= request.since_metadata_version {
                 result_ids.insert(id);
@@ -643,7 +645,7 @@ where
         )?
         .to_lazy();
 
-        for id in tree.owned_ids() {
+        for id in tree.ids() {
             if !tree.calculate_deleted(&id)? {
                 let file = tree.find(&id)?;
                 if file.is_document() && file.document_hmac().is_some() {

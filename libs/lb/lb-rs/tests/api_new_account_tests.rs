@@ -12,7 +12,7 @@ async fn random_account() -> Account {
 async fn test_account(account: &Account) -> Result<NewAccountResponse, ApiError<NewAccountError>> {
     let root = FileMetadata::create_root(account)
         .unwrap()
-        .sign(account)
+        .sign_with(account)
         .unwrap();
     Network::default()
         .request(account, NewAccountRequest::new(account, &root))

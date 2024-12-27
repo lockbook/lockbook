@@ -2,7 +2,6 @@ use crate::logic::file_like::FileLike;
 use crate::logic::tree_like::{TreeLike, TreeLikeMut};
 use crate::logic::SharedResult;
 use serde::Serialize;
-use std::collections::HashSet;
 use uuid::Uuid;
 
 impl<F> TreeLike for db_rs::LookupTable<Uuid, F>
@@ -11,8 +10,8 @@ where
 {
     type F = F;
 
-    fn ids(&self) -> HashSet<&Uuid> {
-        self.get().keys().collect()
+    fn ids(&self) -> Vec<Uuid> {
+        self.get().keys().copied().collect()
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {

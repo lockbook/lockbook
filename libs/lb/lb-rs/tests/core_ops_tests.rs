@@ -3,15 +3,17 @@ use lb_rs::logic::symkey;
 use lb_rs::logic::tree_like::TreeLike;
 use lb_rs::model::account::Account;
 use lb_rs::model::file_metadata::{FileMetadata, FileType};
+use lb_rs::service::keychain::Keychain;
 use test_utils::*;
 use uuid::Uuid;
 
 #[tokio::test]
 async fn test_create() {
     let account = &Account::new(random_name(), url());
+    let keychain = Keychain::from(Some(account));
     let root = FileMetadata::create_root(account)
         .unwrap()
-        .sign(account)
+        .sign_with(account)
         .unwrap();
     let files = vec![root.clone()].to_lazy();
     let mut files = files.stage(vec![]);
@@ -22,19 +24,20 @@ async fn test_create() {
             root.id(),
             "test-doc",
             FileType::Document,
-            account,
+            &keychain,
         )
         .unwrap();
 
-    assert_eq!(files.name(&id, account).unwrap(), "test-doc");
+    assert_eq!(files.name(&id, &keychain).unwrap(), "test-doc");
 }
 
 #[tokio::test]
 async fn test_rename() {
     let account = &Account::new(random_name(), url());
+    let keychain = Keychain::from(Some(account));
     let root = FileMetadata::create_root(account)
         .unwrap()
-        .sign(account)
+        .sign(&keychain)
         .unwrap();
     let files = vec![root.clone()].to_lazy();
     let mut files = files.stage(vec![]);
@@ -45,21 +48,22 @@ async fn test_rename() {
             root.id(),
             "test-doc",
             FileType::Document,
-            account,
+            &keychain,
         )
         .unwrap();
 
-    files.rename(&id, "new-name", account).unwrap();
+    files.rename(&id, "new-name", &keychain).unwrap();
 
-    assert_eq!(files.name(&id, account).unwrap(), "new-name");
+    assert_eq!(files.name(&id, &keychain).unwrap(), "new-name");
 }
 
 #[tokio::test]
 async fn test_children_and_move() {
     let account = &Account::new(random_name(), url());
+    let keychain = Keychain::from(Some(account));
     let root = FileMetadata::create_root(account)
         .unwrap()
-        .sign(account)
+        .sign(&keychain)
         .unwrap();
 
     // Create a tree with a doc and a dir
@@ -72,11 +76,18 @@ async fn test_children_and_move() {
             root.id(),
             "test-doc",
             FileType::Document,
-            account,
+            &keychain,
         )
         .unwrap();
     let dir = tree
-        .create(Uuid::new_v4(), symkey::generate_key(), root.id(), "dir", FileType::Folder, account)
+        .create(
+            Uuid::new_v4(),
+            symkey::generate_key(),
+            root.id(),
+            "dir",
+            FileType::Folder,
+            &keychain,
+        )
         .unwrap();
 
     // Root should have 2 children and dir should have 0 child right now
@@ -85,7 +96,7 @@ async fn test_children_and_move() {
     let children = tree.children(root.id()).unwrap();
     assert_eq!(children.len(), 2);
 
-    tree.move_file(&doc, &dir, account).unwrap();
+    tree.move_file(&doc, &dir, &keychain).unwrap();
 
     // Dir should have 1 child after the move
     let children = tree.children(&dir).unwrap();

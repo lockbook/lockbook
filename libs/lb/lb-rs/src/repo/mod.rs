@@ -24,7 +24,10 @@ pub struct CoreV3 {
     pub root: Single<Uuid>,
     pub local_metadata: LookupTable<Uuid, SignedFile>,
     pub base_metadata: LookupTable<Uuid, SignedFile>,
+
+    /// map from pub key to username
     pub pub_key_lookup: LookupTable<Owner, String>,
+
     pub doc_events: List<DocEvent>,
 }
 

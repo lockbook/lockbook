@@ -62,7 +62,9 @@ fn file_logger(config: &Config) -> RollingFileAppender {
 
 fn server_logs() -> FilterFn {
     filter::filter_fn(|metadata| {
-        metadata.target().starts_with("lockbook") || metadata.target().starts_with("dbrs")
+        metadata.target().starts_with("lockbook")
+            || metadata.target().starts_with("dbrs")
+            || metadata.target().starts_with("lb_rs")
     })
 }
 

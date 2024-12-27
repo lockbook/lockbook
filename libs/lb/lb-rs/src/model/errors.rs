@@ -502,6 +502,9 @@ impl From<SharedError> for TestRepoError {
 
 impl From<LbErr> for TestRepoError {
     fn from(value: LbErr) -> Self {
+        if value.kind == LbErrKind::AccountNonexistent {
+            return Self::NoAccount;
+        }
         Self::Core(value)
     }
 }

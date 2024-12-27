@@ -43,6 +43,8 @@ impl<'a> ServerTree<'a> {
             to_get_descendants.extend(children);
         }
 
+        debug!("server tree created with ids: {:?}", ids);
+
         Ok(Self { ids, owned_files, shared_files, file_children, files })
     }
 }
@@ -50,8 +52,8 @@ impl<'a> ServerTree<'a> {
 impl TreeLike for ServerTree<'_> {
     type F = ServerFile;
 
-    fn ids(&self) -> HashSet<&Uuid> {
-        self.ids.iter().collect()
+    fn ids(&self) -> Vec<Uuid> {
+        self.ids.iter().copied().collect()
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {

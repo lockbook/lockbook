@@ -161,7 +161,7 @@ where
     where
         T: TreeLike,
     {
-        let ids = tree.owned_ids();
+        let ids = tree.ids();
         let root_id = ids
             .iter()
             .find(|file_id| match tree.find(file_id) {
@@ -421,7 +421,7 @@ where
                 &mut db.metas,
             )?
             .to_lazy();
-            let metas_to_delete = tree.owned_ids();
+            let metas_to_delete = tree.ids();
 
             for id in metas_to_delete.clone() {
                 if !tree.calculate_deleted(&id)? {
