@@ -166,7 +166,7 @@ impl Lb {
         if tree.calculate_deleted(&id)? {
             return Err(LbErrKind::FileNonexistent.into());
         }
-        if tree.access_mode(Owner(self.get_pk()?), &id)? < Some(UserAccessMode::Read) {
+        if tree.access_mode(Owner(self.keychain.get_pk()?), &id)? < Some(UserAccessMode::Read) {
             return Err(LbErrKind::FileNonexistent.into());
         }
 

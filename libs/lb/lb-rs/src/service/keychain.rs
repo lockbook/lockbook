@@ -45,33 +45,7 @@ impl From<Option<&Account>> for Keychain {
 
 impl Lb {
     pub fn get_account(&self) -> LbResult<&Account> {
-        self.keychain
-            .account
-            .get()
-            .ok_or_else(|| LbErrKind::AccountNonexistent.into())
-    }
-
-    pub fn get_pk(&self) -> LbResult<PublicKey> {
-        self.keychain
-            .public_key
-            .get()
-            .copied()
-            .ok_or_else(|| LbErrKind::AccountNonexistent.into())
-    }
-
-    #[doc(hidden)]
-    pub async fn cache_account(&self, account: Account) -> LbResult<()> {
-        let pk = account.public_key();
-        self.keychain
-            .account
-            .set(account)
-            .map_err(|_| LbErrKind::AccountExists)?;
-        self.keychain
-            .public_key
-            .set(pk)
-            .map_err(|_| LbErrKind::AccountExists)?;
-
-        Ok(())
+        self.keychain.get_account()
     }
 }
 

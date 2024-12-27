@@ -328,7 +328,7 @@ impl Lb {
         let remote_changes = &ctx.remote_changes;
 
         // fetch document updates and local documents for merge
-        let me = Owner(self.get_pk()?);
+        let me = Owner(self.keychain.get_pk()?);
 
         // compute merge changes
         let merge_changes = {
@@ -1075,7 +1075,7 @@ impl Lb {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
-        let me = Owner(self.get_pk()?);
+        let me = Owner(self.keychain.get_pk()?);
         let remote = db.base_metadata.stage(remote_changes).to_lazy();
         let mut result = Vec::new();
 

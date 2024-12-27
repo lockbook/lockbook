@@ -51,7 +51,7 @@ impl Lb {
         db.last_synced.insert(last_synced as i64)?;
         db.root.insert(root_id)?;
 
-        self.cache_account(account.clone()).await?;
+        self.keychain.cache_account(account.clone()).await?;
 
         tx.end();
 
@@ -111,7 +111,7 @@ impl Lb {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
         db.account.insert(account.clone())?;
-        self.cache_account(account.clone()).await?;
+        self.keychain.cache_account(account.clone()).await?;
 
         Ok(account)
     }
@@ -132,7 +132,7 @@ impl Lb {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
         db.account.insert(account.clone())?;
-        self.cache_account(account.clone()).await?;
+        self.keychain.cache_account(account.clone()).await?;
 
         Ok(account)
     }

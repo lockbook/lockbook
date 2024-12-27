@@ -43,7 +43,7 @@ impl Lb {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
-        let owner = Owner(self.get_pk()?);
+        let owner = Owner(self.keychain.get_pk()?);
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
         let mut result = Vec::new();
