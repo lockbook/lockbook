@@ -1,17 +1,12 @@
-use lb_rs::{
-    model::{
-        errors::{LbErr, LbErrKind},
-        work_unit::WorkUnit,
-    },
-    service::sync::{SyncProgress, SyncStatus},
-};
+use lb_rs::model::errors::LbErrKind;
+use lb_rs::model::work_unit::WorkUnit;
+use lb_rs::service::sync::SyncStatus;
 use tracing::error;
 
-use crate::{
-    output::DirtynessMsg,
-    workspace::{Workspace, WsMsg},
-};
-use std::{thread, time::Instant};
+use crate::output::DirtynessMsg;
+use crate::task_manager::{CompletedSync, FileCacheExt};
+use crate::workspace::Workspace;
+use std::time::Instant;
 
 impl Workspace {
     // todo should anyone outside workspace ever call this? Or should they call something more
@@ -21,47 +16,20 @@ impl Workspace {
             return;
         }
 
-        let sync_started = Instant::now();
-
         self.status.error = None;
         self.out.status_updated = true;
-        self.status.sync_started = Some(sync_started);
+        self.status.sync_started = Some(Instant::now());
 
-        let core = self.core.clone();
-        let update_tx = self.updates_tx.clone();
-        let ctx = self.ctx.clone();
-
-        thread::spawn(move || {
-            ctx.request_repaint();
-
-            let closure = {
-                let update_tx = update_tx.clone();
-                let ctx = ctx.clone();
-
-                move |p: SyncProgress| {
-                    update_tx.send(WsMsg::SyncMsg(p)).unwrap();
-                    ctx.request_repaint();
-                }
-            };
-
-            let result = core.sync(Some(Box::new(closure)));
-            update_tx.send(WsMsg::SyncDone(result)).unwrap();
-
-            ctx.request_repaint();
-        });
+        self.cache.queue_sync();
     }
 
-    pub fn sync_message(&mut self, prog: SyncProgress) {
-        self.out.status_updated = true;
-        self.status.sync_progress = prog.progress as f32 / prog.total as f32;
-        self.status.sync_message = Some(prog.msg);
-    }
+    pub fn sync_done(&mut self, outcome: CompletedSync) {
+        let CompletedSync { status_result, telemetry: _ } = outcome;
 
-    pub fn sync_done(&mut self, outcome: Result<SyncStatus, LbErr>) {
         self.out.status_updated = true;
         self.status.sync_started = None;
-        self.last_sync = Instant::now();
-        match outcome {
+        self.last_sync = Some(Instant::now());
+        match status_result {
             Ok(done) => {
                 self.status.error = None;
                 self.status.offline = false;
@@ -82,21 +50,15 @@ impl Workspace {
         }
     }
 
-    pub fn refresh_sync_status(&self) {
-        let core = self.core.clone();
-        let update_tx = self.updates_tx.clone();
-        let ctx = self.ctx.clone();
+    pub fn refresh_sync_status(&mut self) {
+        let last_synced = self.core.get_last_synced_human_string().unwrap();
+        let dirty_files = self.core.get_local_changes().unwrap();
+        let pending_shares = self.core.get_pending_shares().unwrap();
 
-        thread::spawn(move || {
-            let last_synced = core.get_last_synced_human_string().unwrap();
-            let dirty_files = core.get_local_changes().unwrap();
-            let pending_shares = core.get_pending_shares().unwrap();
+        let dirty = DirtynessMsg { last_synced, dirty_files, pending_shares };
 
-            let dirty = DirtynessMsg { last_synced, dirty_files, pending_shares };
-
-            update_tx.send(WsMsg::Dirtyness(dirty)).unwrap();
-            ctx.request_repaint();
-        });
+        self.out.status_updated = true;
+        self.status.dirtyness = dirty;
     }
 
     pub fn refresh_files(&mut self, work: &SyncStatus) {
@@ -112,10 +74,5 @@ impl Workspace {
                 }
             }
         }
-    }
-
-    pub fn dirty_msg(&mut self, dirt: DirtynessMsg) {
-        self.out.status_updated = true;
-        self.status.dirtyness = dirt;
     }
 }

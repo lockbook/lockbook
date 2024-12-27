@@ -2,12 +2,13 @@ use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
+use crate::task_manager::SaveRequest;
 use chrono::DateTime;
 use egui::Id;
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
-use lb_rs::model::file_metadata::{DocumentHmac, FileType};
+use lb_rs::model::file_metadata::FileType;
 use lb_rs::Uuid;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -35,30 +36,24 @@ pub struct Tab {
     pub load_queued: bool,
 }
 
-#[derive(Debug, Default)]
-pub struct SaveRequest {
-    pub id: lb_rs::Uuid,
-    pub old_hmac: Option<DocumentHmac>,
-    pub seq: usize,
-    pub content: String,
-    pub safe_write: bool,
-}
-
 impl Tab {
     pub fn make_save_request(&self) -> Option<SaveRequest> {
         let tab_content = self.content.as_ref()?;
-        let mut result = SaveRequest { id: self.id, ..Default::default() };
+        let mut result = SaveRequest {
+            id: self.id,
+            old_hmac: Default::default(),
+            seq: Default::default(),
+            content: Default::default(),
+        };
         match tab_content {
             TabContent::Markdown(md) => {
                 result.old_hmac = md.hmac;
                 result.seq = md.buffer.current.seq;
                 result.content = md.buffer.current.text.clone();
-                result.safe_write = true;
             }
             TabContent::Svg(svg) => {
                 result.old_hmac = svg.buffer.open_file_hmac;
                 result.content = svg.buffer.serialize();
-                result.safe_write = true;
             }
             _ => return None,
         };

@@ -8,9 +8,9 @@ use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::service::search::{ContentMatch, SearchConfig, SearchResult};
 use lb::Uuid;
+use workspace_rs::show::InputStateExt;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
-use workspace_rs::workspace::InputStateExt;
 
 use crate::model::DocType;
 
