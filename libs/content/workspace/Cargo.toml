@@ -31,6 +31,7 @@ tldextract = "0.6.0"
 tracing = "0.1.5"
 tracing-test = "0.2.5"
 indexmap = { version = "2.5.0", features = ["rayon"] }
+regex = "1.10.6"
 
 lb-rs = { path = "../../lb/lb-rs" }
 
