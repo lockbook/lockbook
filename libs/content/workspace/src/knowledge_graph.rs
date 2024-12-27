@@ -400,20 +400,21 @@ impl KnowledgeGraphApp {
                 text = node.title.trim_end_matches(".md").to_string();
             }
 
-            // if node.cluster_id.is_some() {
-            let pos = transformed_positions[i];
-            ui.painter().circle(
-                pos,
-                size,
-                rgb_color,
-                Stroke::new(0.75 * self.zoom_factor, text_color),
-            );
+            if node.cluster_id.is_some() {
+                let pos = transformed_positions[i];
+                ui.painter().circle(
+                    pos,
+                    size,
+                    rgb_color,
+                    Stroke::new(0.75 * self.zoom_factor, text_color),
+                );
 
-            if size > 5.0 && cursorin(self.cursor_loc, pos, size) {
-                let font_id = egui::FontId::proportional(15.0 * (self.zoom_factor.sqrt()));
-                text_info = Some((pos, egui::Align2::CENTER_CENTER, text, font_id, Color32::WHITE));
+                if size > 5.0 && cursorin(self.cursor_loc, pos, size) {
+                    let font_id = egui::FontId::proportional(15.0 * (self.zoom_factor.sqrt()));
+                    text_info =
+                        Some((pos, egui::Align2::CENTER_CENTER, text, font_id, Color32::WHITE));
+                }
             }
-            // }
         }
         if let Some((i, node)) = drawingstuf {
             for &link in &node.links {
