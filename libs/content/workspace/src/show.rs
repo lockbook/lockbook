@@ -1,3 +1,4 @@
+use basic_human_duration::ChronoHumanDuration;
 use core::f32;
 use egui::emath::easing;
 use egui::os::OperatingSystem;
@@ -7,7 +8,8 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use crate::output::Response;
-use crate::tab::{Tab, TabContent, TabFailure};
+use crate::tab::{TabContent, TabFailure};
+use crate::task_manager::TaskManagerExt;
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::Workspace;
@@ -237,22 +239,11 @@ impl Workspace {
                 egui::ScrollArea::horizontal()
                     .max_width(ui.available_width())
                     .show(ui, |ui| {
-                        for (i, maybe_resp) in self
-                            .tabs
-                            .iter_mut()
-                            .enumerate()
-                            .map(|(i, t)| {
-                                if is_tab_strip_visible {
-                                    tab_label(ui, t, self.active_tab == i, active_tab_changed)
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect::<Vec<Option<TabLabelResponse>>>()
-                            .iter()
-                            .enumerate()
-                        {
-                            if let Some(resp) = maybe_resp {
+                        for i in 0..self.tabs.len() {
+                            if let (true, Some(resp)) = (
+                                is_tab_strip_visible,
+                                self.tab_label(ui, i, self.active_tab == i, active_tab_changed),
+                            ) {
                                 match resp {
                                     TabLabelResponse::Clicked => {
                                         if self.active_tab == i {
@@ -422,184 +413,285 @@ impl Workspace {
             };
         }
     }
+
+    fn tab_label(
+        &mut self, ui: &mut egui::Ui, t: usize, is_active: bool, active_tab_changed: bool,
+    ) -> Option<TabLabelResponse> {
+        let t = &mut self.tabs[t];
+        let mut result = None;
+
+        let icon_size = 16.0;
+        let x_icon = Icon::CLOSE.size(icon_size);
+        let status_icon = if self.tasks.load_or_save_queued(t.id) {
+            Icon::SCHEDULE.size(icon_size)
+        } else if self.tasks.load_or_save_in_progress(t.id) {
+            Icon::SAVE.size(icon_size)
+        } else if t.is_dirty() {
+            Icon::CIRCLE.size(icon_size)
+        } else {
+            Icon::CHECK_CIRCLE.size(icon_size)
+        };
+
+        let padding_x = 10.;
+        let w = 160.;
+        let h = 40.;
+
+        let (tab_label_rect, tab_label_resp) = ui.allocate_exact_size(
+            (w, h).into(),
+            Sense { click: true, drag: false, focusable: false },
+        );
+
+        if is_active {
+            ui.painter().rect(
+                tab_label_rect,
+                0.,
+                ui.style().visuals.extreme_bg_color,
+                egui::Stroke::NONE,
+            );
+        };
+
+        if is_active && active_tab_changed {
+            tab_label_resp.scroll_to_me(None);
+        }
+
+        // renaming
+        if let Some(ref mut str) = t.rename {
+            let res = ui
+                .allocate_ui_at_rect(tab_label_rect, |ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(str)
+                            .frame(false)
+                            .id(egui::Id::new("rename_tab")),
+                    )
+                })
+                .inner;
+
+            if !res.has_focus() && !res.lost_focus() {
+                // request focus on the first frame (todo: wrong but works)
+                res.request_focus();
+            }
+            if res.has_focus() {
+                // focus lock filter must be set every frame
+                ui.memory_mut(|m| {
+                    m.set_focus_lock_filter(
+                        res.id,
+                        EventFilter {
+                            tab: true, // suppress 'tab' behavior
+                            horizontal_arrows: true,
+                            vertical_arrows: true,
+                            escape: false, // press 'esc' to release focus
+                        },
+                    )
+                })
+            }
+
+            // submit
+            if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                result = Some(TabLabelResponse::Renamed(str.to_owned()));
+                // t.rename = None; is done by code processing this response
+            }
+
+            // release focus to cancel ('esc' or click elsewhere)
+            if res.lost_focus() {
+                t.rename = None;
+            }
+        } else {
+            // interact with button rect whether it's shown or not
+            let close_button_pos = egui::pos2(
+                tab_label_rect.max.x - padding_x - x_icon.size,
+                tab_label_rect.center().y - x_icon.size / 2.0,
+            );
+            let close_button_rect =
+                egui::Rect::from_min_size(close_button_pos, egui::vec2(x_icon.size, x_icon.size))
+                    .expand(2.0);
+            let close_button_resp = ui.interact(
+                close_button_rect,
+                Id::new("tab label close button").with(t.id),
+                Sense { click: true, drag: false, focusable: false },
+            );
+
+            let status_icon_pos = egui::pos2(
+                tab_label_rect.min.x + padding_x,
+                tab_label_rect.center().y - status_icon.size / 2.0,
+            );
+            let status_icon_rect = egui::Rect::from_min_size(
+                status_icon_pos,
+                egui::vec2(status_icon.size, status_icon.size),
+            )
+            .expand(2.0);
+
+            // touch mode: always show close button
+            let touch_mode =
+                matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
+            let show_close_button =
+                touch_mode || tab_label_resp.hovered() || close_button_resp.hovered();
+
+            // draw backgrounds and set cursor icon
+            if close_button_resp.hovered() {
+                ui.painter().rect(
+                    close_button_rect,
+                    2.0,
+                    ui.visuals().code_bg_color,
+                    egui::Stroke::NONE,
+                );
+                ui.output_mut(|o: &mut egui::PlatformOutput| {
+                    o.cursor_icon = egui::CursorIcon::PointingHand
+                });
+            } else if tab_label_resp.hovered() {
+                ui.output_mut(|o: &mut egui::PlatformOutput| {
+                    o.cursor_icon = egui::CursorIcon::PointingHand
+                });
+            }
+
+            // draw status icon
+            {
+                let icon_draw_pos = egui::pos2(
+                    tab_label_rect.min.x + padding_x,
+                    tab_label_rect.center().y - status_icon.size / 2.0,
+                );
+
+                let icon: egui::WidgetText = (&status_icon).into();
+                let icon = icon.into_galley(
+                    ui,
+                    Some(TextWrapMode::Extend),
+                    status_icon.size,
+                    egui::TextStyle::Body,
+                );
+                ui.painter()
+                    .galley(icon_draw_pos, icon, ui.visuals().text_color());
+            }
+
+            // status icon tooltip explains situation
+            ui.ctx()
+                .style_mut(|s| s.visuals.menu_rounding = (2.).into());
+            ui.interact(
+                status_icon_rect,
+                Id::new("tab label status icon").with(t.id),
+                Sense { click: false, drag: false, focusable: false },
+            )
+            .on_hover_ui(|ui| {
+                let text = if self.tasks.load_or_save_queued(t.id) {
+                    "save queued"
+                } else if self.tasks.load_or_save_in_progress(t.id) {
+                    "save in progress"
+                } else if t.is_dirty() {
+                    "unsaved changes"
+                } else {
+                    "all changes saved"
+                };
+                let text: egui::WidgetText = text.into();
+                let text =
+                    text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Small);
+                ui.add(egui::Label::new(text));
+
+                let last_saved = {
+                    let d = time::Duration::milliseconds(t.last_saved.elapsed().as_millis() as _);
+                    let minutes = d.whole_minutes();
+                    let seconds = d.whole_seconds();
+                    if seconds > 0 && minutes == 0 {
+                        if seconds <= 1 {
+                            "1 second ago".to_string()
+                        } else {
+                            format!("{seconds} seconds ago")
+                        }
+                    } else {
+                        d.format_human().to_string()
+                    }
+                };
+                let text: egui::WidgetText = format!("last saved {last_saved}").into();
+                let text =
+                    text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Small);
+                ui.add(egui::Label::new(text));
+
+                ui.ctx().request_repaint_after_secs(1.0);
+            });
+
+            // draw text
+            let text: egui::WidgetText = (&t.name).into();
+            let wrap_width = if show_close_button {
+                w - (padding_x + status_icon.size + padding_x + padding_x + x_icon.size + padding_x)
+            } else {
+                w - (padding_x + status_icon.size + padding_x + padding_x)
+            };
+
+            // tooltip contains unelided text
+            let mut text_rect = tab_label_resp.rect;
+            text_rect.min.x = status_icon_rect.max.x;
+            text_rect.max.x = close_button_rect.min.x;
+            ui.interact(
+                text_rect,
+                Id::new("tab label text").with(t.id),
+                Sense { click: false, drag: false, focusable: false },
+            )
+            .on_hover_ui(|ui| {
+                let text = text.clone().into_galley(
+                    ui,
+                    Some(TextWrapMode::Extend),
+                    wrap_width,
+                    egui::TextStyle::Small,
+                );
+                ui.add(egui::Label::new(text));
+            });
+
+            let text = text.into_galley(
+                ui,
+                Some(TextWrapMode::Truncate),
+                wrap_width,
+                egui::TextStyle::Small,
+            );
+            let text_color = ui.style().interact(&tab_label_resp).text_color();
+            let text_pos = egui::pos2(
+                tab_label_rect.min.x + padding_x + status_icon.size + padding_x,
+                tab_label_rect.center().y - 0.5 * text.size().y,
+            );
+            ui.painter().galley(text_pos, text, text_color);
+
+            // draw close button icon
+            if show_close_button {
+                let icon_draw_pos = egui::pos2(
+                    close_button_rect.center().x - x_icon.size / 2.,
+                    close_button_rect.center().y - x_icon.size / 2.2,
+                );
+                let icon: egui::WidgetText = (&x_icon).into();
+                let icon_color = if close_button_resp.is_pointer_button_down_on() {
+                    ui.visuals().widgets.active.bg_fill
+                } else {
+                    ui.visuals().text_color()
+                };
+                let icon = icon.into_galley(
+                    ui,
+                    Some(TextWrapMode::Extend),
+                    x_icon.size,
+                    egui::TextStyle::Body,
+                );
+                ui.painter().galley(icon_draw_pos, icon, icon_color);
+            }
+
+            // respond to input
+            if close_button_resp.clicked() || tab_label_resp.middle_clicked() {
+                result = Some(TabLabelResponse::Closed);
+            } else if tab_label_resp.clicked() {
+                result = Some(TabLabelResponse::Clicked);
+            }
+        }
+
+        // draw separators
+        let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+        if !is_active {
+            ui.painter()
+                .hline(tab_label_rect.x_range(), tab_label_rect.max.y, sep_stroke);
+        }
+        ui.painter()
+            .vline(tab_label_rect.max.x, tab_label_rect.y_range(), sep_stroke);
+
+        result
+    }
 }
 
 enum TabLabelResponse {
     Clicked,
     Closed,
     Renamed(String),
-}
-
-fn tab_label(
-    ui: &mut egui::Ui, t: &mut Tab, is_active: bool, active_tab_changed: bool,
-) -> Option<TabLabelResponse> {
-    let mut result = None;
-
-    let x_icon = Icon::CLOSE.size(16.0);
-
-    let padding_x = 10.;
-    let w = 160.;
-    let h = 40.;
-
-    let (tab_label_rect, tab_label_resp) =
-        ui.allocate_exact_size((w, h).into(), Sense { click: true, drag: false, focusable: false });
-
-    if is_active {
-        ui.painter().rect(
-            tab_label_rect,
-            0.,
-            ui.style().visuals.extreme_bg_color,
-            egui::Stroke::NONE,
-        );
-    };
-
-    if is_active && active_tab_changed {
-        tab_label_resp.scroll_to_me(None);
-    }
-
-    // renaming
-    if let Some(ref mut str) = t.rename {
-        let res = ui
-            .allocate_ui_at_rect(tab_label_rect, |ui| {
-                ui.add(
-                    egui::TextEdit::singleline(str)
-                        .frame(false)
-                        .id(egui::Id::new("rename_tab")),
-                )
-            })
-            .inner;
-
-        if !res.has_focus() && !res.lost_focus() {
-            // request focus on the first frame (todo: wrong but works)
-            res.request_focus();
-        }
-        if res.has_focus() {
-            // focus lock filter must be set every frame
-            ui.memory_mut(|m| {
-                m.set_focus_lock_filter(
-                    res.id,
-                    EventFilter {
-                        tab: true, // suppress 'tab' behavior
-                        horizontal_arrows: true,
-                        vertical_arrows: true,
-                        escape: false, // press 'esc' to release focus
-                    },
-                )
-            })
-        }
-
-        // submit
-        if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-            result = Some(TabLabelResponse::Renamed(str.to_owned()));
-            // t.rename = None; is done by code processing this response
-        }
-
-        // release focus to cancel ('esc' or click elsewhere)
-        if res.lost_focus() {
-            t.rename = None;
-        }
-    } else {
-        // interact with button rect whether it's shown or not
-        let close_button_pos = egui::pos2(
-            tab_label_rect.max.x - padding_x - x_icon.size,
-            tab_label_rect.center().y - x_icon.size / 2.0,
-        );
-        let close_button_rect =
-            egui::Rect::from_min_size(close_button_pos, egui::vec2(x_icon.size, x_icon.size))
-                .expand(2.0);
-        let close_button_resp = ui.interact(
-            close_button_rect,
-            Id::new("tab label close button").with(t.id),
-            Sense { click: true, drag: false, focusable: false },
-        );
-
-        // touch mode: always show close button
-        let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
-        let show_close_button =
-            touch_mode || tab_label_resp.hovered() || close_button_resp.hovered();
-
-        // draw backgrounds and set cursor icon
-        if close_button_resp.hovered() {
-            ui.painter().rect(
-                close_button_rect,
-                2.0,
-                ui.visuals().code_bg_color,
-                egui::Stroke::NONE,
-            );
-            ui.output_mut(|o: &mut egui::PlatformOutput| {
-                o.cursor_icon = egui::CursorIcon::PointingHand
-            });
-        } else if tab_label_resp.hovered() {
-            ui.output_mut(|o: &mut egui::PlatformOutput| {
-                o.cursor_icon = egui::CursorIcon::PointingHand
-            });
-        }
-
-        // draw text
-        let text: egui::WidgetText = (&t.name).into();
-        let wrap_width = if show_close_button {
-            w - (padding_x * 3. + x_icon.size + 1.)
-        } else {
-            w - (padding_x * 2.)
-        };
-
-        // tooltip contains unelided text
-        ui.ctx()
-            .style_mut(|s| s.visuals.menu_rounding = (2.).into());
-        let tab_label_resp = tab_label_resp.on_hover_ui(|ui| {
-            let text = text.clone().into_galley(
-                ui,
-                Some(TextWrapMode::Extend),
-                wrap_width,
-                egui::TextStyle::Small,
-            );
-            ui.add(egui::Label::new(text));
-        });
-
-        let text =
-            text.into_galley(ui, Some(TextWrapMode::Truncate), wrap_width, egui::TextStyle::Small);
-        let text_color = ui.style().interact(&tab_label_resp).text_color();
-        let text_pos = egui::pos2(
-            tab_label_rect.min.x + padding_x,
-            tab_label_rect.center().y - 0.5 * text.size().y,
-        );
-        ui.painter().galley(text_pos, text, text_color);
-
-        // draw close button icon
-        if show_close_button {
-            let icon_draw_pos = egui::pos2(
-                close_button_rect.center().x - x_icon.size / 2.,
-                close_button_rect.center().y - x_icon.size / 2.2,
-            );
-            let icon: egui::WidgetText = (&x_icon).into();
-            let icon_color = if close_button_resp.is_pointer_button_down_on() {
-                ui.visuals().widgets.active.bg_fill
-            } else {
-                ui.visuals().text_color()
-            };
-            let icon =
-                icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
-            ui.painter().galley(icon_draw_pos, icon, icon_color);
-        }
-
-        // respond to input
-        if close_button_resp.clicked() || tab_label_resp.middle_clicked() {
-            result = Some(TabLabelResponse::Closed);
-        } else if tab_label_resp.clicked() {
-            result = Some(TabLabelResponse::Clicked);
-        }
-    }
-
-    // draw separators
-    let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
-    if !is_active {
-        ui.painter()
-            .hline(tab_label_rect.x_range(), tab_label_rect.max.y, sep_stroke);
-    }
-    ui.painter()
-        .vline(tab_label_rect.max.x, tab_label_rect.y_range(), sep_stroke);
-
-    result
 }
 
 // The only difference from count_and_consume_key is that here we use matches_exact instead of matches_logical,

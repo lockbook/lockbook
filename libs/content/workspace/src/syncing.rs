@@ -4,7 +4,7 @@ use lb_rs::service::sync::SyncStatus;
 use tracing::error;
 
 use crate::output::DirtynessMsg;
-use crate::task_manager::{CompletedSync, FileCacheExt};
+use crate::task_manager::{CompletedSync, TaskManagerExt};
 use crate::workspace::Workspace;
 use std::time::Instant;
 
@@ -20,7 +20,7 @@ impl Workspace {
         self.out.status_updated = true;
         self.status.sync_started = Some(Instant::now());
 
-        self.cache.queue_sync();
+        self.tasks.queue_sync();
     }
 
     pub fn sync_done(&mut self, outcome: CompletedSync) {

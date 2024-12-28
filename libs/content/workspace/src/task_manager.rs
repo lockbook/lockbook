@@ -270,7 +270,7 @@ impl TaskManager {
         let sync_to_launch =
             if should_sync { mem::take(&mut self.queued_syncs).into_iter().next() } else { None };
 
-        // Actual launching happens in `impl FileCacheExt for Arc<Mutex<FileCache>>` block because it needs cloned Arc
+        // Actual launching happens in `impl TaskManagerExt for Arc<Mutex<TaskManager>>` block because it needs cloned Arc
         InnerResponse {
             loads_to_launch: loads_to_launch.into_values().collect(),
             saves_to_launch: saves_to_launch.into_values().collect(),
@@ -279,6 +279,18 @@ impl TaskManager {
             completed_saves: mem::take(&mut self.completed_saves),
             completed_sync: mem::take(&mut self.completed_sync),
         }
+    }
+
+    fn load_or_save_queued(&self, id: Uuid) -> bool {
+        let load_queued = self
+            .queued_loads
+            .iter()
+            .any(|queued_load| queued_load.request.id == id);
+        let save_queued = self
+            .queued_saves
+            .iter()
+            .any(|queued_save| queued_save.request.id == id);
+        load_queued || save_queued
     }
 
     fn load_or_save_in_progress(&self, id: Uuid) -> bool {
@@ -301,39 +313,51 @@ impl TaskManager {
     }
 }
 
-pub trait FileCacheExt {
+pub trait TaskManagerExt {
     // pass-throughs
     fn new() -> Self;
     fn queue_load(&mut self, request: LoadRequest);
     fn queue_save(&mut self, request: SaveRequest);
     fn queue_sync(&mut self);
+    fn load_or_save_queued(&self, id: Uuid) -> bool;
+    fn load_or_save_in_progress(&self, id: Uuid) -> bool;
 
     // non-pass-throughs
     fn update(&mut self, ctx: &Context, core: &Lb) -> Response;
 }
 
-impl FileCacheExt for Arc<Mutex<TaskManager>> {
+impl TaskManagerExt for Arc<Mutex<TaskManager>> {
     fn new() -> Self {
         Arc::new(Mutex::new(TaskManager::new()))
     }
 
     fn queue_load(&mut self, request: LoadRequest) {
-        let mut cache = self.lock().unwrap();
-        cache.queue_load(request);
+        let mut tasks = self.lock().unwrap();
+        tasks.queue_load(request);
     }
 
     fn queue_save(&mut self, request: SaveRequest) {
-        let mut cache = self.lock().unwrap();
-        cache.queue_save(request);
+        let mut tasks = self.lock().unwrap();
+        tasks.queue_save(request);
     }
 
     fn queue_sync(&mut self) {
-        let mut cache = self.lock().unwrap();
-        cache.queue_sync();
+        let mut tasks = self.lock().unwrap();
+        tasks.queue_sync();
+    }
+
+    fn load_or_save_queued(&self, id: Uuid) -> bool {
+        let tasks = self.lock().unwrap();
+        tasks.load_or_save_queued(id)
+    }
+
+    fn load_or_save_in_progress(&self, id: Uuid) -> bool {
+        let tasks = self.lock().unwrap();
+        tasks.load_or_save_in_progress(id)
     }
 
     fn update(&mut self, ctx: &Context, core: &Lb) -> Response {
-        let mut cache = self.lock().unwrap();
+        let mut tasks = self.lock().unwrap();
         let InnerResponse {
             loads_to_launch,
             saves_to_launch,
@@ -341,12 +365,12 @@ impl FileCacheExt for Arc<Mutex<TaskManager>> {
             completed_loads,
             completed_saves,
             completed_sync,
-        } = cache.update();
+        } = tasks.update();
 
         for queued_load in loads_to_launch {
             let request = queued_load.request.clone();
             let in_progress_load = InProgressLoad::new(queued_load);
-            cache.in_progress_loads.push(in_progress_load);
+            tasks.in_progress_loads.push(in_progress_load);
 
             let self_clone = self.clone();
             let core = core.clone();
@@ -355,15 +379,15 @@ impl FileCacheExt for Arc<Mutex<TaskManager>> {
                 let id = request.id;
                 let content_result = core.read_document_with_hmac(id);
 
-                let mut cache = self_clone.lock().unwrap();
+                let mut tasks = self_clone.lock().unwrap();
 
                 let mut in_progress_load = None;
-                for load in mem::take(&mut cache.in_progress_loads) {
+                for load in mem::take(&mut tasks.in_progress_loads) {
                     if load.request.id == id {
                         in_progress_load = Some(load); // use latest of duplicate ids
                         break;
                     } else {
-                        cache.in_progress_loads.push(load); // put back the ones we're not completing
+                        tasks.in_progress_loads.push(load); // put back the ones we're not completing
                     }
                 }
                 let in_progress_load = in_progress_load
@@ -375,7 +399,7 @@ impl FileCacheExt for Arc<Mutex<TaskManager>> {
                     content_result,
                     telemetry: CompletedTelemetry::new(in_progress_load.telemetry),
                 };
-                cache.completed_loads.push(completed_load);
+                tasks.completed_loads.push(completed_load);
 
                 ctx.request_repaint();
             });
@@ -386,7 +410,7 @@ impl FileCacheExt for Arc<Mutex<TaskManager>> {
             // first step to alleviate: https://github.com/lockbook/lockbook/issues/3241
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
-            cache.in_progress_saves.push(in_progress_save);
+            tasks.in_progress_saves.push(in_progress_save);
 
             let self_clone = self.clone();
             let core = core.clone();
@@ -396,15 +420,15 @@ impl FileCacheExt for Arc<Mutex<TaskManager>> {
                 let new_hmac_result =
                     core.safe_write(request.id, request.old_hmac, request.content.into());
 
-                let mut cache = self_clone.lock().unwrap();
+                let mut tasks = self_clone.lock().unwrap();
 
                 let mut in_progress_save = None;
-                for save in mem::take(&mut cache.in_progress_saves) {
+                for save in mem::take(&mut tasks.in_progress_saves) {
                     if save.request.id == id {
                         in_progress_save = Some(save); // use latest of duplicate ids
                         break;
                     } else {
-                        cache.in_progress_saves.push(save); // put back the ones we're not completing
+                        tasks.in_progress_saves.push(save); // put back the ones we're not completing
                     }
                 }
                 let in_progress_save = in_progress_save
@@ -416,7 +440,7 @@ impl FileCacheExt for Arc<Mutex<TaskManager>> {
                     new_hmac_result,
                     telemetry: CompletedTelemetry::new(in_progress_save.telemetry),
                 };
-                cache.completed_saves.push(completed_save);
+                tasks.completed_saves.push(completed_save);
 
                 ctx.request_repaint();
             });
@@ -425,7 +449,7 @@ impl FileCacheExt for Arc<Mutex<TaskManager>> {
         if let Some(sync) = sync_to_launch {
             let (sender, receiver) = mpsc::channel();
             let in_progress_sync = InProgressSync::new(sync, receiver);
-            cache.in_progress_sync = Some(in_progress_sync);
+            tasks.in_progress_sync = Some(in_progress_sync);
 
             let self_clone = self.clone();
             let core = core.clone();
@@ -440,8 +464,8 @@ impl FileCacheExt for Arc<Mutex<TaskManager>> {
                     core.sync(Some(Box::new(progress_closure)))
                 };
 
-                let mut cache = self_clone.lock().unwrap();
-                let in_progress_sync = cache
+                let mut tasks = self_clone.lock().unwrap();
+                let in_progress_sync = tasks
                     .in_progress_sync
                     .take()
                     .expect("Failed to find in-progress entry for sync that just completed");
@@ -451,7 +475,7 @@ impl FileCacheExt for Arc<Mutex<TaskManager>> {
                     status_result,
                     telemetry: CompletedTelemetry::new(in_progress_sync.telemetry),
                 };
-                cache.completed_sync = Some(completed_sync);
+                tasks.completed_sync = Some(completed_sync);
 
                 ctx.request_repaint();
             });

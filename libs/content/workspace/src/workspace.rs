@@ -16,8 +16,8 @@ use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{Tab, TabContent, TabFailure};
 use crate::task_manager::{
-    self, CompletedLoad, CompletedSave, CompletedTelemetry, FileCacheExt, LoadRequest, SaveRequest,
-    TaskManager,
+    self, CompletedLoad, CompletedSave, CompletedTelemetry, LoadRequest, SaveRequest, TaskManager,
+    TaskManagerExt,
 };
 
 pub struct Workspace {
@@ -27,7 +27,7 @@ pub struct Workspace {
     pub user_last_seen: Instant,
 
     // Files and task status
-    pub cache: Arc<Mutex<TaskManager>>,
+    pub tasks: Arc<Mutex<TaskManager>>,
     pub last_save_all: Option<Instant>,
     pub last_sync: Option<Instant>,
     pub last_sync_status_refresh: Option<Instant>,
@@ -89,7 +89,7 @@ impl Workspace {
             active_tab: Default::default(),
             user_last_seen: Instant::now(),
 
-            cache: FileCacheExt::new(),
+            tasks: TaskManagerExt::new(),
             last_sync: Default::default(),
             last_save_all: Default::default(),
             last_sync_status_refresh: Default::default(),
@@ -243,7 +243,7 @@ impl Workspace {
         if let Some(tab) = self.tabs.get_mut(i) {
             if tab.is_dirty() {
                 if let Some(request) = tab.make_save_request() {
-                    self.cache.queue_save(request);
+                    self.tasks.queue_save(request);
                 }
             }
         }
@@ -278,7 +278,7 @@ impl Workspace {
         tab.is_saving_or_loading = true;
         tab.load_queued = false;
 
-        self.cache
+        self.tasks
             .queue_load(LoadRequest { id, is_new_file, tab_created });
     }
 
@@ -295,7 +295,7 @@ impl Workspace {
 
     pub fn process_updates(&mut self) {
         let task_manager::Response { completed_loads, completed_saves, completed_sync } =
-            self.cache.update(&self.ctx, &self.core);
+            self.tasks.update(&self.ctx, &self.core);
 
         for load in completed_loads {
             // nested scope indentation preserves git history
@@ -467,8 +467,8 @@ impl Workspace {
         }
 
         {
-            let cache = self.cache.lock().unwrap();
-            if let Some(sync) = cache.in_progress_sync.as_ref() {
+            let tasks = self.tasks.lock().unwrap();
+            if let Some(sync) = tasks.in_progress_sync.as_ref() {
                 while let Ok(progress) = sync.progress.try_recv() {
                     self.out.status_updated = true;
                     self.status.sync_progress = progress.progress as f32 / progress.total as f32;
@@ -497,7 +497,7 @@ impl Workspace {
                     self.ctx.request_repaint_after(duration_until_next_sync);
                 }
             } else {
-                self.cache.queue_sync();
+                self.tasks.queue_sync();
             }
         }
         if self.cfg.auto_save.load(Ordering::Relaxed) {
