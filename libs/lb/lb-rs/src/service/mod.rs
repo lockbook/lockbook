@@ -20,3 +20,4 @@ pub mod search;
 pub mod share;
 pub mod sync;
 pub mod usage;
+pub mod events;
