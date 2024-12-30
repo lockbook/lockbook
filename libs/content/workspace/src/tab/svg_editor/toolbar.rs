@@ -791,7 +791,7 @@ fn show_color_btn(
             egui::Stroke { width: 1.5, color: ui.visuals().extreme_bg_color },
         );
     }
-    ui.interact(rect, id, egui::Sense::click())
+    ui.interact(rect, id, egui::Sense::click_and_drag())
 }
 
 fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
