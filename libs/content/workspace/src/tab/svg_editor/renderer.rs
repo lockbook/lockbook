@@ -149,8 +149,9 @@ impl Renderer {
         for (id, paint_op) in paint_ops {
             match paint_op {
                 RenderOp::Delete => {
-                    diff_state.delete_changed = true;
-                    self.mesh_cache.remove(&id);
+                    if self.mesh_cache.remove(&id).is_some() {
+                        diff_state.delete_changed = true;
+                    }
                 }
                 RenderOp::Paint(m) => {
                     diff_state.data_changed = true;
