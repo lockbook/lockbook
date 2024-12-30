@@ -8,8 +8,9 @@ pub struct EventSubs {
     tx: Sender<Event>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum Event {
+    MetadataChanged(Uuid),
     DocumentWritten(Uuid),
 }
 
@@ -20,9 +21,15 @@ impl Default for EventSubs {
     }
 }
 
+impl EventSubs {
+    pub fn doc_written(&self, id: Uuid) {
+        // todo warn!
+        let _ = self.tx.send(Event::DocumentWritten(id));
+    }
+}
+
 impl Lb {
     pub fn subscribe(&self) -> Receiver<Event> {
         self.events.tx.subscribe()
     }
 }
-

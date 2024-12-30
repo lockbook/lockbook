@@ -32,7 +32,7 @@ impl Lb {
 
         tree.add_share(id, sharee, mode, &self.keychain)?;
 
-        self.spawn_build_index();
+        self.search_subscriber();
 
         Ok(())
     }
@@ -88,7 +88,7 @@ impl Lb {
 
         tree.delete_share(id, maybe_encrypted_for, &self.keychain)?;
 
-        self.spawn_build_index();
+        self.search_subscriber();
 
         Ok(())
     }
@@ -98,7 +98,7 @@ impl Lb {
         let pk = self.keychain.get_pk()?;
         let result = self.delete_share(id, Some(pk)).await;
 
-        self.spawn_build_index();
+        self.search_subscriber();
 
         result
     }

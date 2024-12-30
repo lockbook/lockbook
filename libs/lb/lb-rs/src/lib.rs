@@ -57,7 +57,7 @@ impl Lb {
         let events = EventSubs::default();
 
         let result = Self { config, keychain, db, docs, client, search, syncing, events };
-        result.spawn_build_index();
+        result.search_subscriber();
         Ok(result)
     }
 }

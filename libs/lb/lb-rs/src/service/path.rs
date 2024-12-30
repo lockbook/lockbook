@@ -21,7 +21,7 @@ impl Lb {
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
-        self.spawn_build_index();
+        self.search_subscriber();
 
         Ok(ui_file)
     }
@@ -41,7 +41,7 @@ impl Lb {
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
-        self.spawn_build_index();
+        self.search_subscriber();
 
         Ok(ui_file)
     }
