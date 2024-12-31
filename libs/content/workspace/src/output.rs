@@ -7,13 +7,12 @@ pub struct Response {
     /// What file the workspace is currently showing
     pub selected_file: Option<Uuid>,
 
+    pub file_created: Option<Result<File, String>>,
     pub file_renamed: Option<(Uuid, String)>,
     pub file_moved: Option<(Uuid, Uuid)>,
 
     pub new_folder_clicked: bool,
     pub tab_title_clicked: bool,
-
-    pub file_created: Option<Result<File, String>>,
 
     pub error: Option<String>,
 

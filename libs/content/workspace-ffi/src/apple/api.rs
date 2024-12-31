@@ -168,10 +168,7 @@ pub unsafe extern "C" fn tab_renamed(obj: *mut c_void, id: *const c_char, new_na
         .parse()
         .expect("Could not String -> Uuid");
 
-    let _ = obj
-        .workspace
-        .updates_tx
-        .send(workspace_rs::workspace::WsMsg::FileRenamed { id, new_name });
+    obj.workspace.file_renamed(id, new_name);
 }
 
 /// # Safety

@@ -277,10 +277,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_fileRenamed(
     let id = Uuid::parse_str(&rid).unwrap();
     let new_name: String = env.get_string(&jnew_name).unwrap().into();
 
-    let _ = obj
-        .workspace
-        .updates_tx
-        .send(workspace_rs::workspace::WsMsg::FileRenamed { id, new_name });
+    obj.workspace.file_renamed(id, new_name);
 }
 
 #[no_mangle]

@@ -8618,6 +8618,7 @@ dependencies = [
 name = "workspace"
 version = "0.9.16"
 dependencies = [
+ "basic-human-duration",
  "bezier-rs",
  "chrono",
  "egui",
@@ -8642,6 +8643,7 @@ dependencies = [
  "resvg",
  "serde",
  "svgtypes 0.13.0",
+ "time",
  "tld",
  "tldextract",
  "tracing",
