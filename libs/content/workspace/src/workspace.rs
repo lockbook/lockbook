@@ -6,7 +6,7 @@ use lb_rs::model::file_metadata::FileType;
 use lb_rs::svg::buffer::Buffer;
 use lb_rs::Uuid;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::output::{Response, WsStatus};
@@ -17,7 +17,6 @@ use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{Tab, TabContent, TabFailure};
 use crate::task_manager::{
     self, CompletedLoad, CompletedSave, CompletedTelemetry, LoadRequest, SaveRequest, TaskManager,
-    TaskManagerExt,
 };
 
 pub struct Workspace {
@@ -27,7 +26,7 @@ pub struct Workspace {
     pub user_last_seen: Instant,
 
     // Files and task status
-    pub tasks: Arc<Mutex<TaskManager>>,
+    pub tasks: TaskManager,
     pub last_save_all: Option<Instant>,
     pub last_sync: Option<Instant>,
     pub last_sync_status_refresh: Option<Instant>,
@@ -89,7 +88,7 @@ impl Workspace {
             active_tab: Default::default(),
             user_last_seen: Instant::now(),
 
-            tasks: TaskManagerExt::new(),
+            tasks: TaskManager::new(),
             last_sync: Default::default(),
             last_save_all: Default::default(),
             last_sync_status_refresh: Default::default(),
@@ -467,7 +466,7 @@ impl Workspace {
         }
 
         {
-            let tasks = self.tasks.lock().unwrap();
+            let tasks = self.tasks.0.lock().unwrap();
             if let Some(sync) = tasks.in_progress_sync.as_ref() {
                 while let Ok(progress) = sync.progress.try_recv() {
                     self.out.status_updated = true;

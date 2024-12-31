@@ -12,7 +12,7 @@ use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::Uuid;
 
 #[derive(Default)]
-pub struct TaskManager {
+pub struct TaskManagerInner {
     // queue tasks then call `update` to launch them
     queued_loads: Vec<QueuedLoad>,
     queued_saves: Vec<QueuedSave>,
@@ -178,7 +178,7 @@ pub struct CompletedSync {
     pub telemetry: CompletedTelemetry,
 }
 
-impl TaskManager {
+impl TaskManagerInner {
     /// Queues a load for the given file. A call to [`update`] will launch the task when it is ready and a later
     /// call to [`update`] will return the result of the task when it completes. Queued loads of the same file are
     /// coalesced into a single load task.
@@ -300,51 +300,41 @@ impl TaskManager {
     }
 }
 
-pub trait TaskManagerExt {
-    // pass-throughs
-    fn new() -> Self;
-    fn queue_load(&mut self, request: LoadRequest);
-    fn queue_save(&mut self, request: SaveRequest);
-    fn queue_sync(&mut self);
-    fn load_or_save_queued(&self, id: Uuid) -> bool;
-    fn load_or_save_in_progress(&self, id: Uuid) -> bool;
+#[derive(Clone)]
+pub struct TaskManager(pub Arc<Mutex<TaskManagerInner>>);
 
-    // non-pass-throughs
-    fn update(&mut self, ctx: &Context, core: &Lb) -> Response;
-}
-
-impl TaskManagerExt for Arc<Mutex<TaskManager>> {
-    fn new() -> Self {
-        Arc::new(Mutex::new(TaskManager::default()))
+impl TaskManager {
+    pub fn new() -> Self {
+        Self(Arc::new(Mutex::new(TaskManagerInner::default())))
     }
 
-    fn queue_load(&mut self, request: LoadRequest) {
-        let mut tasks = self.lock().unwrap();
+    pub fn queue_load(&mut self, request: LoadRequest) {
+        let mut tasks = self.0.lock().unwrap();
         tasks.queue_load(request);
     }
 
-    fn queue_save(&mut self, request: SaveRequest) {
-        let mut tasks = self.lock().unwrap();
+    pub fn queue_save(&mut self, request: SaveRequest) {
+        let mut tasks = self.0.lock().unwrap();
         tasks.queue_save(request);
     }
 
-    fn queue_sync(&mut self) {
-        let mut tasks = self.lock().unwrap();
+    pub fn queue_sync(&mut self) {
+        let mut tasks = self.0.lock().unwrap();
         tasks.queue_sync();
     }
 
-    fn load_or_save_queued(&self, id: Uuid) -> bool {
-        let tasks = self.lock().unwrap();
+    pub fn load_or_save_queued(&self, id: Uuid) -> bool {
+        let tasks = self.0.lock().unwrap();
         tasks.load_or_save_queued(id)
     }
 
-    fn load_or_save_in_progress(&self, id: Uuid) -> bool {
-        let tasks = self.lock().unwrap();
+    pub fn load_or_save_in_progress(&self, id: Uuid) -> bool {
+        let tasks = self.0.lock().unwrap();
         tasks.load_or_save_in_progress(id)
     }
 
-    fn update(&mut self, ctx: &Context, core: &Lb) -> Response {
-        let mut tasks = self.lock().unwrap();
+    pub fn update(&mut self, ctx: &Context, core: &Lb) -> Response {
+        let mut tasks = self.0.lock().unwrap();
         let InnerResponse {
             loads_to_launch,
             saves_to_launch,
@@ -366,7 +356,7 @@ impl TaskManagerExt for Arc<Mutex<TaskManager>> {
                 let id = request.id;
                 let content_result = core.read_document_with_hmac(id);
 
-                let mut tasks = self_clone.lock().unwrap();
+                let mut tasks = self_clone.0.lock().unwrap();
 
                 let mut in_progress_load = None;
                 for load in mem::take(&mut tasks.in_progress_loads) {
@@ -407,7 +397,7 @@ impl TaskManagerExt for Arc<Mutex<TaskManager>> {
                 let new_hmac_result =
                     core.safe_write(request.id, request.old_hmac, request.content.into());
 
-                let mut tasks = self_clone.lock().unwrap();
+                let mut tasks = self_clone.0.lock().unwrap();
 
                 let mut in_progress_save = None;
                 for save in mem::take(&mut tasks.in_progress_saves) {
@@ -451,7 +441,7 @@ impl TaskManagerExt for Arc<Mutex<TaskManager>> {
                     core.sync(Some(Box::new(progress_closure)))
                 };
 
-                let mut tasks = self_clone.lock().unwrap();
+                let mut tasks = self_clone.0.lock().unwrap();
                 let in_progress_sync = tasks
                     .in_progress_sync
                     .take()

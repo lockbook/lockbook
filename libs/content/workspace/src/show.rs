@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 
 use crate::output::Response;
 use crate::tab::{TabContent, TabFailure};
-use crate::task_manager::TaskManagerExt;
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::Workspace;

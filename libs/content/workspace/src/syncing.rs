@@ -4,7 +4,7 @@ use lb_rs::service::sync::SyncStatus;
 use tracing::error;
 
 use crate::output::DirtynessMsg;
-use crate::task_manager::{CompletedSync, TaskManagerExt};
+use crate::task_manager::CompletedSync;
 use crate::workspace::Workspace;
 use std::time::Instant;
 
