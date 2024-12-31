@@ -11,6 +11,7 @@ pub struct EventSubs {
 #[derive(Clone, Copy)]
 pub enum Event {
     MetadataChanged(Uuid),
+    FileRemoved(Uuid),
     DocumentWritten(Uuid),
 }
 

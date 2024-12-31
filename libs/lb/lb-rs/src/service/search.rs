@@ -8,6 +8,7 @@ use crate::model::errors::{LbErr, LbResult, UnexpectedError};
 use crate::Lb;
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -142,6 +143,7 @@ impl Lb {
 
                     let path = path?;
 
+                    // todo handle max doc size?
                     let doc = doc?;
                     let doc = String::from_utf8_lossy(&doc).to_string();
 
@@ -179,31 +181,39 @@ impl Lb {
                     };
 
                     match evt {
-                        Event::MetadataChanged(id) => todo!("{id}"),
-                        Event::DocumentWritten(id) => {}
-                    };
+                        Event::MetadataChanged(id) => {
+                            let children = lb.get_and_get_children_recursively(&id).await.unwrap();
 
-                    let ts = clock::get_time().0 as u64;
-                    let since_last = ts - lb.search.last_built.load(Ordering::SeqCst);
-                    if since_last < 5000 {
-                        if lb.search.scheduled_build.load(Ordering::SeqCst) {
-                            // index is pretty fresh, and there is a build scheduled in the future, do
-                            // nothing
-                            return;
-                        } else {
-                            // wait until about 5s since last build and then try the whole routine
-                            // again
-                            lb.search.scheduled_build.store(true, Ordering::SeqCst);
-                            sleep(Duration::from_millis(5001 - since_last)).await;
-                            lb.search_subscriber();
+                            let mut paths = HashMap::new();
+                            for child in children {
+                                paths.insert(child.id, lb.get_path_by_id(child.id).await.unwrap());
+                            }
+
+                            let mut index = lb.search.docs.write().await;
+                            for entry in index.iter_mut() {
+                                if paths.contains_key(&entry.id) {
+                                    entry.path = paths.remove(&entry.id).unwrap();
+                                }
+                            }
+
+                            // todo: new files are not handled
                         }
-                    }
 
-                    // if we make it here there are no scheduled builds reset that flag
-                    lb.search.scheduled_build.store(false, Ordering::SeqCst);
-                    if let Err(e) = lb.build_index().await {
-                        error!("Error building search index: {:?}", e)
-                    }
+                        Event::FileRemoved(id) => {
+                            let mut index = lb.search.docs.write().await;
+                            index.retain(|entry| entry.id != id);
+                        }
+
+                        Event::DocumentWritten(id) => {
+                            let doc = lb.read_document(id).await.unwrap();
+                            let mut index = lb.search.docs.write().await;
+                            for entries in index.iter_mut() {
+                                if entries.id == id {
+                                    entries.content = Some(doc);
+                                }
+                            }
+                        }
+                    };
                 }
             });
         }
