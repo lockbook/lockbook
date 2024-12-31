@@ -18,7 +18,6 @@ use lb::model::file_metadata::FileType;
 use lb::service::import_export::ImportStatus;
 use lb::Uuid;
 use tree::FilesExt;
-use workspace_rs::background::BwIncomingMsg;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::{Workspace, WsConfig};
@@ -99,10 +98,7 @@ impl AccountScreen {
     pub fn begin_shutdown(&mut self) {
         self.shutdown = Some(AccountShutdownProgress::default());
         self.workspace.save_all_tabs();
-        self.workspace
-            .background_tx
-            .send(BwIncomingMsg::Shutdown)
-            .unwrap();
+        // todo: wait for saves to complete
     }
 
     pub fn is_shutdown(&self) -> bool {
