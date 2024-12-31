@@ -121,7 +121,7 @@ impl Lb {
         ctx.done_msg();
 
         if got_updates {
-            self.spawn_build_index();
+            self.search_subscriber();
         }
 
         Ok(ctx.summarize())

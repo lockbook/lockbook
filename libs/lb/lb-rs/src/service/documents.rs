@@ -55,6 +55,7 @@ impl Lb {
         self.docs.insert(id, hmac, &encrypted_document).await?;
         tx.end();
 
+        self.events.doc_written(id);
         let bg_lb = self.clone();
         tokio::spawn(async move {
             bg_lb
@@ -64,7 +65,7 @@ impl Lb {
             bg_lb.cleanup().await.unwrap();
         });
 
-        self.spawn_build_index();
+        self.search_subscriber();
 
         Ok(())
     }
@@ -132,7 +133,7 @@ impl Lb {
             bg_lb.cleanup().await.unwrap();
         });
 
-        self.spawn_build_index();
+        self.search_subscriber();
 
         Ok(hmac)
     }
