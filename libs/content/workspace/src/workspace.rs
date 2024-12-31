@@ -161,8 +161,6 @@ impl Workspace {
             last_changed: now,
             is_new_file,
             last_saved: now,
-            is_saving_or_loading: false,
-            load_queued: false,
         };
         self.tabs.push(new_tab);
         if make_active {
@@ -265,17 +263,6 @@ impl Workspace {
         let fpath = self.core.get_path_by_id(id).unwrap(); // TODO
 
         let tab_created = self.upsert_tab(id, &fname, &fpath, is_new_file, make_active);
-        let Some(tab) = self.get_mut_tab_by_id(id) else {
-            unreachable!("could not find a tab we just created")
-        };
-        if tab.is_saving_or_loading {
-            // if we're already loading when we try to load, load again when the first load completes
-            // this guarantees that the tab will eventually be up-to-date
-            tab.load_queued = true;
-            return;
-        }
-        tab.is_saving_or_loading = true;
-        tab.load_queued = false;
 
         self.tasks
             .queue_load(LoadRequest { id, is_new_file, tab_created });
@@ -401,11 +388,6 @@ impl Workspace {
                                 ext
                             )));
                         };
-
-                        tab.is_saving_or_loading = false;
-                        if tab.load_queued {
-                            self.open_file(id, false, false);
-                        }
                     } else {
                         println!("failed to load file: tab not found");
                     };
@@ -443,15 +425,11 @@ impl Workspace {
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
-                                    tab.load_queued = true;
+                                    self.open_file(id, false, false);
                                 } else {
                                     tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
                                 }
                             }
-                        }
-                        tab.is_saving_or_loading = false;
-                        if tab.load_queued {
-                            self.open_file(id, false, false);
                         }
                     }
                     if sync {
