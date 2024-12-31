@@ -88,7 +88,7 @@ impl Workspace {
             active_tab: Default::default(),
             user_last_seen: Instant::now(),
 
-            tasks: Default::default(),
+            tasks: TaskManager::new(core.clone(), ctx.clone()),
             last_sync: Default::default(),
             last_save_all: Default::default(),
             last_sync_status_refresh: Default::default(),
@@ -294,7 +294,7 @@ impl Workspace {
 
     pub fn process_updates(&mut self) {
         let task_manager::Response { completed_loads, completed_saves, completed_sync } =
-            self.tasks.update(&self.ctx, &self.core);
+            self.tasks.update();
 
         for load in completed_loads {
             // nested scope indentation preserves git history
@@ -466,7 +466,7 @@ impl Workspace {
         }
 
         {
-            let tasks = self.tasks.0.lock().unwrap();
+            let tasks = self.tasks.tasks.lock().unwrap();
             if let Some(sync) = tasks.in_progress_sync.as_ref() {
                 while let Ok(progress) = sync.progress.try_recv() {
                     self.out.status_updated = true;

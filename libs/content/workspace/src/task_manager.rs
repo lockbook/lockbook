@@ -301,37 +301,45 @@ impl TaskManagerInner {
     }
 }
 
-#[derive(Clone, Default)]
-pub struct TaskManager(pub Arc<Mutex<TaskManagerInner>>);
+#[derive(Clone)]
+pub struct TaskManager {
+    pub tasks: Arc<Mutex<TaskManagerInner>>,
+    pub core: Lb,
+    pub ctx: Context,
+}
 
 impl TaskManager {
+    pub fn new(core: Lb, ctx: Context) -> Self {
+        Self { tasks: Arc::new(Mutex::new(TaskManagerInner::default())), core, ctx }
+    }
+
     pub fn queue_load(&mut self, request: LoadRequest) {
-        let mut tasks = self.0.lock().unwrap();
+        let mut tasks = self.tasks.lock().unwrap();
         tasks.queue_load(request);
     }
 
     pub fn queue_save(&mut self, request: SaveRequest) {
-        let mut tasks = self.0.lock().unwrap();
+        let mut tasks = self.tasks.lock().unwrap();
         tasks.queue_save(request);
     }
 
     pub fn queue_sync(&mut self) {
-        let mut tasks = self.0.lock().unwrap();
+        let mut tasks = self.tasks.lock().unwrap();
         tasks.queue_sync();
     }
 
     pub fn load_or_save_queued(&self, id: Uuid) -> bool {
-        let tasks = self.0.lock().unwrap();
+        let tasks = self.tasks.lock().unwrap();
         tasks.load_or_save_queued(id)
     }
 
     pub fn load_or_save_in_progress(&self, id: Uuid) -> bool {
-        let tasks = self.0.lock().unwrap();
+        let tasks = self.tasks.lock().unwrap();
         tasks.load_or_save_in_progress(id)
     }
 
-    pub fn update(&mut self, ctx: &Context, core: &Lb) -> Response {
-        let mut tasks = self.0.lock().unwrap();
+    pub fn update(&mut self) -> Response {
+        let mut tasks = self.tasks.lock().unwrap();
         let InnerResponse {
             loads_to_launch,
             saves_to_launch,
@@ -358,13 +366,11 @@ impl TaskManager {
             tasks.in_progress_loads.push(in_progress_load);
 
             let self_clone = self.clone();
-            let core = core.clone();
-            let ctx = ctx.clone();
             thread::spawn(move || {
                 let id = request.id;
-                let content_result = core.read_document_with_hmac(id);
+                let content_result = self_clone.core.read_document_with_hmac(id);
 
-                let mut tasks = self_clone.0.lock().unwrap();
+                let mut tasks = self_clone.tasks.lock().unwrap();
 
                 let mut in_progress_load = None;
                 for load in mem::take(&mut tasks.in_progress_loads) {
@@ -393,7 +399,7 @@ impl TaskManager {
                 }
                 tasks.completed_loads.push(completed_load);
 
-                ctx.request_repaint();
+                self_clone.ctx.request_repaint();
             });
         }
 
@@ -416,14 +422,15 @@ impl TaskManager {
             tasks.in_progress_saves.push(in_progress_save);
 
             let self_clone = self.clone();
-            let core = core.clone();
-            let ctx = ctx.clone();
             thread::spawn(move || {
                 let id = request.id;
-                let new_hmac_result =
-                    core.safe_write(request.id, request.old_hmac, request.content.into());
+                let new_hmac_result = self_clone.core.safe_write(
+                    request.id,
+                    request.old_hmac,
+                    request.content.into(),
+                );
 
-                let mut tasks = self_clone.0.lock().unwrap();
+                let mut tasks = self_clone.tasks.lock().unwrap();
 
                 let mut in_progress_save = None;
                 for save in mem::take(&mut tasks.in_progress_saves) {
@@ -452,7 +459,7 @@ impl TaskManager {
                 }
                 tasks.completed_saves.push(completed_save);
 
-                ctx.request_repaint();
+                self_clone.ctx.request_repaint();
             });
         }
 
@@ -469,19 +476,17 @@ impl TaskManager {
             tasks.in_progress_sync = Some(in_progress_sync);
 
             let self_clone = self.clone();
-            let core = core.clone();
-            let ctx = ctx.clone();
             thread::spawn(move || {
                 let status_result = {
-                    let ctx = ctx.clone();
+                    let ctx = self_clone.ctx.clone();
                     let progress_closure = move |p| {
                         sender.send(p).unwrap();
                         ctx.request_repaint();
                     };
-                    core.sync(Some(Box::new(progress_closure)))
+                    self_clone.core.sync(Some(Box::new(progress_closure)))
                 };
 
-                let mut tasks = self_clone.0.lock().unwrap();
+                let mut tasks = self_clone.tasks.lock().unwrap();
                 let in_progress_sync = tasks
                     .in_progress_sync
                     .take()
@@ -501,7 +506,7 @@ impl TaskManager {
                 }
                 tasks.completed_sync = Some(completed_sync);
 
-                ctx.request_repaint();
+                self_clone.ctx.request_repaint();
             });
         }
 
