@@ -61,39 +61,39 @@ pub struct SaveRequest {
     pub content: String,
 }
 
-// Telemetry
+// Timing
 #[derive(Clone, Copy)]
-pub struct QueuedTelemetry {
+pub struct QueuedTiming {
     pub queued_at: Instant,
 }
 
-impl QueuedTelemetry {
+impl QueuedTiming {
     fn new() -> Self {
         Self { queued_at: Instant::now() }
     }
 }
 
 #[derive(Clone, Copy)]
-pub struct InProgressTelemetry {
+pub struct InProgressTiming {
     pub queued_at: Instant,
     pub started_at: Instant,
 }
 
-impl InProgressTelemetry {
-    fn new(queued: QueuedTelemetry) -> Self {
+impl InProgressTiming {
+    fn new(queued: QueuedTiming) -> Self {
         Self { queued_at: queued.queued_at, started_at: Instant::now() }
     }
 }
 
 #[derive(Clone, Copy)]
-pub struct CompletedTelemetry {
+pub struct CompletedTiming {
     pub queued_at: Instant,
     pub started_at: Instant,
     pub completed_at: Instant,
 }
 
-impl CompletedTelemetry {
-    fn new(in_progress: InProgressTelemetry) -> Self {
+impl CompletedTiming {
+    fn new(in_progress: InProgressTiming) -> Self {
         Self {
             queued_at: in_progress.queued_at,
             started_at: in_progress.started_at,
@@ -107,54 +107,54 @@ impl CompletedTelemetry {
 struct QueuedLoad {
     request: LoadRequest,
 
-    telemetry: QueuedTelemetry,
+    timing: QueuedTiming,
 }
 
 #[derive(Clone)]
 struct QueuedSave {
     request: SaveRequest,
 
-    telemetry: QueuedTelemetry,
+    timing: QueuedTiming,
 }
 
 #[derive(Clone)]
 struct QueuedSync {
-    telemetry: QueuedTelemetry,
+    timing: QueuedTiming,
 }
 
 pub struct InProgressLoad {
     pub request: LoadRequest,
 
-    pub telemetry: InProgressTelemetry,
+    pub timing: InProgressTiming,
 }
 
 impl InProgressLoad {
     fn new(queued: QueuedLoad) -> Self {
-        Self { request: queued.request, telemetry: InProgressTelemetry::new(queued.telemetry) }
+        Self { request: queued.request, timing: InProgressTiming::new(queued.timing) }
     }
 }
 
 pub struct InProgressSave {
     pub request: SaveRequest,
 
-    pub telemetry: InProgressTelemetry,
+    pub timing: InProgressTiming,
 }
 
 impl InProgressSave {
     fn new(queued: QueuedSave) -> Self {
-        Self { request: queued.request, telemetry: InProgressTelemetry::new(queued.telemetry) }
+        Self { request: queued.request, timing: InProgressTiming::new(queued.timing) }
     }
 }
 
 pub struct InProgressSync {
     pub progress: mpsc::Receiver<SyncProgress>,
 
-    pub telemetry: InProgressTelemetry,
+    pub timing: InProgressTiming,
 }
 
 impl InProgressSync {
     fn new(queued: QueuedSync, progress: mpsc::Receiver<SyncProgress>) -> Self {
-        Self { progress, telemetry: InProgressTelemetry::new(queued.telemetry) }
+        Self { progress, timing: InProgressTiming::new(queued.timing) }
     }
 }
 
@@ -162,20 +162,20 @@ pub struct CompletedLoad {
     pub request: LoadRequest,
     pub content_result: LbResult<(Option<DocumentHmac>, DecryptedDocument)>,
 
-    pub telemetry: CompletedTelemetry,
+    pub timing: CompletedTiming,
 }
 
 pub struct CompletedSave {
     pub request: SaveRequest,
     pub new_hmac_result: LbResult<DocumentHmac>,
 
-    pub telemetry: CompletedTelemetry,
+    pub timing: CompletedTiming,
 }
 
 pub struct CompletedSync {
     pub status_result: LbResult<SyncStatus>,
 
-    pub telemetry: CompletedTelemetry,
+    pub timing: CompletedTiming,
 }
 
 impl TaskManagerInner {
@@ -184,7 +184,7 @@ impl TaskManagerInner {
     /// coalesced into a single load task.
     fn queue_load(&mut self, request: LoadRequest) {
         self.queued_loads
-            .push(QueuedLoad { request, telemetry: QueuedTelemetry::new() });
+            .push(QueuedLoad { request, timing: QueuedTiming::new() });
     }
 
     /// Queues a save for the given file. A call to [`update`] will launch the task when it is ready and a later
@@ -192,7 +192,7 @@ impl TaskManagerInner {
     /// coalesced into a single save task.
     fn queue_save(&mut self, request: SaveRequest) {
         self.queued_saves
-            .push(QueuedSave { request, telemetry: QueuedTelemetry::new() });
+            .push(QueuedSave { request, timing: QueuedTiming::new() });
     }
 
     /// Queues a sync task. A call to [`update`] will launch the task when it is ready and a later call to
@@ -200,7 +200,7 @@ impl TaskManagerInner {
     /// sync task.
     fn queue_sync(&mut self) {
         self.queued_syncs
-            .push(QueuedSync { telemetry: QueuedTelemetry::new() });
+            .push(QueuedSync { timing: QueuedTiming::new() });
     }
 
     /// Launches whichever queued tasks are ready to be launched, moving their status from queued to in-progress.
@@ -300,14 +300,10 @@ impl TaskManagerInner {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct TaskManager(pub Arc<Mutex<TaskManagerInner>>);
 
 impl TaskManager {
-    pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(TaskManagerInner::default())))
-    }
-
     pub fn queue_load(&mut self, request: LoadRequest) {
         let mut tasks = self.0.lock().unwrap();
         tasks.queue_load(request);
@@ -374,7 +370,7 @@ impl TaskManager {
                 let completed_load = CompletedLoad {
                     request: in_progress_load.request,
                     content_result,
-                    telemetry: CompletedTelemetry::new(in_progress_load.telemetry),
+                    timing: CompletedTiming::new(in_progress_load.timing),
                 };
                 tasks.completed_loads.push(completed_load);
 
@@ -415,7 +411,7 @@ impl TaskManager {
                 let completed_save = CompletedSave {
                     request: in_progress_save.request,
                     new_hmac_result,
-                    telemetry: CompletedTelemetry::new(in_progress_save.telemetry),
+                    timing: CompletedTiming::new(in_progress_save.timing),
                 };
                 tasks.completed_saves.push(completed_save);
 
@@ -450,7 +446,7 @@ impl TaskManager {
 
                 let completed_sync = CompletedSync {
                     status_result,
-                    telemetry: CompletedTelemetry::new(in_progress_sync.telemetry),
+                    timing: CompletedTiming::new(in_progress_sync.timing),
                 };
                 tasks.completed_sync = Some(completed_sync);
 

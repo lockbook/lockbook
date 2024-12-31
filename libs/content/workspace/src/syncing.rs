@@ -24,7 +24,7 @@ impl Workspace {
     }
 
     pub fn sync_done(&mut self, outcome: CompletedSync) {
-        let CompletedSync { status_result, telemetry: _ } = outcome;
+        let CompletedSync { status_result, timing: _ } = outcome;
 
         self.out.status_updated = true;
         self.status.sync_started = None;

@@ -16,7 +16,7 @@ use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{Tab, TabContent, TabFailure};
 use crate::task_manager::{
-    self, CompletedLoad, CompletedSave, CompletedTelemetry, LoadRequest, SaveRequest, TaskManager,
+    self, CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, SaveRequest, TaskManager,
 };
 
 pub struct Workspace {
@@ -88,7 +88,7 @@ impl Workspace {
             active_tab: Default::default(),
             user_last_seen: Instant::now(),
 
-            tasks: TaskManager::new(),
+            tasks: Default::default(),
             last_sync: Default::default(),
             last_save_all: Default::default(),
             last_sync_status_refresh: Default::default(),
@@ -303,7 +303,7 @@ impl Workspace {
                     let CompletedLoad {
                         request: LoadRequest { id, is_new_file, tab_created },
                         content_result,
-                        telemetry: _,
+                        timing: _,
                     } = load;
 
                     if let Some((name, id)) =
@@ -420,7 +420,7 @@ impl Workspace {
                     let CompletedSave {
                         request: SaveRequest { id, old_hmac: _, seq, content },
                         new_hmac_result,
-                        telemetry: CompletedTelemetry { queued_at: _, started_at, completed_at: _ },
+                        timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
                     } = save;
 
                     let mut sync = false;
