@@ -13,31 +13,54 @@ use lb_rs::Uuid;
 use tracing::warn;
 
 #[derive(Default)]
-pub struct TaskManagerInner {
-    // queue tasks then call `update` to launch them
+pub struct Tasks {
+    // queued tasks launch when ready with no follow-up required
     queued_loads: Vec<QueuedLoad>,
     queued_saves: Vec<QueuedSave>,
     queued_syncs: Vec<QueuedSync>,
 
-    // launched tasks stored here until complete
+    // launched tasks tracked here until complete
     pub in_progress_loads: Vec<InProgressLoad>,
     pub in_progress_saves: Vec<InProgressSave>,
     pub in_progress_sync: Option<InProgressSync>,
 
-    // completions stored here then returned in the response on the next frame
+    // completions stashed here then returned in the response on the next frame
     completed_loads: Vec<CompletedLoad>,
     completed_saves: Vec<CompletedSave>,
     completed_sync: Option<CompletedSync>,
 }
 
-struct InnerResponse {
-    loads_to_launch: Vec<QueuedLoad>,
-    saves_to_launch: Vec<QueuedSave>,
-    sync_to_launch: Option<QueuedSync>,
+impl Tasks {
+    fn load_or_save_queued(&self, id: Uuid) -> bool {
+        let load_queued = self
+            .queued_loads
+            .iter()
+            .any(|queued_load| queued_load.request.id == id);
+        let save_queued = self
+            .queued_saves
+            .iter()
+            .any(|queued_save| queued_save.request.id == id);
+        load_queued || save_queued
+    }
 
-    completed_loads: Vec<CompletedLoad>,
-    completed_saves: Vec<CompletedSave>,
-    completed_sync: Option<CompletedSync>,
+    fn load_or_save_in_progress(&self, id: Uuid) -> bool {
+        let save_in_progress = self
+            .in_progress_saves
+            .iter()
+            .any(|in_progress_save| in_progress_save.request.id == id);
+        let load_in_progress = self
+            .in_progress_loads
+            .iter()
+            .any(|in_progress_load| in_progress_load.request.id == id);
+        save_in_progress || load_in_progress
+    }
+
+    fn any_load_or_save_queued_or_in_progress(&self) -> bool {
+        !self.queued_loads.is_empty()
+            || !self.queued_saves.is_empty()
+            || !self.in_progress_loads.is_empty()
+            || !self.in_progress_saves.is_empty()
+    }
 }
 
 pub struct Response {
@@ -179,51 +202,75 @@ pub struct CompletedSync {
     pub timing: CompletedTiming,
 }
 
-impl TaskManagerInner {
-    /// Queues a load for the given file. A call to [`update`] will launch the task when it is ready and a later
-    /// call to [`update`] will return the result of the task when it completes. Queued loads of the same file are
-    /// coalesced into a single load task.
-    fn queue_load(&mut self, request: LoadRequest) {
-        self.queued_loads
+#[derive(Clone)]
+pub struct TaskManager {
+    pub tasks: Arc<Mutex<Tasks>>,
+    core: Lb,
+    ctx: Context,
+}
+
+impl TaskManager {
+    pub fn new(core: Lb, ctx: Context) -> Self {
+        Self { tasks: Default::default(), core, ctx }
+    }
+
+    pub fn queue_load(&mut self, request: LoadRequest) {
+        self.tasks
+            .lock()
+            .unwrap()
+            .queued_loads
             .push(QueuedLoad { request, timing: QueuedTiming::new() });
+        self.check_launch();
     }
 
-    /// Queues a save for the given file. A call to [`update`] will launch the task when it is ready and a later
-    /// call to [`update`] will return the result of the task when it completes. Queued saves of the same file are
-    /// coalesced into a single save task.
-    fn queue_save(&mut self, request: SaveRequest) {
-        self.queued_saves
+    pub fn queue_save(&mut self, request: SaveRequest) {
+        self.tasks
+            .lock()
+            .unwrap()
+            .queued_saves
             .push(QueuedSave { request, timing: QueuedTiming::new() });
+        self.check_launch();
     }
 
-    /// Queues a sync task. A call to [`update`] will launch the task when it is ready and a later call to
-    /// [`update`] will return the result of the task when it completes. Queued syncs are coalesced into a single
-    /// sync task.
-    fn queue_sync(&mut self) {
-        self.queued_syncs
+    pub fn queue_sync(&mut self) {
+        self.tasks
+            .lock()
+            .unwrap()
+            .queued_syncs
             .push(QueuedSync { timing: QueuedTiming::new() });
+        self.check_launch();
+    }
+
+    pub fn load_or_save_queued(&self, id: Uuid) -> bool {
+        self.tasks.lock().unwrap().load_or_save_queued(id)
+    }
+
+    pub fn load_or_save_in_progress(&self, id: Uuid) -> bool {
+        self.tasks.lock().unwrap().load_or_save_in_progress(id)
     }
 
     /// Launches whichever queued tasks are ready to be launched, moving their status from queued to in-progress.
-    /// In-progress tasks have status moved to completed by background threads. Returns the results of tasks
-    /// that have completed since the last call to `update`.
-    fn update(&mut self) -> InnerResponse {
+    /// In-progress tasks have status moved to completed by background threads. This fn called whenever a task is
+    /// queued (on the UI thread) or completed (on the background thread).
+    fn check_launch(&self) {
+        let mut tasks = self.tasks.lock().unwrap();
+
         // Prioritize loads over saves because when they are both queued, it's likely because a sync pulled updates to
         // a file that was open and modified by the user. The save will fail via the safe_write mechanism until the new
         // sync-pulled version is merged into the user-modified version. The other order would be safe but inefficient.
         let mut ids_to_load = Vec::new();
-        for queued_load in &self.queued_loads {
+        for queued_load in &tasks.queued_loads {
             let id = queued_load.request.id;
-            if self.load_or_save_in_progress(id) {
+            if tasks.load_or_save_in_progress(id) {
                 continue;
             }
             ids_to_load.push(id);
         }
 
         let mut ids_to_save = Vec::new();
-        for queued_save in &self.queued_saves {
+        for queued_save in &tasks.queued_saves {
             let id = queued_save.request.id;
-            if self.load_or_save_in_progress(id) {
+            if tasks.load_or_save_in_progress(id) {
                 continue;
             }
             ids_to_save.push(id);
@@ -232,124 +279,37 @@ impl TaskManagerInner {
         // Syncs don't need to be prioritized because they don't conflict with each other or with loads or saves. For
         // efficiency, we wait for all saves to complete before we launch a sync. A save always queues a sync upon
         // completion.
-        let should_sync = !self.queued_syncs.is_empty()
-            && self.in_progress_sync.is_none()
-            && !self.any_load_or_save_queued_or_in_progress();
+        let should_sync = !tasks.queued_syncs.is_empty()
+            && tasks.in_progress_sync.is_none()
+            && !tasks.any_load_or_save_queued_or_in_progress();
 
         // Get launched things from the queue and remove duplicates (avoiding clones)
         let mut loads_to_launch = HashMap::new();
         let mut saves_to_launch = HashMap::new();
 
-        for load in mem::take(&mut self.queued_loads) {
+        for load in mem::take(&mut tasks.queued_loads) {
             if ids_to_load.contains(&load.request.id) {
                 loads_to_launch.insert(load.request.id, load); // use latest of duplicate ids
             } else {
-                self.queued_loads.push(load); // put back the ones we're not launching
+                tasks.queued_loads.push(load); // put back the ones we're not launching
             }
         }
-        for save in mem::take(&mut self.queued_saves) {
+        for save in mem::take(&mut tasks.queued_saves) {
             if ids_to_save.contains(&save.request.id) {
                 saves_to_launch.insert(save.request.id, save); // use latest of duplicate ids
             } else {
-                self.queued_saves.push(save); // put back the ones we're not launching
+                tasks.queued_saves.push(save); // put back the ones we're not launching
             }
         }
 
         let sync_to_launch =
-            if should_sync { mem::take(&mut self.queued_syncs).into_iter().next() } else { None };
+            if should_sync { mem::take(&mut tasks.queued_syncs).into_iter().next() } else { None };
 
-        // Actual launching happens in `impl TaskManagerExt for Arc<Mutex<TaskManager>>` block because it needs cloned Arc
-        InnerResponse {
-            loads_to_launch: loads_to_launch.into_values().collect(),
-            saves_to_launch: saves_to_launch.into_values().collect(),
-            sync_to_launch,
-            completed_loads: mem::take(&mut self.completed_loads),
-            completed_saves: mem::take(&mut self.completed_saves),
-            completed_sync: mem::take(&mut self.completed_sync),
-        }
-    }
+        let any_to_launch =
+            !loads_to_launch.is_empty() || !saves_to_launch.is_empty() || sync_to_launch.is_some();
 
-    fn load_or_save_queued(&self, id: Uuid) -> bool {
-        let load_queued = self
-            .queued_loads
-            .iter()
-            .any(|queued_load| queued_load.request.id == id);
-        let save_queued = self
-            .queued_saves
-            .iter()
-            .any(|queued_save| queued_save.request.id == id);
-        load_queued || save_queued
-    }
-
-    fn load_or_save_in_progress(&self, id: Uuid) -> bool {
-        let save_in_progress = self
-            .in_progress_saves
-            .iter()
-            .any(|in_progress_save| in_progress_save.request.id == id);
-        let load_in_progress = self
-            .in_progress_loads
-            .iter()
-            .any(|in_progress_load| in_progress_load.request.id == id);
-        save_in_progress || load_in_progress
-    }
-
-    fn any_load_or_save_queued_or_in_progress(&self) -> bool {
-        !self.queued_loads.is_empty()
-            || !self.queued_saves.is_empty()
-            || !self.in_progress_loads.is_empty()
-            || !self.in_progress_saves.is_empty()
-    }
-}
-
-#[derive(Clone)]
-pub struct TaskManager {
-    pub tasks: Arc<Mutex<TaskManagerInner>>,
-    pub core: Lb,
-    pub ctx: Context,
-}
-
-impl TaskManager {
-    pub fn new(core: Lb, ctx: Context) -> Self {
-        Self { tasks: Arc::new(Mutex::new(TaskManagerInner::default())), core, ctx }
-    }
-
-    pub fn queue_load(&mut self, request: LoadRequest) {
-        let mut tasks = self.tasks.lock().unwrap();
-        tasks.queue_load(request);
-    }
-
-    pub fn queue_save(&mut self, request: SaveRequest) {
-        let mut tasks = self.tasks.lock().unwrap();
-        tasks.queue_save(request);
-    }
-
-    pub fn queue_sync(&mut self) {
-        let mut tasks = self.tasks.lock().unwrap();
-        tasks.queue_sync();
-    }
-
-    pub fn load_or_save_queued(&self, id: Uuid) -> bool {
-        let tasks = self.tasks.lock().unwrap();
-        tasks.load_or_save_queued(id)
-    }
-
-    pub fn load_or_save_in_progress(&self, id: Uuid) -> bool {
-        let tasks = self.tasks.lock().unwrap();
-        tasks.load_or_save_in_progress(id)
-    }
-
-    pub fn update(&mut self) -> Response {
-        let mut tasks = self.tasks.lock().unwrap();
-        let InnerResponse {
-            loads_to_launch,
-            saves_to_launch,
-            sync_to_launch,
-            completed_loads,
-            completed_saves,
-            completed_sync,
-        } = tasks.update();
-
-        for queued_load in loads_to_launch {
+        // Launch the things
+        for queued_load in loads_to_launch.into_values() {
             let request = queued_load.request.clone();
             let in_progress_load = InProgressLoad::new(queued_load);
             let queue_time = in_progress_load
@@ -370,40 +330,43 @@ impl TaskManager {
                 let id = request.id;
                 let content_result = self_clone.core.read_document_with_hmac(id);
 
-                let mut tasks = self_clone.tasks.lock().unwrap();
+                {
+                    let mut tasks = self_clone.tasks.lock().unwrap();
 
-                let mut in_progress_load = None;
-                for load in mem::take(&mut tasks.in_progress_loads) {
-                    if load.request.id == id {
-                        in_progress_load = Some(load); // use latest of duplicate ids
-                        break;
-                    } else {
-                        tasks.in_progress_loads.push(load); // put back the ones we're not completing
+                    let mut in_progress_load = None;
+                    for load in mem::take(&mut tasks.in_progress_loads) {
+                        if load.request.id == id {
+                            in_progress_load = Some(load); // use latest of duplicate ids
+                            break;
+                        } else {
+                            tasks.in_progress_loads.push(load); // put back the ones we're not completing
+                        }
                     }
-                }
-                let in_progress_load = in_progress_load
-                    .expect("Failed to find in-progress entry for load that just completed");
-                // ^ above error may indicate concurrent loads to the same file, which would cause problems
+                    let in_progress_load = in_progress_load
+                        .expect("Failed to find in-progress entry for load that just completed");
+                    // ^ above error may indicate concurrent loads to the same file, which would cause problems
 
-                let completed_load = CompletedLoad {
-                    request: in_progress_load.request,
-                    content_result,
-                    timing: CompletedTiming::new(in_progress_load.timing),
-                };
-                let in_progress_time = completed_load
-                    .timing
-                    .started_at
-                    .duration_since(completed_load.timing.queued_at);
-                if in_progress_time > Duration::from_secs(1) {
-                    warn!("Load of file {} took {}s", request.id, in_progress_time.as_secs());
+                    let completed_load = CompletedLoad {
+                        request: in_progress_load.request,
+                        content_result,
+                        timing: CompletedTiming::new(in_progress_load.timing),
+                    };
+                    let in_progress_time = completed_load
+                        .timing
+                        .started_at
+                        .duration_since(completed_load.timing.queued_at);
+                    if in_progress_time > Duration::from_secs(1) {
+                        warn!("Load of file {} took {}s", request.id, in_progress_time.as_secs());
+                    }
+                    tasks.completed_loads.push(completed_load);
                 }
-                tasks.completed_loads.push(completed_load);
 
-                self_clone.ctx.request_repaint();
+                self_clone.check_launch(); // task completion may trigger launch of queued task
+                self_clone.ctx.request_repaint(); // task completion affects UI
             });
         }
 
-        for queued_save in saves_to_launch {
+        for queued_save in saves_to_launch.into_values() {
             // content cloned; one copy sent to disk and other retained in UI to represent on-disk version for merge
             // first step to alleviate: https://github.com/lockbook/lockbook/issues/3241
             let request = queued_save.request.clone();
@@ -430,36 +393,39 @@ impl TaskManager {
                     request.content.into(),
                 );
 
-                let mut tasks = self_clone.tasks.lock().unwrap();
+                {
+                    let mut tasks = self_clone.tasks.lock().unwrap();
 
-                let mut in_progress_save = None;
-                for save in mem::take(&mut tasks.in_progress_saves) {
-                    if save.request.id == id {
-                        in_progress_save = Some(save); // use latest of duplicate ids
-                        break;
-                    } else {
-                        tasks.in_progress_saves.push(save); // put back the ones we're not completing
+                    let mut in_progress_save = None;
+                    for save in mem::take(&mut tasks.in_progress_saves) {
+                        if save.request.id == id {
+                            in_progress_save = Some(save); // use latest of duplicate ids
+                            break;
+                        } else {
+                            tasks.in_progress_saves.push(save); // put back the ones we're not completing
+                        }
                     }
-                }
-                let in_progress_save = in_progress_save
-                    .expect("Failed to find in-progress entry for save that just completed");
-                // ^ above error may indicate concurrent saves to the same file, which would cause problems
+                    let in_progress_save = in_progress_save
+                        .expect("Failed to find in-progress entry for save that just completed");
+                    // ^ above error may indicate concurrent saves to the same file, which would cause problems
 
-                let completed_save = CompletedSave {
-                    request: in_progress_save.request,
-                    new_hmac_result,
-                    timing: CompletedTiming::new(in_progress_save.timing),
-                };
-                let in_progress_time = completed_save
-                    .timing
-                    .started_at
-                    .duration_since(completed_save.timing.queued_at);
-                if in_progress_time > Duration::from_secs(1) {
-                    warn!("Load of file {} took {}s", request.id, in_progress_time.as_secs());
+                    let completed_save = CompletedSave {
+                        request: in_progress_save.request,
+                        new_hmac_result,
+                        timing: CompletedTiming::new(in_progress_save.timing),
+                    };
+                    let in_progress_time = completed_save
+                        .timing
+                        .started_at
+                        .duration_since(completed_save.timing.queued_at);
+                    if in_progress_time > Duration::from_secs(1) {
+                        warn!("Load of file {} took {}s", request.id, in_progress_time.as_secs());
+                    }
+                    tasks.completed_saves.push(completed_save);
                 }
-                tasks.completed_saves.push(completed_save);
 
-                self_clone.ctx.request_repaint();
+                self_clone.check_launch(); // task completion may trigger launch of queued task
+                self_clone.ctx.request_repaint(); // task completion affects UI
             });
         }
 
@@ -486,30 +452,44 @@ impl TaskManager {
                     self_clone.core.sync(Some(Box::new(progress_closure)))
                 };
 
-                let mut tasks = self_clone.tasks.lock().unwrap();
-                let in_progress_sync = tasks
-                    .in_progress_sync
-                    .take()
-                    .expect("Failed to find in-progress entry for sync that just completed");
-                // ^ above error may indicate concurrent syncs, which would cause problems
+                {
+                    let mut tasks = self_clone.tasks.lock().unwrap();
+                    let in_progress_sync = tasks
+                        .in_progress_sync
+                        .take()
+                        .expect("Failed to find in-progress entry for sync that just completed");
+                    // ^ above error may indicate concurrent syncs, which would cause problems
 
-                let completed_sync = CompletedSync {
-                    status_result,
-                    timing: CompletedTiming::new(in_progress_sync.timing),
-                };
-                let in_progress_time = completed_sync
-                    .timing
-                    .started_at
-                    .duration_since(completed_sync.timing.queued_at);
-                if in_progress_time > Duration::from_secs(1) {
-                    warn!("Sync took {}s", in_progress_time.as_secs());
+                    let completed_sync = CompletedSync {
+                        status_result,
+                        timing: CompletedTiming::new(in_progress_sync.timing),
+                    };
+                    let in_progress_time = completed_sync
+                        .timing
+                        .started_at
+                        .duration_since(completed_sync.timing.queued_at);
+                    if in_progress_time > Duration::from_secs(1) {
+                        warn!("Sync took {}s", in_progress_time.as_secs());
+                    }
+                    tasks.completed_sync = Some(completed_sync);
                 }
-                tasks.completed_sync = Some(completed_sync);
 
-                self_clone.ctx.request_repaint();
+                self_clone.check_launch(); // task completion may trigger launch of queued task
+                self_clone.ctx.request_repaint(); // task completion affects UI
             });
         }
 
-        Response { completed_loads, completed_saves, completed_sync }
+        if any_to_launch {
+            self.ctx.request_repaint(); // task launch affects UI
+        }
+    }
+
+    pub fn update(&mut self) -> Response {
+        let mut tasks = self.tasks.lock().unwrap();
+        Response {
+            completed_loads: mem::take(&mut tasks.completed_loads),
+            completed_saves: mem::take(&mut tasks.completed_saves),
+            completed_sync: mem::take(&mut tasks.completed_sync),
+        }
     }
 }
