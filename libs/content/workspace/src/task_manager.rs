@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{mpsc, Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{mem, thread};
 
 use egui::Context;
@@ -10,6 +10,7 @@ use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::Uuid;
+use tracing::warn;
 
 #[derive(Default)]
 pub struct TaskManagerInner {
@@ -343,6 +344,17 @@ impl TaskManager {
         for queued_load in loads_to_launch {
             let request = queued_load.request.clone();
             let in_progress_load = InProgressLoad::new(queued_load);
+            let queue_time = in_progress_load
+                .timing
+                .started_at
+                .duration_since(in_progress_load.timing.queued_at);
+            if queue_time > Duration::from_secs(1) {
+                warn!(
+                    "Load of file {} spent {}s in the task queue",
+                    request.id,
+                    queue_time.as_secs()
+                );
+            }
             tasks.in_progress_loads.push(in_progress_load);
 
             let self_clone = self.clone();
@@ -372,6 +384,13 @@ impl TaskManager {
                     content_result,
                     timing: CompletedTiming::new(in_progress_load.timing),
                 };
+                let in_progress_time = completed_load
+                    .timing
+                    .started_at
+                    .duration_since(completed_load.timing.queued_at);
+                if in_progress_time > Duration::from_secs(1) {
+                    warn!("Load of file {} took {}s", request.id, in_progress_time.as_secs());
+                }
                 tasks.completed_loads.push(completed_load);
 
                 ctx.request_repaint();
@@ -383,6 +402,17 @@ impl TaskManager {
             // first step to alleviate: https://github.com/lockbook/lockbook/issues/3241
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
+            let queue_time = in_progress_save
+                .timing
+                .started_at
+                .duration_since(in_progress_save.timing.queued_at);
+            if queue_time > Duration::from_secs(1) {
+                warn!(
+                    "Save of file {} spent {}s in the task queue",
+                    request.id,
+                    queue_time.as_secs()
+                );
+            }
             tasks.in_progress_saves.push(in_progress_save);
 
             let self_clone = self.clone();
@@ -413,6 +443,13 @@ impl TaskManager {
                     new_hmac_result,
                     timing: CompletedTiming::new(in_progress_save.timing),
                 };
+                let in_progress_time = completed_save
+                    .timing
+                    .started_at
+                    .duration_since(completed_save.timing.queued_at);
+                if in_progress_time > Duration::from_secs(1) {
+                    warn!("Load of file {} took {}s", request.id, in_progress_time.as_secs());
+                }
                 tasks.completed_saves.push(completed_save);
 
                 ctx.request_repaint();
@@ -422,6 +459,13 @@ impl TaskManager {
         if let Some(sync) = sync_to_launch {
             let (sender, receiver) = mpsc::channel();
             let in_progress_sync = InProgressSync::new(sync, receiver);
+            let queue_time = in_progress_sync
+                .timing
+                .started_at
+                .duration_since(in_progress_sync.timing.queued_at);
+            if queue_time > Duration::from_secs(1) {
+                warn!("Sync spent {}s in the task queue", queue_time.as_secs());
+            }
             tasks.in_progress_sync = Some(in_progress_sync);
 
             let self_clone = self.clone();
@@ -448,6 +492,13 @@ impl TaskManager {
                     status_result,
                     timing: CompletedTiming::new(in_progress_sync.timing),
                 };
+                let in_progress_time = completed_sync
+                    .timing
+                    .started_at
+                    .duration_since(completed_sync.timing.queued_at);
+                if in_progress_time > Duration::from_secs(1) {
+                    warn!("Sync took {}s", in_progress_time.as_secs());
+                }
                 tasks.completed_sync = Some(completed_sync);
 
                 ctx.request_repaint();
