@@ -11,6 +11,7 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::Uuid;
 
+#[derive(Default)]
 pub struct TaskManager {
     // queue tasks then call `update` to launch them
     queued_loads: Vec<QueuedLoad>,
@@ -178,20 +179,6 @@ pub struct CompletedSync {
 }
 
 impl TaskManager {
-    fn new() -> Self {
-        Self {
-            queued_loads: Default::default(),
-            queued_saves: Default::default(),
-            queued_syncs: Default::default(),
-            in_progress_loads: Default::default(),
-            in_progress_saves: Default::default(),
-            in_progress_sync: Default::default(),
-            completed_loads: Default::default(),
-            completed_saves: Default::default(),
-            completed_sync: Default::default(),
-        }
-    }
-
     /// Queues a load for the given file. A call to [`update`] will launch the task when it is ready and a later
     /// call to [`update`] will return the result of the task when it completes. Queued loads of the same file are
     /// coalesced into a single load task.
@@ -328,7 +315,7 @@ pub trait TaskManagerExt {
 
 impl TaskManagerExt for Arc<Mutex<TaskManager>> {
     fn new() -> Self {
-        Arc::new(Mutex::new(TaskManager::new()))
+        Arc::new(Mutex::new(TaskManager::default()))
     }
 
     fn queue_load(&mut self, request: LoadRequest) {
