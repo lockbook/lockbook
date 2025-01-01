@@ -1202,6 +1202,8 @@ impl FileTree {
 
                 pos.distance(origin) > 8. // egui's drag detection is too sensitive and not configurable
             })
+            // must not be already dragging something else
+            && !DragAndDrop::has_any_payload(ui.ctx())
         {
             DragAndDrop::set_payload(ui.ctx(), id);
 
