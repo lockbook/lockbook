@@ -3,6 +3,7 @@ use core::f32;
 use egui::emath::easing;
 use egui::os::OperatingSystem;
 use egui::{EventFilter, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand};
+use std::collections::HashMap;
 use std::mem;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
@@ -238,18 +239,18 @@ impl Workspace {
                 egui::ScrollArea::horizontal()
                     .max_width(ui.available_width())
                     .show(ui, |ui| {
-                        let mut responses = Vec::new();
+                        let mut responses = HashMap::new();
                         for i in 0..self.tabs.len() {
                             if let (true, Some(resp)) = (
                                 is_tab_strip_visible,
                                 self.tab_label(ui, i, self.active_tab == i, active_tab_changed),
                             ) {
-                                responses.push(resp);
+                                responses.insert(i, resp);
                             }
                         }
 
                         // handle responses after showing all tabs because closing a tab invalidates tab indexes
-                        for (i, resp) in responses.into_iter().enumerate() {
+                        for (i, resp) in responses {
                             match resp {
                                 TabLabelResponse::Clicked => {
                                     if self.active_tab == i {
