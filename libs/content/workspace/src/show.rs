@@ -238,73 +238,77 @@ impl Workspace {
                 egui::ScrollArea::horizontal()
                     .max_width(ui.available_width())
                     .show(ui, |ui| {
+                        let mut responses = Vec::new();
                         for i in 0..self.tabs.len() {
                             if let (true, Some(resp)) = (
                                 is_tab_strip_visible,
                                 self.tab_label(ui, i, self.active_tab == i, active_tab_changed),
                             ) {
-                                match resp {
-                                    TabLabelResponse::Clicked => {
-                                        if self.active_tab == i {
-                                            // we should rename the file.
+                                responses.push(resp);
+                            }
+                        }
 
-                                            self.out.tab_title_clicked = true;
-                                            let active_name = self.tabs[i].name.clone();
+                        // handle responses after showing all tabs because closing a tab invalidates tab indexes
+                        for (i, resp) in responses.into_iter().enumerate() {
+                            match resp {
+                                TabLabelResponse::Clicked => {
+                                    if self.active_tab == i {
+                                        // we should rename the file.
 
-                                            let mut rename_edit_state =
-                                                egui::text_edit::TextEditState::default();
-                                            rename_edit_state.cursor.set_char_range(Some(
-                                                egui::text::CCursorRange {
-                                                    primary: egui::text::CCursor::new(
-                                                        active_name
-                                                            .rfind('.')
-                                                            .unwrap_or(active_name.len()),
-                                                    ),
-                                                    secondary: egui::text::CCursor::new(0),
-                                                },
-                                            ));
-                                            egui::TextEdit::store_state(
-                                                ui.ctx(),
-                                                egui::Id::new("rename_tab"),
-                                                rename_edit_state,
-                                            );
-                                            self.tabs[i].rename = Some(active_name);
-                                        } else {
-                                            self.tabs[i].rename = None;
-                                            self.active_tab = i;
-                                            self.active_tab_changed = true;
-                                            self.ctx.send_viewport_cmd(ViewportCommand::Title(
-                                                self.tabs[i].name.clone(),
-                                            ));
-                                            self.out.selected_file = Some(self.tabs[i].id);
-                                        }
-                                    }
-                                    TabLabelResponse::Closed => {
-                                        self.close_tab(i);
+                                        self.out.tab_title_clicked = true;
+                                        let active_name = self.tabs[i].name.clone();
 
-                                        let title = match self.current_tab() {
-                                            Some(tab) => tab.name.clone(),
-                                            None => "Lockbook".to_owned(),
-                                        };
-                                        self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
-
-                                        self.out.selected_file =
-                                            self.current_tab().map(|tab| tab.id);
-                                    }
-                                    TabLabelResponse::Renamed(name) => {
+                                        let mut rename_edit_state =
+                                            egui::text_edit::TextEditState::default();
+                                        rename_edit_state.cursor.set_char_range(Some(
+                                            egui::text::CCursorRange {
+                                                primary: egui::text::CCursor::new(
+                                                    active_name
+                                                        .rfind('.')
+                                                        .unwrap_or(active_name.len()),
+                                                ),
+                                                secondary: egui::text::CCursor::new(0),
+                                            },
+                                        ));
+                                        egui::TextEdit::store_state(
+                                            ui.ctx(),
+                                            egui::Id::new("rename_tab"),
+                                            rename_edit_state,
+                                        );
+                                        self.tabs[i].rename = Some(active_name);
+                                    } else {
                                         self.tabs[i].rename = None;
-                                        let id = self.current_tab().unwrap().id;
-                                        if let Some(tab) = self.get_mut_tab_by_id(id) {
-                                            if let Some(TabContent::Markdown(md)) = &mut tab.content
-                                            {
-                                                md.needs_name = false;
-                                            }
-                                        }
-                                        self.rename_file((id, name.clone()));
+                                        self.active_tab = i;
+                                        self.active_tab_changed = true;
+                                        self.ctx.send_viewport_cmd(ViewportCommand::Title(
+                                            self.tabs[i].name.clone(),
+                                        ));
+                                        self.out.selected_file = Some(self.tabs[i].id);
                                     }
                                 }
-                                ui.ctx().request_repaint();
+                                TabLabelResponse::Closed => {
+                                    self.close_tab(i);
+
+                                    let title = match self.current_tab() {
+                                        Some(tab) => tab.name.clone(),
+                                        None => "Lockbook".to_owned(),
+                                    };
+                                    self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
+
+                                    self.out.selected_file = self.current_tab().map(|tab| tab.id);
+                                }
+                                TabLabelResponse::Renamed(name) => {
+                                    self.tabs[i].rename = None;
+                                    let id = self.current_tab().unwrap().id;
+                                    if let Some(tab) = self.get_mut_tab_by_id(id) {
+                                        if let Some(TabContent::Markdown(md)) = &mut tab.content {
+                                            md.needs_name = false;
+                                        }
+                                    }
+                                    self.rename_file((id, name.clone()));
+                                }
                             }
+                            ui.ctx().request_repaint();
                         }
                     });
                 ui.cursor()
