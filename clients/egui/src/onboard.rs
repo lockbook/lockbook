@@ -113,6 +113,7 @@ impl OnboardScreen {
                 }
                 Update::ImportSyncProgress(sp) => {
                     self.import_status = Some(sp.to_string());
+                    self.router = Router::new(Route::SyncProgress, true)
                 }
                 Update::ImportSyncDone(maybe_err) => {
                     if let Some(err) = maybe_err {
@@ -175,6 +176,7 @@ impl OnboardScreen {
                                 Route::Import => "Enter your account key",
                                 Route::Welcome => "Lockbook",
                                 Route::AccountPhraseConfirmation => "This is your account key",
+                                Route::SyncProgress => "Importing data",
                             };
                             ui.label(egui::RichText::new(header_text).font(egui::FontId::new(
                                 35.0,
@@ -224,79 +226,84 @@ impl OnboardScreen {
                                     });
                                 }
                                 Route::Create => {
-                                    ui.horizontal(|ui| {
-                                        let resp = egui::TextEdit::singleline(&mut self.uname)
-                                            .desired_width(250.0)
-                                            .margin(egui::vec2(8.0, 8.0))
-                                            .hint_text("Pick a username...")
-                                            .show(ui)
-                                            .response;
-                                        if resp.lost_focus()
-                                            && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                                        {
-                                            self.create_account(ctx);
-                                        }
-                                        if resp.changed() {
-                                            self.create_err = None;
-                                        }
-                                        if self.router.needs_focus {
-                                            resp.request_focus();
-                                            self.router.needs_focus = false;
-                                        }
-                                        ui.scope(|ui| {
-                                            set_button_style(ui);
-                                            if Button::default()
-                                                .text("Create account")
-                                                .rounding(egui::Rounding::same(3.0))
-                                                .frame(true)
+                                    let input_resp = ui
+                                        .horizontal(|ui| {
+                                            let resp = egui::TextEdit::singleline(&mut self.uname)
+                                                .desired_width(250.0)
+                                                .margin(egui::vec2(8.0, 8.0))
+                                                .hint_text("Pick a username...")
                                                 .show(ui)
-                                                .clicked()
+                                                .response;
+                                            if resp.lost_focus()
+                                                && ui.input(|i| i.key_pressed(egui::Key::Enter))
                                             {
                                                 self.create_account(ctx);
-                                            };
-                                        });
-                                        self.show_input_err(ui, resp, &self.create_err);
-                                    });
+                                            }
+                                            if resp.changed() {
+                                                self.create_err = None;
+                                            }
+                                            if self.router.needs_focus {
+                                                resp.request_focus();
+                                                self.router.needs_focus = false;
+                                            }
+                                            ui.scope(|ui| {
+                                                set_button_style(ui);
+                                                if Button::default()
+                                                    .text("Create account")
+                                                    .rounding(egui::Rounding::same(3.0))
+                                                    .frame(true)
+                                                    .show(ui)
+                                                    .clicked()
+                                                {
+                                                    self.create_account(ctx);
+                                                };
+                                            });
+                                        })
+                                        .response;
+                                    self.show_input_err(ui, input_resp, &self.create_err);
                                 }
                                 Route::Import => {
-                                    ui.horizontal(|ui| {
-                                        let resp = egui::TextEdit::singleline(&mut self.acct_str)
-                                            .desired_width(250.0)
-                                            .margin(egui::vec2(8.0, 8.0))
-                                            .margin(egui::vec2(8.0, 8.0))
-                                            .hint_text("Account secret...")
-                                            .margin(egui::vec2(8.0, 8.0))
-                                            .hint_text("Account secret...")
-                                            .password(true)
-                                            .hint_text("Phrase or compact key")
-                                            .show(ui)
-                                            .response;
-                                        if resp.lost_focus()
-                                            && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                                        {
-                                            self.import_account(ctx);
-                                        }
-                                        if self.router.needs_focus {
-                                            resp.request_focus();
-                                            self.router.needs_focus = false;
-                                        }
-                                        if resp.changed() {
-                                            self.import_err = None;
-                                        }
-                                        ui.scope(|ui| {
-                                            set_button_style(ui);
-                                            if Button::default()
-                                                .text("Import account")
-                                                .rounding(egui::Rounding::same(3.0))
-                                                .frame(true)
-                                                .show(ui)
-                                                .clicked()
+                                    let input_resp = ui
+                                        .horizontal(|ui| {
+                                            let resp =
+                                                egui::TextEdit::singleline(&mut self.acct_str)
+                                                    .desired_width(250.0)
+                                                    .margin(egui::vec2(8.0, 8.0))
+                                                    .margin(egui::vec2(8.0, 8.0))
+                                                    .hint_text("Account secret...")
+                                                    .margin(egui::vec2(8.0, 8.0))
+                                                    .hint_text("Account secret...")
+                                                    .password(true)
+                                                    .hint_text("Phrase or compact key")
+                                                    .show(ui)
+                                                    .response;
+                                            if resp.lost_focus()
+                                                && ui.input(|i| i.key_pressed(egui::Key::Enter))
                                             {
                                                 self.import_account(ctx);
-                                            };
-                                        });
-                                        self.show_input_err(ui, resp, &self.import_err);
-                                    });
+                                            }
+                                            if self.router.needs_focus {
+                                                resp.request_focus();
+                                                self.router.needs_focus = false;
+                                            }
+                                            if resp.changed() {
+                                                self.import_err = None;
+                                            }
+                                            ui.scope(|ui| {
+                                                set_button_style(ui);
+                                                if Button::default()
+                                                    .text("Import account")
+                                                    .rounding(egui::Rounding::same(3.0))
+                                                    .frame(true)
+                                                    .show(ui)
+                                                    .clicked()
+                                                {
+                                                    self.import_account(ctx);
+                                                };
+                                            });
+                                        })
+                                        .response;
+                                    self.show_input_err(ui, input_resp, &self.import_err);
                                 }
                                 Route::AccountPhraseConfirmation => {
                                     if let Some(account_phrase) = &self.acct_phrase {
@@ -372,6 +379,11 @@ impl OnboardScreen {
                                         });
                                     }
                                 }
+                                Route::SyncProgress => {
+                                    if let Some(s) = &self.import_status {
+                                        ui.label(s);
+                                    }
+                                }
                             }
 
                             ui.add_space(200.0);
@@ -402,6 +414,7 @@ impl OnboardScreen {
                                     )),
                                     Route::Welcome => None,
                                     Route::AccountPhraseConfirmation => None,
+                                    Route::SyncProgress => None,
                                 };
                                 if let Some((label_text, btn_text, other_route)) = alternate_route {
                                     ui.horizontal(|ui| {
@@ -430,27 +443,31 @@ impl OnboardScreen {
         match self.router.route {
             Route::Create => {
                 r#"Use letters (A-Z) and numbers (0-9). Special characters aren't allowed.
-                            You can't change your username later."#
+You can't change your username later."#
             }
             Route::Import => {
                 r#"Enter your phrase or private key.
-                            If you enter a phrase, please separate each word by a space or comma."#
+ If you enter a phrase, please separate each word by a space or comma."#
             }
             Route::Welcome => {
                 r#"The private note-taking platform.
-                            The perfect place to record, sync, and share your thoughts."#
+The perfect place to record, sync, and share your thoughts."#
             }
             Route::AccountPhraseConfirmation => {
                 r#"It proves you're you, and it is a secret. If you lose it, you can't recover your account.
-                            You can view your key again in the settings."#
+You can view your key again in the settings."#
             }
+            Route::SyncProgress => "",
         }
     }
 
     fn show_input_err(&self, ui: &mut egui::Ui, resp: egui::Response, maybe_err: &Option<LbErr>) {
-        let error_rect = resp
-            .rect
-            .translate(egui::vec2(0.0, resp.rect.height() + 20.0));
+        ui.painter()
+            .rect_filled(ui.available_rect_before_wrap(), 0.0, egui::Color32::DEBUG_COLOR);
+        let resp_bottom_left = resp.rect.min + egui::vec2(0.0, resp.rect.height() + 20.0);
+        let error_rect =
+            egui::Rect::from_min_size(resp_bottom_left, ui.available_size_before_wrap());
+
         let mut ui = ui.child_ui(
             ui.available_rect_before_wrap(),
             egui::Layout::top_down(egui::Align::LEFT),
@@ -470,6 +487,9 @@ impl OnboardScreen {
             }
             if self.router.is_busy {
                 ui.spinner();
+                if let Some(s) = &self.import_status {
+                    ui.label(s);
+                }
             }
         });
     }
@@ -586,4 +606,5 @@ enum Route {
     Import,
     Welcome,
     AccountPhraseConfirmation,
+    SyncProgress,
 }
