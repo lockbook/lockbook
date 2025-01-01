@@ -3,7 +3,7 @@ import SwiftUI
 import SwiftWorkspace
 import AlertToast
 
-struct PlatformView: View {
+struct PlatformView1: View {
     
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var files: FileService

@@ -43,7 +43,8 @@
 		47B53838290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B53839290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B67289295F977C00DB0D8E /* ManageSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */; };
-		47C0091A2C5C046700F4B7ED /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
+		47BC31CA2D233E3F0020F0E4 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47BC31C92D233E3E0020F0E4 /* LockbookApp.swift */; };
+		47BC31CB2D233E3F0020F0E4 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47BC31C92D233E3E0020F0E4 /* LockbookApp.swift */; };
 		47CEC69D2A182F2A0018FA5C /* UpgradeToPremium.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CEC69C2A182F2A0018FA5C /* UpgradeToPremium.swift */; };
 		47DBF1F12A61A51000F86B3F /* ImportExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DBF1F02A61A51000F86B3F /* ImportExportService.swift */; };
 		47DBF1F22A61A51000F86B3F /* ImportExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DBF1F02A61A51000F86B3F /* ImportExportService.swift */; };
@@ -109,15 +110,13 @@
 		DFE4E3712B847F6000AC8A15 /* LogoutConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE4E3702B847F6000AC8A15 /* LogoutConfirmation.swift */; };
 		EA380B262561FAEF0021C4FA /* ConstrainedHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA380B242561FAEF0021C4FA /* ConstrainedHomeView.swift */; };
 		EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4559BD25169F7D003AD80A /* CodeScannerView.swift */; };
-		EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* LockbookApp.swift */; };
-		EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* LockbookApp.swift */; };
+		EA5C7D7B2516606100F7F358 /* Lockbook.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* Lockbook.swift */; };
+		EA5C7D7C2516606100F7F358 /* Lockbook.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* Lockbook.swift */; };
 		EA82B20C262652F700EE82B9 /* Introspect in Frameworks */ = {isa = PBXBuildFile; productRef = EA82B20B262652F700EE82B9 /* Introspect */; };
 		EA831A552534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA831A562534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA9079C32569960A00E04F5D /* ListFileCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9079C22569960A00E04F5D /* ListFileCell.swift */; };
 		EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
-		EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
-		EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -174,6 +173,7 @@
 		47A45FBA2969047B00573044 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
 		47B53837290EFE150012E542 /* BillingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingService.swift; sourceTree = "<group>"; };
 		47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageSubscriptionView.swift; sourceTree = "<group>"; };
+		47BC31C92D233E3E0020F0E4 /* LockbookApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockbookApp.swift; sourceTree = "<group>"; };
 		47CEC69C2A182F2A0018FA5C /* UpgradeToPremium.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpgradeToPremium.swift; sourceTree = "<group>"; };
 		47DBF1F02A61A51000F86B3F /* ImportExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportExportService.swift; sourceTree = "<group>"; };
 		47DBF1F32A61CA5000F86B3F /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.4.sdk/System/Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
@@ -222,7 +222,7 @@
 		EA349F0125BC7C110016241E /* OutlineRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineRow.swift; sourceTree = "<group>"; };
 		EA380B242561FAEF0021C4FA /* ConstrainedHomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ConstrainedHomeView.swift; sourceTree = "<group>"; };
 		EA4559BD25169F7D003AD80A /* CodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeScannerView.swift; sourceTree = "<group>"; };
-		EA5C7D682516605F00F7F358 /* LockbookApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockbookApp.swift; sourceTree = "<group>"; };
+		EA5C7D682516605F00F7F358 /* Lockbook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lockbook.swift; sourceTree = "<group>"; };
 		EA5C7D6F2516606000F7F358 /* Lockbook.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lockbook.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EA5C7D722516606000F7F358 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		EA5C7D772516606000F7F358 /* Lockbook.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lockbook.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -231,13 +231,13 @@
 		EA831A542534E3C80048CE26 /* AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
 		EA9079C22569960A00E04F5D /* ListFileCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListFileCell.swift; sourceTree = "<group>"; };
 		EAD401DB25E32CD50083A236 /* Notepad */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Notepad; path = "/Users/raayanpillai/Library/Developer/Xcode/DerivedData/Lockbook-asqnugeyohispqhixjzcyqkvmhjn/SourcePackages/checkouts/Notepad"; sourceTree = "<absolute>"; };
-		EADA116125336BA1005F69DB /* Development.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Development.xcconfig; sourceTree = "<group>"; };
-		EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigHelper.swift; sourceTree = "<group>"; };
-		EAF96D12252E8F3000AA1A14 /* Production.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Production.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		471CD9242D249E9600D9320B /* Screens */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Screens; sourceTree = "<group>"; };
+		471CD92B2D249FA200D9320B /* State */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = State; sourceTree = "<group>"; };
 		478B1BC42CCEB67300FDCB73 /* LbSwiftTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = LbSwiftTests; sourceTree = "<group>"; };
+		47BC31D42D249E3A0020F0E4 /* Utils */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Utils; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -384,10 +384,13 @@
 		EA5C7D672516605F00F7F358 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				471CD92B2D249FA200D9320B /* State */,
+				471CD9242D249E9600D9320B /* Screens */,
+				47BC31D42D249E3A0020F0E4 /* Utils */,
+				47BC31C92D233E3E0020F0E4 /* LockbookApp.swift */,
 				87C118ED25C5F12600D28A04 /* Stateful Logic */,
 				EADE1A5725352E5D00710996 /* Views */,
-				EAF96D0A252E8EB200AA1A14 /* Config */,
-				EA5C7D682516605F00F7F358 /* LockbookApp.swift */,
+				EA5C7D682516605F00F7F358 /* Lockbook.swift */,
 				B257E5B62A7541820078DA44 /* logo.icns */,
 				4741C7902939C9220073F24F /* Products.storekit */,
 				47E208552C387A60002A356B /* Util.swift */,
@@ -460,16 +463,6 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
-		EAF96D0A252E8EB200AA1A14 /* Config */ = {
-			isa = PBXGroup;
-			children = (
-				EADA116125336BA1005F69DB /* Development.xcconfig */,
-				EAF96D12252E8F3000AA1A14 /* Production.xcconfig */,
-				EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */,
-			);
-			path = Config;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -530,6 +523,11 @@
 			dependencies = (
 				47FF74FB2C5AC8E0004F90EC /* PBXTargetDependency */,
 			);
+			fileSystemSynchronizedGroups = (
+				471CD9242D249E9600D9320B /* Screens */,
+				471CD92B2D249FA200D9320B /* State */,
+				47BC31D42D249E3A0020F0E4 /* Utils */,
+			);
 			name = "Lockbook (iOS)";
 			packageProductDependencies = (
 				EA82B20B262652F700EE82B9 /* Introspect */,
@@ -554,6 +552,11 @@
 			buildRules = (
 			);
 			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				471CD9242D249E9600D9320B /* Screens */,
+				471CD92B2D249FA200D9320B /* State */,
+				47BC31D42D249E3A0020F0E4 /* Utils */,
 			);
 			name = "Lockbook (macOS)";
 			packageProductDependencies = (
@@ -665,7 +668,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				47C0091A2C5C046700F4B7ED /* ConfigHelper.swift in Sources */,
 				47FF74F52C5AC8E0004F90EC /* ShareViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -692,6 +694,7 @@
 				47E208562C387A60002A356B /* Util.swift in Sources */,
 				EA9079C32569960A00E04F5D /* ListFileCell.swift in Sources */,
 				47FF75052C5AE65F004F90EC /* SelectFolderView.swift in Sources */,
+				47BC31CA2D233E3F0020F0E4 /* LockbookApp.swift in Sources */,
 				4782F83B2C49B4E700D55923 /* DeleteConfirmationButtons.swift in Sources */,
 				8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */,
 				B249B9E8282AF6B1004F5300 /* OutlineBranch.swift in Sources */,
@@ -702,10 +705,9 @@
 				B2459BED28DBB43100756D71 /* ColorProgressBar.swift in Sources */,
 				4709DC38296609F100426106 /* PendingSharesView.swift in Sources */,
 				B249B9E9282AF6B4004F5300 /* OutlineSection.swift in Sources */,
-				EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */,
+				EA5C7D7B2516606100F7F358 /* Lockbook.swift in Sources */,
 				874A88F526D3E91900F010C8 /* DI.swift in Sources */,
 				B249B9EC282AF6BC004F5300 /* OutlineRow.swift in Sources */,
-				EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				4761F30F2A1832B4002ED338 /* ManageSubscription.swift in Sources */,
 				877FB55326D1854E0008AB3F /* SyncService.swift in Sources */,
 				B249B9E7282AF4F4004F5300 /* HomeView.swift in Sources */,
@@ -743,12 +745,13 @@
 				4779C62E2AB8C09E007C0100 /* PathSearchActionBar.swift in Sources */,
 				DFE4E36F2B847F4300AC8A15 /* WindowManager.swift in Sources */,
 				47FAA4C929EC830600DB606E /* BranchState.swift in Sources */,
+				47BC31CB2D233E3F0020F0E4 /* LockbookApp.swift in Sources */,
 				47A45FBC2969047B00573044 /* ShareService.swift in Sources */,
 				877FB55726D18AA60008AB3F /* AccountService.swift in Sources */,
 				4700CF8A2CF3A58600B11F87 /* OnboardingView.swift in Sources */,
 				877FB55426D1854E0008AB3F /* SyncService.swift in Sources */,
 				471E363529FD5F5C00A1958A /* DesktopHomeView.swift in Sources */,
-				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
+				EA5C7D7C2516606100F7F358 /* Lockbook.swift in Sources */,
 				B249B9F2282C6241004F5300 /* FileTreeView.swift in Sources */,
 				4709DC39296609F100426106 /* PendingSharesView.swift in Sources */,
 				870DC0A226BF378F002E9A92 /* AccountSettingsView.swift in Sources */,
@@ -761,7 +764,6 @@
 				870DC0A426BF37C0002E9A92 /* UsageSettingsView.swift in Sources */,
 				47E208572C387A62002A356B /* Util.swift in Sources */,
 				B2459BEE28DBB43100756D71 /* ColorProgressBar.swift in Sources */,
-				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				4782F83C2C49B4E700D55923 /* DeleteConfirmationButtons.swift in Sources */,
 				B2ADC2472833FA8200DB8D3D /* FileCell.swift in Sources */,
 				877FB55A26D18EC80008AB3F /* FileService.swift in Sources */,
@@ -1044,7 +1046,6 @@
 		};
 		EA5C7D822516606100F7F358 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = EAF96D12252E8F3000AA1A14 /* Production.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1107,7 +1108,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_PREVIEWS = YES;
-				GCC_OPTIMIZATION_LEVEL = 3;
+				GCC_OPTIMIZATION_LEVEL = 0;
 				INFOPLIST_FILE = iOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -1121,7 +1122,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -1138,7 +1139,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_PREVIEWS = YES;
-				GCC_OPTIMIZATION_LEVEL = 3;
+				GCC_OPTIMIZATION_LEVEL = 0;
 				INFOPLIST_FILE = iOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -1152,7 +1153,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
@@ -1174,7 +1175,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				GCC_OPTIMIZATION_LEVEL = 3;
+				GCC_OPTIMIZATION_LEVEL = 0;
 				INFOPLIST_FILE = macOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -1193,7 +1194,7 @@
 				PRODUCT_NAME = Lockbook;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -1213,7 +1214,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				GCC_OPTIMIZATION_LEVEL = 3;
+				GCC_OPTIMIZATION_LEVEL = 0;
 				INFOPLIST_FILE = macOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -1232,14 +1233,13 @@
 				PRODUCT_NAME = Lockbook;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
 		EADA115E25336B97005F69DB /* Development */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = EADA116125336BA1005F69DB /* Development.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1309,7 +1309,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_PREVIEWS = YES;
-				GCC_OPTIMIZATION_LEVEL = 3;
+				GCC_OPTIMIZATION_LEVEL = 0;
 				INFOPLIST_FILE = iOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -1323,7 +1323,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -1344,7 +1344,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				GCC_OPTIMIZATION_LEVEL = 3;
+				GCC_OPTIMIZATION_LEVEL = 0;
 				INFOPLIST_FILE = macOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -1362,7 +1362,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = macosx;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Development;
