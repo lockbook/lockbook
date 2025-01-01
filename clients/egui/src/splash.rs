@@ -81,9 +81,7 @@ impl SplashScreen {
                 tx.send(SplashUpdate::Status("Loading sync status...".to_string()))
                     .unwrap();
 
-                let sync_status = core
-                    .get_last_synced_human_string()
-                    .map_err(|err| format!("{:?}", err));
+                let sync_status = core.get_last_synced_human_string();
 
                 tx.send(SplashUpdate::Status("Loading files...".to_string()))
                     .unwrap();
