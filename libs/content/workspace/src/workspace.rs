@@ -91,14 +91,14 @@ pub struct WsPersistentStore {
 
 #[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct WsPresistentData {
-    pub last_open_tabs: Vec<Uuid>,
+    pub open_tabs: Vec<Uuid>,
     pub auto_save: bool,
     pub auto_sync: bool,
 }
 
 impl Default for WsPresistentData {
     fn default() -> Self {
-        Self { auto_save: true, auto_sync: true, last_open_tabs: Vec::default() }
+        Self { auto_save: true, auto_sync: true, open_tabs: Vec::default() }
     }
 }
 
@@ -131,7 +131,7 @@ impl WsPersistentStore {
         }
     }
 
-    pub fn update_last_open_tabs(&mut self, tabs: &[Tab], active_tab_index: usize) {
+    pub fn set_tabs(&mut self, tabs: &[Tab], active_tab_index: usize) {
         let mut active_tab = None;
         let mut tab_ids: Vec<Uuid> = tabs
             .iter()
@@ -150,7 +150,7 @@ impl WsPersistentStore {
             tab_ids.push(tab);
         }
 
-        self.update(|data| data.last_open_tabs = tab_ids);
+        self.update(|data| data.open_tabs = tab_ids);
     }
 
     pub fn to_file(&self) {
@@ -196,9 +196,9 @@ impl Workspace {
             out: output,
         };
 
-        let last_open_tabs = ws.cfg.data.read().unwrap().last_open_tabs.clone();
+        let open_tabs = ws.cfg.data.read().unwrap().open_tabs.clone();
 
-        last_open_tabs.iter().for_each(|&file_id| {
+        open_tabs.iter().for_each(|&file_id| {
             if core.get_file_by_id(file_id).is_ok() {
                 ws.open_file(file_id, true, true);
             }
@@ -427,7 +427,7 @@ impl Workspace {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         if self.active_tab_changed {
-            self.cfg.update_last_open_tabs(&self.tabs, self.active_tab);
+            self.cfg.set_tabs(&self.tabs, self.active_tab);
         }
 
         ui.vertical(|ui| {
