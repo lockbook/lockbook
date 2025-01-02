@@ -91,7 +91,9 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
         .unwrap();
     let (adapter, device, queue) = pollster::block_on(request_device(&instance, &surface));
     let avail_formats = surface.get_capabilities(&adapter).formats;
-    let format = *avail_formats.get(1).unwrap_or(&avail_formats[0]);
+
+    let format = *avail_formats[0];
+
     let screen = ScreenDescriptor {
         physical_width: native_window.get_width(),
         physical_height: native_window.get_height(),
