@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-struct OnboardingOneView: View {
+struct OnboardingView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading) {
@@ -105,10 +105,10 @@ struct OnboardingOneHorizontalPadding: ViewModifier {
 }
 
 #Preview("Onboarding 1") {
-    OnboardingOneView()
+    OnboardingView()
 }
 
-struct OnboardingTwoView: View {
+private struct OnboardingTwoView: View {
     @State var username: String = ""
     @State var createdAccount = false
     @State var keyPhrase: (String, String)? = nil
@@ -131,7 +131,7 @@ struct OnboardingTwoView: View {
             TextField("Username", text: $username)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
-                .modifier(DisableAutoCapitalization())
+                .autocapitalizationDisabled()
                 .onSubmit(createAccount)
                 .padding(.top, 20)
             
@@ -172,10 +172,10 @@ struct OnboardingTwoView: View {
         error = nil
         
         DispatchQueue.global(qos: .userInitiated).async {
-            let operation = DI.core.createAccount(username: username, apiUrl: ConfigHelper.get(.apiLocation), welcomeDoc: true)
+            let operation = MainState.lb.createAccount(username: username, apiUrl: MainState.LB_API_URL, welcomeDoc: true)
                 switch operation {
                 case .success:
-                    switch DI.core.exportAccountPhrase() {
+                    switch MainState.lb.exportAccountPhrase() {
                     case .success(let phrase):
                         DispatchQueue.main.async {
                             let phrase = phrase.split(separator: " ")
@@ -212,7 +212,7 @@ struct OnboardingTwoView: View {
     OnboardingTwoView()
 }
 
-struct OnboardingThreeView: View {
+private struct OnboardingThreeView: View {
     let username: String
     let keyPhrasePart1: String
     let keyPhrasePart2: String
@@ -266,7 +266,7 @@ struct OnboardingThreeView: View {
             .padding(.bottom)
             
             Button {
-                DI.settings.copyAccountString()
+                copyCompactKey()
             } label: {
                 Text("Copy compact key")
                     .fontWeight(.semibold)
@@ -291,6 +291,12 @@ struct OnboardingThreeView: View {
         .padding(.bottom)
         .padding(.horizontal, 25)
         .navigationBarBackButtonHidden()
+    }
+    
+    func copyCompactKey() {
+        if case let .success(text) = MainState.lb.exportAccountPrivateKey() {
+            ClipboardHelper.copyToClipboard(text)
+        }
     }
     
     func parseKeyPhrase(_ keyPhrase: String) -> [String] {
@@ -318,10 +324,7 @@ struct OnboardingThreeView: View {
     
     func goToMainScreen() {
         working = true
-        DispatchQueue.global(qos: .userInitiated).async {
-            DI.accounts.getAccount()
-            DI.files.refresh()
-        }
+        MainState.shared.isLoggedIn = true
     }
 }
 
@@ -343,7 +346,7 @@ struct iOSCheckboxToggleStyle: ToggleStyle {
     }
 }
 
-struct ImportAccountView: View {
+private struct ImportAccountView: View {
     @State var accountKey = ""
     @State var working = false
     @State var error: String? = nil
@@ -371,7 +374,7 @@ struct ImportAccountView: View {
             HStack {
                 SecureField("Phrase or compact key", text: $accountKey)
                     .disableAutocorrection(true)
-                    .modifier(DisableAutoCapitalization())
+                    .autocapitalizationDisabled()
                     .padding(.trailing, 10)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit {
@@ -433,9 +436,9 @@ struct ImportAccountView: View {
     var apiURLSheet: some View {
         #if os(iOS)
         EmptyView()
-            .modifier(iOSAndiPadSheetViewModifier(isPresented: $showAPIURLSheet, width: 500, height: 160) {
+            .optimizedSheet(isPresented: $showAPIURLSheet, width: 500, height: 160) {
                 SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
-            })
+            }
         #else
         EmptyView()
             .sheet(isPresented: $showAPIURLSheet) {
@@ -471,14 +474,13 @@ struct ImportAccountView: View {
         }
         
         DispatchQueue.global(qos: .userInitiated).async {
-            let res = DI.core.importAccount(key: accountKey, apiUrl: apiUrl)
+            let res = MainState.lb.importAccount(key: accountKey, apiUrl: apiUrl)
             DispatchQueue.main.async {
                 working = false
                 
                 switch res {
                 case .success:
                     working = false
-                    DI.sync.importSync()
                     importedAccount = true
                 case .failure(let err):
                     if !isAutoImporting {
@@ -507,7 +509,7 @@ struct SetAPIURLView: View {
 
     @State var unsavedAPIURL = ""
     @FocusState var focused: Bool
-    let defaultAPIURL: String = ConfigHelper.get(.apiLocation)
+    let defaultAPIURL: String = MainState.LB_API_URL ?? "Unknown"
     
     @Environment(\.dismiss) private var dismiss
     
@@ -523,7 +525,7 @@ struct SetAPIURLView: View {
             TextField("\(defaultAPIURL)", text: $unsavedAPIURL)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
-                .modifier(DisableAutoCapitalization())
+                .autocapitalizationDisabled()
                 .focused($focused)
                 .onAppear {
                     focused = true
@@ -557,16 +559,16 @@ struct SetAPIURLView: View {
 }
 
 struct ImportAccountSyncView: View {
-    @EnvironmentObject var sync: SyncService
+//    @EnvironmentObject var sync: SyncService
     
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
             
-            ProgressView(value: sync.syncProgress)
+            ProgressView(value: 5)
                 .frame(maxWidth: 700)
             
-            if let syncMsg = sync.syncMsg {
+            if let syncMsg = .some("apple") {
                 Text(syncMsg)
                     .foregroundColor(.secondary)
             }

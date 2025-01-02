@@ -8,10 +8,14 @@ struct PlatformView: View {
     
     var body: some View {
         NavigationSplitView {
-            FilesView()
+            EmptyView()
         } detail: {
-            WorkspaceView()
+            EmptyView()
         }
         .navigationSplitViewStyle(.balanced)
     }
+}
+
+#Preview {
+    PlatformView()
 }

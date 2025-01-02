@@ -66,7 +66,11 @@ pub extern "C" fn lb_create_account(
 ) -> LbAccountRes {
     let lb = rlb(lb);
     let username = rstr(username);
-    let api_url = rstr(api_url);
+    let api_url = if api_url.is_null() {
+        DEFAULT_API_LOCATION
+    } else {
+        rstr(api_url)
+    };
 
     match lb.create_account(username, api_url, welcome_doc) {
         Ok(account) => {

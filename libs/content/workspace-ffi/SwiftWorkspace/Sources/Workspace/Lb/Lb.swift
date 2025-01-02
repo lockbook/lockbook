@@ -25,7 +25,7 @@ public class Lb {
         return .success(())
     }
         
-    public func createAccount(username: String, apiUrl: String, welcomeDoc: Bool) -> Result<Account, LbError> {
+    public func createAccount(username: String, apiUrl: String?, welcomeDoc: Bool) -> Result<Account, LbError> {
         let res = lb_create_account(lb, username, apiUrl, welcomeDoc)
         defer { lb_free_account(res) }
         

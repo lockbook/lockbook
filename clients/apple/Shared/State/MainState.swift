@@ -5,11 +5,12 @@ class MainState: ObservableObject {
     static let shared = MainState()
 
     #if os(macOS)
-    static let location: String =  NSHomeDirectory() + "/.lockbook"
+    static let LB_LOC: String =  NSHomeDirectory() + "/.lockbook"
     #else
-    static let location: String =  FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.path
+    static let LB_LOC: String =  FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.path
     #endif
-    static let lb = Lb(writablePath: ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] ?? location, logs: true)
+    static let LB_API_URL: String? = ProcessInfo.processInfo.environment["API_LOCATION"]
+    static let lb = Lb(writablePath: ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] ?? LB_LOC, logs: true)
     
     @Published var isLoggedIn: Bool
     
