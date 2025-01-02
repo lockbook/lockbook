@@ -12,6 +12,16 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
     
     public var isRoot: Bool { parent == id }
     
+    init(id: UUID, parent: UUID, name: String, type: FileType, lastModifiedBy: String, lastModified: UInt64, shares: [Share]) {
+        self.id = id
+        self.parent = parent
+        self.name = name
+        self.type = type
+        self.lastModifiedBy = lastModifiedBy
+        self.lastModified = lastModified
+        self.shares = shares
+    }
+    
     init(_ file: LbFile) {
         self.id = file.id.toUUID()
         self.parent = file.parent.toUUID()

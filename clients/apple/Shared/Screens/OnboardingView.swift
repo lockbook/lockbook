@@ -497,7 +497,7 @@ private struct ImportAccountView: View {
         switch result {
         case .success(let key):
             accountKey = key
-        case .failure(let err):
+        case .failure(_):
             error = "Could not scan account key QR."
         }
     }
@@ -559,17 +559,33 @@ struct SetAPIURLView: View {
 }
 
 struct ImportAccountSyncView: View {
-//    @EnvironmentObject var sync: SyncService
+    
+    @StateObject var model = ImportAccountSyncViewModel()
     
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
             
-            ProgressView(value: 5)
-                .frame(maxWidth: 700)
-            
-            if let syncMsg = .some("apple") {
-                Text(syncMsg)
+            if let error = model.error {
+                Text(error)
+                    .foregroundColor(.red)
+                
+                Spacer()
+                
+                Button {
+                    model.sync()
+                } label: {
+                    Text("Retry")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 30)
+                }
+                .buttonStyle(.bordered)
+            } else {
+                ProgressView(value: 5)
+                    .frame(maxWidth: 700)
+                
+                Text(model.syncMsg)
                     .foregroundColor(.secondary)
             }
             
@@ -580,4 +596,41 @@ struct ImportAccountSyncView: View {
         .padding(.horizontal, 25)
         .navigationBarBackButtonHidden()
     }
+}
+
+class ImportAccountSyncViewModel: ObservableObject {
+    @Published var syncMsg: String = "..."
+    @Published var syncProgress: Float = 0
+    
+    @Published var error: String? = nil
+    
+    init() {
+        sync()
+    }
+    
+    func sync() {
+        DispatchQueue.global(qos: .userInteractive).async {
+            let result = MainState.lb.sync { total, progress, id, msg in
+                DispatchQueue.main.async {
+                    self.syncProgress = Float(progress) / Float(total)
+                    self.syncMsg = msg
+                }
+            }
+            
+            DispatchQueue.main.async {
+                switch result {
+                case .success(_):
+                    MainState.shared.isLoggedIn = true
+                case .failure(let err):
+                    self.error = err.msg
+                }
+            }
+        }
+    }
+    
+}
+
+
+#Preview("Import Account Sync") {
+    ImportAccountSyncView()
 }
