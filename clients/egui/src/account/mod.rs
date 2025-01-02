@@ -249,7 +249,11 @@ impl AccountScreen {
             });
 
         if self.is_new_user {
-            self.modals.account_backup = Some(AccountBackup);
+            if let Ok(metas) = self.core.list_metadatas() {
+                if let Some(welcome_doc) = metas.iter().find(|meta| meta.name == "welcome.md") {
+                    self.workspace.open_file(welcome_doc.id, false, true);
+                }
+            }
             self.is_new_user = false;
         }
 

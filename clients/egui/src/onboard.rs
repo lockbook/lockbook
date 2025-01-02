@@ -339,7 +339,7 @@ impl OnboardScreen {
                                                 );
                                             },
                                         );
-                                        //todo: figure out the correct bg color
+
                                         egui::Frame::default()
                                             .fill(ui.visuals().code_bg_color)
                                             .inner_margin(egui::Margin::symmetric(50.0, 40.0))
@@ -585,14 +585,14 @@ fn set_button_style(ui: &mut egui::Ui) {
 fn load_account_data(core: &Lb) -> Result<AccountScreenInitData, LbErr> {
     let files = match core.list_metadatas() {
         Ok(files) => files,
-        Err(err) => return Err(err), // TODO
+        Err(err) => return Err(err),
     };
 
     // todo: a bunch of this logic is duplicated, and we could consider consolidating it
     // and letting the workspace manage this state in the background
     let usage = match core.get_usage() {
         Ok(metrics) => Ok(metrics.into()),
-        Err(err) => return Err(err), // TODO
+        Err(err) => return Err(err),
     };
 
     let sync_status = core.get_last_synced_human_string();
