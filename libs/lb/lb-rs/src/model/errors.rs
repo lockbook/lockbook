@@ -116,11 +116,11 @@ impl Display for LbErrKind {
             LbErrKind::ShareNonexistent => write!(f, "That share does not exist"),
             LbErrKind::TryAgain => write!(f, "Please try again"),
             LbErrKind::UsernameInvalid => write!(f, "That username is invalid"),
-            LbErrKind::UsernameNotFound => write!(f, "That username not found"),
+            LbErrKind::UsernameNotFound => write!(f, "That username is not found"),
             LbErrKind::UsernamePublicKeyMismatch => {
                 write!(f, "That username doesn't match that public key")
             }
-            LbErrKind::UsernameTaken => write!(f, "That username not available"),
+            LbErrKind::UsernameTaken => write!(f, "That username is not available"),
             LbErrKind::Unexpected(msg) => write!(f, "Unexpected error: {msg}"),
             LbErrKind::AlreadySyncing => {
                 write!(f, "A sync is already in progress, cannot begin another sync at this time!")
@@ -502,6 +502,9 @@ impl From<SharedError> for TestRepoError {
 
 impl From<LbErr> for TestRepoError {
     fn from(value: LbErr) -> Self {
+        if value.kind == LbErrKind::AccountNonexistent {
+            return Self::NoAccount;
+        }
         Self::Core(value)
     }
 }

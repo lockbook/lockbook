@@ -30,7 +30,7 @@ impl Lb {
             .to_lazy();
         db.pub_key_lookup.insert(sharee, String::from(username))?;
 
-        tree.add_share(id, sharee, mode, account)?;
+        tree.add_share(id, sharee, mode, &self.keychain)?;
 
         self.spawn_build_index();
 
@@ -43,30 +43,32 @@ impl Lb {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
-        let account = &self.get_account()?.clone(); // todo: don't clone
-        let owner = Owner(self.get_pk()?);
+        let owner = Owner(self.keychain.get_pk()?);
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
         let mut result = Vec::new();
-        for id in tree.owned_ids() {
-            // file must not be deleted
-            if tree.calculate_deleted(&id)? {
-                continue;
-            }
+        for id in tree.ids() {
             // file must be owned by another user
             if tree.find(&id)?.owner() == owner {
                 continue;
             }
+
             // file must be shared with this user
             if tree.find(&id)?.access_mode(&owner).is_none() {
                 continue;
             }
+
+            // file must not be deleted
+            if tree.calculate_deleted(&id)? {
+                continue;
+            }
+
             // file must not have any links pointing to it
             if tree.linked_by(&id)?.is_some() {
                 continue;
             }
 
-            let file = tree.decrypt(account, &id, &db.pub_key_lookup)?;
+            let file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
             result.push(file);
         }
@@ -83,9 +85,8 @@ impl Lb {
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
             .to_lazy();
-        let account = self.get_account()?;
 
-        tree.delete_share(id, maybe_encrypted_for, account)?;
+        tree.delete_share(id, maybe_encrypted_for, &self.keychain)?;
 
         self.spawn_build_index();
 
@@ -94,7 +95,7 @@ impl Lb {
 
     #[instrument(level = "debug", skip(self))]
     pub async fn reject_share(&self, id: &Uuid) -> Result<(), LbErr> {
-        let pk = self.get_account()?.public_key();
+        let pk = self.keychain.get_pk()?;
         let result = self.delete_share(id, Some(pk)).await;
 
         self.spawn_build_index();

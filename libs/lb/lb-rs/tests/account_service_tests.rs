@@ -178,7 +178,7 @@ async fn import_account_nonexistent() {
 
     let mut tx = core2.begin_tx().await;
     tx.db().account.insert(account.clone()).unwrap();
-    core2.cache_account(account).await.unwrap();
+    core2.keychain.cache_account(account).await.unwrap();
 
     let account_string = core2.export_account_private_key().unwrap();
 
@@ -211,7 +211,7 @@ async fn import_account_public_key_mismatch() {
             .unwrap();
         account2.username = account1.username;
 
-        core3.cache_account(account2).await.unwrap();
+        core3.keychain.cache_account(account2).await.unwrap();
         core3.export_account_private_key().unwrap()
     };
 

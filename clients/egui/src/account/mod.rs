@@ -18,7 +18,6 @@ use lb::model::file_metadata::FileType;
 use lb::service::import_export::ImportStatus;
 use lb::Uuid;
 use tree::FilesExt;
-use workspace_rs::background::BwIncomingMsg;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::{Workspace, WsConfig};
@@ -99,10 +98,7 @@ impl AccountScreen {
     pub fn begin_shutdown(&mut self) {
         self.shutdown = Some(AccountShutdownProgress::default());
         self.workspace.save_all_tabs();
-        self.workspace
-            .background_tx
-            .send(BwIncomingMsg::Shutdown)
-            .unwrap();
+        // todo: wait for saves to complete
     }
 
     pub fn is_shutdown(&self) -> bool {
@@ -249,7 +245,11 @@ impl AccountScreen {
             });
 
         if self.is_new_user {
-            self.modals.account_backup = Some(AccountBackup);
+            if let Ok(metas) = self.core.list_metadatas() {
+                if let Some(welcome_doc) = metas.iter().find(|meta| meta.name == "welcome.md") {
+                    self.workspace.open_file(welcome_doc.id, false, true);
+                }
+            }
             self.is_new_user = false;
         }
 

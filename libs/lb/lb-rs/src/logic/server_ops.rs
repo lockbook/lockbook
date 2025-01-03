@@ -14,10 +14,8 @@ impl<'a> LazyTree<ServerTree<'a>> {
     /// Validates a diff prior to staging it. Performs individual validations, then validations that
     /// require a tree
     pub fn stage_diff(
-        mut self, changes: Vec<FileDiff<SignedFile>>,
+        self, changes: Vec<FileDiff<SignedFile>>,
     ) -> SharedResult<LazyServerStaged1<'a>> {
-        self.tree.ids.extend(changes.iter().map(|diff| *diff.id()));
-
         // Check new.id == old.id
         for change in &changes {
             if let Some(old) = &change.old {
@@ -58,7 +56,8 @@ impl<'a> LazyTree<ServerTree<'a>> {
                     }
                 }
                 None => {
-                    if self.maybe_find(change.new.id()).is_some() {
+                    // if you're claiming this file is new, it must be globally unique
+                    if self.tree.files.maybe_find(change.new.id()).is_some() {
                         return Err(SharedErrorKind::OldVersionRequired.into());
                     }
                 }

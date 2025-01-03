@@ -8,9 +8,9 @@ use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::service::search::{ContentMatch, SearchConfig, SearchResult};
 use lb::Uuid;
+use workspace_rs::show::InputStateExt;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
-use workspace_rs::workspace::InputStateExt;
 
 use crate::model::DocType;
 
@@ -222,7 +222,7 @@ impl FullDocSearch {
     fn show_content_match(&self, ui: &mut egui::Ui, content_match: &ContentMatch, font_size: f32) {
         let matched_indices = &content_match.matched_indices;
         let str = content_match.paragraph.clone();
-        let highlight_color = ui.visuals().widgets.active.bg_fill.gamma_multiply(0.5);
+        let highlight_color = ui.visuals().widgets.active.bg_fill.linear_multiply(0.5);
 
         let mut curr = 0;
         let mut next;
