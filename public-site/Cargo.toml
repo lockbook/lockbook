@@ -1,0 +1,9 @@
+[package]
+name = "public-site"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+wasm-bindgen = "0.2.99"
+web-sys = { version = "0.3.76", features = ["Window", "Document", "HtmlElement", "Text"] }
