@@ -388,6 +388,8 @@ impl Workspace {
                                 ext
                             )));
                         };
+
+                        self.out.tabs_changed = true;
                     } else {
                         println!("failed to load file: tab not found");
                     };
