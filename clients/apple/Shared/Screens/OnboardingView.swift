@@ -559,7 +559,6 @@ struct SetAPIURLView: View {
 }
 
 struct ImportAccountSyncView: View {
-    
     @StateObject var model = ImportAccountSyncViewModel()
     
     var body: some View {
