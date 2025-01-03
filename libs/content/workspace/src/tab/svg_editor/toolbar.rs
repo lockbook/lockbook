@@ -153,6 +153,7 @@ impl Toolbar {
             0.3,
             easing::cubic_in_out,
         );
+
         ui.set_opacity(opacity);
 
         let history_island = self.show_history_island(ui, history, buffer);
@@ -276,15 +277,15 @@ impl Toolbar {
                             self.pen.active_color,
                             ui.visuals().dark_mode,
                         )
-                        .gamma_multiply(self.pen.active_opacity)
+                        .linear_multiply(self.pen.active_opacity)
                     } else if self.active_tool == Tool::Highlighter {
                         ThemePalette::resolve_dynamic_color(
                             self.highlighter.active_color,
                             ui.visuals().dark_mode,
                         )
-                        .gamma_multiply(self.highlighter.active_opacity)
+                        .linear_multiply(self.highlighter.active_opacity)
                     } else {
-                        ui.visuals().text_color().gamma_multiply(0.2)
+                        ui.visuals().text_color().linear_multiply(0.2)
                     };
 
                     ui.painter().line_segment(
@@ -719,7 +720,7 @@ fn show_opacity_slider(ui: &mut egui::Ui, pen: &mut Pen) {
         ui.add_space(20.0);
         let slider_color =
             ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode)
-                .gamma_multiply(pen.active_opacity);
+                .linear_multiply(pen.active_opacity);
         ui.visuals_mut().widgets.inactive.bg_fill = slider_color;
         ui.visuals_mut().widgets.inactive.fg_stroke =
             egui::Stroke { width: 1.0, color: slider_color };
@@ -798,7 +799,7 @@ fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
     let mut preview_stroke = egui::Stroke {
         width: pen.active_stroke_width,
         color: ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode)
-            .gamma_multiply(pen.active_opacity),
+            .linear_multiply(pen.active_opacity),
     };
 
     if !pen.has_inf_thick {

@@ -166,8 +166,7 @@ impl<'window> WgpuWorkspace<'window> {
     pub fn surface_format(&self) -> wgpu::TextureFormat {
         // todo: is this really fine?
         // from here: https://github.com/hasenbanck/egui_example/blob/master/src/main.rs#L65
-        let avail_formats = self.surface.get_capabilities(&self.adapter).formats;
-        *avail_formats.get(1).unwrap_or(&avail_formats[0])
+        self.surface.get_capabilities(&self.adapter).formats[0]
     }
 
     pub fn configure_surface(&mut self) {

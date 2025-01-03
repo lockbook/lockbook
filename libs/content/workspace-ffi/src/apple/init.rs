@@ -26,8 +26,7 @@ pub unsafe extern "C" fn init_ws(
     let (adapter, device, queue) = pollster::block_on(request_device(&instance, &surface));
 
     let avail_formats = surface.get_capabilities(&adapter).formats;
-    println!("{:#?}", avail_formats);
-    let format = *avail_formats.get(1).unwrap_or(&avail_formats[0]);
+    let format = avail_formats[0];
 
     let screen =
         ScreenDescriptor { physical_width: 1000, physical_height: 1000, scale_factor: 1.0 };
