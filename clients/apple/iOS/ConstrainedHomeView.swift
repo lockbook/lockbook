@@ -71,14 +71,14 @@ struct ConstrainedHomeViewWrapper: View {
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItemGroup {
-                                if workspace.openTabs > 1 {
+                                if workspace.tabCount > 1 {
                                     Button(action: {
                                         DI.sheets.tabsList = true
                                     }, label: {
                                         ZStack {
                                             Label("Tabs", systemImage: "rectangle.fill")
                                             
-                                            Text(workspace.openTabs < 100 ? String(workspace.openTabs) : ":D")
+                                            Text(workspace.tabCount < 100 ? String(workspace.tabCount) : ":D")
                                                 .font(.callout)
                                                 .foregroundColor(.white)
                                         }
