@@ -10,11 +10,11 @@ class FilesViewModel: ObservableObject {
     
     var error: String? = nil
     
-    init(loaded: Bool = true) {
-        loadFiles(loaded)
+    init(setLoaded: Bool = true) {
+        loadFiles(setLoaded)
     }
     
-    func loadFiles(_ loaded: Bool = true) {
+    func loadFiles(_ setLoaded: Bool = true) {
         DispatchQueue.global(qos: .userInitiated).async {
             let res = MainState.lb.listMetadatas()
             DispatchQueue.main.async {
@@ -31,7 +31,9 @@ class FilesViewModel: ObservableObject {
                         $0[$1.parent]!.append($1)
                     }
                     self.files = files
-                    self.loaded = loaded
+                    if setLoaded {
+                        self.loaded = true
+                    }
                 case .failure(let err):
                     self.error = err.msg
                 }

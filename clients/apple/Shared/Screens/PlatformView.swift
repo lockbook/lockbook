@@ -1,13 +1,16 @@
-import Foundation
 import SwiftUI
 import SwiftWorkspace
-import AlertToast
 
 struct PlatformView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @ObservedObject var filesModel = FilesViewModel()
     
     var body: some View {
+        DrawerView(isOpened: false, menu: {
+            
+        }, content: {
+            
+        })
         if let error = filesModel.error {
             Text(error)
                 .foregroundStyle(.red)
@@ -25,11 +28,11 @@ struct PlatformView: View {
 }
 
 #Preview("Platform View") {
-    PlatformView(filesModel: FilesViewModel(loaded: true))
+    PlatformView(filesModel: FilesViewModel(setLoaded: true))
 }
 
 #Preview("Platform View Loading") {
-    PlatformView(filesModel: FilesViewModel(loaded: false))
+    PlatformView(filesModel: FilesViewModel(setLoaded: false))
 }
 
 #Preview("Platform View Error") {

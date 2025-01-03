@@ -606,7 +606,7 @@ public class Lb: LbAPI {
     }
 }
 
-public class LbMock: LbAPI {
+public class MockLb: LbAPI {
     let account = Account(username: "smail", apiUrl: "https://api.prod.lockbook.net")
     let accountPK = "BQAAAAAAAAB0ZXN0MQkAAAAAAAAAdGVzdDEuY29tIAAAAAAAAAATIlUEJFM0ejFr3ywfEAKgZGfBAEMPuIUhb1uPiejwKg"
     let accountPhrase = "turkey, era, velvet, detail, prison, income, dose, royal, fever, truly, unique, couple, party, example, piece, art, leaf, follow, rose, access, vacant, gather, wasp, audit"

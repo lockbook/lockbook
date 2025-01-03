@@ -15,7 +15,7 @@ class MainState: ObservableObject {
     
     static let lb: LbAPI = {
         if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
-            return LbMock()
+            return MockLb()
         }
         
         return Lb(writablePath: ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] ?? LB_LOC, logs: true)
