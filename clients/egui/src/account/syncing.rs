@@ -49,7 +49,7 @@ impl super::AccountScreen {
                         };
 
                         let text: egui::WidgetText = text.into();
-                        let text = text.color(ui.visuals().text_color().gamma_multiply(0.8));
+                        let text = text.color(ui.visuals().text_color().linear_multiply(0.8));
                         let galley = text.into_galley(
                             ui,
                             Some(TextWrapMode::Extend),
@@ -107,12 +107,12 @@ impl super::AccountScreen {
         ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
 
         ui.visuals_mut().widgets.inactive.bg_fill =
-            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.1);
+            ui.visuals().widgets.active.bg_fill.linear_multiply(0.1);
         ui.visuals_mut().widgets.hovered.bg_fill =
-            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.2);
+            ui.visuals().widgets.active.bg_fill.linear_multiply(0.2);
 
         ui.visuals_mut().widgets.active.bg_fill =
-            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.3);
+            ui.visuals().widgets.active.bg_fill.linear_multiply(0.3);
 
         let sync_btn = Button::default()
             .text("Sync")
@@ -170,7 +170,7 @@ impl super::AccountScreen {
         };
 
         egui::Frame::default()
-            .fill(color.gamma_multiply(0.1))
+            .fill(color.linear_multiply(0.1))
             .inner_margin(egui::Margin::symmetric(10.0, 7.0))
             .rounding(egui::Rounding::same(10.0))
             .show(ui, |ui| {

@@ -131,7 +131,7 @@ impl Pen {
                     pos,
                     radius,
                     ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode)
-                        .gamma_multiply(self.active_opacity * opacity),
+                        .linear_multiply(self.active_opacity * opacity),
                 );
             }
         }

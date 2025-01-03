@@ -227,7 +227,7 @@ impl Renderer {
 
                 let mut mesh = egui::Mesh::with_texture(texture.id());
 
-                mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE.gamma_multiply(img.opacity));
+                mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE.linear_multiply(img.opacity));
                 self.mesh_cache
                     .insert(id, MeshShape { shape: mesh, scale: img.transform.sx });
             }
@@ -253,8 +253,8 @@ fn tesselate_path<'a>(
             return Some((*id, RenderOp::Delete));
         }
         let stroke_color = ThemePalette::resolve_dynamic_color(stroke.color, dark_mode)
-            .gamma_multiply(stroke.opacity)
-            .gamma_multiply(p.opacity);
+            .linear_multiply(stroke.opacity)
+            .linear_multiply(p.opacity);
 
         let mut builder = lyon::path::BuilderWithAttributes::new(1);
 
