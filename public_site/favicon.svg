@@ -1,9 +1,0 @@
-<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="25 20 150 170">
-    <defs>
-        <style>.cls-1{fill:#f4f5f8;}.cls-2{fill:#f0efef;}.cls-3{fill:#4a74b9;}.cls-4{fill:#e6e6eb;}</style>
-    </defs>
-    <polyline class="cls-3" points="63.27 167.24 63.27 184.84 77.5 184.84 77.5 167.24"/>
-    <rect class="cls-4" x="47.52" y="32.76" width="104.97" height="134.49" rx="5.8"/>
-    <path class="cls-3" d="M105.31,101.15l2.74,22.2H91.81l2.74-22.2a12.9,12.9,0,1,1,10.76,0Z"
-          transform="translate(0.07 0.07)"/>
-</svg>
