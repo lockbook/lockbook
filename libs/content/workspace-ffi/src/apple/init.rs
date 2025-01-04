@@ -7,7 +7,7 @@ use std::ffi::c_void;
 use std::time::Instant;
 use workspace_rs::register_fonts;
 use workspace_rs::theme::visuals;
-use workspace_rs::workspace::{Workspace, WsConfig};
+use workspace_rs::workspace::Workspace;
 
 /// # Safety
 #[no_mangle]
@@ -15,7 +15,6 @@ pub unsafe extern "C" fn init_ws(
     core: *mut c_void, metal_layer: *mut c_void, dark_mode: bool,
 ) -> *mut c_void {
     let core = unsafe { &mut *(core as *mut Lb) };
-    let writable_dir = core.get_config().writeable_path;
 
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
@@ -45,8 +44,7 @@ pub unsafe extern "C" fn init_ws(
 
     let context = Context::default();
     visuals::init(&context, dark_mode);
-    let ws_cfg = WsConfig { data_dir: writable_dir, ..Default::default() };
-    let workspace = Workspace::new(ws_cfg, core, &context);
+    let workspace = Workspace::new(core, &context);
     let mut fonts = FontDefinitions::default();
     register_fonts(&mut fonts);
     context.set_fonts(fonts);
