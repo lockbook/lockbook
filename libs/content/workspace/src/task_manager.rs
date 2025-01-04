@@ -9,7 +9,8 @@ use lb_rs::logic::crypto::DecryptedDocument;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
-use lb_rs::Uuid;
+use lb_rs::svg::buffer::Buffer;
+use lb_rs::{text, Uuid};
 use tracing::warn;
 
 #[derive(Default)]
@@ -78,11 +79,17 @@ pub struct LoadRequest {
 }
 
 #[derive(Clone)]
+pub enum Content {
+    Text(String),
+    Svg(Buffer),
+}
+
+#[derive(Clone)]
 pub struct SaveRequest {
     pub id: Uuid,
     pub old_hmac: Option<DocumentHmac>,
     pub seq: usize,
-    pub content: String,
+    pub content: Content,
 }
 
 // Timing
@@ -192,6 +199,9 @@ pub struct CompletedLoad {
 pub struct CompletedSave {
     pub request: SaveRequest,
     pub new_hmac_result: LbResult<DocumentHmac>,
+
+    /// only for svgs
+    pub serialized_repr: String,
 
     pub timing: CompletedTiming,
 }
@@ -387,10 +397,15 @@ impl TaskManager {
             let self_clone = self.clone();
             thread::spawn(move || {
                 let id = request.id;
+                let content = match request.content {
+                    Content::Text(string) => string,
+                    Content::Svg(buffer) => buffer.serialize(),
+                };
+
                 let new_hmac_result = self_clone.core.safe_write(
                     request.id,
                     request.old_hmac,
-                    request.content.into(),
+                    content.clone().into(),
                 );
 
                 {
@@ -413,6 +428,7 @@ impl TaskManager {
                         request: in_progress_save.request,
                         new_hmac_result,
                         timing: CompletedTiming::new(in_progress_save.timing),
+                        serialized_repr: content,
                     };
                     let in_progress_time = completed_save
                         .timing

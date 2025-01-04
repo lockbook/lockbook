@@ -98,7 +98,7 @@ impl Image {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Default, Clone)]
 pub struct WeakImages(HashMap<Uuid, WeakImage>);
 
 impl Deref for WeakImages {

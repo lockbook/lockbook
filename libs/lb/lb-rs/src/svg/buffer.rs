@@ -23,7 +23,7 @@ use super::{
 const ZOOM_G_ID: &str = "lb_master_transform";
 const WEAK_IMAGE_G_ID: &str = "lb_images";
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Buffer {
     pub open_file_hmac: Option<DocumentHmac>,
     pub opened_content: String,

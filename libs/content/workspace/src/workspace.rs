@@ -16,7 +16,8 @@ use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{Tab, TabContent, TabFailure};
 use crate::task_manager::{
-    self, CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, SaveRequest, TaskManager,
+    self, CompletedLoad, CompletedSave, CompletedTiming, Content, LoadRequest, SaveRequest,
+    TaskManager,
 };
 
 pub struct Workspace {
@@ -405,6 +406,7 @@ impl Workspace {
                         request: SaveRequest { id, old_hmac: _, seq, content },
                         new_hmac_result,
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
+                        serialized_repr,
                     } = save;
 
                     let mut sync = false;
@@ -415,11 +417,11 @@ impl Workspace {
                                 match tab.content.as_mut() {
                                     Some(TabContent::Markdown(md)) => {
                                         md.hmac = Some(hmac);
-                                        md.buffer.saved(seq, content);
+                                        md.buffer.saved(seq, serialized_repr);
                                     }
                                     Some(TabContent::Svg(svg)) => {
                                         svg.buffer.open_file_hmac = Some(hmac);
-                                        svg.buffer.opened_content = content;
+                                        svg.buffer.opened_content = serialized_repr;
                                     }
                                     _ => {}
                                 }

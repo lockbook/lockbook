@@ -2,7 +2,7 @@ use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
-use crate::task_manager::SaveRequest;
+use crate::task_manager::{Content, SaveRequest};
 use chrono::DateTime;
 use egui::Id;
 use lb_rs::blocking::Lb;
@@ -10,6 +10,7 @@ use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::Uuid;
+use tracing::instrument;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -32,27 +33,24 @@ pub struct Tab {
 }
 
 impl Tab {
+    #[instrument(skip(self))]
     pub fn make_save_request(&self) -> Option<SaveRequest> {
         let tab_content = self.content.as_ref()?;
-        let mut result = SaveRequest {
-            id: self.id,
-            old_hmac: Default::default(),
-            seq: Default::default(),
-            content: Default::default(),
-        };
         match tab_content {
-            TabContent::Markdown(md) => {
-                result.old_hmac = md.hmac;
-                result.seq = md.buffer.current.seq;
-                result.content = md.buffer.current.text.clone();
-            }
-            TabContent::Svg(svg) => {
-                result.old_hmac = svg.buffer.open_file_hmac;
-                result.content = svg.buffer.serialize();
-            }
+            TabContent::Markdown(md) => Some(SaveRequest {
+                id: self.id,
+                old_hmac: md.hmac,
+                seq: md.buffer.current.seq,
+                content: Content::Text(md.buffer.current.text.clone()),
+            }),
+            TabContent::Svg(svg) => Some(SaveRequest {
+                id: self.id,
+                old_hmac: svg.buffer.open_file_hmac,
+                seq: 0,
+                content: Content::Svg(svg.buffer.clone()),
+            }),
             _ => return None,
-        };
-        Some(result)
+        }
     }
 
     pub fn is_dirty(&self) -> bool {
