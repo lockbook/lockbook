@@ -59,6 +59,8 @@ impl Workspace {
 
         self.out.status_updated = true;
         self.status.dirtyness = dirty;
+
+        self.last_sync_status_refresh = Some(Instant::now());
     }
 
     pub fn refresh_files(&mut self, work: &SyncStatus) {
