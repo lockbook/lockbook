@@ -18,7 +18,7 @@ members = [
 	"utils/dev-tool",
 	"utils/releaser",
 	"utils/winstaller",
-	"public-site",
+	"public_site",
     "libs/lb/lb-c", "libs/lb/lb-java",
 ]
 

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<!-- Disable zooming: -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<head>
+    <title>lockbook</title>
+
+    <!-- config for our rust wasm binary. go to https://trunkrs.dev/assets/#rust for more customization -->
+    <link data-trunk rel="rust" data-wasm-opt="2" />
+    <!-- this is the base url relative to which other urls will be constructed. trunk will insert this from the public-url option -->
+    <base data-trunk-public-url />
+
+    <link data-trunk rel="icon" href="assets/favicon.ico">
+
+
+    <link data-trunk rel="copy-file" href="assets/sw.js"/>
+    <link data-trunk rel="copy-file" href="assets/manifest.json"/>
+    <link data-trunk rel="copy-file" href="assets/icon-1024.png" data-target-path="assets"/>
+    <link data-trunk rel="copy-file" href="assets/icon-256.png" data-target-path="assets"/>
+    <link data-trunk rel="copy-file" href="assets/icon_ios_touch_192.png" data-target-path="assets"/>
+    <link data-trunk rel="copy-file" href="assets/maskable_icon_x512.png" data-target-path="assets"/>
+
+
+
+    <link data-trunk rel="tailwind-css" href="tailwind.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&display=swap" rel="stylesheet" />
+    
+    <link rel="apple-touch-icon" href="assets/icon_ios_touch_192.png">
+
+    <!-- not sure what this does, maybe it sets the theme for light dark mode that the egui code later uses --> 
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="white">
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#404040">
+
+    <style>
+        html {
+            /* Remove touch delay: */
+            touch-action: manipulation;
+        }
+        canvas {
+            margin-right: auto;
+            margin-left: auto;
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        /* Allow canvas to fill entire web page: */
+        html,
+        body {
+            overflow: hidden;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body class="bg-abyss-900">
+    <!-- <nav class="flex justify-between px-10 py-6 align-middle text-egshell">
+        <div class="flex"><img src="assets/logo.svg" alt="lockbook's logo" /></div>
+        <div class="flex items-baseline">
+            <ul class="flex mr-10">
+                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
+                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
+                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">About</a>
+            </ul>
+            <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline">Download</button>
+        </div>
+    </nav>
+    <div class="relative mt-40">
+        <h1 class="max-w-4xl mx-auto text-4xl font-bold text-center text-egshell">
+            The secure place for
+            <p class="relative inline">
+              <span class="absolute left-0 px-2 py-1 text-xs font-medium tracking-normal uppercase -translate-x-4 -translate-y-2 text-abyss-900 -z-10 -rotate-6 text-abyss rounded-2xl bg-sundown">markdown</span> writing</p>
+            notes,
+            <p class="relative inline">sketching 
+            <span class="absolute right-0 px-2 py-1 text-xs font-medium tracking-normal uppercase -translate-x-1 -translate-y-1 text-abyss-900 -z-10 rotate-6 text-abyss rounded-2xl bg-dusk">svg</span></p>
+            ideas and storing files
+        </h1>
+        <span class="w-screen h-screen absolute inset-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(at_center,_theme('colors.egshell')_-200%,_transparent_30%)]"></span>
+    </div>
+    <div class="max-w-xl mx-auto mt-40 px-28 py-14 bg-abyss-400">
+      <h2 class="text-xl font-bold text-egshell">keep your thoughts to yourself!</h2>
+      <p class="mt-6 text-xs leading-6 font-extralight text-egshell ">We use elliptic curve cryptography (just like Bitcoin) to hide your data even from us. Your files never leave your device without being encrypted with your private key. Your private key is generated on your device and transferred directly to your other devices by scanning a QR code or typing a 24-word phrase.</p>
+      <h2 class="mt-8 text-xl font-bold text-egshell">## Try me!</h2>
+    </div>  -->
+
+    <!-- the id is hardcoded in main.rs. change with caution  -->
+     <div class="border w-96 h-96 border-surfline">
+        <canvas id="the_canvas_id"></canvas>
+    </div>
+
+    <!--Register Service Worker. this will cache the wasm / js scripts for offline use (for PWA functionality). -->
+    <!-- Force refresh (Ctrl + F5) to load the latest files instead of cached files  -->
+    <script>
+        // We disable caching during development so that we always view the latest version.
+        if ('serviceWorker' in navigator && window.location.hash !== "#dev") {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('sw.js');
+            });
+        }
+    </script>
+</body>
+
+</html>
+
+<!-- Powered by egui: https://github.com/emilk/egui/ -->
