@@ -405,10 +405,10 @@ impl KnowledgeGraphApp {
             );
 
             let size = node_sizes[i];
-            let mut text_color = Color32::BLACK;
+            let mut outline_color = Color32::BLACK;
             let mut text = node.title.clone();
             if node.title.ends_with(".md") {
-                text_color = Color32::LIGHT_BLUE;
+                outline_color = Color32::LIGHT_BLUE;
                 text = node.title.trim_end_matches(".md").to_string();
             }
 
@@ -418,7 +418,7 @@ impl KnowledgeGraphApp {
                     pos,
                     size,
                     rgb_color,
-                    Stroke::new(0.75 * self.zoom_factor, text_color),
+                    Stroke::new(0.75 * self.zoom_factor, outline_color),
                 );
 
                 if size > 5.0 && cursorin(self.cursor_loc, pos, size) {
