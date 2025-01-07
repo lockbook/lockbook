@@ -388,7 +388,7 @@ impl KnowledgeGraphApp {
                     } else {
                         ui.painter().line_segment(
                             [pos, target],
-                            Stroke::new(1.0 * self.zoom_factor, text_color),
+                            Stroke::new(1.0 * self.zoom_factor, Color32::GRAY),
                         );
                     }
                 }
@@ -425,8 +425,7 @@ impl KnowledgeGraphApp {
                     self.inside = node.file_id; //need to make to so every linknode has also a uuid
                     self.inside_found = true;
                     let font_id = egui::FontId::proportional(15.0 * (self.zoom_factor.sqrt()));
-                    text_info =
-                        Some((pos, egui::Align2::CENTER_CENTER, text, font_id, Color32::GRAY));
+                    text_info = Some((pos, egui::Align2::CENTER_CENTER, text, font_id, text_color));
                 }
             }
         }
