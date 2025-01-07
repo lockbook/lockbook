@@ -34,7 +34,6 @@ impl From<crate::Response> for MacOSResponse {
                     new_folder_clicked,
                     tab_title_clicked: _,
                     file_created,
-                    error: _,
                     settings_updated: _,
                     sync_done,
                     status_updated,

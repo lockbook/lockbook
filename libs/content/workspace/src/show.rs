@@ -23,7 +23,7 @@ impl Workspace {
 
         self.process_updates();
         self.process_keys();
-        self.status.populate_message();
+        self.status.message = self.status_message();
 
         if self.is_empty() {
             self.show_empty_workspace(ui);

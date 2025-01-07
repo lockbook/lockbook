@@ -36,8 +36,6 @@ impl Lb {
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
-        info!("created {:?} with id {id}", file_type);
-
         self.spawn_build_index();
 
         Ok(ui_file)

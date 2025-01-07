@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
@@ -423,7 +423,7 @@ impl Workspace {
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
-                                    info!("reloading file after save failed with re-read required: {}", id);
+                                    debug!("reloading file after save failed with re-read required: {}", id);
                                     self.open_file(id, false, false);
                                 } else {
                                     tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
@@ -454,8 +454,8 @@ impl Workspace {
             let tasks = self.tasks.tasks.lock().unwrap();
             if let Some(sync) = tasks.in_progress_sync.as_ref() {
                 while let Ok(progress) = sync.progress.try_recv() {
+                    debug!("sync progress: {}", progress);
                     self.out.status_updated = true;
-                    self.status.sync_progress = progress.progress as f32 / progress.total as f32;
                     self.status.sync_message = Some(progress.msg);
                 }
             }
@@ -503,7 +503,7 @@ impl Workspace {
         }
         let start = Instant::now();
         if self.cfg.get_auto_sync() {
-            if let Some(last_sync) = self.last_sync {
+            if let Some(last_sync) = self.tasks.sync_queued_at().or(self.last_sync) {
                 let focused = self.ctx.input(|i| i.focused);
                 let user_active = self.user_last_seen.elapsed() < Duration::from_secs(10);
                 let sync_period = if user_active && focused {
@@ -599,6 +599,34 @@ impl Workspace {
 
         self.out.file_moved = Some((id, new_parent));
         self.ctx.request_repaint();
+    }
+
+    pub fn status_message(&self) -> String {
+        if let Some(error) = &self.status.error {
+            format!("err: {error}")
+        } else if self.status.offline {
+            "Offline".to_string()
+        } else if self.status.out_of_space {
+            "You're out of space, buy more in settings!".to_string()
+        } else if let (true, Some(msg)) = (self.syncing(), &self.status.sync_message) {
+            msg.to_string()
+        } else if !self.status.dirtyness.dirty_files.is_empty() {
+            let size = self.status.dirtyness.dirty_files.len();
+            if size == 1 {
+                format!("{size} file needs to be synced")
+            } else {
+                format!("{size} files need to be synced")
+            }
+        } else {
+            format!("Last synced: {}", self.status.dirtyness.last_synced)
+        }
+    }
+
+    pub fn syncing(&self) -> bool {
+        self.tasks
+            .sync_started_at()
+            .map(|s| s.elapsed().as_millis() > 300)
+            .unwrap_or_default()
     }
 }
 

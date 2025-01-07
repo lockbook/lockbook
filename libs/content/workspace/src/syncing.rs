@@ -12,14 +12,7 @@ impl Workspace {
     // todo should anyone outside workspace ever call this? Or should they call something more
     // general that would allow workspace to determine if a sync is needed
     pub fn perform_sync(&mut self) {
-        if self.status.sync_started.is_some() {
-            return;
-        }
-
-        self.status.error = None;
         self.out.status_updated = true;
-        self.status.sync_started = Some(Instant::now());
-
         self.tasks.queue_sync();
     }
 
@@ -27,7 +20,6 @@ impl Workspace {
         let CompletedSync { status_result, timing: _ } = outcome;
 
         self.out.status_updated = true;
-        self.status.sync_started = None;
         self.last_sync = Some(Instant::now());
         match status_result {
             Ok(done) => {
@@ -41,10 +33,10 @@ impl Workspace {
                 LbErrKind::ServerUnreachable => self.status.offline = true,
                 LbErrKind::ClientUpdateRequired => self.status.update_req = true,
                 LbErrKind::UsageIsOverDataCap => self.status.out_of_space = true,
-                LbErrKind::Unexpected(msg) => self.out.error = Some(msg),
+                LbErrKind::Unexpected(msg) => self.status.error = Some(msg),
                 _ => {
                     error!("Unhandled sync error: {:?}", err);
-                    self.out.error = format!("{:?}", err).into();
+                    self.status.error = format!("{:?}", err).into();
                 }
             },
         }
@@ -72,7 +64,7 @@ impl Workspace {
         for id in server_ids {
             for i in 0..self.tabs.len() {
                 if self.tabs[i].id == id && !self.tabs[i].is_closing {
-                    tracing::info!("Reloading file after sync: {}", id);
+                    tracing::debug!("Reloading file after sync: {}", id);
                     self.open_file(id, false, false);
                 }
             }

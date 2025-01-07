@@ -250,6 +250,7 @@ impl TaskManager {
         self.tasks.lock().unwrap().load_or_save_in_progress(id)
     }
 
+    #[allow(clippy::manual_map)] // manual map clarifies overall fn structure
     pub fn save_queued_at(&self, id: Uuid) -> Option<Instant> {
         let tasks = self.tasks.lock().unwrap();
         if let Some(queued_save) = tasks
@@ -270,6 +271,32 @@ impl TaskManager {
             .find(|completed_save| completed_save.request.id == id)
         {
             Some(completed_save.timing.queued_at)
+        } else {
+            None
+        }
+    }
+
+    #[allow(clippy::manual_map)] // manual map clarifies overall fn structure
+    pub fn sync_queued_at(&self) -> Option<Instant> {
+        let tasks = self.tasks.lock().unwrap();
+        if let Some(queued_sync) = tasks.queued_syncs.last() {
+            Some(queued_sync.timing.queued_at)
+        } else if let Some(in_progress_sync) = tasks.in_progress_sync.as_ref() {
+            Some(in_progress_sync.timing.queued_at)
+        } else if let Some(completed_sync) = tasks.completed_sync.as_ref() {
+            Some(completed_sync.timing.queued_at)
+        } else {
+            None
+        }
+    }
+
+    #[allow(clippy::manual_map)] // manual map clarifies overall fn structure
+    pub fn sync_started_at(&self) -> Option<Instant> {
+        let tasks = self.tasks.lock().unwrap();
+        if let Some(in_progress_sync) = tasks.in_progress_sync.as_ref() {
+            Some(in_progress_sync.timing.started_at)
+        } else if let Some(completed_sync) = tasks.completed_sync.as_ref() {
+            Some(completed_sync.timing.started_at)
         } else {
             None
         }
@@ -344,7 +371,7 @@ impl TaskManager {
         let any_to_launch =
             !loads_to_launch.is_empty() || !saves_to_launch.is_empty() || sync_to_launch.is_some();
         if any_to_launch {
-            info!(
+            debug!(
                 "launching {} loads, {} saves, and {} syncs; {} loads, {} saves, and {} syncs remain queued",
                 loads_to_launch.len(),
                 saves_to_launch.len(),
@@ -393,20 +420,23 @@ impl TaskManager {
                         .expect("failed to find in-progress entry for load that just completed");
                     // ^ above error may indicate concurrent loads to the same file, which would cause problems
 
-                    let completed_load = CompletedLoad {
-                        request: in_progress_load.request,
-                        content_result,
-                        timing: CompletedTiming::new(in_progress_load.timing),
-                    };
-                    let in_progress_time = completed_load
-                        .timing
-                        .completed_at
-                        .duration_since(completed_load.timing.started_at);
-                    if in_progress_time > Duration::from_secs(1) {
+                    let timing = CompletedTiming::new(in_progress_load.timing);
+                    let in_progress_time = timing.completed_at.duration_since(timing.started_at);
+                    if let Err(err) = &content_result {
+                        error!(
+                            "load of file {} failed ({}ms): {:?}",
+                            request.id,
+                            in_progress_time.as_millis(),
+                            err
+                        );
+                    } else if in_progress_time > Duration::from_secs(1) {
                         warn!("loaded file {} ({}ms)", request.id, in_progress_time.as_millis());
                     } else {
-                        info!("loaded file {} ({}ms)", request.id, in_progress_time.as_millis());
+                        debug!("loaded file {} ({}ms)", request.id, in_progress_time.as_millis());
                     }
+
+                    let completed_load =
+                        CompletedLoad { request: in_progress_load.request, content_result, timing };
                     tasks.completed_loads.push(completed_load);
                 }
 
@@ -489,22 +519,28 @@ impl TaskManager {
                         .expect("failed to find in-progress entry for save that just completed");
                     // ^ above error may indicate concurrent saves to the same file, which would cause problems
 
+                    let timing = CompletedTiming::new(in_progress_save.timing);
+                    let in_progress_time = timing.completed_at.duration_since(timing.started_at);
+                    if let Err(err) = &new_hmac_result {
+                        error!(
+                            "save of file {} failed ({}ms): {:?}",
+                            request.id,
+                            in_progress_time.as_millis(),
+                            err
+                        );
+                    } else if in_progress_time > Duration::from_secs(1) {
+                        warn!("saved file {} ({}ms)", request.id, in_progress_time.as_millis());
+                    } else {
+                        debug!("saved file {} ({}ms)", request.id, in_progress_time.as_millis());
+                    }
+
                     let completed_save = CompletedSave {
                         request: in_progress_save.request,
                         seq,
                         content,
                         new_hmac_result,
-                        timing: CompletedTiming::new(in_progress_save.timing),
+                        timing,
                     };
-                    let in_progress_time = completed_save
-                        .timing
-                        .completed_at
-                        .duration_since(completed_save.timing.started_at);
-                    if in_progress_time > Duration::from_secs(1) {
-                        warn!("saved file {} ({}ms)", request.id, in_progress_time.as_millis());
-                    } else {
-                        info!("saved file {} ({}ms)", request.id, in_progress_time.as_millis());
-                    }
                     tasks.completed_saves.push(completed_save);
                 }
 
@@ -543,19 +579,21 @@ impl TaskManager {
                         .expect("failed to find in-progress entry for sync that just completed");
                     // ^ above error may indicate concurrent syncs, which would cause problems
 
-                    let completed_sync = CompletedSync {
-                        status_result,
-                        timing: CompletedTiming::new(in_progress_sync.timing),
-                    };
-                    let in_progress_time = completed_sync
-                        .timing
-                        .completed_at
-                        .duration_since(completed_sync.timing.started_at);
-                    if in_progress_time > Duration::from_secs(1) {
-                        warn!("synced ({}ms)", in_progress_time.as_millis());
+                    let timing = CompletedTiming::new(in_progress_sync.timing);
+                    let in_progress_time = timing.completed_at.duration_since(timing.started_at);
+                    if let Err(err) = &status_result {
+                        error!("sync failed ({}ms): {:?}", in_progress_time.as_millis(), err);
+                    } else if in_progress_time > Duration::from_secs(1) {
+                        warn!(
+                            "synced ({}ms); status = {:?}",
+                            in_progress_time.as_millis(),
+                            status_result
+                        );
                     } else {
-                        info!("synced ({}ms)", in_progress_time.as_millis());
+                        debug!("synced ({}ms)", in_progress_time.as_millis());
                     }
+
+                    let completed_sync = CompletedSync { status_result, timing };
                     tasks.completed_sync = Some(completed_sync);
                 }
 

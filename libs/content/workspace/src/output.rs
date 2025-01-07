@@ -1,5 +1,4 @@
 use lb_rs::{model::file::File, service::sync::SyncStatus, Uuid};
-use std::time::Instant;
 
 // todo: dirty docs
 #[derive(Debug, Default, Clone)]
@@ -13,8 +12,6 @@ pub struct Response {
 
     pub new_folder_clicked: bool,
     pub tab_title_clicked: bool,
-
-    pub error: Option<String>,
 
     pub settings_updated: bool,
 
@@ -34,59 +31,15 @@ pub struct Response {
 #[derive(Default, Clone)]
 pub struct WsStatus {
     pub error: Option<String>,
-    pub sync_started: Option<Instant>, // Some if there is a sync in progress
     pub offline: bool,
     pub update_req: bool,
     pub out_of_space: bool,
     pub usage: f64,
-    pub sync_progress: f32,
     pub dirtyness: DirtynessMsg,
     pub sync_message: Option<String>,
 
     /// summary of the booleans above
     pub message: String,
-}
-
-impl WsStatus {
-    pub fn populate_message(&mut self) {
-        if let Some(error) = &self.error {
-            self.message = format!("err: {error}");
-            return;
-        }
-        if self.offline {
-            self.message = "Offline".to_string();
-            return;
-        }
-
-        if self.out_of_space {
-            self.message = "You're out of space, buy more in settings!".to_string();
-        }
-
-        if self.syncing() {
-            if let Some(msg) = &self.sync_message {
-                self.message = msg.to_string();
-                return;
-            }
-        }
-
-        if !self.dirtyness.dirty_files.is_empty() {
-            let size = self.dirtyness.dirty_files.len();
-            if size == 1 {
-                self.message = format!("{size} file needs to be synced");
-            } else {
-                self.message = format!("{size} files need to be synced");
-            }
-            return;
-        }
-
-        self.message = format!("Last synced: {}", self.dirtyness.last_synced);
-    }
-
-    pub fn syncing(&self) -> bool {
-        self.sync_started
-            .map(|s| s.elapsed().as_millis() > 300)
-            .unwrap_or(false)
-    }
 }
 
 #[derive(Clone)]
