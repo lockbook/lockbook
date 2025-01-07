@@ -371,7 +371,7 @@ impl Workspace {
                 self.create_file(true);
             }
             if Button::default()
-                .text("Graph")
+                .text("Mind Map")
                 .rounding(egui::Rounding::same(3.0))
                 .frame(true)
                 .show(ui)
@@ -458,7 +458,12 @@ impl Workspace {
                                     tab.last_changed = Instant::now();
                                 }
                             }
-                            TabContent::Graph(kg) => kg.show(ui, false),
+                            TabContent::Graph(kg) => {
+                                let response = kg.show(ui, false);
+                                if let Some(value) = response {
+                                    self.open_file(value, false, true);
+                                }
+                            }
                         };
                     } else {
                         ui.spinner();
@@ -733,7 +738,7 @@ impl Workspace {
     }
 
     pub fn close_tab(&mut self, i: usize) {
-        if self.tabs[i].name == "graph" {
+        if self.tabs[i].name == "Mind Map" {
             if let Some(TabContent::Graph(mut graph_app)) = self.tabs[i].content.take() {
                 graph_app.stop(true);
             }
@@ -832,9 +837,9 @@ impl Workspace {
         }
     }
     fn graph_called(&mut self, core: Lb) {
-        if !self.tabs.iter().any(|t| t.name == "graph") {
+        if !self.tabs.iter().any(|t| t.name == "Mind Map") {
             let id = Uuid::new_v4();
-            self.upsert_tab(id, "graph", "", false, true);
+            self.upsert_tab(id, "Mind Map", "", false, true);
             // let mut graph = lockbook_data(&self.core);
             if let Some(tab) = self.get_mut_tab_by_id(id) {
                 tab.content = Some(TabContent::Graph(KnowledgeGraphApp::new(&core)));
