@@ -273,6 +273,9 @@ impl Workspace {
                                 }
                                 TabLabelResponse::Closed => {
                                     self.close_tab(i);
+                                }
+                                TabLabelResponse::Removed => {
+                                    self.remove_tab(i);
 
                                     let title = match self.current_tab() {
                                         Some(tab) => tab.name.clone(),
@@ -405,23 +408,23 @@ impl Workspace {
     fn tab_label(
         &mut self, ui: &mut egui::Ui, t: usize, is_active: bool, active_tab_changed: bool,
     ) -> Option<TabLabelResponse> {
-        let t = &mut self.tabs[t];
+        let tab = &mut self.tabs[t];
         let mut result = None;
 
         let icon_size = 16.0;
         let x_icon = Icon::CLOSE.size(icon_size);
-        let status_icon = if self.tasks.load_or_save_queued(t.id) {
+        let status_icon = if self.tasks.load_or_save_queued(tab.id) {
             Icon::SCHEDULE.size(icon_size)
-        } else if self.tasks.load_or_save_in_progress(t.id) {
+        } else if self.tasks.load_or_save_in_progress(tab.id) {
             Icon::SAVE.size(icon_size)
-        } else if t.is_dirty() {
+        } else if tab.is_dirty() {
             Icon::CIRCLE.size(icon_size)
         } else {
             Icon::CHECK_CIRCLE.size(icon_size)
         };
 
         let padding_x = 10.;
-        let w = 160.;
+        let w = if tab.is_closing { 40. } else { 160. };
         let h = 40.;
 
         let (tab_label_rect, tab_label_resp) = ui.allocate_exact_size(
@@ -442,8 +445,31 @@ impl Workspace {
             tab_label_resp.scroll_to_me(None);
         }
 
+        // closing (just draw status icon)
+        if tab.is_closing {
+            if !self.tasks.load_or_save_queued(tab.id)
+                && !self.tasks.load_or_save_in_progress(tab.id)
+            {
+                result = Some(TabLabelResponse::Removed);
+            }
+
+            let icon_draw_pos = egui::pos2(
+                tab_label_rect.min.x + padding_x,
+                tab_label_rect.center().y - status_icon.size / 2.0,
+            );
+
+            let icon: egui::WidgetText = (&status_icon).into();
+            let icon = icon.into_galley(
+                ui,
+                Some(TextWrapMode::Extend),
+                status_icon.size,
+                egui::TextStyle::Body,
+            );
+            ui.painter()
+                .galley(icon_draw_pos, icon, ui.visuals().text_color());
+        }
         // renaming
-        if let Some(ref mut str) = t.rename {
+        else if let Some(ref mut str) = tab.rename {
             let res = ui
                 .allocate_ui_at_rect(tab_label_rect, |ui| {
                     ui.add(
@@ -481,7 +507,7 @@ impl Workspace {
 
             // release focus to cancel ('esc' or click elsewhere)
             if res.lost_focus() {
-                t.rename = None;
+                tab.rename = None;
             }
         } else {
             // interact with button rect whether it's shown or not
@@ -494,7 +520,7 @@ impl Workspace {
                     .expand(2.0);
             let close_button_resp = ui.interact(
                 close_button_rect,
-                Id::new("tab label close button").with(t.id),
+                Id::new("tab label close button").with(tab.id),
                 Sense { click: true, drag: false, focusable: false },
             );
 
@@ -554,15 +580,15 @@ impl Workspace {
                 .style_mut(|s| s.visuals.menu_rounding = (2.).into());
             ui.interact(
                 status_icon_rect,
-                Id::new("tab label status icon").with(t.id),
+                Id::new("tab label status icon").with(tab.id),
                 Sense { click: false, drag: false, focusable: false },
             )
             .on_hover_ui(|ui| {
-                let text = if self.tasks.load_or_save_queued(t.id) {
+                let text = if self.tasks.load_or_save_queued(tab.id) {
                     "save queued"
-                } else if self.tasks.load_or_save_in_progress(t.id) {
+                } else if self.tasks.load_or_save_in_progress(tab.id) {
                     "save in progress"
-                } else if t.is_dirty() {
+                } else if tab.is_dirty() {
                     "unsaved changes"
                 } else {
                     "all changes saved"
@@ -573,7 +599,7 @@ impl Workspace {
                 ui.add(egui::Label::new(text));
 
                 let last_saved = {
-                    let d = time::Duration::milliseconds(t.last_saved.elapsed().as_millis() as _);
+                    let d = time::Duration::milliseconds(tab.last_saved.elapsed().as_millis() as _);
                     let minutes = d.whole_minutes();
                     let seconds = d.whole_seconds();
                     if seconds > 0 && minutes == 0 {
@@ -595,7 +621,7 @@ impl Workspace {
             });
 
             // draw text
-            let text: egui::WidgetText = (&t.name).into();
+            let text: egui::WidgetText = (&tab.name).into();
             let wrap_width = if show_close_button {
                 w - (padding_x + status_icon.size + padding_x + padding_x + x_icon.size + padding_x)
             } else {
@@ -608,7 +634,7 @@ impl Workspace {
             text_rect.max.x = close_button_rect.min.x;
             ui.interact(
                 text_rect,
-                Id::new("tab label text").with(t.id),
+                Id::new("tab label text").with(tab.id),
                 Sense { click: false, drag: false, focusable: false },
             )
             .on_hover_ui(|ui| {
@@ -679,6 +705,7 @@ impl Workspace {
 enum TabLabelResponse {
     Clicked,
     Closed,
+    Removed,
     Renamed(String),
 }
 

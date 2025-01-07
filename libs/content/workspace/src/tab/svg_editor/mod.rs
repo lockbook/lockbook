@@ -263,3 +263,23 @@ impl SVGEditor {
     //     }
     // }
 }
+
+// used by task manager to offload serialization to a background thread
+impl Clone for SVGEditor {
+    fn clone(&self) -> Self {
+        Self {
+            buffer: self.buffer.clone(),
+            history: History::default(),
+            toolbar: Toolbar::new(),
+            inner_rect: egui::Rect::NOTHING,
+            lb: self.lb.clone(),
+            open_file: self.open_file,
+            skip_frame: self.skip_frame,
+            painter: self.painter.clone(),
+            renderer: Renderer::new(0),
+            has_queued_save_request: self.has_queued_save_request,
+            allow_viewport_changes: self.allow_viewport_changes,
+            settings: self.settings,
+        }
+    }
+}

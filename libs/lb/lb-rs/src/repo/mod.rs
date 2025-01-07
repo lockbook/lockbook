@@ -62,7 +62,16 @@ impl Lb {
         //     .await
         //     .unwrap();
 
+        let start = std::time::Instant::now();
+
         let guard = self.db.read().await;
+
+        if start.elapsed() > std::time::Duration::from_millis(100) {
+            tracing::warn!(
+                "lock acquisition for readonly transaction took {:?} to acquire",
+                start.elapsed()
+            );
+        }
 
         LbRO { guard }
     }
@@ -72,8 +81,17 @@ impl Lb {
         //     .await
         //     .unwrap();
 
+        let start = std::time::Instant::now();
+
         let mut guard = self.db.write().await;
         let tx = guard.begin_transaction().unwrap();
+
+        if start.elapsed() > std::time::Duration::from_millis(100) {
+            tracing::warn!(
+                "lock acquisition for write transaction took {:?} to acquire",
+                start.elapsed()
+            );
+        }
 
         LbTx { guard, tx }
     }

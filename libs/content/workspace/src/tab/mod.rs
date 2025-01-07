@@ -2,7 +2,6 @@ use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
-use crate::task_manager::SaveRequest;
 use chrono::DateTime;
 use egui::Id;
 use lb_rs::blocking::Lb;
@@ -25,6 +24,7 @@ pub struct Tab {
     pub path: String,
     pub failure: Option<TabFailure>,
     pub content: Option<TabContent>,
+    pub is_closing: bool,
 
     pub is_new_file: bool,
     pub last_changed: Instant,
@@ -32,29 +32,6 @@ pub struct Tab {
 }
 
 impl Tab {
-    pub fn make_save_request(&self) -> Option<SaveRequest> {
-        let tab_content = self.content.as_ref()?;
-        let mut result = SaveRequest {
-            id: self.id,
-            old_hmac: Default::default(),
-            seq: Default::default(),
-            content: Default::default(),
-        };
-        match tab_content {
-            TabContent::Markdown(md) => {
-                result.old_hmac = md.hmac;
-                result.seq = md.buffer.current.seq;
-                result.content = md.buffer.current.text.clone();
-            }
-            TabContent::Svg(svg) => {
-                result.old_hmac = svg.buffer.open_file_hmac;
-                result.content = svg.buffer.serialize();
-            }
-            _ => return None,
-        };
-        Some(result)
-    }
-
     pub fn is_dirty(&self) -> bool {
         self.last_changed > self.last_saved
     }
@@ -74,6 +51,18 @@ impl std::fmt::Debug for TabContent {
             TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
+        }
+    }
+}
+
+// used by task manager to offload serialization to a background thread
+impl Clone for TabContent {
+    fn clone(&self) -> Self {
+        match self {
+            TabContent::Markdown(editor) => TabContent::Markdown(editor.clone()),
+            TabContent::Svg(svg) => TabContent::Svg(svg.clone()),
+            TabContent::Image(_) => unimplemented!("images aren't cloneable"),
+            TabContent::Pdf(_) => unimplemented!("pdfs aren't cloneable"),
         }
     }
 }

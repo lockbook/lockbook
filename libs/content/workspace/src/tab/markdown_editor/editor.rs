@@ -397,3 +397,17 @@ impl Editor {
         None
     }
 }
+
+// used by task manager to offload serialization to a background thread
+impl Clone for Editor {
+    fn clone(&self) -> Self {
+        Self::new(
+            self.core.clone(),
+            &self.buffer.current.text,
+            self.file_id,
+            self.hmac,
+            self.needs_name,
+            self.appearance.plaintext_mode,
+        )
+    }
+}

@@ -10,7 +10,9 @@ use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::Uuid;
-use tracing::warn;
+use tracing::{debug, error, info, warn};
+
+use crate::tab::{Tab, TabContent};
 
 #[derive(Default)]
 pub struct Tasks {
@@ -80,9 +82,6 @@ pub struct LoadRequest {
 #[derive(Clone)]
 pub struct SaveRequest {
     pub id: Uuid,
-    pub old_hmac: Option<DocumentHmac>,
-    pub seq: usize,
-    pub content: String,
 }
 
 // Timing
@@ -191,6 +190,8 @@ pub struct CompletedLoad {
 
 pub struct CompletedSave {
     pub request: SaveRequest,
+    pub seq: usize,
+    pub content: String,
     pub new_hmac_result: LbResult<DocumentHmac>,
 
     pub timing: CompletedTiming,
@@ -215,30 +216,30 @@ impl TaskManager {
     }
 
     pub fn queue_load(&mut self, request: LoadRequest) {
+        debug!("queued load of file {}", request.id);
         self.tasks
             .lock()
             .unwrap()
             .queued_loads
             .push(QueuedLoad { request, timing: QueuedTiming::new() });
-        self.check_launch();
     }
 
     pub fn queue_save(&mut self, request: SaveRequest) {
+        debug!("queued save of file {}", request.id);
         self.tasks
             .lock()
             .unwrap()
             .queued_saves
             .push(QueuedSave { request, timing: QueuedTiming::new() });
-        self.check_launch();
     }
 
     pub fn queue_sync(&mut self) {
+        debug!("queued sync");
         self.tasks
             .lock()
             .unwrap()
             .queued_syncs
             .push(QueuedSync { timing: QueuedTiming::new() });
-        self.check_launch();
     }
 
     pub fn load_or_save_queued(&self, id: Uuid) -> bool {
@@ -251,8 +252,11 @@ impl TaskManager {
 
     /// Launches whichever queued tasks are ready to be launched, moving their status from queued to in-progress.
     /// In-progress tasks have status moved to completed by background threads. This fn called whenever a task is
-    /// queued (on the UI thread) or completed (on the background thread).
-    fn check_launch(&self) {
+    /// queued or explicitly - background threads will not call it and will instead only call request_repaint() when
+    /// done - so it's the UI's responsibility to check in on it from time-to-time. This is necessary so that the UI
+    /// can interject between tasks that are queued and tasks that they are queued behind i.e. to provide the latest
+    /// hmac and file content so that a save succeeds.
+    pub fn check_launch(&self, tabs: &[Tab]) {
         let mut tasks = self.tasks.lock().unwrap();
 
         // Prioritize loads over saves because when they are both queued, it's likely because a sync pulled updates to
@@ -272,6 +276,13 @@ impl TaskManager {
             let id = queued_save.request.id;
             if tasks.load_or_save_in_progress(id) {
                 continue;
+            }
+            if tasks
+                .completed_saves
+                .iter()
+                .any(|completed_save| completed_save.request.id == id)
+            {
+                continue; // result of completed save must be processed before another save to the same file
             }
             ids_to_save.push(id);
         }
@@ -307,6 +318,17 @@ impl TaskManager {
 
         let any_to_launch =
             !loads_to_launch.is_empty() || !saves_to_launch.is_empty() || sync_to_launch.is_some();
+        if any_to_launch {
+            info!(
+                "launching {} loads, {} saves, and {} syncs; {} loads, {} saves, and {} syncs remain queued",
+                loads_to_launch.len(),
+                saves_to_launch.len(),
+                sync_to_launch.is_some() as usize,
+                tasks.queued_loads.len(),
+                tasks.queued_saves.len(),
+                tasks.queued_syncs.len()
+            );
+        }
 
         // Launch the things
         for queued_load in loads_to_launch.into_values() {
@@ -318,9 +340,9 @@ impl TaskManager {
                 .duration_since(in_progress_load.timing.queued_at);
             if queue_time > Duration::from_secs(1) {
                 warn!(
-                    "Load of file {} spent {}s in the task queue",
+                    "load of file {} spent {}ms in the task queue",
                     request.id,
-                    queue_time.as_secs()
+                    queue_time.as_millis()
                 );
             }
             tasks.in_progress_loads.push(in_progress_load);
@@ -343,7 +365,7 @@ impl TaskManager {
                         }
                     }
                     let in_progress_load = in_progress_load
-                        .expect("Failed to find in-progress entry for load that just completed");
+                        .expect("failed to find in-progress entry for load that just completed");
                     // ^ above error may indicate concurrent loads to the same file, which would cause problems
 
                     let completed_load = CompletedLoad {
@@ -353,33 +375,59 @@ impl TaskManager {
                     };
                     let in_progress_time = completed_load
                         .timing
-                        .started_at
-                        .duration_since(completed_load.timing.queued_at);
+                        .completed_at
+                        .duration_since(completed_load.timing.started_at);
                     if in_progress_time > Duration::from_secs(1) {
-                        warn!("Load of file {} took {}s", request.id, in_progress_time.as_secs());
+                        warn!("loaded file {} ({}ms)", request.id, in_progress_time.as_millis());
+                    } else {
+                        info!("loaded file {} ({}ms)", request.id, in_progress_time.as_millis());
                     }
                     tasks.completed_loads.push(completed_load);
                 }
 
-                self_clone.check_launch(); // task completion may trigger launch of queued task
-                self_clone.ctx.request_repaint(); // task completion affects UI
+                self_clone.ctx.request_repaint();
             });
         }
 
         for queued_save in saves_to_launch.into_values() {
-            // content cloned; one copy sent to disk and other retained in UI to represent on-disk version for merge
-            // first step to alleviate: https://github.com/lockbook/lockbook/issues/3241
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
+            let content = {
+                let mut result = None;
+                for tab in tabs {
+                    if tab.id == request.id {
+                        let start = Instant::now();
+                        result = tab.content.clone();
+                        let time = Instant::now().duration_since(start);
+                        if time > Duration::from_millis(100) {
+                            warn!(
+                                "spent {}ms on UI thread cloning content for file {} for background thread to save it",
+                                request.id,
+                                time.as_millis()
+                            );
+                        }
+                        break;
+                    }
+                }
+                if let Some(result) = result {
+                    result
+                } else {
+                    error!(
+                        "could not launch save for file {} because its tab does not exist",
+                        request.id
+                    );
+                    continue;
+                }
+            };
             let queue_time = in_progress_save
                 .timing
                 .started_at
                 .duration_since(in_progress_save.timing.queued_at);
             if queue_time > Duration::from_secs(1) {
                 warn!(
-                    "Save of file {} spent {}s in the task queue",
+                    "save of file {} spent {}ms in the task queue",
                     request.id,
-                    queue_time.as_secs()
+                    queue_time.as_millis()
                 );
             }
             tasks.in_progress_saves.push(in_progress_save);
@@ -387,11 +435,18 @@ impl TaskManager {
             let self_clone = self.clone();
             thread::spawn(move || {
                 let id = request.id;
-                let new_hmac_result = self_clone.core.safe_write(
-                    request.id,
-                    request.old_hmac,
-                    request.content.into(),
-                );
+                let (old_hmac, seq, content) = match content {
+                    TabContent::Markdown(editor) => {
+                        (editor.hmac, editor.buffer.current.seq, editor.buffer.current.text)
+                    }
+                    TabContent::Svg(svg) => (svg.buffer.open_file_hmac, 0, svg.buffer.serialize()),
+                    TabContent::Image(_) => unimplemented!("images aren't saveable"),
+                    TabContent::Pdf(_) => unimplemented!("pdfs aren't saveable"),
+                };
+                let new_hmac_result =
+                    self_clone
+                        .core
+                        .safe_write(request.id, old_hmac, content.clone().into()); // todo: unnecessary clone
 
                 {
                     let mut tasks = self_clone.tasks.lock().unwrap();
@@ -406,26 +461,29 @@ impl TaskManager {
                         }
                     }
                     let in_progress_save = in_progress_save
-                        .expect("Failed to find in-progress entry for save that just completed");
+                        .expect("failed to find in-progress entry for save that just completed");
                     // ^ above error may indicate concurrent saves to the same file, which would cause problems
 
                     let completed_save = CompletedSave {
                         request: in_progress_save.request,
+                        seq,
+                        content,
                         new_hmac_result,
                         timing: CompletedTiming::new(in_progress_save.timing),
                     };
                     let in_progress_time = completed_save
                         .timing
-                        .started_at
-                        .duration_since(completed_save.timing.queued_at);
+                        .completed_at
+                        .duration_since(completed_save.timing.started_at);
                     if in_progress_time > Duration::from_secs(1) {
-                        warn!("Load of file {} took {}s", request.id, in_progress_time.as_secs());
+                        warn!("saved file {} ({}ms)", request.id, in_progress_time.as_millis());
+                    } else {
+                        info!("saved file {} ({}ms)", request.id, in_progress_time.as_millis());
                     }
                     tasks.completed_saves.push(completed_save);
                 }
 
-                self_clone.check_launch(); // task completion may trigger launch of queued task
-                self_clone.ctx.request_repaint(); // task completion affects UI
+                self_clone.ctx.request_repaint();
             });
         }
 
@@ -437,7 +495,7 @@ impl TaskManager {
                 .started_at
                 .duration_since(in_progress_sync.timing.queued_at);
             if queue_time > Duration::from_secs(1) {
-                warn!("Sync spent {}s in the task queue", queue_time.as_secs());
+                warn!("sync spent {}ms in the task queue", queue_time.as_millis());
             }
             tasks.in_progress_sync = Some(in_progress_sync);
 
@@ -457,7 +515,7 @@ impl TaskManager {
                     let in_progress_sync = tasks
                         .in_progress_sync
                         .take()
-                        .expect("Failed to find in-progress entry for sync that just completed");
+                        .expect("failed to find in-progress entry for sync that just completed");
                     // ^ above error may indicate concurrent syncs, which would cause problems
 
                     let completed_sync = CompletedSync {
@@ -466,21 +524,22 @@ impl TaskManager {
                     };
                     let in_progress_time = completed_sync
                         .timing
-                        .started_at
-                        .duration_since(completed_sync.timing.queued_at);
+                        .completed_at
+                        .duration_since(completed_sync.timing.started_at);
                     if in_progress_time > Duration::from_secs(1) {
-                        warn!("Sync took {}s", in_progress_time.as_secs());
+                        warn!("synced ({}ms)", in_progress_time.as_millis());
+                    } else {
+                        info!("synced ({}ms)", in_progress_time.as_millis());
                     }
                     tasks.completed_sync = Some(completed_sync);
                 }
 
-                self_clone.check_launch(); // task completion may trigger launch of queued task
-                self_clone.ctx.request_repaint(); // task completion affects UI
+                self_clone.ctx.request_repaint();
             });
         }
 
         if any_to_launch {
-            self.ctx.request_repaint(); // task launch affects UI
+            self.ctx.request_repaint();
         }
     }
 

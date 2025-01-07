@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
-use tracing::error;
+use tracing::{error, info, warn};
 
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
@@ -127,6 +127,8 @@ impl Workspace {
                 self.tabs[i].failure = None;
                 if make_active {
                     self.active_tab = i;
+                    // only stop a tab from closing if it's being made active (e.g. user clicked file tree node)
+                    self.tabs[i].is_closing = false;
                 }
                 // tab exists already
                 return false;
@@ -142,6 +144,7 @@ impl Workspace {
             path: path.to_owned(),
             failure: None,
             content: None,
+            is_closing: false,
             last_changed: now,
             is_new_file,
             last_saved: now,
@@ -223,9 +226,7 @@ impl Workspace {
     pub fn save_tab(&mut self, i: usize) {
         if let Some(tab) = self.tabs.get_mut(i) {
             if tab.is_dirty() {
-                if let Some(request) = tab.make_save_request() {
-                    self.tasks.queue_save(request);
-                }
+                self.tasks.queue_save(SaveRequest { id: tab.id });
             }
         }
     }
@@ -254,6 +255,10 @@ impl Workspace {
 
     pub fn close_tab(&mut self, i: usize) {
         self.save_tab(i);
+        self.tabs[i].is_closing = true;
+    }
+
+    pub fn remove_tab(&mut self, i: usize) {
         self.tabs.remove(i);
         let n_tabs = self.tabs.len();
         self.out.tabs_changed = true;
@@ -267,6 +272,7 @@ impl Workspace {
         let task_manager::Response { completed_loads, completed_saves, completed_sync } =
             self.tasks.update();
 
+        let start = Instant::now();
         for load in completed_loads {
             // nested scope indentation preserves git history
             {
@@ -380,13 +386,19 @@ impl Workspace {
                 }
             }
         }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing completed loads took {:?}", start.elapsed());
+        }
 
+        let start = Instant::now();
         for save in completed_saves {
             // nested scope indentation preserves git history
             {
                 {
                     let CompletedSave {
-                        request: SaveRequest { id, old_hmac: _, seq, content },
+                        request: SaveRequest { id },
+                        seq,
+                        content,
                         new_hmac_result,
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
                     } = save;
@@ -411,6 +423,7 @@ impl Workspace {
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
+                                    info!("reloading file after save failed with re-read required: {}", id);
                                     self.open_file(id, false, false);
                                 } else {
                                     tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
@@ -424,11 +437,19 @@ impl Workspace {
                 }
             }
         }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing completed saves took {:?}", start.elapsed());
+        }
 
+        let start = Instant::now();
         if let Some(sync) = completed_sync {
             self.sync_done(sync)
         }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing completed sync took {:?}", start.elapsed());
+        }
 
+        let start = Instant::now();
         {
             let tasks = self.tasks.tasks.lock().unwrap();
             if let Some(sync) = tasks.in_progress_sync.as_ref() {
@@ -439,9 +460,48 @@ impl Workspace {
                 }
             }
         }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing sync progress took {:?}", start.elapsed());
+        }
 
         // background work
         let now = Instant::now();
+        let start = Instant::now();
+        if let Some(last_sync_status_refresh) = self.last_sync_status_refresh {
+            let instant_of_next_sync_status_refresh =
+                last_sync_status_refresh + Duration::from_secs(1);
+            if instant_of_next_sync_status_refresh < now {
+                self.refresh_sync_status();
+            } else {
+                let duration_until_next_sync_status_refresh =
+                    instant_of_next_sync_status_refresh - now;
+                self.ctx
+                    .request_repaint_after(duration_until_next_sync_status_refresh);
+            }
+        } else {
+            self.refresh_sync_status();
+        }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing sync status refresh took {:?}", start.elapsed());
+        }
+        let start = Instant::now();
+        if self.cfg.get_auto_save() {
+            if let Some(last_save_all) = self.last_save_all {
+                let instant_of_next_save_all = last_save_all + Duration::from_secs(1);
+                if instant_of_next_save_all < now {
+                    self.save_all_tabs();
+                } else {
+                    let duration_until_next_save_all = instant_of_next_save_all - now;
+                    self.ctx.request_repaint_after(duration_until_next_save_all);
+                }
+            } else {
+                self.save_all_tabs();
+            }
+        }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing auto save took {:?}", start.elapsed());
+        }
+        let start = Instant::now();
         if self.cfg.get_auto_sync() {
             if let Some(last_sync) = self.last_sync {
                 let focused = self.ctx.input(|i| i.focused);
@@ -463,32 +523,14 @@ impl Workspace {
                 self.perform_sync();
             }
         }
-        if self.cfg.get_auto_save() {
-            if let Some(last_save_all) = self.last_save_all {
-                let instant_of_next_save_all = last_save_all + Duration::from_secs(1);
-                if instant_of_next_save_all < now {
-                    self.save_all_tabs();
-                } else {
-                    let duration_until_next_save_all = instant_of_next_save_all - now;
-                    self.ctx.request_repaint_after(duration_until_next_save_all);
-                }
-            } else {
-                self.save_all_tabs();
-            }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing auto sync took {:?}", start.elapsed());
         }
-        if let Some(last_sync_status_refresh) = self.last_sync_status_refresh {
-            let instant_of_next_sync_status_refresh =
-                last_sync_status_refresh + Duration::from_secs(1);
-            if instant_of_next_sync_status_refresh < now {
-                self.refresh_sync_status();
-            } else {
-                let duration_until_next_sync_status_refresh =
-                    instant_of_next_sync_status_refresh - now;
-                self.ctx
-                    .request_repaint_after(duration_until_next_sync_status_refresh);
-            }
-        } else {
-            self.refresh_sync_status();
+
+        let start = Instant::now();
+        self.tasks.check_launch(&self.tabs);
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing task launch took {:?}", start.elapsed());
         }
     }
 
