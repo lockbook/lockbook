@@ -460,7 +460,7 @@ impl Workspace {
                     self.ctx.request_repaint_after(duration_until_next_sync);
                 }
             } else {
-                self.tasks.queue_sync();
+                self.perform_sync();
             }
         }
         if self.cfg.get_auto_save() {
