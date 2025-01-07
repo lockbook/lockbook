@@ -417,7 +417,7 @@ impl Workspace {
             Icon::SCHEDULE.size(icon_size)
         } else if self.tasks.load_or_save_in_progress(tab.id) {
             Icon::SAVE.size(icon_size)
-        } else if tab.is_dirty() {
+        } else if tab.is_dirty(&self.tasks) {
             Icon::CIRCLE.size(icon_size)
         } else {
             Icon::CHECK_CIRCLE.size(icon_size)
@@ -588,7 +588,7 @@ impl Workspace {
                     "save queued"
                 } else if self.tasks.load_or_save_in_progress(tab.id) {
                     "save in progress"
-                } else if tab.is_dirty() {
+                } else if tab.is_dirty(&self.tasks) {
                     "unsaved changes"
                 } else {
                     "all changes saved"

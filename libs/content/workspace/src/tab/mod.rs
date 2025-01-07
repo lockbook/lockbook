@@ -2,6 +2,7 @@ use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
+use crate::task_manager::TaskManager;
 use chrono::DateTime;
 use egui::Id;
 use lb_rs::blocking::Lb;
@@ -32,8 +33,12 @@ pub struct Tab {
 }
 
 impl Tab {
-    pub fn is_dirty(&self) -> bool {
-        self.last_changed > self.last_saved
+    pub fn is_dirty(&self, tasks: &TaskManager) -> bool {
+        if let Some(queued_at) = tasks.save_queued_at(self.id) {
+            self.last_changed > queued_at
+        } else {
+            self.last_changed > self.last_saved
+        }
     }
 }
 

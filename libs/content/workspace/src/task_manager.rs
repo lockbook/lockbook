@@ -250,6 +250,31 @@ impl TaskManager {
         self.tasks.lock().unwrap().load_or_save_in_progress(id)
     }
 
+    pub fn save_queued_at(&self, id: Uuid) -> Option<Instant> {
+        let tasks = self.tasks.lock().unwrap();
+        if let Some(queued_save) = tasks
+            .queued_saves
+            .iter()
+            .find(|queued_save| queued_save.request.id == id)
+        {
+            Some(queued_save.timing.queued_at)
+        } else if let Some(in_progress_save) = tasks
+            .in_progress_saves
+            .iter()
+            .find(|in_progress_save| in_progress_save.request.id == id)
+        {
+            Some(in_progress_save.timing.queued_at)
+        } else if let Some(completed_save) = tasks
+            .completed_saves
+            .iter()
+            .find(|completed_save| completed_save.request.id == id)
+        {
+            Some(completed_save.timing.queued_at)
+        } else {
+            None
+        }
+    }
+
     /// Launches whichever queued tasks are ready to be launched, moving their status from queued to in-progress.
     /// In-progress tasks have status moved to completed by background threads. This fn called whenever a task is
     /// queued or explicitly - background threads will not call it and will instead only call request_repaint() when

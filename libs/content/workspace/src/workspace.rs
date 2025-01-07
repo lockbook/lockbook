@@ -225,7 +225,7 @@ impl Workspace {
 
     pub fn save_tab(&mut self, i: usize) {
         if let Some(tab) = self.tabs.get_mut(i) {
-            if tab.is_dirty() {
+            if tab.is_dirty(&self.tasks) {
                 self.tasks.queue_save(SaveRequest { id: tab.id });
             }
         }
