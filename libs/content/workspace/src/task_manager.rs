@@ -10,7 +10,7 @@ use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::Uuid;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, warn};
 
 use crate::tab::{Tab, TabContent};
 

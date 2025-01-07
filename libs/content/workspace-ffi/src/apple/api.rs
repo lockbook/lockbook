@@ -201,7 +201,7 @@ pub struct FfiWsStatus {
 #[no_mangle]
 pub unsafe extern "C" fn get_status(obj: *mut c_void) -> FfiWsStatus {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let syncing = obj.workspace.status.syncing();
+    let syncing = obj.workspace.syncing();
     let msg = obj.workspace.status.message.clone();
     let msg = CString::new(msg)
         .expect("Could not Rust String -> C String")
