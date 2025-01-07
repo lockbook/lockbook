@@ -4,6 +4,7 @@ use egui::ahash::{HashMap, HashMapExt};
 use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
 use lb_rs::blocking::Lb;
+use lb_rs::Uuid;
 
 use std::collections::VecDeque;
 use std::sync::{Arc, RwLock};
@@ -33,6 +34,8 @@ pub struct KnowledgeGraphApp {
     frame_count: usize,
     fps: f32,
     last_fps_update: Instant,
+    inside: Option<Uuid>,
+    inside_found: bool,
 }
 
 impl Grid {
@@ -91,6 +94,8 @@ impl KnowledgeGraphApp {
             frame_count: 0,
             fps: 0.0,
             last_fps_update: Instant::now(),
+            inside: None,
+            inside_found: false,
         }
     }
 
@@ -332,7 +337,13 @@ impl KnowledgeGraphApp {
         };
         self.last_pan += self.pan / self.zoom_factor;
         self.pan = Vec2::ZERO;
-
+        let text_color: egui::Color32;
+        let is_dark_mode = ui.ctx().style().visuals.dark_mode;
+        if is_dark_mode {
+            text_color = Color32::WHITE;
+        } else {
+            text_color = Color32::BLACK;
+        }
         let base_size = radius;
         let k = 1.0;
         let mut drawingstuf: Option<(usize, &LinkNode)> = None;
@@ -377,7 +388,7 @@ impl KnowledgeGraphApp {
                     } else {
                         ui.painter().line_segment(
                             [pos, target],
-                            Stroke::new(1.0 * self.zoom_factor, Color32::GRAY),
+                            Stroke::new(1.0 * self.zoom_factor, text_color),
                         );
                     }
                 }
@@ -385,6 +396,7 @@ impl KnowledgeGraphApp {
         }
 
         let mut text_info: Option<(Pos2, Align2, String, FontId, Color32)> = None;
+        self.inside_found = false;
         for (i, node) in self.graph.iter().enumerate() {
             let rgb_color = Color32::from_rgb(
                 (node.color[0] * 255.0) as u8,
@@ -410,9 +422,11 @@ impl KnowledgeGraphApp {
                 );
 
                 if size > 5.0 && cursorin(self.cursor_loc, pos, size) {
+                    self.inside = node.file_id; //need to make to so every linknode has also a uuid
+                    self.inside_found = true;
                     let font_id = egui::FontId::proportional(15.0 * (self.zoom_factor.sqrt()));
                     text_info =
-                        Some((pos, egui::Align2::CENTER_CENTER, text, font_id, Color32::WHITE));
+                        Some((pos, egui::Align2::CENTER_CENTER, text, font_id, Color32::GRAY));
                 }
             }
         }
@@ -554,7 +568,8 @@ impl KnowledgeGraphApp {
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, stop: bool) {
+    pub fn show(&mut self, ui: &mut egui::Ui, stop: bool) -> Option<Uuid> {
+        let mut condintions = false;
         ui.input(|i| {
             if !self.graph_complete {
                 self.build_directional_links();
@@ -571,7 +586,17 @@ impl KnowledgeGraphApp {
                 self.pan += (scroll).to_vec2();
                 self.debug = (self.zoom_factor).to_string();
             }
+            if i.pointer.any_click() && self.inside_found {
+                condintions = true;
+                self.inside_found = false;
+            }
         });
+
+        if condintions {
+            if let Some(_val) = self.inside {
+                return self.inside;
+            }
+        }
         {
             let mut stop_write = self.stop.write().unwrap();
             *stop_write = stop;
@@ -609,6 +634,7 @@ impl KnowledgeGraphApp {
         if let Some(cursor) = ui.input(|i| i.pointer.hover_pos()) {
             self.cursor_loc = cursor.to_vec2();
         }
+        None
     }
 }
 

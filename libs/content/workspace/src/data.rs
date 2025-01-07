@@ -1,4 +1,4 @@
-use lb_rs::blocking::Lb;
+use lb_rs::{blocking::Lb, Uuid};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -12,6 +12,7 @@ pub struct LinkNode {
     pub color: [f32; 3],
     pub cluster_id: Option<usize>,
     pub internal: bool,
+    pub file_id: Option<Uuid>,
 }
 
 #[derive(Clone, Debug)]
@@ -20,16 +21,17 @@ pub struct NameId {
     pub name: String,
     pub links: Vec<usize>,
     pub internal: bool,
+    pub file_id: Option<Uuid>,
 }
 
 impl NameId {
-    fn new(id: usize, name: String, links: Vec<usize>) -> Self {
-        NameId { id, name, links, internal: true }
+    fn new(id: usize, name: String, links: Vec<usize>, file_id: Option<Uuid>) -> Self {
+        NameId { id, name, links, internal: true, file_id }
     }
 }
 
 impl LinkNode {
-    fn new(id: usize, title: String, links_given: Vec<usize>) -> Self {
+    fn new(id: usize, title: String, links_given: Vec<usize>, file_id: Option<Uuid>) -> Self {
         LinkNode {
             id,
             title,
@@ -37,6 +39,7 @@ impl LinkNode {
             color: [0.0, 0.0, 0.0],
             cluster_id: None,
             internal: true,
+            file_id,
         }
     }
 }
@@ -46,14 +49,15 @@ pub fn lockbook_data(core: &Lb) -> Graph {
     let mut classify: Vec<NameId> = Vec::new();
     let mut id: usize = 0;
     let mut _num_links = 1;
-    let mut info: Vec<(String, String)> = Vec::new();
+    let mut info: Vec<(String, String, Uuid)> = Vec::new();
 
     for file in core.list_metadatas().unwrap() {
         if file.is_document() && file.name.ends_with(".md") {
+            let file_id = file.id;
             let doc = core.read_document(file.id).unwrap();
             let doc = String::from_utf8(doc).unwrap();
             let name = file.name;
-            info.push((name, doc));
+            info.push((name, doc, file_id));
         }
     }
 
@@ -61,19 +65,20 @@ pub fn lockbook_data(core: &Lb) -> Graph {
     for n in info {
         let doc = n.1;
         let name = n.0;
+        let file_id = n.2;
         let links = check_for_links(&mut classify, &mut id, &doc);
         id += 1;
         _num_links += links.len();
-        classify.push(NameId::new(classify.len(), name.clone(), links));
+        classify.push(NameId::new(classify.len(), name.clone(), links, Some(file_id)));
     }
     for item in classify.iter() {
         let links = item.links.clone();
         if item.links.contains(&item.id) {
             let links = remove(links, &item.id);
 
-            graph.push(LinkNode::new(item.id, item.name.to_string(), links));
+            graph.push(LinkNode::new(item.id, item.name.to_string(), links, item.file_id));
         } else {
-            graph.push(LinkNode::new(item.id, item.name.to_string(), links));
+            graph.push(LinkNode::new(item.id, item.name.to_string(), links, item.file_id));
         }
     }
 
@@ -105,7 +110,7 @@ fn check_for_links(classify: &mut Vec<NameId>, id: &mut usize, doc: &str) -> Vec
         } else {
             links.push(*id);
             *id += 1;
-            classify.push(NameId::new(classify.len(), link.clone(), vec![]));
+            classify.push(NameId::new(classify.len(), link.clone(), vec![], None));
         }
     }
 
