@@ -3,6 +3,7 @@ import SwiftUI
 @main struct LockbookApp: App {
     
     @State private var isLoggedIn: Bool = MainState.shared.isLoggedIn
+    @State private var isPreview: Bool = false
     
     var body: some Scene {
         WindowGroup {

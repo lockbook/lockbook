@@ -2,6 +2,9 @@ import Bridge
 import Foundation
 
 public protocol LbAPI {
+    var lb: OpaquePointer? { get set }
+    var lbUnsafeRawPtr: UnsafeMutableRawPointer? { get set }
+    
     func start(writablePath: String, logs: Bool) -> Result<Void, LbError>
     func createAccount(username: String, apiUrl: String?, welcomeDoc: Bool) -> Result<Account, LbError>
     func importAccount(key: String, apiUrl: String?) -> Result<Account, LbError>
@@ -52,6 +55,7 @@ public protocol LbAPI {
 
 public class Lb: LbAPI {
     public var lb: OpaquePointer? = nil
+    public var lbUnsafeRawPtr: UnsafeMutableRawPointer? = nil
     
     public init(writablePath: String, logs: Bool) {
         print("Starting core at \(writablePath) and logs=\(logs)")
@@ -71,6 +75,8 @@ public class Lb: LbAPI {
         }
 
         lb = res.lb
+        lbUnsafeRawPtr = UnsafeMutableRawPointer(lb!)
+        
         return .success(())
     }
         
@@ -607,21 +613,34 @@ public class Lb: LbAPI {
 }
 
 public class MockLb: LbAPI {
-    let account = Account(username: "smail", apiUrl: "https://api.prod.lockbook.net")
-    let accountPK = "BQAAAAAAAAB0ZXN0MQkAAAAAAAAAdGVzdDEuY29tIAAAAAAAAAATIlUEJFM0ejFr3ywfEAKgZGfBAEMPuIUhb1uPiejwKg"
-    let accountPhrase = "turkey, era, velvet, detail, prison, income, dose, royal, fever, truly, unique, couple, party, example, piece, art, leaf, follow, rose, access, vacant, gather, wasp, audit"
+    public var lb: OpaquePointer? = nil
+    public var lbUnsafeRawPtr: UnsafeMutableRawPointer? = nil
     
-    let file0 = File(id: UUID(), parent: UUID(), name: "root", type: .folder, lastModifiedBy: "smail", lastModified: 1735857212, shares: []) // does not adhere to the "values" a root folder would have
-    let file1 = File(id: UUID(), parent: UUID(), name: "welcome.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857212, shares: [])
-    let file2 = File(id: UUID(), parent: UUID(), name: "about.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857215, shares: [])
-    let file3 = File(id: UUID(), parent: UUID(), name: "projects.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857220, shares: [])
-    let file4 = File(id: UUID(), parent: UUID(), name: "contact.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857225, shares: [])
-    let file5 = File(id: UUID(), parent: UUID(), name: "notes.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857230, shares: [])
+    public let account = Account(username: "smail", apiUrl: "https://api.prod.lockbook.net")
+    public let accountPK = "BQAAAAAAAAB0ZXN0MQkAAAAAAAAAdGVzdDEuY29tIAAAAAAAAAATIlUEJFM0ejFr3ywfEAKgZGfBAEMPuIUhb1uPiejwKg"
+    public let accountPhrase = "turkey, era, velvet, detail, prison, income, dose, royal, fever, truly, unique, couple, party, example, piece, art, leaf, follow, rose, access, vacant, gather, wasp, audit"
+
+    public let syncStatus = SyncStatus(latestServerTS: 1735857215, work: [])
     
-    let syncStatus = SyncStatus(latestServerTS: 1735857215, work: [])
-    
-    public init() {}
-    
+    public let rootId: UUID
+    public let file0: File
+    public let file1: File
+    public let file2: File
+    public let file3: File
+    public let file4: File
+    public let file5: File
+
+    public init() {
+        self.rootId = UUID()
+        
+        self.file0 = File(id: rootId, parent: rootId, name: "smail", type: .folder, lastModifiedBy: "smail", lastModified: 1735857212, shares: [])
+        self.file1 = File(id: UUID(), parent: rootId, name: "welcome.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857212, shares: [])
+        self.file2 = File(id: UUID(), parent: rootId, name: "about.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857215, shares: [])
+        self.file3 = File(id: UUID(), parent: rootId, name: "projects.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857220, shares: [])
+        self.file4 = File(id: UUID(), parent: rootId, name: "contact.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857225, shares: [])
+        self.file5 = File(id: UUID(), parent: rootId, name: "notes.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857230, shares: [])
+    }
+
     public func start(writablePath: String, logs: Bool) -> Result<Void, LbError> { .success(()) }
     public func createAccount(username: String, apiUrl: String?, welcomeDoc: Bool) -> Result<Account, LbError> { .success(account) }
     public func importAccount(key: String, apiUrl: String?) -> Result<Account, LbError> { .success(account) }

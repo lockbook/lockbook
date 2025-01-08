@@ -1,18 +1,32 @@
 import SwiftUI
 
-public struct DrawerView<Content: View>: View {
+public struct DrawerView<Menu: View, Content: View>: View {
 
     @State var isOpened: Bool
-    @ViewBuilder let menu: Content
+    @ViewBuilder let menu: Menu
     @ViewBuilder let content: Content
 
     public var body: some View {
         ZStack(alignment: .leading) {
-            content
-                .environment(\.isSidebarOpen, isOpened)
-
+            NavigationView {
+                content
+                    .environment(\.isSidebarOpen, isOpened)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button(action: {
+                                isOpened.toggle()
+                            }) {
+                                Image(systemName: "sidebar.left")
+                                    .imageScale(.large)
+                            }
+                        }
+                    }
+            }
+            
             if isOpened {
-                Color.clear
+                Color
+                    .gray
+                    .opacity(0.1)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         if isOpened {
@@ -20,7 +34,9 @@ public struct DrawerView<Content: View>: View {
                         }
                     }
                 
-                menu
+                NavigationView {
+                    menu
+                }
                     .transition(.move(edge: .leading))
                     .padding(.trailing, 100)
                     .zIndex(1)
@@ -28,12 +44,6 @@ public struct DrawerView<Content: View>: View {
             }
         }
         .animation(.spring(), value: isOpened)
-        .navigationBarItems(leading: Button(action: {
-            isOpened.toggle()
-        }) {
-            Image(systemName: "sidebar.left")
-                .imageScale(.large)
-        })
     }
 }
 

@@ -10,4 +10,8 @@ class ClipboardHelper {
         pasteboard.setString(text, forType: .string)
         #endif
     }
+    
+    static func copyFileLink(_ id: UUID) {
+        ClipboardHelper.copyToClipboard("lb://\(id.uuidString.lowercased())")
+    }
 }

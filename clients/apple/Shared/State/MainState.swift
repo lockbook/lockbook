@@ -14,45 +14,25 @@ class MainState: ObservableObject {
     static let LB_API_URL: String? = ProcessInfo.processInfo.environment["API_LOCATION"]
     
     static let lb: LbAPI = {
-        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
+        if isPreviewEnvironmentKey.defaultValue {
             return MockLb()
         }
         
         return Lb(writablePath: ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] ?? LB_LOC, logs: true)
     }()
     
-    @Published var isLoggedIn: Bool
-    
-    #if os(iOS)
-    @Published var platform: iOSPlatform = iOSPlatform(UIDevice.current.userInterfaceIdiom)
-    #endif
+    @Published var isLoggedIn: Bool = false
     
     private init() {
-        self.isLoggedIn = MainState.checkIfLoggedIn()
+        self.checkIfLoggedIn()
     }
     
-    static func checkIfLoggedIn() -> Bool {
+    func checkIfLoggedIn() {
         switch MainState.lb.getAccount() {
         case .success(_):
-            return true
+            self.isLoggedIn = true
         case .failure(_):
-            return false
+            self.isLoggedIn = false
         }
     }
 }
-
-#if os(iOS)
-enum iOSPlatform {
-    case iPhone
-    case iPad;
-    
-    init(_ idiom: UIUserInterfaceIdiom) {
-        switch idiom {
-        case .pad: self = .iPad
-        case .phone: self = .iPhone
-        default: self = .iPhone
-        }
-    }
-}
-#endif
-

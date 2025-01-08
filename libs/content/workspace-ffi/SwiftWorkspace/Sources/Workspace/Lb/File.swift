@@ -9,9 +9,7 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
     public var lastModifiedBy: String
     public var lastModified: UInt64
     public var shares: [Share]
-    
-    public var isRoot: Bool { parent == id }
-    
+        
     init(id: UUID, parent: UUID, name: String, type: FileType, lastModifiedBy: String, lastModified: UInt64, shares: [Share]) {
         self.id = id
         self.parent = parent
@@ -31,6 +29,9 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
         self.lastModified = file.lastmod
         self.shares = Array(UnsafeBufferPointer(start: file.shares.list, count: Int(file.shares.count))).toShares()
     }
+    
+    public var isRoot: Bool { parent == id }
+    public var isFolder: Bool { self.type == .folder }
         
     public static func == (lhs: File, rhs: File) -> Bool {
         return lhs.type == rhs.type &&
@@ -58,6 +59,7 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
 
         return lhs.name < rhs.name
     }
+    
 }
 
 extension Array<LbFile> {
