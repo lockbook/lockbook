@@ -14,19 +14,21 @@ impl Workspace {
         self.last_sync_completed = Some(timing.completed_at);
         match status_result {
             Ok(done) => {
-                self.status = Default::default();
+                self.status.sync_error = None;
+                self.status.sync_message = None;
+
                 self.tasks.queue_sync_status_update();
                 self.refresh_files(&done);
-                self.out.sync_done = Some(done)
+                self.out.sync_done = Some(done);
             }
             Err(err) => match err.kind {
                 LbErrKind::ServerUnreachable => self.status.offline = true,
                 LbErrKind::ClientUpdateRequired => self.status.update_req = true,
                 LbErrKind::UsageIsOverDataCap => self.status.out_of_space = true,
-                LbErrKind::Unexpected(msg) => self.status.error = Some(msg),
+                LbErrKind::Unexpected(msg) => self.status.sync_error = Some(msg),
                 _ => {
                     error!("Unhandled sync error: {:?}", err);
-                    self.status.error = format!("{:?}", err).into();
+                    self.status.sync_error = format!("{:?}", err).into();
                 }
             },
         }
@@ -56,11 +58,11 @@ impl Workspace {
         match status_result {
             Ok(dirtyness) => {
                 self.status.dirtyness = dirtyness;
-                self.status.error = None;
+                self.status.sync_status_update_error = None;
             }
             Err(err) => {
                 error!("Unhandled sync status update error: {:?}", err);
-                self.status.error = format!("{:?}", err).into();
+                self.status.sync_status_update_error = format!("{:?}", err).into();
             }
         }
     }

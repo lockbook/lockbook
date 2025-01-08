@@ -620,8 +620,10 @@ impl Workspace {
     }
 
     pub fn status_message(&self) -> String {
-        if let Some(error) = &self.status.error {
-            format!("err: {error}")
+        if let Some(error) = &self.status.sync_error {
+            format!("sync error: {error}")
+        } else if let Some(error) = &self.status.sync_status_update_error {
+            format!("sync status update error: {error}")
         } else if self.status.offline {
             "Offline".to_string()
         } else if self.status.out_of_space {

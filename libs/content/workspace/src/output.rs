@@ -30,7 +30,8 @@ pub struct Response {
 
 #[derive(Default, Clone)]
 pub struct WsStatus {
-    pub error: Option<String>,
+    pub sync_error: Option<String>,
+    pub sync_status_update_error: Option<String>,
     pub offline: bool,
     pub update_req: bool,
     pub out_of_space: bool,
