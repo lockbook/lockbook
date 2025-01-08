@@ -70,7 +70,7 @@ impl Network {
         .map_err(|err| ApiError::Serialize(err.to_string()))?;
 
         if serialized_request.len() > 1024 * 1024 {
-            tracing::warn!("making network request with {} bytes", serialized_request.len());
+            warn!("making network request with {} bytes", serialized_request.len());
         }
 
         let mut retries = 0;

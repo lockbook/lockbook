@@ -287,7 +287,7 @@ impl Lb {
 
         drop(tx);
         if start.elapsed() > std::time::Duration::from_millis(100) {
-            tracing::warn!("sync fetch_docs held lock for {:?}", start.elapsed());
+            warn!("sync fetch_docs held lock for {:?}", start.elapsed());
         }
 
         let num_docs = docs_to_pull.len();
@@ -913,7 +913,7 @@ impl Lb {
         db.base_metadata.stage(&mut db.local_metadata).prune()?;
 
         if start.elapsed() > std::time::Duration::from_millis(100) {
-            tracing::warn!("sync merge held lock for {:?}", start.elapsed());
+            warn!("sync merge held lock for {:?}", start.elapsed());
         }
 
         Ok(())
@@ -1002,7 +1002,7 @@ impl Lb {
 
         drop(tx);
         if start.elapsed() > std::time::Duration::from_millis(100) {
-            tracing::warn!("sync push_docs held lock for {:?}", start.elapsed());
+            warn!("sync push_docs held lock for {:?}", start.elapsed());
         }
 
         let docs_count = updates.len();

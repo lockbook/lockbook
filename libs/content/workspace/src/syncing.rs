@@ -1,7 +1,7 @@
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::work_unit::WorkUnit;
 use lb_rs::service::sync::SyncStatus;
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::task_manager::{CompletedSync, CompletedSyncStatusUpdate};
 use crate::workspace::Workspace;
@@ -43,7 +43,7 @@ impl Workspace {
         for id in server_ids {
             for i in 0..self.tabs.len() {
                 if self.tabs[i].id == id && !self.tabs[i].is_closing {
-                    tracing::debug!("Reloading file after sync: {}", id);
+                    debug!("Reloading file after sync: {}", id);
                     self.open_file(id, false, false);
                 }
             }

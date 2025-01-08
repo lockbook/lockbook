@@ -67,7 +67,7 @@ impl Lb {
         let guard = self.db.read().await;
 
         if start.elapsed() > std::time::Duration::from_millis(100) {
-            tracing::warn!("readonly transaction lock acquisition took {:?}", start.elapsed());
+            warn!("readonly transaction lock acquisition took {:?}", start.elapsed());
         }
 
         LbRO { guard }
@@ -84,7 +84,7 @@ impl Lb {
         let tx = guard.begin_transaction().unwrap();
 
         if start.elapsed() > std::time::Duration::from_millis(100) {
-            tracing::warn!("readwrite transaction lock acquisition took {:?}", start.elapsed());
+            warn!("readwrite transaction lock acquisition took {:?}", start.elapsed());
         }
 
         LbTx { guard, tx }
