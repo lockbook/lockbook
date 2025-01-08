@@ -618,11 +618,15 @@ impl Lb {
                                             String::from_utf8_lossy(&base_document).to_string();
                                         let remote_document =
                                             String::from_utf8_lossy(&remote_document).to_string();
+                                        let local_document =
+                                            String::from_utf8_lossy(&local_document).to_string();
 
-                                        let mut local_buffer = crate::svg::buffer::Buffer::new(
-                                            String::from_utf8_lossy(&local_document).as_ref(),
-                                            None,
-                                        );
+                                        let base_buffer =
+                                            crate::svg::buffer::Buffer::new(&base_document);
+                                        let remote_buffer =
+                                            crate::svg::buffer::Buffer::new(&remote_document);
+                                        let mut local_buffer =
+                                            crate::svg::buffer::Buffer::new(&local_document);
 
                                         for (_, el) in local_buffer.elements.iter_mut() {
                                             if let Element::Path(path) = el {
@@ -635,8 +639,8 @@ impl Lb {
                                             &mut local_buffer.elements,
                                             &mut local_buffer.weak_images,
                                             local_buffer.master_transform,
-                                            &base_document,
-                                            &remote_document,
+                                            &base_buffer,
+                                            &remote_buffer,
                                         );
 
                                         let merged_document = local_buffer.serialize();

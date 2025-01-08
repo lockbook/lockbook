@@ -35,6 +35,9 @@ use tracing::Level;
 
 pub struct SVGEditor {
     pub buffer: Buffer,
+    pub opened_content: Buffer,
+    pub open_file_hmac: Option<DocumentHmac>,
+
     history: History,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
@@ -71,7 +74,7 @@ impl SVGEditor {
     ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
-        let mut buffer = Buffer::new(content, hmac);
+        let mut buffer = Buffer::new(content);
         for (_, el) in buffer.elements.iter_mut() {
             if let Element::Path(path) = el {
                 path.data
@@ -85,6 +88,8 @@ impl SVGEditor {
 
         Self {
             buffer,
+            opened_content: Buffer::new(content),
+            open_file_hmac: hmac,
             history: History::default(),
             toolbar,
             inner_rect: egui::Rect::NOTHING,
@@ -262,24 +267,4 @@ impl SVGEditor {
     //         );
     //     }
     // }
-}
-
-// used by task manager to offload serialization to a background thread
-impl Clone for SVGEditor {
-    fn clone(&self) -> Self {
-        Self {
-            buffer: self.buffer.clone(),
-            history: History::default(),
-            toolbar: Toolbar::new(),
-            inner_rect: egui::Rect::NOTHING,
-            lb: self.lb.clone(),
-            open_file: self.open_file,
-            skip_frame: self.skip_frame,
-            painter: self.painter.clone(),
-            renderer: Renderer::new(0),
-            has_queued_save_request: self.has_queued_save_request,
-            allow_viewport_changes: self.allow_viewport_changes,
-            settings: self.settings,
-        }
-    }
 }

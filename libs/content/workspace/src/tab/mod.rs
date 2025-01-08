@@ -8,8 +8,8 @@ use egui::Id;
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
-use lb_rs::model::file_metadata::FileType;
-use lb_rs::Uuid;
+use lb_rs::model::file_metadata::{DocumentHmac, FileType};
+use lb_rs::{svg, Uuid};
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -60,14 +60,49 @@ impl std::fmt::Debug for TabContent {
     }
 }
 
-// used by task manager to offload serialization to a background thread
-impl Clone for TabContent {
-    fn clone(&self) -> Self {
+impl TabContent {
+    pub fn hmac(&self) -> Option<DocumentHmac> {
         match self {
-            TabContent::Markdown(editor) => TabContent::Markdown(editor.clone()),
-            TabContent::Svg(svg) => TabContent::Svg(svg.clone()),
-            TabContent::Image(_) => unimplemented!("images aren't cloneable"),
-            TabContent::Pdf(_) => unimplemented!("pdfs aren't cloneable"),
+            TabContent::Markdown(md) => md.hmac,
+            TabContent::Svg(svg) => svg.open_file_hmac,
+            _ => None,
+        }
+    }
+
+    pub fn seq(&self) -> usize {
+        match self {
+            TabContent::Markdown(md) => md.buffer.current.seq,
+            _ => 0,
+        }
+    }
+
+    /// Clones the content required to save the tab. This is intended for use on the UI thread.
+    pub fn clone_content(&self) -> Option<TabSaveContent> {
+        match self {
+            TabContent::Markdown(md) => {
+                Some(TabSaveContent::Bytes(md.buffer.current.text.clone().into_bytes()))
+            }
+            TabContent::Svg(svg) => Some(TabSaveContent::Svg(svg.buffer.clone())),
+            _ => None,
+        }
+    }
+}
+
+/// The content of a tab when a save is launched. Designed to include all info needed for a save while being as fast as
+/// possible to assemble from an open tab on the UI thread.
+#[derive(Clone)]
+pub enum TabSaveContent {
+    Bytes(Vec<u8>),
+    String(String),
+    Svg(svg::buffer::Buffer),
+}
+
+impl TabSaveContent {
+    pub fn into_bytes(self) -> Vec<u8> {
+        match self {
+            TabSaveContent::Bytes(bytes) => bytes,
+            TabSaveContent::String(string) => string.into_bytes(),
+            TabSaveContent::Svg(buffer) => buffer.serialize().into_bytes(),
         }
     }
 }

@@ -4,20 +4,20 @@ use lb_rs::logic::filename::NameComponents;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::svg::buffer::Buffer;
-use lb_rs::Uuid;
+use lb_rs::{svg, Uuid};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, instrument, warn};
 
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
-use crate::tab::{Tab, TabContent, TabFailure};
+use crate::tab::{Tab, TabContent, TabFailure, TabSaveContent};
 use crate::task_manager::{
     self, CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, SaveRequest, TaskManager,
 };
@@ -268,6 +268,7 @@ impl Workspace {
         self.active_tab_changed = true;
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn process_updates(&mut self) {
         let task_manager::Response {
             completed_loads,
@@ -348,11 +349,13 @@ impl Workspace {
                                             &mut svg.buffer.elements,
                                             &mut svg.buffer.weak_images,
                                             svg.buffer.master_transform,
-                                            &svg.buffer.opened_content,
-                                            String::from_utf8_lossy(&bytes).as_ref(),
+                                            &svg.opened_content,
+                                            &svg::buffer::Buffer::new(
+                                                String::from_utf8_lossy(&bytes).as_ref(),
+                                            ),
                                         );
 
-                                        svg.buffer.open_file_hmac = maybe_hmac;
+                                        svg.open_file_hmac = maybe_hmac;
                                     }
                                     _ => unreachable!(),
                                 };
@@ -412,14 +415,17 @@ impl Workspace {
                         match new_hmac_result {
                             Ok(hmac) => {
                                 tab.last_saved = started_at;
-                                match tab.content.as_mut() {
-                                    Some(TabContent::Markdown(md)) => {
+                                match (tab.content.as_mut(), content) {
+                                    (
+                                        Some(TabContent::Markdown(md)),
+                                        TabSaveContent::String(content),
+                                    ) => {
                                         md.hmac = Some(hmac);
                                         md.buffer.saved(seq, content);
                                     }
-                                    Some(TabContent::Svg(svg)) => {
-                                        svg.buffer.open_file_hmac = Some(hmac);
-                                        svg.buffer.opened_content = content;
+                                    (Some(TabContent::Svg(svg)), TabSaveContent::Svg(content)) => {
+                                        svg.open_file_hmac = Some(hmac);
+                                        svg.opened_content = content;
                                     }
                                     _ => {}
                                 }

@@ -6,6 +6,7 @@ use egui::{EventFilter, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand
 use std::collections::HashMap;
 use std::mem;
 use std::time::{Duration, Instant};
+use tracing::instrument;
 
 use crate::output::Response;
 use crate::tab::{TabContent, TabFailure};
@@ -14,6 +15,7 @@ use crate::widgets::Button;
 use crate::workspace::Workspace;
 
 impl Workspace {
+    #[instrument(level="trace", skip_all, fields(frame = self.ctx.frame_nr()))]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
             self.user_last_seen = Instant::now();

@@ -10,10 +10,10 @@ use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::Uuid;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, instrument, warn};
 
 use crate::output::DirtynessMsg;
-use crate::tab::{Tab, TabContent};
+use crate::tab::{Tab, TabSaveContent};
 
 #[derive(Default)]
 pub struct Tasks {
@@ -77,14 +77,14 @@ pub struct Response {
 }
 
 // Requests
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LoadRequest {
     pub id: Uuid,
     pub is_new_file: bool,
     pub tab_created: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SaveRequest {
     pub id: Uuid,
 }
@@ -211,7 +211,7 @@ pub struct CompletedLoad {
 pub struct CompletedSave {
     pub request: SaveRequest,
     pub seq: usize,
-    pub content: String,
+    pub content: TabSaveContent,
     pub new_hmac_result: LbResult<DocumentHmac>,
 
     pub timing: CompletedTiming,
@@ -473,79 +473,38 @@ impl TaskManager {
             tasks.in_progress_loads.push(in_progress_load);
 
             let self_clone = self.clone();
-            thread::spawn(move || {
-                let id = request.id;
-                let content_result = self_clone.core.read_document_with_hmac(id);
-
-                {
-                    let mut tasks = self_clone.tasks.lock().unwrap();
-
-                    let mut in_progress_load = None;
-                    for load in mem::take(&mut tasks.in_progress_loads) {
-                        if load.request.id == id {
-                            in_progress_load = Some(load); // use latest of duplicate ids
-                            break;
-                        } else {
-                            tasks.in_progress_loads.push(load); // put back the ones we're not completing
-                        }
-                    }
-                    let in_progress_load = in_progress_load
-                        .expect("failed to find in-progress entry for load that just completed");
-                    // ^ above error may indicate concurrent loads to the same file, which would cause problems
-
-                    let timing = CompletedTiming::new(in_progress_load.timing);
-                    let in_progress_time = timing.completed_at.duration_since(timing.started_at);
-                    if let Err(err) = &content_result {
-                        error!(
-                            "load of file {} failed ({}ms): {:?}",
-                            request.id,
-                            in_progress_time.as_millis(),
-                            err
-                        );
-                    } else if in_progress_time > Duration::from_secs(1) {
-                        warn!("loaded file {} ({}ms)", request.id, in_progress_time.as_millis());
-                    } else {
-                        debug!("loaded file {} ({}ms)", request.id, in_progress_time.as_millis());
-                    }
-
-                    let completed_load =
-                        CompletedLoad { request: in_progress_load.request, content_result, timing };
-                    tasks.completed_loads.push(completed_load);
-                }
-
-                self_clone.ctx.request_repaint();
-            });
+            thread::spawn(move || self_clone.background_load(request));
         }
 
         for queued_save in saves_to_launch.into_values() {
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
-            let content = {
-                let mut result = None;
-                for tab in tabs {
-                    if tab.id == request.id {
-                        let start = Instant::now();
-                        result = tab.content.clone();
-                        let time = Instant::now().duration_since(start);
-                        if time > Duration::from_millis(100) {
-                            warn!(
-                                "spent {}ms on UI thread cloning content for file {} for background thread to save it",
-                                request.id,
-                                time.as_millis()
-                            );
-                        }
-                        break;
-                    }
-                }
-                if let Some(result) = result {
-                    result
-                } else {
+            let (old_hmac, seq, content) = {
+                let Some(tab) = tabs.iter().find(|tab| tab.id == request.id) else {
                     error!(
                         "could not launch save for file {} because its tab does not exist",
                         request.id
                     );
                     continue;
+                };
+
+                let start = Instant::now();
+
+                let old_hmac = tab.content.as_ref().and_then(|c| c.hmac());
+                let seq = tab.content.as_ref().map(|c| c.seq()).unwrap_or_default();
+                let Some(content) = tab.content.as_ref().and_then(|c| c.clone_content()) else {
+                    break;
+                };
+
+                let time = Instant::now().duration_since(start);
+                if time > Duration::from_millis(100) {
+                    warn!(
+                        "spent {time:?} on UI thread cloning save content for file {}",
+                        request.id,
+                    );
                 }
+
+                (old_hmac, seq, content)
             };
             let queue_time = in_progress_save
                 .timing
@@ -561,64 +520,7 @@ impl TaskManager {
             tasks.in_progress_saves.push(in_progress_save);
 
             let self_clone = self.clone();
-            thread::spawn(move || {
-                let id = request.id;
-                let (old_hmac, seq, content) = match content {
-                    TabContent::Markdown(editor) => {
-                        (editor.hmac, editor.buffer.current.seq, editor.buffer.current.text)
-                    }
-                    TabContent::Svg(svg) => (svg.buffer.open_file_hmac, 0, svg.buffer.serialize()),
-                    TabContent::Image(_) => unimplemented!("images aren't saveable"),
-                    TabContent::Pdf(_) => unimplemented!("pdfs aren't saveable"),
-                };
-                let new_hmac_result =
-                    self_clone
-                        .core
-                        .safe_write(request.id, old_hmac, content.clone().into()); // todo: unnecessary clone
-
-                {
-                    let mut tasks = self_clone.tasks.lock().unwrap();
-
-                    let mut in_progress_save = None;
-                    for save in mem::take(&mut tasks.in_progress_saves) {
-                        if save.request.id == id {
-                            in_progress_save = Some(save); // use latest of duplicate ids
-                            break;
-                        } else {
-                            tasks.in_progress_saves.push(save); // put back the ones we're not completing
-                        }
-                    }
-                    let in_progress_save = in_progress_save
-                        .expect("failed to find in-progress entry for save that just completed");
-                    // ^ above error may indicate concurrent saves to the same file, which would cause problems
-
-                    let timing = CompletedTiming::new(in_progress_save.timing);
-                    let in_progress_time = timing.completed_at.duration_since(timing.started_at);
-                    if let Err(err) = &new_hmac_result {
-                        error!(
-                            "save of file {} failed ({}ms): {:?}",
-                            request.id,
-                            in_progress_time.as_millis(),
-                            err
-                        );
-                    } else if in_progress_time > Duration::from_secs(1) {
-                        warn!("saved file {} ({}ms)", request.id, in_progress_time.as_millis());
-                    } else {
-                        debug!("saved file {} ({}ms)", request.id, in_progress_time.as_millis());
-                    }
-
-                    let completed_save = CompletedSave {
-                        request: in_progress_save.request,
-                        seq,
-                        content,
-                        new_hmac_result,
-                        timing,
-                    };
-                    tasks.completed_saves.push(completed_save);
-                }
-
-                self_clone.ctx.request_repaint();
-            });
+            thread::spawn(move || self_clone.background_save(request, old_hmac, seq, content));
         }
 
         if let Some(sync) = sync_to_launch {
@@ -634,44 +536,7 @@ impl TaskManager {
             tasks.in_progress_sync = Some(in_progress_sync);
 
             let self_clone = self.clone();
-            thread::spawn(move || {
-                let status_result = {
-                    let ctx = self_clone.ctx.clone();
-                    let progress_closure = move |p| {
-                        sender.send(p).unwrap();
-                        ctx.request_repaint();
-                    };
-                    self_clone.core.sync(Some(Box::new(progress_closure)))
-                };
-
-                {
-                    let mut tasks = self_clone.tasks.lock().unwrap();
-                    let in_progress_sync = tasks
-                        .in_progress_sync
-                        .take()
-                        .expect("failed to find in-progress entry for sync that just completed");
-                    // ^ above error may indicate concurrent syncs, which would cause problems
-
-                    let timing = CompletedTiming::new(in_progress_sync.timing);
-                    let in_progress_time = timing.completed_at.duration_since(timing.started_at);
-                    if let Err(err) = &status_result {
-                        error!("sync failed ({}ms): {:?}", in_progress_time.as_millis(), err);
-                    } else if in_progress_time > Duration::from_secs(1) {
-                        warn!(
-                            "synced ({}ms); status = {:?}",
-                            in_progress_time.as_millis(),
-                            status_result
-                        );
-                    } else {
-                        debug!("synced ({}ms)", in_progress_time.as_millis());
-                    }
-
-                    let completed_sync = CompletedSync { status_result, timing };
-                    tasks.completed_sync = Some(completed_sync);
-                }
-
-                self_clone.ctx.request_repaint();
-            });
+            thread::spawn(move || self_clone.background_sync(sender));
         }
 
         if let Some(update) = sync_status_update_to_launch {
@@ -686,46 +551,7 @@ impl TaskManager {
             tasks.in_progress_sync_status_update = Some(in_progress_update);
 
             let self_clone = self.clone();
-            thread::spawn(move || {
-                let status_result = || -> LbResult<DirtynessMsg> {
-                    let last_synced = self_clone.core.get_last_synced_human_string()?;
-                    let dirty_files = self_clone.core.get_local_changes()?;
-                    let pending_shares = self_clone.core.get_pending_shares()?;
-                    Ok(DirtynessMsg { last_synced, dirty_files, pending_shares })
-                }();
-
-                {
-                    let mut tasks = self_clone.tasks.lock().unwrap();
-                    let in_progress_update = tasks
-                        .in_progress_sync_status_update
-                        .take()
-                        .expect("failed to find in-progress entry for sync status update that just completed");
-                    // ^ above error may indicate concurrent sync status updates, which would cause problems
-
-                    let timing = CompletedTiming::new(in_progress_update.timing);
-                    let in_progress_time = timing.completed_at.duration_since(timing.started_at);
-                    if let Err(err) = &status_result {
-                        error!(
-                            "update sync status failed ({}ms): {:?}",
-                            in_progress_time.as_millis(),
-                            err
-                        );
-                    } else if in_progress_time > Duration::from_secs(1) {
-                        warn!(
-                            "sync status updated ({}ms); status = {:?}",
-                            in_progress_time.as_millis(),
-                            status_result
-                        );
-                    } else {
-                        debug!("sync status updated ({}ms)", in_progress_time.as_millis());
-                    }
-
-                    let completed_update = CompletedSyncStatusUpdate { status_result, timing };
-                    tasks.completed_sync_status_update = Some(completed_update);
-                }
-
-                self_clone.ctx.request_repaint();
-            });
+            thread::spawn(move || self_clone.background_sync_status_update());
         }
 
         if any_to_launch {
@@ -741,5 +567,180 @@ impl TaskManager {
             completed_sync: mem::take(&mut tasks.completed_sync),
             completed_sync_status_update: mem::take(&mut tasks.completed_sync_status_update),
         }
+    }
+
+    /// Move a request to in-progress, then call this from a background thread
+    #[instrument(level = "debug", skip(self), fields(thread = format!("{:?}", thread::current().id())))]
+    fn background_load(&self, request: LoadRequest) {
+        let id = request.id;
+        let content_result = self.core.read_document_with_hmac(id);
+
+        {
+            let mut tasks = self.tasks.lock().unwrap();
+
+            let mut in_progress_load = None;
+            for load in mem::take(&mut tasks.in_progress_loads) {
+                if load.request.id == id {
+                    in_progress_load = Some(load); // use latest of duplicate ids
+                    break;
+                } else {
+                    tasks.in_progress_loads.push(load); // put back the ones we're not completing
+                }
+            }
+            let in_progress_load = in_progress_load
+                .expect("failed to find in-progress entry for load that just completed");
+            // ^ above error may indicate concurrent loads to the same file, which would cause problems
+
+            let timing = CompletedTiming::new(in_progress_load.timing);
+            let in_progress_time = timing.completed_at.duration_since(timing.started_at);
+            if let Err(err) = &content_result {
+                error!(
+                    "load of file {} failed ({}ms): {:?}",
+                    request.id,
+                    in_progress_time.as_millis(),
+                    err
+                );
+            } else if in_progress_time > Duration::from_secs(1) {
+                warn!("loaded file {} ({}ms)", request.id, in_progress_time.as_millis());
+            } else {
+                debug!("loaded file {} ({}ms)", request.id, in_progress_time.as_millis());
+            }
+
+            let completed_load =
+                CompletedLoad { request: in_progress_load.request, content_result, timing };
+            tasks.completed_loads.push(completed_load);
+        }
+
+        self.ctx.request_repaint();
+    }
+
+    /// Move a request to in-progress, then call this from a background thread
+    #[instrument(level = "debug", skip(self, content), fields(thread = format!("{:?}", thread::current().id())))]
+    fn background_save(
+        &self, request: SaveRequest, old_hmac: Option<DocumentHmac>, seq: usize,
+        content: TabSaveContent,
+    ) {
+        let id = request.id;
+        let new_hmac_result =
+            self.core
+                .safe_write(request.id, old_hmac, content.clone().into_bytes()); // todo: unnecessary clone
+
+        {
+            let mut tasks = self.tasks.lock().unwrap();
+
+            let mut in_progress_save = None;
+            for save in mem::take(&mut tasks.in_progress_saves) {
+                if save.request.id == id {
+                    in_progress_save = Some(save); // use latest of duplicate ids
+                    break;
+                } else {
+                    tasks.in_progress_saves.push(save); // put back the ones we're not completing
+                }
+            }
+            let in_progress_save = in_progress_save
+                .expect("failed to find in-progress entry for save that just completed");
+            // ^ above error may indicate concurrent saves to the same file, which would cause problems
+
+            let timing = CompletedTiming::new(in_progress_save.timing);
+            let in_progress_time = timing.completed_at.duration_since(timing.started_at);
+            if let Err(err) = &new_hmac_result {
+                error!(
+                    "save of file {} failed ({}ms): {:?}",
+                    request.id,
+                    in_progress_time.as_millis(),
+                    err
+                );
+            } else if in_progress_time > Duration::from_secs(1) {
+                warn!("saved file {} ({}ms)", request.id, in_progress_time.as_millis());
+            } else {
+                debug!("saved file {} ({}ms)", request.id, in_progress_time.as_millis());
+            }
+
+            let completed_save = CompletedSave {
+                request: in_progress_save.request,
+                seq,
+                content,
+                new_hmac_result,
+                timing,
+            };
+            tasks.completed_saves.push(completed_save);
+        }
+
+        self.ctx.request_repaint();
+    }
+
+    /// Move a request to in-progress, then call this from a background thread
+    #[instrument(level = "debug", skip(self, sender), fields(thread = format!("{:?}", thread::current().id())))]
+    fn background_sync(&self, sender: mpsc::Sender<SyncProgress>) {
+        let status_result = {
+            let ctx = self.ctx.clone();
+            let progress_closure = move |p| {
+                sender.send(p).unwrap();
+                ctx.request_repaint();
+            };
+            self.core.sync(Some(Box::new(progress_closure)))
+        };
+
+        {
+            let mut tasks = self.tasks.lock().unwrap();
+            let in_progress_sync = tasks
+                .in_progress_sync
+                .take()
+                .expect("failed to find in-progress entry for sync that just completed");
+            // ^ above error may indicate concurrent syncs, which would cause problems
+
+            let timing = CompletedTiming::new(in_progress_sync.timing);
+            let in_progress_time = timing.completed_at.duration_since(timing.started_at);
+            if let Err(err) = &status_result {
+                error!("sync failed ({}ms): {:?}", in_progress_time.as_millis(), err);
+            } else if in_progress_time > Duration::from_secs(1) {
+                warn!("synced ({}ms); status = {:?}", in_progress_time.as_millis(), status_result);
+            } else {
+                debug!("synced ({}ms)", in_progress_time.as_millis());
+            }
+
+            let completed_sync = CompletedSync { status_result, timing };
+            tasks.completed_sync = Some(completed_sync);
+        }
+
+        self.ctx.request_repaint();
+    }
+
+    /// Move a request to in-progress, then call this from a background thread
+    #[instrument(level = "debug", skip(self), fields(thread = format!("{:?}", thread::current().id())))]
+    fn background_sync_status_update(&self) {
+        let status_result = || -> LbResult<DirtynessMsg> {
+            let last_synced = self.core.get_last_synced_human_string()?;
+            let dirty_files = self.core.get_local_changes()?;
+            let pending_shares = self.core.get_pending_shares()?;
+            Ok(DirtynessMsg { last_synced, dirty_files, pending_shares })
+        }();
+
+        {
+            let mut tasks = self.tasks.lock().unwrap();
+            let in_progress_update = tasks.in_progress_sync_status_update.take().expect(
+                "failed to find in-progress entry for sync status update that just completed",
+            );
+            // ^ above error may indicate concurrent sync status updates, which would cause problems
+
+            let timing = CompletedTiming::new(in_progress_update.timing);
+            let in_progress_time = timing.completed_at.duration_since(timing.started_at);
+            if let Err(err) = &status_result {
+                error!("update sync status failed ({}ms): {:?}", in_progress_time.as_millis(), err);
+            } else if in_progress_time > Duration::from_secs(1) {
+                warn!(
+                    "sync status updated ({}ms); status = {:?}",
+                    in_progress_time.as_millis(),
+                    status_result
+                );
+            } else {
+                debug!("sync status updated ({}ms)", in_progress_time.as_millis());
+            }
+
+            let completed_update = CompletedSyncStatusUpdate { status_result, timing };
+            tasks.completed_sync_status_update = Some(completed_update);
+        }
+
+        self.ctx.request_repaint();
     }
 }
