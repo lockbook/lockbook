@@ -192,8 +192,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getStatus(
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let status =
-        WsStatus { syncing: obj.workspace.syncing(), msg: obj.workspace.status.message.clone() };
+    let status = WsStatus {
+        syncing: obj.workspace.visibly_syncing(),
+        msg: obj.workspace.status.message.clone(),
+    };
 
     return env
         .new_string(serde_json::to_string(&status).unwrap())

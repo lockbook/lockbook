@@ -626,7 +626,7 @@ impl Workspace {
             "Offline".to_string()
         } else if self.status.out_of_space {
             "You're out of space, buy more in settings!".to_string()
-        } else if let (true, Some(msg)) = (self.syncing(), &self.status.sync_message) {
+        } else if let (true, Some(msg)) = (self.visibly_syncing(), &self.status.sync_message) {
             msg.to_string()
         } else if !self.status.dirtyness.dirty_files.is_empty() {
             let size = self.status.dirtyness.dirty_files.len();
@@ -640,7 +640,7 @@ impl Workspace {
         }
     }
 
-    pub fn syncing(&self) -> bool {
+    pub fn visibly_syncing(&self) -> bool {
         self.tasks
             .sync_started_at()
             .map(|s| s.elapsed().as_millis() > 300)

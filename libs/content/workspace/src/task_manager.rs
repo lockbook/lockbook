@@ -387,7 +387,9 @@ impl TaskManager {
                 .iter()
                 .any(|completed_save| completed_save.request.id == id)
             {
-                continue; // result of completed save must be processed before another save to the same file
+                // result of completed save must be processed before another save to the same file; this guarantees
+                // that the hmac from the completed save is used for the next, preventing a ReReadRequired error
+                continue;
             }
             ids_to_save.push(id);
         }

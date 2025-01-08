@@ -85,7 +85,7 @@ impl Network {
                 .await
             {
                 Ok(o) => {
-                    if start.elapsed() > Duration::from_millis(100) {
+                    if start.elapsed() > Duration::from_millis(1000) {
                         warn!("network request took {}ms", start.elapsed().as_millis());
                     }
                     break o;
