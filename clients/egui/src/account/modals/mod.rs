@@ -63,7 +63,7 @@ impl super::AccountScreen {
             } else if let Some(inner) = response.inner {
                 use SettingsResponse::*;
                 match inner {
-                    SuccessfullyUpgraded => self.workspace.refresh_sync_status(),
+                    SuccessfullyUpgraded => self.workspace.tasks.queue_sync_status_update(),
                 }
             }
         }

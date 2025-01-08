@@ -33,7 +33,7 @@ pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_file: bool) {
 #[no_mangle]
 pub extern "C" fn request_sync(obj: *mut c_void) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.perform_sync()
+    obj.workspace.tasks.queue_sync();
 }
 
 #[no_mangle]

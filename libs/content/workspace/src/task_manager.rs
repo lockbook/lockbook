@@ -12,6 +12,7 @@ use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::Uuid;
 use tracing::{debug, error, warn};
 
+use crate::output::DirtynessMsg;
 use crate::tab::{Tab, TabContent};
 
 #[derive(Default)]
@@ -20,16 +21,19 @@ pub struct Tasks {
     queued_loads: Vec<QueuedLoad>,
     queued_saves: Vec<QueuedSave>,
     queued_syncs: Vec<QueuedSync>,
+    queued_sync_status_updates: Vec<QueuedSyncStatusUpdate>,
 
     // launched tasks tracked here until complete
     pub in_progress_loads: Vec<InProgressLoad>,
     pub in_progress_saves: Vec<InProgressSave>,
     pub in_progress_sync: Option<InProgressSync>,
+    pub in_progress_sync_status_update: Option<InProgressSyncStatusUpdate>,
 
     // completions stashed here then returned in the response on the next frame
     completed_loads: Vec<CompletedLoad>,
     completed_saves: Vec<CompletedSave>,
     completed_sync: Option<CompletedSync>,
+    completed_sync_status_update: Option<CompletedSyncStatusUpdate>,
 }
 
 impl Tasks {
@@ -69,6 +73,7 @@ pub struct Response {
     pub completed_loads: Vec<CompletedLoad>,
     pub completed_saves: Vec<CompletedSave>,
     pub completed_sync: Option<CompletedSync>,
+    pub completed_sync_status_update: Option<CompletedSyncStatusUpdate>,
 }
 
 // Requests
@@ -145,6 +150,11 @@ struct QueuedSync {
     timing: QueuedTiming,
 }
 
+#[derive(Clone)]
+struct QueuedSyncStatusUpdate {
+    timing: QueuedTiming,
+}
+
 pub struct InProgressLoad {
     pub request: LoadRequest,
 
@@ -181,6 +191,16 @@ impl InProgressSync {
     }
 }
 
+pub struct InProgressSyncStatusUpdate {
+    pub timing: InProgressTiming,
+}
+
+impl InProgressSyncStatusUpdate {
+    fn new(queued: QueuedSyncStatusUpdate) -> Self {
+        Self { timing: InProgressTiming::new(queued.timing) }
+    }
+}
+
 pub struct CompletedLoad {
     pub request: LoadRequest,
     pub content_result: LbResult<(Option<DocumentHmac>, DecryptedDocument)>,
@@ -199,6 +219,12 @@ pub struct CompletedSave {
 
 pub struct CompletedSync {
     pub status_result: LbResult<SyncStatus>,
+
+    pub timing: CompletedTiming,
+}
+
+pub struct CompletedSyncStatusUpdate {
+    pub status_result: LbResult<DirtynessMsg>,
 
     pub timing: CompletedTiming,
 }
@@ -240,6 +266,15 @@ impl TaskManager {
             .unwrap()
             .queued_syncs
             .push(QueuedSync { timing: QueuedTiming::new() });
+    }
+
+    pub fn queue_sync_status_update(&mut self) {
+        debug!("queued sync status update");
+        self.tasks
+            .lock()
+            .unwrap()
+            .queued_sync_status_updates
+            .push(QueuedSyncStatusUpdate { timing: QueuedTiming::new() });
     }
 
     pub fn load_or_save_queued(&self, id: Uuid) -> bool {
@@ -302,6 +337,24 @@ impl TaskManager {
         }
     }
 
+    #[allow(clippy::manual_map)] // manual map clarifies overall fn structure
+    pub fn sync_status_update_queued_at(&self) -> Option<Instant> {
+        let tasks = self.tasks.lock().unwrap();
+        if let Some(queued_sync_status_update) = tasks.queued_sync_status_updates.last() {
+            Some(queued_sync_status_update.timing.queued_at)
+        } else if let Some(in_progress_sync_status_update) =
+            tasks.in_progress_sync_status_update.as_ref()
+        {
+            Some(in_progress_sync_status_update.timing.queued_at)
+        } else if let Some(completed_sync_status_update) =
+            tasks.completed_sync_status_update.as_ref()
+        {
+            Some(completed_sync_status_update.timing.queued_at)
+        } else {
+            None
+        }
+    }
+
     /// Launches whichever queued tasks are ready to be launched, moving their status from queued to in-progress.
     /// In-progress tasks have status moved to completed by background threads. This fn called whenever a task is
     /// queued or explicitly - background threads will not call it and will instead only call request_repaint() when
@@ -346,6 +399,13 @@ impl TaskManager {
             && tasks.in_progress_sync.is_none()
             && !tasks.any_load_or_save_queued_or_in_progress();
 
+        // Similarly, sync status updates don't need to be prioritized. For efficiency, we wait for all syncs to
+        // complete before we launch a sync status update. A sync always queues a sync status update upon completion.
+        let should_update_sync_status = !tasks.queued_sync_status_updates.is_empty()
+            && tasks.in_progress_sync_status_update.is_none()
+            && !tasks.queued_syncs.is_empty()
+            && tasks.in_progress_sync.is_none();
+
         // Get launched things from the queue and remove duplicates (avoiding clones)
         let mut loads_to_launch = HashMap::new();
         let mut saves_to_launch = HashMap::new();
@@ -367,18 +427,29 @@ impl TaskManager {
 
         let sync_to_launch =
             if should_sync { mem::take(&mut tasks.queued_syncs).into_iter().next() } else { None };
+        let sync_status_update_to_launch = if should_update_sync_status {
+            mem::take(&mut tasks.queued_sync_status_updates)
+                .into_iter()
+                .next()
+        } else {
+            None
+        };
 
-        let any_to_launch =
-            !loads_to_launch.is_empty() || !saves_to_launch.is_empty() || sync_to_launch.is_some();
+        let any_to_launch = !loads_to_launch.is_empty()
+            || !saves_to_launch.is_empty()
+            || sync_to_launch.is_some()
+            || sync_status_update_to_launch.is_some();
         if any_to_launch {
             debug!(
-                "launching {} loads, {} saves, and {} syncs; {} loads, {} saves, and {} syncs remain queued",
+                "launching {} loads, {} saves, {} syncs, and {} sync status updates; {} loads, {} saves, {} syncs, and {} sync status updates remain queued",
                 loads_to_launch.len(),
                 saves_to_launch.len(),
                 sync_to_launch.is_some() as usize,
+                sync_status_update_to_launch.is_some() as usize,
                 tasks.queued_loads.len(),
                 tasks.queued_saves.len(),
-                tasks.queued_syncs.len()
+                tasks.queued_syncs.len(),
+                tasks.queued_sync_status_updates.len()
             );
         }
 
@@ -601,6 +672,60 @@ impl TaskManager {
             });
         }
 
+        if let Some(update) = sync_status_update_to_launch {
+            let in_progress_update = InProgressSyncStatusUpdate::new(update);
+            let queue_time = in_progress_update
+                .timing
+                .started_at
+                .duration_since(in_progress_update.timing.queued_at);
+            if queue_time > Duration::from_secs(1) {
+                warn!("sync status update spent {}ms in the task queue", queue_time.as_millis());
+            }
+            tasks.in_progress_sync_status_update = Some(in_progress_update);
+
+            let self_clone = self.clone();
+            thread::spawn(move || {
+                let status_result = || -> LbResult<DirtynessMsg> {
+                    let last_synced = self_clone.core.get_last_synced_human_string()?;
+                    let dirty_files = self_clone.core.get_local_changes()?;
+                    let pending_shares = self_clone.core.get_pending_shares()?;
+                    Ok(DirtynessMsg { last_synced, dirty_files, pending_shares })
+                }();
+
+                {
+                    let mut tasks = self_clone.tasks.lock().unwrap();
+                    let in_progress_update = tasks
+                        .in_progress_sync_status_update
+                        .take()
+                        .expect("failed to find in-progress entry for sync status update that just completed");
+                    // ^ above error may indicate concurrent sync status updates, which would cause problems
+
+                    let timing = CompletedTiming::new(in_progress_update.timing);
+                    let in_progress_time = timing.completed_at.duration_since(timing.started_at);
+                    if let Err(err) = &status_result {
+                        error!(
+                            "update sync status failed ({}ms): {:?}",
+                            in_progress_time.as_millis(),
+                            err
+                        );
+                    } else if in_progress_time > Duration::from_secs(1) {
+                        warn!(
+                            "sync status updated ({}ms); status = {:?}",
+                            in_progress_time.as_millis(),
+                            status_result
+                        );
+                    } else {
+                        debug!("sync status updated ({}ms)", in_progress_time.as_millis());
+                    }
+
+                    let completed_update = CompletedSyncStatusUpdate { status_result, timing };
+                    tasks.completed_sync_status_update = Some(completed_update);
+                }
+
+                self_clone.ctx.request_repaint();
+            });
+        }
+
         if any_to_launch {
             self.ctx.request_repaint();
         }
@@ -612,6 +737,7 @@ impl TaskManager {
             completed_loads: mem::take(&mut tasks.completed_loads),
             completed_saves: mem::take(&mut tasks.completed_saves),
             completed_sync: mem::take(&mut tasks.completed_sync),
+            completed_sync_status_update: mem::take(&mut tasks.completed_sync_status_update),
         }
     }
 }

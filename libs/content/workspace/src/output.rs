@@ -34,7 +34,6 @@ pub struct WsStatus {
     pub offline: bool,
     pub update_req: bool,
     pub out_of_space: bool,
-    pub usage: f64,
     pub dirtyness: DirtynessMsg,
     pub sync_message: Option<String>,
 
@@ -42,7 +41,7 @@ pub struct WsStatus {
     pub message: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DirtynessMsg {
     pub last_synced: String,
     pub dirty_files: Vec<Uuid>,

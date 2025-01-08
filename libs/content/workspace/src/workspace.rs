@@ -31,8 +31,8 @@ pub struct Workspace {
     // Files and task status
     pub tasks: TaskManager,
     pub last_save_all: Option<Instant>,
-    pub last_sync: Option<Instant>,
-    pub last_sync_status_refresh: Option<Instant>,
+    pub last_sync_completed: Option<Instant>,
+    pub last_sync_status_refresh_completed: Option<Instant>,
 
     // Output
     pub status: WsStatus,
@@ -62,9 +62,9 @@ impl Workspace {
             user_last_seen: Instant::now(),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
-            last_sync: Default::default(),
+            last_sync_completed: Default::default(),
             last_save_all: Default::default(),
-            last_sync_status_refresh: Default::default(),
+            last_sync_status_refresh_completed: Default::default(),
 
             status: Default::default(),
             out: Default::default(),
@@ -269,8 +269,12 @@ impl Workspace {
     }
 
     pub fn process_updates(&mut self) {
-        let task_manager::Response { completed_loads, completed_saves, completed_sync } =
-            self.tasks.update();
+        let task_manager::Response {
+            completed_loads,
+            completed_saves,
+            completed_sync,
+            completed_sync_status_update,
+        } = self.tasks.update();
 
         let start = Instant::now();
         for load in completed_loads {
@@ -432,7 +436,7 @@ impl Workspace {
                         }
                     }
                     if sync {
-                        self.perform_sync();
+                        self.tasks.queue_sync();
                     }
                 }
             }
@@ -450,13 +454,21 @@ impl Workspace {
         }
 
         let start = Instant::now();
+        if let Some(update) = completed_sync_status_update {
+            self.sync_status_update_done(update)
+        }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing completed sync status update took {:?}", start.elapsed());
+        }
+
+        let start = Instant::now();
         {
             let tasks = self.tasks.tasks.lock().unwrap();
             if let Some(sync) = tasks.in_progress_sync.as_ref() {
                 while let Ok(progress) = sync.progress.try_recv() {
                     debug!("sync progress: {}", progress);
-                    self.out.status_updated = true;
                     self.status.sync_message = Some(progress.msg);
+                    self.out.status_updated = true;
                 }
             }
         }
@@ -467,11 +479,15 @@ impl Workspace {
         // background work
         let now = Instant::now();
         let start = Instant::now();
-        if let Some(last_sync_status_refresh) = self.last_sync_status_refresh {
+        if let Some(last_sync_status_refresh) = self
+            .tasks
+            .sync_status_update_queued_at()
+            .or(self.last_sync_status_refresh_completed)
+        {
             let instant_of_next_sync_status_refresh =
                 last_sync_status_refresh + Duration::from_secs(1);
             if instant_of_next_sync_status_refresh < now {
-                self.refresh_sync_status();
+                self.tasks.queue_sync_status_update();
             } else {
                 let duration_until_next_sync_status_refresh =
                     instant_of_next_sync_status_refresh - now;
@@ -479,11 +495,12 @@ impl Workspace {
                     .request_repaint_after(duration_until_next_sync_status_refresh);
             }
         } else {
-            self.refresh_sync_status();
+            self.tasks.queue_sync_status_update();
         }
         if start.elapsed() > Duration::from_millis(100) {
             warn!("processing sync status refresh took {:?}", start.elapsed());
         }
+
         let start = Instant::now();
         if self.cfg.get_auto_save() {
             if let Some(last_save_all) = self.last_save_all {
@@ -501,9 +518,10 @@ impl Workspace {
         if start.elapsed() > Duration::from_millis(100) {
             warn!("processing auto save took {:?}", start.elapsed());
         }
+
         let start = Instant::now();
         if self.cfg.get_auto_sync() {
-            if let Some(last_sync) = self.tasks.sync_queued_at().or(self.last_sync) {
+            if let Some(last_sync) = self.tasks.sync_queued_at().or(self.last_sync_completed) {
                 let focused = self.ctx.input(|i| i.focused);
                 let user_active = self.user_last_seen.elapsed() < Duration::from_secs(10);
                 let sync_period = if user_active && focused {
@@ -514,13 +532,13 @@ impl Workspace {
 
                 let instant_of_next_sync = last_sync + sync_period;
                 if instant_of_next_sync < now {
-                    self.perform_sync();
+                    self.tasks.queue_sync();
                 } else {
                     let duration_until_next_sync = instant_of_next_sync - now;
                     self.ctx.request_repaint_after(duration_until_next_sync);
                 }
             } else {
-                self.perform_sync();
+                self.tasks.queue_sync();
             }
         }
         if start.elapsed() > Duration::from_millis(100) {

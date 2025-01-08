@@ -126,7 +126,7 @@ impl super::AccountScreen {
             .show(ui);
 
         if sync_btn.clicked() {
-            self.workspace.perform_sync();
+            self.workspace.tasks.queue_sync();
             self.sync.btn_lost_hover_after_sync = false;
         }
 
