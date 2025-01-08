@@ -919,10 +919,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     }
 
     public func pointerInteraction(_ interaction: UIPointerInteraction, regionFor request: UIPointerRegionRequest, defaultRegion: UIPointerRegion) -> UIPointerRegion? {
-        let offsetY: CGFloat = if interaction.view is iOSMTKTextInputWrapper {
-            Self.TAB_BAR_HEIGHT
-        } else if interaction.view is iOSMTKDrawingWrapper {
-            Self.TAB_BAR_HEIGHT + iOSMTKDrawingWrapper.TOOL_BAR_HEIGHT
+        let offsetY: CGFloat = if interaction.view is iOSMTKTextInputWrapper || interaction.view is iOSMTKDrawingWrapper {
+            docHeaderSize
         } else {
             0
         }
