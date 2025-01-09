@@ -80,6 +80,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     old_wgpu: jlong,
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Lb) };
+    let writable_dir = core.get_config().writeable_path;
 
     let mut native_window = NativeWindow::new(&env, surface);
     let backends = wgpu::Backends::VULKAN;
@@ -123,7 +124,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
             .invalidate_egui_references(&context, core);
         old_wgpu.workspace
     } else {
-        Workspace::new(core, &context)
+        Workspace::new(ws_cfg, core, &context)
     };
 
     let mut fonts = FontDefinitions::default();

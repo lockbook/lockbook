@@ -5,12 +5,9 @@ use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::svg::buffer::Buffer;
 use lb_rs::Uuid;
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{fs, thread};
-use tracing::error;
 
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
@@ -39,7 +36,7 @@ pub struct Workspace {
     pub out: Response,
 
     // Resources & configuration
-    pub cfg: WsPersistentStore,
+    pub cfg: WsConfig,
     pub ctx: Context,
     pub core: Lb,
     pub show_tabs: bool,              // set on mobile to hide the tab strip
@@ -50,13 +47,43 @@ pub struct Workspace {
     pub last_touch_event: Option<Instant>, // used to disable tooltips on touch devices
 }
 
-impl Workspace {
-    pub fn new(core: &Lb, ctx: &Context) -> Self {
-        let writable_dir = core.get_config().writeable_path;
-        let writeable_dir = Path::new(&writable_dir);
-        let writeable_path = writeable_dir.join("ws_presistance.json");
+#[derive(Clone)]
+pub struct WsConfig {
+    pub data_dir: String,
 
-        let mut ws = Self {
+    pub auto_save: Arc<AtomicBool>,
+    pub auto_sync: Arc<AtomicBool>,
+    pub zen_mode: Arc<AtomicBool>,
+}
+
+impl Default for WsConfig {
+    fn default() -> Self {
+        Self {
+            data_dir: "".to_string(), // todo: potentially a bad idea
+            auto_save: Arc::new(AtomicBool::new(true)),
+            auto_sync: Arc::new(AtomicBool::new(true)),
+            zen_mode: Arc::new(AtomicBool::new(false)),
+        }
+    }
+}
+
+impl WsConfig {
+    pub fn new(dir: String, auto_save: bool, auto_sync: bool, zen_mode: bool) -> Self {
+        let mut s = Self { data_dir: dir, ..Default::default() };
+        s.update(auto_save, auto_sync, zen_mode);
+        s
+    }
+
+    pub fn update(&mut self, auto_save: bool, auto_sync: bool, zen_mode: bool) {
+        self.auto_save.store(auto_save, Ordering::Relaxed);
+        self.auto_sync.store(auto_sync, Ordering::Relaxed);
+        self.zen_mode.store(zen_mode, Ordering::Relaxed);
+    }
+}
+
+impl Workspace {
+    pub fn new(cfg: WsConfig, core: &Lb, ctx: &Context) -> Self {
+        Self {
             tabs: Default::default(),
             active_tab: Default::default(),
             user_last_seen: Instant::now(),
@@ -69,7 +96,7 @@ impl Workspace {
             status: Default::default(),
             out: Default::default(),
 
-            cfg: WsPersistentStore::new(writeable_path),
+            cfg,
             ctx: ctx.clone(),
             core: core.clone(),
             show_tabs: true,
@@ -77,18 +104,7 @@ impl Workspace {
 
             active_tab_changed: Default::default(),
             last_touch_event: Default::default(),
-        };
-
-        let open_tabs = ws.cfg.get_tabs();
-
-        open_tabs.iter().for_each(|&file_id| {
-            if core.get_file_by_id(file_id).is_ok() {
-                println!("opening file with id {:#?}", file_id);
-                ws.open_file(file_id, true, true);
-            }
-        });
-
-        ws
+        }
     }
 
     pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &Lb) {
@@ -285,8 +301,8 @@ impl Workspace {
                     };
 
                     let ctx = self.ctx.clone();
+                    let cfg = self.cfg.clone();
                     let core = self.core.clone();
-                    let writeable_dir = &self.core.get_config().writeable_path;
                     let show_tabs = self.show_tabs;
 
                     let canvas_settings = self.tabs.iter().find_map(|t| {
@@ -318,7 +334,7 @@ impl Workspace {
                             tab.content = Some(TabContent::Pdf(PdfViewer::new(
                                 &bytes,
                                 &ctx,
-                                writeable_dir,
+                                &cfg.data_dir,
                                 !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         } else if ext == "svg" {
@@ -442,7 +458,7 @@ impl Workspace {
 
         // background work
         let now = Instant::now();
-        if self.cfg.get_auto_sync() {
+        if self.cfg.auto_sync.load(Ordering::Relaxed) {
             if let Some(last_sync) = self.last_sync {
                 let focused = self.ctx.input(|i| i.focused);
                 let user_active = self.user_last_seen.elapsed() < Duration::from_secs(10);
@@ -463,7 +479,7 @@ impl Workspace {
                 self.tasks.queue_sync();
             }
         }
-        if self.cfg.get_auto_save() {
+        if self.cfg.auto_save.load(Ordering::Relaxed) {
             if let Some(last_save_all) = self.last_save_all {
                 let instant_of_next_save_all = last_save_all + Duration::from_secs(1);
                 if instant_of_next_save_all < now {
@@ -557,99 +573,5 @@ impl Workspace {
 
         self.out.file_moved = Some((id, new_parent));
         self.ctx.request_repaint();
-    }
-}
-
-#[derive(Clone)]
-pub struct WsPersistentStore {
-    pub path: PathBuf,
-    data: Arc<RwLock<WsPresistentData>>,
-}
-
-#[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
-struct WsPresistentData {
-    open_tabs: Vec<Uuid>,
-    auto_save: bool,
-    auto_sync: bool,
-}
-
-impl Default for WsPresistentData {
-    fn default() -> Self {
-        Self { auto_save: true, auto_sync: true, open_tabs: Vec::default() }
-    }
-}
-
-impl WsPersistentStore {
-    pub fn new(path: PathBuf) -> Self {
-        let default = WsPresistentData::default();
-
-        match fs::File::open(&path) {
-            Ok(f) => WsPersistentStore {
-                path,
-                data: Arc::new(RwLock::new(serde_json::from_reader(f).unwrap_or(default))),
-            },
-            Err(err) => {
-                error!("Could not open ws presistance file: {:#?}", err);
-                WsPersistentStore { path, data: Arc::new(RwLock::new(default)) }
-            }
-        }
-    }
-
-    pub fn set_tabs(&mut self, tabs: &[Tab], active_tab_index: usize) {
-        let mut active_tab = None;
-        let mut tab_ids: Vec<Uuid> = tabs
-            .iter()
-            .enumerate()
-            .filter_map(|(i, t)| {
-                if i == active_tab_index {
-                    active_tab = Some(t.id);
-                    None
-                } else {
-                    Some(t.id)
-                }
-            })
-            .collect();
-
-        if let Some(tab) = active_tab {
-            tab_ids.push(tab);
-        }
-
-        let mut data_lock = self.data.write().unwrap();
-        data_lock.open_tabs = tab_ids;
-        self.write_to_file();
-    }
-
-    pub fn get_tabs(&self) -> Vec<Uuid> {
-        self.data.read().unwrap().open_tabs.clone()
-    }
-
-    pub fn get_auto_sync(&self) -> bool {
-        self.data.read().unwrap().auto_save
-    }
-
-    pub fn set_auto_sync(&mut self, auto_sync: bool) {
-        let mut data_lock = self.data.write().unwrap();
-        data_lock.auto_sync = auto_sync;
-        self.write_to_file();
-    }
-
-    pub fn get_auto_save(&self) -> bool {
-        self.data.read().unwrap().auto_save
-    }
-
-    pub fn set_auto_save(&mut self, auto_save: bool) {
-        let mut data_lock = self.data.write().unwrap();
-        data_lock.auto_save = auto_save;
-        self.write_to_file();
-    }
-
-    fn write_to_file(&self) {
-        let data = self.data.clone();
-        let path = self.path.clone();
-        thread::spawn(move || {
-            let data = data.read().unwrap();
-            let content = serde_json::to_string(&*data).unwrap();
-            fs::write(path, content)
-        });
     }
 }
