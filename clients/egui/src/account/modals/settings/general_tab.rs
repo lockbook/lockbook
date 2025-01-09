@@ -36,7 +36,7 @@ impl super::SettingsModal {
             ui.add_space(5.0);
 
             ui.horizontal(|ui| {
-                switch(ui, &mut s.sidebar_usage);
+                // switch(ui, &mut s.sidebar_usage);
                 ui.label("Show usage in sidebar");
             });
         });

@@ -106,7 +106,7 @@ impl Workspace {
 
     fn show_tabs(&mut self, ui: &mut egui::Ui) {
         if self.active_tab_changed {
-            self.cfg.set_tabs(&self.tabs, self.active_tab);
+            // self.cfg.set_tabs(&self.tabs, self.active_tab);
         }
 
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
