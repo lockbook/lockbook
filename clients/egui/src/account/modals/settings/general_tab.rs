@@ -16,20 +16,14 @@ impl super::SettingsModal {
             ui.add_space(5.0);
 
             ui.horizontal(|ui| {
-                let mut auto_sync = self.ws_persistent_store.get_auto_sync();
-                if switch(ui, &mut auto_sync).changed() {
-                    self.ws_persistent_store.set_auto_sync(auto_sync);
-                }
+                switch(ui, &mut s.auto_sync);
                 ui.label("Auto-sync");
             });
 
             ui.add_space(5.0);
 
             ui.horizontal(|ui| {
-                let mut auto_save = self.ws_persistent_store.get_auto_save();
-                if switch(ui, &mut auto_save).changed() {
-                    self.ws_persistent_store.set_auto_save(auto_save);
-                }
+                switch(ui, &mut s.auto_save);
                 ui.label("Auto-save");
             });
 

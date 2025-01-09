@@ -8642,7 +8642,6 @@ dependencies = [
  "reqwest",
  "resvg",
  "serde",
- "serde_json",
  "svgtypes 0.13.0",
  "time",
  "tld",

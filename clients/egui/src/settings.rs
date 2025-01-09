@@ -12,6 +12,8 @@ pub struct Settings {
     pub theme_color: ColorAlias,
     pub window_maximize: bool,
     pub open_new_files: bool,
+    pub auto_save: bool,
+    pub auto_sync: bool,
     pub sidebar_usage: bool,
     pub zen_mode: bool, // hide side panel and maximize the content workspace
     #[serde(skip_serializing, skip_deserializing)]
@@ -48,6 +50,8 @@ impl Default for Settings {
             theme_color: ColorAlias::Blue,
             window_maximize: false,
             open_new_files: true,
+            auto_save: true,
+            auto_sync: true,
             sidebar_usage: true,
             path: "".to_string(),
             zen_mode: false,
