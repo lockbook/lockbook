@@ -7,8 +7,8 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
     sync::{Arc, Mutex},
 };
-use time::Instant;
 use uuid::Uuid;
+use web_time::Instant;
 
 pub type ThreadID = usize;
 pub type TrialID = Uuid;

@@ -6,7 +6,7 @@ use tracing::error;
 use crate::output::DirtynessMsg;
 use crate::task_manager::CompletedSync;
 use crate::workspace::Workspace;
-use std::time::Instant;
+use web_time::Instant;
 
 impl Workspace {
     // todo should anyone outside workspace ever call this? Or should they call something more

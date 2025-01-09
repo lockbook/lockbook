@@ -9,7 +9,7 @@ use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use web_time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use tokio::sync::RwLock;
 use tokio::time::sleep;

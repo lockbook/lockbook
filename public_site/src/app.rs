@@ -1,9 +1,13 @@
-use lb_rs::{blocking::Lb, model::core_config::Config};
-use workspace_rs::workspace::{Workspace, WsConfig};
+use lb_rs::{blocking::Lb, model::core_config::Config, Uuid};
+use workspace_rs::{
+    tab::markdown_editor::Editor,
+    workspace::{Workspace, WsConfig},
+};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 pub struct LbWebApp {
     workspace: Workspace,
+    label: String,
 }
 
 impl LbWebApp {
@@ -20,7 +24,7 @@ impl LbWebApp {
         })
         .unwrap();
 
-        Self { workspace: Workspace::new(config, &lb, &ctx) }
+        Self { workspace: Workspace::new(config, &lb, &ctx), label: "hey there".to_owned() }
     }
 }
 
@@ -34,7 +38,18 @@ impl eframe::App for LbWebApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.workspace.show(ui);
+            let mut md = Editor::new(
+                self.workspace.core.clone(),
+                "## hello world\ntesting\n\n- 1\n- 2\n- 3",
+                Uuid::new_v4(),
+                None,
+                false,
+                false,
+            );
+            ui.centered_and_justified(|ui| {
+                md.show(ui);
+            });
+            // ui.text_edit_multiline(&mut self.label);
         });
     }
 }

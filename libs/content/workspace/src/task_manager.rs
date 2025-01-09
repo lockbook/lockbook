@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{mpsc, Arc, Mutex};
-use std::time::{Duration, Instant};
 use std::{mem, thread};
+use web_time::{Duration, Instant};
 
 use egui::Context;
 use lb_rs::blocking::Lb;

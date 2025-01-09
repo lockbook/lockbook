@@ -33,6 +33,7 @@ tracing = "0.1.5"
 tracing-test = "0.2.5"
 indexmap = { version = "2.5.0", features = ["rayon"] }
 futures = "0.3.30"
+web-time = "=1.1.0"
 
 
 lb-rs = { path = "../../lb/lb-rs" }

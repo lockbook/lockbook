@@ -12,7 +12,7 @@ use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::Uuid;
 use std::path::{Component, Path, PathBuf};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub mod image_viewer;
 pub mod markdown_editor;

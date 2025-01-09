@@ -7,7 +7,7 @@ use lb_rs::svg::buffer::Buffer;
 use lb_rs::Uuid;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};

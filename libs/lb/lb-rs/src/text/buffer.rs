@@ -3,8 +3,8 @@ use super::operation_types::{InverseOperation, Operation, Replace};
 use super::unicode_segs::UnicodeSegs;
 use super::{diff, unicode_segs};
 use std::ops::Index;
-use std::time::{Duration, Instant};
 use unicode_segmentation::UnicodeSegmentation;
+use web_time::{Duration, Instant};
 
 /// Long-lived state of the editor's text buffer. Factored into sub-structs for borrow-checking.
 /// # Operation algebra

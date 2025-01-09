@@ -9,9 +9,9 @@ use lb_rs::{
     Uuid,
 };
 use resvg::usvg::Transform;
-use std::time::{Duration, Instant};
 use tracing::{event, trace, Level};
 use tracing_test::traced_test;
+use web_time::{Duration, Instant};
 
 use crate::{tab::ExtendedInput, theme::palette::ThemePalette};
 

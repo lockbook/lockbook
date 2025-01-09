@@ -29,7 +29,7 @@ use markdown_editor::Event;
 use markdown_editor::{ast, bounds, galleys, images};
 
 use serde::Serialize;
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 #[derive(Debug, Serialize, Default)]
 pub struct Response {

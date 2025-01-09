@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 use egui::{Frame, Margin, Separator, Stroke, Ui};
 use lb_rs::text::offset_types::DocCharOffset;
