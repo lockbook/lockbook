@@ -81,11 +81,12 @@ impl Lb {
         //     .unwrap();
 
         let mut guard = self.db.write().await;
-        let tx = guard.begin_transaction().unwrap();
 
         if start.elapsed() > std::time::Duration::from_millis(100) {
             warn!("readwrite transaction lock acquisition took {:?}", start.elapsed());
         }
+
+        let tx = guard.begin_transaction().unwrap();
 
         LbTx { guard, tx }
     }
