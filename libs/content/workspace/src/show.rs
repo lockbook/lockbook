@@ -6,7 +6,7 @@ use egui::{EventFilter, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand
 use std::collections::HashMap;
 use std::mem;
 use std::sync::atomic::Ordering;
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 use crate::output::Response;
 use crate::tab::{TabContent, TabFailure};
@@ -185,6 +185,7 @@ impl Workspace {
                                 }
                             }
                             TabContent::Image(img) => img.show(ui),
+                            #[cfg(not(target_family = "wasm"))]
                             TabContent::Pdf(pdf) => pdf.show(ui),
                             TabContent::Svg(svg) => {
                                 let res = svg.show(ui);

@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 use crate::tab::markdown_editor;
 use egui::Pos2;

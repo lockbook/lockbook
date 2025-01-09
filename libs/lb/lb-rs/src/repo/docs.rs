@@ -8,10 +8,13 @@ use std::{
     path::{Path, PathBuf},
     sync::{atomic::AtomicBool, Arc},
 };
+
+#[cfg(not(target_family = "wasm"))]
 use tokio::{
     fs::{self, File, OpenOptions},
     io::{AsyncReadExt, AsyncWriteExt},
 };
+
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -20,6 +23,36 @@ pub struct AsyncDocs {
     location: PathBuf,
 }
 
+#[cfg(target_family = "wasm")]
+impl AsyncDocs {
+    pub async fn insert(
+        &self, id: Uuid, hmac: Option<DocumentHmac>, document: &EncryptedDocument,
+    ) -> SharedResult<()> {
+        Ok(())
+    }
+
+    pub async fn get(
+        &self, id: Uuid, hmac: Option<DocumentHmac>,
+    ) -> SharedResult<EncryptedDocument> {
+        Err(SharedErrorKind::FileNonexistent.into())
+    }
+
+    pub async fn maybe_get(
+        &self, id: Uuid, hmac: Option<DocumentHmac>,
+    ) -> SharedResult<Option<EncryptedDocument>> {
+        Ok(None)
+    }
+
+    pub async fn delete(&self, id: Uuid, hmac: Option<DocumentHmac>) -> SharedResult<()> {
+        Ok(())
+    }
+
+    pub(crate) async fn retain(&self, file_hmacs: HashSet<(Uuid, [u8; 32])>) -> SharedResult<()> {
+        Ok(())
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
 impl AsyncDocs {
     pub async fn insert(
         &self, id: Uuid, hmac: Option<DocumentHmac>, document: &EncryptedDocument,

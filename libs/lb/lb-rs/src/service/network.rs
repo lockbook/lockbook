@@ -1,4 +1,4 @@
-use std::time::Duration;
+use web_time::Duration;
 
 use reqwest::Client;
 use tokio::time::sleep;

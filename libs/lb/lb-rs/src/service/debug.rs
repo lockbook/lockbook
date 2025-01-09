@@ -9,8 +9,12 @@ use std::env;
 use std::io::SeekFrom;
 use std::path::{Path, PathBuf};
 use time::Duration;
-use tokio::fs::{self, File};
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
+
+#[cfg(not(target_family = "wasm"))]
+use tokio::{
+    fs::{self, File},
+    io::{AsyncReadExt, AsyncSeekExt},
+};
 
 #[derive(Serialize)]
 pub struct DebugInfo {
@@ -27,6 +31,22 @@ pub struct DebugInfo {
     pub last_panic: String,
 }
 
+#[cfg(target_family = "wasm")]
+impl Lb {
+    async fn tail_log(&self) -> LbResult<String> {
+        Ok("NO LOGS FOUND".to_string())
+    }
+
+    async fn find_most_recent_panic_log(&self) -> LbResult<String> {
+        Ok("NO LOGS FOUND".to_string())
+    }
+
+    pub async fn debug_info(&self, os_info: String) -> LbResult<String> {
+        Ok("NO LOGS FOUND".to_string())
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
 impl Lb {
     async fn tail_log(&self) -> LbResult<String> {
         let mut path = PathBuf::from(&self.config.writeable_path);

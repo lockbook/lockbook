@@ -41,12 +41,38 @@ pub struct Lb {
 }
 
 impl Lb {
+    pub fn init_dummy(config: Config) -> LbResult<Self> {
+        let db = CoreDb::init(db_rs::Config {
+            path: Default::default(),
+            create_path: false,
+            create_db: false,
+            read_only: false,
+            no_io: true,
+            fs_locks: false,
+            fs_locks_block: false,
+            schema_name: Default::default(),
+        })
+        .map_err(|err| LbErrKind::Unexpected(format!("db rs creation failed: {:#?}", err)))?;
+
+        Ok(Self {
+            config: config.clone(),
+            keychain: Default::default(),
+            db: Arc::new(RwLock::new(db)),
+            docs: AsyncDocs::from(&config),
+            search: Default::default(),
+            client: Default::default(),
+            syncing: Default::default(),
+        })
+    }
+}
+
+impl Lb {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub async fn init(config: Config) -> LbResult<Self> {
         logging::init(&config)?;
 
         let db = CoreDb::init(db_rs::Config::in_folder(&config.writeable_path))
-            .map_err(|err| LbErrKind::Unexpected(format!("{:#?}", err)))?;
+            .map_err(|err| LbErrKind::Unexpected(format!("db rs creation failed: {:#?}", err)))?;
         let keychain = Keychain::from(db.account.get());
         let db = Arc::new(RwLock::new(db));
         let docs = AsyncDocs::from(&config);
