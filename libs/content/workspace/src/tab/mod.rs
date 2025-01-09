@@ -10,9 +10,9 @@ use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::{svg, Uuid};
-use tracing::instrument;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use tracing::instrument;
 
 pub mod image_viewer;
 pub mod markdown_editor;
