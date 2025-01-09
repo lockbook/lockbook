@@ -10,6 +10,7 @@ use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::{svg, Uuid};
+use tracing::instrument;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -77,6 +78,7 @@ impl TabContent {
     }
 
     /// Clones the content required to save the tab. This is intended for use on the UI thread.
+    #[instrument(level = "error", skip_all)]
     pub fn clone_content(&self) -> Option<TabSaveContent> {
         match self {
             TabContent::Markdown(md) => {

@@ -38,6 +38,7 @@ pub fn init(config: &Config) -> LbResult<()> {
         #[cfg(not(target_os = "android"))]
         layers.push(
             fmt::Layer::new()
+                .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
                 .pretty()
                 .with_target(false)
                 .with_filter(lockbook_log_level)
