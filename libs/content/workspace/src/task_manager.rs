@@ -675,7 +675,7 @@ impl TaskManager {
             let in_progress_time = timing.completed_at.duration_since(timing.started_at);
             if let Err(err) = &status_result {
                 error!("sync failed ({:?}): {:?}", in_progress_time, err);
-            } else if in_progress_time > Duration::from_secs(1) {
+            } else if in_progress_time > Duration::from_secs(5) {
                 warn!("synced ({:?}); status = {:?}", in_progress_time, status_result);
             } else {
                 debug!("synced ({:?})", in_progress_time);
