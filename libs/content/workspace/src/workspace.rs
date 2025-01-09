@@ -318,7 +318,7 @@ impl Workspace {
                             tab.content = Some(TabContent::Pdf(PdfViewer::new(
                                 &bytes,
                                 &ctx,
-                                writeable_dir,
+                                &writeable_dir,
                                 !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         } else if ext == "svg" {
