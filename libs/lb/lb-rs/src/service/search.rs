@@ -181,6 +181,12 @@ impl Lb {
                     };
 
                     match evt {
+                        Event::NewFile(id) => {
+                            let path = lb.get_path_by_id(id).await.unwrap();
+                            let index = lb.search.docs.write().await;
+                            index.push(SearchIndexEntry { id, path, content: None });
+                        }
+
                         Event::MetadataChanged(id) => {
                             let children = lb.get_and_get_children_recursively(&id).await.unwrap();
 
@@ -195,13 +201,23 @@ impl Lb {
                                     entry.path = paths.remove(&entry.id).unwrap();
                                 }
                             }
-
-                            // todo: new files are not handled
                         }
 
-                        Event::FileRemoved(id) => {
+                        Event::FolderRemoved(id) => {
                             let mut index = lb.search.docs.write().await;
                             index.retain(|entry| entry.id != id);
+
+                            let mut paths = HashMap::new();
+                            for child in children {
+                                paths.insert(child.id, lb.get_path_by_id(child.id).await.unwrap());
+                            }
+
+                            let mut index = lb.search.docs.write().await;
+                            for entry in index.iter_mut() {
+                                if paths.contains_key(&entry.id) {
+                                    entry.path = paths.remove(&entry.id).unwrap();
+                                }
+                            }
                         }
 
                         Event::DocumentWritten(id) => {
