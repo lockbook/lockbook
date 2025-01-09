@@ -9,7 +9,6 @@ use egui_extras::{Size, StripBuilder};
 use lb::blocking::Lb;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::separator;
-use workspace_rs::workspace::WsPersistentStore;
 
 use crate::settings::Settings;
 
@@ -27,7 +26,6 @@ enum SettingsTab {
 pub struct SettingsModal {
     core: Lb,
     settings: Arc<RwLock<Settings>>,
-    ws_persistent_store: WsPersistentStore,
     account: AccountSettings,
     usage: UsageSettings,
     active_tab: SettingsTab,
@@ -39,9 +37,7 @@ pub enum SettingsResponse {
 }
 
 impl SettingsModal {
-    pub fn new(
-        core: &Lb, s: &Arc<RwLock<Settings>>, ws_persistent_store: &WsPersistentStore,
-    ) -> Self {
+    pub fn new(core: &Lb, s: &Arc<RwLock<Settings>>) -> Self {
         let export_result = core
             .export_account_private_key()
             .map_err(|err| format!("{:?}", err)); // TODO
@@ -76,7 +72,6 @@ impl SettingsModal {
             usage: UsageSettings { info: None, info_rx, upgrading: None },
             active_tab: SettingsTab::Account,
             version: env!("CARGO_PKG_VERSION").to_string(),
-            ws_persistent_store: ws_persistent_store.clone(),
         }
     }
 

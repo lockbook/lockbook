@@ -5,6 +5,7 @@ use egui::os::OperatingSystem;
 use egui::{EventFilter, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand};
 use std::collections::HashMap;
 use std::mem;
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use crate::output::Response;
@@ -29,6 +30,25 @@ impl Workspace {
             self.show_empty_workspace(ui);
         } else {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
+        }
+
+        if self.cfg.zen_mode.load(Ordering::Relaxed) {
+            let mut min = ui.clip_rect().left_bottom();
+            min.y -= 37.0; // 37 is approximating the height of the button
+            let max = ui.clip_rect().left_bottom();
+
+            let rect = egui::Rect { min, max };
+            ui.allocate_ui_at_rect(rect, |ui| {
+                let zen_mode_btn = Button::default()
+                    .icon(&Icon::TOGGLE_SIDEBAR)
+                    .frame(true)
+                    .show(ui);
+                if zen_mode_btn.clicked() {
+                    self.cfg.zen_mode.store(false, Ordering::Relaxed);
+                    self.out.settings_updated = true;
+                }
+                zen_mode_btn.on_hover_text("Show side panel");
+            });
         }
 
         mem::take(&mut self.out)
@@ -105,10 +125,6 @@ impl Workspace {
     }
 
     fn show_tabs(&mut self, ui: &mut egui::Ui) {
-        if self.active_tab_changed {
-            // self.cfg.set_tabs(&self.tabs, self.active_tab);
-        }
-
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         ui.vertical(|ui| {
