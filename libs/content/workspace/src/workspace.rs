@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
+#[cfg(not(target_family = "wasm"))]
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{Tab, TabContent, TabFailure};
@@ -38,7 +39,9 @@ pub struct Workspace {
     // Resources & configuration
     pub cfg: WsConfig,
     pub ctx: Context,
+
     pub core: Lb,
+
     pub show_tabs: bool,              // set on mobile to hide the tab strip
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
@@ -331,12 +334,15 @@ impl Workspace {
                                 &bytes,
                             )));
                         } else if ext == "pdf" {
-                            tab.content = Some(TabContent::Pdf(PdfViewer::new(
-                                &bytes,
-                                &ctx,
-                                &cfg.data_dir,
-                                !show_tabs, // todo: use settings to determine toolbar visibility
-                            )));
+                            #[cfg(not(target_family = "wasm"))]
+                            {
+                                tab.content = Some(TabContent::Pdf(PdfViewer::new(
+                                    &bytes,
+                                    &ctx,
+                                    &cfg.data_dir,
+                                    !show_tabs, // todo: use settings to determine toolbar visibility
+                                )));
+                            }
                         } else if ext == "svg" {
                             if tab_created {
                                 tab.content = Some(TabContent::Svg(SVGEditor::new(

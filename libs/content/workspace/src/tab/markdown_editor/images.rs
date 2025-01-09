@@ -2,6 +2,7 @@ use crate::tab;
 use crate::tab::markdown_editor::ast::Ast;
 use crate::tab::markdown_editor::style::{InlineNode, MarkdownNode, Url};
 use egui::{ColorImage, TextureId, Ui};
+use futures::executor::block_on;
 use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
 use resvg::tiny_skia::Pixmap;
@@ -26,8 +27,8 @@ pub enum ImageState {
 }
 
 pub fn calc(
-    ast: &Ast, prior_cache: &ImageCache, client: &reqwest::blocking::Client, core: &Lb,
-    file_id: Uuid, ui: &Ui,
+    ast: &Ast, prior_cache: &ImageCache, client: &reqwest::Client, core: &Lb, file_id: Uuid,
+    ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();
 
@@ -148,11 +149,11 @@ pub fn calc(
     result
 }
 
-fn download_image(
-    client: &reqwest::blocking::Client, url: &str,
-) -> Result<Vec<u8>, reqwest::Error> {
-    let response = client.get(url).send()?.bytes()?.to_vec();
-    Ok(response)
+fn download_image(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, reqwest::Error> {
+    block_on(async {
+        let response = client.get(url).send().await?.bytes().await?.to_vec();
+        Ok(response)
+    })
 }
 
 impl ImageCache {

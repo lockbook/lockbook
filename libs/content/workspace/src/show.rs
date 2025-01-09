@@ -185,6 +185,7 @@ impl Workspace {
                                 }
                             }
                             TabContent::Image(img) => img.show(ui),
+                            #[cfg(not(target_family = "wasm"))]
                             TabContent::Pdf(pdf) => pdf.show(ui),
                             TabContent::Svg(svg) => {
                                 let res = svg.show(ui);

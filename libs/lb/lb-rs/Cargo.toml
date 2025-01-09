@@ -24,6 +24,8 @@ bezier-rs = "0.2.0"
 bincode = "1.3.3"
 time = "0.3.20"
 diffy = "0.3.0"
+db-rs = {path="../../../../db-rs/db"}
+db-rs-derive = "0.3.1"
 indexmap = { version = "2.5.0", features = ["rayon"] }
 reqwest = { version = "0.11.1", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -36,11 +38,10 @@ tracing-appender = "0.2"
 sublime_fuzzy = "0.7.0"
 crossbeam = "0.8.1"
 qrcode-generator = "4.1.6"
-db-rs = "0.3.1"
-db-rs-derive = "0.3.1"
 strip-ansi-escapes = "0.2.0"
 chrono = "0.4"
 rand = "0.8.4"
+getrandom = { version = "0.2", features = ["js"] }
 http = "0.2.6"
 serde_bytes = "0.11"
 aead = "0.4.2"
@@ -48,8 +49,8 @@ aes-gcm = "0.9.3"
 sha2 = "0.9.9"
 hmac = "0.11.0"
 flate2 = "1.0"
-tokio = { version = "1", features = ["full"] }
 futures = "0.3.30"
+
 bip39-dict = "0.1.3"
 similar = { version = "2.6.0", features = ["unicode"] }
 unicode-segmentation = "1.10.0"
@@ -58,6 +59,14 @@ glam = "0.22.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
 tracing-logcat = "=0.1.0"
+
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+tokio = { version = "1", features = ["sync","macros","io-util","rt","time",] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { version = "1", features = ["full"] }
+
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = [ "async_tokio" ] }

@@ -4,6 +4,31 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-console_error_panic_hook = "0.1.7"
-wasm-bindgen = "0.2.99"
-web-sys = { version = "0.3.76", features = ["Window", "Document", "HtmlElement", "Text"] }
+egui = "0.28.1"
+log = "0.4"
+epi = "0.17.0"
+
+
+
+# You only need serde if you want app persistence:
+serde = { version = "1", features = ["derive"] }
+eframe = { version = "0.28.1", default-features = false, features = [
+    "default_fonts", # Embed the default egui fonts.
+    "glow",          # Use the glow rendering backend. Alternative: "wgpu".
+    "persistence",   # Enable restoring app state when restarting the app.
+] }
+
+workspace = { path = "../libs/content/workspace" }
+lb-rs = {path = "../libs/lb/lb-rs", features=["no-network"]}
+
+# native:
+
+# web:
+wasm-bindgen-futures = "0.4"
+
+[profile.release]
+opt-level = 2 # fast and small wasm
+
+# Optimize all dependencies even in debug builds:
+[profile.dev.package."*"]
+opt-level = 2

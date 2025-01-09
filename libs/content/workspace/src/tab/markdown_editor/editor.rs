@@ -45,7 +45,7 @@ pub struct Response {
 pub struct Editor {
     // dependencies
     pub core: Lb,
-    pub client: reqwest::blocking::Client,
+    pub client: reqwest::Client,
 
     // input
     pub file_id: Uuid,

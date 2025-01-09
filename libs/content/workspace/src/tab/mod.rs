@@ -1,5 +1,6 @@
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
+#[cfg(not(target_family = "wasm"))]
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use crate::task_manager::SaveRequest;
@@ -15,6 +16,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub mod image_viewer;
 pub mod markdown_editor;
+#[cfg(not(target_family = "wasm"))]
 pub mod pdf_viewer;
 pub mod svg_editor;
 
@@ -63,6 +65,7 @@ impl Tab {
 pub enum TabContent {
     Image(ImageViewer),
     Markdown(Markdown),
+    #[cfg(not(target_family = "wasm"))]
     Pdf(PdfViewer),
     Svg(SVGEditor),
 }
@@ -72,6 +75,7 @@ impl std::fmt::Debug for TabContent {
         match self {
             TabContent::Image(_) => write!(f, "TabContent::Image"),
             TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
+            #[cfg(not(target_family = "wasm"))]
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
         }

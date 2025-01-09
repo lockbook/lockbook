@@ -13,15 +13,10 @@
     <!-- this is the base url relative to which other urls will be constructed. trunk will insert this from the public-url option -->
     <base data-trunk-public-url />
 
-    <link data-trunk rel="icon" href="assets/favicon.ico">
 
 
     <link data-trunk rel="copy-file" href="assets/sw.js"/>
     <link data-trunk rel="copy-file" href="assets/manifest.json"/>
-    <link data-trunk rel="copy-file" href="assets/icon-1024.png" data-target-path="assets"/>
-    <link data-trunk rel="copy-file" href="assets/icon-256.png" data-target-path="assets"/>
-    <link data-trunk rel="copy-file" href="assets/icon_ios_touch_192.png" data-target-path="assets"/>
-    <link data-trunk rel="copy-file" href="assets/maskable_icon_x512.png" data-target-path="assets"/>
 
 
 
@@ -30,7 +25,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&display=swap" rel="stylesheet" />
     
-    <link rel="apple-touch-icon" href="assets/icon_ios_touch_192.png">
 
     <!-- not sure what this does, maybe it sets the theme for light dark mode that the egui code later uses --> 
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="white">
@@ -41,16 +35,7 @@
             /* Remove touch delay: */
             touch-action: manipulation;
         }
-        canvas {
-            margin-right: auto;
-            margin-left: auto;
-            display: block;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        }
+        
         /* Allow canvas to fill entire web page: */
         html,
         body {
@@ -63,8 +48,8 @@
     </style>
 </head>
 
-<body class="bg-abyss-900">
-    <!-- <nav class="flex justify-between px-10 py-6 align-middle text-egshell">
+<body class="overflow-auto bg-abyss-900">
+    <nav class="flex justify-between px-10 py-6 align-middle text-egshell">
         <div class="flex"><img src="assets/logo.svg" alt="lockbook's logo" /></div>
         <div class="flex items-baseline">
             <ul class="flex mr-10">
@@ -87,15 +72,15 @@
         </h1>
         <span class="w-screen h-screen absolute inset-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(at_center,_theme('colors.egshell')_-200%,_transparent_30%)]"></span>
     </div>
-    <div class="max-w-xl mx-auto mt-40 px-28 py-14 bg-abyss-400">
+    <!-- <div class="max-w-xl mx-auto mt-40 px-28 py-14 bg-abyss-400">
       <h2 class="text-xl font-bold text-egshell">keep your thoughts to yourself!</h2>
       <p class="mt-6 text-xs leading-6 font-extralight text-egshell ">We use elliptic curve cryptography (just like Bitcoin) to hide your data even from us. Your files never leave your device without being encrypted with your private key. Your private key is generated on your device and transferred directly to your other devices by scanning a QR code or typing a 24-word phrase.</p>
       <h2 class="mt-8 text-xl font-bold text-egshell">## Try me!</h2>
     </div>  -->
 
     <!-- the id is hardcoded in main.rs. change with caution  -->
-     <div class="border w-96 h-96 border-surfline">
-        <canvas id="the_canvas_id"></canvas>
+     <div class="max-w-xl m-auto mt-40 border  h-[40rem] mb-10">
+        <canvas id="the_canvas_id" class="w-full h-full"></canvas>
     </div>
 
     <!--Register Service Worker. this will cache the wasm / js scripts for offline use (for PWA functionality). -->
