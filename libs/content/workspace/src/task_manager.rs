@@ -464,11 +464,7 @@ impl TaskManager {
                 .started_at
                 .duration_since(in_progress_load.timing.queued_at);
             if queue_time > Duration::from_secs(1) {
-                warn!(
-                    "load of file {} spent {}ms in the task queue",
-                    request.id,
-                    queue_time.as_millis()
-                );
+                warn!("load of file {} spent {:?} in the task queue", request.id, queue_time);
             }
             tasks.in_progress_loads.push(in_progress_load);
 
@@ -511,11 +507,7 @@ impl TaskManager {
                 .started_at
                 .duration_since(in_progress_save.timing.queued_at);
             if queue_time > Duration::from_secs(1) {
-                warn!(
-                    "save of file {} spent {}ms in the task queue",
-                    request.id,
-                    queue_time.as_millis()
-                );
+                warn!("save of file {} spent {:?} in the task queue", request.id, queue_time);
             }
             tasks.in_progress_saves.push(in_progress_save);
 
@@ -531,7 +523,7 @@ impl TaskManager {
                 .started_at
                 .duration_since(in_progress_sync.timing.queued_at);
             if queue_time > Duration::from_secs(1) {
-                warn!("sync spent {}ms in the task queue", queue_time.as_millis());
+                warn!("sync spent {:?} in the task queue", queue_time);
             }
             tasks.in_progress_sync = Some(in_progress_sync);
 
@@ -546,7 +538,7 @@ impl TaskManager {
                 .started_at
                 .duration_since(in_progress_update.timing.queued_at);
             if queue_time > Duration::from_secs(1) {
-                warn!("sync status update spent {}ms in the task queue", queue_time.as_millis());
+                warn!("sync status update spent {:?} in the task queue", queue_time);
             }
             tasks.in_progress_sync_status_update = Some(in_progress_update);
 
@@ -594,16 +586,11 @@ impl TaskManager {
             let timing = CompletedTiming::new(in_progress_load.timing);
             let in_progress_time = timing.completed_at.duration_since(timing.started_at);
             if let Err(err) = &content_result {
-                error!(
-                    "load of file {} failed ({}ms): {:?}",
-                    request.id,
-                    in_progress_time.as_millis(),
-                    err
-                );
+                error!("load of file {} failed ({:?}): {:?}", request.id, in_progress_time, err);
             } else if in_progress_time > Duration::from_secs(1) {
-                warn!("loaded file {} ({}ms)", request.id, in_progress_time.as_millis());
+                warn!("loaded file {} ({:?})", request.id, in_progress_time);
             } else {
-                debug!("loaded file {} ({}ms)", request.id, in_progress_time.as_millis());
+                debug!("loaded file {} ({:?})", request.id, in_progress_time);
             }
 
             let completed_load =
@@ -644,16 +631,11 @@ impl TaskManager {
             let timing = CompletedTiming::new(in_progress_save.timing);
             let in_progress_time = timing.completed_at.duration_since(timing.started_at);
             if let Err(err) = &new_hmac_result {
-                error!(
-                    "save of file {} failed ({}ms): {:?}",
-                    request.id,
-                    in_progress_time.as_millis(),
-                    err
-                );
+                error!("save of file {} failed ({:?}): {:?}", request.id, in_progress_time, err);
             } else if in_progress_time > Duration::from_secs(1) {
-                warn!("saved file {} ({}ms)", request.id, in_progress_time.as_millis());
+                warn!("saved file {} ({:?})", request.id, in_progress_time);
             } else {
-                debug!("saved file {} ({}ms)", request.id, in_progress_time.as_millis());
+                debug!("saved file {} ({:?})", request.id, in_progress_time);
             }
 
             let completed_save = CompletedSave {
@@ -692,11 +674,11 @@ impl TaskManager {
             let timing = CompletedTiming::new(in_progress_sync.timing);
             let in_progress_time = timing.completed_at.duration_since(timing.started_at);
             if let Err(err) = &status_result {
-                error!("sync failed ({}ms): {:?}", in_progress_time.as_millis(), err);
+                error!("sync failed ({:?}): {:?}", in_progress_time, err);
             } else if in_progress_time > Duration::from_secs(1) {
-                warn!("synced ({}ms); status = {:?}", in_progress_time.as_millis(), status_result);
+                warn!("synced ({:?}); status = {:?}", in_progress_time, status_result);
             } else {
-                debug!("synced ({}ms)", in_progress_time.as_millis());
+                debug!("synced ({:?})", in_progress_time);
             }
 
             let completed_sync = CompletedSync { status_result, timing };
@@ -726,15 +708,11 @@ impl TaskManager {
             let timing = CompletedTiming::new(in_progress_update.timing);
             let in_progress_time = timing.completed_at.duration_since(timing.started_at);
             if let Err(err) = &status_result {
-                error!("update sync status failed ({}ms): {:?}", in_progress_time.as_millis(), err);
+                error!("update sync status failed ({:?}): {:?}", in_progress_time, err);
             } else if in_progress_time > Duration::from_secs(1) {
-                warn!(
-                    "sync status updated ({}ms); status = {:?}",
-                    in_progress_time.as_millis(),
-                    status_result
-                );
+                warn!("sync status updated ({:?}); status = {:?}", in_progress_time, status_result);
             } else {
-                debug!("sync status updated ({}ms)", in_progress_time.as_millis());
+                debug!("sync status updated ({:?})", in_progress_time);
             }
 
             let completed_update = CompletedSyncStatusUpdate { status_result, timing };
