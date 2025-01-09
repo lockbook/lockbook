@@ -23,6 +23,7 @@ rand = "0.8.5"
 rayon = "1.10.0"
 resvg = "0.41.0"
 serde = { version = "1.0.171", features = ["derive"] }
+serde_json = "1.0.82"
 svgtypes = "0.13.0"
 unicode-segmentation = "1.10.0"
 usvg-parser = "0.36.0"
