@@ -84,7 +84,7 @@ impl Workspace {
         open_tabs.iter().for_each(|&file_id| {
             if core.get_file_by_id(file_id).is_ok() {
                 println!("opening file with id {:#?}", file_id);
-                ws.open_file(file_id, true, true);
+                ws.open_file(file_id, false, true);
             }
         });
 
