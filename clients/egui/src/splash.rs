@@ -6,7 +6,6 @@ use lb::model::errors::LbErrKind;
 
 use crate::model::AccountScreenInitData;
 use crate::settings::Settings;
-use crate::util::data_dir;
 
 pub struct SplashHandOff {
     pub settings: Arc<RwLock<Settings>>,
