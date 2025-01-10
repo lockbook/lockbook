@@ -32,7 +32,7 @@ impl Workspace {
         } else {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
         }
-        if self.active_tab_changed {
+        if self.out.tabs_changed || self.active_tab_changed {
             self.cfg.set_tabs(&self.tabs, self.active_tab);
         }
 
