@@ -46,21 +46,7 @@ impl SplashScreen {
         let tx = self.update_tx.clone();
 
         std::thread::spawn(move || {
-            let writeable_path = match data_dir() {
-                Ok(dir) => format!("{}/egui", dir),
-                Err(err) => {
-                    tx.send(SplashUpdate::Error(err)).unwrap();
-                    return;
-                }
-            };
-
-            let cfg = Config {
-                writeable_path,
-                logs: true,
-                stdout_logs: true,
-                colored_logs: true,
-                background_work: true,
-            };
+            let cfg = Config::ui_config("egui");
 
             tx.send(SplashUpdate::Status("Loading core...".to_string()))
                 .unwrap();
