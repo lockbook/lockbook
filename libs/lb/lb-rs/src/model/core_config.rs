@@ -17,24 +17,45 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn cli_config() -> Config {
-        let specified_path = env::var("LOCKBOOK_PATH");
-
-        let default_path = env::var("HOME") // unix
-            .or(env::var("HOMEPATH")) // windows
-            .map(|home| format!("{home}/.lockbook/cli"));
-
-        let Ok(writeable_path) = specified_path.or(default_path) else {
-            panic!("no location for lockbook to initialize");
-        };
-
+    /// Configures lockbook for CLI use with no stdout logs or background work. `writeable_path_subfolder` is generally
+    /// a hardcoded client name like `"cli"`.
+    pub fn cli_config(writeable_path_subfolder: &str) -> Config {
         Config {
-            writeable_path,
+            writeable_path: Self::writeable_path(writeable_path_subfolder),
             logs: true,
             stdout_logs: false,
             colored_logs: true,
             background_work: false,
         }
+    }
+
+    /// Configures lockbook for UI use with stdout logs and background work. `writeable_path_subfolder` is generally
+    /// a hardcoded client name like `"macos"`.
+    pub fn ui_config(writeable_path_subfolder: &str) -> Config {
+        Config {
+            writeable_path: Self::writeable_path(writeable_path_subfolder),
+            logs: true,
+            stdout_logs: true,
+            colored_logs: true,
+            background_work: true,
+        }
+    }
+
+    /// Produces a full writable path for lockbook to use based on environment variables and platform. Useful for
+    /// initializing the Config struct.
+    pub fn writeable_path(writeable_path_subfolder: &str) -> String {
+        let specified_path = env::var("LOCKBOOK_PATH");
+
+        let default_path =
+            env::var("HOME") // unix
+                .or(env::var("HOMEPATH")) // windows
+                .map(|home| format!("{home}/.lockbook/{writeable_path_subfolder}"));
+
+        let Ok(writeable_path) = specified_path.or(default_path) else {
+            panic!("no location for lockbook to initialize");
+        };
+
+        writeable_path
     }
 }
 
