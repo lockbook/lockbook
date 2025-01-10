@@ -2,15 +2,17 @@ use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
+use crate::task_manager::TaskManager;
 use chrono::DateTime;
 use egui::Id;
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
-use lb_rs::Uuid;
+use lb_rs::{svg, Uuid};
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use tracing::instrument;
 
 pub mod image_viewer;
 pub mod markdown_editor;
@@ -24,49 +26,20 @@ pub struct Tab {
     pub path: String,
     pub failure: Option<TabFailure>,
     pub content: Option<TabContent>,
+    pub is_closing: bool,
 
     pub is_new_file: bool,
     pub last_changed: Instant,
     pub last_saved: Instant,
-
-    /// Flags used to prevent saves and loads of this tab from happening concurrently. Loads while the tab is already
-    /// saving or loading are queued. Saves are periodic, so they're effectively retried.
-    pub is_saving_or_loading: bool,
-    pub load_queued: bool,
-}
-
-#[derive(Debug, Default)]
-pub struct SaveRequest {
-    pub id: lb_rs::Uuid,
-    pub old_hmac: Option<DocumentHmac>,
-    pub seq: usize,
-    pub content: String,
-    pub safe_write: bool,
 }
 
 impl Tab {
-    pub fn make_save_request(&self) -> Option<SaveRequest> {
-        let tab_content = self.content.as_ref()?;
-        let mut result = SaveRequest { id: self.id, ..Default::default() };
-        match tab_content {
-            TabContent::Markdown(md) => {
-                result.old_hmac = md.hmac;
-                result.seq = md.buffer.current.seq;
-                result.content = md.buffer.current.text.clone();
-                result.safe_write = true;
-            }
-            TabContent::Svg(svg) => {
-                result.old_hmac = svg.buffer.open_file_hmac;
-                result.content = svg.buffer.serialize();
-                result.safe_write = true;
-            }
-            _ => return None,
-        };
-        Some(result)
-    }
-
-    pub fn is_dirty(&self) -> bool {
-        self.last_changed > self.last_saved
+    pub fn is_dirty(&self, tasks: &TaskManager) -> bool {
+        if let Some(queued_at) = tasks.save_queued_at(self.id) {
+            self.last_changed > queued_at
+        } else {
+            self.last_changed > self.last_saved
+        }
     }
 }
 
@@ -84,6 +57,54 @@ impl std::fmt::Debug for TabContent {
             TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
+        }
+    }
+}
+
+impl TabContent {
+    pub fn hmac(&self) -> Option<DocumentHmac> {
+        match self {
+            TabContent::Markdown(md) => md.hmac,
+            TabContent::Svg(svg) => svg.open_file_hmac,
+            _ => None,
+        }
+    }
+
+    pub fn seq(&self) -> usize {
+        match self {
+            TabContent::Markdown(md) => md.buffer.current.seq,
+            _ => 0,
+        }
+    }
+
+    /// Clones the content required to save the tab. This is intended for use on the UI thread.
+    #[instrument(level = "error", skip_all)]
+    pub fn clone_content(&self) -> Option<TabSaveContent> {
+        match self {
+            TabContent::Markdown(md) => {
+                Some(TabSaveContent::String(md.buffer.current.text.clone()))
+            }
+            TabContent::Svg(svg) => Some(TabSaveContent::Svg(svg.buffer.clone())),
+            _ => None,
+        }
+    }
+}
+
+/// The content of a tab when a save is launched. Designed to include all info needed for a save while being as fast as
+/// possible to assemble from an open tab on the UI thread.
+#[derive(Clone)]
+pub enum TabSaveContent {
+    Bytes(Vec<u8>),
+    String(String),
+    Svg(svg::buffer::Buffer),
+}
+
+impl TabSaveContent {
+    pub fn into_bytes(self) -> Vec<u8> {
+        match self {
+            TabSaveContent::Bytes(bytes) => bytes,
+            TabSaveContent::String(string) => string.into_bytes(),
+            TabSaveContent::Svg(buffer) => buffer.serialize().into_bytes(),
         }
     }
 }

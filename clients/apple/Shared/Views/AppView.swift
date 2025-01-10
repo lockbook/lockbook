@@ -93,7 +93,7 @@ struct AppView: View {
             DispatchQueue.main.async {
                 DI.workspace.requestOpenDoc(id)
                 #if os(iOS)
-                if horizontal == .compact {
+                if !DI.workspace.showTabs && DI.files.path.last?.type != .document {
                     DI.files.intoChildDirectory(meta)
                 }
                 #endif

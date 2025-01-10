@@ -39,10 +39,7 @@ impl Lb {
 
         tx.end();
 
-        info!("created {:?} with id {id}", file_type);
-
         self.events.new_file(id);
-
         Ok(ui_file)
     }
 

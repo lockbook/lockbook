@@ -80,7 +80,6 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     old_wgpu: jlong,
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Lb) };
-    let writable_dir = core.get_config().writeable_path;
 
     let mut native_window = NativeWindow::new(&env, surface);
     let backends = wgpu::Backends::VULKAN;
@@ -91,7 +90,9 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
         .unwrap();
     let (adapter, device, queue) = pollster::block_on(request_device(&instance, &surface));
     let avail_formats = surface.get_capabilities(&adapter).formats;
-    let format = *avail_formats.get(1).unwrap_or(&avail_formats[0]);
+
+    let format = avail_formats[0];
+
     let screen = ScreenDescriptor {
         physical_width: native_window.get_width(),
         physical_height: native_window.get_height(),
@@ -122,7 +123,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
             .invalidate_egui_references(&context, core);
         old_wgpu.workspace
     } else {
-        Workspace::new(ws_cfg, core, &context)
+        Workspace::new(core, &context)
     };
 
     let mut fonts = FontDefinitions::default();

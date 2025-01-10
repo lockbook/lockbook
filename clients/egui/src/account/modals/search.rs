@@ -85,7 +85,7 @@ impl SearchModal {
         let icon: egui::WidgetText = (&DocType::from_name(res.path())
             .to_icon()
             .size(30.0)
-            .color(ui.visuals().text_color().gamma_multiply(0.5)))
+            .color(ui.visuals().text_color().linear_multiply(0.5)))
             .into();
         let icon =
             icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
@@ -100,7 +100,7 @@ impl SearchModal {
 
         let path_text: egui::WidgetText = res.path().into();
         let path_text = path_text
-            .color(ui.visuals().text_color().gamma_multiply(0.7))
+            .color(ui.visuals().text_color().linear_multiply(0.7))
             .into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
 
         let desired_size = egui::vec2(
@@ -136,7 +136,7 @@ impl SearchModal {
                             .widgets
                             .active
                             .bg_fill
-                            .gamma_multiply(0.4),
+                            .linear_multiply(0.4),
                     )
                 } else if resp.hovered() {
                     Some(
@@ -145,7 +145,7 @@ impl SearchModal {
                             .widgets
                             .active
                             .bg_fill
-                            .gamma_multiply(0.1),
+                            .linear_multiply(0.1),
                     )
                 } else {
                     None

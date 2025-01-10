@@ -5,7 +5,6 @@ mod tree;
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc, RwLock};
 use std::time::Duration;
 use std::{path, process, thread};
@@ -18,14 +17,12 @@ use lb::model::file_metadata::FileType;
 use lb::service::import_export::ImportStatus;
 use lb::Uuid;
 use tree::FilesExt;
-use workspace_rs::background::BwIncomingMsg;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
-use workspace_rs::workspace::{Workspace, WsConfig};
+use workspace_rs::workspace::Workspace;
 
 use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
-use crate::util::data_dir;
 
 use self::full_doc_search::FullDocSearch;
 use self::modals::*;
@@ -66,14 +63,6 @@ impl AccountScreen {
         let toasts = egui_notify::Toasts::default()
             .with_margin(egui::vec2(40.0, 30.0))
             .with_padding(egui::vec2(20.0, 20.0));
-        let reference_settings = settings.read().unwrap();
-        let ws_cfg = WsConfig::new(
-            data_dir().unwrap(),
-            reference_settings.auto_save,
-            reference_settings.auto_sync,
-            reference_settings.zen_mode,
-        );
-        drop(reference_settings);
 
         let sidebar_expanded = !settings.read().unwrap().zen_mode;
         let mut result = Self {
@@ -87,7 +76,7 @@ impl AccountScreen {
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(sync_status),
             usage,
-            workspace: Workspace::new(ws_cfg, &core_clone, &ctx.clone()),
+            workspace: Workspace::new(&core_clone, &ctx.clone()),
             modals: Modals::default(),
             shutdown: None,
             sidebar_expanded,
@@ -99,10 +88,7 @@ impl AccountScreen {
     pub fn begin_shutdown(&mut self) {
         self.shutdown = Some(AccountShutdownProgress::default());
         self.workspace.save_all_tabs();
-        self.workspace
-            .background_tx
-            .send(BwIncomingMsg::Shutdown)
-            .unwrap();
+        // todo: wait for saves to complete
     }
 
     pub fn is_shutdown(&self) -> bool {
@@ -196,21 +182,28 @@ impl AccountScreen {
                 if self.is_any_modal_open() {
                     ui.disable();
                 }
-                let settings = self.settings.read().unwrap();
-                self.workspace.cfg.update(
-                    settings.auto_save,
-                    settings.auto_sync,
-                    settings.zen_mode,
-                );
-                drop(settings);
+
                 self.workspace.focused_parent = self.focused_parent();
                 let wso = self.workspace.show(ui);
-                if wso.settings_updated {
-                    self.settings.write().unwrap().zen_mode =
-                        self.workspace.cfg.zen_mode.load(Ordering::Relaxed);
-                    self.settings.read().unwrap().to_file().unwrap();
-                    self.sidebar_expanded = !self.settings.read().unwrap().zen_mode;
+
+                if self.settings.read().unwrap().zen_mode {
+                    let mut min = ui.clip_rect().left_bottom();
+                    min.y -= 37.0; // 37 is approximating the height of the button
+                    let max = ui.clip_rect().left_bottom();
+
+                    let rect = egui::Rect { min, max };
+                    ui.allocate_ui_at_rect(rect, |ui| {
+                        let zen_mode_btn = Button::default()
+                            .icon(&Icon::TOGGLE_SIDEBAR)
+                            .frame(true)
+                            .show(ui);
+                        if zen_mode_btn.clicked() {
+                            self.settings.write().unwrap().zen_mode = false;
+                        }
+                        zen_mode_btn.on_hover_text("Show side panel");
+                    });
                 }
+
                 if let Some((id, new_name)) = wso.file_renamed {
                     for file in self.tree.files.iter_mut() {
                         if file.id == id {
@@ -249,7 +242,11 @@ impl AccountScreen {
             });
 
         if self.is_new_user {
-            self.modals.account_backup = Some(AccountBackup);
+            if let Ok(metas) = self.core.list_metadatas() {
+                if let Some(welcome_doc) = metas.iter().find(|meta| meta.name == "welcome.md") {
+                    self.workspace.open_file(welcome_doc.id, false, true);
+                }
+            }
             self.is_new_user = false;
         }
 
@@ -296,13 +293,17 @@ impl AccountScreen {
                     OpenModal::InitiateShare(target) => self.open_share_modal(target),
                     OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
                     OpenModal::Settings => {
-                        self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
+                        self.modals.settings = Some(SettingsModal::new(
+                            &self.core,
+                            &self.settings,
+                            &self.workspace.cfg,
+                        ));
                     }
                 },
                 AccountUpdate::ShareAccepted(result) => match result {
                     Ok(_) => {
                         self.modals.file_picker = None;
-                        self.workspace.perform_sync();
+                        self.workspace.tasks.queue_sync();
                         // todo: figure out how to call reveal_file after the file tree is updated with the new sync info
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
@@ -333,7 +334,7 @@ impl AccountScreen {
                 AccountUpdate::FileShared(result) => match result {
                     Ok(_) => {
                         self.modals.create_share = None;
-                        self.workspace.perform_sync();
+                        self.workspace.tasks.queue_sync();
                     }
                     Err(msg) => {
                         if let Some(m) = &mut self.modals.create_share {
@@ -384,7 +385,8 @@ impl AccountScreen {
         if self.modals.settings.is_none()
             && ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::Comma))
         {
-            self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
+            self.modals.settings =
+                Some(SettingsModal::new(&self.core, &self.settings, &self.workspace.cfg));
         }
 
         // Alt-H pressed to toggle the help modal.
