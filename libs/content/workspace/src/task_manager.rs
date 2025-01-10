@@ -483,7 +483,7 @@ impl TaskManager {
             let in_progress_save = InProgressSave::new(queued_save);
             let (old_hmac, seq, content) = {
                 let Some(tab) = tabs.iter().find(|tab| tab.id == request.id) else {
-                    error!("could not launch save because its tab does not exist",);
+                    error!("could not launch save because its tab does not exist");
                     continue;
                 };
 
@@ -497,7 +497,7 @@ impl TaskManager {
 
                 let time = Instant::now().duration_since(start);
                 if time > Duration::from_millis(100) {
-                    warn!("spent {time:?} on UI thread cloning content",);
+                    warn!("spent {time:?} on UI thread cloning content");
                 }
 
                 (old_hmac, seq, content)
@@ -535,7 +535,7 @@ impl TaskManager {
         }
 
         if let Some(update) = sync_status_update_to_launch {
-            let span = span!(Level::TRACE, "sync_status_update_launch",);
+            let span = span!(Level::TRACE, "sync_status_update_launch");
             let _enter = span.enter();
 
             let in_progress_update = InProgressSyncStatusUpdate::new(update);
@@ -568,7 +568,7 @@ impl TaskManager {
     }
 
     /// Move a request to in-progress, then call this from a background thread
-    #[instrument(level = "debug", skip(self), fields(thread = format!("{:?}", thread::current().id())))]
+    #[instrument(level = "warn", skip(self), fields(thread = format!("{:?}", thread::current().id())))]
     fn background_load(&self, request: LoadRequest) {
         let id = request.id;
         let content_result = self.core.read_document_with_hmac(id);
@@ -580,7 +580,6 @@ impl TaskManager {
             for load in mem::take(&mut tasks.in_progress_loads) {
                 if load.request.id == id {
                     in_progress_load = Some(load); // use latest of duplicate ids
-                    break;
                 } else {
                     tasks.in_progress_loads.push(load); // put back the ones we're not completing
                 }
@@ -629,7 +628,6 @@ impl TaskManager {
             for save in mem::take(&mut tasks.in_progress_saves) {
                 if save.request.id == id {
                     in_progress_save = Some(save); // use latest of duplicate ids
-                    break;
                 } else {
                     tasks.in_progress_saves.push(save); // put back the ones we're not completing
                 }
