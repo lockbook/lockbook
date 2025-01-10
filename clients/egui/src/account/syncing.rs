@@ -122,11 +122,11 @@ impl super::AccountScreen {
             .padding(egui::vec2(10.0, 7.0))
             .frame(true)
             .rounding(egui::Rounding::same(5.0))
-            .is_loading(self.workspace.status.syncing())
+            .is_loading(self.workspace.visibly_syncing())
             .show(ui);
 
         if sync_btn.clicked() {
-            self.workspace.perform_sync();
+            self.workspace.tasks.queue_sync();
             self.sync.btn_lost_hover_after_sync = false;
         }
 

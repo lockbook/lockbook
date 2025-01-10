@@ -4,20 +4,20 @@ use lb_rs::logic::filename::NameComponents;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::svg::buffer::Buffer;
-use lb_rs::Uuid;
+use lb_rs::{svg, Uuid};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
-use tracing::error;
+use tracing::{debug, error, instrument, trace, warn};
 
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
-use crate::tab::{Tab, TabContent, TabFailure};
+use crate::tab::{Tab, TabContent, TabFailure, TabSaveContent};
 use crate::task_manager::{
     self, CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, SaveRequest, TaskManager,
 };
@@ -31,8 +31,8 @@ pub struct Workspace {
     // Files and task status
     pub tasks: TaskManager,
     pub last_save_all: Option<Instant>,
-    pub last_sync: Option<Instant>,
-    pub last_sync_status_refresh: Option<Instant>,
+    pub last_sync_completed: Option<Instant>,
+    pub last_sync_status_refresh_completed: Option<Instant>,
 
     // Output
     pub status: WsStatus,
@@ -62,9 +62,9 @@ impl Workspace {
             user_last_seen: Instant::now(),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
-            last_sync: Default::default(),
+            last_sync_completed: Default::default(),
             last_save_all: Default::default(),
-            last_sync_status_refresh: Default::default(),
+            last_sync_status_refresh_completed: Default::default(),
 
             status: Default::default(),
             out: Default::default(),
@@ -127,6 +127,8 @@ impl Workspace {
                 self.tabs[i].failure = None;
                 if make_active {
                     self.active_tab = i;
+                    // only stop a tab from closing if it's being made active (e.g. user clicked file tree node)
+                    self.tabs[i].is_closing = false;
                 }
                 // tab exists already
                 return false;
@@ -142,6 +144,7 @@ impl Workspace {
             path: path.to_owned(),
             failure: None,
             content: None,
+            is_closing: false,
             last_changed: now,
             is_new_file,
             last_saved: now,
@@ -222,10 +225,8 @@ impl Workspace {
 
     pub fn save_tab(&mut self, i: usize) {
         if let Some(tab) = self.tabs.get_mut(i) {
-            if tab.is_dirty() {
-                if let Some(request) = tab.make_save_request() {
-                    self.tasks.queue_save(request);
-                }
+            if tab.is_dirty(&self.tasks) {
+                self.tasks.queue_save(SaveRequest { id: tab.id });
             }
         }
     }
@@ -254,6 +255,10 @@ impl Workspace {
 
     pub fn close_tab(&mut self, i: usize) {
         self.save_tab(i);
+        self.tabs[i].is_closing = true;
+    }
+
+    pub fn remove_tab(&mut self, i: usize) {
         self.tabs.remove(i);
         let n_tabs = self.tabs.len();
         self.out.tabs_changed = true;
@@ -263,10 +268,16 @@ impl Workspace {
         self.active_tab_changed = true;
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn process_updates(&mut self) {
-        let task_manager::Response { completed_loads, completed_saves, completed_sync } =
-            self.tasks.update();
+        let task_manager::Response {
+            completed_loads,
+            completed_saves,
+            completed_sync,
+            completed_sync_status_update,
+        } = self.tasks.update();
 
+        let start = Instant::now();
         for load in completed_loads {
             // nested scope indentation preserves git history
             {
@@ -338,11 +349,13 @@ impl Workspace {
                                             &mut svg.buffer.elements,
                                             &mut svg.buffer.weak_images,
                                             svg.buffer.master_transform,
-                                            &svg.buffer.opened_content,
-                                            String::from_utf8_lossy(&bytes).as_ref(),
+                                            &svg.opened_content,
+                                            &svg::buffer::Buffer::new(
+                                                String::from_utf8_lossy(&bytes).as_ref(),
+                                            ),
                                         );
 
-                                        svg.buffer.open_file_hmac = maybe_hmac;
+                                        svg.open_file_hmac = maybe_hmac;
                                     }
                                     _ => unreachable!(),
                                 };
@@ -380,13 +393,19 @@ impl Workspace {
                 }
             }
         }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing completed loads took {:?}", start.elapsed());
+        }
 
+        let start = Instant::now();
         for save in completed_saves {
             // nested scope indentation preserves git history
             {
                 {
                     let CompletedSave {
-                        request: SaveRequest { id, old_hmac: _, seq, content },
+                        request: SaveRequest { id },
+                        seq,
+                        content,
                         new_hmac_result,
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
                     } = save;
@@ -396,14 +415,17 @@ impl Workspace {
                         match new_hmac_result {
                             Ok(hmac) => {
                                 tab.last_saved = started_at;
-                                match tab.content.as_mut() {
-                                    Some(TabContent::Markdown(md)) => {
+                                match (tab.content.as_mut(), content) {
+                                    (
+                                        Some(TabContent::Markdown(md)),
+                                        TabSaveContent::String(content),
+                                    ) => {
                                         md.hmac = Some(hmac);
                                         md.buffer.saved(seq, content);
                                     }
-                                    Some(TabContent::Svg(svg)) => {
-                                        svg.buffer.open_file_hmac = Some(hmac);
-                                        svg.buffer.opened_content = content;
+                                    (Some(TabContent::Svg(svg)), TabSaveContent::Svg(content)) => {
+                                        svg.open_file_hmac = Some(hmac);
+                                        svg.opened_content = content;
                                     }
                                     _ => {}
                                 }
@@ -411,6 +433,7 @@ impl Workspace {
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
+                                    debug!("reloading file after save failed with re-read required: {}", id);
                                     self.open_file(id, false, false);
                                 } else {
                                     tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
@@ -419,50 +442,72 @@ impl Workspace {
                         }
                     }
                     if sync {
-                        self.perform_sync();
+                        self.tasks.queue_sync();
                     }
                 }
             }
         }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing completed saves took {:?}", start.elapsed());
+        }
 
+        let start = Instant::now();
         if let Some(sync) = completed_sync {
             self.sync_done(sync)
         }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing completed sync took {:?}", start.elapsed());
+        }
 
+        let start = Instant::now();
+        if let Some(update) = completed_sync_status_update {
+            self.sync_status_update_done(update)
+        }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing completed sync status update took {:?}", start.elapsed());
+        }
+
+        let start = Instant::now();
         {
             let tasks = self.tasks.tasks.lock().unwrap();
             if let Some(sync) = tasks.in_progress_sync.as_ref() {
                 while let Ok(progress) = sync.progress.try_recv() {
-                    self.out.status_updated = true;
-                    self.status.sync_progress = progress.progress as f32 / progress.total as f32;
+                    trace!("sync {}", progress);
                     self.status.sync_message = Some(progress.msg);
+                    self.out.status_updated = true;
                 }
             }
+        }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing sync progress took {:?}", start.elapsed());
         }
 
         // background work
         let now = Instant::now();
-        if self.cfg.get_auto_sync() {
-            if let Some(last_sync) = self.last_sync {
-                let focused = self.ctx.input(|i| i.focused);
-                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(10);
-                let sync_period = if user_active && focused {
-                    Duration::from_secs(5)
-                } else {
-                    Duration::from_secs(60 * 60)
-                };
-
-                let instant_of_next_sync = last_sync + sync_period;
-                if instant_of_next_sync < now {
-                    self.perform_sync();
-                } else {
-                    let duration_until_next_sync = instant_of_next_sync - now;
-                    self.ctx.request_repaint_after(duration_until_next_sync);
-                }
+        let start = Instant::now();
+        if let Some(last_sync_status_refresh) = self
+            .tasks
+            .sync_status_update_queued_at()
+            .or(self.last_sync_status_refresh_completed)
+        {
+            let instant_of_next_sync_status_refresh =
+                last_sync_status_refresh + Duration::from_secs(1);
+            if instant_of_next_sync_status_refresh < now {
+                self.tasks.queue_sync_status_update();
             } else {
-                self.tasks.queue_sync();
+                let duration_until_next_sync_status_refresh =
+                    instant_of_next_sync_status_refresh - now;
+                self.ctx
+                    .request_repaint_after(duration_until_next_sync_status_refresh);
             }
+        } else {
+            self.tasks.queue_sync_status_update();
         }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing sync status refresh took {:?}", start.elapsed());
+        }
+
+        let start = Instant::now();
         if self.cfg.get_auto_save() {
             if let Some(last_save_all) = self.last_save_all {
                 let instant_of_next_save_all = last_save_all + Duration::from_secs(1);
@@ -476,19 +521,40 @@ impl Workspace {
                 self.save_all_tabs();
             }
         }
-        if let Some(last_sync_status_refresh) = self.last_sync_status_refresh {
-            let instant_of_next_sync_status_refresh =
-                last_sync_status_refresh + Duration::from_secs(1);
-            if instant_of_next_sync_status_refresh < now {
-                self.refresh_sync_status();
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing auto save took {:?}", start.elapsed());
+        }
+
+        let start = Instant::now();
+        if self.cfg.get_auto_sync() {
+            if let Some(last_sync) = self.tasks.sync_queued_at().or(self.last_sync_completed) {
+                let focused = self.ctx.input(|i| i.focused);
+                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(10);
+                let sync_period = if user_active && focused {
+                    Duration::from_secs(5)
+                } else {
+                    Duration::from_secs(60 * 60)
+                };
+
+                let instant_of_next_sync = last_sync + sync_period;
+                if instant_of_next_sync < now {
+                    self.tasks.queue_sync();
+                } else {
+                    let duration_until_next_sync = instant_of_next_sync - now;
+                    self.ctx.request_repaint_after(duration_until_next_sync);
+                }
             } else {
-                let duration_until_next_sync_status_refresh =
-                    instant_of_next_sync_status_refresh - now;
-                self.ctx
-                    .request_repaint_after(duration_until_next_sync_status_refresh);
+                self.tasks.queue_sync();
             }
-        } else {
-            self.refresh_sync_status();
+        }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing auto sync took {:?}", start.elapsed());
+        }
+
+        let start = Instant::now();
+        self.tasks.check_launch(&self.tabs);
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing task launch took {:?}", start.elapsed());
         }
     }
 
@@ -557,6 +623,36 @@ impl Workspace {
 
         self.out.file_moved = Some((id, new_parent));
         self.ctx.request_repaint();
+    }
+
+    pub fn status_message(&self) -> String {
+        if let Some(error) = &self.status.sync_error {
+            format!("sync error: {error}")
+        } else if let Some(error) = &self.status.sync_status_update_error {
+            format!("sync status update error: {error}")
+        } else if self.status.offline {
+            "Offline".to_string()
+        } else if self.status.out_of_space {
+            "You're out of space, buy more in settings!".to_string()
+        } else if let (true, Some(msg)) = (self.visibly_syncing(), &self.status.sync_message) {
+            msg.to_string()
+        } else if !self.status.dirtyness.dirty_files.is_empty() {
+            let size = self.status.dirtyness.dirty_files.len();
+            if size == 1 {
+                format!("{size} file needs to be synced")
+            } else {
+                format!("{size} files need to be synced")
+            }
+        } else {
+            format!("Last synced: {}", self.status.dirtyness.last_synced)
+        }
+    }
+
+    pub fn visibly_syncing(&self) -> bool {
+        self.tasks
+            .sync_started_at()
+            .map(|s| s.elapsed().as_millis() > 300)
+            .unwrap_or_default()
     }
 }
 
