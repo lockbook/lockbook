@@ -29,6 +29,7 @@ use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
+use std::time::Instant;
 use time::Duration;
 use uuid::Uuid;
 
@@ -261,6 +262,7 @@ impl Lb {
 
         let tx = self.ro_tx().await;
         let db = tx.db();
+        let start = Instant::now();
 
         let mut remote = db.base_metadata.stage(ctx.remote_changes.clone()).to_lazy(); // this used to be owned remote changes
         for id in remote.tree.staged.ids() {
@@ -282,7 +284,11 @@ impl Lb {
                 docs_to_pull.push((id, remote_hmac));
             }
         }
+
         drop(tx);
+        if start.elapsed() > std::time::Duration::from_millis(100) {
+            warn!("sync fetch_docs held lock for {:?}", start.elapsed());
+        }
 
         let num_docs = docs_to_pull.len();
         ctx.total += num_docs;
@@ -323,6 +329,7 @@ impl Lb {
     async fn merge(&self, ctx: &mut SyncContext) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
+        let start = Instant::now();
 
         let remote_changes = &ctx.remote_changes;
 
@@ -611,11 +618,15 @@ impl Lb {
                                             String::from_utf8_lossy(&base_document).to_string();
                                         let remote_document =
                                             String::from_utf8_lossy(&remote_document).to_string();
+                                        let local_document =
+                                            String::from_utf8_lossy(&local_document).to_string();
 
-                                        let mut local_buffer = crate::svg::buffer::Buffer::new(
-                                            String::from_utf8_lossy(&local_document).as_ref(),
-                                            None,
-                                        );
+                                        let base_buffer =
+                                            crate::svg::buffer::Buffer::new(&base_document);
+                                        let remote_buffer =
+                                            crate::svg::buffer::Buffer::new(&remote_document);
+                                        let mut local_buffer =
+                                            crate::svg::buffer::Buffer::new(&local_document);
 
                                         for (_, el) in local_buffer.elements.iter_mut() {
                                             if let Element::Path(path) = el {
@@ -628,8 +639,8 @@ impl Lb {
                                             &mut local_buffer.elements,
                                             &mut local_buffer.weak_images,
                                             local_buffer.master_transform,
-                                            &base_document,
-                                            &remote_document,
+                                            &base_buffer,
+                                            &remote_buffer,
                                         );
 
                                         let merged_document = local_buffer.serialize();
@@ -904,6 +915,11 @@ impl Lb {
         // todo who else calls this did they manage locks right?
         // self.cleanup_local_metadata()?;
         db.base_metadata.stage(&mut db.local_metadata).prune()?;
+
+        if start.elapsed() > std::time::Duration::from_millis(100) {
+            warn!("sync merge held lock for {:?}", start.elapsed());
+        }
+
         Ok(())
     }
 
@@ -965,6 +981,7 @@ impl Lb {
 
         let tx = self.ro_tx().await;
         let db = tx.db();
+        let start = Instant::now();
 
         let local = db.base_metadata.stage(&db.local_metadata).to_lazy();
 
@@ -988,6 +1005,9 @@ impl Lb {
         }
 
         drop(tx);
+        if start.elapsed() > std::time::Duration::from_millis(100) {
+            warn!("sync push_docs held lock for {:?}", start.elapsed());
+        }
 
         let docs_count = updates.len();
         ctx.total += docs_count;

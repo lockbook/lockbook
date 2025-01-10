@@ -42,7 +42,6 @@ impl From<crate::Response> for AndroidResponse {
                     new_folder_clicked,
                     tab_title_clicked,
                     file_created,
-                    error: _,
                     settings_updated: _,
                     sync_done,
                     status_updated,

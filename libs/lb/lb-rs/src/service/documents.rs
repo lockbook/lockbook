@@ -38,7 +38,6 @@ impl Lb {
 
     #[instrument(level = "debug", skip(self, content), err(Debug))]
     pub async fn write_document(&self, id: Uuid, content: &[u8]) -> LbResult<()> {
-        debug!("doc length: {}", content.len());
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
@@ -96,7 +95,6 @@ impl Lb {
     pub async fn safe_write(
         &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>,
     ) -> LbResult<DocumentHmac> {
-        debug!("doc length: {}", content.len());
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 

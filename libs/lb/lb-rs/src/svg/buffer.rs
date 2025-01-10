@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use crate::model::file_metadata::DocumentHmac;
-
 use bezier_rs::{Bezier, Subpath};
 use glam::{DAffine2, DMat2, DVec2};
 use indexmap::IndexMap;
@@ -23,11 +21,8 @@ use super::{
 const ZOOM_G_ID: &str = "lb_master_transform";
 const WEAK_IMAGE_G_ID: &str = "lb_images";
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Buffer {
-    pub open_file_hmac: Option<DocumentHmac>,
-    pub opened_content: String,
-
     pub elements: IndexMap<Uuid, Element>,
     pub weak_images: WeakImages,
     pub master_transform: Transform,
@@ -35,7 +30,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new(content: &str, open_file_hmac: Option<DocumentHmac>) -> Self {
+    pub fn new(content: &str) -> Self {
         let mut elements = IndexMap::default();
         let mut master_transform = Transform::identity();
         let mut id_map = HashMap::default();
@@ -59,24 +54,13 @@ impl Buffer {
             });
         }
 
-        Self {
-            open_file_hmac,
-            opened_content: content.to_string(),
-            elements,
-            master_transform,
-            id_map,
-            weak_images,
-        }
+        Self { elements, master_transform, id_map, weak_images }
     }
 
     pub fn reload(
         local_elements: &mut IndexMap<Uuid, Element>, local_weak_images: &mut WeakImages,
-        local_master_transform: Transform, base_content: &str, remote_content: &str,
+        local_master_transform: Transform, base_buffer: &Self, remote_buffer: &Self,
     ) {
-        let base_buffer = Buffer::new(base_content, None);
-
-        let remote_buffer = Buffer::new(remote_content, None);
-
         // todo: convert weak images
         for (id, base_img) in base_buffer.weak_images.iter() {
             if let Some(remote_img) = remote_buffer.weak_images.get(id) {
