@@ -482,7 +482,7 @@ impl Workspace {
             warn!("processing sync progress took {:?}", start.elapsed());
         }
 
-        // background work
+        // background work: queue
         let now = Instant::now();
         let start = Instant::now();
         if let Some(last_sync_status_refresh) = self
@@ -551,10 +551,33 @@ impl Workspace {
             warn!("processing auto sync took {:?}", start.elapsed());
         }
 
+        // background work: launch
         let start = Instant::now();
         self.tasks.check_launch(&self.tabs);
         if start.elapsed() > Duration::from_millis(100) {
             warn!("processing task launch took {:?}", start.elapsed());
+        }
+
+        // background work: cleanup
+        let mut removed_tabs = 0;
+        for i in 0..self.tabs.len() {
+            let i = i - removed_tabs;
+            let tab = &self.tabs[i];
+            if tab.is_closing
+                && !self.tasks.load_or_save_queued(tab.id)
+                && !self.tasks.load_or_save_in_progress(tab.id)
+            {
+                self.remove_tab(i);
+                removed_tabs += 1;
+
+                let title = match self.current_tab() {
+                    Some(tab) => tab.name.clone(),
+                    None => "Lockbook".to_owned(),
+                };
+                self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
+
+                self.out.selected_file = self.current_tab().map(|tab| tab.id);
+            }
         }
     }
 

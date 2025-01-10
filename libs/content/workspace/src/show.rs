@@ -276,17 +276,6 @@ impl Workspace {
                                 TabLabelResponse::Closed => {
                                     self.close_tab(i);
                                 }
-                                TabLabelResponse::Removed => {
-                                    self.remove_tab(i);
-
-                                    let title = match self.current_tab() {
-                                        Some(tab) => tab.name.clone(),
-                                        None => "Lockbook".to_owned(),
-                                    };
-                                    self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
-
-                                    self.out.selected_file = self.current_tab().map(|tab| tab.id);
-                                }
                                 TabLabelResponse::Renamed(name) => {
                                     self.tabs[i].rename = None;
                                     let id = self.current_tab().unwrap().id;
@@ -449,12 +438,6 @@ impl Workspace {
 
         // closing (just draw status icon)
         if tab.is_closing {
-            if !self.tasks.load_or_save_queued(tab.id)
-                && !self.tasks.load_or_save_in_progress(tab.id)
-            {
-                result = Some(TabLabelResponse::Removed);
-            }
-
             let icon_draw_pos = egui::pos2(
                 tab_label_rect.min.x + padding_x,
                 tab_label_rect.center().y - status_icon.size / 2.0,
@@ -707,7 +690,6 @@ impl Workspace {
 enum TabLabelResponse {
     Clicked,
     Closed,
-    Removed,
     Renamed(String),
 }
 
