@@ -104,8 +104,8 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
             viewModelScope.launch(Dispatchers.IO) {
                 maybeToggleSuggestedDocs()
+                refreshWorkInfo()
             }
-            refreshWorkInfo()
         } catch (err: LbError) {
             if (err.kind == LbEC.RootNonexistent) {
                 _notifyUpdateFilesUI.postValue(UpdateFilesUI.SyncImport)
