@@ -1,11 +1,10 @@
 import SwiftUI
 import SwiftWorkspace
 
-
 // avoid passing in state that is widely used, just use environment objects
-struct PlatformView: View {
+struct HomeView: View {
     @StateObject var workspaceState = WorkspaceState()
-    @StateObject var errorState = ErrorState()
+    @StateObject var homeState = HomeState()
     
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @Environment(\.isPreview) var isPreview
@@ -17,7 +16,7 @@ struct PlatformView: View {
             }, content: {
                 detail
             })
-            .environmentObject(errorState)
+            .environmentObject(homeState)
             .environment(\.isConstrainedLayout, true)
         } else {
             NavigationSplitView(sidebar: {
@@ -25,7 +24,7 @@ struct PlatformView: View {
             }, detail: {
                 detail
             })
-            .environmentObject(errorState)
+            .environmentObject(homeState)
             .environment(\.isConstrainedLayout, false)
         }
     }
@@ -40,20 +39,18 @@ struct PlatformView: View {
         if isPreview {
             Text("This is a preview.")
         } else {
-            WorkspaceView(workspaceState, MainState.lb.lbUnsafeRawPtr)
+            WorkspaceView(workspaceState, AppState.lb.lbUnsafeRawPtr)
         }
     }
 }
 
 struct SidebarView: View {
     @ObservedObject var workspaceState: WorkspaceState
-    @ObservedObject var filesModel: FilesViewModel
-    @ObservedObject var fileTreeModel: FileTreeViewModel
+    @StateObject var filesModel: FilesViewModel
             
     init(_ workspaceState: WorkspaceState) {
         self.workspaceState = workspaceState
-        self.filesModel = FilesViewModel(workspaceState: workspaceState)
-        self.fileTreeModel = FileTreeViewModel(workspaceState: workspaceState)
+        self._filesModel = StateObject(wrappedValue: FilesViewModel(workspaceState: workspaceState))
     }
     
     var body: some View {
@@ -82,10 +79,9 @@ struct SidebarView: View {
                         .font(.headline)
                         .padding(.bottom, 3)
                         .padding(.top, 8)) {
-                            FileTreeView(root: root)
+                            FileTreeView(root: root, workspaceState: workspaceState)
                                 .environmentObject(workspaceState)
                                 .environmentObject(filesModel)
-                                .environmentObject(fileTreeModel)
                         }
                         .padding(.horizontal, 20)
                 }
@@ -97,6 +93,6 @@ struct SidebarView: View {
     }
 }
 
-#Preview("Platform View") {
-    PlatformView()
+#Preview("Home View") {
+    HomeView()
 }

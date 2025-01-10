@@ -30,7 +30,7 @@ class FilesViewModel: ObservableObject {
     
     func loadFiles() {
         DispatchQueue.global(qos: .userInitiated).async {
-            let res = MainState.lb.listMetadatas()
+            let res = AppState.lb.listMetadatas()
             DispatchQueue.main.async {
                 switch res {
                 case .success(let files):
@@ -68,7 +68,7 @@ class FilesViewModel: ObservableObject {
             while created == nil {
                 let name = "unititled\(attempt != 0 ? "-" : "")\(ext)"
 
-                switch MainState.lb.createFile(name: name, parent: parent, fileType: .document) {
+                switch AppState.lb.createFile(name: name, parent: parent, fileType: .document) {
                 case .success(let file):
                     created = file
                     self.workspaceState.requestOpenDoc(file.id)

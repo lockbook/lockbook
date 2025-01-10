@@ -30,14 +30,14 @@ class FileTreeViewModel: ObservableObject {
     func getParents(_ file: File) -> [UUID] {
         var parents: [UUID] = []
         
-        guard case .success(var current) = MainState.lb.getFile(id: file.parent) else {
+        guard case .success(var current) = AppState.lb.getFile(id: file.parent) else {
             return []
         }
         
         while current.id != current.parent {
             parents.append(current.id)
             
-            if case let .success(newCurrent) = MainState.lb.getFile(id: current.parent) {
+            if case let .success(newCurrent) = AppState.lb.getFile(id: current.parent) {
                 current = newCurrent
             } else {
                 return parents

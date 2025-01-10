@@ -3,11 +3,10 @@ import SwiftWorkspace
 
 struct SuggestedDocsView: View {
     @EnvironmentObject var workspaceState: WorkspaceState
-    
-    @ObservedObject var model: SuggestedDocsViewModel
+    @StateObject var model: SuggestedDocsViewModel
     
     init(filesModel: FilesViewModel) {
-        self.model = SuggestedDocsViewModel(filesModel: filesModel)
+        self._model = StateObject(wrappedValue: SuggestedDocsViewModel(filesModel: filesModel))
     }
     
     var body: some View {

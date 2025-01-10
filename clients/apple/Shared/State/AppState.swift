@@ -1,8 +1,8 @@
 import SwiftUI
 import SwiftWorkspace
 
-class MainState: ObservableObject {
-    static let shared = MainState()
+class AppState: ObservableObject {
+    static let shared = AppState()
 
     static let LB_LOC: String = {
         #if os(macOS)
@@ -28,7 +28,7 @@ class MainState: ObservableObject {
     }
     
     func checkIfLoggedIn() {
-        switch MainState.lb.getAccount() {
+        switch AppState.lb.getAccount() {
         case .success(_):
             self.isLoggedIn = true
         case .failure(_):

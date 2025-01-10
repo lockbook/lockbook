@@ -4,14 +4,22 @@ import SwiftWorkspace
 struct FileTreeView: View {
     
     @EnvironmentObject var workspaceState: WorkspaceState
-    @EnvironmentObject var fileTreeModel: FileTreeViewModel
+    @StateObject var fileTreeModel: FileTreeViewModel
+    
+    @Environment(\.isConstrainedLayout) var isConstrainedLayout
     
     var root: File
+    
+    init(root: File, workspaceState: WorkspaceState) {
+        self.root = root
+        self._fileTreeModel = StateObject(wrappedValue: FileTreeViewModel(workspaceState: workspaceState))
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 FileRowView(file: root, level: -1)
+                    .environmentObject(fileTreeModel)
                 
                 Spacer()
             }
@@ -23,25 +31,39 @@ struct FileTreeView: View {
         .refreshable {
             workspaceState.requestSync()
         }
-        .sheet(item: $fileTreeModel.sheetInfo) { info in
-            switch info {
-            case .create(parent: let parent):
-                EmptyView()
-            case .rename(file: let file):
-                EmptyView()
-            case .select(action: let action):
-                EmptyView()
-            case .share(file: let file):
-                EmptyView()
-            }
-        }
         .padding(.leading)
     }
 }
 
+struct FileOpSheets: ViewModifier {
+    @Environment(\.isConstrainedLayout) var isConstrainedLayout
+    
+    @ObservedObject var fileTreeModel: FileTreeViewModel
+    @Binding var constrainedSheetHeight: CGFloat
+    
+    func body(content: Content) -> some View {
+        if isConstrainedLayout {
+            content
+                .sheet(item: $fileTreeModel.sheetInfo) { info in
+                    switch info {
+                    case .create(parent: let parent):
+                        EmptyView()
+                    case .rename(file: let file):
+                        RenameFileSheet(id: file.id, name: file.name, parentPath: <#T##String#>)
+                    case .select(action: let action):
+                        EmptyView()
+                    case .share(file: let file):
+                        EmptyView()
+                    }
+                }
+        } else {
+            
+        }
+    }
+}
+
 #Preview {
-    FileTreeView(root: (MainState.lb as! MockLb).file0)
-        .environmentObject(FileTreeViewModel(workspaceState: WorkspaceState()))
+    FileTreeView(root: (AppState.lb as! MockLb).file0, workspaceState: WorkspaceState())
         .environmentObject(FilesViewModel(workspaceState: WorkspaceState()))
         .environmentObject(WorkspaceState())
 }

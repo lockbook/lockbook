@@ -20,7 +20,7 @@ class SuggestedDocsViewModel: ObservableObject {
     
     func loadSuggestedDocs() {
         DispatchQueue.global(qos: .userInitiated).async {
-            let res = MainState.lb.suggestedDocs()
+            let res = AppState.lb.suggestedDocs()
             
             DispatchQueue.main.async {
                 switch res {
@@ -36,7 +36,7 @@ class SuggestedDocsViewModel: ObservableObject {
                             name: file.name,
                             id: file.id,
                             parentName: parent.name,
-                            lastModified: MainState.lb.getTimestampHumanString(timestamp: Int64(file.lastModified))
+                            lastModified: AppState.lb.getTimestampHumanString(timestamp: Int64(file.lastModified))
                         ))
                     })
                 case .failure(let error):

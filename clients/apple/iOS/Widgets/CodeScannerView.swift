@@ -239,5 +239,5 @@ public struct CodeScannerView: UIViewControllerRepresentable {
     CodeScannerView(codeTypes: [.qr]) { result in
         // do nothing
     }
-    .environmentObject(MainState.shared)
+    .environmentObject(AppState.shared)
 }

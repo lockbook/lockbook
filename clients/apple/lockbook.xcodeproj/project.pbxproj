@@ -97,7 +97,7 @@
 		473198032D28917000FBCD5F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				PlatformView.swift,
+				HomeView.swift,
 			);
 			target = EA5C7D762516606000F7F358 /* Lockbook (macOS) */;
 		};

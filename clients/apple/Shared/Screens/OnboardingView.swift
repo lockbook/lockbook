@@ -172,10 +172,10 @@ private struct OnboardingTwoView: View {
         error = nil
         
         DispatchQueue.global(qos: .userInitiated).async {
-            let operation = MainState.lb.createAccount(username: username, apiUrl: MainState.LB_API_URL, welcomeDoc: true)
+            let operation = AppState.lb.createAccount(username: username, apiUrl: AppState.LB_API_URL, welcomeDoc: true)
                 switch operation {
                 case .success:
-                    switch MainState.lb.exportAccountPhrase() {
+                    switch AppState.lb.exportAccountPhrase() {
                     case .success(let phrase):
                         DispatchQueue.main.async {
                             let phrase = phrase.split(separator: " ")
@@ -294,7 +294,7 @@ private struct OnboardingThreeView: View {
     }
     
     func copyCompactKey() {
-        if case let .success(text) = MainState.lb.exportAccountPrivateKey() {
+        if case let .success(text) = AppState.lb.exportAccountPrivateKey() {
             ClipboardHelper.copyToClipboard(text)
         }
     }
@@ -324,7 +324,7 @@ private struct OnboardingThreeView: View {
     
     func goToMainScreen() {
         working = true
-        MainState.shared.isLoggedIn = true
+        AppState.shared.isLoggedIn = true
     }
 }
 
@@ -357,6 +357,8 @@ private struct ImportAccountView: View {
     
     @State var showAPIURLSheet: Bool = false
     @State var showQRScanner: Bool = false
+    
+    @State var constrainedSheetHeight: CGFloat = 0
     
     var body: some View {
         VStack(alignment: .leading) {
@@ -436,7 +438,7 @@ private struct ImportAccountView: View {
     var apiURLSheet: some View {
         #if os(iOS)
         EmptyView()
-            .optimizedSheet(isPresented: $showAPIURLSheet, width: 500, height: 160) {
+            .optimizedSheet(isPresented: $showAPIURLSheet, constrainedSheetHeight: $constrainedSheetHeight, width: 500, height: 160) {
                 SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
             }
         #else
@@ -474,7 +476,7 @@ private struct ImportAccountView: View {
         }
         
         DispatchQueue.global(qos: .userInitiated).async {
-            let res = MainState.lb.importAccount(key: accountKey, apiUrl: apiUrl)
+            let res = AppState.lb.importAccount(key: accountKey, apiUrl: apiUrl)
             DispatchQueue.main.async {
                 working = false
                 
@@ -509,7 +511,7 @@ struct SetAPIURLView: View {
 
     @State var unsavedAPIURL = ""
     @FocusState var focused: Bool
-    let defaultAPIURL: String = MainState.LB_API_URL ?? "Unknown"
+    let defaultAPIURL: String = AppState.LB_API_URL ?? "Unknown"
     
     @Environment(\.dismiss) private var dismiss
     
@@ -609,7 +611,7 @@ class ImportAccountSyncViewModel: ObservableObject {
     
     func sync() {
         DispatchQueue.global(qos: .userInteractive).async {
-            let result = MainState.lb.sync { total, progress, id, msg in
+            let result = AppState.lb.sync { total, progress, id, msg in
                 DispatchQueue.main.async {
                     self.syncProgress = Float(progress) / Float(total)
                     self.syncMsg = msg
@@ -619,7 +621,7 @@ class ImportAccountSyncViewModel: ObservableObject {
             DispatchQueue.main.async {
                 switch result {
                 case .success(_):
-                    MainState.shared.isLoggedIn = true
+                    AppState.shared.isLoggedIn = true
                 case .failure(let err):
                     self.error = err.msg
                 }

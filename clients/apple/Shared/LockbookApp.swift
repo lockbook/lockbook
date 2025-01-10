@@ -2,14 +2,14 @@ import SwiftUI
 
 @main struct LockbookApp: App {
     
-    @State private var isLoggedIn: Bool = MainState.shared.isLoggedIn
+    @State private var isLoggedIn: Bool = AppState.shared.isLoggedIn
     @State private var isPreview: Bool = false
     
     var body: some Scene {
         WindowGroup {
             ContentView(isLoggedIn: $isLoggedIn)
-                .environmentObject(MainState.shared)
-                .mapState(MainState.shared.$isLoggedIn, to: $isLoggedIn)
+                .environmentObject(AppState.shared)
+                .mapState(AppState.shared.$isLoggedIn, to: $isLoggedIn)
         }
         
         #if os(macOS)
@@ -26,7 +26,7 @@ struct ContentView: View {
     
     var body: some View {
         if isLoggedIn {
-            PlatformView()
+            HomeView()
         } else {
             OnboardingView()
         }
