@@ -529,11 +529,11 @@ impl Workspace {
         if self.cfg.get_auto_sync() {
             if let Some(last_sync) = self.tasks.sync_queued_at().or(self.last_sync_completed) {
                 let focused = self.ctx.input(|i| i.focused);
-                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(10);
+                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(60);
                 let sync_period = if user_active && focused {
                     Duration::from_secs(5)
                 } else {
-                    Duration::from_secs(60 * 60)
+                    Duration::from_secs(5 * 60)
                 };
 
                 let instant_of_next_sync = last_sync + sync_period;
