@@ -19,6 +19,7 @@ pub fn test_config() -> Config {
     Config {
         writeable_path: format!("/tmp/{}", Uuid::new_v4()),
         logs: false,
+        stdout_logs: false,
         colored_logs: false,
         background_work: false,
     }

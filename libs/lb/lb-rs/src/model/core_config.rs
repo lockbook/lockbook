@@ -4,8 +4,13 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
+    /// Should we log at all?
     pub logs: bool,
+    /// Should logs be printed to stdout?
+    pub stdout_logs: bool,
+    /// Should logs be colored?
     pub colored_logs: bool,
+    /// Where should lockbook store data, including logs?
     pub writeable_path: String,
     /// Should lb do background work like keep search indexes up to date?
     pub background_work: bool,
@@ -23,7 +28,13 @@ impl Config {
             panic!("no location for lockbook to initialize");
         };
 
-        Config { writeable_path, logs: true, colored_logs: true, background_work: false }
+        Config {
+            writeable_path,
+            logs: true,
+            stdout_logs: false,
+            colored_logs: true,
+            background_work: false,
+        }
     }
 }
 

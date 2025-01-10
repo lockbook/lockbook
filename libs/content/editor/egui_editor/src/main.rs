@@ -14,9 +14,11 @@ fn main() {
     }
 
     let core = lb::Core::init(&lb::Config {
-        logs: false,
-        colored_logs: false,
-        writeable_path: format!("{}/.lockbook/cli", std::env::var("HOME").unwrap()),
+        writeable_path: format!("{}/.lockbook/egui_editor", std::env::var("HOME").unwrap()),
+        logs: true,
+        stdout_logs: true,
+        colored_logs: true,
+        background_work: true,
     })
     .unwrap();
 

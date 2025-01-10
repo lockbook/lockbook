@@ -54,8 +54,13 @@ impl SplashScreen {
                 }
             };
 
-            let cfg =
-                Config { logs: true, colored_logs: true, writeable_path, background_work: true };
+            let cfg = Config {
+                writeable_path,
+                logs: true,
+                stdout_logs: true,
+                colored_logs: true,
+                background_work: true,
+            };
 
             tx.send(SplashUpdate::Status("Loading core...".to_string()))
                 .unwrap();

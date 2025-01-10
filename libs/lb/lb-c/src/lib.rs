@@ -38,7 +38,13 @@ pub struct LbInitRes {
 pub extern "C" fn lb_init(writeable_path: *const c_char, logs: bool) -> LbInitRes {
     let writeable_path = rstring(writeable_path);
 
-    let config = Config { logs, colored_logs: false, writeable_path, background_work: true };
+    let config = Config {
+        writeable_path,
+        logs,
+        stdout_logs: true,
+        colored_logs: true,
+        background_work: true,
+    };
     match Lb::init(config) {
         Ok(lb) => {
             let lb = Box::into_raw(Box::new(lb));

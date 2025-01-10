@@ -25,7 +25,8 @@ impl Drive {
         let lb = Lb::init(Config {
             writeable_path,
             logs: false,
-            colored_logs: true,
+            stdout_logs: false,
+            colored_logs: false,
             background_work: false,
         })
         .await
