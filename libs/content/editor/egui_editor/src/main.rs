@@ -13,14 +13,7 @@ fn main() {
         }
     }
 
-    let core = lb::Core::init(&lb::Config {
-        writeable_path: format!("{}/.lockbook/egui_editor", std::env::var("HOME").unwrap()),
-        logs: true,
-        stdout_logs: true,
-        colored_logs: true,
-        background_work: true,
-    })
-    .unwrap();
+    let core = lb::Core::init(&lb::Config::ui_config("cli")).unwrap(); // use the cli account
 
     let options = eframe::NativeOptions::default();
     eframe::run_native(

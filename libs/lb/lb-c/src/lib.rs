@@ -36,9 +36,13 @@ pub struct LbInitRes {
 
 #[no_mangle]
 pub extern "C" fn lb_init(writeable_path: *const c_char, logs: bool) -> LbInitRes {
-    let mut config = Config::ui_config("c");
-    config.writeable_path = rstring(writeable_path);
-    config.logs = logs;
+    let config = Config {
+        writeable_path: rstring(writeable_path),
+        background_work: true,
+        logs,
+        stdout_logs: true,
+        colored_logs: false,
+    };
 
     match Lb::init(config) {
         Ok(lb) => {

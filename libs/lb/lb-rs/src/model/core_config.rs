@@ -4,16 +4,17 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
+    /// Where should lockbook store data, including logs?
+    pub writeable_path: String,
+    /// Should lb do background work like keep search indexes up to date?
+    pub background_work: bool,
+
     /// Should we log at all?
     pub logs: bool,
     /// Should logs be printed to stdout?
     pub stdout_logs: bool,
     /// Should logs be colored?
     pub colored_logs: bool,
-    /// Where should lockbook store data, including logs?
-    pub writeable_path: String,
-    /// Should lb do background work like keep search indexes up to date?
-    pub background_work: bool,
 }
 
 impl Config {
@@ -22,10 +23,10 @@ impl Config {
     pub fn cli_config(writeable_path_subfolder: &str) -> Config {
         Config {
             writeable_path: Self::writeable_path(writeable_path_subfolder),
+            background_work: false,
             logs: true,
             stdout_logs: false,
             colored_logs: true,
-            background_work: false,
         }
     }
 
@@ -34,10 +35,10 @@ impl Config {
     pub fn ui_config(writeable_path_subfolder: &str) -> Config {
         Config {
             writeable_path: Self::writeable_path(writeable_path_subfolder),
+            background_work: true,
             logs: true,
             stdout_logs: true,
             colored_logs: true,
-            background_work: true,
         }
     }
 

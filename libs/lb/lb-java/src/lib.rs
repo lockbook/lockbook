@@ -30,9 +30,13 @@ use lb_rs::{
 pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, path: JString<'local>,
 ) {
-    let mut config = Config::ui_config("java");
-    config.writeable_path = rstring(&mut env, path);
-    config.colored_logs = false;
+    let config = Config {
+        writeable_path: rstring(&mut env, path),
+        background_work: true,
+        logs: true,
+        stdout_logs: true,
+        colored_logs: false,
+    };
 
     match Lb::init(config) {
         Ok(lb) => {
