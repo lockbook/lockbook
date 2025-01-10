@@ -1,3 +1,4 @@
+use crate::logic::file_like::FileLike;
 use crate::logic::filename::MAX_FILENAME_LENGTH;
 use crate::logic::symkey;
 use crate::logic::tree_like::TreeLike;
@@ -36,9 +37,11 @@ impl Lb {
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
+        tx.end();
+
         info!("created {:?} with id {id}", file_type);
 
-        self.search_subscriber();
+        self.events.new_file(id);
 
         Ok(ui_file)
     }
@@ -59,7 +62,9 @@ impl Lb {
 
         tree.rename(id, new_name, &self.keychain)?;
 
-        self.search_subscriber();
+        tx.end();
+
+        self.events.meta_changed(*id);
 
         Ok(())
     }
@@ -76,8 +81,9 @@ impl Lb {
         let id = &tree.linked_by(id)?.unwrap_or(*id);
 
         tree.move_file(id, new_parent, &self.keychain)?;
+        tx.end();
 
-        self.search_subscriber();
+        self.events.meta_changed(*id);
 
         Ok(())
     }
@@ -91,11 +97,23 @@ impl Lb {
             .to_staged(&mut db.local_metadata)
             .to_lazy();
 
+        // we lookup the ftype before the link resolution because we're only interested the
+        // intention behind the delete, not which metadata was actually marked deleted
+        let ftype = tree.find(id)?.file_type();
+
         let id = &tree.linked_by(id)?.unwrap_or(*id);
 
         tree.delete(id, &self.keychain)?;
 
-        self.search_subscriber();
+        tx.end();
+
+        match ftype {
+            FileType::Document => self.events.doc_removed(*id),
+            FileType::Folder => self.events.folder_removed(*id),
+            FileType::Link { .. } => {
+                warn!("did not expect to find a link directly deleted");
+            },
+        }
 
         Ok(())
     }

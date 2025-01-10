@@ -121,7 +121,14 @@ impl Lb {
         ctx.done_msg();
 
         if got_updates {
-            self.search_subscriber();
+            self.setup_search();
+            for file in &ctx.remote_changes {
+                if file.is_document() {
+                    self.events.doc_written(*file.id());
+                }
+            }
+
+            self.events.meta_changed(self.root().await?.id);
         }
 
         Ok(ctx.summarize())

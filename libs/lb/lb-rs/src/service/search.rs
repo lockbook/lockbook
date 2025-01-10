@@ -1,20 +1,16 @@
 use super::activity::RankingWeights;
 use super::events::Event;
-use crate::logic::file_like::FileLike;
 use crate::logic::filename::DocumentType;
-use crate::logic::tree_like::TreeLike;
-use crate::model::clock;
 use crate::model::errors::{LbErr, LbResult, UnexpectedError};
 use crate::Lb;
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 use serde::Serialize;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use tokio::sync::RwLock;
-use tokio::time::sleep;
 use uuid::Uuid;
 
 const CONTENT_SCORE_THRESHOLD: i64 = 170;
@@ -29,7 +25,8 @@ const FUZZY_WEIGHT: f32 = 0.8;
 
 #[derive(Clone, Default)]
 pub struct SearchIndex {
-    pub docs: Arc<RwLock<Vec<SearchIndexEntry>>>,
+    pub building_index: Arc<AtomicBool>,
+    pub index: Arc<RwLock<Vec<SearchIndexEntry>>>,
 }
 
 #[derive(Debug)]
@@ -88,10 +85,12 @@ impl SearchResult {
 impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
-        if self.search.docs.read().await.is_empty() || !self.config.background_work {
+        // for cli style invocations nothing will have built the search index yet
+        if !self.config.background_work {
             self.build_index().await?;
         }
 
+        // show suggested docs if the input string is empty
         if input.is_empty() {
             match cfg {
                 SearchConfig::Paths | SearchConfig::PathsAndDocuments => {
@@ -108,6 +107,15 @@ impl Lb {
                         .await;
                 }
                 SearchConfig::Documents => return Ok(vec![]),
+            }
+        }
+
+        // if the index is empty wait patiently for it become available
+        loop {
+            if self.search.index.read().await.is_empty() {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            } else {
+                break;
             }
         }
 
@@ -131,6 +139,17 @@ impl Lb {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn build_index(&self) -> LbResult<()> {
+        // if we haven't signed in yet, we'll leave our index entry and our event subscriber will
+        // handle the state change
+        if self.keychain.get_account().is_err() {
+            return Ok(());
+        }
+
+        // some other caller has already built this index, subscriber will keep it up to date
+        if self.search.building_index.swap(true, Ordering::AcqRel) {
+            return Ok(());
+        }
+
         let tasks = FuturesUnordered::new();
         for file in self.list_metadatas().await? {
             let id = file.id;
@@ -143,11 +162,14 @@ impl Lb {
 
                     let path = path?;
 
-                    // todo handle max doc size?
                     let doc = doc?;
-                    let doc = String::from_utf8_lossy(&doc).to_string();
+                    let doc = if doc.len() >= CONTENT_MAX_LEN_BYTES {
+                        None
+                    } else {
+                        Some(String::from_utf8_lossy(&doc).to_string())
+                    };
 
-                    (path, Some(doc))
+                    (path, doc)
                 } else {
                     (self.get_path_by_id(id).await?, None)
                 };
@@ -163,17 +185,18 @@ impl Lb {
         }
 
         // swap in replacement index (index lock)
-        *self.search.docs.write().await = replacement_index;
+        *self.search.index.write().await = replacement_index;
 
         Ok(())
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub fn search_subscriber(&self) {
+    pub fn setup_search(&self) {
         if self.config.background_work {
             let lb = self.clone();
             let mut rx = self.subscribe();
             tokio::spawn(async move {
+                lb.build_index().await.unwrap();
                 loop {
                     let Ok(evt) = rx.recv().await else {
                         error!("failed to receive from a channel");
@@ -183,11 +206,13 @@ impl Lb {
                     match evt {
                         Event::NewFile(id) => {
                             let path = lb.get_path_by_id(id).await.unwrap();
-                            let index = lb.search.docs.write().await;
+                            let mut index = lb.search.index.write().await;
                             index.push(SearchIndexEntry { id, path, content: None });
                         }
 
                         Event::MetadataChanged(id) => {
+                            // todo metas can be communicated as deleted via this message as well.
+                            // consider getting rid of the folder removed idea as well.
                             let children = lb.get_and_get_children_recursively(&id).await.unwrap();
 
                             let mut paths = HashMap::new();
@@ -195,7 +220,7 @@ impl Lb {
                                 paths.insert(child.id, lb.get_path_by_id(child.id).await.unwrap());
                             }
 
-                            let mut index = lb.search.docs.write().await;
+                            let mut index = lb.search.index.write().await;
                             for entry in index.iter_mut() {
                                 if paths.contains_key(&entry.id) {
                                     entry.path = paths.remove(&entry.id).unwrap();
@@ -203,29 +228,31 @@ impl Lb {
                             }
                         }
 
-                        Event::FolderRemoved(id) => {
-                            let mut index = lb.search.docs.write().await;
+                        Event::FolderRemoved(_) => {
+                            let files = lb.list_metadatas().await.unwrap();
+                            let file_ids: Vec<Uuid> = files.into_iter().map(|f| f.id).collect();
+                            let mut index = lb.search.index.write().await;
+                            index.retain(|entry| file_ids.contains(&entry.id));
+                        }
+
+                        Event::DocumentRemoved(id) => {
+                            let mut index = lb.search.index.write().await;
                             index.retain(|entry| entry.id != id);
-
-                            let mut paths = HashMap::new();
-                            for child in children {
-                                paths.insert(child.id, lb.get_path_by_id(child.id).await.unwrap());
-                            }
-
-                            let mut index = lb.search.docs.write().await;
-                            for entry in index.iter_mut() {
-                                if paths.contains_key(&entry.id) {
-                                    entry.path = paths.remove(&entry.id).unwrap();
-                                }
-                            }
                         }
 
                         Event::DocumentWritten(id) => {
                             let doc = lb.read_document(id).await.unwrap();
-                            let mut index = lb.search.docs.write().await;
+                            let doc = if doc.len() > MAX_CONTENT_MATCH_LENGTH {
+                                None
+                            } else {
+                                Some(String::from_utf8_lossy(&doc).to_string())
+                            };
+
+                            let mut index = lb.search.index.write().await;
                             for entries in index.iter_mut() {
                                 if entries.id == id {
-                                    entries.content = Some(doc);
+                                    entries.content = doc;
+                                    break;
                                 }
                             }
                         }
@@ -238,7 +265,7 @@ impl Lb {
 
 impl SearchIndex {
     async fn search_paths(&self, input: &str) -> LbResult<Vec<SearchResult>> {
-        let docs_guard = self.docs.read().await; // read lock held for the whole fn
+        let docs_guard = self.index.read().await; // read lock held for the whole fn
 
         let mut results = Vec::new();
         for doc in docs_guard.iter() {
@@ -264,11 +291,11 @@ impl SearchIndex {
 
     async fn search_content(&self, input: &str) -> LbResult<Vec<SearchResult>> {
         let search_futures = FuturesUnordered::new();
-        let docs = self.docs.read().await;
+        let docs = self.index.read().await;
 
         for (idx, _) in docs.iter().enumerate() {
             search_futures.push(async move {
-                let doc = &self.docs.read().await[idx];
+                let doc = &self.index.read().await[idx];
                 let id = doc.id;
                 let path = &doc.path;
                 let content = &doc.content;
