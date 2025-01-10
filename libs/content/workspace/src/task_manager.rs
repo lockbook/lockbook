@@ -10,7 +10,7 @@ use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::Uuid;
-use tracing::{debug, error, instrument, warn};
+use tracing::{debug, error, instrument, span, trace, warn, Level};
 
 use crate::output::DirtynessMsg;
 use crate::tab::{Tab, TabSaveContent};
@@ -242,7 +242,7 @@ impl TaskManager {
     }
 
     pub fn queue_load(&mut self, request: LoadRequest) {
-        debug!("queued load of file {}", request.id);
+        trace!("queued load of file {}", request.id);
         self.tasks
             .lock()
             .unwrap()
@@ -251,7 +251,7 @@ impl TaskManager {
     }
 
     pub fn queue_save(&mut self, request: SaveRequest) {
-        debug!("queued save of file {}", request.id);
+        trace!("queued save of file {}", request.id);
         self.tasks
             .lock()
             .unwrap()
@@ -260,7 +260,7 @@ impl TaskManager {
     }
 
     pub fn queue_sync(&mut self) {
-        debug!("queued sync");
+        trace!("queued sync");
         self.tasks
             .lock()
             .unwrap()
@@ -269,7 +269,7 @@ impl TaskManager {
     }
 
     pub fn queue_sync_status_update(&mut self) {
-        debug!("queued sync status update");
+        trace!("queued sync status update");
         self.tasks
             .lock()
             .unwrap()
@@ -443,20 +443,23 @@ impl TaskManager {
             || sync_status_update_to_launch.is_some();
         if any_to_launch {
             debug!(
-                "launching {} loads, {} saves, {} syncs, and {} sync status updates; {} loads, {} saves, {} syncs, and {} sync status updates remain queued",
-                loads_to_launch.len(),
-                saves_to_launch.len(),
-                sync_to_launch.is_some() as usize,
-                sync_status_update_to_launch.is_some() as usize,
-                tasks.queued_loads.len(),
-                tasks.queued_saves.len(),
-                tasks.queued_syncs.len(),
-                tasks.queued_sync_status_updates.len()
+                loads_to_launch = loads_to_launch.len(),
+                saves_to_launch = saves_to_launch.len(),
+                sync_to_launch = sync_to_launch.is_some() as usize,
+                sync_status_update_to_launch = sync_status_update_to_launch.is_some() as usize,
+                queued_loads_remaining = tasks.queued_loads.len(),
+                queued_saves_remaining = tasks.queued_saves.len(),
+                queued_syncs_remaining = tasks.queued_syncs.len(),
+                queued_sync_status_updates_remaining = tasks.queued_sync_status_updates.len(),
+                "launching tasks",
             );
         }
 
         // Launch the things
         for queued_load in loads_to_launch.into_values() {
+            let span = span!(Level::TRACE, "load_launch", id = queued_load.request.id.to_string());
+            let _enter = span.enter();
+
             let request = queued_load.request.clone();
             let in_progress_load = InProgressLoad::new(queued_load);
             let queue_time = in_progress_load
@@ -464,7 +467,7 @@ impl TaskManager {
                 .started_at
                 .duration_since(in_progress_load.timing.queued_at);
             if queue_time > Duration::from_secs(1) {
-                warn!("load of file {} spent {:?} in the task queue", request.id, queue_time);
+                warn!("load spent {queue_time:?} in the task queue");
             }
             tasks.in_progress_loads.push(in_progress_load);
 
@@ -473,14 +476,14 @@ impl TaskManager {
         }
 
         for queued_save in saves_to_launch.into_values() {
+            let span = span!(Level::TRACE, "save_launch", id = queued_save.request.id.to_string());
+            let _enter = span.enter();
+
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
             let (old_hmac, seq, content) = {
                 let Some(tab) = tabs.iter().find(|tab| tab.id == request.id) else {
-                    error!(
-                        "could not launch save for file {} because its tab does not exist",
-                        request.id
-                    );
+                    error!("could not launch save because its tab does not exist",);
                     continue;
                 };
 
@@ -494,10 +497,7 @@ impl TaskManager {
 
                 let time = Instant::now().duration_since(start);
                 if time > Duration::from_millis(100) {
-                    warn!(
-                        "spent {time:?} on UI thread cloning save content for file {}",
-                        request.id,
-                    );
+                    warn!("spent {time:?} on UI thread cloning content",);
                 }
 
                 (old_hmac, seq, content)
@@ -507,7 +507,7 @@ impl TaskManager {
                 .started_at
                 .duration_since(in_progress_save.timing.queued_at);
             if queue_time > Duration::from_secs(1) {
-                warn!("save of file {} spent {:?} in the task queue", request.id, queue_time);
+                warn!("save spent {queue_time:?} in the task queue");
             }
             tasks.in_progress_saves.push(in_progress_save);
 
@@ -516,6 +516,9 @@ impl TaskManager {
         }
 
         if let Some(sync) = sync_to_launch {
+            let span = span!(Level::TRACE, "sync_launch");
+            let _enter = span.enter();
+
             let (sender, receiver) = mpsc::channel();
             let in_progress_sync = InProgressSync::new(sync, receiver);
             let queue_time = in_progress_sync
@@ -532,13 +535,16 @@ impl TaskManager {
         }
 
         if let Some(update) = sync_status_update_to_launch {
+            let span = span!(Level::TRACE, "sync_status_update_launch",);
+            let _enter = span.enter();
+
             let in_progress_update = InProgressSyncStatusUpdate::new(update);
             let queue_time = in_progress_update
                 .timing
                 .started_at
                 .duration_since(in_progress_update.timing.queued_at);
             if queue_time > Duration::from_secs(1) {
-                warn!("sync status update spent {:?} in the task queue", queue_time);
+                warn!("sync status update spent {queue_time:?} in the task queue");
             }
             tasks.in_progress_sync_status_update = Some(in_progress_update);
 
@@ -585,12 +591,16 @@ impl TaskManager {
 
             let timing = CompletedTiming::new(in_progress_load.timing);
             let in_progress_time = timing.completed_at.duration_since(timing.started_at);
-            if let Err(err) = &content_result {
-                error!("load of file {} failed ({:?}): {:?}", request.id, in_progress_time, err);
-            } else if in_progress_time > Duration::from_secs(1) {
-                warn!("loaded file {} ({:?})", request.id, in_progress_time);
-            } else {
-                debug!("loaded file {} ({:?})", request.id, in_progress_time);
+            match &content_result {
+                Ok((hmac, _)) if in_progress_time > Duration::from_secs(1) => {
+                    warn!(?hmac, "loaded ({:?})", in_progress_time);
+                }
+                Ok((hmac, _)) => {
+                    debug!(?hmac, "loaded ({:?})", in_progress_time);
+                }
+                Err(err) => {
+                    error!("load failed ({:?}): {:?}", in_progress_time, err);
+                }
             }
 
             let completed_load =
@@ -630,12 +640,16 @@ impl TaskManager {
 
             let timing = CompletedTiming::new(in_progress_save.timing);
             let in_progress_time = timing.completed_at.duration_since(timing.started_at);
-            if let Err(err) = &new_hmac_result {
-                error!("save of file {} failed ({:?}): {:?}", request.id, in_progress_time, err);
-            } else if in_progress_time > Duration::from_secs(1) {
-                warn!("saved file {} ({:?})", request.id, in_progress_time);
-            } else {
-                debug!("saved file {} ({:?})", request.id, in_progress_time);
+            match &new_hmac_result {
+                Ok(new_hmac) if in_progress_time > Duration::from_secs(1) => {
+                    warn!(?new_hmac, "saved ({:?})", in_progress_time);
+                }
+                Ok(new_hmac) => {
+                    debug!(?new_hmac, "saved ({:?})", in_progress_time);
+                }
+                Err(err) => {
+                    error!("save failed ({:?}): {:?}", in_progress_time, err);
+                }
             }
 
             let completed_save = CompletedSave {
@@ -676,7 +690,7 @@ impl TaskManager {
             if let Err(err) = &status_result {
                 error!("sync failed ({:?}): {:?}", in_progress_time, err);
             } else if in_progress_time > Duration::from_secs(5) {
-                warn!("synced ({:?}); status = {:?}", in_progress_time, status_result);
+                warn!(?status_result, "synced ({:?})", in_progress_time);
             } else {
                 debug!("synced ({:?})", in_progress_time);
             }
@@ -710,7 +724,7 @@ impl TaskManager {
             if let Err(err) = &status_result {
                 error!("update sync status failed ({:?}): {:?}", in_progress_time, err);
             } else if in_progress_time > Duration::from_secs(1) {
-                warn!("sync status updated ({:?}); status = {:?}", in_progress_time, status_result);
+                warn!(?status_result, "sync status updated ({:?})", in_progress_time);
             } else {
                 debug!("sync status updated ({:?})", in_progress_time);
             }

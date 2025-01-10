@@ -82,7 +82,7 @@ impl TabContent {
     pub fn clone_content(&self) -> Option<TabSaveContent> {
         match self {
             TabContent::Markdown(md) => {
-                Some(TabSaveContent::Bytes(md.buffer.current.text.clone().into_bytes()))
+                Some(TabSaveContent::String(md.buffer.current.text.clone()))
             }
             TabContent::Svg(svg) => Some(TabSaveContent::Svg(svg.buffer.clone())),
             _ => None,

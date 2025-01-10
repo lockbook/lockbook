@@ -9,8 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
-use std::{fs, thread};
-use tracing::{debug, error, instrument, warn};
+use tracing::{debug, instrument, trace, warn};
 
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
@@ -472,7 +471,7 @@ impl Workspace {
             let tasks = self.tasks.tasks.lock().unwrap();
             if let Some(sync) = tasks.in_progress_sync.as_ref() {
                 while let Ok(progress) = sync.progress.try_recv() {
-                    debug!("sync progress: {}", progress);
+                    trace!("sync {}", progress);
                     self.status.sync_message = Some(progress.msg);
                     self.out.status_updated = true;
                 }
