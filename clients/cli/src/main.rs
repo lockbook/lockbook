@@ -30,7 +30,7 @@ use lb_rs::{
 
 fn run() -> CliResult<()> {
     Command::name("lockbook")
-        .description("The private, polished note-taking platform.") 
+        .description("The private, polished note-taking platform.")
         .version(env!("CARGO_PKG_VERSION"))
         .subcommand(
             Command::name("account")
@@ -218,7 +218,7 @@ fn main() {
 }
 
 pub async fn core() -> CliResult<Lb> {
-    Lb::init(Config::cli_config())
+    Lb::init(Config::cli_config("cli"))
         .await
         .map_err(|err| CliError::from(err.to_string()))
 }

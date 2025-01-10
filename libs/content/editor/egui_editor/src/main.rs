@@ -13,12 +13,7 @@ fn main() {
         }
     }
 
-    let core = lb::Core::init(&lb::Config {
-        logs: false,
-        colored_logs: false,
-        writeable_path: format!("{}/.lockbook/cli", std::env::var("HOME").unwrap()),
-    })
-    .unwrap();
+    let core = lb::Core::init(&lb::Config::ui_config("cli")).unwrap(); // use the cli account
 
     let options = eframe::NativeOptions::default();
     eframe::run_native(
