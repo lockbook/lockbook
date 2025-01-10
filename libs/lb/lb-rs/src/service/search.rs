@@ -197,7 +197,6 @@ impl Lb {
         Ok(())
     }
 
-    #[instrument(level = "debug", skip(self))]
     /// ensure the index is not built more frequently than every 5s
     pub fn spawn_build_index(&self) {
         if self.config.background_work {
