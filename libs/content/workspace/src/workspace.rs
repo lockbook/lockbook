@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
-use tracing::{debug, error, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
@@ -79,14 +79,21 @@ impl Workspace {
             last_touch_event: Default::default(),
         };
 
-        let open_tabs = ws.cfg.get_tabs();
+        let (open_tabs, active_tab) = ws.cfg.get_tabs();
 
         open_tabs.iter().for_each(|&file_id| {
             if core.get_file_by_id(file_id).is_ok() {
-                println!("opening file with id {:#?}", file_id);
-                ws.open_file(file_id, false, true);
+                info!(id = ?file_id, "opening persisted tab");
+                ws.open_file(file_id, false, false);
             }
         });
+        if let Some(active_tab) = active_tab {
+            info!(id = ?active_tab, "setting persisted active tab");
+            ws.active_tab = open_tabs
+                .iter()
+                .position(|&id| id == active_tab)
+                .unwrap_or_default();
+        }
 
         ws
     }
@@ -688,13 +695,14 @@ pub struct WsPersistentStore {
 #[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
 struct WsPresistentData {
     open_tabs: Vec<Uuid>,
+    active_tab: Option<Uuid>,
     auto_save: bool,
     auto_sync: bool,
 }
 
 impl Default for WsPresistentData {
     fn default() -> Self {
-        Self { auto_save: true, auto_sync: true, open_tabs: Vec::default() }
+        Self { auto_save: true, auto_sync: true, open_tabs: Vec::default(), active_tab: None }
     }
 }
 
@@ -715,31 +723,15 @@ impl WsPersistentStore {
     }
 
     pub fn set_tabs(&mut self, tabs: &[Tab], active_tab_index: usize) {
-        let mut active_tab = None;
-        let mut tab_ids: Vec<Uuid> = tabs
-            .iter()
-            .enumerate()
-            .filter_map(|(i, t)| {
-                if i == active_tab_index {
-                    active_tab = Some(t.id);
-                    None
-                } else {
-                    Some(t.id)
-                }
-            })
-            .collect();
-
-        if let Some(tab) = active_tab {
-            tab_ids.push(tab);
-        }
-
         let mut data_lock = self.data.write().unwrap();
-        data_lock.open_tabs = tab_ids;
+        data_lock.open_tabs = tabs.iter().map(|t| t.id).collect();
+        data_lock.active_tab = Some(tabs[active_tab_index].id);
         self.write_to_file();
     }
 
-    pub fn get_tabs(&self) -> Vec<Uuid> {
-        self.data.read().unwrap().open_tabs.clone()
+    pub fn get_tabs(&self) -> (Vec<Uuid>, Option<Uuid>) {
+        let data_lock = self.data.read().unwrap();
+        (data_lock.open_tabs.clone(), data_lock.active_tab)
     }
 
     pub fn get_auto_sync(&self) -> bool {
