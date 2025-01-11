@@ -70,6 +70,48 @@ struct OptimizedSheetItemViewModifier<PresentedContent: View, Item: Identifiable
     }
 }
 
+struct FormSheetPresentingViewModifier<PresentedContent: View, Item: Identifiable>: ViewModifier {
+    @Environment(\.isConstrainedLayout) var isConstrainedLayout
+    
+    @Binding var isPresented: Bool
+    let presentedContent: () -> PresentedContent
+    
+    func body(content: Content) -> some View {
+        if isPresented {
+            content
+                .background(FormSheet(content: {
+                    presentedContent()
+                        .onDisappear {
+                            isPresented = false
+                        }
+                }))
+        } else {
+            content
+        }
+    }
+}
+
+struct FormSheetItemViewModifier<PresentedContent: View, Item: Identifiable>: ViewModifier {
+    @Environment(\.isConstrainedLayout) var isConstrainedLayout
+    
+    @Binding var item: Item?
+    let presentedContent: (Item) -> PresentedContent
+    
+    func body(content: Content) -> some View {
+        if let item {
+            content
+                .background(FormSheet(content: {
+                    presentedContent(item)
+                        .onDisappear {
+                            self.item = nil
+                        }
+                }))
+        } else {
+            content
+        }
+    }
+}
+
 extension View {
     func optimizedSheet<PresentedContent: View>(isPresented: Binding<Bool>, constrainedSheetHeight: Binding<CGFloat>, width: CGFloat? = nil, height: CGFloat? = nil, presentedContent: @escaping () -> PresentedContent) -> some View {
         modifier(OptimizedSheetPresentingViewModifier(isPresented: isPresented, constrainedSheetHeight: constrainedSheetHeight, width: width, height: height, presentedContent: presentedContent))
@@ -77,6 +119,10 @@ extension View {
     
     func optimizedSheet<PresentedContent: View, Item: Identifiable>(item: Binding<Item?>, constrainedSheetHeight: Binding<CGFloat>, width: CGFloat? = nil, height: CGFloat? = nil, presentedContent: @escaping (Item) -> PresentedContent) -> some View {
         modifier(OptimizedSheetItemViewModifier(item: item, constrainedSheetHeight: constrainedSheetHeight, width: width, height: height, presentedContent: presentedContent))
+    }
+    
+    func formSheet<PresentedContent: View>(isPresented: Binding<Bool>, content: @escaping () -> Content) -> some View {
+        modifier(FormSheetPresentingViewModifier(isPresented: isPresented, content: content))
     }
 }
 

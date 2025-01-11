@@ -49,7 +49,8 @@ struct FileOpSheets: ViewModifier {
                     case .create(parent: let parent):
                         EmptyView()
                     case .rename(file: let file):
-                        RenameFileSheet(id: file.id, name: file.name, parentPath: <#T##String#>)
+                        EmptyView()
+//                        RenameFileSheet(id: file.id, name: file.name, parentPath: <#T##String#>)
                     case .select(action: let action):
                         EmptyView()
                     case .share(file: let file):
@@ -57,7 +58,8 @@ struct FileOpSheets: ViewModifier {
                     }
                 }
         } else {
-            
+            content
+                .optimizedSheet(item: <#T##Binding<Identifiable?>#>, constrainedSheetHeight: <#T##Binding<CGFloat>#>, presentedContent: <#T##(Identifiable) -> View#>)
         }
     }
 }

@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftWorkspace
 
-// avoid passing in state that is widely used, just use environment objects
 struct HomeView: View {
     @StateObject var workspaceState = WorkspaceState()
     @StateObject var homeState = HomeState()
@@ -10,28 +9,55 @@ struct HomeView: View {
     @Environment(\.isPreview) var isPreview
     
     var body: some View {
-        if horizontalSizeClass == .compact {
-            DrawerView(isOpened: true, menu: {
-                sidebar
-            }, content: {
-                detail
-            })
-            .environmentObject(homeState)
-            .environment(\.isConstrainedLayout, true)
-        } else {
-            NavigationSplitView(sidebar: {
-                sidebar
-            }, detail: {
-                detail
-            })
-            .environmentObject(homeState)
-            .environment(\.isConstrainedLayout, false)
+        NavigationView {
+            Group {
+                if horizontalSizeClass == .compact {
+                    DrawerView(isOpened: true, menu: {
+                        sidebar
+                    }, content: {
+                        detail
+                    })
+                    .environmentObject(homeState)
+                    .environment(\.isConstrainedLayout, true)
+                } else {
+                    NavigationSplitView(sidebar: {
+                        sidebar
+                    }, detail: {
+                        detail
+                    })
+                    .environmentObject(homeState)
+                    .environment(\.isConstrainedLayout, false)
+                }
+            }
+            .navigationDestination(isPresented: $homeState.showSettings) {
+                
+            }
+            .navigationDestination(isPresented: $homeState.showPendingShares) {
+                
+            }
         }
     }
     
     @ViewBuilder
     var sidebar: some View {
         SidebarView(workspaceState)
+            .toolbar {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    HStack(spacing: 0) {
+                        Button(action: {
+                            homeState.showPendingShares = true
+                        }, label: {
+                            PendingSharesIcon(homeState: homeState)
+                        })
+                        
+                        Button(action: {
+                            homeState.showSettings = true
+                        }, label: {
+                            Image(systemName: "gearshape.fill").foregroundColor(.blue)
+                        })
+                    }
+                }
+            }
     }
     
     @ViewBuilder

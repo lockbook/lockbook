@@ -663,7 +663,7 @@ public class MockLb: LbAPI {
     public func renameFile(id: UUID, newName: String) -> Result<Void, LbError> { .success(()) }
     public func moveFile(id: UUID, newParent: UUID) -> Result<Void, LbError> { .success(()) }
     public func shareFile(id: UUID, username: String, mode: ShareMode) -> Result<Void, LbError> { .success(()) }
-    public func getPendingShares() -> Result<[File], LbError> { .success([]) }
+    public func getPendingShares() -> Result<[File], LbError> { .success([file1, file1, file1, file1, file1]) }
     public func deletePendingShare(id: UUID) -> Result<Void, LbError> { .success(()) }
     public func createLinkAtPath(pathAndName: String, targetId: UUID) -> Result<File, LbError> { .success(file5) }
     public func createAtPath(pathAndName: String) -> Result<File, LbError> { .success(file1) }

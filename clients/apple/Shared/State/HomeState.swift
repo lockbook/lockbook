@@ -5,8 +5,8 @@ class HomeState: ObservableObject {
     @Published var error: UIError? = nil
     @Published var fileActionCompleted: FileAction? = nil
     
-    
-    
+    @Published var showSettings: Bool = false
+    @Published var showPendingShares: Bool = false
 }
 
 public enum FileAction {
