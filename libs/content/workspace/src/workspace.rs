@@ -54,7 +54,7 @@ impl Workspace {
     pub fn new(core: &Lb, ctx: &Context) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
-        let writeable_path = writeable_dir.join("ws_presistance.json");
+        let writeable_path = writeable_dir.join("ws_persistence.json");
 
         let mut ws = Self {
             tabs: Default::default(),
