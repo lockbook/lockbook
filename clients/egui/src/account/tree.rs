@@ -897,7 +897,8 @@ impl FileTree {
         }
 
         if Button::default()
-            .icon(&Icon::SCHEDULE)
+            .icon(&Icon::FOLDER)
+            .icon_color(ui.style().visuals.widgets.active.bg_fill)
             .text("Suggested Documents")
             .default_fill(default_fill)
             .frame(true)

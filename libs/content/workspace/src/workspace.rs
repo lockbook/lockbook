@@ -102,7 +102,7 @@ impl Workspace {
         self.ctx = ctx.clone();
         self.core = core.clone();
 
-        let ids: Vec<lb_rs::Uuid> = self.tabs.iter().map(|tab| tab.id).collect();
+        let ids: Vec<Uuid> = self.tabs.iter().map(|tab| tab.id).collect();
         let maybe_active_tab_id = self.current_tab().map(|tab| tab.id);
 
         while self.active_tab != 0 {
@@ -125,7 +125,7 @@ impl Workspace {
 
     /// upsert returns true if a tab was created
     pub fn upsert_tab(
-        &mut self, id: lb_rs::Uuid, name: &str, path: &str, is_new_file: bool, make_active: bool,
+        &mut self, id: Uuid, name: &str, path: &str, is_new_file: bool, make_active: bool,
     ) -> bool {
         for (i, tab) in self.tabs.iter().enumerate() {
             if tab.id == id {
@@ -166,7 +166,7 @@ impl Workspace {
         true
     }
 
-    pub fn get_mut_tab_by_id(&mut self, id: lb_rs::Uuid) -> Option<&mut Tab> {
+    pub fn get_mut_tab_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
         self.tabs.iter_mut().find(|tab| tab.id == id)
     }
 
@@ -212,7 +212,7 @@ impl Workspace {
         None
     }
 
-    pub fn goto_tab_id(&mut self, id: lb_rs::Uuid) -> bool {
+    pub fn goto_tab_id(&mut self, id: Uuid) -> bool {
         for (i, tab) in self.tabs.iter().enumerate() {
             if tab.id == id {
                 self.active_tab = i;

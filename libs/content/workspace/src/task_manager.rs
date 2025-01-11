@@ -37,28 +37,36 @@ pub struct Tasks {
 }
 
 impl Tasks {
+    fn load_queued(&self, id: Uuid) -> bool {
+        self.queued_loads
+            .iter()
+            .any(|queued_load| queued_load.request.id == id)
+    }
+
+    fn save_queued(&self, id: Uuid) -> bool {
+        self.queued_saves
+            .iter()
+            .any(|queued_save| queued_save.request.id == id)
+    }
+
     fn load_or_save_queued(&self, id: Uuid) -> bool {
-        let load_queued = self
-            .queued_loads
+        self.load_queued(id) || self.save_queued(id)
+    }
+
+    fn load_in_progress(&self, id: Uuid) -> bool {
+        self.in_progress_loads
             .iter()
-            .any(|queued_load| queued_load.request.id == id);
-        let save_queued = self
-            .queued_saves
+            .any(|in_progress_load| in_progress_load.request.id == id)
+    }
+
+    fn save_in_progress(&self, id: Uuid) -> bool {
+        self.in_progress_saves
             .iter()
-            .any(|queued_save| queued_save.request.id == id);
-        load_queued || save_queued
+            .any(|in_progress_save| in_progress_save.request.id == id)
     }
 
     fn load_or_save_in_progress(&self, id: Uuid) -> bool {
-        let save_in_progress = self
-            .in_progress_saves
-            .iter()
-            .any(|in_progress_save| in_progress_save.request.id == id);
-        let load_in_progress = self
-            .in_progress_loads
-            .iter()
-            .any(|in_progress_load| in_progress_load.request.id == id);
-        save_in_progress || load_in_progress
+        self.load_in_progress(id) || self.save_in_progress(id)
     }
 
     fn any_load_or_save_queued_or_in_progress(&self) -> bool {
@@ -277,8 +285,24 @@ impl TaskManager {
             .push(QueuedSyncStatusUpdate { timing: QueuedTiming::new() });
     }
 
+    pub fn load_queued(&self, id: Uuid) -> bool {
+        self.tasks.lock().unwrap().load_queued(id)
+    }
+
+    pub fn save_queued(&self, id: Uuid) -> bool {
+        self.tasks.lock().unwrap().save_queued(id)
+    }
+
     pub fn load_or_save_queued(&self, id: Uuid) -> bool {
         self.tasks.lock().unwrap().load_or_save_queued(id)
+    }
+
+    pub fn load_in_progress(&self, id: Uuid) -> bool {
+        self.tasks.lock().unwrap().load_in_progress(id)
+    }
+
+    pub fn save_in_progress(&self, id: Uuid) -> bool {
+        self.tasks.lock().unwrap().save_in_progress(id)
     }
 
     pub fn load_or_save_in_progress(&self, id: Uuid) -> bool {
