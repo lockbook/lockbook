@@ -726,7 +726,11 @@ impl WsPersistentStore {
         let mut data_lock = self.data.write().unwrap();
         data_lock.open_tabs = tabs.iter().map(|t| t.id).collect();
         if !tabs.is_empty() {
-            data_lock.active_tab = Some(tabs[active_tab_index].id);
+            if let Some(tab) = tabs.get(active_tab_index) {
+                data_lock.active_tab = Some(tab.id);
+            } else {
+                data_lock.active_tab = Some(tabs[0].id);
+            }
         }
         self.write_to_file();
     }
