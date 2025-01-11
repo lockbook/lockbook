@@ -615,9 +615,15 @@ impl Workspace {
 
     pub fn rename_file(&mut self, req: (Uuid, String)) {
         let (id, new_name) = req;
-        self.core.rename_file(&id, &new_name).unwrap(); // TODO
-
-        self.file_renamed(id, new_name);
+        match self.core.rename_file(&id, &new_name) {
+            Ok(()) => {
+                self.file_renamed(id, new_name);
+            }
+            Err(err) => {
+                // todo: show a toast
+                warn!(?id, "failed to rename file: {:?}", err);
+            }
+        }
     }
 
     pub fn file_renamed(&mut self, id: Uuid, new_name: String) {
@@ -649,10 +655,15 @@ impl Workspace {
 
     pub fn move_file(&mut self, req: (Uuid, Uuid)) {
         let (id, new_parent) = req;
-        self.core.move_file(&id, &new_parent).unwrap(); // TODO
-
-        self.out.file_moved = Some((id, new_parent));
-        self.ctx.request_repaint();
+        match self.core.move_file(&id, &new_parent) {
+            Ok(()) => {
+                self.out.file_moved = Some((id, new_parent));
+                self.ctx.request_repaint();
+            }
+            Err(err) => {
+                warn!(?id, "failed to move file: {:?}", err);
+            }
+        }
     }
 
     pub fn status_message(&self) -> String {
