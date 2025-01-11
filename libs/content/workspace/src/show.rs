@@ -2,7 +2,7 @@ use basic_human_duration::ChronoHumanDuration;
 use core::f32;
 use egui::emath::easing;
 use egui::os::OperatingSystem;
-use egui::{EventFilter, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand};
+use egui::{Align2, EventFilter, FontId, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand};
 use std::collections::HashMap;
 use std::mem;
 use std::time::{Duration, Instant};
@@ -121,6 +121,8 @@ impl Workspace {
                 }
             }
 
+            let content_rect = ui.available_rect_before_wrap();
+
             ui.centered_and_justified(|ui| {
                 let mut rename_req = None;
                 if let Some(tab) = self.tabs.get_mut(self.active_tab) {
@@ -186,6 +188,24 @@ impl Workspace {
                     self.rename_file(req);
                 }
             });
+
+            if let Some(tab) = self.tabs.get(self.active_tab) {
+                let summary = self.tab_status(tab.id).summary();
+                let last_saved = tab.last_saved.elapsed_human_string();
+                ui.painter().text(
+                    content_rect.left_bottom() + egui::vec2(10.0, -10.0),
+                    Align2::LEFT_BOTTOM,
+                    format!("{summary}\nsaved {last_saved}"),
+                    FontId { size: 12.0, family: egui::FontFamily::Monospace },
+                    ui.visuals()
+                        .widgets
+                        .noninteractive
+                        .fg_stroke
+                        .color
+                        .gamma_multiply(0.5),
+                );
+                ui.ctx().request_repaint_after_secs(1.0);
+            }
         });
     }
 
@@ -398,23 +418,16 @@ impl Workspace {
     fn tab_label(
         &mut self, ui: &mut egui::Ui, t: usize, is_active: bool, active_tab_changed: bool,
     ) -> Option<TabLabelResponse> {
-        let tab = &mut self.tabs[t];
-        let mut result = None;
+        let id = self.tabs[t].id;
 
+        let mut result = None;
         let icon_size = 16.0;
         let x_icon = Icon::CLOSE.size(icon_size);
-        let status_icon = if self.tasks.load_or_save_queued(tab.id) {
-            Icon::SCHEDULE.size(icon_size)
-        } else if self.tasks.load_or_save_in_progress(tab.id) {
-            Icon::SAVE.size(icon_size)
-        } else if tab.is_dirty(&self.tasks) {
-            Icon::CIRCLE.size(icon_size)
-        } else {
-            Icon::CHECK_CIRCLE.size(icon_size)
-        };
+        let status = self.tab_status(id);
+        let status_icon = status.icon();
 
         let padding_x = 10.;
-        let w = if tab.is_closing { 40. } else { 160. };
+        let w = if self.tabs[t].is_closing { 40. } else { 160. };
         let h = 40.;
 
         let (tab_label_rect, tab_label_resp) = ui.allocate_exact_size(
@@ -436,7 +449,7 @@ impl Workspace {
         }
 
         // closing (just draw status icon)
-        if tab.is_closing {
+        if self.tabs[t].is_closing {
             let icon_draw_pos = egui::pos2(
                 tab_label_rect.min.x + padding_x,
                 tab_label_rect.center().y - status_icon.size / 2.0,
@@ -453,7 +466,7 @@ impl Workspace {
                 .galley(icon_draw_pos, icon, ui.visuals().text_color());
         }
         // renaming
-        else if let Some(ref mut str) = tab.rename {
+        else if let Some(ref mut str) = self.tabs[t].rename {
             let res = ui
                 .allocate_ui_at_rect(tab_label_rect, |ui| {
                     ui.add(
@@ -491,7 +504,7 @@ impl Workspace {
 
             // release focus to cancel ('esc' or click elsewhere)
             if res.lost_focus() {
-                tab.rename = None;
+                self.tabs[t].rename = None;
             }
         } else {
             // interact with button rect whether it's shown or not
@@ -504,7 +517,7 @@ impl Workspace {
                     .expand(2.0);
             let close_button_resp = ui.interact(
                 close_button_rect,
-                Id::new("tab label close button").with(tab.id),
+                Id::new("tab label close button").with(self.tabs[t].id),
                 Sense { click: true, drag: false, focusable: false },
             );
 
@@ -564,38 +577,17 @@ impl Workspace {
                 .style_mut(|s| s.visuals.menu_rounding = (2.).into());
             ui.interact(
                 status_icon_rect,
-                Id::new("tab label status icon").with(tab.id),
+                Id::new("tab label status icon").with(self.tabs[t].id),
                 Sense { click: false, drag: false, focusable: false },
             )
             .on_hover_ui(|ui| {
-                let text = if self.tasks.load_or_save_queued(tab.id) {
-                    "save queued"
-                } else if self.tasks.load_or_save_in_progress(tab.id) {
-                    "save in progress"
-                } else if tab.is_dirty(&self.tasks) {
-                    "unsaved changes"
-                } else {
-                    "all changes saved"
-                };
+                let text = self.tab_status(self.tabs[t].id).summary();
                 let text: egui::WidgetText = text.into();
                 let text =
                     text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Small);
                 ui.add(egui::Label::new(text));
 
-                let last_saved = {
-                    let d = time::Duration::milliseconds(tab.last_saved.elapsed().as_millis() as _);
-                    let minutes = d.whole_minutes();
-                    let seconds = d.whole_seconds();
-                    if seconds > 0 && minutes == 0 {
-                        if seconds <= 1 {
-                            "1 second ago".to_string()
-                        } else {
-                            format!("{seconds} seconds ago")
-                        }
-                    } else {
-                        d.format_human().to_string()
-                    }
-                };
+                let last_saved = self.tabs[t].last_saved.elapsed_human_string();
                 let text: egui::WidgetText = format!("last saved {last_saved}").into();
                 let text =
                     text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Small);
@@ -605,7 +597,7 @@ impl Workspace {
             });
 
             // draw text
-            let text: egui::WidgetText = (&tab.name).into();
+            let text: egui::WidgetText = (&self.tabs[t].name).into();
             let wrap_width = if show_close_button {
                 w - (padding_x + status_icon.size + padding_x + padding_x + x_icon.size + padding_x)
             } else {
@@ -618,7 +610,7 @@ impl Workspace {
             text_rect.max.x = close_button_rect.min.x;
             ui.interact(
                 text_rect,
-                Id::new("tab label text").with(tab.id),
+                Id::new("tab label text").with(self.tabs[t].id),
                 Sense { click: false, drag: false, focusable: false },
             )
             .on_hover_ui(|ui| {
@@ -731,5 +723,26 @@ impl InputStateExt for egui::InputState {
 
     fn consume_key_exact(&mut self, modifiers: egui::Modifiers, logical_key: egui::Key) -> bool {
         self.count_and_consume_key_exact(modifiers, logical_key) > 0
+    }
+}
+
+trait InstantExt {
+    fn elapsed_human_string(&self) -> String;
+}
+
+impl InstantExt for Instant {
+    fn elapsed_human_string(&self) -> String {
+        let d = time::Duration::milliseconds(self.elapsed().as_millis() as _);
+        let minutes = d.whole_minutes();
+        let seconds = d.whole_seconds();
+        if seconds > 0 && minutes == 0 {
+            if seconds <= 1 {
+                "1 second ago".to_string()
+            } else {
+                format!("{seconds} seconds ago")
+            }
+        } else {
+            d.format_human().to_string()
+        }
     }
 }
