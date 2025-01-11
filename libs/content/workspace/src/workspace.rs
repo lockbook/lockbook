@@ -728,6 +728,8 @@ impl WsPersistentStore {
         if !tabs.is_empty() {
             if let Some(tab) = tabs.get(active_tab_index) {
                 data_lock.active_tab = Some(tab.id);
+            } else {
+                data_lock.active_tab = Some(tabs[0].id);
             }
         }
         self.write_to_file();
