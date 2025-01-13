@@ -313,7 +313,7 @@ private struct OnboardingThreeView: View {
              
              HStack {
                  Text("\(number)")
-                     .foregroundColor(.blue)
+                     .foregroundColor(.accentColor)
                  
                  Text(word)
                      .foregroundColor(.primary)
@@ -457,7 +457,7 @@ private struct ImportAccountView: View {
         }, label: {
             Image(systemName: "qrcode.viewfinder")
                 .font(.title)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.accentColor)
         })
         .sheet(isPresented: $showQRScanner) {
             CodeScannerView(codeTypes: [.qr], simulatedData: "This is simulated data", completion: handleScan)

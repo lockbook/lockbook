@@ -8,6 +8,7 @@ class FileTreeViewModel: ObservableObject {
     @Published var selectedDoc: UUID? = nil
     
     @Published var sheetInfo: FileOperationSheetInfo? = nil
+    @Published var selectSheetInfo: SelectFolderAction? = nil
     
     private var cancellables: Set<AnyCancellable> = []
     
@@ -57,37 +58,36 @@ struct CreateFolderSheetInfo: Identifiable {
 
 
 enum FileOperationSheetInfo: Identifiable {
-    case create(parent: File)
+    case createFolder(parent: File)
     case rename(file: File)
-    case select(action: SelectFolderAction)
     case share(file: File)
     
     var id: String {
         switch self {
-        case .create(let parent):
-            return "create-\(parent.id)"
+        case .createFolder(let parent):
+            return "createFolder-\(parent.id)"
         case .rename(let file):
             return "rename-\(file.id)"
-        case .select(let action):
-            return "select-\(action.id)"
+//        case .select(let action):
+//            return "select-\(action.id)"
         case .share(let file):
             return "share-\(file.id)"
         }
     }
 }
 
-enum SelectFolderAction {
-    case Move(ids: [UUID])
-    case Import(paths: [String])
-    case AcceptShare(name: String, id: UUID)
+enum SelectFolderAction: Identifiable {
+    case move(files: [File])
+    case externalImport(paths: [String])
+    case acceptShare(name: String, id: UUID)
     
     var id: String {
         switch self {
-        case .Move(let ids):
-            return "move-\(ids.map(\.uuidString).joined(separator: ","))"
-        case .Import(let paths):
+        case .move(let ids):
+            return "move-\(ids.map(\.name).joined(separator: ","))"
+        case .externalImport(let paths):
             return "import-\(paths.joined(separator: ","))"
-        case .AcceptShare(let name, let id):
+        case .acceptShare(let name, let id):
             return "acceptShare-\(name)-\(id.uuidString)"
         }
     }

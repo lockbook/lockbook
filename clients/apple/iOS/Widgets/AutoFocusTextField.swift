@@ -8,13 +8,15 @@ struct AutoFocusTextField: UIViewRepresentable {
     let returnKeyType: UIReturnKeyType
     let borderStyle: UITextField.BorderStyle
     let onSubmit: () -> Void
+    let autocorrectionType: UITextAutocorrectionType
     
-    init(text: Binding<String>, placeholder: String, returnKeyType: UIReturnKeyType = .done, borderStyle: UITextField.BorderStyle = .roundedRect, onSubmit: @escaping () -> Void) {
+    init(text: Binding<String>, placeholder: String, returnKeyType: UIReturnKeyType = .done, borderStyle: UITextField.BorderStyle = .roundedRect, autocorrect: Bool = false, onSubmit: @escaping () -> Void) {
         self._text = text
         
         self.placeholder = placeholder
         self.returnKeyType = returnKeyType
         self.borderStyle = borderStyle
+        self.autocorrectionType = autocorrect ? .yes : .no
         self.onSubmit = onSubmit
     }
     
@@ -29,6 +31,7 @@ struct AutoFocusTextField: UIViewRepresentable {
         textField.returnKeyType = returnKeyType
         textField.borderStyle = borderStyle
         textField.text = text
+        textField.autocorrectionType = autocorrectionType
         textField.setContentHuggingPriority(.defaultHigh, for: .vertical)
         
         textField.becomeFirstResponder()

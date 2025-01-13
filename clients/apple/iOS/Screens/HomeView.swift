@@ -53,7 +53,7 @@ struct HomeView: View {
                         Button(action: {
                             homeState.showSettings = true
                         }, label: {
-                            Image(systemName: "gearshape.fill").foregroundColor(.blue)
+                            Image(systemName: "gearshape.fill").foregroundColor(.accentColor)
                         })
                     }
                 }

@@ -634,7 +634,7 @@ public class MockLb: LbAPI {
         self.rootId = UUID()
         
         self.file0 = File(id: rootId, parent: rootId, name: "smail", type: .folder, lastModifiedBy: "smail", lastModified: 1735857212, shares: [])
-        self.file1 = File(id: UUID(), parent: rootId, name: "welcome.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857212, shares: [])
+        self.file1 = File(id: UUID(), parent: rootId, name: "welcome.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857212, shares: [Share(by: "smail", with: "parth", mode: .write), Share(by: "smail", with: "adam", mode: .write), Share(by: "smail", with: "travis", mode: .write), Share(by: "smail", with: "rando", mode: .read)])
         self.file2 = File(id: UUID(), parent: rootId, name: "about.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857215, shares: [])
         self.file3 = File(id: UUID(), parent: rootId, name: "projects.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857220, shares: [])
         self.file4 = File(id: UUID(), parent: rootId, name: "contact.md", type: .document, lastModifiedBy: "smail", lastModified: 1735857225, shares: [])

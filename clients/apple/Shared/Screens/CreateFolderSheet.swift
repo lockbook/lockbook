@@ -1,22 +1,23 @@
 import SwiftUI
 import SwiftWorkspace
 
-struct RenameFileSheet: View {
+struct CreateFolderSheet: View {
     // MARK: Have to be updated manually whenever the view contents change. Vital for iPadOS and macOS
     static let FORM_WIDTH: CGFloat = 420
     static let FORM_HEIGHT: CGFloat = 190
 
-    @StateObject var model: RenameFileViewModel
     @Environment(\.dismiss) private var dismiss
     
-    init(homeState: HomeState, workspaceState: WorkspaceState, id: UUID, name: String) {
-        self._model = StateObject(wrappedValue: RenameFileViewModel(homeState: homeState, workspaceState: workspaceState, id: id, name: name))
+    @StateObject var model: CreateFolderViewModel
+    
+    init(homeState: HomeState, workspaceState: WorkspaceState, parentId: UUID) {
+        self._model = StateObject(wrappedValue: CreateFolderViewModel(homeState: homeState, workspaceState: workspaceState, parentId: parentId))
     }
-        
+    
     var body: some View {
         VStack(spacing: 10) {
             HStack {
-                Text("Rename File")
+                Text("New Folder")
                     .bold()
                 
                 Spacer()
@@ -29,7 +30,7 @@ struct RenameFileSheet: View {
                 Text(model.parentPath ?? "...")
                     .lineLimit(2)
                     .font(.system(.callout, design: .monospaced))
-                
+
                 Spacer()
             }
             
@@ -45,14 +46,13 @@ struct RenameFileSheet: View {
             }
                                     
             Button {
-                renameAndDismiss()
+                createAndDismiss()
             } label: {
-                Text("Rename")
+                Text("Create")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
-            .disabled(model.name == model.newName)
-
+            .disabled(model.name.isEmpty)
         }
         .padding(.horizontal)
         .padding(.top, 3)
@@ -61,41 +61,38 @@ struct RenameFileSheet: View {
     @ViewBuilder
     var textField: some View {
         #if os(iOS)
-        AutoFocusTextField(text: $model.newName, placeholder: "File name", returnKeyType: .done, borderStyle: .roundedRect) {
-            renameAndDismiss()
+        AutoFocusTextField(text: $model.name, placeholder: "Folder name", returnKeyType: .done, borderStyle: .roundedRect) {
+            createAndDismiss()
         }
         #else
-        AutoFocusTextField(text: $model.newName, placeholder: "File name", focusRingType: .none, isBordered: false) {
-            renameAndDismiss()
+        AutoFocusTextField(text: $model.name, placeholder: "Folder name", focusRingType: .none, isBordered: false) {
+            createAndDismiss()
         }
         #endif
     }
     
-    func renameAndDismiss() {
-        if model.renameFile() {
+    func createAndDismiss() {
+        if model.createFolder() {
             dismiss()
         }
     }
 }
 
-class RenameFileViewModel: ObservableObject {
-    @Published var newName: String
+class CreateFolderViewModel: ObservableObject {
+    @Published var name: String = ""
     @Published var error: String = ""
     @Published var parentPath: String? = nil
     
     let workspaceState: WorkspaceState
     
-    let id: UUID
-    let name: String
+    let parentId: UUID
     
-    init(homeState: HomeState, workspaceState: WorkspaceState, id: UUID, name: String) {
+    init(homeState: HomeState, workspaceState: WorkspaceState, parentId: UUID) {
         self.workspaceState = workspaceState
-        self.id = id
-        self.name = name
-        self._newName = Published(initialValue: name)
+        self.parentId = parentId
         
         DispatchQueue.global(qos: .userInitiated).async {
-            let res = AppState.lb.getPathById(id: id)
+            let res = AppState.lb.getPathById(id: parentId)
             
             DispatchQueue.main.async {
                 switch res {
@@ -108,16 +105,15 @@ class RenameFileViewModel: ObservableObject {
         }
     }
     
-    func renameFile() -> Bool {
-        guard name != newName else {
-            return true
+    func createFolder() -> Bool {
+        guard !name.isEmpty else {
+            return false
         }
         
-        let res = AppState.lb.renameFile(id: id, newName: newName)
+        let res = AppState.lb.createFile(name: name, parent: parentId, fileType: .folder)
         
         switch res {
         case .success(_):
-            workspaceState.fileOpCompleted = .Rename(id: id, newName: newName)
             return true
         case .failure(let err):
             error = err.msg
@@ -126,23 +122,22 @@ class RenameFileViewModel: ObservableObject {
     }
 }
 
-
 @available(iOS 17.0, *)
 #Preview {
     @Previewable @State var file: File? = (AppState.lb as! MockLb).file1
+    @Previewable @State var sheetHeight: CGFloat = 0
     
     Color.accentColor
         .optimizedSheet(
             item: $file,
-            constrainedSheetHeight: .constant(200),
-            width: RenameFileSheet.FORM_WIDTH,
-            height: RenameFileSheet.FORM_HEIGHT,
+            constrainedSheetHeight: $sheetHeight,
+            width: CreateFolderSheet.FORM_WIDTH,
+            height: CreateFolderSheet.FORM_HEIGHT,
             presentedContent: { item in
-                RenameFileSheet(
+                CreateFolderSheet(
                     homeState: HomeState(),
                     workspaceState: WorkspaceState(),
-                    id: item.id,
-                    name: item.name
+                    parentId: item.id
                 )
             }
         )

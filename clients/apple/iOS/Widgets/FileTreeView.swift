@@ -5,6 +5,7 @@ struct FileTreeView: View {
     
     @EnvironmentObject var workspaceState: WorkspaceState
     @StateObject var fileTreeModel: FileTreeViewModel
+    @State var sheetHeight: CGFloat = 0
     
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
     
@@ -31,12 +32,16 @@ struct FileTreeView: View {
         .refreshable {
             workspaceState.requestSync()
         }
+        .fileOpSheets(fileTreeModel: fileTreeModel, constrainedSheetHeight: $sheetHeight)
         .padding(.leading)
     }
 }
 
 struct FileOpSheets: ViewModifier {
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
+    @EnvironmentObject var homeState: HomeState
+    @EnvironmentObject var workspaceState: WorkspaceState
+    @EnvironmentObject var filesModel: FilesViewModel
     
     @ObservedObject var fileTreeModel: FileTreeViewModel
     @Binding var constrainedSheetHeight: CGFloat
@@ -46,26 +51,54 @@ struct FileOpSheets: ViewModifier {
             content
                 .sheet(item: $fileTreeModel.sheetInfo) { info in
                     switch info {
-                    case .create(parent: let parent):
-                        EmptyView()
+                    case .createFolder(parent: let parent):
+                        CreateFolderSheet(homeState: homeState, workspaceState: workspaceState, parentId: parent.id)
+                            .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
                     case .rename(file: let file):
-                        EmptyView()
-//                        RenameFileSheet(id: file.id, name: file.name, parentPath: <#T##String#>)
-                    case .select(action: let action):
-                        EmptyView()
+                        RenameFileSheet(homeState: homeState, workspaceState: workspaceState, id: file.id, name: file.name)
+                            .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
                     case .share(file: let file):
-                        EmptyView()
+                        ShareFileSheet(workspaceState: workspaceState, id: file.id, name: file.name, shares: file.shares)
+                            .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
                     }
+                }
+                .sheet(item: $fileTreeModel.selectSheetInfo) { action in
+                    SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)
                 }
         } else {
             content
-                .optimizedSheet(item: <#T##Binding<Identifiable?>#>, constrainedSheetHeight: <#T##Binding<CGFloat>#>, presentedContent: <#T##(Identifiable) -> View#>)
+                .formSheet(item: $fileTreeModel.sheetInfo) { info in
+                    switch info {
+                    case .createFolder(parent: let parent):
+                        CreateFolderSheet(homeState: homeState, workspaceState: workspaceState, parentId: parent.id)
+                            .frame(width: CreateFolderSheet.FORM_WIDTH, height: CreateFolderSheet.FORM_HEIGHT)
+                    case .rename(file: let file):
+                        RenameFileSheet(homeState: homeState, workspaceState: workspaceState, id: file.id, name: file.name)
+                            .frame(width: RenameFileSheet.FORM_WIDTH, height: RenameFileSheet.FORM_HEIGHT)
+                    case .share(file: let file):
+                        ShareFileSheet(workspaceState: workspaceState, id: file.id, name: file.name, shares: file.shares)
+                            .frame(width: ShareFileSheet.FORM_WIDTH, height: ShareFileSheet.FORM_HEIGHT)
+                    }
+                }
+                .sheet(item: $fileTreeModel.selectSheetInfo) { action in
+                    SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)
+                }
         }
+    }
+}
+
+extension View {
+    func fileOpSheets(
+        fileTreeModel: FileTreeViewModel,
+        constrainedSheetHeight: Binding<CGFloat>
+    ) -> some View {
+        modifier(FileOpSheets(fileTreeModel: fileTreeModel, constrainedSheetHeight: constrainedSheetHeight))
     }
 }
 
 #Preview {
     FileTreeView(root: (AppState.lb as! MockLb).file0, workspaceState: WorkspaceState())
+        .environmentObject(HomeState())
         .environmentObject(FilesViewModel(workspaceState: WorkspaceState()))
         .environmentObject(WorkspaceState())
 }
@@ -165,6 +198,7 @@ struct FileRowContextMenu: View {
     
     @EnvironmentObject var fileTreeModel: FileTreeViewModel
     @EnvironmentObject var filesModel: FilesViewModel
+    @EnvironmentObject var homeState: HomeState
     
     var body: some View {
         VStack {
@@ -180,7 +214,7 @@ struct FileRowContextMenu: View {
                     Label("Create a drawing", systemImage: "pencil.tip.crop.circle.badge.plus")
                 }
                 Button(action: {
-                    fileTreeModel.sheetInfo = .create(parent: file)
+                    fileTreeModel.sheetInfo = .createFolder(parent: file)
                 }) {
                     Label("Create a folder", systemImage: "folder.fill")
                 }
@@ -194,7 +228,7 @@ struct FileRowContextMenu: View {
                 }
 
                 Button(action: {
-                    fileTreeModel.sheetInfo = .select(action: .Move(ids: [file.id]))
+                    fileTreeModel.selectSheetInfo = .move(files: [file])
                 }) {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 }
@@ -208,7 +242,7 @@ struct FileRowContextMenu: View {
                 }
 
                 Button(action: {
-//                    exportFilesAndShowShareSheet(metas: [meta])
+                    exportFiles(homeState: homeState, files: [file])
                 }) {
                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                 }

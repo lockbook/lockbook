@@ -65,7 +65,7 @@ struct SuggestedDocCell: View {
         .padding(12)
         .contentShape(Rectangle())
         .frame(maxWidth: 200)
-        .background(RoundedRectangle(cornerRadius: 10).fill(colorScheme == .light ? .blue.opacity(0.08) : .blue.opacity(0.19)))
+        .background(RoundedRectangle(cornerRadius: 10).fill(colorScheme == .light ? Color.accentColor.opacity(0.08) : Color.accentColor.opacity(0.19)))
     }
 }
 
@@ -99,6 +99,6 @@ struct SuggestedDocLoadingCell: View {
         }
         .padding(12)
         .contentShape(Rectangle())
-        .background(RoundedRectangle(cornerRadius: 10).fill(colorScheme == .light ? .blue.opacity(0.08) : .blue.opacity(0.19)))
+        .background(RoundedRectangle(cornerRadius: 10).fill(colorScheme == .light ? Color.accentColor.opacity(0.08) : Color.accentColor.opacity(0.19)))
     }
 }

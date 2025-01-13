@@ -9,7 +9,7 @@ struct OptimizedSheetPresentingViewModifier<PresentedContent: View>: ViewModifie
     var width: CGFloat? = nil
     var height: CGFloat? = nil
     
-    let presentedContent: () -> PresentedContent
+    @ViewBuilder let presentedContent: () -> PresentedContent
     
     func body(content: Content) -> some View {
         if isConstrainedLayout {
@@ -19,18 +19,11 @@ struct OptimizedSheetPresentingViewModifier<PresentedContent: View>: ViewModifie
                         .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
                 }
         } else {
-            if isPresented {
-                content
-                    .background(FormSheet(content: {
-                        presentedContent()
-                            .onDisappear {
-                                isPresented = false
-                            }
-                            .frame(width: width, height: height)
-                    }))
-            } else {
-                content
-            }
+            content
+                .formSheet(isPresented: $isPresented) {
+                    presentedContent()
+                        .frame(width: width, height: height)
+                }
         }
     }
 }
@@ -44,7 +37,7 @@ struct OptimizedSheetItemViewModifier<PresentedContent: View, Item: Identifiable
     var width: CGFloat? = nil
     var height: CGFloat? = nil
     
-    let presentedContent: (Item) -> PresentedContent
+    @ViewBuilder let presentedContent: (Item) -> PresentedContent
     
     func body(content: Content) -> some View {
         if isConstrainedLayout {
@@ -54,27 +47,20 @@ struct OptimizedSheetItemViewModifier<PresentedContent: View, Item: Identifiable
                         .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
                 }
         } else {
-            if let item {
-                content
-                    .background(FormSheet(content: {
-                        presentedContent(item)
-                            .onDisappear {
-                                self.item = nil
-                            }
-                            .frame(width: width, height: height)
-                    }))
-            } else {
-                content
-            }
+            content
+                .formSheet(item: $item) { item in
+                    presentedContent(item)
+                        .frame(width: width, height: height)
+                }
         }
     }
 }
 
-struct FormSheetPresentingViewModifier<PresentedContent: View, Item: Identifiable>: ViewModifier {
+struct FormSheetPresentingViewModifier<PresentedContent: View>: ViewModifier {
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
     
     @Binding var isPresented: Bool
-    let presentedContent: () -> PresentedContent
+    @ViewBuilder let presentedContent: () -> PresentedContent
     
     func body(content: Content) -> some View {
         if isPresented {
@@ -95,7 +81,7 @@ struct FormSheetItemViewModifier<PresentedContent: View, Item: Identifiable>: Vi
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
     
     @Binding var item: Item?
-    let presentedContent: (Item) -> PresentedContent
+    @ViewBuilder let presentedContent: (Item) -> PresentedContent
     
     func body(content: Content) -> some View {
         if let item {
@@ -113,16 +99,20 @@ struct FormSheetItemViewModifier<PresentedContent: View, Item: Identifiable>: Vi
 }
 
 extension View {
-    func optimizedSheet<PresentedContent: View>(isPresented: Binding<Bool>, constrainedSheetHeight: Binding<CGFloat>, width: CGFloat? = nil, height: CGFloat? = nil, presentedContent: @escaping () -> PresentedContent) -> some View {
+    func optimizedSheet<PresentedContent: View>(isPresented: Binding<Bool>, constrainedSheetHeight: Binding<CGFloat>, width: CGFloat? = nil, height: CGFloat? = nil, @ViewBuilder presentedContent: @escaping () -> PresentedContent) -> some View {
         modifier(OptimizedSheetPresentingViewModifier(isPresented: isPresented, constrainedSheetHeight: constrainedSheetHeight, width: width, height: height, presentedContent: presentedContent))
     }
     
-    func optimizedSheet<PresentedContent: View, Item: Identifiable>(item: Binding<Item?>, constrainedSheetHeight: Binding<CGFloat>, width: CGFloat? = nil, height: CGFloat? = nil, presentedContent: @escaping (Item) -> PresentedContent) -> some View {
+    func optimizedSheet<PresentedContent: View, Item: Identifiable>(item: Binding<Item?>, constrainedSheetHeight: Binding<CGFloat>, width: CGFloat? = nil, height: CGFloat? = nil, @ViewBuilder presentedContent: @escaping (Item) -> PresentedContent) -> some View {
         modifier(OptimizedSheetItemViewModifier(item: item, constrainedSheetHeight: constrainedSheetHeight, width: width, height: height, presentedContent: presentedContent))
     }
     
-    func formSheet<PresentedContent: View>(isPresented: Binding<Bool>, content: @escaping () -> Content) -> some View {
-        modifier(FormSheetPresentingViewModifier(isPresented: isPresented, content: content))
+    func formSheet<PresentedContent: View>(isPresented: Binding<Bool>, @ViewBuilder presentedContent: @escaping () -> PresentedContent) -> some View {
+        modifier(FormSheetPresentingViewModifier(isPresented: isPresented, presentedContent: presentedContent))
+    }
+    
+    func formSheet<PresentedContent: View, Item: Identifiable>(item: Binding<Item?>, @ViewBuilder presentedContent: @escaping (Item) -> PresentedContent) -> some View {
+        modifier(FormSheetItemViewModifier(item: item, presentedContent: presentedContent))
     }
 }
 
@@ -140,7 +130,7 @@ struct AutoSizeSheetViewModifier: ViewModifier {
             .modifier(ReadHeightModifier())
             .onPreferenceChange(HeightPreferenceKey.self) { height in
                 if let height {
-                    self.sheetHeight = height
+                    self.sheetHeight = height + 30
                 }
             }
             .presentationDetents([.height(sheetHeight)])

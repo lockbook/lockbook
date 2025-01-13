@@ -23,7 +23,7 @@ struct PendingSharesIcon: View {
         if let pendingSharesCount = model.pendingSharesCount {
             ZStack {
                 Image(systemName: "person.2.fill")
-                    .foregroundColor(.blue)
+                    .foregroundColor(.accentColor)
                 
                 if pendingSharesCount > 0 {
                     Circle()
