@@ -1,5 +1,5 @@
 use harper_core::linting::{Lint, LintGroup, LintGroupConfig, Linter};
-use harper_core::{Document, FullDictionary};
+use harper_core::{Document, FstDictionary};
 
 #[derive(Default)]
 pub struct Grammar {
@@ -7,7 +7,7 @@ pub struct Grammar {
 }
 
 pub fn calc(text: &str) -> Grammar {
-    let dict = FullDictionary::curated();
+    let dict = FstDictionary::curated();
     let document = Document::new_markdown(text, &dict);
 
     let mut linter = LintGroup::new(LintGroupConfig { ..Default::default() }, dict);
