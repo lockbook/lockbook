@@ -2,7 +2,7 @@ use basic_human_duration::ChronoHumanDuration;
 use core::f32;
 use egui::emath::easing;
 use egui::os::OperatingSystem;
-use egui::{EventFilter, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand};
+use egui::{vec2, EventFilter, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand};
 use std::collections::HashMap;
 use std::mem;
 use std::time::{Duration, Instant};
@@ -62,49 +62,105 @@ impl Workspace {
     }
 
     fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
-        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-            ui.add_space(ui.clip_rect().height() / 3.0);
-
-            ui.label(egui::RichText::new("Welcome to your Lockbook").size(40.0));
-            ui.label(
-                "Right click on your file tree to explore all that your lockbook has to offer",
-            );
+        ui.vertical_centered(|ui| {
+            ui.style_mut().spacing.item_spacing = egui::vec2(0., 0.);
 
             ui.add_space(40.0);
+            ui.label(egui::RichText::new("Welcome to Lockbook").size(40.0));
+            ui.add_space(20.0);
 
-            ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
-            ui.visuals_mut().widgets.hovered.bg_fill = ui.visuals().widgets.active.bg_fill;
+            let rect = ui.max_rect();
 
-            let text_stroke =
-                egui::Stroke { color: ui.visuals().extreme_bg_color, ..Default::default() };
-            ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
-            ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
-            ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+            let center =
+                rect.shrink2(vec2((rect.width() - 200.) / 2., (rect.height() - 400.) / 2.));
+            let left = center.translate(vec2(-300., 0.));
+            let right = center.translate(vec2(300., 0.));
 
-            if Button::default()
-                .text("New document")
-                .rounding(egui::Rounding::same(3.0))
-                .frame(true)
-                .show(ui)
-                .clicked()
-            {
-                self.create_file(false);
-            }
-            if Button::default()
-                .text("New drawing")
-                .rounding(egui::Rounding::same(3.0))
-                .frame(true)
-                .show(ui)
-                .clicked()
-            {
-                self.create_file(true);
-            }
-            ui.visuals_mut().widgets.inactive.fg_stroke =
-                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-            ui.visuals_mut().widgets.hovered.fg_stroke =
-                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-            if Button::default().text("New folder").show(ui).clicked() {
-                self.out.new_folder_clicked = true;
+            let mut open_file = None;
+
+            ui.painter()
+                .rect_filled(left.expand(40.), 5., ui.style().visuals.extreme_bg_color);
+            ui.painter()
+                .rect_filled(center.expand(40.), 5., ui.style().visuals.extreme_bg_color);
+            ui.painter()
+                .rect_filled(right.expand(40.), 5., ui.style().visuals.extreme_bg_color);
+
+            ui.allocate_ui_at_rect(left, |ui| {
+                ui.add_space(20.0);
+                ui.label("Quick Actions");
+                ui.add_space(20.0);
+
+                if Button::default()
+                    .text("Create a document")
+                    .frame(true)
+                    .hexpand(true)
+                    .text_alignment(egui::Align::Center)
+                    .rounding(2.)
+                    .show(ui)
+                    .clicked()
+                {
+                    self.create_file(false);
+                }
+                ui.add_space(10.0);
+                if Button::default()
+                    .text("Create a drawing")
+                    .frame(true)
+                    .hexpand(true)
+                    .text_alignment(egui::Align::Center)
+                    .rounding(2.)
+                    .show(ui)
+                    .clicked()
+                {
+                    self.create_file(true);
+                }
+                ui.add_space(10.0);
+                if Button::default()
+                    .text("Create a folder")
+                    .frame(true)
+                    .hexpand(true)
+                    .text_alignment(egui::Align::Center)
+                    .rounding(2.)
+                    .show(ui)
+                    .clicked()
+                {
+                    self.out.new_folder_clicked = true;
+                }
+            });
+
+            ui.allocate_ui_at_rect(center, |ui| {
+                ui.style_mut().spacing.item_spacing = egui::vec2(0., 0.);
+
+                ui.add_space(20.0);
+                ui.label("Recent Files");
+                ui.add_space(20.0);
+
+                if let Some(cache) = &mut self.files {
+                    cache
+                        .files
+                        .sort_by(|left, right| right.last_modified.cmp(&left.last_modified));
+
+                    for file in cache.files.iter().take(10) {
+                        if Button::default()
+                            .text(&file.name)
+                            .frame(true)
+                            .hexpand(true)
+                            .rounding(2.)
+                            .show(ui)
+                            .clicked()
+                        {
+                            open_file = Some(file.id);
+                        }
+                        ui.label(format!(
+                            "last modified {} by {}",
+                            file.last_modified.format("%Y-%m-%d"),
+                            file.last_modified_by
+                        ));
+                    }
+                }
+            });
+
+            if let Some(id) = open_file {
+                self.open_file(id, false, true);
             }
         });
     }

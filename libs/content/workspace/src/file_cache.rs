@@ -8,6 +8,7 @@ use lb_rs::model::file_metadata::FileType;
 use lb_rs::service::usage::UsageMetrics;
 use lb_rs::Uuid;
 
+#[derive(Clone)]
 pub struct FileCache {
     pub files: Vec<File>,
     pub suggested: Vec<Uuid>,
