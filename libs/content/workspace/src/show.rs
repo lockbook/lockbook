@@ -2,7 +2,7 @@ use basic_human_duration::ChronoHumanDuration;
 use core::f32;
 use egui::emath::easing;
 use egui::os::OperatingSystem;
-use egui::{Align2, EventFilter, FontId, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand};
+use egui::{EventFilter, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand};
 use std::collections::HashMap;
 use std::mem;
 use std::time::{Duration, Instant};
@@ -121,8 +121,6 @@ impl Workspace {
                 }
             }
 
-            let content_rect = ui.available_rect_before_wrap();
-
             ui.centered_and_justified(|ui| {
                 let mut rename_req = None;
                 if let Some(tab) = self.tabs.get_mut(self.active_tab) {
@@ -188,24 +186,6 @@ impl Workspace {
                     self.rename_file(req);
                 }
             });
-
-            if let Some(tab) = self.tabs.get(self.active_tab) {
-                let summary = self.tab_status(tab.id).summary();
-                let last_saved = tab.last_saved.elapsed_human_string();
-                ui.painter().text(
-                    content_rect.left_bottom() + egui::vec2(10.0, -10.0),
-                    Align2::LEFT_BOTTOM,
-                    format!("{summary}\nsaved {last_saved}"),
-                    FontId { size: 12.0, family: egui::FontFamily::Monospace },
-                    ui.visuals()
-                        .widgets
-                        .noninteractive
-                        .fg_stroke
-                        .color
-                        .gamma_multiply(0.5),
-                );
-                ui.ctx().request_repaint_after_secs(1.0);
-            }
         });
     }
 
