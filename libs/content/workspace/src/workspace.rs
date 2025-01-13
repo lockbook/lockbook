@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use std::{fs, thread};
 use tracing::{debug, error, info, instrument, trace, warn};
 
+use crate::file_cache::FileCache;
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
@@ -30,6 +31,7 @@ pub struct Workspace {
 
     // Files and task status
     pub tasks: TaskManager,
+    pub files: Option<FileCache>,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
     pub last_sync_status_refresh_completed: Option<Instant>,
@@ -62,6 +64,7 @@ impl Workspace {
             user_last_seen: Instant::now(),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
+            files: None,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
             last_sync_status_refresh_completed: Default::default(),
@@ -282,6 +285,7 @@ impl Workspace {
             completed_saves,
             completed_sync,
             completed_sync_status_update,
+            completed_file_cache_refresh,
         } = self.tasks.update();
 
         let start = Instant::now();
@@ -436,7 +440,7 @@ impl Workspace {
                                     }
                                     _ => {}
                                 }
-                                sync = true; // todo: sync once when saving multiple tabs
+                                sync = true;
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
@@ -451,6 +455,7 @@ impl Workspace {
                     if sync {
                         self.tasks.queue_sync();
                     }
+                    self.tasks.queue_file_cache_refresh();
                 }
             }
         }
@@ -472,6 +477,17 @@ impl Workspace {
         }
         if start.elapsed() > Duration::from_millis(100) {
             warn!("processing completed sync status update took {:?}", start.elapsed());
+        }
+
+        let start = Instant::now();
+        if let Some(refresh) = completed_file_cache_refresh {
+            match refresh.cache_result {
+                Ok(cache) => self.files = Some(cache),
+                Err(err) => error!("failed to refresh file cache: {:?}", err),
+            }
+        }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing completed file cache refresh took {:?}", start.elapsed());
         }
 
         let start = Instant::now();
@@ -610,6 +626,7 @@ impl Workspace {
             .map_err(|err| format!("{:?}", err));
 
         self.out.file_created = Some(result);
+        self.tasks.queue_file_cache_refresh();
         self.ctx.request_repaint();
     }
 
@@ -650,6 +667,7 @@ impl Workspace {
         }
 
         self.out.file_renamed = Some((id, new_name.clone()));
+        self.tasks.queue_file_cache_refresh();
         self.ctx.request_repaint();
     }
 
@@ -658,6 +676,7 @@ impl Workspace {
         match self.core.move_file(&id, &new_parent) {
             Ok(()) => {
                 self.out.file_moved = Some((id, new_parent));
+                self.tasks.queue_file_cache_refresh();
                 self.ctx.request_repaint();
             }
             Err(err) => {

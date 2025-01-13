@@ -12,6 +12,7 @@ use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::Uuid;
 use tracing::{debug, error, instrument, span, trace, warn, Level};
 
+use crate::file_cache::FileCache;
 use crate::output::DirtynessMsg;
 use crate::tab::{Tab, TabSaveContent};
 
@@ -22,18 +23,21 @@ pub struct Tasks {
     queued_saves: Vec<QueuedSave>,
     queued_syncs: Vec<QueuedSync>,
     queued_sync_status_updates: Vec<QueuedSyncStatusUpdate>,
+    queued_file_cache_refreshes: Vec<QueuedFileCacheRefresh>,
 
     // launched tasks tracked here until complete
     pub in_progress_loads: Vec<InProgressLoad>,
     pub in_progress_saves: Vec<InProgressSave>,
     pub in_progress_sync: Option<InProgressSync>,
     pub in_progress_sync_status_update: Option<InProgressSyncStatusUpdate>,
+    pub in_progress_file_cache_refresh: Option<InProgressFileCacheRefresh>,
 
     // completions stashed here then returned in the response on the next frame
     completed_loads: Vec<CompletedLoad>,
     completed_saves: Vec<CompletedSave>,
     completed_sync: Option<CompletedSync>,
     completed_sync_status_update: Option<CompletedSyncStatusUpdate>,
+    completed_file_cache_refresh: Option<CompletedFileCacheRefresh>,
 }
 
 impl Tasks {
@@ -82,6 +86,7 @@ pub struct Response {
     pub completed_saves: Vec<CompletedSave>,
     pub completed_sync: Option<CompletedSync>,
     pub completed_sync_status_update: Option<CompletedSyncStatusUpdate>,
+    pub completed_file_cache_refresh: Option<CompletedFileCacheRefresh>,
 }
 
 // Requests
@@ -163,6 +168,11 @@ struct QueuedSyncStatusUpdate {
     timing: QueuedTiming,
 }
 
+#[derive(Clone)]
+struct QueuedFileCacheRefresh {
+    timing: QueuedTiming,
+}
+
 pub struct InProgressLoad {
     pub request: LoadRequest,
 
@@ -209,6 +219,16 @@ impl InProgressSyncStatusUpdate {
     }
 }
 
+pub struct InProgressFileCacheRefresh {
+    pub timing: InProgressTiming,
+}
+
+impl InProgressFileCacheRefresh {
+    fn new(queued: QueuedFileCacheRefresh) -> Self {
+        Self { timing: InProgressTiming::new(queued.timing) }
+    }
+}
+
 pub struct CompletedLoad {
     pub request: LoadRequest,
     pub content_result: LbResult<(Option<DocumentHmac>, DecryptedDocument)>,
@@ -233,6 +253,12 @@ pub struct CompletedSync {
 
 pub struct CompletedSyncStatusUpdate {
     pub status_result: LbResult<DirtynessMsg>,
+
+    pub timing: CompletedTiming,
+}
+
+pub struct CompletedFileCacheRefresh {
+    pub cache_result: LbResult<FileCache>,
 
     pub timing: CompletedTiming,
 }
@@ -291,6 +317,15 @@ impl TaskManager {
 
     pub fn save_queued(&self, id: Uuid) -> bool {
         self.tasks.lock().unwrap().save_queued(id)
+    }
+
+    pub fn queue_file_cache_refresh(&mut self) {
+        trace!("queued file cache refresh");
+        self.tasks
+            .lock()
+            .unwrap()
+            .queued_file_cache_refreshes
+            .push(QueuedFileCacheRefresh { timing: QueuedTiming::new() });
     }
 
     pub fn load_or_save_queued(&self, id: Uuid) -> bool {
@@ -432,6 +467,11 @@ impl TaskManager {
             && tasks.queued_syncs.is_empty()
             && tasks.in_progress_sync.is_none();
 
+        // For efficiency, we wait for all file cache refreshes to complete before we launch another. We also wait for
+        // pending and in-progress saves to complete because they'll invalidate the cache.
+        let should_refresh_file_cache = !tasks.queued_file_cache_refreshes.is_empty()
+            && tasks.in_progress_file_cache_refresh.is_none();
+
         // Get launched things from the queue and remove duplicates (avoiding clones)
         let mut loads_to_launch = HashMap::new();
         let mut saves_to_launch = HashMap::new();
@@ -460,21 +500,31 @@ impl TaskManager {
         } else {
             None
         };
+        let file_cache_refresh_to_launch = if should_refresh_file_cache {
+            mem::take(&mut tasks.queued_file_cache_refreshes)
+                .into_iter()
+                .next()
+        } else {
+            None
+        };
 
         let any_to_launch = !loads_to_launch.is_empty()
             || !saves_to_launch.is_empty()
             || sync_to_launch.is_some()
-            || sync_status_update_to_launch.is_some();
+            || sync_status_update_to_launch.is_some()
+            || file_cache_refresh_to_launch.is_some();
         if any_to_launch {
             debug!(
                 loads_to_launch = loads_to_launch.len(),
                 saves_to_launch = saves_to_launch.len(),
                 sync_to_launch = sync_to_launch.is_some() as usize,
                 sync_status_update_to_launch = sync_status_update_to_launch.is_some() as usize,
+                file_cache_refresh_to_launch = file_cache_refresh_to_launch.is_some() as usize,
                 queued_loads_remaining = tasks.queued_loads.len(),
                 queued_saves_remaining = tasks.queued_saves.len(),
                 queued_syncs_remaining = tasks.queued_syncs.len(),
                 queued_sync_status_updates_remaining = tasks.queued_sync_status_updates.len(),
+                queued_file_cache_refreshes_remaining = tasks.queued_file_cache_refreshes.len(),
                 "launching tasks",
             );
         }
@@ -576,6 +626,24 @@ impl TaskManager {
             thread::spawn(move || self_clone.background_sync_status_update());
         }
 
+        if let Some(refresh) = file_cache_refresh_to_launch {
+            let span = span!(Level::TRACE, "file_cache_refresh_launch");
+            let _enter = span.enter();
+
+            let in_progress_refresh = InProgressFileCacheRefresh::new(refresh);
+            let queue_time = in_progress_refresh
+                .timing
+                .started_at
+                .duration_since(in_progress_refresh.timing.queued_at);
+            if queue_time > Duration::from_secs(1) {
+                warn!("file cache refresh spent {queue_time:?} in the task queue");
+            }
+            tasks.in_progress_file_cache_refresh = Some(in_progress_refresh);
+
+            let self_clone = self.clone();
+            thread::spawn(move || self_clone.background_file_cache_refresh());
+        }
+
         if any_to_launch {
             self.ctx.request_repaint();
         }
@@ -588,6 +656,7 @@ impl TaskManager {
             completed_saves: mem::take(&mut tasks.completed_saves),
             completed_sync: mem::take(&mut tasks.completed_sync),
             completed_sync_status_update: mem::take(&mut tasks.completed_sync_status_update),
+            completed_file_cache_refresh: mem::take(&mut tasks.completed_file_cache_refresh),
         }
     }
 
@@ -753,6 +822,35 @@ impl TaskManager {
 
             let completed_update = CompletedSyncStatusUpdate { status_result, timing };
             tasks.completed_sync_status_update = Some(completed_update);
+        }
+
+        self.ctx.request_repaint();
+    }
+
+    /// Move a request to in-progress, then call this from a background thread
+    #[instrument(level = "debug", skip(self), fields(thread = format!("{:?}", thread::current().id())))]
+    fn background_file_cache_refresh(&self) {
+        let cache_result = FileCache::new(&self.core);
+
+        {
+            let mut tasks = self.tasks.lock().unwrap();
+            let in_progress_refresh = tasks.in_progress_file_cache_refresh.take().expect(
+                "failed to find in-progress entry for file cache refresh that just completed",
+            );
+            // ^ above error may indicate concurrent file cache refreshes, which would cause problems
+
+            let timing = CompletedTiming::new(in_progress_refresh.timing);
+            let in_progress_time = timing.completed_at.duration_since(timing.started_at);
+            if let Err(err) = &cache_result {
+                error!("file cache refresh failed ({:?}): {:?}", in_progress_time, err);
+            } else if in_progress_time > Duration::from_secs(1) {
+                warn!(?cache_result, "file cache refreshed ({:?})", in_progress_time);
+            } else {
+                debug!("file cache refreshed ({:?})", in_progress_time);
+            }
+
+            let completed_refresh = CompletedFileCacheRefresh { cache_result, timing };
+            tasks.completed_file_cache_refresh = Some(completed_refresh);
         }
 
         self.ctx.request_repaint();
