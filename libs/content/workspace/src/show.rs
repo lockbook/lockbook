@@ -3,11 +3,13 @@ use core::f32;
 use egui::emath::easing;
 use egui::os::OperatingSystem;
 use egui::{vec2, EventFilter, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand};
+use lb_rs::logic::filename::DocumentType;
 use std::collections::HashMap;
 use std::mem;
 use std::time::{Duration, Instant};
 use tracing::instrument;
 
+use crate::file_cache::FilesExt;
 use crate::output::Response;
 use crate::tab::{TabContent, TabFailure};
 use crate::theme::icons::Icon;
@@ -86,14 +88,14 @@ impl Workspace {
                 .rect_filled(right.expand(40.), 5., ui.style().visuals.extreme_bg_color);
 
             ui.allocate_ui_at_rect(left, |ui| {
-                ui.add_space(20.0);
                 ui.label("Quick Actions");
-                ui.add_space(20.0);
+                ui.add_space(30.0);
 
                 if Button::default()
                     .text("Create a document")
                     .frame(true)
                     .hexpand(true)
+                    .default_fill(ui.visuals().widgets.active.bg_fill)
                     .text_alignment(egui::Align::Center)
                     .rounding(2.)
                     .show(ui)
@@ -106,6 +108,7 @@ impl Workspace {
                     .text("Create a drawing")
                     .frame(true)
                     .hexpand(true)
+                    .default_fill(ui.visuals().widgets.active.bg_fill)
                     .text_alignment(egui::Align::Center)
                     .rounding(2.)
                     .show(ui)
@@ -130,33 +133,83 @@ impl Workspace {
             ui.allocate_ui_at_rect(center, |ui| {
                 ui.style_mut().spacing.item_spacing = egui::vec2(0., 0.);
 
-                ui.add_space(20.0);
-                ui.label("Recent Files");
-                ui.add_space(20.0);
+                ui.label("Suggested Documents");
+                ui.add_space(30.0);
 
-                if let Some(cache) = &mut self.files {
-                    cache
-                        .files
-                        .sort_by(|left, right| right.last_modified.cmp(&left.last_modified));
+                ui.vertical(|ui| {
+                    if let Some(cache) = &mut self.files {
+                        for &id in cache.suggested.iter().take(6) {
+                            let file = cache.files.get_by_id(id);
 
-                    for file in cache.files.iter().take(10) {
-                        if Button::default()
-                            .text(&file.name)
-                            .frame(true)
-                            .hexpand(true)
-                            .rounding(2.)
-                            .show(ui)
-                            .clicked()
-                        {
-                            open_file = Some(file.id);
+                            let doc_type = DocumentType::from_file_name_using_extension(&file.name);
+                            let icon = match doc_type {
+                                DocumentType::Text => &Icon::DOC_TEXT,
+                                DocumentType::Drawing => &Icon::DRAW,
+                                DocumentType::Other => &Icon::DOC_UNKNOWN,
+                            };
+
+                            if Button::default()
+                                .icon(icon)
+                                .text(&file.name)
+                                .frame(true)
+                                .hexpand(true)
+                                .rounding(2.)
+                                .show(ui)
+                                .clicked()
+                            {
+                                open_file = Some(file.id);
+                            }
+                            ui.label(format!(
+                                "{} by {}",
+                                file.last_modified.elapsed_human_string(),
+                                file.last_modified_by
+                            ));
+                            ui.add_space(5.0);
                         }
-                        ui.label(format!(
-                            "last modified {} by {}",
-                            file.last_modified.format("%Y-%m-%d"),
-                            file.last_modified_by
-                        ));
                     }
-                }
+                });
+            });
+
+            ui.allocate_ui_at_rect(right, |ui| {
+                ui.style_mut().spacing.item_spacing = egui::vec2(0., 0.);
+
+                ui.label("Recently Modified");
+                ui.add_space(30.0);
+
+                ui.vertical(|ui| {
+                    if let Some(cache) = &mut self.files {
+                        cache
+                            .files
+                            .sort_by(|left, right| right.last_modified.cmp(&left.last_modified));
+
+                        for file in cache.files.iter().take(6) {
+                            let doc_type = DocumentType::from_file_name_using_extension(&file.name);
+                            let icon = match doc_type {
+                                DocumentType::Text => &Icon::DOC_TEXT,
+                                DocumentType::Drawing => &Icon::DRAW,
+                                DocumentType::Other => &Icon::DOC_UNKNOWN,
+                            };
+
+                            if Button::default()
+                                .icon(icon)
+                                .text(&file.name)
+                                .frame(true)
+                                .hexpand(true)
+                                .rounding(2.)
+                                .show(ui)
+                                .clicked()
+                            {
+                                open_file = Some(file.id);
+                            }
+                            ui.label(format!(
+                                "{} by {}",
+                                file.last_modified.elapsed_human_string(),
+                                file.last_modified_by
+                            ));
+                            ui.add_space(5.0);
+                        }
+                    }
+                });
             });
 
             if let Some(id) = open_file {
@@ -762,15 +815,14 @@ impl InputStateExt for egui::InputState {
     }
 }
 
-trait InstantExt {
+trait ElapsedHumanString {
     fn elapsed_human_string(&self) -> String;
 }
 
-impl InstantExt for Instant {
+impl ElapsedHumanString for time::Duration {
     fn elapsed_human_string(&self) -> String {
-        let d = time::Duration::milliseconds(self.elapsed().as_millis() as _);
-        let minutes = d.whole_minutes();
-        let seconds = d.whole_seconds();
+        let minutes = self.whole_minutes();
+        let seconds = self.whole_seconds();
         if seconds > 0 && minutes == 0 {
             if seconds <= 1 {
                 "1 second ago".to_string()
@@ -778,7 +830,26 @@ impl InstantExt for Instant {
                 format!("{seconds} seconds ago")
             }
         } else {
-            d.format_human().to_string()
+            self.format_human().to_string()
         }
+    }
+}
+
+impl ElapsedHumanString for std::time::Duration {
+    fn elapsed_human_string(&self) -> String {
+        time::Duration::milliseconds(self.as_millis() as _).elapsed_human_string()
+    }
+}
+
+impl ElapsedHumanString for Instant {
+    fn elapsed_human_string(&self) -> String {
+        time::Duration::milliseconds(self.elapsed().as_millis() as _).elapsed_human_string()
+    }
+}
+
+impl ElapsedHumanString for u64 {
+    fn elapsed_human_string(&self) -> String {
+        time::Duration::milliseconds(lb_rs::model::clock::get_time().0 - *self as i64)
+            .elapsed_human_string()
     }
 }

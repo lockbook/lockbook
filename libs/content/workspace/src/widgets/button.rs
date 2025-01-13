@@ -96,7 +96,7 @@ impl<'a> Button<'a> {
         let text_style = self.text_style.unwrap_or(egui::TextStyle::Body);
         let padding = self.padding.unwrap_or_else(|| ui.spacing().button_padding);
         let text_height = ui.text_style_height(&text_style);
-        let wrap_width = ui.available_width();
+        let wrap_width = ui.available_width() - padding.x * 4.0;
 
         let mut width = padding.x * 2.0;
 
@@ -104,7 +104,7 @@ impl<'a> Button<'a> {
         let maybe_icon_galley = self.icon.map(|icon| {
             let icon: egui::WidgetText = icon.into();
             let galley =
-                icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, icon_text_style);
+                icon.into_galley(ui, Some(TextWrapMode::Truncate), wrap_width, icon_text_style);
             width += galley.size().x;
             if self.text.is_some() {
                 width += padding.x / 2.;
@@ -113,7 +113,7 @@ impl<'a> Button<'a> {
         });
 
         let maybe_text_galley = self.text.map(|text| {
-            let galley = text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, text_style);
+            let galley = text.into_galley(ui, Some(TextWrapMode::Truncate), wrap_width, text_style);
             width += galley.size().x;
             galley
         });
