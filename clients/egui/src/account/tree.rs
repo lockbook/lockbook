@@ -996,7 +996,7 @@ impl FileTree {
         let mut text = WidgetText::from(&file.name);
         let mut default_fill = ui.style().visuals.extreme_bg_color;
         if is_selected && focused && !is_cursored {
-            text = text.color(ui.style().visuals.widgets.active.bg_fill);
+            default_fill = ui.visuals().widgets.hovered.bg_fill;
         }
         if is_cursored && focused {
             default_fill = ui.style().visuals.selection.bg_fill;
