@@ -55,6 +55,9 @@ pub struct FileTree {
 
     /// Which file is the drag 'n' drop payload being hovered over and since when? Used to expand folders during dnd.
     pub drop: Option<(Uuid, Instant)>,
+
+    /// Set to `true` and the cursor will be scrolled to on the next frame
+    pub scroll_to_cursor: bool,
 }
 
 impl FileTree {
@@ -71,6 +74,7 @@ impl FileTree {
             rename_buffer: Default::default(),
             export: Default::default(),
             drop: Default::default(),
+            scroll_to_cursor: Default::default(),
         }
     }
 
@@ -220,7 +224,7 @@ impl FileTree {
 
     /// Helper that expands the ancestors of the selected files. One option for making sure all selections are visible.
     /// See also `select_visible_ancestors`.
-    fn reveal_selection(&mut self) {
+    pub fn reveal_selection(&mut self) {
         for mut id in self.selected.clone() {
             loop {
                 if id == self.suggested_docs_folder_id {
@@ -413,7 +417,7 @@ impl Response {
 impl FileTree {
     pub fn show(&mut self, ui: &mut Ui, max_rect: Rect, toasts: &mut Toasts) -> Response {
         let mut resp = Response::default();
-        let mut scroll_to_cursor = false;
+        let mut scroll_to_cursor = mem::take(&mut self.scroll_to_cursor);
 
         let full_doc_search_id = Id::from("full_doc_search");
         let suggested_docs_id = Id::from("suggested_docs");
@@ -861,7 +865,6 @@ impl FileTree {
         }
 
         if !ui.memory(|m| m.has_focus(file_tree_id)) {
-            self.selected.clear();
             self.cut.clear();
         }
 
@@ -998,7 +1001,7 @@ impl FileTree {
 
         let mut text = WidgetText::from(&file.name);
         let mut default_fill = ui.style().visuals.extreme_bg_color;
-        if is_selected && focused && !is_cursored {
+        if is_selected {
             default_fill = ui.visuals().widgets.hovered.bg_fill;
         }
         if is_cursored && focused {
@@ -1305,6 +1308,9 @@ impl FileTree {
         }
 
         if is_cursored && scroll_to_cursor {
+            // todo: sometimes this doesn't scroll far enough to actually reveal the rect
+            // it works more reliably when the usage/nav/sync panel is commented out
+            // perhaps egui has a bug related to how we're mixing top-down and bottom-up layouts
             ui.scroll_to_rect(file_resp.rect, None);
         }
 
