@@ -61,8 +61,8 @@ impl AccountScreen {
         let core_clone = core.clone();
 
         let toasts = egui_notify::Toasts::default()
-            .with_margin(egui::vec2(40.0, 30.0))
-            .with_padding(egui::vec2(20.0, 20.0));
+            .with_margin(egui::vec2(20.0, 20.0))
+            .with_padding(egui::vec2(10.0, 10.0));
 
         let sidebar_expanded = !settings.read().unwrap().zen_mode;
         let mut result = Self {
@@ -429,7 +429,7 @@ impl AccountScreen {
                         .stroke(Stroke::NONE)
                         .show(ui, |ui| {
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
-                            self.tree.show(ui, max_rect)
+                            self.tree.show(ui, max_rect, &mut self.toasts)
                         })
                 })
             })

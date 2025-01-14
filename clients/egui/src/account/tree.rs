@@ -12,6 +12,7 @@ use egui::{
     text_edit::TextEditState, Color32, Context, DragAndDrop, Event, EventFilter, Id, Key, LayerId,
     Modifiers, Order, Pos2, Rect, Sense, TextEdit, Ui, Vec2, WidgetText,
 };
+use egui_notify::Toasts;
 use lb::{
     blocking::Lb,
     logic::filename::DocumentType,
@@ -410,7 +411,7 @@ impl Response {
 }
 
 impl FileTree {
-    pub fn show(&mut self, ui: &mut Ui, max_rect: Rect) -> Response {
+    pub fn show(&mut self, ui: &mut Ui, max_rect: Rect, toasts: &mut Toasts) -> Response {
         let mut resp = Response::default();
         let mut scroll_to_cursor = false;
 
@@ -869,9 +870,11 @@ impl FileTree {
             .union(ui.vertical(|ui| self.show_suggested(ui)).inner)
             // show file tree
             .union({
-                ui.vertical(|ui| self.show_recursive(ui, self.files.root(), 0, scroll_to_cursor))
-                    .inner
-                    .union(self.show_padding(ui, max_rect))
+                ui.vertical(|ui| {
+                    self.show_recursive(ui, toasts, self.files.root(), 0, scroll_to_cursor)
+                })
+                .inner
+                .union(self.show_padding(ui, toasts, max_rect))
             })
     }
 
@@ -977,7 +980,7 @@ impl FileTree {
     }
 
     fn show_recursive(
-        &mut self, ui: &mut Ui, id: Uuid, depth: usize, scroll_to_cursor: bool,
+        &mut self, ui: &mut Ui, toasts: &mut Toasts, id: Uuid, depth: usize, scroll_to_cursor: bool,
     ) -> Response {
         let mut resp = Response::default();
 
@@ -1094,8 +1097,13 @@ impl FileTree {
                 .indent(indent)
                 .show(ui);
             if is_expanded {
-                resp =
-                    resp.union(self.show_children_recursive(ui, id, depth + 1, scroll_to_cursor));
+                resp = resp.union(self.show_children_recursive(
+                    ui,
+                    toasts,
+                    id,
+                    depth + 1,
+                    scroll_to_cursor,
+                ));
             };
 
             file_resp
@@ -1178,7 +1186,7 @@ impl FileTree {
         // context menu
         let mut context_menu_resp = Response::default();
         file_resp.context_menu(|ui| {
-            context_menu_resp = self.context_menu(ui, Some(id));
+            context_menu_resp = self.context_menu(ui, toasts, Some(id));
         });
         resp = resp.union(context_menu_resp);
 
@@ -1304,7 +1312,7 @@ impl FileTree {
     }
 
     fn show_children_recursive(
-        &mut self, ui: &mut Ui, id: Uuid, depth: usize, scroll_to_cursor: bool,
+        &mut self, ui: &mut Ui, toasts: &mut Toasts, id: Uuid, depth: usize, scroll_to_cursor: bool,
     ) -> Response {
         let children_ids = self
             .files
@@ -1314,12 +1322,12 @@ impl FileTree {
             .collect::<Vec<_>>();
         let mut resp = Response::default();
         for child in children_ids {
-            resp = resp.union(self.show_recursive(ui, child, depth, scroll_to_cursor));
+            resp = resp.union(self.show_recursive(ui, toasts, child, depth, scroll_to_cursor));
         }
         resp
     }
 
-    fn show_padding(&mut self, ui: &mut Ui, max_rect: Rect) -> Response {
+    fn show_padding(&mut self, ui: &mut Ui, toasts: &mut Toasts, max_rect: Rect) -> Response {
         let mut resp = Response::default();
 
         let mut desired_size = Vec2::new(max_rect.width(), 0.);
@@ -1335,7 +1343,7 @@ impl FileTree {
         // context menu
         let mut context_menu_resp = Response::default();
         padding_resp.context_menu(|ui| {
-            context_menu_resp = self.context_menu(ui, None);
+            context_menu_resp = self.context_menu(ui, toasts, None);
         });
         resp = resp.union(context_menu_resp);
 
@@ -1369,7 +1377,9 @@ impl FileTree {
         resp
     }
 
-    fn context_menu(&mut self, ui: &mut egui::Ui, file: Option<Uuid>) -> Response {
+    fn context_menu(
+        &mut self, ui: &mut egui::Ui, toasts: &mut Toasts, file: Option<Uuid>,
+    ) -> Response {
         let mut resp = Response::default();
         ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
 
@@ -1430,6 +1440,13 @@ impl FileTree {
             if ui.button("Share").clicked() {
                 let file = self.files.get_by_id(file).clone();
                 resp.create_share_modal = Some(file);
+                ui.close_menu();
+            }
+
+            if ui.button("Copy Link").clicked() {
+                ui.ctx()
+                    .output_mut(|o| o.copied_text = format!("lb://{file}"));
+                toasts.success("Copied link!");
                 ui.close_menu();
             }
         }
