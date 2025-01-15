@@ -21,7 +21,7 @@ use std::time::{Duration, Instant};
 use std::{mem, thread};
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
-use crate::knowledge_graph::KnowledgeGraphApp;
+use crate::mind_map::mind_map::MindMap;
 use crate::output::{DirtynessMsg, Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
@@ -842,7 +842,7 @@ impl Workspace {
             self.upsert_tab(id, "Mind Map", "", false, true);
             // let mut graph = lockbook_data(&self.core);
             if let Some(tab) = self.get_mut_tab_by_id(id) {
-                tab.content = Some(TabContent::Graph(KnowledgeGraphApp::new(&core)));
+                tab.content = Some(TabContent::Graph(MindMap::new(&core)));
             }
         }
     }
