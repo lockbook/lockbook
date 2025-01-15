@@ -1,13 +1,13 @@
-use egui::{Rounding, TextStyle, TextWrapMode};
+use egui::{Rounding, TextStyle, TextWrapMode, WidgetText};
 
 use crate::theme::icons::Icon;
 
 #[derive(Default)]
 pub struct Button<'a> {
     icon: Option<&'a Icon>,
-    text: Option<&'a str>,
+    text: Option<WidgetText>,
     text_style: Option<egui::TextStyle>,
-    icon_style: Option<egui::Style>,
+    icon_color: Option<egui::Color32>,
     icon_alignment: Option<egui::Align>,
     padding: Option<egui::Vec2>,
     is_loading: bool,
@@ -15,6 +15,7 @@ pub struct Button<'a> {
     stroke: egui::Stroke,
     frame: bool,
     hexpand: bool,
+    indent: f32,
     default_fill: Option<egui::Color32>,
 }
 const SPINNER_RADIUS: u32 = 6;
@@ -23,6 +24,7 @@ impl<'a> Button<'a> {
     pub fn icon(self, icon: &'a Icon) -> Self {
         Self { icon: Some(icon), ..self }
     }
+
     pub fn icon_alignment(self, align: egui::Align) -> Self {
         let alignment = match align {
             egui::Align::Center | egui::Align::Min => egui::Align::LEFT,
@@ -31,16 +33,16 @@ impl<'a> Button<'a> {
         Self { icon_alignment: Some(alignment), ..self }
     }
 
-    pub fn text(self, text: &'a str) -> Self {
-        Self { text: Some(text), ..self }
+    pub fn text(self, text: impl Into<WidgetText>) -> Self {
+        Self { text: Some(text.into()), ..self }
     }
 
     pub fn text_style(self, text_style: TextStyle) -> Self {
         Self { text_style: Some(text_style), ..self }
     }
 
-    pub fn icon_style(self, icon_style: egui::Style) -> Self {
-        Self { icon_style: Some(icon_style), ..self }
+    pub fn icon_color(self, icon_color: egui::Color32) -> Self {
+        Self { icon_color: Some(icon_color), ..self }
     }
 
     pub fn padding(self, padding: impl Into<egui::Vec2>) -> Self {
@@ -57,6 +59,18 @@ impl<'a> Button<'a> {
 
     pub fn frame(self, frame: bool) -> Self {
         Self { frame, ..self }
+    }
+
+    pub fn hexpand(self, hexpand: bool) -> Self {
+        Self { hexpand, ..self }
+    }
+
+    pub fn indent(self, indent: f32) -> Self {
+        Self { indent, ..self }
+    }
+
+    pub fn default_fill(self, default_fill: egui::Color32) -> Self {
+        Self { default_fill: Some(default_fill), ..self }
     }
 
     pub fn show(self, ui: &mut egui::Ui) -> egui::Response {
@@ -80,7 +94,6 @@ impl<'a> Button<'a> {
         });
 
         let maybe_text_galley = self.text.map(|text| {
-            let text: egui::WidgetText = text.into();
             let galley = text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, text_style);
             width += galley.size().x;
             galley
@@ -96,12 +109,20 @@ impl<'a> Button<'a> {
 
         if ui.is_rect_visible(rect) {
             let text_visuals = ui.style().interact(&resp).to_owned();
-            let icon_visuals = self.icon_style.as_ref().unwrap_or(ui.style().as_ref());
-            let icon_visuals = icon_visuals.interact(&resp);
-            let icon_color = icon_visuals.text_color();
+            let icon_color = self.icon_color.unwrap_or(text_visuals.text_color());
 
-            let bg_fill = if resp.hovered() {
-                text_visuals.bg_fill
+            // In stark contrast to its documentation, resp.hovered() is often true even if something is being dragged
+            // and even when it does not contain the pointer! Some suffering occurred here to get desirable behavior.
+            let bg_fill = if resp.hovered()
+                && ui.input(|i| {
+                    i.pointer
+                        .interact_pos()
+                        .map(|p| resp.rect.contains(p))
+                        .unwrap_or_default()
+                })
+                && !resp.dragged()
+            {
+                ui.visuals().widgets.hovered.bg_fill
             } else {
                 self.default_fill.unwrap_or(text_visuals.bg_fill)
             };
@@ -116,8 +137,10 @@ impl<'a> Button<'a> {
                 blur_width: 0.,
             });
 
-            let mut text_pos =
-                egui::pos2(rect.min.x + padding.x, rect.center().y - 0.5 * text_height);
+            let mut text_pos = egui::pos2(
+                rect.min.x + padding.x + self.indent,
+                rect.center().y - 0.5 * text_height,
+            );
 
             if self.is_loading {
                 let spinner_pos = egui::pos2(
@@ -133,7 +156,7 @@ impl<'a> Button<'a> {
                 let icon_x_pos = match alignment {
                     egui::Align::LEFT => {
                         text_pos.x += icon_width + padding.x / 2.0;
-                        rect.min.x + padding.x
+                        rect.min.x + padding.x + self.indent
                     }
                     egui::Align::Center | egui::Align::RIGHT => rect.max.x - padding.x - icon_width,
                 };

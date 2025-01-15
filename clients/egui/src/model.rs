@@ -1,10 +1,18 @@
-use lb::{logic::usage::bytes_to_human, model::file::File, service::usage::UsageMetrics};
+use lb::{
+    logic::usage::bytes_to_human,
+    model::{errors::LbErr, file::File},
+    service::usage::UsageMetrics,
+};
 use workspace_rs::theme::icons::Icon;
 
 pub struct AccountScreenInitData {
-    pub sync_status: Result<String, String>,
+    pub sync_status: Result<String, LbErr>,
     pub files: Vec<File>,
     pub usage: Result<Usage, String>,
+}
+
+pub struct AccountPhraseData {
+    pub phrase: String,
 }
 
 pub struct Usage {

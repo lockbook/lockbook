@@ -33,7 +33,7 @@ pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_file: bool) {
 #[no_mangle]
 pub extern "C" fn request_sync(obj: *mut c_void) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.perform_sync()
+    obj.workspace.tasks.queue_sync();
 }
 
 #[no_mangle]
@@ -168,10 +168,7 @@ pub unsafe extern "C" fn tab_renamed(obj: *mut c_void, id: *const c_char, new_na
         .parse()
         .expect("Could not String -> Uuid");
 
-    let _ = obj
-        .workspace
-        .updates_tx
-        .send(workspace_rs::workspace::WsMsg::FileRenamed { id, new_name });
+    obj.workspace.file_renamed(id, new_name);
 }
 
 /// # Safety
@@ -204,7 +201,7 @@ pub struct FfiWsStatus {
 #[no_mangle]
 pub unsafe extern "C" fn get_status(obj: *mut c_void) -> FfiWsStatus {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let syncing = obj.workspace.status.syncing();
+    let syncing = obj.workspace.visibly_syncing();
     let msg = obj.workspace.status.message.clone();
     let msg = CString::new(msg)
         .expect("Could not Rust String -> C String")

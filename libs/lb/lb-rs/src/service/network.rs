@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use reqwest::Client;
 use tokio::time::sleep;
@@ -58,7 +58,8 @@ impl Network {
         &self, account: &Account, request: T,
     ) -> Result<T::Response, ApiError<T::Error>> {
         let signed_request =
-            pubkey::sign(&account.private_key, request, self.get_time).map_err(ApiError::Sign)?;
+            pubkey::sign(&account.private_key, &account.public_key(), request, self.get_time)
+                .map_err(ApiError::Sign)?;
 
         let client_version = String::from((self.get_code_version)());
 
@@ -67,7 +68,13 @@ impl Network {
             client_version: client_version.clone(),
         })
         .map_err(|err| ApiError::Serialize(err.to_string()))?;
+
+        if serialized_request.len() > 10 * 1024 * 1024 {
+            warn!("making network request with {} bytes", serialized_request.len());
+        }
+
         let mut retries = 0;
+        let start = Instant::now();
         let sent = loop {
             match self
                 .client
@@ -77,10 +84,19 @@ impl Network {
                 .send()
                 .await
             {
-                Ok(o) => break o,
+                Ok(o) => {
+                    if start.elapsed() > Duration::from_millis(1000) {
+                        warn!("network request took {:?}", start.elapsed());
+                    }
+                    break o;
+                }
                 Err(e) => {
                     if retries < 3 {
-                        warn!("send failed retrying after {}ms", retries * 100);
+                        warn!(
+                            "network request send failed; retrying after {}ms; error = {:?}",
+                            retries * 100,
+                            e.to_string()
+                        );
                         sleep(Duration::from_millis(retries * 100)).await;
                         retries += 1;
                         continue;

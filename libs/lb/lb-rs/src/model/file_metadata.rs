@@ -9,11 +9,13 @@ use uuid::Uuid;
 use super::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMode};
 use super::account::Account;
 use super::clock::get_time;
+use super::errors::LbResult;
 use crate::logic::crypto::AESKey;
 use crate::logic::file_like::FileLike;
 use crate::logic::secret_filename::SecretFileName;
 use crate::logic::signed_file::SignedFile;
 use crate::logic::{pubkey, symkey, SharedResult};
+use crate::service::keychain::Keychain;
 
 pub type DocumentHmac = [u8; 32];
 
@@ -72,8 +74,12 @@ impl FileMetadata {
         })
     }
 
-    pub fn sign(self, account: &Account) -> SharedResult<SignedFile> {
-        pubkey::sign(&account.private_key, self, get_time)
+    pub fn sign(self, keychain: &Keychain) -> LbResult<SignedFile> {
+        Ok(pubkey::sign(&keychain.get_account()?.private_key, &keychain.get_pk()?, self, get_time)?)
+    }
+
+    pub fn sign_with(self, account: &Account) -> LbResult<SignedFile> {
+        Ok(pubkey::sign(&account.private_key, &account.public_key(), self, get_time)?)
     }
 }
 
@@ -97,18 +103,12 @@ impl fmt::Display for FileMetadata {
     }
 }
 
-#[derive(Serialize, Deserialize, Eq, Clone, Copy)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
 pub struct Owner(pub PublicKey);
 
 impl Hash for Owner {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.serialize().hash(state)
-    }
-}
-
-impl PartialEq for Owner {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.serialize() == other.0.serialize()
     }
 }
 

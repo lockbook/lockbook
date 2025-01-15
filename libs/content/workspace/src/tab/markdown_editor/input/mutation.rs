@@ -994,7 +994,7 @@ impl Editor {
 
 // todo: find a better home along with text & link functions
 pub fn pos_to_char_offset(
-    mut pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs, text: &Text,
+    pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs, text: &Text,
 ) -> DocCharOffset {
     if !galleys.is_empty() && pos.y < galleys[0].rect.min.y {
         // click position is above first galley
@@ -1004,15 +1004,9 @@ pub fn pos_to_char_offset(
         segs.last_cursor_position()
     } else {
         let mut result = 0.into();
-        for galley_idx in 0..galleys.len() {
+        for galley_idx in (0..galleys.len()).rev() {
             let galley = &galleys[galley_idx];
-            if pos.y <= galley.rect.max.y {
-                if galley.rect.min.y <= pos.y {
-                    // click position is in a galley
-                } else {
-                    // click position is between galleys
-                    pos.x = galley.galley.rect.max.x;
-                }
+            if pos.y >= galley.rect.min.y {
                 let relative_pos = pos - galley.text_location;
                 let new_cursor = galley.galley.cursor_from_pos(relative_pos);
                 result = galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor, text);
