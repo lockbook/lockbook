@@ -1,15 +1,17 @@
-use crate::tab::markdown_editor::appearance::Appearance;
-use crate::tab::markdown_editor::ast::{Ast, AstTextRangeType};
-use crate::tab::markdown_editor::bounds::{self, Bounds, Text};
-use crate::tab::markdown_editor::images::{ImageCache, ImageState};
-use crate::tab::markdown_editor::layouts::{Annotation, LayoutJobInfo};
-use crate::tab::markdown_editor::style::{MarkdownNode, RenderStyle};
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::{CCursor, LayoutJob};
 use egui::{Galley, Pos2, Rect, Response, Sense, TextFormat, Ui, Vec2};
 use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
+use markdown_editor::appearance::Appearance;
+use markdown_editor::ast::{Ast, AstTextRangeType};
+use markdown_editor::bounds::{self, Bounds, Text};
+use markdown_editor::grammar::Grammar;
+use markdown_editor::images::{ImageCache, ImageState};
+use markdown_editor::layouts::{Annotation, LayoutJobInfo};
+use markdown_editor::style::{MarkdownNode, RenderStyle};
+use markdown_editor::Editor;
 use std::mem;
 use std::ops::{Deref, Index};
 use std::sync::Arc;
@@ -43,9 +45,10 @@ pub struct ImageInfo {
     pub image_state: ImageState,
 }
 
+#[allow(clippy::too_many_arguments)] // todo: impl Editor
 pub fn calc(
-    ast: &Ast, buffer: &Buffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
-    touch_mode: bool, ui: &mut Ui,
+    ast: &Ast, buffer: &Buffer, bounds: &Bounds, grammar: &Grammar, images: &ImageCache,
+    appearance: &Appearance, touch_mode: bool, ui: &mut Ui,
 ) -> Galleys {
     let max_rect = ui.max_rect();
 
@@ -63,15 +66,22 @@ pub fn calc(
         .iter()
         .map(|range| range.range)
         .collect::<Vec<_>>();
-    for ([ast_idx, paragraph_idx, link_idx, selection_idx, text_idx], text_range_portion) in
-        bounds::join([
-            &ast_ranges,
-            &bounds.paragraphs,
-            &bounds.links,
-            &[buffer.current.selection],
-            &bounds.text,
-        ])
-    {
+    let grammar_ranges = grammar
+        .lints
+        .iter()
+        .map(|lint| (DocCharOffset(lint.span.start), DocCharOffset(lint.span.end)))
+        .collect::<Vec<_>>();
+    for (
+        [ast_idx, paragraph_idx, link_idx, selection_idx, text_idx, grammar_idx],
+        text_range_portion,
+    ) in bounds::join([
+        &ast_ranges,
+        &bounds.paragraphs,
+        &bounds.links,
+        &[buffer.current.selection],
+        &bounds.text,
+        &grammar_ranges,
+    ]) {
         // paragraphs cover all text; will always have at least one possibly-empty paragraph
         let paragraph_idx = if let Some(paragraph_idx) = paragraph_idx {
             paragraph_idx
@@ -118,6 +128,10 @@ pub fn calc(
                 annotation = text_range.annotation(ast, captured);
                 annotation_text_format = text_format.clone();
                 is_annotation = annotation.is_some();
+            }
+
+            if grammar_idx.is_some() {
+                RenderStyle::Grammar.apply_style(&mut text_format, appearance, ui.visuals());
             }
 
             let text = &buffer[text_range_portion];
