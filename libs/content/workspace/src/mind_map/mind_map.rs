@@ -644,8 +644,8 @@ fn draw_arrow(
     painter: &Painter, from: Pos2, to: Pos2, color: Color32, zoom_factor: f32, size: f32,
     self_size: f32,
 ) {
-    let intersect = intersect_stuff(from, to, size);
-    let intersect2 = intersect_stuff1(from, to, self_size);
+    let intersect = intersect_stuff(from, to, size, true);
+    let intersect2 = intersect_stuff(from, to, self_size, false);
 
     let to = to - intersect.to_vec2();
     let from = from - intersect2.to_vec2();
@@ -687,30 +687,25 @@ fn circle_contains(p: Vec2, center: Pos2, size: f32) -> bool {
     }
     false
 }
-fn intersect_stuff(from: Pos2, to: Pos2, size: f32) -> Pos2 {
+fn intersect_stuff(from: Pos2, to: Pos2, size: f32, zero: bool) -> Pos2 {
     let x = from.x - to.x;
     let y = from.y - to.y;
     let angle = (y / x).atan();
     let new_x = size * angle.cos();
     let new_y: f32 = size * angle.sin();
     let mut intersect = Pos2::new(new_x, new_y);
-    if x < 0.0 {
+    if zero {
+        if x < 0.0 {
+        } else {
+            intersect = Pos2::new(0.0, 0.0) - intersect.to_vec2();
+        }
     } else {
-        intersect = Pos2::new(0.0, 0.0) - intersect.to_vec2();
+        if x > 0.0 {
+        } else {
+            intersect = Pos2::new(0.0, 0.0) - intersect.to_vec2();
+        }
     }
-    intersect
-}
-fn intersect_stuff1(from: Pos2, to: Pos2, size: f32) -> Pos2 {
-    let x = from.x - to.x;
-    let y = from.y - to.y;
-    let angle = (y / x).atan();
-    let new_x = size * angle.cos();
-    let new_y: f32 = size * angle.sin();
-    let mut intersect = Pos2::new(new_x, new_y);
-    if x > 0.0 {
-    } else {
-        intersect = Pos2::new(0.0, 0.0) - intersect.to_vec2();
-    }
+
     intersect
 }
 fn truncate_after_second_punct(text: &str) -> String {
