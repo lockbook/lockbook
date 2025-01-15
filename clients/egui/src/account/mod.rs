@@ -442,12 +442,12 @@ impl AccountScreen {
             .inner;
 
         if resp.new_file.is_some() {
-            self.workspace.create_file(false);
+            self.workspace.create_file(false, false);
             ui.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
         }
 
         if resp.new_drawing.is_some() {
-            self.workspace.create_file(true);
+            self.workspace.create_file(true, false);
         }
 
         if let Some(file) = resp.new_folder_modal {
