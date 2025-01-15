@@ -348,7 +348,6 @@ impl AccountScreen {
 
     /// See also workspace::process_keys
     fn process_keys(&mut self, ctx: &egui::Context) {
-        const ALT: egui::Modifiers = egui::Modifiers::ALT;
         const COMMAND: egui::Modifiers = egui::Modifiers::COMMAND;
 
         // Escape (without modifiers) to close something such as an open modal.
@@ -369,9 +368,11 @@ impl AccountScreen {
             self.settings.write().unwrap().zen_mode = zen_mode;
         }
 
-        // Ctrl-Space or Ctrl-L pressed while search modal is not open.
+        // Ctrl-Space or Ctrl-O or Ctrl-L pressed while search modal is not open.
         let is_search_open = ctx.input_mut(|i| {
-            i.consume_key(COMMAND, egui::Key::Space) || i.consume_key(COMMAND, egui::Key::L)
+            i.consume_key(COMMAND, egui::Key::Space)
+                || i.consume_key(COMMAND, egui::Key::O)
+                || i.consume_key(COMMAND, egui::Key::L)
         });
         if is_search_open {
             if let Some(search) = &mut self.modals.search {
@@ -389,8 +390,8 @@ impl AccountScreen {
                 Some(SettingsModal::new(&self.core, &self.settings, &self.workspace.cfg));
         }
 
-        // Alt-H pressed to toggle the help modal.
-        if ctx.input_mut(|i| i.consume_key(ALT, egui::Key::H)) {
+        // Ctrl-/ to toggle the help modal.
+        if ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::Slash)) {
             let d = &mut self.modals.help;
             *d = match d {
                 Some(_) => None,

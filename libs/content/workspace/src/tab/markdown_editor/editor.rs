@@ -357,13 +357,9 @@ impl Editor {
 
         // focus editor by default
         if ui.memory(|m| m.focused().is_none()) {
-            tracing::warn!("focused editor");
             self.focus(ui.ctx());
-        } else {
-            tracing::warn!("focused: {:?}", ui.memory(|m| m.focused()));
         }
         if self.focused(ui.ctx()) {
-            tracing::error!("focused: {:?}", ui.memory(|m| m.focused()));
             self.focus_lock(ui.ctx());
         }
 
