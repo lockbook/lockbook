@@ -41,7 +41,7 @@ impl Lb {
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
-        self.setup_search();
+        self.events.meta_changed(*root);
 
         Ok(ui_file)
     }

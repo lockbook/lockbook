@@ -16,15 +16,13 @@ pub enum Event {
     /// documents that have new contents are communicated as DocumentWritten
     NewFile(Uuid),
 
-    /// If metadata changes either this lb library, or a sync
-    /// document content changes are communicated as DocumentWritten
-    /// if there is any uncertainty parents are returned rather than their
-    /// children (for example to make the implementation of create_at_path
-    /// simpler)
+    /// A metadata for a given id or it's descendants changed. The id returned
+    /// may be deleted. Updates to document contents will not cause this
+    /// message to be sent (unless a document was deleted).
     MetadataChanged(Uuid),
 
-    DocumentRemoved(Uuid),
-    FolderRemoved(Uuid),
+    /// The contents of this document have changed either by this lb
+    /// library or as a result of sync
     DocumentWritten(Uuid),
 }
 
@@ -42,14 +40,6 @@ impl EventSubs {
 
     pub fn meta_changed(&self, id: Uuid) {
         self.queue(Event::MetadataChanged(id));
-    }
-
-    pub fn doc_removed(&self, id: Uuid) {
-        self.queue(Event::DocumentRemoved(id));
-    }
-
-    pub fn folder_removed(&self, id: Uuid) {
-        self.queue(Event::FolderRemoved(id));
     }
 
     pub fn doc_written(&self, id: Uuid) {

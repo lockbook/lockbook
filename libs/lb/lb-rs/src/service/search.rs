@@ -210,34 +210,40 @@ impl Lb {
                             index.push(SearchIndexEntry { id, path, content: None });
                         }
 
-                        Event::MetadataChanged(id) => {
-                            // todo metas can be communicated as deleted via this message as well.
-                            // consider getting rid of the folder removed idea as well.
-                            let children = lb.get_and_get_children_recursively(&id).await.unwrap();
+                        Event::MetadataChanged(mut id) => {
+                            // if this file is deleted recompute the metadata
+                            if lb.get_file_by_id(id).await.is_err() {
+                                id = lb.root().await.unwrap().id;
+                            }
 
+                            // compute info for this update up-front
+                            let files = lb.list_metadatas().await.unwrap();
+                            let all_file_ids: Vec<Uuid> = files.into_iter().map(|f| f.id).collect();
+                            let children = lb.get_and_get_children_recursively(&id).await.unwrap();
                             let mut paths = HashMap::new();
                             for child in children {
                                 paths.insert(child.id, lb.get_path_by_id(child.id).await.unwrap());
                             }
 
+                            // aquire the lock
+                            let mut index = lb.search.index.write().await;
+
+                            // handle deletions
+                            index.retain(|entry| all_file_ids.contains(&entry.id));
+
+                            // update any of the paths of this file and the children
                             let mut index = lb.search.index.write().await;
                             for entry in index.iter_mut() {
                                 if paths.contains_key(&entry.id) {
                                     entry.path = paths.remove(&entry.id).unwrap();
                                 }
                             }
-                        }
 
-                        Event::FolderRemoved(_) => {
-                            let files = lb.list_metadatas().await.unwrap();
-                            let file_ids: Vec<Uuid> = files.into_iter().map(|f| f.id).collect();
-                            let mut index = lb.search.index.write().await;
-                            index.retain(|entry| file_ids.contains(&entry.id));
-                        }
-
-                        Event::DocumentRemoved(id) => {
-                            let mut index = lb.search.index.write().await;
-                            index.retain(|entry| entry.id != id);
+                            // handle any remaining, new metadata
+                            for (id, path) in paths {
+                                // any content should come in as a result of DocumentWritten
+                                index.push(SearchIndexEntry { id, path, content: None });
+                            }
                         }
 
                         Event::DocumentWritten(id) => {

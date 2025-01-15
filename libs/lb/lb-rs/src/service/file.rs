@@ -1,4 +1,3 @@
-use crate::logic::file_like::FileLike;
 use crate::logic::filename::MAX_FILENAME_LENGTH;
 use crate::logic::symkey;
 use crate::logic::tree_like::TreeLike;
@@ -94,23 +93,13 @@ impl Lb {
             .to_staged(&mut db.local_metadata)
             .to_lazy();
 
-        // we lookup the ftype before the link resolution because we're only interested the
-        // intention behind the delete, not which metadata was actually marked deleted
-        let ftype = tree.find(id)?.file_type();
-
         let id = &tree.linked_by(id)?.unwrap_or(*id);
 
         tree.delete(id, &self.keychain)?;
 
         tx.end();
 
-        match ftype {
-            FileType::Document => self.events.doc_removed(*id),
-            FileType::Folder => self.events.folder_removed(*id),
-            FileType::Link { .. } => {
-                warn!("did not expect to find a link directly deleted");
-            },
-        }
+        self.events.meta_changed(*id);
 
         Ok(())
     }

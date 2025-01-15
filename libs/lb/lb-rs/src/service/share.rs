@@ -32,7 +32,9 @@ impl Lb {
 
         tree.add_share(id, sharee, mode, &self.keychain)?;
 
-        self.setup_search();
+        tx.end();
+
+        self.events.meta_changed(id);
 
         Ok(())
     }
@@ -88,7 +90,8 @@ impl Lb {
 
         tree.delete_share(id, maybe_encrypted_for, &self.keychain)?;
 
-        self.setup_search();
+        tx.end();
+        self.events.meta_changed(*id);
 
         Ok(())
     }
@@ -96,10 +99,6 @@ impl Lb {
     #[instrument(level = "debug", skip(self))]
     pub async fn reject_share(&self, id: &Uuid) -> Result<(), LbErr> {
         let pk = self.keychain.get_pk()?;
-        let result = self.delete_share(id, Some(pk)).await;
-
-        self.setup_search();
-
-        result
+        self.delete_share(id, Some(pk)).await
     }
 }
