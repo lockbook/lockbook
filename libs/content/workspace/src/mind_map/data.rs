@@ -35,7 +35,7 @@ impl LinkNode {
         LinkNode {
             id,
             title,
-            links: links_given.clone(),
+            links: links_given,
             color: [0.0, 0.0, 0.0],
             cluster_id: None,
             internal: true,
@@ -48,7 +48,6 @@ pub fn lockbook_data(core: &Lb) -> Graph {
     let mut graph: Graph = Vec::new();
     let mut classify: Vec<NameId> = Vec::new();
     let mut id: usize = 0;
-    let mut _num_links = 1;
     let mut info: Vec<(String, String, Uuid)> = Vec::new();
 
     for file in core.list_metadatas().unwrap() {
@@ -68,7 +67,6 @@ pub fn lockbook_data(core: &Lb) -> Graph {
         let file_id = n.2;
         let links = check_for_links(&mut classify, &mut id, &doc);
         id += 1;
-        _num_links += links.len();
         classify.push(NameId::new(classify.len(), name.clone(), links, Some(file_id)));
     }
     for item in classify.iter() {

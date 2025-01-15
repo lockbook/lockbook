@@ -1,5 +1,4 @@
-use crate::data::{lockbook_data, Graph, LinkNode};
-
+use super::data::{lockbook_data, Graph, LinkNode};
 use egui::ahash::{HashMap, HashMapExt};
 use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
@@ -17,7 +16,7 @@ struct Grid {
     grid: HashMap<(i32, i32), Vec<usize>>,
 }
 
-pub struct KnowledgeGraphApp {
+pub struct MindMap {
     pub graph: Graph,
     positions: Vec<egui::Pos2>,
     zoom_factor: f32,
@@ -72,7 +71,7 @@ impl Grid {
     }
 }
 
-impl KnowledgeGraphApp {
+impl MindMap {
     pub fn new(core: &Lb) -> Self {
         let graph = lockbook_data(core);
         let positions = vec![egui::Pos2::ZERO; graph.len()];
@@ -368,7 +367,7 @@ impl KnowledgeGraphApp {
         for (i, _node) in self.graph.iter().enumerate() {
             let size = node_sizes[i];
             let pos = transformed_positions[i];
-            if node_sizes[i] > 5.0 && cursorin(self.cursor_loc, pos, size) {
+            if node_sizes[i] > 5.0 && circle_contains(self.cursor_loc, pos, size) {
                 hoveredvalue = i;
             }
         }
@@ -381,7 +380,7 @@ impl KnowledgeGraphApp {
 
                     if self.has_directed_link(node.id, self.graph[link].id)
                         && node_sizes[i] > 5.0
-                        && cursorin(self.cursor_loc, pos, size)
+                        && circle_contains(self.cursor_loc, pos, size)
                     {
                         drawingstuf = Some((i, node));
                     } else if link == hoveredvalue {
@@ -411,6 +410,10 @@ impl KnowledgeGraphApp {
                 outline_color = Color32::LIGHT_BLUE;
                 text = node.title.trim_end_matches(".md").to_string();
             }
+            if text.ends_with(")") {
+                text = text.trim_end_matches(")").to_string();
+            }
+            text = truncate_after_second_punct(&text);
 
             if node.cluster_id.is_some() {
                 let pos = transformed_positions[i];
@@ -421,8 +424,8 @@ impl KnowledgeGraphApp {
                     Stroke::new(0.75 * self.zoom_factor, outline_color),
                 );
 
-                if size > 5.0 && cursorin(self.cursor_loc, pos, size) {
-                    self.inside = node.file_id; //need to make to so every linknode has also a uuid
+                if size > 5.0 && circle_contains(self.cursor_loc, pos, size) {
+                    self.inside = node.file_id;
                     self.inside_found = true;
                     let font_id = egui::FontId::proportional(15.0 * (self.zoom_factor.sqrt()));
                     text_info = Some((pos, egui::Align2::CENTER_CENTER, text, font_id, text_color));
@@ -439,7 +442,7 @@ impl KnowledgeGraphApp {
 
                     if self.has_directed_link(node.id, self.graph[link].id)
                         && node_sizes[i] > 5.0
-                        && cursorin(self.cursor_loc, pos, size)
+                        && circle_contains(self.cursor_loc, pos, size)
                     {
                         draw_arrow(
                             ui.painter(),
@@ -674,11 +677,11 @@ fn draw_arrow(
     painter.add(Shape::convex_polygon(points, arrow_color, Stroke::new(0.0, color)));
 }
 
-fn cursorin(cursor: Vec2, center: Pos2, size: f32) -> bool {
-    if cursor.x > (center.x - size)
-        && (center.x + size) > cursor.x
-        && cursor.y > (center.y - size)
-        && (center.y + size) > cursor.y
+fn circle_contains(p: Vec2, center: Pos2, size: f32) -> bool {
+    if p.x > (center.x - size)
+        && (center.x + size) > p.x
+        && p.y > (center.y - size)
+        && (center.y + size) > p.y
     {
         return true;
     }
@@ -709,4 +712,16 @@ fn intersect_stuff1(from: Pos2, to: Pos2, size: f32) -> Pos2 {
         intersect = Pos2::new(0.0, 0.0) - intersect.to_vec2();
     }
     intersect
+}
+fn truncate_after_second_punct(text: &str) -> String {
+    let mut punct_count = 0;
+    for (i, c) in text.char_indices() {
+        if c == '.' || c == '?' || c == '-' {
+            punct_count += 1;
+            if punct_count == 2 {
+                return text[..=i].to_string();
+            }
+        }
+    }
+    text.to_string()
 }
