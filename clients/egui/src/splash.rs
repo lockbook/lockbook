@@ -6,7 +6,6 @@ use lb::model::errors::LbErrKind;
 
 use crate::model::AccountScreenInitData;
 use crate::settings::Settings;
-use crate::util::data_dir;
 
 pub struct SplashHandOff {
     pub settings: Arc<RwLock<Settings>>,
@@ -46,16 +45,7 @@ impl SplashScreen {
         let tx = self.update_tx.clone();
 
         std::thread::spawn(move || {
-            let writeable_path = match data_dir() {
-                Ok(dir) => format!("{}/egui", dir),
-                Err(err) => {
-                    tx.send(SplashUpdate::Error(err)).unwrap();
-                    return;
-                }
-            };
-
-            let cfg =
-                Config { logs: true, colored_logs: true, writeable_path, background_work: true };
+            let cfg = Config::ui_config("egui");
 
             tx.send(SplashUpdate::Status("Loading core...".to_string()))
                 .unwrap();

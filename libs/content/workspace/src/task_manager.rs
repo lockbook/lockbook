@@ -405,7 +405,7 @@ impl TaskManager {
         // complete before we launch a sync status update. A sync always queues a sync status update upon completion.
         let should_update_sync_status = !tasks.queued_sync_status_updates.is_empty()
             && tasks.in_progress_sync_status_update.is_none()
-            && !tasks.queued_syncs.is_empty()
+            && tasks.queued_syncs.is_empty()
             && tasks.in_progress_sync.is_none();
 
         // Get launched things from the queue and remove duplicates (avoiding clones)

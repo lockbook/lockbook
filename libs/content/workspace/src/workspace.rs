@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
-use tracing::{debug, error, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
@@ -54,7 +54,7 @@ impl Workspace {
     pub fn new(core: &Lb, ctx: &Context) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
-        let writeable_path = writeable_dir.join("ws_presistance.json");
+        let writeable_path = writeable_dir.join("ws_persistence.json");
 
         let mut ws = Self {
             tabs: Default::default(),
@@ -79,14 +79,21 @@ impl Workspace {
             last_touch_event: Default::default(),
         };
 
-        let open_tabs = ws.cfg.get_tabs();
+        let (open_tabs, active_tab) = ws.cfg.get_tabs();
 
         open_tabs.iter().for_each(|&file_id| {
             if core.get_file_by_id(file_id).is_ok() {
-                println!("opening file with id {:#?}", file_id);
-                ws.open_file(file_id, true, true);
+                info!(id = ?file_id, "opening persisted tab");
+                ws.open_file(file_id, false, false);
             }
         });
+        if let Some(active_tab) = active_tab {
+            info!(id = ?active_tab, "setting persisted active tab");
+            ws.active_tab = open_tabs
+                .iter()
+                .position(|&id| id == active_tab)
+                .unwrap_or_default();
+        }
 
         ws
     }
@@ -482,7 +489,7 @@ impl Workspace {
             warn!("processing sync progress took {:?}", start.elapsed());
         }
 
-        // background work
+        // background work: queue
         let now = Instant::now();
         let start = Instant::now();
         if let Some(last_sync_status_refresh) = self
@@ -529,11 +536,11 @@ impl Workspace {
         if self.cfg.get_auto_sync() {
             if let Some(last_sync) = self.tasks.sync_queued_at().or(self.last_sync_completed) {
                 let focused = self.ctx.input(|i| i.focused);
-                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(10);
+                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(60);
                 let sync_period = if user_active && focused {
                     Duration::from_secs(5)
                 } else {
-                    Duration::from_secs(60 * 60)
+                    Duration::from_secs(5 * 60)
                 };
 
                 let instant_of_next_sync = last_sync + sync_period;
@@ -551,10 +558,33 @@ impl Workspace {
             warn!("processing auto sync took {:?}", start.elapsed());
         }
 
+        // background work: launch
         let start = Instant::now();
         self.tasks.check_launch(&self.tabs);
         if start.elapsed() > Duration::from_millis(100) {
             warn!("processing task launch took {:?}", start.elapsed());
+        }
+
+        // background work: cleanup
+        let mut removed_tabs = 0;
+        for i in 0..self.tabs.len() {
+            let i = i - removed_tabs;
+            let tab = &self.tabs[i];
+            if tab.is_closing
+                && !self.tasks.load_or_save_queued(tab.id)
+                && !self.tasks.load_or_save_in_progress(tab.id)
+            {
+                self.remove_tab(i);
+                removed_tabs += 1;
+
+                let title = match self.current_tab() {
+                    Some(tab) => tab.name.clone(),
+                    None => "Lockbook".to_owned(),
+                };
+                self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
+
+                self.out.selected_file = self.current_tab().map(|tab| tab.id);
+            }
         }
     }
 
@@ -585,9 +615,15 @@ impl Workspace {
 
     pub fn rename_file(&mut self, req: (Uuid, String)) {
         let (id, new_name) = req;
-        self.core.rename_file(&id, &new_name).unwrap(); // TODO
-
-        self.file_renamed(id, new_name);
+        match self.core.rename_file(&id, &new_name) {
+            Ok(()) => {
+                self.file_renamed(id, new_name);
+            }
+            Err(err) => {
+                // todo: show a toast
+                warn!(?id, "failed to rename file: {:?}", err);
+            }
+        }
     }
 
     pub fn file_renamed(&mut self, id: Uuid, new_name: String) {
@@ -619,10 +655,15 @@ impl Workspace {
 
     pub fn move_file(&mut self, req: (Uuid, Uuid)) {
         let (id, new_parent) = req;
-        self.core.move_file(&id, &new_parent).unwrap(); // TODO
-
-        self.out.file_moved = Some((id, new_parent));
-        self.ctx.request_repaint();
+        match self.core.move_file(&id, &new_parent) {
+            Ok(()) => {
+                self.out.file_moved = Some((id, new_parent));
+                self.ctx.request_repaint();
+            }
+            Err(err) => {
+                warn!(?id, "failed to move file: {:?}", err);
+            }
+        }
     }
 
     pub fn status_message(&self) -> String {
@@ -665,13 +706,14 @@ pub struct WsPersistentStore {
 #[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
 struct WsPresistentData {
     open_tabs: Vec<Uuid>,
+    active_tab: Option<Uuid>,
     auto_save: bool,
     auto_sync: bool,
 }
 
 impl Default for WsPresistentData {
     fn default() -> Self {
-        Self { auto_save: true, auto_sync: true, open_tabs: Vec::default() }
+        Self { auto_save: true, auto_sync: true, open_tabs: Vec::default(), active_tab: None }
     }
 }
 
@@ -692,31 +734,21 @@ impl WsPersistentStore {
     }
 
     pub fn set_tabs(&mut self, tabs: &[Tab], active_tab_index: usize) {
-        let mut active_tab = None;
-        let mut tab_ids: Vec<Uuid> = tabs
-            .iter()
-            .enumerate()
-            .filter_map(|(i, t)| {
-                if i == active_tab_index {
-                    active_tab = Some(t.id);
-                    None
-                } else {
-                    Some(t.id)
-                }
-            })
-            .collect();
-
-        if let Some(tab) = active_tab {
-            tab_ids.push(tab);
-        }
-
         let mut data_lock = self.data.write().unwrap();
-        data_lock.open_tabs = tab_ids;
+        data_lock.open_tabs = tabs.iter().map(|t| t.id).collect();
+        if !tabs.is_empty() {
+            if let Some(tab) = tabs.get(active_tab_index) {
+                data_lock.active_tab = Some(tab.id);
+            } else {
+                data_lock.active_tab = Some(tabs[0].id);
+            }
+        }
         self.write_to_file();
     }
 
-    pub fn get_tabs(&self) -> Vec<Uuid> {
-        self.data.read().unwrap().open_tabs.clone()
+    pub fn get_tabs(&self) -> (Vec<Uuid>, Option<Uuid>) {
+        let data_lock = self.data.read().unwrap();
+        (data_lock.open_tabs.clone(), data_lock.active_tab)
     }
 
     pub fn get_auto_sync(&self) -> bool {
