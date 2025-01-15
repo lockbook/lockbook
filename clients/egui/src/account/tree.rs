@@ -1252,6 +1252,9 @@ impl FileTree {
                                 .rect(file_resp.rect, 2., Color32::TRANSPARENT, stroke);
                         },
                     );
+
+                    // scroll so that target is visible
+                    ui.scroll_to_rect(file_resp.rect, None);
                 } else {
                     // drop as sibling to hovered file (indicated by a line)
                     let y = if pointer.y < file_resp.rect.center().y {
@@ -1273,6 +1276,21 @@ impl FileTree {
                             );
                         },
                     );
+
+                    // scroll so that targets on both sides of the line are visible
+                    if pointer.y < file_resp.rect.center().y {
+                        if self.prev(file.id, true).is_some() {
+                            // scroll to reveal target above and self
+                            let mut rect = file_resp.rect;
+                            rect.min.y -= rect.height();
+                            ui.scroll_to_rect(rect, None);
+                        }
+                    } else if self.next(file.id, true).is_some() {
+                        // scroll to reveal target below and self
+                        let mut rect = file_resp.rect;
+                        rect.max.y += rect.height();
+                        ui.scroll_to_rect(rect, None);
+                    };
                 }
             }
 
