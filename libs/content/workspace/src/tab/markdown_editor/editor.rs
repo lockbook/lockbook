@@ -137,6 +137,12 @@ impl Editor {
         ctx.memory(|m| m.has_focus(self.id()))
     }
 
+    pub fn surrender_focus(&self, ctx: &Context) {
+        ctx.memory_mut(|m| {
+            m.surrender_focus(self.id());
+        });
+    }
+
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
         ui.vertical(|ui| {
