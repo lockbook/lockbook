@@ -137,6 +137,12 @@ impl Editor {
         ctx.memory(|m| m.has_focus(self.id()))
     }
 
+    pub fn surrender_focus(&self, ctx: &Context) {
+        ctx.memory_mut(|m| {
+            m.surrender_focus(self.id());
+        });
+    }
+
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
         ui.vertical(|ui| {
@@ -351,9 +357,13 @@ impl Editor {
 
         // focus editor by default
         if ui.memory(|m| m.focused().is_none()) {
+            tracing::warn!("focused editor");
             self.focus(ui.ctx());
+        } else {
+            tracing::warn!("focused: {:?}", ui.memory(|m| m.focused()));
         }
         if self.focused(ui.ctx()) {
+            tracing::error!("focused: {:?}", ui.memory(|m| m.focused()));
             self.focus_lock(ui.ctx());
         }
 

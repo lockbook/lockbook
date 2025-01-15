@@ -266,6 +266,13 @@ impl Workspace {
     }
 
     pub fn remove_tab(&mut self, i: usize) {
+        let tab = &self.tabs[i];
+        if let Some(TabContent::Markdown(md)) = &tab.content {
+            if md.focused(&self.ctx) {
+                md.surrender_focus(&self.ctx);
+            }
+        }
+
         self.tabs.remove(i);
         let n_tabs = self.tabs.len();
         self.out.tabs_changed = true;
