@@ -17,6 +17,7 @@ use lb::model::file_metadata::FileType;
 use lb::service::import_export::ImportStatus;
 use lb::Uuid;
 use tree::FilesExt;
+use workspace_rs::tab::TabContent;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::Workspace;
@@ -231,9 +232,14 @@ impl AccountScreen {
                 if let Some(file) = wso.selected_file {
                     if self.workspace.tabs.iter()
                     if !self.tree.selected.contains(&file) {
-                        self.tree.cursor = Some(file);
-                        self.tree.selected.clear();
-                        self.tree.selected.insert(file);
+                        // must be a real file to reveal
+                        if let Some(tab) = self.workspace.tabs.iter().find(|t| t.id == file) {
+                            if !matches!(tab.content, Some(TabContent::Graph(_))) {
+                                self.tree.cursor = Some(file);
+                                self.tree.selected.clear();
+                                self.tree.selected.insert(file);
+                            }
+                        }
                     }
                 }
 
