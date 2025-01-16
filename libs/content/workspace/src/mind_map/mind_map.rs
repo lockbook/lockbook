@@ -336,13 +336,8 @@ impl MindMap {
         };
         self.last_pan += self.pan / self.zoom_factor;
         self.pan = Vec2::ZERO;
-        let text_color: egui::Color32;
         let is_dark_mode = ui.ctx().style().visuals.dark_mode;
-        if is_dark_mode {
-            text_color = Color32::WHITE;
-        } else {
-            text_color = Color32::BLACK;
-        }
+        let text_color: egui::Color32 = if is_dark_mode { Color32::WHITE } else { Color32::BLACK };
         let base_size = radius;
         let k = 1.0;
         let mut drawingstuf: Option<(usize, &LinkNode)> = None;
@@ -699,11 +694,9 @@ fn intersect_stuff(from: Pos2, to: Pos2, size: f32, zero: bool) -> Pos2 {
         } else {
             intersect = Pos2::new(0.0, 0.0) - intersect.to_vec2();
         }
+    } else if x > 0.0 {
     } else {
-        if x > 0.0 {
-        } else {
-            intersect = Pos2::new(0.0, 0.0) - intersect.to_vec2();
-        }
+        intersect = Pos2::new(0.0, 0.0) - intersect.to_vec2();
     }
 
     intersect

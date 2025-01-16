@@ -229,6 +229,7 @@ impl AccountScreen {
                 }
 
                 if let Some(file) = wso.selected_file {
+                    if self.workspace.tabs.iter()
                     if !self.tree.selected.contains(&file) {
                         self.tree.cursor = Some(file);
                         self.tree.selected.clear();
