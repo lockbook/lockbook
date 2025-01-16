@@ -183,7 +183,7 @@ impl Workspace {
                     }
                 }
                 if let Some(req) = rename_req {
-                    self.rename_file(req);
+                    self.rename_file(req, false);
                 }
             });
         });
@@ -283,7 +283,7 @@ impl Workspace {
                                             md.needs_name = false;
                                         }
                                     }
-                                    self.rename_file((id, name.clone()));
+                                    self.rename_file((id, name.clone()), true);
                                 }
                             }
                             ui.ctx().request_repaint();

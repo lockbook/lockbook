@@ -351,7 +351,9 @@ impl Editor {
             ui.scroll_to_rect(rect.expand(rect.height()), None);
         }
 
-        let suggested_title = self.get_suggested_title();
+        let suggested_title =
+            self.get_suggested_title()
+                .and_then(|s| if s == ".md" { None } else { Some(s) });
         let suggest_rename =
             if suggested_title != prior_suggested_title { suggested_title } else { None };
 

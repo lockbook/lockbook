@@ -513,21 +513,6 @@ impl TaskManager {
             || sync_to_launch.is_some()
             || sync_status_update_to_launch.is_some()
             || file_cache_refresh_to_launch.is_some();
-        if any_to_launch {
-            debug!(
-                loads_to_launch = loads_to_launch.len(),
-                saves_to_launch = saves_to_launch.len(),
-                sync_to_launch = sync_to_launch.is_some() as usize,
-                sync_status_update_to_launch = sync_status_update_to_launch.is_some() as usize,
-                file_cache_refresh_to_launch = file_cache_refresh_to_launch.is_some() as usize,
-                queued_loads_remaining = tasks.queued_loads.len(),
-                queued_saves_remaining = tasks.queued_saves.len(),
-                queued_syncs_remaining = tasks.queued_syncs.len(),
-                queued_sync_status_updates_remaining = tasks.queued_sync_status_updates.len(),
-                queued_file_cache_refreshes_remaining = tasks.queued_file_cache_refreshes.len(),
-                "launching tasks",
-            );
-        }
 
         // Launch the things
         for queued_load in loads_to_launch.into_values() {
