@@ -263,7 +263,7 @@ impl Workspace {
 
     pub fn close_tab(&mut self, i: usize) {
         if self.tabs[i].name == "Mind Map" {
-            if let Some(TabContent::Graph(mut graph_app)) = self.tabs[i].content.take() {
+            if let Some(TabContent::Graph(graph_app)) = &mut self.tabs[i].content {
                 graph_app.stop(true);
             }
         }
