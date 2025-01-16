@@ -230,7 +230,6 @@ impl AccountScreen {
                 }
 
                 if let Some(file) = wso.selected_file {
-                    if self.workspace.tabs.iter()
                     if !self.tree.selected.contains(&file) {
                         // must be a real file to reveal
                         if let Some(tab) = self.workspace.tabs.iter().find(|t| t.id == file) {

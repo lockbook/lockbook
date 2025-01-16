@@ -358,7 +358,7 @@ impl Workspace {
         }
 
         // Ctrl-G to open graph
-        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::G)) {
+        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::M)) {
             self.graph_called(self.core.clone());
         }
         // Ctrl-W to close current tab.
