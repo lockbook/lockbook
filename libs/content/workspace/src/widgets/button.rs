@@ -9,6 +9,7 @@ pub struct Button<'a> {
     text_style: Option<egui::TextStyle>,
     icon_color: Option<egui::Color32>,
     icon_alignment: Option<egui::Align>,
+    text_alignment: Option<egui::Align>,
     padding: Option<egui::Vec2>,
     is_loading: bool,
     rounding: egui::Rounding,
@@ -31,6 +32,10 @@ impl<'a> Button<'a> {
             egui::Align::Max => egui::Align::RIGHT,
         };
         Self { icon_alignment: Some(alignment), ..self }
+    }
+
+    pub fn text_alignment(self, align: egui::Align) -> Self {
+        Self { text_alignment: Some(align), ..self }
     }
 
     pub fn text(self, text: impl Into<WidgetText>) -> Self {
@@ -73,11 +78,25 @@ impl<'a> Button<'a> {
         Self { default_fill: Some(default_fill), ..self }
     }
 
+    pub fn size(&self, ui: &egui::Ui) -> egui::Vec2 {
+        let text_style = self.text_style.clone().unwrap_or(egui::TextStyle::Body);
+        let padding = self.padding.unwrap_or_else(|| ui.spacing().button_padding);
+        let text_height = ui.text_style_height(&text_style);
+
+        let mut width = padding.x * 2.0;
+
+        if self.hexpand {
+            width = ui.available_size_before_wrap().x;
+        }
+
+        egui::vec2(width, text_height + padding.y * 2.0)
+    }
+
     pub fn show(self, ui: &mut egui::Ui) -> egui::Response {
         let text_style = self.text_style.unwrap_or(egui::TextStyle::Body);
         let padding = self.padding.unwrap_or_else(|| ui.spacing().button_padding);
         let text_height = ui.text_style_height(&text_style);
-        let wrap_width = ui.available_width();
+        let wrap_width = ui.available_width() - padding.x * 4.0;
 
         let mut width = padding.x * 2.0;
 
@@ -85,7 +104,7 @@ impl<'a> Button<'a> {
         let maybe_icon_galley = self.icon.map(|icon| {
             let icon: egui::WidgetText = icon.into();
             let galley =
-                icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, icon_text_style);
+                icon.into_galley(ui, Some(TextWrapMode::Truncate), wrap_width, icon_text_style);
             width += galley.size().x;
             if self.text.is_some() {
                 width += padding.x / 2.;
@@ -94,10 +113,14 @@ impl<'a> Button<'a> {
         });
 
         let maybe_text_galley = self.text.map(|text| {
-            let galley = text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, text_style);
+            let galley = text.into_galley(ui, Some(TextWrapMode::Truncate), wrap_width, text_style);
             width += galley.size().x;
             galley
         });
+        let text_galley_size = maybe_text_galley
+            .as_ref()
+            .map(|g| g.size())
+            .unwrap_or_default();
 
         if self.hexpand {
             width = ui.available_size_before_wrap().x;
@@ -138,7 +161,11 @@ impl<'a> Button<'a> {
             });
 
             let mut text_pos = egui::pos2(
-                rect.min.x + padding.x + self.indent,
+                match self.text_alignment.unwrap_or_default() {
+                    egui::Align::Min => rect.min.x + padding.x + self.indent,
+                    egui::Align::Center => rect.center().x - text_galley_size.x / 2.0,
+                    egui::Align::Max => rect.max.x - padding.x - text_galley_size.x,
+                },
                 rect.center().y - 0.5 * text_height,
             );
 

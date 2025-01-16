@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use std::{fs, thread};
 use tracing::{debug, error, info, instrument, trace, warn};
 
+use crate::file_cache::FileCache;
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
@@ -30,6 +31,7 @@ pub struct Workspace {
 
     // Files and task status
     pub tasks: TaskManager,
+    pub files: Option<FileCache>,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
     pub last_sync_status_refresh_completed: Option<Instant>,
@@ -62,6 +64,7 @@ impl Workspace {
             user_last_seen: Instant::now(),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
+            files: None,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
             last_sync_status_refresh_completed: Default::default(),
@@ -102,7 +105,7 @@ impl Workspace {
         self.ctx = ctx.clone();
         self.core = core.clone();
 
-        let ids: Vec<lb_rs::Uuid> = self.tabs.iter().map(|tab| tab.id).collect();
+        let ids: Vec<Uuid> = self.tabs.iter().map(|tab| tab.id).collect();
         let maybe_active_tab_id = self.current_tab().map(|tab| tab.id);
 
         while self.active_tab != 0 {
@@ -125,7 +128,7 @@ impl Workspace {
 
     /// upsert returns true if a tab was created
     pub fn upsert_tab(
-        &mut self, id: lb_rs::Uuid, name: &str, path: &str, is_new_file: bool, make_active: bool,
+        &mut self, id: Uuid, name: &str, path: &str, is_new_file: bool, make_active: bool,
     ) -> bool {
         for (i, tab) in self.tabs.iter().enumerate() {
             if tab.id == id {
@@ -166,7 +169,7 @@ impl Workspace {
         true
     }
 
-    pub fn get_mut_tab_by_id(&mut self, id: lb_rs::Uuid) -> Option<&mut Tab> {
+    pub fn get_mut_tab_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
         self.tabs.iter_mut().find(|tab| tab.id == id)
     }
 
@@ -212,7 +215,7 @@ impl Workspace {
         None
     }
 
-    pub fn goto_tab_id(&mut self, id: lb_rs::Uuid) -> bool {
+    pub fn goto_tab_id(&mut self, id: Uuid) -> bool {
         for (i, tab) in self.tabs.iter().enumerate() {
             if tab.id == id {
                 self.active_tab = i;
@@ -289,6 +292,7 @@ impl Workspace {
             completed_saves,
             completed_sync,
             completed_sync_status_update,
+            completed_file_cache_refresh,
         } = self.tasks.update();
 
         let start = Instant::now();
@@ -443,7 +447,7 @@ impl Workspace {
                                     }
                                     _ => {}
                                 }
-                                sync = true; // todo: sync once when saving multiple tabs
+                                sync = true;
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
@@ -458,6 +462,7 @@ impl Workspace {
                     if sync {
                         self.tasks.queue_sync();
                     }
+                    self.tasks.queue_file_cache_refresh();
                 }
             }
         }
@@ -479,6 +484,17 @@ impl Workspace {
         }
         if start.elapsed() > Duration::from_millis(100) {
             warn!("processing completed sync status update took {:?}", start.elapsed());
+        }
+
+        let start = Instant::now();
+        if let Some(refresh) = completed_file_cache_refresh {
+            match refresh.cache_result {
+                Ok(cache) => self.files = Some(cache),
+                Err(err) => error!("failed to refresh file cache: {:?}", err),
+            }
+        }
+        if start.elapsed() > Duration::from_millis(100) {
+            warn!("processing completed file cache refresh took {:?}", start.elapsed());
         }
 
         let start = Instant::now();
@@ -617,6 +633,7 @@ impl Workspace {
             .map_err(|err| format!("{:?}", err));
 
         self.out.file_created = Some(result);
+        self.tasks.queue_file_cache_refresh();
         self.ctx.request_repaint();
     }
 
@@ -657,6 +674,7 @@ impl Workspace {
         }
 
         self.out.file_renamed = Some((id, new_name.clone()));
+        self.tasks.queue_file_cache_refresh();
         self.ctx.request_repaint();
     }
 
@@ -665,6 +683,7 @@ impl Workspace {
         match self.core.move_file(&id, &new_parent) {
             Ok(()) => {
                 self.out.file_moved = Some((id, new_parent));
+                self.tasks.queue_file_cache_refresh();
                 self.ctx.request_repaint();
             }
             Err(err) => {

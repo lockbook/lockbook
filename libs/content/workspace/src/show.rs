@@ -2,12 +2,14 @@ use basic_human_duration::ChronoHumanDuration;
 use core::f32;
 use egui::emath::easing;
 use egui::os::OperatingSystem;
-use egui::{EventFilter, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand};
+use egui::{vec2, EventFilter, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand};
+use lb_rs::logic::filename::DocumentType;
 use std::collections::HashMap;
 use std::mem;
 use std::time::{Duration, Instant};
 use tracing::instrument;
 
+use crate::file_cache::FilesExt;
 use crate::output::Response;
 use crate::tab::{TabContent, TabFailure};
 use crate::theme::icons::Icon;
@@ -62,49 +64,156 @@ impl Workspace {
     }
 
     fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
-        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-            ui.add_space(ui.clip_rect().height() / 3.0);
-
-            ui.label(egui::RichText::new("Welcome to your Lockbook").size(40.0));
-            ui.label(
-                "Right click on your file tree to explore all that your lockbook has to offer",
-            );
+        ui.vertical_centered(|ui| {
+            ui.style_mut().spacing.item_spacing = egui::vec2(0., 0.);
 
             ui.add_space(40.0);
+            ui.label(egui::RichText::new("Welcome to Lockbook").size(40.0));
+            ui.add_space(20.0);
 
-            ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
-            ui.visuals_mut().widgets.hovered.bg_fill = ui.visuals().widgets.active.bg_fill;
+            let rect = ui.max_rect();
 
-            let text_stroke =
-                egui::Stroke { color: ui.visuals().extreme_bg_color, ..Default::default() };
-            ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
-            ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
-            ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+            let center =
+                rect.shrink2(vec2((rect.width() - 200.) / 2., (rect.height() - 400.) / 2.));
+            let left = center.translate(vec2(-300., 0.));
+            let right = center.translate(vec2(300., 0.));
 
-            if Button::default()
-                .text("New document")
-                .rounding(egui::Rounding::same(3.0))
-                .frame(true)
-                .show(ui)
-                .clicked()
-            {
-                self.create_file(false);
-            }
-            if Button::default()
-                .text("New drawing")
-                .rounding(egui::Rounding::same(3.0))
-                .frame(true)
-                .show(ui)
-                .clicked()
-            {
-                self.create_file(true);
-            }
-            ui.visuals_mut().widgets.inactive.fg_stroke =
-                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-            ui.visuals_mut().widgets.hovered.fg_stroke =
-                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-            if Button::default().text("New folder").show(ui).clicked() {
-                self.out.new_folder_clicked = true;
+            let mut open_file = None;
+
+            ui.painter()
+                .rect_filled(left.expand(40.), 5., ui.style().visuals.extreme_bg_color);
+            ui.painter()
+                .rect_filled(center.expand(40.), 5., ui.style().visuals.extreme_bg_color);
+            ui.painter()
+                .rect_filled(right.expand(40.), 5., ui.style().visuals.extreme_bg_color);
+
+            ui.allocate_ui_at_rect(left, |ui| {
+                ui.label("Quick Actions");
+                ui.add_space(30.0);
+
+                if Button::default()
+                    .text("Create a document")
+                    .frame(true)
+                    .hexpand(true)
+                    .default_fill(ui.visuals().widgets.active.bg_fill)
+                    .text_alignment(egui::Align::Center)
+                    .rounding(2.)
+                    .show(ui)
+                    .clicked()
+                {
+                    self.create_file(false);
+                }
+                ui.add_space(10.0);
+                if Button::default()
+                    .text("Create a drawing")
+                    .frame(true)
+                    .hexpand(true)
+                    .default_fill(ui.visuals().widgets.active.bg_fill)
+                    .text_alignment(egui::Align::Center)
+                    .rounding(2.)
+                    .show(ui)
+                    .clicked()
+                {
+                    self.create_file(true);
+                }
+                ui.add_space(10.0);
+                if Button::default()
+                    .text("Create a folder")
+                    .frame(true)
+                    .hexpand(true)
+                    .text_alignment(egui::Align::Center)
+                    .rounding(2.)
+                    .show(ui)
+                    .clicked()
+                {
+                    self.out.new_folder_clicked = true;
+                }
+            });
+
+            ui.allocate_ui_at_rect(center, |ui| {
+                ui.style_mut().spacing.item_spacing = egui::vec2(0., 0.);
+
+                ui.label("Suggested Documents");
+                ui.add_space(30.0);
+
+                ui.vertical(|ui| {
+                    if let Some(cache) = &mut self.files {
+                        for &id in cache.suggested.iter().take(6) {
+                            let file = cache.files.get_by_id(id);
+
+                            let doc_type = DocumentType::from_file_name_using_extension(&file.name);
+                            let icon = match doc_type {
+                                DocumentType::Text => &Icon::DOC_TEXT,
+                                DocumentType::Drawing => &Icon::DRAW,
+                                DocumentType::Other => &Icon::DOC_UNKNOWN,
+                            };
+
+                            if Button::default()
+                                .icon(icon)
+                                .text(&file.name)
+                                .frame(true)
+                                .hexpand(true)
+                                .rounding(2.)
+                                .show(ui)
+                                .clicked()
+                            {
+                                open_file = Some(file.id);
+                            }
+                            ui.label(format!(
+                                "{} by {}",
+                                file.last_modified.elapsed_human_string(),
+                                file.last_modified_by
+                            ));
+                            ui.add_space(5.0);
+                        }
+                    }
+                });
+            });
+
+            ui.allocate_ui_at_rect(right, |ui| {
+                ui.style_mut().spacing.item_spacing = egui::vec2(0., 0.);
+
+                ui.label("Recently Modified");
+                ui.add_space(30.0);
+
+                ui.vertical(|ui| {
+                    if let Some(cache) = &mut self.files {
+                        cache
+                            .files
+                            .sort_by(|left, right| right.last_modified.cmp(&left.last_modified));
+
+                        for file in cache.files.iter().take(6) {
+                            let doc_type = DocumentType::from_file_name_using_extension(&file.name);
+                            let icon = match doc_type {
+                                DocumentType::Text => &Icon::DOC_TEXT,
+                                DocumentType::Drawing => &Icon::DRAW,
+                                DocumentType::Other => &Icon::DOC_UNKNOWN,
+                            };
+
+                            if Button::default()
+                                .icon(icon)
+                                .text(&file.name)
+                                .frame(true)
+                                .hexpand(true)
+                                .rounding(2.)
+                                .show(ui)
+                                .clicked()
+                            {
+                                open_file = Some(file.id);
+                            }
+                            ui.label(format!(
+                                "{} by {}",
+                                file.last_modified.elapsed_human_string(),
+                                file.last_modified_by
+                            ));
+                            ui.add_space(5.0);
+                        }
+                    }
+                });
+            });
+
+            if let Some(id) = open_file {
+                self.open_file(id, false, true);
             }
         });
     }
@@ -398,23 +507,16 @@ impl Workspace {
     fn tab_label(
         &mut self, ui: &mut egui::Ui, t: usize, is_active: bool, active_tab_changed: bool,
     ) -> Option<TabLabelResponse> {
-        let tab = &mut self.tabs[t];
-        let mut result = None;
+        let id = self.tabs[t].id;
 
+        let mut result = None;
         let icon_size = 16.0;
         let x_icon = Icon::CLOSE.size(icon_size);
-        let status_icon = if self.tasks.load_or_save_queued(tab.id) {
-            Icon::SCHEDULE.size(icon_size)
-        } else if self.tasks.load_or_save_in_progress(tab.id) {
-            Icon::SAVE.size(icon_size)
-        } else if tab.is_dirty(&self.tasks) {
-            Icon::CIRCLE.size(icon_size)
-        } else {
-            Icon::CHECK_CIRCLE.size(icon_size)
-        };
+        let status = self.tab_status(id);
+        let status_icon = status.icon();
 
         let padding_x = 10.;
-        let w = if tab.is_closing { 40. } else { 160. };
+        let w = if self.tabs[t].is_closing { 40. } else { 160. };
         let h = 40.;
 
         let (tab_label_rect, tab_label_resp) = ui.allocate_exact_size(
@@ -436,7 +538,7 @@ impl Workspace {
         }
 
         // closing (just draw status icon)
-        if tab.is_closing {
+        if self.tabs[t].is_closing {
             let icon_draw_pos = egui::pos2(
                 tab_label_rect.min.x + padding_x,
                 tab_label_rect.center().y - status_icon.size / 2.0,
@@ -453,7 +555,7 @@ impl Workspace {
                 .galley(icon_draw_pos, icon, ui.visuals().text_color());
         }
         // renaming
-        else if let Some(ref mut str) = tab.rename {
+        else if let Some(ref mut str) = self.tabs[t].rename {
             let res = ui
                 .allocate_ui_at_rect(tab_label_rect, |ui| {
                     ui.add(
@@ -491,7 +593,7 @@ impl Workspace {
 
             // release focus to cancel ('esc' or click elsewhere)
             if res.lost_focus() {
-                tab.rename = None;
+                self.tabs[t].rename = None;
             }
         } else {
             // interact with button rect whether it's shown or not
@@ -504,7 +606,7 @@ impl Workspace {
                     .expand(2.0);
             let close_button_resp = ui.interact(
                 close_button_rect,
-                Id::new("tab label close button").with(tab.id),
+                Id::new("tab label close button").with(self.tabs[t].id),
                 Sense { click: true, drag: false, focusable: false },
             );
 
@@ -564,38 +666,17 @@ impl Workspace {
                 .style_mut(|s| s.visuals.menu_rounding = (2.).into());
             ui.interact(
                 status_icon_rect,
-                Id::new("tab label status icon").with(tab.id),
+                Id::new("tab label status icon").with(self.tabs[t].id),
                 Sense { click: false, drag: false, focusable: false },
             )
             .on_hover_ui(|ui| {
-                let text = if self.tasks.load_or_save_queued(tab.id) {
-                    "save queued"
-                } else if self.tasks.load_or_save_in_progress(tab.id) {
-                    "save in progress"
-                } else if tab.is_dirty(&self.tasks) {
-                    "unsaved changes"
-                } else {
-                    "all changes saved"
-                };
+                let text = self.tab_status(self.tabs[t].id).summary();
                 let text: egui::WidgetText = text.into();
                 let text =
                     text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Small);
                 ui.add(egui::Label::new(text));
 
-                let last_saved = {
-                    let d = time::Duration::milliseconds(tab.last_saved.elapsed().as_millis() as _);
-                    let minutes = d.whole_minutes();
-                    let seconds = d.whole_seconds();
-                    if seconds > 0 && minutes == 0 {
-                        if seconds <= 1 {
-                            "1 second ago".to_string()
-                        } else {
-                            format!("{seconds} seconds ago")
-                        }
-                    } else {
-                        d.format_human().to_string()
-                    }
-                };
+                let last_saved = self.tabs[t].last_saved.elapsed_human_string();
                 let text: egui::WidgetText = format!("last saved {last_saved}").into();
                 let text =
                     text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Small);
@@ -605,7 +686,7 @@ impl Workspace {
             });
 
             // draw text
-            let text: egui::WidgetText = (&tab.name).into();
+            let text: egui::WidgetText = (&self.tabs[t].name).into();
             let wrap_width = if show_close_button {
                 w - (padding_x + status_icon.size + padding_x + padding_x + x_icon.size + padding_x)
             } else {
@@ -618,7 +699,7 @@ impl Workspace {
             text_rect.max.x = close_button_rect.min.x;
             ui.interact(
                 text_rect,
-                Id::new("tab label text").with(tab.id),
+                Id::new("tab label text").with(self.tabs[t].id),
                 Sense { click: false, drag: false, focusable: false },
             )
             .on_hover_ui(|ui| {
@@ -731,5 +812,44 @@ impl InputStateExt for egui::InputState {
 
     fn consume_key_exact(&mut self, modifiers: egui::Modifiers, logical_key: egui::Key) -> bool {
         self.count_and_consume_key_exact(modifiers, logical_key) > 0
+    }
+}
+
+trait ElapsedHumanString {
+    fn elapsed_human_string(&self) -> String;
+}
+
+impl ElapsedHumanString for time::Duration {
+    fn elapsed_human_string(&self) -> String {
+        let minutes = self.whole_minutes();
+        let seconds = self.whole_seconds();
+        if seconds > 0 && minutes == 0 {
+            if seconds <= 1 {
+                "1 second ago".to_string()
+            } else {
+                format!("{seconds} seconds ago")
+            }
+        } else {
+            self.format_human().to_string()
+        }
+    }
+}
+
+impl ElapsedHumanString for std::time::Duration {
+    fn elapsed_human_string(&self) -> String {
+        time::Duration::milliseconds(self.as_millis() as _).elapsed_human_string()
+    }
+}
+
+impl ElapsedHumanString for Instant {
+    fn elapsed_human_string(&self) -> String {
+        time::Duration::milliseconds(self.elapsed().as_millis() as _).elapsed_human_string()
+    }
+}
+
+impl ElapsedHumanString for u64 {
+    fn elapsed_human_string(&self) -> String {
+        time::Duration::milliseconds(lb_rs::model::clock::get_time().0 - *self as i64)
+            .elapsed_human_string()
     }
 }

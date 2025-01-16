@@ -8,14 +8,14 @@ use serde::Serialize;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct UsageMetrics {
     pub usages: Vec<FileUsage>,
     pub server_usage: UsageItemMetric,
     pub data_cap: UsageItemMetric,
 }
 
-#[derive(Serialize, PartialEq, Eq, Debug)]
+#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub struct UsageItemMetric {
     pub exact: u64,
     pub readable: String,
