@@ -48,6 +48,7 @@ impl From<crate::Response> for IOSResponse {
                     markdown_editor_selection_updated,
                     markdown_editor_scroll_updated,
                     tabs_changed,
+                    failure_messages: _,
                 },
             redraw_in,
             copied_text,
