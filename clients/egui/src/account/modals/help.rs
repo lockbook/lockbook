@@ -22,11 +22,11 @@ impl HelpModal {
             .body(|mut body| {
                 for (shortcut, shortcut_mac, description) in [
                     ("Ctrl-N", "Cmd-N", "Open the New File prompt"),
-                    ("Ctrl-Space, Ctrl-L", "Cmd-Space, Cmd-L", "Open the search prompt"),
+                    ("Ctrl-O", "Cmd-O", "Open the search prompt"),
                     ("Ctrl-S", "Cmd-S", "Save the active document"),
                     ("Ctrl-W", "Cmd-W", "Close an opened document"),
-                    ("Alt-{1-9}", "Alt-{1-9}", "Navigate tabs (9 will always go to the last one)"),
-                    ("Alt-H", "Alt-H", "Toggle this help window"),
+                    ("Ctrl-{1-9}", "Cmd-{1-9}", "Navigate tabs (9 will always go to the last one)"),
+                    ("Ctrl-/", "Cmd-/", "Toggle this help window"),
                 ] {
                     body.row(30.0, |mut row| {
                         row.col(|ui| {

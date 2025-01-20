@@ -61,8 +61,8 @@ impl AccountScreen {
         let core_clone = core.clone();
 
         let toasts = egui_notify::Toasts::default()
-            .with_margin(egui::vec2(40.0, 30.0))
-            .with_padding(egui::vec2(20.0, 20.0));
+            .with_margin(egui::vec2(20.0, 20.0))
+            .with_padding(egui::vec2(10.0, 10.0));
 
         let sidebar_expanded = !settings.read().unwrap().zen_mode;
         let mut result = Self {
@@ -233,6 +233,9 @@ impl AccountScreen {
                         self.tree.cursor = Some(file);
                         self.tree.selected.clear();
                         self.tree.selected.insert(file);
+                        self.tree.reveal_selection();
+                        self.tree.scroll_to_cursor = true;
+                        ctx.request_repaint();
                     }
                 }
 
@@ -348,7 +351,6 @@ impl AccountScreen {
 
     /// See also workspace::process_keys
     fn process_keys(&mut self, ctx: &egui::Context) {
-        const ALT: egui::Modifiers = egui::Modifiers::ALT;
         const COMMAND: egui::Modifiers = egui::Modifiers::COMMAND;
 
         // Escape (without modifiers) to close something such as an open modal.
@@ -369,9 +371,11 @@ impl AccountScreen {
             self.settings.write().unwrap().zen_mode = zen_mode;
         }
 
-        // Ctrl-Space or Ctrl-L pressed while search modal is not open.
+        // Ctrl-Space or Ctrl-O or Ctrl-L pressed while search modal is not open.
         let is_search_open = ctx.input_mut(|i| {
-            i.consume_key(COMMAND, egui::Key::Space) || i.consume_key(COMMAND, egui::Key::L)
+            i.consume_key(COMMAND, egui::Key::Space)
+                || i.consume_key(COMMAND, egui::Key::O)
+                || i.consume_key(COMMAND, egui::Key::L)
         });
         if is_search_open {
             if let Some(search) = &mut self.modals.search {
@@ -389,8 +393,8 @@ impl AccountScreen {
                 Some(SettingsModal::new(&self.core, &self.settings, &self.workspace.cfg));
         }
 
-        // Alt-H pressed to toggle the help modal.
-        if ctx.input_mut(|i| i.consume_key(ALT, egui::Key::H)) {
+        // Ctrl-/ to toggle the help modal.
+        if ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::Slash)) {
             let d = &mut self.modals.help;
             *d = match d {
                 Some(_) => None,
@@ -429,7 +433,7 @@ impl AccountScreen {
                         .stroke(Stroke::NONE)
                         .show(ui, |ui| {
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
-                            self.tree.show(ui, max_rect)
+                            self.tree.show(ui, max_rect, &mut self.toasts)
                         })
                 })
             })
