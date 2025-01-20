@@ -227,7 +227,8 @@ impl FullDocSearch {
         let mut curr = 0;
         let mut next;
 
-        let pre = str[0..matched_indices[0]].to_string();
+        let pre: String = str.chars().take(matched_indices[0]).collect();
+
         ui.label(egui::RichText::new(pre).size(font_size));
 
         while curr < matched_indices.len() {
@@ -253,7 +254,11 @@ impl FullDocSearch {
 
                 curr += 1;
             } else {
-                let h_str = str[matched_indices[curr]..matched_indices[next] + 1].to_string();
+                let h_str: String = str
+                    .chars()
+                    .skip(matched_indices[curr])
+                    .take(matched_indices[next] + 1)
+                    .collect();
 
                 ui.label(
                     egui::RichText::new(h_str)
@@ -263,16 +268,20 @@ impl FullDocSearch {
                 curr = next + 1;
             }
             if curr < matched_indices.len() - 1 {
-                ui.label(
-                    egui::RichText::new(
-                        str[matched_indices[next] + 1..matched_indices[curr]].to_string(),
-                    )
-                    .size(font_size),
-                );
+                let h_str: String = str
+                    .chars()
+                    .skip(matched_indices[next] + 1)
+                    .take(matched_indices[curr])
+                    .collect();
+
+                ui.label(egui::RichText::new(h_str).size(font_size));
             }
         }
+        let post: String = str
+            .chars()
+            .take(matched_indices[matched_indices.len() - 1] + 1)
+            .collect();
 
-        let post = str[matched_indices[matched_indices.len() - 1] + 1..].to_string();
         ui.label(egui::RichText::new(post).size(font_size));
     }
 }
