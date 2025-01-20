@@ -37,6 +37,7 @@ pub struct Lb {
     pub docs: AsyncDocs,
     pub search: SearchIndex,
     pub client: Network,
+    pub events: EventSubs,
     pub syncing: Arc<AtomicBool>,
 }
 
@@ -53,9 +54,10 @@ impl Lb {
         let client = Network::default();
         let search = SearchIndex::default();
         let syncing = Arc::default();
+        let events = EventSubs::default();
 
-        let result = Self { config, keychain, db, docs, client, search, syncing };
-        result.spawn_build_index();
+        let result = Self { config, keychain, db, docs, client, search, syncing, events };
+        result.setup_search();
         Ok(result)
     }
 }
@@ -74,6 +76,7 @@ use model::core_config::Config;
 use model::errors::{LbErrKind, LbResult};
 use repo::docs::AsyncDocs;
 use repo::LbDb;
+use service::events::EventSubs;
 use service::keychain::Keychain;
 use service::network::Network;
 use service::search::SearchIndex;
