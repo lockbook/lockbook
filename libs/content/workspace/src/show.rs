@@ -107,7 +107,7 @@ impl Workspace {
                 .show(ui)
                 .clicked()
             {
-                self.create_file(false, false);
+                self.graph_called(self.core.clone());
             }
             ui.visuals_mut().widgets.inactive.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };

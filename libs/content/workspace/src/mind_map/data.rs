@@ -1,5 +1,5 @@
 use lb_rs::{blocking::Lb, Uuid};
-use regex::Regex;
+use linkify::{LinkFinder, LinkKind};
 use serde::{Deserialize, Serialize};
 
 pub type Graph = Vec<LinkNode>;
@@ -116,18 +116,20 @@ fn check_for_links(classify: &mut Vec<NameId>, id: &mut usize, doc: &str) -> Vec
 }
 
 fn find_links(text: &str) -> Vec<String> {
-    let url_pattern = r"(https?://|lb:)[^\s/$.?#].[^\s]*";
-    let re = Regex::new(url_pattern).unwrap();
+    let mut finder = LinkFinder::new();
+    finder.kinds(&[LinkKind::Url]);
 
-    let links: Vec<String> = re
-        .find_iter(text)
-        .map(|mat| {
-            let url = mat.as_str().to_string();
-            extract_website_name(&url)
+    finder
+        .links(text)
+        .filter_map(|link| {
+            let url = link.as_str();
+            if url.starts_with("http://") || url.starts_with("https://") {
+                Some(extract_website_name(url))
+            } else {
+                None
+            }
         })
-        .collect();
-
-    links
+        .collect()
 }
 
 fn extract_website_name(url: &str) -> String {

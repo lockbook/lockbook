@@ -8651,6 +8651,7 @@ dependencies = [
  "tracing",
  "tracing-test",
  "unicode-segmentation",
+ "url 2.5.2",
  "usvg-parser",
 ]
 
