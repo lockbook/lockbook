@@ -242,6 +242,10 @@ impl AccountScreen {
                 if wso.sync_done.is_some() {
                     self.refresh_tree(ctx);
                 }
+
+                for msg in wso.failure_messages {
+                    self.toasts.error(msg);
+                }
             });
 
         if self.is_new_user {
@@ -469,7 +473,7 @@ impl AccountScreen {
         }
 
         if let Some(rename_req) = resp.rename_request {
-            self.workspace.rename_file(rename_req);
+            self.workspace.rename_file(rename_req, true);
         }
 
         for id in resp.open_requests {
