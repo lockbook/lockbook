@@ -63,7 +63,6 @@ impl AccountScreen {
             .with_margin(egui::vec2(20.0, 20.0))
             .with_padding(egui::vec2(10.0, 10.0));
 
-        let sidebar_expanded = !settings.read().unwrap().zen_mode;
         let mut result = Self {
             settings,
             core: core.clone(),
@@ -535,7 +534,6 @@ impl AccountScreen {
                         if let Err(err) = self.settings.read().unwrap().to_file() {
                             self.modals.error = Some(ErrorModal::new(err));
                         }
-                        // self.sidebar_expanded = false;
                     }
 
                     zen_mode_btn.on_hover_text("Hide side panel");
