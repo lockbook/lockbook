@@ -18,6 +18,7 @@ impl Workspace {
                 self.status.sync_message = None;
 
                 self.tasks.queue_sync_status_update();
+                self.tasks.queue_file_cache_refresh();
                 self.refresh_files(&done);
                 self.out.sync_done = Some(done);
             }

@@ -26,6 +26,8 @@ pub struct Response {
     pub markdown_editor_scroll_updated: bool,
 
     pub tabs_changed: bool,
+
+    pub failure_messages: Vec<String>, // shown as toasts in egui client
 }
 
 #[derive(Default, Clone)]

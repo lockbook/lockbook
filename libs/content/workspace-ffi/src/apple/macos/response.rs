@@ -41,6 +41,7 @@ impl From<crate::Response> for MacOSResponse {
                     markdown_editor_selection_updated: _,
                     markdown_editor_scroll_updated: _,
                     tabs_changed,
+                    failure_messages: _,
                 },
             redraw_in,
             copied_text,
