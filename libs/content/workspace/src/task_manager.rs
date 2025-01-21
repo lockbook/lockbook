@@ -801,8 +801,6 @@ impl TaskManager {
                 error!("update sync status failed ({:?}): {:?}", in_progress_time, err);
             } else if in_progress_time > Duration::from_secs(1) {
                 warn!(?status_result, "sync status updated ({:?})", in_progress_time);
-            } else {
-                debug!("sync status updated ({:?})", in_progress_time);
             }
 
             let completed_update = CompletedSyncStatusUpdate { status_result, timing };
@@ -830,8 +828,6 @@ impl TaskManager {
                 error!("file cache refresh failed ({:?}): {:?}", in_progress_time, err);
             } else if in_progress_time > Duration::from_secs(1) {
                 warn!(?cache_result, "file cache refreshed ({:?})", in_progress_time);
-            } else {
-                debug!("file cache refreshed ({:?})", in_progress_time);
             }
 
             let completed_refresh = CompletedFileCacheRefresh { cache_result, timing };
