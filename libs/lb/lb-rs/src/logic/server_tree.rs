@@ -43,8 +43,6 @@ impl<'a> ServerTree<'a> {
             to_get_descendants.extend(children);
         }
 
-        debug!("server tree created with ids: {:?}", ids);
-
         Ok(Self { ids, owned_files, shared_files, file_children, files })
     }
 }
