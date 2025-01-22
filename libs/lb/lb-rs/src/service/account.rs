@@ -55,6 +55,8 @@ impl Lb {
 
         tx.end();
 
+        self.events.meta_changed(root_id);
+
         if welcome_doc {
             let welcome_doc = self
                 .create_file("welcome.md", &root_id, FileType::Document)
