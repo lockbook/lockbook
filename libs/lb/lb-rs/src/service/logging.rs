@@ -40,6 +40,7 @@ pub fn init(config: &Config) -> LbResult<()> {
             layers.push(
                 fmt::Layer::new()
                     .pretty()
+                    .with_ansi(config.colored_logs)
                     .with_target(false)
                     .with_filter(lockbook_log_level)
                     .with_filter(filter::filter_fn(|metadata| {

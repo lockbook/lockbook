@@ -1,3 +1,4 @@
+pub mod file_cache;
 pub mod output;
 pub mod show;
 pub mod syncing;

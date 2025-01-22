@@ -46,7 +46,6 @@ pub struct AccountScreen {
     workspace: Workspace,
     modals: Modals,
     shutdown: Option<AccountShutdownProgress>,
-    sidebar_expanded: bool,
 }
 
 impl AccountScreen {
@@ -64,7 +63,6 @@ impl AccountScreen {
             .with_margin(egui::vec2(20.0, 20.0))
             .with_padding(egui::vec2(10.0, 10.0));
 
-        let sidebar_expanded = !settings.read().unwrap().zen_mode;
         let mut result = Self {
             settings,
             core: core.clone(),
@@ -79,7 +77,6 @@ impl AccountScreen {
             workspace: Workspace::new(&core_clone, &ctx.clone()),
             modals: Modals::default(),
             shutdown: None,
-            sidebar_expanded,
         };
         result.tree.recalc_suggested_files(&core, ctx);
         result
@@ -115,12 +112,16 @@ impl AccountScreen {
         // focus management
         let full_doc_search_id = Id::from("full_doc_search");
         let suggested_docs_id = Id::from("suggested_docs");
+        let sidebar_expanded = !self.settings.read().unwrap().zen_mode;
+
         if ctx.input(|i| i.key_pressed(Key::F) && i.modifiers.command && i.modifiers.shift) {
-            if !self.sidebar_expanded {
-                self.sidebar_expanded = true;
+            if !sidebar_expanded {
+                self.settings.write().unwrap().zen_mode = false;
+
                 ctx.memory_mut(|m| m.request_focus(full_doc_search_id));
             } else if ctx.memory(|m| m.has_focus(full_doc_search_id)) {
-                self.sidebar_expanded = false;
+                self.settings.write().unwrap().zen_mode = true;
+
                 ctx.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
             } else {
                 ctx.memory_mut(|m| m.request_focus(full_doc_search_id));
@@ -130,7 +131,7 @@ impl AccountScreen {
         egui::SidePanel::left("sidebar_panel")
             .frame(egui::Frame::none().fill(ctx.style().visuals.extreme_bg_color))
             .min_width(300.0)
-            .show_animated(ctx, self.sidebar_expanded, |ui| {
+            .show_animated(ctx, sidebar_expanded, |ui| {
                 if self.is_any_modal_open() {
                     ui.disable();
                 }
@@ -241,6 +242,10 @@ impl AccountScreen {
 
                 if wso.sync_done.is_some() {
                     self.refresh_tree(ctx);
+                }
+
+                for msg in wso.failure_messages {
+                    self.toasts.error(msg);
                 }
             });
 
@@ -469,7 +474,7 @@ impl AccountScreen {
         }
 
         if let Some(rename_req) = resp.rename_request {
-            self.workspace.rename_file(rename_req);
+            self.workspace.rename_file(rename_req, true);
         }
 
         for id in resp.open_requests {
@@ -533,7 +538,6 @@ impl AccountScreen {
                         if let Err(err) = self.settings.read().unwrap().to_file() {
                             self.modals.error = Some(ErrorModal::new(err));
                         }
-                        self.sidebar_expanded = false;
                     }
 
                     zen_mode_btn.on_hover_text("Hide side panel");
