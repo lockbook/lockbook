@@ -111,9 +111,10 @@ impl Lb {
     }
 
     pub fn read_document_with_hmac(
-        &self, id: Uuid, user_activity: bool
+        &self, id: Uuid, user_activity: bool,
     ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
-        self.rt.block_on(self.lb.read_document_with_hmac(id, user_activity))
+        self.rt
+            .block_on(self.lb.read_document_with_hmac(id, user_activity))
     }
 
     pub fn list_metadatas(&self) -> LbResult<Vec<File>> {
