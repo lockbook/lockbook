@@ -60,7 +60,7 @@ pub enum Tool {
 }
 
 pub struct ToolContext<'a> {
-    pub painter: &'a egui::Painter,
+    pub painter: &'a mut egui::Painter,
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
     pub allow_viewport_changes: &'a mut bool,
@@ -153,6 +153,7 @@ impl Toolbar {
             0.3,
             easing::cubic_in_out,
         );
+
         ui.set_opacity(opacity);
 
         let history_island = self.show_history_island(ui, history, buffer);
@@ -276,15 +277,15 @@ impl Toolbar {
                             self.pen.active_color,
                             ui.visuals().dark_mode,
                         )
-                        .gamma_multiply(self.pen.active_opacity)
+                        .linear_multiply(self.pen.active_opacity)
                     } else if self.active_tool == Tool::Highlighter {
                         ThemePalette::resolve_dynamic_color(
                             self.highlighter.active_color,
                             ui.visuals().dark_mode,
                         )
-                        .gamma_multiply(self.highlighter.active_opacity)
+                        .linear_multiply(self.highlighter.active_opacity)
                     } else {
-                        ui.visuals().text_color().gamma_multiply(0.2)
+                        ui.visuals().text_color().linear_multiply(0.2)
                     };
 
                     ui.painter().line_segment(
@@ -679,7 +680,7 @@ impl Toolbar {
 }
 
 fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
-    let width = 200.0;
+    let width = 220.0;
     ui.style_mut().spacing.slider_width = width;
     ui.set_width(width);
 
@@ -700,6 +701,16 @@ fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
 
     show_opacity_slider(ui, pen);
 
+    ui.add_space(20.0);
+
+    ui.horizontal(|ui| {
+        ui.label("Fixed zoom thicknes: ");
+
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            switch(ui, &mut pen.has_inf_thick);
+        });
+    });
+
     ui.add_space(10.0);
 }
 
@@ -709,7 +720,7 @@ fn show_opacity_slider(ui: &mut egui::Ui, pen: &mut Pen) {
         ui.add_space(20.0);
         let slider_color =
             ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode)
-                .gamma_multiply(pen.active_opacity);
+                .linear_multiply(pen.active_opacity);
         ui.visuals_mut().widgets.inactive.bg_fill = slider_color;
         ui.visuals_mut().widgets.inactive.fg_stroke =
             egui::Stroke { width: 1.0, color: slider_color };
@@ -781,15 +792,19 @@ fn show_color_btn(
             egui::Stroke { width: 1.5, color: ui.visuals().extreme_bg_color },
         );
     }
-    ui.interact(rect, id, egui::Sense::click())
+    ui.interact(rect, id, egui::Sense::click_and_drag())
 }
 
 fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
-    let preview_stroke = egui::Stroke {
-        width: pen.active_stroke_width * buffer.master_transform.sx,
+    let mut preview_stroke = egui::Stroke {
+        width: pen.active_stroke_width,
         color: ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode)
-            .gamma_multiply(pen.active_opacity),
+            .linear_multiply(pen.active_opacity),
     };
+
+    if !pen.has_inf_thick {
+        preview_stroke.width *= buffer.master_transform.sx;
+    }
 
     let bez1 = epaint::CubicBezierShape::from_points_stroke(
         [

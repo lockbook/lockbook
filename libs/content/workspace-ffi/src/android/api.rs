@@ -193,7 +193,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getStatus(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     let status = WsStatus {
-        syncing: obj.workspace.status.syncing(),
+        syncing: obj.workspace.visibly_syncing(),
         msg: obj.workspace.status.message.clone(),
     };
 
@@ -243,7 +243,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_requestSync(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.perform_sync();
+    obj.workspace.tasks.queue_sync();
 }
 
 #[no_mangle]
@@ -277,10 +277,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_fileRenamed(
     let id = Uuid::parse_str(&rid).unwrap();
     let new_name: String = env.get_string(&jnew_name).unwrap().into();
 
-    let _ = obj
-        .workspace
-        .updates_tx
-        .send(workspace_rs::workspace::WsMsg::FileRenamed { id, new_name });
+    obj.workspace.file_renamed(id, new_name);
 }
 
 #[no_mangle]

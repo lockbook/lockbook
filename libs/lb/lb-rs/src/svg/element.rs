@@ -1,6 +1,13 @@
-use bezier_rs::{Identifier, Subpath};
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
 
-use usvg::{self, Color, Fill, ImageKind, Text, Transform, Visibility};
+use bezier_rs::{Identifier, Subpath};
+use serde::{Deserialize, Serialize};
+
+use usvg::{self, Color, Fill, ImageKind, NonZeroRect, Text, Transform, Visibility};
+use uuid::Uuid;
 
 use super::{buffer::u_transform_to_bezier, diff::DiffState};
 
@@ -9,17 +16,6 @@ pub enum Element {
     Path(Path),
     Image(Image),
     Text(Text),
-}
-
-impl PartialEq for Element {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Path(l0), Self::Path(r0)) => l0 == r0,
-            (Self::Image(_), Self::Image(_)) => todo!(),
-            (Self::Text(_), Self::Text(_)) => todo!(),
-            _ => false,
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -67,11 +63,104 @@ pub struct Image {
     pub data: ImageKind,
     pub visibility: Visibility,
     pub transform: Transform,
-    pub view_box: usvg::ViewBox,
+    pub view_box: NonZeroRect,
     pub opacity: f32,
-    pub href: Option<String>,
+    pub href: Uuid,
     pub diff_state: DiffState,
     pub deleted: bool,
+}
+
+impl From<Transform> for WeakTransform {
+    fn from(value: Transform) -> Self {
+        WeakTransform {
+            sx: value.sx,
+            kx: value.kx,
+            ky: value.ky,
+            sy: value.sy,
+            tx: value.tx,
+            ty: value.ty,
+        }
+    }
+}
+
+impl Image {
+    pub fn into_weak(&self, z_index: usize) -> WeakImage {
+        WeakImage {
+            href: self.href,
+            transform: WeakTransform::from(self.transform),
+            opacity: self.opacity,
+            width: self.view_box.width(),
+            height: self.view_box.height(),
+            x: self.view_box.x(),
+            y: self.view_box.y(),
+            z_index,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Default, Clone)]
+pub struct WeakImages(HashMap<Uuid, WeakImage>);
+
+impl Deref for WeakImages {
+    type Target = HashMap<Uuid, WeakImage>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for WeakImages {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+/// image that only contains a ref to the data but not the data itself.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct WeakImage {
+    pub href: Uuid,
+    pub transform: WeakTransform,
+    pub opacity: f32,
+    pub width: f32,
+    pub height: f32,
+    pub x: f32,
+    pub y: f32,
+    pub z_index: usize,
+}
+
+impl PartialEq for WeakImage {
+    fn eq(&self, other: &Self) -> bool {
+        self.href == other.href
+            && self.transform == other.transform
+            && self.opacity == other.opacity
+            && self.z_index == other.z_index
+    }
+}
+
+impl WeakImage {
+    pub fn transform(&mut self, transform: Transform) {
+        if transform.is_identity() {
+            return;
+        }
+        if let Some(view_box) = NonZeroRect::from_xywh(self.x, self.y, self.width, self.height) {
+            if let Some(ts_view_box) = view_box.transform(transform) {
+                self.x = ts_view_box.x();
+                self.y = ts_view_box.y();
+                self.width = ts_view_box.width();
+                self.height = ts_view_box.height();
+            }
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
+pub struct WeakTransform {
+    pub sx: f32,
+    pub kx: f32,
+    pub ky: f32,
+    pub sy: f32,
+    pub tx: f32,
+    pub ty: f32,
 }
 
 impl Identifier for ManipulatorGroupId {
@@ -128,6 +217,9 @@ impl Element {
             Element::Image(img) => {
                 img.diff_state.transformed = Some(transform);
                 img.transform = img.transform.post_concat(transform);
+                if let Some(new_vbox) = img.view_box.transform(transform) {
+                    img.view_box = new_vbox;
+                }
             }
             Element::Text(_) => todo!(),
         }

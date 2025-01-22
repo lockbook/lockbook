@@ -134,7 +134,6 @@ impl Lb {
         let ts = clock::get_time().0 as u64;
         self.search.last_built.store(ts, Ordering::SeqCst);
         // fetch metadata once; use single lazy tree to re-use key decryption work for all files (lb lock)
-        let account = self.get_account()?;
         let mut tree = {
             let tx = self.ro_tx().await;
             let db = tx.db();
@@ -147,15 +146,15 @@ impl Lb {
 
         // construct replacement index
         let mut replacement_index = Vec::new();
-        for id in tree.owned_ids() {
+        for id in tree.ids() {
             if tree.calculate_deleted(&id)? {
                 continue;
             }
             if tree.in_pending_share(&id)? {
                 continue;
             }
-            let name = tree.name_using_links(&id, account)?;
-            let path = tree.id_to_path(&id, account)?;
+            let name = tree.name_using_links(&id, &self.keychain)?;
+            let path = tree.id_to_path(&id, &self.keychain)?;
 
             // once per file, re-lock lb to read document using up-to-date hmac (lb lock)
             // because lock has been dropped in the meantime, original `tree` is now arbitrarily out-of-date
@@ -175,7 +174,7 @@ impl Lb {
                         let content = if encrypted_content.value.len() <= CONTENT_MAX_LEN_BYTES {
                             // use the original tree to decrypt the content
                             let decrypted_content =
-                                tree.decrypt_document(&id, &encrypted_content, account)?;
+                                tree.decrypt_document(&id, &encrypted_content, &self.keychain)?;
                             Some(String::from_utf8_lossy(&decrypted_content).into_owned())
                         } else {
                             None
@@ -198,7 +197,6 @@ impl Lb {
         Ok(())
     }
 
-    #[instrument(level = "debug", skip(self))]
     /// ensure the index is not built more frequently than every 5s
     pub fn spawn_build_index(&self) {
         if self.config.background_work {

@@ -1,7 +1,8 @@
-use crate::{core, ensure_account, input, writable_path};
+use crate::{core, ensure_account, input};
 use cli_rs::cli_error::CliResult;
 use fs_extra::dir::CopyOptions;
 use lb_fs::fs_impl::Drive;
+use lb_rs::model::core_config::Config;
 
 #[tokio::main]
 pub async fn mount() -> CliResult<()> {
@@ -23,7 +24,7 @@ fn warning() -> CliResult<()> {
 }
 
 fn copy_data() -> CliResult<()> {
-    let current_path = writable_path()?;
+    let current_path = Config::writeable_path("cli");
     let target_path = format!("{}/.lockbook/drive", std::env::var("HOME").unwrap());
 
     fs_extra::copy_items(
@@ -44,8 +45,8 @@ This version will cp your your CLI's data directory and create a dedicated one f
 iterations will be more tightly integrated into host programs. lb-fs will sync changes to our server
 on startup and then every 5 minutes.
 
-This command will not return and print out logs from the NFS server. Once the server starts it will 
-mount a virtual file system to /tmp/lockbook. Ctrl-C'ing this process will shut down the server and 
+This command will not return and print out logs from the NFS server. Once the server starts it will
+mount a virtual file system to /tmp/lockbook. Ctrl-C'ing this process will shut down the server and
 unmount the file system. For now, a clean umount is critical to not requiring a restart.
 
 Press Y to proceed.

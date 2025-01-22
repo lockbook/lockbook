@@ -19,22 +19,19 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
 
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
     var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
-
+    
     public override var undoManager: UndoManager? {
         return textUndoManager
     }
-
-    var pasteBoardEventId: Int = 0
-    var pasteboardString: String?
 
     var lastFloatingCursorRect: CGRect? = nil
     var floatingCursor: UIView = UIView()
     var floatingCursorWidth = 1.0
     var floatingCursorNewStartX = 0.0
     var floatingCursorNewEndX = 0.0
-
     var floatingCursorNewStartY = 0.0
     var floatingCursorNewEndY = 0.0
+    var autoScroll: Timer? = nil
         
     var isLongPressCursorDrag = false
     
@@ -214,12 +211,27 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         let x = point.x - self.floatingCursorNewStartX
         let y = point.y - self.floatingCursorNewStartY
 
-        if y >= bounds.height - 5 {
-            scroll_wheel(wsHandle, 0, -20, false, false, false, false)
-        } else if y <= 5 {
-            scroll_wheel(wsHandle, 0, 20, false, false, false, false)
+        let scrollUp = y >= bounds.height - 20
+        let scrollDown = y <= 20
+        
+        if (scrollUp || scrollDown) && autoScroll == nil {
+            autoScroll = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
+                if floatingCursor.isHidden {
+                    timer.invalidate()
+                }
+                
+                mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
+                scroll_wheel(wsHandle, 0, scrollUp ? -20 : 20, false, false, false, false)
+                mouse_gone(wsHandle)
+                
+                mtkView.drawImmediately()
+            }
+        } else if let autoScroll,
+            !scrollUp && !scrollDown {
+            autoScroll.invalidate()
+            self.autoScroll = nil
         }
-
+        
         if animate {
             UIView.animate(withDuration: 0.15, animations: { [weak self] in
                 if let textWrapper = self {
@@ -309,45 +321,14 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             }
         }
     }
-
-    func sendImage(img: Data, isPaste: Bool) {
-        let imgPtr = img.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) -> UnsafePointer<UInt8> in
-            return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
-        }
-
-        clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
-    }
-
+    
     func importContent(_ importFormat: SupportedImportFormat, isPaste: Bool) {
         inputDelegate?.textWillChange(self)
         inputDelegate?.selectionWillChange(self)
-        switch importFormat {
-        case .url(let url):
-            if url.pathExtension.lowercased() == "png" {
-                guard let data = try? Data(contentsOf: url) else {
-                    return
-                }
-
-                sendImage(img: data, isPaste: isPaste)
-            } else {
-                clipboard_send_file(wsHandle, url.path(percentEncoded: false), isPaste)
-            }
-        case .image(let image):
-            if let img = image.pngData() ?? image.jpegData(compressionQuality: 1.0) {
-                sendImage(img: img, isPaste: isPaste)
-            }
-        case .text(let text):
-            clipboard_paste(wsHandle, text)
-            workspaceState?.pasted = true
-        }
+        mtkView.importContent(importFormat, isPaste: isPaste)
         mtkView.drawImmediately()
         inputDelegate?.selectionDidChange(self)
         inputDelegate?.textDidChange(self)
-    }
-
-    func setClipboard() {
-        pasteboardString = UIPasteboard.general.string
-        self.pasteBoardEventId = UIPasteboard.general.changeCount
     }
     
     public func insertText(_ text: String) {
@@ -554,13 +535,13 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public func firstRect(for range: UITextRange) -> CGRect {
         let range = (range as! LBTextRange).c
         let result = first_rect(wsHandle, range)
-        return CGRect(x: result.min_x, y: result.min_y - iOSMTK.TAB_BAR_HEIGHT, width: result.max_x-result.min_x, height: result.max_y-result.min_y)
+        return CGRect(x: result.min_x, y: result.min_y - mtkView.docHeaderSize, width: result.max_x-result.min_x, height: result.max_y-result.min_y)
     }
 
     public func caretRect(for position: UITextPosition) -> CGRect {
         let position = (position as! LBTextPos).c
         let result = cursor_rect_at_position(wsHandle, position)
-        return CGRect(x: result.min_x, y: result.min_y - iOSMTK.TAB_BAR_HEIGHT, width: 1, height:result.max_y - result.min_y)
+        return CGRect(x: result.min_x, y: result.min_y - mtkView.docHeaderSize, width: 1, height:result.max_y - result.min_y)
     }
 
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
@@ -572,7 +553,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         free_selection_rects(result)
         
         let selectionRects: [UITextSelectionRect] = buffer.enumerated().map { (index, rect) in
-            let new_rect = CRect(min_x: rect.min_x, min_y: rect.min_y - iOSMTK.TAB_BAR_HEIGHT, max_x: rect.max_x, max_y: rect.max_y - iOSMTK.TAB_BAR_HEIGHT)
+            let new_rect = CRect(min_x: rect.min_x, min_y: rect.min_y - mtkView.docHeaderSize, max_x: rect.max_x, max_y: rect.max_y - mtkView.docHeaderSize)
 
             return LBTextSelectionRect(cRect: new_rect, loc: index, size: buffer.count)
         }
@@ -583,7 +564,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
         let (x, y) = floatingCursor.isHidden ? (point.x, point.y) : (point.x - floatingCursorNewStartX, point.y - floatingCursorNewStartY)
 
-        let point = CPoint(x: x, y: y + iOSMTK.TAB_BAR_HEIGHT)
+        let point = CPoint(x: x, y: y + mtkView.docHeaderSize)
         let result = position_at_point(wsHandle, point)
 
         return LBTextPos(c: result)
@@ -641,12 +622,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public override func paste(_ sender: Any?) {
-        self.setClipboard()
-
         if let image = UIPasteboard.general.image {
             importContent(.image(image), isPaste: true)
-        } else if let pastedString = pasteboardString {
-            importContent(.text(pastedString), isPaste: true)
+        } else if let string = UIPasteboard.general.string {
+            importContent(.text(string), isPaste: true)
         }
     }
     
@@ -713,12 +692,13 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
 }
 
-public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
+public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMenuInteractionDelegate {
 
     public static let TOOL_BAR_HEIGHT: CGFloat = 50
 
     let pencilInteraction = UIPencilInteraction()
-
+    lazy var editMenuInteraction = UIEditMenuInteraction(delegate: self)
+    
     let mtkView: iOSMTK
 
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
@@ -737,17 +717,39 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
         
+        
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
         pan.maximumNumberOfTouches = 0
         self.addGestureRecognizer(pan)
         
+        // edit menu support
+        self.addInteraction(editMenuInteraction)
+        
         let pointerInteraction = UIPointerInteraction(delegate: mtkView)
         self.addInteraction(pointerInteraction)
         
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(self.handleLongPress(_:)))
+        self.addGestureRecognizer(longPress)
+        
         self.isMultipleTouchEnabled = true
         set_pencil_only_drawing(wsHandle, prefersPencilOnlyDrawing)
+    }
+    
+    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        
+        let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: gesture.location(in: self))
+        editMenuInteraction.presentEditMenu(with: config)
+    }
+    
+    public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if action == #selector(paste(_:)) {
+            return UIPasteboard.general.hasImages
+        }
+
+        return false
     }
     
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
@@ -794,6 +796,14 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
         mtkView.touchesCancelled(touches, with: event)
         
     }
+    
+    public override func paste(_ sender: Any?) {
+        if let image = UIPasteboard.general.image {
+            mtkView.importContent(.image(image), isPaste: true)
+        } else if let string = UIPasteboard.general.string {
+            mtkView.importContent(.text(string), isPaste: true)
+        }
+    }
 
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -802,7 +812,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
 
 public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
-    public static let TAB_BAR_HEIGHT: CGFloat = 50
+    public static let TAB_BAR_HEIGHT: CGFloat = 40
+    public static let TITLE_BAR_HEIGHT: CGFloat = 33
     public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
 
     public var wsHandle: UnsafeMutableRawPointer?
@@ -821,12 +832,18 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     var showTabs = true
     var overrideDefaultKeyboardBehavior = false
     
+    var docHeaderSize: Double {
+        get {
+            showTabs ? ((workspaceState?.tabCount ?? 0) > 1 ? iOSMTK.TAB_BAR_HEIGHT : 0) : iOSMTK.TITLE_BAR_HEIGHT
+        }
+    }
+    
     var ignoreSelectionUpdate = false
     var ignoreTextUpdate = false
     
     var cursorTracked = false
     var scrollId = 0
-    
+        
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         
@@ -902,10 +919,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     }
 
     public func pointerInteraction(_ interaction: UIPointerInteraction, regionFor request: UIPointerRegionRequest, defaultRegion: UIPointerRegion) -> UIPointerRegion? {
-        let offsetY: CGFloat = if interaction.view is iOSMTKTextInputWrapper {
-            Self.TAB_BAR_HEIGHT
-        } else if interaction.view is iOSMTKDrawingWrapper {
-            Self.TAB_BAR_HEIGHT + iOSMTKDrawingWrapper.TOOL_BAR_HEIGHT
+        let offsetY: CGFloat = if interaction.view is iOSMTKTextInputWrapper || interaction.view is iOSMTKDrawingWrapper {
+            docHeaderSize
         } else {
             0
         }
@@ -1010,7 +1025,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         }
         
         if output.tabs_changed {
-            workspaceState?.openTabs = Int(tab_count(wsHandle))
+            workspaceState?.tabCount = Int(tab_count(wsHandle))
         }
         
         workspaceState?.reloadFiles = output.refresh_files
@@ -1045,8 +1060,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             self.workspaceState?.openDoc = nil
         }
         
-        if currentTab == .Markdown && currentWrapper is iOSMTKTextInputWrapper {
-            if(output.has_virtual_keyboard_shown && !output.virtual_keyboard_shown) {
+        if let currentWrapper = currentWrapper as? iOSMTKTextInputWrapper,
+           currentTab == .Markdown {
+            if(output.has_virtual_keyboard_shown && !output.virtual_keyboard_shown && currentWrapper.floatingCursor.isHidden) {
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
             
@@ -1062,7 +1078,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                 onSelectionChanged?()
             }
 
-            let keyboard_shown = currentWrapper?.isFirstResponder ?? false && GCKeyboard.coalesced == nil;
+            let keyboard_shown = currentWrapper.isFirstResponder && GCKeyboard.coalesced == nil;
             update_virtual_keyboard(wsHandle, keyboard_shown)
         }
 
@@ -1220,6 +1236,36 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             ios_key_event(wsHandle, key.keyCode.rawValue, shift, ctrl, option, command, pressBegan)
             self.setNeedsDisplay(self.frame)
         }
+    }
+    
+    func importContent(_ importFormat: SupportedImportFormat, isPaste: Bool) {
+        switch importFormat {
+        case .url(let url):
+            if url.pathExtension.lowercased() == "png" {
+                guard let data = try? Data(contentsOf: url) else {
+                    return
+                }
+
+                sendImage(img: data, isPaste: isPaste)
+            } else {
+                clipboard_send_file(wsHandle, url.path(percentEncoded: false), isPaste)
+            }
+        case .image(let image):
+            if let img = image.pngData() ?? image.jpegData(compressionQuality: 1.0) {
+                sendImage(img: img, isPaste: isPaste)
+            }
+        case .text(let text):
+            clipboard_paste(wsHandle, text)
+            workspaceState?.pasted = true
+        }
+    }
+    
+    func sendImage(img: Data, isPaste: Bool) {
+        let imgPtr = img.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) -> UnsafePointer<UInt8> in
+            return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
+        }
+
+        clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
     }
 
     func isDarkMode() -> Bool {

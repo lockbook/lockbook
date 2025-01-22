@@ -34,38 +34,43 @@ pub fn init(config: &Config) -> LbResult<()> {
                 .boxed(),
         );
 
-        // stdout target for non-android platforms
-        #[cfg(not(target_os = "android"))]
-        layers.push(
-            fmt::Layer::new()
-                .pretty()
-                .with_target(false)
-                .with_filter(lockbook_log_level)
-                .with_filter(filter::filter_fn(|metadata| {
-                    metadata.target().starts_with("workspace")
-                        || metadata.target().starts_with("lb_fs")
-                }))
-                .boxed(),
-        );
-
-        // logcat target for android
-        #[cfg(target_os = "android")]
-        if let Some(writer) =
-            tracing_logcat::LogcatMakeWriter::new(tracing_logcat::LogcatTag::Target).ok()
-        {
+        if config.stdout_logs {
+            // stdout target for non-android platforms
+            #[cfg(not(target_os = "android"))]
             layers.push(
                 fmt::Layer::new()
-                    .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
-                    .with_ansi(false)
-                    .with_writer(writer)
+                    .pretty()
+                    .with_ansi(config.colored_logs)
+                    .with_target(false)
                     .with_filter(lockbook_log_level)
                     .with_filter(filter::filter_fn(|metadata| {
                         metadata.target().starts_with("lb_rs")
+                            || metadata.target().starts_with("dbrs")
                             || metadata.target().starts_with("workspace")
-                            || metadata.target().starts_with("lb_java")
+                            || metadata.target().starts_with("lb_fs")
                     }))
                     .boxed(),
             );
+
+            // logcat target for android
+            #[cfg(target_os = "android")]
+            if let Some(writer) =
+                tracing_logcat::LogcatMakeWriter::new(tracing_logcat::LogcatTag::Target).ok()
+            {
+                layers.push(
+                    fmt::Layer::new()
+                        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+                        .with_ansi(false)
+                        .with_writer(writer)
+                        .with_filter(lockbook_log_level)
+                        .with_filter(filter::filter_fn(|metadata| {
+                            metadata.target().starts_with("lb_rs")
+                                || metadata.target().starts_with("workspace")
+                                || metadata.target().starts_with("lb_java")
+                        }))
+                        .boxed(),
+                );
+            }
         }
 
         tracing::subscriber::set_global_default(

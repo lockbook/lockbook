@@ -89,9 +89,7 @@ extension View {
             .onChange(of: scenePhase, perform: { newValue in
                 switch newValue {
                 case .background:
-                    if !DI.onboarding.initialSyncing {
-                        appDelegate.scheduleBackgroundTask(initialRun: true)
-                    }
+                    appDelegate.scheduleBackgroundTask(initialRun: true)
                 case .active:
                     appDelegate.endBackgroundTasks()
                 default:

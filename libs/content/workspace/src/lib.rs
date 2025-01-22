@@ -1,8 +1,9 @@
-pub mod background;
+pub mod file_cache;
 pub mod output;
-mod status;
+pub mod show;
 pub mod syncing;
 pub mod tab;
+pub mod task_manager;
 pub mod theme;
 pub mod widgets;
 pub mod workspace;

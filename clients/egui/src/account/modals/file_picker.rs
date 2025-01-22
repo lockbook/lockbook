@@ -208,7 +208,7 @@ fn show_node(
 
     if is_node_grayed_out {
         let icon_stroke = egui::Stroke {
-            color: ui.visuals().hyperlink_color.gamma_multiply(0.3),
+            color: ui.visuals().hyperlink_color.linear_multiply(0.3),
             ..Default::default()
         };
         icon_style.visuals.widgets.inactive.fg_stroke = icon_stroke;
@@ -222,7 +222,6 @@ fn show_node(
     if Button::default()
         .text(node.name.clone().as_str())
         .icon(&Icon::FOLDER)
-        .icon_style(icon_style)
         .show(ui)
         .clicked()
     {

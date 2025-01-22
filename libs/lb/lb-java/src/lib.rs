@@ -30,8 +30,13 @@ use lb_rs::{
 pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, path: JString<'local>,
 ) {
-    let writeable_path = rstring(&mut env, path);
-    let config = Config { logs: true, colored_logs: false, writeable_path, background_work: true };
+    let config = Config {
+        writeable_path: rstring(&mut env, path),
+        background_work: true,
+        logs: true,
+        stdout_logs: true,
+        colored_logs: false,
+    };
 
     match Lb::init(config) {
         Ok(lb) => {
@@ -45,6 +50,16 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
             throw_err(&mut env, err);
         }
     }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_net_lockbook_Lb_getDebugInfo<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, os_info: JString<'local>,
+) -> jstring {
+    let lb = rlb(&mut env, &class);
+
+    let os_info = rstring(&mut env, os_info);
+    jni_string(&mut env, lb.debug_info(os_info)).into_raw()
 }
 
 #[no_mangle]

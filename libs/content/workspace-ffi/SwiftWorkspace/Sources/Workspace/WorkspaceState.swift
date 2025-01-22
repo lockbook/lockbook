@@ -6,6 +6,7 @@ import Bridge
 public class WorkspaceState: ObservableObject {
     
     var wsHandle: UnsafeMutableRawPointer? = nil
+    public var showTabs: Bool = true
 
     @Published public var pasted: Bool = false
     @Published public var shouldFocus: Bool = false
@@ -43,12 +44,8 @@ public class WorkspaceState: ObservableObject {
     @Published public var fileOpCompleted: WSFileOpCompleted? = nil
     @Published public var closeActiveTab: Bool = false
     
-    @Published public var openTabs: Int = 0
-    
-    #if os(iOS)
-    @Published public var dragOffset: CGFloat = 0.0
-    #endif
-    
+    @Published public var tabCount: Int = 0
+        
     public init() {}
     
     public func requestSync() {

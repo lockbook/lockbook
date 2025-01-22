@@ -284,7 +284,7 @@ impl PdfViewer {
                     ui.vertical(|ui| {
                         ui.add_space(7.0);
                         ui.colored_label(
-                            ui.visuals().text_color().gamma_multiply(0.7),
+                            ui.visuals().text_color().linear_multiply(0.7),
                             format!("{}%", zoom_percentage),
                         );
                     });

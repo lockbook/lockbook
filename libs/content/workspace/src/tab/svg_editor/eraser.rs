@@ -41,9 +41,7 @@ impl Eraser {
             return;
         }
 
-        if let Some(event) =
-            self.setup_events(ui, eraser_ctx.painter, eraser_ctx.painter.clip_rect())
-        {
+        if let Some(event) = self.setup_events(ui, eraser_ctx.painter) {
             match event {
                 EraseEvent::Start(pos) => {
                     eraser_ctx
@@ -123,14 +121,24 @@ impl Eraser {
     }
 
     pub fn setup_events(
-        &mut self, ui: &mut egui::Ui, painter: &egui::Painter, inner_rect: egui::Rect,
+        &mut self, ui: &mut egui::Ui, painter: &mut egui::Painter,
     ) -> Option<EraseEvent> {
+        let inner_rect = painter.clip_rect();
+
         if let Some(cursor_pos) = ui.ctx().pointer_hover_pos() {
             if !inner_rect.contains(cursor_pos) || !ui.is_enabled() {
                 return None;
             }
 
+            let old_layer = painter.layer_id();
+            painter.set_layer_id(egui::LayerId {
+                order: egui::Order::PanelResizeLine,
+                id: "eraser_overlay".into(),
+            });
+
             self.draw_eraser_cursor(ui, painter, cursor_pos);
+
+            painter.set_layer_id(old_layer);
 
             if ui.input(|i| i.pointer.primary_down()) {
                 return Some(EraseEvent::Start(cursor_pos));

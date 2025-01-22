@@ -12,6 +12,7 @@ use tracing::field::{Field, Visit};
 use tracing::metadata::LevelFilter;
 use tracing::{Event, Subscriber};
 use tracing_appender::rolling::RollingFileAppender;
+use tracing_gcp::GcpLayer;
 use tracing_subscriber::filter::FilterFn;
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::{filter, fmt, prelude::*, Layer};
@@ -41,8 +42,7 @@ pub fn init(config: &Config) {
         )
         // Writes to the specified file in a format that gcp understands
         .with(
-            tracing_stackdriver::layer()
-                .with_writer(file_logger(config))
+            GcpLayer::init_with_writer(file_logger(config))
                 .with_filter(LevelFilter::DEBUG)
                 .with_filter(server_logs()),
         )
@@ -62,7 +62,9 @@ fn file_logger(config: &Config) -> RollingFileAppender {
 
 fn server_logs() -> FilterFn {
     filter::filter_fn(|metadata| {
-        metadata.target().starts_with("lockbook") || metadata.target().starts_with("dbrs")
+        metadata.target().starts_with("lockbook")
+            || metadata.target().starts_with("dbrs")
+            || metadata.target().starts_with("lb_rs")
     })
 }
 

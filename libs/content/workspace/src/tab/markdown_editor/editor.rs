@@ -9,8 +9,8 @@ use lb_rs::text::buffer::Buffer;
 use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
 use lb_rs::Uuid;
 
+use crate::tab::markdown_editor;
 use crate::tab::ExtendedInput as _;
-use crate::tab::{markdown_editor, ExtendedOutput as _};
 use markdown_editor::appearance::Appearance;
 use markdown_editor::ast::{Ast, AstTextRangeType};
 use markdown_editor::bounds::BoundExt as _;
@@ -35,7 +35,7 @@ use std::time::{Duration, Instant};
 pub struct Response {
     // state changes
     pub text_updated: bool,
-    pub selection_updated: bool,
+    pub cursor_screen_postition_updated: bool,
     pub scroll_updated: bool,
 
     // actions taken
@@ -68,7 +68,6 @@ pub struct Editor {
     pub event: EventState,
 
     pub virtual_keyboard_shown: bool,
-    pub started_scrolling: Option<Instant>,
 }
 
 impl Editor {
@@ -99,7 +98,6 @@ impl Editor {
             event: Default::default(),
 
             virtual_keyboard_shown: false,
-            started_scrolling: None,
         }
     }
 
@@ -137,6 +135,12 @@ impl Editor {
 
     pub fn focused(&self, ctx: &Context) -> bool {
         ctx.memory(|m| m.has_focus(self.id()))
+    }
+
+    pub fn surrender_focus(&self, ctx: &Context) {
+        ctx.memory_mut(|m| {
+            m.surrender_focus(self.id());
+        });
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
@@ -238,19 +242,6 @@ impl Editor {
 
                 resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
 
-                if resp.scroll_updated {
-                    if self.started_scrolling.is_none() {
-                        self.started_scrolling = Some(Instant::now());
-                    }
-                } else {
-                    self.started_scrolling = None;
-                }
-                if self.started_scrolling.unwrap_or(Instant::now()).elapsed()
-                    > Duration::from_millis(300)
-                {
-                    ui.ctx().set_virtual_keyboard_shown(false);
-                }
-
                 resp
             })
             .inner
@@ -283,7 +274,9 @@ impl Editor {
                 bounds::calc_words(&self.buffer, &self.ast, &self.bounds.ast, &self.appearance);
             self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer);
         }
-        if text_updated || selection_updated || self.capture.mark_changes_processed() {
+        let cursor_screen_postition_updated =
+            text_updated || selection_updated || self.capture.mark_changes_processed();
+        if cursor_screen_postition_updated {
             self.bounds.text = bounds::calc_text(
                 &self.ast,
                 &self.bounds.ast,
@@ -358,7 +351,9 @@ impl Editor {
             ui.scroll_to_rect(rect.expand(rect.height()), None);
         }
 
-        let suggested_title = self.get_suggested_title();
+        let suggested_title =
+            self.get_suggested_title()
+                .and_then(|s| if s == ".md" { None } else { Some(s) });
         let suggest_rename =
             if suggested_title != prior_suggested_title { suggested_title } else { None };
 
@@ -372,7 +367,7 @@ impl Editor {
 
         Response {
             text_updated,
-            selection_updated,
+            cursor_screen_postition_updated,
             scroll_updated: false, // set by scroll_ui
             suggest_rename,
         }

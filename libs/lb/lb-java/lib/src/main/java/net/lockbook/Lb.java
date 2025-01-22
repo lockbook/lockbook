@@ -7,6 +7,7 @@ public class Lb {
     public static long lb = 0;
 
     public static native void init(String path) throws LbError;
+    public static native String getDebugInfo(String osInfo) throws LbError;
     public static native Account createAccount(String username, String apiUrl, boolean welcomeDoc) throws LbError;
     public static native Account importAccount(String key) throws LbError;
     public static native Account getAccount() throws LbError;
@@ -50,8 +51,4 @@ public class Lb {
 
     public static native void logout() throws LbError;
     public static native void deleteAccount() throws LbError;
-
-    static {
-//        System.loadLibrary("lb_java");
-    }
 }
