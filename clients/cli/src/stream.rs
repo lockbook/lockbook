@@ -13,7 +13,7 @@ pub async fn stdin(target: FileInput, append: bool) -> CliResult<()> {
 
     let mut stdin = io::stdin().lock();
     let mut buffer = [0; 512];
-    let mut document = if append { lb.read_document(id).await? } else { vec![] };
+    let mut document = if append { lb.read_document(id, true).await? } else { vec![] };
 
     loop {
         let bytes = stdin.read(&mut buffer)?;
@@ -32,7 +32,7 @@ pub async fn stdout(target: FileInput) -> CliResult<()> {
     ensure_account_and_root(lb).await?;
 
     let id = target.find(lb).await?.id;
-    let content = lb.read_document(id).await?;
+    let content = lb.read_document(id, true).await?;
     print!("{}", String::from_utf8_lossy(&content));
     io::stdout().flush()?;
     Ok(())

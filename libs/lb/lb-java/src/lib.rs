@@ -460,7 +460,7 @@ pub extern "system" fn Java_net_lockbook_Lb_readDocument<'local>(
 
     let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
 
-    match lb.read_document(id) {
+    match lb.read_document(id, false) {
         Ok(doc) => jni_string(&mut env, String::from(String::from_utf8_lossy(&doc))).into_raw(),
         Err(err) => throw_err(&mut env, err).into_raw(),
     }
@@ -474,7 +474,8 @@ pub extern "system" fn Java_net_lockbook_Lb_readDocumentBytes<'local>(
 
     let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
 
-    match lb.read_document(id) {
+    // todo: expose activity field when desired
+    match lb.read_document(id, false) {
         Ok(doc) => jbyte_array(&mut env, doc).into_raw(),
         Err(err) => throw_err(&mut env, err).into_raw(),
     }
