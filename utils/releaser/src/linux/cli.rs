@@ -186,6 +186,7 @@ conflicts=('lockbook')
 source=("git+https://github.com/lockbook/lockbook.git#tag=$pkgver")
 sha256sums=('SKIP')
 groups=('lockbook')
+options=(!lto)
 
 pkgver() {{
   cd $srcdir/lockbook/clients/cli
@@ -201,9 +202,9 @@ package_lockbook() {{
   cd $srcdir/lockbook
   install -D -m755 "target/release/lockbook" "$pkgdir/usr/bin/lockbook"
 
-  lockbook completions bash > lockbook_completions.bash
-  lockbook completions zsh > lockbook_completions.zsh
-  lockbook completions fish > lockbook_completions.fish
+  $pkgdir/usr/bin/lockbook completions bash > lockbook_completions.bash
+  $pkgdir/usr/bin/lockbook completions zsh > lockbook_completions.zsh
+  $pkgdir/usr/bin/lockbook completions fish > lockbook_completions.fish
 
   install -Dm644 lockbook_completions.bash "$pkgdir/usr/share/bash-completion/completions/lockbook"
   install -Dm644 lockbook_completions.zsh "$pkgdir/usr/share/zsh/site-functions/_lockbook"
