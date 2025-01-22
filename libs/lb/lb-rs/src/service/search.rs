@@ -158,7 +158,8 @@ impl Lb {
 
             tasks.push(async move {
                 let (path, content) = if is_doc_searchable {
-                    let (path, doc) = tokio::join!(self.get_path_by_id(id), self.read_document(id));
+                    let (path, doc) =
+                        tokio::join!(self.get_path_by_id(id), self.read_document(id, false));
 
                     let path = path?;
 
@@ -242,7 +243,7 @@ impl Lb {
                         }
 
                         Event::DocumentWritten(id) => {
-                            let doc = lb.read_document(id).await.unwrap();
+                            let doc = lb.read_document(id, false).await.unwrap();
                             let doc = if doc.len() > MAX_CONTENT_MATCH_LENGTH {
                                 None
                             } else {
