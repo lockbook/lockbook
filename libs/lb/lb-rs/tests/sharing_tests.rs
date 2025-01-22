@@ -118,10 +118,16 @@ async fn write_document_write_share() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -150,10 +156,16 @@ async fn write_document_in_write_shared_folder() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -190,10 +202,16 @@ async fn write_document_in_write_shared_folder_in_read_shared_folder() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -230,10 +248,16 @@ async fn write_document_in_read_shared_folder_in_write_shared_folder() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -299,10 +323,16 @@ async fn write_document_in_shared_folder_in_rejected_share_folder() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -340,11 +370,17 @@ async fn write_document_in_rejected_shared_folder_in_share_folder() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[1].get_file_by_id(document.id).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -415,8 +451,14 @@ async fn write_link_by_sharee() {
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
 
-    assert_eq!(cores[0].read_document(document1.id).await.unwrap(), b"document content by sharee");
-    assert_eq!(cores[1].read_document(document1.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document1.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
+    assert_eq!(
+        cores[1].read_document(document1.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -449,8 +491,14 @@ async fn write_target_by_sharee() {
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
 
-    assert_eq!(cores[0].read_document(document1.id).await.unwrap(), b"document content by sharee");
-    assert_eq!(cores[1].read_document(document1.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document1.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
+    assert_eq!(
+        cores[1].read_document(document1.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -722,10 +770,16 @@ async fn write_document_write_share_by_link() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -763,10 +817,16 @@ async fn write_document_deleted_link() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee 2");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee 2"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee 2");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee 2"
+    );
 }
 
 #[tokio::test]
@@ -802,11 +862,17 @@ async fn write_document_link_deleted_when_share_rejected() {
     cores[1].reject_share(&document.id).await.unwrap();
     cores[1].get_file_by_id(link.id).await.unwrap_err();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[1].get_file_by_id(document.id).await.unwrap_err();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharer");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharer"
+    );
 }
 
 #[tokio::test]
@@ -939,7 +1005,10 @@ async fn share_file_duplicate_original_deleted() {
     sharee_core.sync(None).await.unwrap();
 
     core.sync(None).await.unwrap();
-    assert_eq!(core.read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        core.read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]

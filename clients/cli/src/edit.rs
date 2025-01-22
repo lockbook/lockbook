@@ -22,7 +22,7 @@ pub async fn edit(editor: Editor, target: FileInput) -> CliResult<()> {
 
     let f = target.find(lb).await?;
 
-    let file_content = lb.read_document(f.id).await?;
+    let file_content = lb.read_document(f.id, true).await?;
 
     let mut temp_file_path = create_tmp_dir()?;
     temp_file_path.push(f.name);

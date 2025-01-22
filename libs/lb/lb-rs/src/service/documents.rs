@@ -17,7 +17,9 @@ use super::activity;
 
 impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub async fn read_document(&self, id: Uuid) -> LbResult<DecryptedDocument> {
+    pub async fn read_document(
+        &self, id: Uuid, user_activity: bool,
+    ) -> LbResult<DecryptedDocument> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
@@ -26,12 +28,14 @@ impl Lb {
         let doc = self.read_document_helper(id, &mut tree).await?;
 
         let bg_lb = self.clone();
-        tokio::spawn(async move {
-            bg_lb
-                .add_doc_event(activity::DocEvent::Read(id, get_time().0))
-                .await
-                .unwrap();
-        });
+        if user_activity {
+            tokio::spawn(async move {
+                bg_lb
+                    .add_doc_event(activity::DocEvent::Read(id, get_time().0))
+                    .await
+                    .unwrap();
+            });
+        }
 
         Ok(doc)
     }
@@ -70,7 +74,7 @@ impl Lb {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn read_document_with_hmac(
-        &self, id: Uuid,
+        &self, id: Uuid, user_activity: bool,
     ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -80,13 +84,15 @@ impl Lb {
         let doc = self.read_document_helper(id, &mut tree).await?;
         let hmac = tree.find(&id)?.document_hmac().copied();
 
-        let bg_lb = self.clone();
-        tokio::spawn(async move {
-            bg_lb
-                .add_doc_event(activity::DocEvent::Read(id, get_time().0))
-                .await
-                .unwrap();
-        });
+        if user_activity {
+            let bg_lb = self.clone();
+            tokio::spawn(async move {
+                bg_lb
+                    .add_doc_event(activity::DocEvent::Read(id, get_time().0))
+                    .await
+                    .unwrap();
+            });
+        }
 
         Ok((hmac, doc))
     }

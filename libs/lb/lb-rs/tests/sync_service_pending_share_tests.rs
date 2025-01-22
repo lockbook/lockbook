@@ -111,5 +111,5 @@ async fn preview_pending_share() {
     cores[1].sync(None).await.unwrap();
 
     assert_stuff(&cores[0], &cores[1]).await;
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content");
+    assert_eq!(cores[1].read_document(document.id, false).await.unwrap(), b"document content");
 }

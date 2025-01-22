@@ -70,7 +70,7 @@ pub fn calc(
                         };
 
                         let image_bytes = if let Some(id) = maybe_lb_id {
-                            core.read_document(id).map_err(|e| e.to_string())?
+                            core.read_document(id, false).map_err(|e| e.to_string())?
                         } else {
                             download_image(&client, &url).map_err(|e| e.to_string())?
                         };

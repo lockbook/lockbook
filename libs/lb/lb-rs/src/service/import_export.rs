@@ -164,7 +164,7 @@ impl Lb {
                 .map_err(LbErr::from)?;
 
                 disk_file
-                    .write(self.read_document(file.id).await?.as_slice())
+                    .write(self.read_document(file.id, true).await?.as_slice())
                     .map_err(LbErr::from)?;
             }
             FileType::Folder => {

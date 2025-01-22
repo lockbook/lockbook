@@ -82,7 +82,7 @@ impl Drive {
             if let WorkUnit::ServerChange(dirty_id) = unit {
                 let file = self.lb.get_file_by_id(dirty_id).await.unwrap();
                 let size = if file.is_document() {
-                    self.lb.read_document(dirty_id).await.unwrap().len()
+                    self.lb.read_document(dirty_id, false).await.unwrap().len()
                 } else {
                     0
                 };

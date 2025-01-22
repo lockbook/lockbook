@@ -135,7 +135,7 @@ pub async fn all_document_contents(db: &Lb, expected_contents_by_path: &[(&str, 
         let mut this = Vec::new();
         for path in paths {
             let doc = db.get_by_path(&path).await.unwrap();
-            this.push((path.clone(), db.read_document(doc.id).await.unwrap()));
+            this.push((path.clone(), db.read_document(doc.id, false).await.unwrap()));
         }
         this
     };

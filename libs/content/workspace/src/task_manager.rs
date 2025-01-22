@@ -649,7 +649,7 @@ impl TaskManager {
     #[instrument(level = "warn", skip(self), fields(thread = format!("{:?}", thread::current().id())))]
     fn background_load(&self, request: LoadRequest) {
         let id = request.id;
-        let content_result = self.core.read_document_with_hmac(id);
+        let content_result = self.core.read_document_with_hmac(id, true);
 
         {
             let mut tasks = self.tasks.lock().unwrap();
