@@ -11,11 +11,6 @@ pub struct EventSubs {
 
 #[derive(Clone, Copy, Debug)]
 pub enum Event {
-    /// If any document or folder is birthed by this lb library
-    /// new files as a result of sync are communicated as MetadataChanged
-    /// documents that have new contents are communicated as DocumentWritten
-    NewFile(Uuid),
-
     /// A metadata for a given id or it's descendants changed. The id returned
     /// may be deleted. Updates to document contents will not cause this
     /// message to be sent (unless a document was deleted).
@@ -34,10 +29,6 @@ impl Default for EventSubs {
 }
 
 impl EventSubs {
-    pub fn new_file(&self, id: Uuid) {
-        self.queue(Event::NewFile(id));
-    }
-
     pub fn meta_changed(&self, id: Uuid) {
         self.queue(Event::MetadataChanged(id));
     }

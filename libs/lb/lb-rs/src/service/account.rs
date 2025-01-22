@@ -55,7 +55,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.new_file(root_id);
+        self.events.meta_changed(root_id);
 
         if welcome_doc {
             let welcome_doc = self

@@ -204,14 +204,8 @@ impl Lb {
                     };
 
                     match evt {
-                        Event::NewFile(id) => {
-                            let path = lb.get_path_by_id(id).await.unwrap();
-                            let mut index = lb.search.index.write().await;
-                            index.push(SearchIndexEntry { id, path, content: None });
-                        }
-
                         Event::MetadataChanged(mut id) => {
-                            // if this file is deleted recompute the metadata
+                            // if this file is deleted recompute all our metadata
                             if lb.get_file_by_id(id).await.is_err() {
                                 id = lb.root().await.unwrap().id;
                             }
@@ -222,6 +216,7 @@ impl Lb {
                             let children = lb.get_and_get_children_recursively(&id).await.unwrap();
                             let mut paths = HashMap::new();
                             for child in children {
+                                // todo: ideally this would be a single efficient core call
                                 paths.insert(child.id, lb.get_path_by_id(child.id).await.unwrap());
                             }
 

@@ -38,7 +38,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.new_file(id);
+        self.events.meta_changed(id);
         Ok(ui_file)
     }
 
