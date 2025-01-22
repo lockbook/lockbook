@@ -8,7 +8,6 @@ use std::fs::File;
 use std::process::Command;
 use tokio::runtime::Runtime;
 
-mod core;
 mod ws;
 
 const OUTPUTS: &str = "clients/android/app/build/outputs";

@@ -1,5 +1,4 @@
 mod cli;
-mod core;
 mod ios;
 mod mac;
 mod ws;
@@ -11,7 +10,6 @@ use std::path::Path;
 
 pub fn release() -> CliResult<()> {
     cli::release();
-    // core::build();
     ws::build();
     clean_build_dir();
     ios::release();
