@@ -120,12 +120,12 @@ async fn read_count() {
 
     let document1 = core.create_at_path("hello1.md").await.unwrap();
     for _ in 0..10 {
-        core.read_document(document1.id).await.unwrap();
+        core.read_document(document1.id, true).await.unwrap();
     }
 
     let document2 = core.create_at_path("hello2.md").await.unwrap();
     for _ in 0..20 {
-        core.read_document(document2.id).await.unwrap();
+        core.read_document(document2.id, true).await.unwrap();
     }
 
     time::sleep(Duration::from_millis(100)).await;
@@ -146,17 +146,17 @@ async fn read_count_multiple_docs() {
 
     let document1 = core.create_at_path("hello.md").await.unwrap();
     for _ in 0..10 {
-        core.read_document(document1.id).await.unwrap();
+        core.read_document(document1.id, true).await.unwrap();
     }
 
     let document2 = core.create_at_path("hello2.md").await.unwrap();
     for _ in 0..20 {
-        core.read_document(document2.id).await.unwrap();
+        core.read_document(document2.id, true).await.unwrap();
     }
 
     let document3 = core.create_at_path("hello3.md").await.unwrap();
     for _ in 0..100 {
-        core.read_document(document3.id).await.unwrap();
+        core.read_document(document3.id, true).await.unwrap();
     }
 
     time::sleep(Duration::from_millis(100)).await;
@@ -178,12 +178,12 @@ async fn last_read() {
         .unwrap();
 
     let document1 = core.create_at_path("hello.md").await.unwrap();
-    core.read_document(document1.id).await.unwrap();
+    core.read_document(document1.id, true).await.unwrap();
 
     time::sleep(Duration::from_millis(100)).await;
 
     let document2 = core.create_at_path("hello2.md").await.unwrap();
-    core.read_document(document2.id).await.unwrap();
+    core.read_document(document2.id, true).await.unwrap();
 
     time::sleep(Duration::from_millis(100)).await;
     let actual_suggestions = core

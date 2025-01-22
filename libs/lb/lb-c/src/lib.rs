@@ -330,7 +330,8 @@ pub struct LbDocRes {
 pub extern "C" fn lb_read_doc(lb: *mut Lb, id: LbUuid) -> LbDocRes {
     let lb = rlb(lb);
 
-    match lb.read_document(id.into()) {
+    // todo: expose activity field when desired
+    match lb.read_document(id.into(), false) {
         Ok(doc) => {
             let (doc, len) = carray(doc);
             LbDocRes { err: null_mut(), doc, len }
