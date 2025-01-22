@@ -109,7 +109,7 @@ mod lb_wgpu {
     use std::{iter, time::Instant};
 
     use egui::{PlatformOutput, Pos2, Rect, ViewportIdMap, ViewportOutput};
-    use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode, TextureDescriptor, TextureUsages};
+    use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode};
 
     use crate::{Lockbook, Response};
 
@@ -171,14 +171,14 @@ mod lb_wgpu {
                 .create_view(&wgpu::TextureViewDescriptor::default());
 
             #[cfg(not(target_os = "linux"))]
-            let msaa_texture = self.device.create_texture(&TextureDescriptor {
+            let msaa_texture = self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("msaa_texture"),
                 size: output_frame.texture.size(),
                 mip_level_count: output_frame.texture.mip_level_count(),
                 sample_count: 4,
                 dimension: output_frame.texture.dimension(),
                 format: output_frame.texture.format(),
-                usage: TextureUsages::RENDER_ATTACHMENT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
             });
 
