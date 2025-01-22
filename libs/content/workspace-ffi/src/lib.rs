@@ -53,6 +53,7 @@ impl<'window> WgpuWorkspace<'window> {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
+        #[cfg(not(target_os = "linux"))]
         let msaa_texture = self.device.create_texture(&TextureDescriptor {
             label: Some("msaa_texture"),
             size: output_frame.texture.size(),
@@ -64,6 +65,7 @@ impl<'window> WgpuWorkspace<'window> {
             view_formats: &[],
         });
 
+        #[cfg(not(target_os = "linux"))]
         let msaa_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         // can probably use run
@@ -114,6 +116,7 @@ impl<'window> WgpuWorkspace<'window> {
             });
         }
 
+        #[cfg(not(target_os = "linux"))]
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -129,6 +132,18 @@ impl<'window> WgpuWorkspace<'window> {
 
             self.rpass
                 .execute_with_renderpass(&mut pass, &paint_jobs, &self.screen)
+                .unwrap();
+        }
+        #[cfg(target_os = "linux")]
+        {
+            self.rpass
+                .execute(
+                    &mut encoder,
+                    &output_view,
+                    &paint_jobs,
+                    &self.screen,
+                    Some(wgpu::Color::BLACK),
+                )
                 .unwrap();
         }
 
