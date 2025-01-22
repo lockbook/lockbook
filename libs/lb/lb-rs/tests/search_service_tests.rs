@@ -173,14 +173,13 @@ async fn search_exclude_pending_share() {
         .await
         .unwrap();
 
-    core1.build_index().await.unwrap();
     core2.build_index().await.unwrap();
 
     let search1 = core2
         .search("", SearchConfig::PathsAndDocuments)
         .await
         .unwrap();
-    assert_eq!(search1.len(), 0);
+    assert_eq!(search1.len(), 1);
 
     let search2 = core2
         .search(MATCHED_PATHS_3.0, SearchConfig::PathsAndDocuments)

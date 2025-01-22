@@ -131,7 +131,6 @@ struct SearchFileContentCell: View {
         self.name = name
         self.path = path
         self.contentMatches = contentMatches
-        print("got this ish with \(contentMatches)")
         
         let pathAndParagraphs = SearchFileContentCell.underlineMatchedSegments(path: path, contentMatches: contentMatches)
         
