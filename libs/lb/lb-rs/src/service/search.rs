@@ -1,7 +1,7 @@
 use super::activity::RankingWeights;
 use super::events::Event;
 use crate::logic::filename::DocumentType;
-use crate::model::errors::{LbErr, LbResult, UnexpectedError};
+use crate::model::errors::{LbErr, LbErrKind, LbResult, UnexpectedError};
 use crate::Lb;
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 use serde::Serialize;
@@ -111,9 +111,19 @@ impl Lb {
         }
 
         // if the index is empty wait patiently for it become available
+        let mut retries = 0;
         loop {
             if self.search.index.read().await.is_empty() {
+                warn!("search index was empty, waiting 50ms");
                 tokio::time::sleep(Duration::from_millis(50)).await;
+                retries += 1;
+
+                if retries == 20 {
+                    error!("could not aquire search index after 20x(50ms) retries.");
+                    return Err(LbErr::from(LbErrKind::Unexpected(
+                        "failed to search, index not available".to_string(),
+                    )));
+                }
             } else {
                 break;
             }
