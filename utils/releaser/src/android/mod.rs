@@ -8,7 +8,6 @@ use std::fs::File;
 use std::process::Command;
 use tokio::runtime::Runtime;
 
-mod core;
 mod ws;
 
 const OUTPUTS: &str = "clients/android/app/build/outputs";
@@ -23,7 +22,7 @@ const DEFAULT_LOC: &str = "en-US";
 const MIME: &str = "application/octet-stream";
 
 pub fn release() -> CliResult<()> {
-    core::build_libs();
+    // core::build_libs();
     ws::build();
     build_android();
     release_gh();

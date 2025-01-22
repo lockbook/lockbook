@@ -120,13 +120,14 @@ arch=('x86_64' 'i686')
 url="https://github.com/lockbook/lockbook"
 pkgdesc="The private, polished note-taking platform."
 license=('BSD-3-Clause')
-makedepends=('cargo' 'git' 'cmake' 'base-devel')
+makedepends=('cargo' 'git' 'cmake' 'base-devel' 'gtk3')
 depends=()
 provides=('lockbook-desktop')
 conflicts=('lockbook-desktop')
 source=("git+https://github.com/lockbook/aur-lockbook-desktop.git" "git+https://github.com/lockbook/lockbook.git#tag=$pkgver")
 sha256sums=('SKIP' 'SKIP')
 groups=('lockbook')
+options=(!lto)
 
 pkgver() {{
   echo "{version}"
