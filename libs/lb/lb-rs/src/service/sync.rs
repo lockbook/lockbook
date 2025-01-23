@@ -47,6 +47,7 @@ pub struct SyncContext {
     root: Option<Uuid>,
     pushed_metas: Vec<FileDiff<SignedFile>>,
     pushed_docs: Vec<FileDiff<SignedFile>>,
+    pulled_docs: Vec<Uuid>,
 }
 
 impl Lb {
@@ -122,10 +123,8 @@ impl Lb {
         ctx.done_msg();
 
         if got_updates {
-            for file in &ctx.remote_changes {
-                if file.is_document() {
-                    self.events.doc_written(*file.id());
-                }
+            for id in &ctx.pulled_docs {
+                self.events.doc_written(*id);
             }
 
             self.events.meta_changed(self.root().await?.id);
@@ -159,6 +158,7 @@ impl Lb {
             remote_changes: Default::default(),
             pushed_docs: Default::default(),
             pushed_metas: Default::default(),
+            pulled_docs: Default::default(),
         })
     }
 
@@ -312,6 +312,7 @@ impl Lb {
         let mut idx = 0;
         while let Some(fut) = stream.next().await {
             let id = fut?;
+            ctx.pulled_docs.push(id);
             ctx.file_msg(id, &format!("Downloaded file {idx} of {num_docs}."));
             idx += 1;
         }
