@@ -115,7 +115,6 @@ impl Lb {
         // if the index is empty wait patiently for it become available
         let mut retries = 0;
         loop {
-            debug!("getting search index");
             if self.search.index.read().await.is_empty() {
                 warn!("search index was empty, waiting 50ms");
                 tokio::time::sleep(Duration::from_millis(50)).await;
@@ -128,7 +127,6 @@ impl Lb {
                     )));
                 }
             } else {
-                debug!("got");
                 break;
             }
         }
@@ -263,19 +261,31 @@ impl Lb {
                         }
 
                         Event::DocumentWritten(id) => {
+                            let file = lb.get_file_by_id(id).await.unwrap();
+                            let is_searchable =
+                                DocumentType::from_file_name_using_extension(&file.name)
+                                    == DocumentType::Text;
+
                             let doc = lb.read_document(id, false).await.unwrap();
-                            let doc = if doc.len() > MAX_CONTENT_MATCH_LENGTH {
+                            let doc = if doc.len() >= CONTENT_MAX_LEN_BYTES || !is_searchable {
                                 None
                             } else {
                                 Some(String::from_utf8_lossy(&doc).to_string())
                             };
 
                             let mut index = lb.search.index.write().await;
+                            let mut found = false;
+                            // todo: consider warn! when doc not found
                             for entries in index.iter_mut() {
                                 if entries.id == id {
                                     entries.content = doc;
+                                    found = true;
                                     break;
                                 }
+                            }
+
+                            if !found {
+                                warn!("could {file:?} not insert doc into index");
                             }
                         }
                     };

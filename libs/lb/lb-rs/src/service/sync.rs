@@ -123,11 +123,10 @@ impl Lb {
         ctx.done_msg();
 
         if got_updates {
+            self.events.meta_changed(self.root().await?.id);
             for id in &ctx.pulled_docs {
                 self.events.doc_written(*id);
             }
-
-            self.events.meta_changed(self.root().await?.id);
         }
 
         Ok(ctx.summarize())
