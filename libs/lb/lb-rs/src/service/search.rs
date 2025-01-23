@@ -115,6 +115,7 @@ impl Lb {
         // if the index is empty wait patiently for it become available
         let mut retries = 0;
         loop {
+            debug!("getting search index");
             if self.search.index.read().await.is_empty() {
                 warn!("search index was empty, waiting 50ms");
                 tokio::time::sleep(Duration::from_millis(50)).await;
@@ -127,6 +128,7 @@ impl Lb {
                     )));
                 }
             } else {
+                debug!("got");
                 break;
             }
         }
@@ -247,7 +249,6 @@ impl Lb {
                             index.retain(|entry| all_file_ids.contains(&entry.id));
 
                             // update any of the paths of this file and the children
-                            let mut index = lb.search.index.write().await;
                             for entry in index.iter_mut() {
                                 if paths.contains_key(&entry.id) {
                                     entry.path = paths.remove(&entry.id).unwrap();
