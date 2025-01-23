@@ -36,8 +36,9 @@ impl Lb {
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
-        self.spawn_build_index();
+        tx.end();
 
+        self.events.meta_changed(id);
         Ok(ui_file)
     }
 
@@ -57,7 +58,9 @@ impl Lb {
 
         tree.rename(id, new_name, &self.keychain)?;
 
-        self.spawn_build_index();
+        tx.end();
+
+        self.events.meta_changed(*id);
 
         Ok(())
     }
@@ -74,8 +77,9 @@ impl Lb {
         let id = &tree.linked_by(id)?.unwrap_or(*id);
 
         tree.move_file(id, new_parent, &self.keychain)?;
+        tx.end();
 
-        self.spawn_build_index();
+        self.events.meta_changed(*id);
 
         Ok(())
     }
@@ -93,7 +97,9 @@ impl Lb {
 
         tree.delete(id, &self.keychain)?;
 
-        self.spawn_build_index();
+        tx.end();
+
+        self.events.meta_changed(*id);
 
         Ok(())
     }

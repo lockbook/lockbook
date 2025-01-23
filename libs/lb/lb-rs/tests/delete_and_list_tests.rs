@@ -29,7 +29,10 @@ async fn test_create_delete_read() {
     let core = test_core_with_account().await;
     let id = core.create_at_path("test.md").await.unwrap().id;
     core.delete(&id).await.unwrap();
-    assert_matches!(core.read_document(id).await.unwrap_err().kind, LbErrKind::FileNonexistent);
+    assert_matches!(
+        core.read_document(id, false).await.unwrap_err().kind,
+        LbErrKind::FileNonexistent
+    );
 }
 
 #[tokio::test]
@@ -78,9 +81,12 @@ async fn test_create_parent_delete_parent_read_doc() {
     core.write_document(doc.id, "content".as_bytes())
         .await
         .unwrap();
-    assert_eq!(core.read_document(doc.id).await.unwrap(), "content".as_bytes());
+    assert_eq!(core.read_document(doc.id, false).await.unwrap(), "content".as_bytes());
     core.delete(&doc.parent).await.unwrap();
-    assert_matches!(core.read_document(doc.id).await.unwrap_err().kind, LbErrKind::FileNonexistent);
+    assert_matches!(
+        core.read_document(doc.id, false).await.unwrap_err().kind,
+        LbErrKind::FileNonexistent
+    );
 }
 
 #[tokio::test]

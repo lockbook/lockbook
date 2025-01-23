@@ -19,6 +19,8 @@ impl Lb {
 
         scores.sort_unstable_by_key(|b| cmp::Reverse(b.score(settings)));
 
+        scores.truncate(10);
+
         let mut result = Vec::new();
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         for score in scores {

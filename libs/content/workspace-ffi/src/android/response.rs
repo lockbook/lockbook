@@ -49,6 +49,7 @@ impl From<crate::Response> for AndroidResponse {
                     markdown_editor_selection_updated,
                     markdown_editor_scroll_updated: _,
                     tabs_changed: _,
+                    failure_messages: _,
                 },
             redraw_in,
             copied_text,

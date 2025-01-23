@@ -1,18 +1,16 @@
 use super::activity::RankingWeights;
-use crate::logic::file_like::FileLike;
+use super::events::Event;
 use crate::logic::filename::DocumentType;
-use crate::logic::tree_like::TreeLike;
-use crate::model::clock;
-use crate::model::errors::{LbResult, UnexpectedError};
+use crate::model::errors::{LbErr, LbErrKind, LbResult, UnexpectedError};
 use crate::Lb;
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 use serde::Serialize;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use tokio::sync::RwLock;
-use tokio::time::sleep;
 use uuid::Uuid;
 
 const CONTENT_SCORE_THRESHOLD: i64 = 170;
@@ -27,9 +25,8 @@ const FUZZY_WEIGHT: f32 = 0.8;
 
 #[derive(Clone, Default)]
 pub struct SearchIndex {
-    pub scheduled_build: Arc<AtomicBool>,
-    pub last_built: Arc<AtomicU64>,
-    pub docs: Arc<RwLock<Vec<SearchIndexEntry>>>,
+    pub building_index: Arc<AtomicBool>,
+    pub index: Arc<RwLock<Vec<SearchIndexEntry>>>,
 }
 
 #[derive(Debug)]
@@ -88,10 +85,12 @@ impl SearchResult {
 impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
-        if self.search.docs.read().await.is_empty() || !self.config.background_work {
+        // for cli style invocations nothing will have built the search index yet
+        if !self.config.background_work {
             self.build_index().await?;
         }
 
+        // show suggested docs if the input string is empty
         if input.is_empty() {
             match cfg {
                 SearchConfig::Paths | SearchConfig::PathsAndDocuments => {
@@ -111,6 +110,25 @@ impl Lb {
             }
         }
 
+        // if the index is empty wait patiently for it become available
+        let mut retries = 0;
+        loop {
+            if self.search.index.read().await.is_empty() {
+                warn!("search index was empty, waiting 50ms");
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                retries += 1;
+
+                if retries == 20 {
+                    error!("could not aquire search index after 20x(50ms) retries.");
+                    return Err(LbErr::from(LbErrKind::Unexpected(
+                        "failed to search, index not available".to_string(),
+                    )));
+                }
+            } else {
+                break;
+            }
+        }
+
         let mut results = match cfg {
             SearchConfig::Paths => self.search.search_paths(input).await?,
             SearchConfig::Documents => self.search.search_content(input).await?,
@@ -124,106 +142,133 @@ impl Lb {
         };
 
         results.sort_unstable_by_key(|r| -r.score());
-        results.truncate(20);
+        results.truncate(10);
 
         Ok(results)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn build_index(&self) -> LbResult<()> {
-        let ts = clock::get_time().0 as u64;
-        self.search.last_built.store(ts, Ordering::SeqCst);
-        // fetch metadata once; use single lazy tree to re-use key decryption work for all files (lb lock)
-        let mut tree = {
-            let tx = self.ro_tx().await;
-            let db = tx.db();
+        // if we haven't signed in yet, we'll leave our index entry and our event subscriber will
+        // handle the state change
+        if self.keychain.get_account().is_err() {
+            return Ok(());
+        }
 
-            let base = db.base_metadata.get().clone();
-            let local = db.local_metadata.get().clone();
-            let staged = base.to_staged(local);
-            staged.to_lazy()
-        };
+        // some other caller has already built this index, subscriber will keep it up to date
+        if self.search.building_index.swap(true, Ordering::AcqRel) {
+            return Ok(());
+        }
 
-        // construct replacement index
-        let mut replacement_index = Vec::new();
-        for id in tree.ids() {
-            if tree.calculate_deleted(&id)? {
-                continue;
-            }
-            if tree.in_pending_share(&id)? {
-                continue;
-            }
-            let name = tree.name_using_links(&id, &self.keychain)?;
-            let path = tree.id_to_path(&id, &self.keychain)?;
+        let tasks = FuturesUnordered::new();
+        for file in self.list_metadatas().await? {
+            let id = file.id;
+            let is_doc_searchable =
+                DocumentType::from_file_name_using_extension(&file.name) == DocumentType::Text;
 
-            // once per file, re-lock lb to read document using up-to-date hmac (lb lock)
-            // because lock has been dropped in the meantime, original `tree` is now arbitrarily out-of-date
-            let tx = self.ro_tx().await;
-            let db = tx.db();
-            let hmac_tree = db.base_metadata.stage(&db.local_metadata); // not lazy bc no decryption uses this one
+            tasks.push(async move {
+                let (path, content) = if is_doc_searchable {
+                    let (path, doc) =
+                        tokio::join!(self.get_path_by_id(id), self.read_document(id, false));
 
-            let Some(file) = hmac_tree.maybe_find(&id) else { continue }; // file maybe deleted since we started
+                    let path = path?;
 
-            let content = if DocumentType::from_file_name_using_extension(&name)
-                == DocumentType::Text
-            {
-                match file.document_hmac() {
-                    Some(&hmac) => {
-                        let encrypted_content = self.docs.get(id, Some(hmac)).await?;
+                    let doc = doc?;
+                    let doc = if doc.len() >= CONTENT_MAX_LEN_BYTES {
+                        None
+                    } else {
+                        Some(String::from_utf8_lossy(&doc).to_string())
+                    };
 
-                        let content = if encrypted_content.value.len() <= CONTENT_MAX_LEN_BYTES {
-                            // use the original tree to decrypt the content
-                            let decrypted_content =
-                                tree.decrypt_document(&id, &encrypted_content, &self.keychain)?;
-                            Some(String::from_utf8_lossy(&decrypted_content).into_owned())
-                        } else {
-                            None
-                        };
+                    (path, doc)
+                } else {
+                    (self.get_path_by_id(id).await?, None)
+                };
 
-                        content
-                    }
-                    None => None,
-                }
-            } else {
-                None
-            };
+                Ok::<SearchIndexEntry, LbErr>(SearchIndexEntry { id, path, content })
+            });
+        }
 
-            replacement_index.push(SearchIndexEntry { id, path, content })
+        let results: Vec<LbResult<SearchIndexEntry>> = tasks.collect().await;
+        let mut replacement_index = Vec::with_capacity(results.len());
+        for result in results {
+            replacement_index.push(result?);
         }
 
         // swap in replacement index (index lock)
-        *self.search.docs.write().await = replacement_index;
+        *self.search.index.write().await = replacement_index;
 
         Ok(())
     }
 
-    /// ensure the index is not built more frequently than every 5s
-    pub fn spawn_build_index(&self) {
+    #[instrument(level = "debug", skip(self))]
+    pub fn setup_search(&self) {
         if self.config.background_work {
-            tokio::spawn({
-                let lb = self.clone();
-                async move {
-                    let ts = clock::get_time().0 as u64;
-                    let since_last = ts - lb.search.last_built.load(Ordering::SeqCst);
-                    if since_last < 5000 {
-                        if lb.search.scheduled_build.load(Ordering::SeqCst) {
-                            // index is pretty fresh, and there is a build scheduled in the future, do
-                            // nothing
-                            return;
-                        } else {
-                            // wait until about 5s since last build and then try the whole routine
-                            // again
-                            lb.search.scheduled_build.store(true, Ordering::SeqCst);
-                            sleep(Duration::from_millis(5001 - since_last)).await;
-                            lb.spawn_build_index();
-                        }
-                    }
+            let lb = self.clone();
+            let mut rx = self.subscribe();
+            tokio::spawn(async move {
+                lb.build_index().await.unwrap();
+                loop {
+                    let Ok(evt) = rx.recv().await else {
+                        error!("failed to receive from a channel");
+                        return;
+                    };
 
-                    // if we make it here there are no scheduled builds reset that flag
-                    lb.search.scheduled_build.store(false, Ordering::SeqCst);
-                    if let Err(e) = lb.build_index().await {
-                        error!("Error building search index: {:?}", e)
-                    }
+                    match evt {
+                        Event::MetadataChanged(mut id) => {
+                            // if this file is deleted recompute all our metadata
+                            if lb.get_file_by_id(id).await.is_err() {
+                                id = lb.root().await.unwrap().id;
+                            }
+
+                            // compute info for this update up-front
+                            let files = lb.list_metadatas().await.unwrap();
+                            let all_file_ids: Vec<Uuid> = files.into_iter().map(|f| f.id).collect();
+                            let children = lb.get_and_get_children_recursively(&id).await.unwrap();
+                            let mut paths = HashMap::new();
+                            for child in children {
+                                // todo: ideally this would be a single efficient core call
+                                paths.insert(child.id, lb.get_path_by_id(child.id).await.unwrap());
+                            }
+
+                            // aquire the lock
+                            let mut index = lb.search.index.write().await;
+
+                            // handle deletions
+                            index.retain(|entry| all_file_ids.contains(&entry.id));
+
+                            // update any of the paths of this file and the children
+                            let mut index = lb.search.index.write().await;
+                            for entry in index.iter_mut() {
+                                if paths.contains_key(&entry.id) {
+                                    entry.path = paths.remove(&entry.id).unwrap();
+                                }
+                            }
+
+                            // handle any remaining, new metadata
+                            for (id, path) in paths {
+                                // any content should come in as a result of DocumentWritten
+                                index.push(SearchIndexEntry { id, path, content: None });
+                            }
+                        }
+
+                        Event::DocumentWritten(id) => {
+                            let doc = lb.read_document(id, false).await.unwrap();
+                            let doc = if doc.len() > MAX_CONTENT_MATCH_LENGTH {
+                                None
+                            } else {
+                                Some(String::from_utf8_lossy(&doc).to_string())
+                            };
+
+                            let mut index = lb.search.index.write().await;
+                            for entries in index.iter_mut() {
+                                if entries.id == id {
+                                    entries.content = doc;
+                                    break;
+                                }
+                            }
+                        }
+                    };
                 }
             });
         }
@@ -232,7 +277,7 @@ impl Lb {
 
 impl SearchIndex {
     async fn search_paths(&self, input: &str) -> LbResult<Vec<SearchResult>> {
-        let docs_guard = self.docs.read().await; // read lock held for the whole fn
+        let docs_guard = self.index.read().await; // read lock held for the whole fn
 
         let mut results = Vec::new();
         for doc in docs_guard.iter() {
@@ -258,11 +303,11 @@ impl SearchIndex {
 
     async fn search_content(&self, input: &str) -> LbResult<Vec<SearchResult>> {
         let search_futures = FuturesUnordered::new();
-        let docs = self.docs.read().await;
+        let docs = self.index.read().await;
 
         for (idx, _) in docs.iter().enumerate() {
             search_futures.push(async move {
-                let doc = &self.docs.read().await[idx];
+                let doc = &self.index.read().await[idx];
                 let id = doc.id;
                 let path = &doc.path;
                 let content = &doc.content;

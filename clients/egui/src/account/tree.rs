@@ -12,6 +12,7 @@ use egui::{
     text_edit::TextEditState, Color32, Context, DragAndDrop, Event, EventFilter, Id, Key, LayerId,
     Modifiers, Order, Pos2, Rect, Sense, TextEdit, Ui, Vec2, WidgetText,
 };
+use egui_notify::Toasts;
 use lb::{
     blocking::Lb,
     logic::filename::DocumentType,
@@ -54,6 +55,9 @@ pub struct FileTree {
 
     /// Which file is the drag 'n' drop payload being hovered over and since when? Used to expand folders during dnd.
     pub drop: Option<(Uuid, Instant)>,
+
+    /// Set to `true` and the cursor will be scrolled to on the next frame
+    pub scroll_to_cursor: bool,
 }
 
 impl FileTree {
@@ -70,6 +74,7 @@ impl FileTree {
             rename_buffer: Default::default(),
             export: Default::default(),
             drop: Default::default(),
+            scroll_to_cursor: Default::default(),
         }
     }
 
@@ -219,7 +224,7 @@ impl FileTree {
 
     /// Helper that expands the ancestors of the selected files. One option for making sure all selections are visible.
     /// See also `select_visible_ancestors`.
-    fn reveal_selection(&mut self) {
+    pub fn reveal_selection(&mut self) {
         for mut id in self.selected.clone() {
             loop {
                 if id == self.suggested_docs_folder_id {
@@ -410,9 +415,9 @@ impl Response {
 }
 
 impl FileTree {
-    pub fn show(&mut self, ui: &mut Ui, max_rect: Rect) -> Response {
+    pub fn show(&mut self, ui: &mut Ui, max_rect: Rect, toasts: &mut Toasts) -> Response {
         let mut resp = Response::default();
-        let mut scroll_to_cursor = false;
+        let mut scroll_to_cursor = mem::take(&mut self.scroll_to_cursor);
 
         let full_doc_search_id = Id::from("full_doc_search");
         let suggested_docs_id = Id::from("suggested_docs");
@@ -860,7 +865,6 @@ impl FileTree {
         }
 
         if !ui.memory(|m| m.has_focus(file_tree_id)) {
-            self.selected.clear();
             self.cut.clear();
         }
 
@@ -869,9 +873,11 @@ impl FileTree {
             .union(ui.vertical(|ui| self.show_suggested(ui)).inner)
             // show file tree
             .union({
-                ui.vertical(|ui| self.show_recursive(ui, self.files.root(), 0, scroll_to_cursor))
-                    .inner
-                    .union(self.show_padding(ui, max_rect))
+                ui.vertical(|ui| {
+                    self.show_recursive(ui, toasts, self.files.root(), 0, scroll_to_cursor)
+                })
+                .inner
+                .union(self.show_padding(ui, toasts, max_rect))
             })
     }
 
@@ -897,7 +903,8 @@ impl FileTree {
         }
 
         if Button::default()
-            .icon(&Icon::SCHEDULE)
+            .icon(&Icon::FOLDER)
+            .icon_color(ui.style().visuals.widgets.active.bg_fill)
             .text("Suggested Documents")
             .default_fill(default_fill)
             .frame(true)
@@ -977,7 +984,7 @@ impl FileTree {
     }
 
     fn show_recursive(
-        &mut self, ui: &mut Ui, id: Uuid, depth: usize, scroll_to_cursor: bool,
+        &mut self, ui: &mut Ui, toasts: &mut Toasts, id: Uuid, depth: usize, scroll_to_cursor: bool,
     ) -> Response {
         let mut resp = Response::default();
 
@@ -995,8 +1002,8 @@ impl FileTree {
 
         let mut text = WidgetText::from(&file.name);
         let mut default_fill = ui.style().visuals.extreme_bg_color;
-        if is_selected && focused && !is_cursored {
-            text = text.color(ui.style().visuals.widgets.active.bg_fill);
+        if is_selected {
+            default_fill = ui.visuals().widgets.hovered.bg_fill;
         }
         if is_cursored && focused {
             default_fill = ui.style().visuals.selection.bg_fill;
@@ -1094,8 +1101,13 @@ impl FileTree {
                 .indent(indent)
                 .show(ui);
             if is_expanded {
-                resp =
-                    resp.union(self.show_children_recursive(ui, id, depth + 1, scroll_to_cursor));
+                resp = resp.union(self.show_children_recursive(
+                    ui,
+                    toasts,
+                    id,
+                    depth + 1,
+                    scroll_to_cursor,
+                ));
             };
 
             file_resp
@@ -1178,7 +1190,7 @@ impl FileTree {
         // context menu
         let mut context_menu_resp = Response::default();
         file_resp.context_menu(|ui| {
-            context_menu_resp = self.context_menu(ui, Some(id));
+            context_menu_resp = self.context_menu(ui, toasts, Some(id));
         });
         resp = resp.union(context_menu_resp);
 
@@ -1241,6 +1253,9 @@ impl FileTree {
                                 .rect(file_resp.rect, 2., Color32::TRANSPARENT, stroke);
                         },
                     );
+
+                    // scroll so that target is visible
+                    ui.scroll_to_rect(file_resp.rect, None);
                 } else {
                     // drop as sibling to hovered file (indicated by a line)
                     let y = if pointer.y < file_resp.rect.center().y {
@@ -1262,6 +1277,21 @@ impl FileTree {
                             );
                         },
                     );
+
+                    // scroll so that targets on both sides of the line are visible
+                    if pointer.y < file_resp.rect.center().y {
+                        if self.prev(file.id, true).is_some() {
+                            // scroll to reveal target above and self
+                            let mut rect = file_resp.rect;
+                            rect.min.y -= rect.height();
+                            ui.scroll_to_rect(rect, None);
+                        }
+                    } else if self.next(file.id, true).is_some() {
+                        // scroll to reveal target below and self
+                        let mut rect = file_resp.rect;
+                        rect.max.y += rect.height();
+                        ui.scroll_to_rect(rect, None);
+                    };
                 }
             }
 
@@ -1297,6 +1327,9 @@ impl FileTree {
         }
 
         if is_cursored && scroll_to_cursor {
+            // todo: sometimes this doesn't scroll far enough to actually reveal the rect
+            // it works more reliably when the usage/nav/sync panel is commented out
+            // perhaps egui has a bug related to how we're mixing top-down and bottom-up layouts
             ui.scroll_to_rect(file_resp.rect, None);
         }
 
@@ -1304,7 +1337,7 @@ impl FileTree {
     }
 
     fn show_children_recursive(
-        &mut self, ui: &mut Ui, id: Uuid, depth: usize, scroll_to_cursor: bool,
+        &mut self, ui: &mut Ui, toasts: &mut Toasts, id: Uuid, depth: usize, scroll_to_cursor: bool,
     ) -> Response {
         let children_ids = self
             .files
@@ -1314,12 +1347,12 @@ impl FileTree {
             .collect::<Vec<_>>();
         let mut resp = Response::default();
         for child in children_ids {
-            resp = resp.union(self.show_recursive(ui, child, depth, scroll_to_cursor));
+            resp = resp.union(self.show_recursive(ui, toasts, child, depth, scroll_to_cursor));
         }
         resp
     }
 
-    fn show_padding(&mut self, ui: &mut Ui, max_rect: Rect) -> Response {
+    fn show_padding(&mut self, ui: &mut Ui, toasts: &mut Toasts, max_rect: Rect) -> Response {
         let mut resp = Response::default();
 
         let mut desired_size = Vec2::new(max_rect.width(), 0.);
@@ -1335,7 +1368,7 @@ impl FileTree {
         // context menu
         let mut context_menu_resp = Response::default();
         padding_resp.context_menu(|ui| {
-            context_menu_resp = self.context_menu(ui, None);
+            context_menu_resp = self.context_menu(ui, toasts, None);
         });
         resp = resp.union(context_menu_resp);
 
@@ -1369,7 +1402,9 @@ impl FileTree {
         resp
     }
 
-    fn context_menu(&mut self, ui: &mut egui::Ui, file: Option<Uuid>) -> Response {
+    fn context_menu(
+        &mut self, ui: &mut egui::Ui, toasts: &mut Toasts, file: Option<Uuid>,
+    ) -> Response {
         let mut resp = Response::default();
         ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
 
@@ -1430,6 +1465,13 @@ impl FileTree {
             if ui.button("Share").clicked() {
                 let file = self.files.get_by_id(file).clone();
                 resp.create_share_modal = Some(file);
+                ui.close_menu();
+            }
+
+            if ui.button("Copy Link").clicked() {
+                ui.ctx()
+                    .output_mut(|o| o.copied_text = format!("lb://{file}"));
+                toasts.success("Copied link!");
                 ui.close_menu();
             }
         }

@@ -53,7 +53,7 @@ pub fn lockbook_data(core: &Lb) -> Graph {
     for file in core.list_metadatas().unwrap() {
         if file.is_document() && file.name.ends_with(".md") {
             let file_id = file.id;
-            let doc = core.read_document(file.id).unwrap();
+            let doc = core.read_document(file.id, false).unwrap();
             let doc = String::from_utf8(doc).unwrap();
             let name = file.name;
             info.push((name, doc, file_id));

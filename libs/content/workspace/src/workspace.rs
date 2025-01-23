@@ -2,7 +2,7 @@ use egui::{Context, ViewportCommand};
 
 use lb_rs::blocking::Lb;
 use lb_rs::logic::filename::NameComponents;
-use lb_rs::model::errors::LbErrKind;
+use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::svg::buffer::Buffer;
 use lb_rs::{svg, Uuid};
@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use std::{fs, thread};
 use tracing::{debug, error, info, instrument, trace, warn};
 
+use crate::file_cache::FileCache;
 use crate::mind_map::mind_map::MindMap;
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
@@ -32,6 +33,7 @@ pub struct Workspace {
 
     // Files and task status
     pub tasks: TaskManager,
+    pub files: Option<FileCache>,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
     pub last_sync_status_refresh_completed: Option<Instant>,
@@ -64,6 +66,7 @@ impl Workspace {
             user_last_seen: Instant::now(),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
+            files: None,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
             last_sync_status_refresh_completed: Default::default(),
@@ -104,7 +107,7 @@ impl Workspace {
         self.ctx = ctx.clone();
         self.core = core.clone();
 
-        let ids: Vec<lb_rs::Uuid> = self.tabs.iter().map(|tab| tab.id).collect();
+        let ids: Vec<Uuid> = self.tabs.iter().map(|tab| tab.id).collect();
         let maybe_active_tab_id = self.current_tab().map(|tab| tab.id);
 
         while self.active_tab != 0 {
@@ -127,7 +130,7 @@ impl Workspace {
 
     /// upsert returns true if a tab was created
     pub fn upsert_tab(
-        &mut self, id: lb_rs::Uuid, name: &str, path: &str, is_new_file: bool, make_active: bool,
+        &mut self, id: Uuid, name: &str, path: &str, is_new_file: bool, make_active: bool,
     ) -> bool {
         for (i, tab) in self.tabs.iter().enumerate() {
             if tab.id == id {
@@ -168,7 +171,7 @@ impl Workspace {
         true
     }
 
-    pub fn get_mut_tab_by_id(&mut self, id: lb_rs::Uuid) -> Option<&mut Tab> {
+    pub fn get_mut_tab_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
         self.tabs.iter_mut().find(|tab| tab.id == id)
     }
 
@@ -213,7 +216,7 @@ impl Workspace {
         None
     }
 
-    pub fn goto_tab_id(&mut self, id: lb_rs::Uuid) -> bool {
+    pub fn goto_tab_id(&mut self, id: Uuid) -> bool {
         for (i, tab) in self.tabs.iter().enumerate() {
             if tab.id == id {
                 self.active_tab = i;
@@ -272,6 +275,13 @@ impl Workspace {
     }
 
     pub fn remove_tab(&mut self, i: usize) {
+        let tab = &self.tabs[i];
+        if let Some(TabContent::Markdown(md)) = &tab.content {
+            if md.focused(&self.ctx) {
+                md.surrender_focus(&self.ctx);
+            }
+        }
+
         self.tabs.remove(i);
         let n_tabs = self.tabs.len();
         self.out.tabs_changed = true;
@@ -289,6 +299,7 @@ impl Workspace {
             completed_saves,
             completed_sync,
             completed_sync_status_update,
+            completed_file_cache_refresh,
         } = self.tasks.update();
 
         let start = Instant::now();
@@ -326,8 +337,10 @@ impl Workspace {
                         let (maybe_hmac, bytes) = match content_result {
                             Ok((hmac, bytes)) => (hmac, bytes),
                             Err(err) => {
-                                println!("failed to load file: {:?}", err);
-                                tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)));
+                                let msg = format!("failed to load file: {:?}", err);
+                                error!(msg);
+                                tab.failure = Some(TabFailure::Unexpected(msg.clone()));
+                                self.out.failure_messages.push(msg);
                                 return;
                             }
                         };
@@ -402,14 +415,12 @@ impl Workspace {
 
                         self.out.tabs_changed = true;
                     } else {
-                        println!("failed to load file: tab not found");
+                        error!("failed to load file: tab not found");
                     };
                 }
             }
         }
-        if start.elapsed() > Duration::from_millis(100) {
-            warn!("processing completed loads took {:?}", start.elapsed());
-        }
+        start.warn_after("processing completed loads", Duration::from_millis(100));
 
         let start = Instant::now();
         for save in completed_saves {
@@ -443,7 +454,7 @@ impl Workspace {
                                     }
                                     _ => {}
                                 }
-                                sync = true; // todo: sync once when saving multiple tabs
+                                sync = true;
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
@@ -458,28 +469,32 @@ impl Workspace {
                     if sync {
                         self.tasks.queue_sync();
                     }
+                    self.tasks.queue_file_cache_refresh();
                 }
             }
         }
-        if start.elapsed() > Duration::from_millis(100) {
-            warn!("processing completed saves took {:?}", start.elapsed());
-        }
+        start.warn_after("processing completed saves", Duration::from_millis(100));
 
         let start = Instant::now();
         if let Some(sync) = completed_sync {
             self.sync_done(sync)
         }
-        if start.elapsed() > Duration::from_millis(100) {
-            warn!("processing completed sync took {:?}", start.elapsed());
-        }
+        start.warn_after("processing completed sync", Duration::from_millis(100));
 
         let start = Instant::now();
         if let Some(update) = completed_sync_status_update {
             self.sync_status_update_done(update)
         }
-        if start.elapsed() > Duration::from_millis(100) {
-            warn!("processing completed sync status update took {:?}", start.elapsed());
+        start.warn_after("processing completed sync status update", Duration::from_millis(100));
+
+        let start = Instant::now();
+        if let Some(refresh) = completed_file_cache_refresh {
+            match refresh.cache_result {
+                Ok(cache) => self.files = Some(cache),
+                Err(err) => error!("failed to refresh file cache: {:?}", err),
+            }
         }
+        start.warn_after("processing completed file cache refresh", Duration::from_millis(100));
 
         let start = Instant::now();
         {
@@ -492,9 +507,7 @@ impl Workspace {
                 }
             }
         }
-        if start.elapsed() > Duration::from_millis(100) {
-            warn!("processing sync progress took {:?}", start.elapsed());
-        }
+        start.warn_after("processing sync progress", Duration::from_millis(100));
 
         // background work: queue
         let now = Instant::now();
@@ -517,9 +530,7 @@ impl Workspace {
         } else {
             self.tasks.queue_sync_status_update();
         }
-        if start.elapsed() > Duration::from_millis(100) {
-            warn!("processing sync status refresh took {:?}", start.elapsed());
-        }
+        start.warn_after("processing sync status refresh", Duration::from_millis(100));
 
         let start = Instant::now();
         if self.cfg.get_auto_save() {
@@ -535,9 +546,7 @@ impl Workspace {
                 self.save_all_tabs();
             }
         }
-        if start.elapsed() > Duration::from_millis(100) {
-            warn!("processing auto save took {:?}", start.elapsed());
-        }
+        start.warn_after("processing auto save", Duration::from_millis(100));
 
         let start = Instant::now();
         if self.cfg.get_auto_sync() {
@@ -561,16 +570,12 @@ impl Workspace {
                 self.tasks.queue_sync();
             }
         }
-        if start.elapsed() > Duration::from_millis(100) {
-            warn!("processing auto sync took {:?}", start.elapsed());
-        }
+        start.warn_after("processing auto sync", Duration::from_millis(100));
 
         // background work: launch
         let start = Instant::now();
         self.tasks.check_launch(&self.tabs);
-        if start.elapsed() > Duration::from_millis(100) {
-            warn!("processing task launch took {:?}", start.elapsed());
-        }
+        start.warn_after("processing task launch", Duration::from_millis(100));
 
         // background work: cleanup
         let mut removed_tabs = 0;
@@ -620,6 +625,7 @@ impl Workspace {
             .map_err(|err| format!("{:?}", err));
 
         self.out.file_created = Some(result);
+        self.tasks.queue_file_cache_refresh();
         self.ctx.request_repaint();
     }
 
@@ -633,15 +639,19 @@ impl Workspace {
         }
     }
 
-    pub fn rename_file(&mut self, req: (Uuid, String)) {
+    pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) {
         let (id, new_name) = req;
         match self.core.rename_file(&id, &new_name) {
             Ok(()) => {
                 self.file_renamed(id, new_name);
             }
-            Err(err) => {
-                // todo: show a toast
-                warn!(?id, "failed to rename file: {:?}", err);
+            Err(LbErr { kind, .. }) => {
+                if by_user {
+                    self.out
+                        .failure_messages
+                        .push(format!("Rename failed: {}", kind));
+                }
+                warn!(?id, "failed to rename file: {:?}", kind);
             }
         }
     }
@@ -670,6 +680,7 @@ impl Workspace {
         }
 
         self.out.file_renamed = Some((id, new_name.clone()));
+        self.tasks.queue_file_cache_refresh();
         self.ctx.request_repaint();
     }
 
@@ -678,10 +689,14 @@ impl Workspace {
         match self.core.move_file(&id, &new_parent) {
             Ok(()) => {
                 self.out.file_moved = Some((id, new_parent));
+                self.tasks.queue_file_cache_refresh();
                 self.ctx.request_repaint();
             }
-            Err(err) => {
-                warn!(?id, "failed to move file: {:?}", err);
+            Err(LbErr { kind, .. }) => {
+                self.out
+                    .failure_messages
+                    .push(format!("Move failed: {}", kind));
+                warn!(?id, "failed to move file: {:?}", kind);
             }
         }
     }
@@ -799,5 +814,18 @@ impl WsPersistentStore {
             let content = serde_json::to_string(&*data).unwrap();
             fs::write(path, content)
         });
+    }
+}
+
+trait InstantExt {
+    fn warn_after(self, work: &str, duration: Duration);
+}
+
+impl InstantExt for Instant {
+    fn warn_after(self, work: &str, duration: Duration) {
+        let elapsed = self.elapsed();
+        if elapsed > duration {
+            warn!("{} took {:?}", work, elapsed);
+        }
     }
 }
