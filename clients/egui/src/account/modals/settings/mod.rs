@@ -43,7 +43,7 @@ impl SettingsModal {
         core: &Lb, s: &Arc<RwLock<Settings>>, ws_persistent_store: &WsPersistentStore,
     ) -> Self {
         let export_result = core
-            .export_account_private_key()
+            .export_account_phrase()
             .map_err(|err| format!("{:?}", err)); // TODO
 
         let (info_tx, info_rx) = mpsc::channel();
