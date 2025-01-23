@@ -215,9 +215,12 @@ impl Lb {
             tokio::spawn(async move {
                 lb.build_index().await.unwrap();
                 loop {
-                    let Ok(evt) = rx.recv().await else {
-                        error!("failed to receive from a channel");
-                        return;
+                    let evt = match rx.recv().await {
+                        Ok(evt) => evt,
+                        Err(err) => {
+                            error!("failed to receive from a channel {err}");
+                            return;
+                        }
                     };
 
                     match evt {
