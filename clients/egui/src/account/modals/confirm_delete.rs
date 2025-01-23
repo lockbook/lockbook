@@ -30,13 +30,16 @@ impl super::Modal for ConfirmDeleteModal {
         match &self.state {
             State::WaitingForAnswer => {
                 let how_many = self.file_ids.len();
+                let any_folders = self.file_ids.iter().any(|f| f.is_folder());
+                let all_folders = self.file_ids.iter().all(|f| f.is_folder());
 
-                let desc = if how_many == 1 {
-                    "this 1 file".to_string()
-                } else {
-                    format!("these {} files", how_many)
+                match (how_many, any_folders, all_folders) {
+                    (1, true, _) => ui.label("Are you sure you want to delete this folder and everything in it?"),
+                    (1, false, _) => ui.label("Are you sure you want to delete this document?"),
+                    (_, _, true) => ui.label(format!("Are you sure you want to delete these {} folders and everything in them?", how_many)),
+                    (_, true, _) => ui.label(format!("Are you sure you want to delete these {} files? Contents of folders will also be deleted.", how_many)),
+                    (_, _, false) => ui.label(format!("Are you sure you want to delete these {} files?", how_many)),
                 };
-                ui.label(format!("Are you sure you want to delete {}?", desc));
 
                 ui.horizontal(|ui| {
                     if ui.button("Yes, I'm Sure").clicked() {
