@@ -1,8 +1,10 @@
 mod account_tab;
 mod appearance_tab;
+mod debug_tab;
 mod general_tab;
 mod usage_tab;
 
+use std::sync::Mutex;
 use std::sync::{mpsc, Arc, RwLock};
 
 use egui_extras::{Size, StripBuilder};
@@ -22,6 +24,7 @@ enum SettingsTab {
     Usage,
     Appearance,
     General,
+    Debug,
 }
 
 pub struct SettingsModal {
@@ -32,6 +35,7 @@ pub struct SettingsModal {
     usage: UsageSettings,
     active_tab: SettingsTab,
     version: String,
+    debug: Arc<Mutex<String>>,
 }
 
 pub enum SettingsResponse {
@@ -69,6 +73,17 @@ impl SettingsModal {
             }
         });
 
+        let debug = Arc::new(Mutex::new(String::new()));
+        std::thread::spawn({
+            let core = core.clone();
+            let debug = debug.clone();
+
+            move || {
+                let debug_str = core.debug_info("None provided".into());
+                *debug.lock().unwrap() = debug_str;
+            }
+        });
+
         Self {
             core: core.clone(),
             settings: s.clone(),
@@ -77,11 +92,11 @@ impl SettingsModal {
             active_tab: SettingsTab::Account,
             version: env!("CARGO_PKG_VERSION").to_string(),
             ws_persistent_store: ws_persistent_store.clone(),
+            debug,
         }
     }
 
     fn show_tab_labels(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(1.0);
         egui::Frame::none()
             .fill(ui.visuals().faint_bg_color)
             .rounding(egui::Rounding {
@@ -96,6 +111,7 @@ impl SettingsModal {
                 self.tab_label(ui, SettingsTab::Usage, Icon::SAVE, "Usage");
                 self.tab_label(ui, SettingsTab::Appearance, Icon::SPARKLE, "Appearance");
                 self.tab_label(ui, SettingsTab::General, Icon::SETTINGS, "General");
+                self.tab_label(ui, SettingsTab::Debug, Icon::BUG, "Debug");
             });
     }
 
@@ -189,11 +205,11 @@ impl super::Modal for SettingsModal {
     fn show(&mut self, ui: &mut egui::Ui) -> Self::Response {
         let mut resp = None;
 
-        ui.set_max_height(ui.available_size().y - 400.0);
+        ui.set_max_height(ui.available_size().y - 350.0);
         ui.set_width(520.0);
 
         StripBuilder::new(ui)
-            .size(Size::exact(115.0))
+            .size(Size::exact(140.0))
             .size(Size::remainder())
             .horizontal(|mut strip| {
                 strip.cell(|ui| self.show_tab_labels(ui));
@@ -208,8 +224,11 @@ impl super::Modal for SettingsModal {
                             self.show_appearance_tab(ui);
                         }
                         SettingsTab::General => self.show_general_tab(ui),
+                        SettingsTab::Debug => self.show_debug_tab(ui),
                     }
-                    self.show_version(ui);
+                    if self.active_tab != SettingsTab::Debug {
+                        self.show_version(ui);
+                    }
                 });
             });
 
