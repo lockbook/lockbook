@@ -400,7 +400,7 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
         desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &surface_config);
-    let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 4);
+    let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
 
     let context = Context::default();
     context.set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
