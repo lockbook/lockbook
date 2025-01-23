@@ -23,7 +23,7 @@ pub enum Event {
 
 impl Default for EventSubs {
     fn default() -> Self {
-        let (tx, _) = broadcast::channel::<Event>(1000);
+        let (tx, _) = broadcast::channel::<Event>(10000);
         Self { tx }
     }
 }
