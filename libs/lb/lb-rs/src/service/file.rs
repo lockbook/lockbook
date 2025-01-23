@@ -156,7 +156,7 @@ impl Lb {
             &self.keychain,
             descendants.into_iter().chain(iter::once(*id)),
             &db.pub_key_lookup,
-            false,
+            true,
         )
     }
 
