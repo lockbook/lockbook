@@ -189,9 +189,10 @@ impl Workspace {
                 TabStatus::Dirty
             } else {
                 TabStatus::Clean
-            };
+            }
+        } else {
+            TabStatus::Clean
         }
-        TabStatus::Clean
     }
 }
 
