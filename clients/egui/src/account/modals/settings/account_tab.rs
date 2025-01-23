@@ -1,6 +1,6 @@
-use std::sync::mpsc;
+use std::{fs, sync::mpsc};
 
-use egui::{vec2, Image};
+use egui::{vec2, Button, Image, TextWrapMode, Widget};
 use egui_extras::{Size, StripBuilder};
 
 pub struct AccountSettings {
@@ -67,9 +67,14 @@ impl super::SettingsModal {
                     StripBuilder::new(ui)
                         .size(Size::remainder())
                         .size(Size::remainder())
+                        .size(Size::remainder())
                         .horizontal(|mut strip| {
                             strip.cell(|ui| {
-                                if ui.button("Copy to Clipboard").clicked() {
+                                if Button::new("Copy to Clipboard")
+                                    .wrap_mode(TextWrapMode::Extend)
+                                    .ui(ui)
+                                    .clicked()
+                                {
                                     ui.output_mut(|out| out.copied_text = key.to_owned());
                                 }
                             });
@@ -84,6 +89,13 @@ impl super::SettingsModal {
                                     // borrowing within closure errors, so we just queue an update
                                     // for next frame.
                                     self.account.update_tx.send(Update::GenerateQr).unwrap();
+                                }
+                            });
+                            strip.cell(|ui| {
+                                if ui.button("Logout").clicked() {
+                                    // todo: deduplicate
+                                    fs::remove_dir_all(self.core.get_config().writeable_path)
+                                        .unwrap();
                                 }
                             });
                         });
