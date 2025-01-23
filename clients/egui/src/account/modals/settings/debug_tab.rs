@@ -14,9 +14,9 @@ impl super::SettingsModal {
 
         ui.add_space(12.0);
 
-        let debug_str = self.debug.lock().unwrap().clone();
         if !debug_str.is_empty() {
             ScrollArea::new([false, true]).show(ui, |ui| {
+                ui.set_max_size(ui.available_size());
                 ui.label(debug_str);
             });
         } else {

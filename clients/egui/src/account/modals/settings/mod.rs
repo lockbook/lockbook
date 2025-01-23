@@ -205,7 +205,7 @@ impl super::Modal for SettingsModal {
     fn show(&mut self, ui: &mut egui::Ui) -> Self::Response {
         let mut resp = None;
 
-        ui.set_max_height(ui.available_size().y - 350.0);
+        ui.set_max_height(ui.available_height().min(400.0));
         ui.set_width(520.0);
 
         StripBuilder::new(ui)
