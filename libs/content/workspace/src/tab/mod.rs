@@ -1,4 +1,4 @@
-use crate::mind_map::mind_map::MindMap;
+use crate::mind_map::show::MindMap;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;

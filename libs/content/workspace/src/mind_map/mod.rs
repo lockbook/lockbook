@@ -1,2 +1,2 @@
 pub mod data;
-pub mod mind_map;
+pub mod show;

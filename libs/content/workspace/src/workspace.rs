@@ -14,7 +14,7 @@ use std::{fs, thread};
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::file_cache::FileCache;
-use crate::mind_map::mind_map::MindMap;
+use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
