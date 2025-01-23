@@ -110,7 +110,7 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "admin"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -2110,7 +2110,7 @@ dependencies = [
 
 [[package]]
 name = "egui_editor"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "eframe",
  "egui",
@@ -3839,7 +3839,7 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "lb-c"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "lb-rs",
 ]
@@ -3851,7 +3851,7 @@ source = "git+https://github.com/lockbook/lb-fonts#b2718aad58a7ff1c7bbe85f03cb37
 
 [[package]]
 name = "lb-fs"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "async-trait",
  "cli-rs",
@@ -3864,7 +3864,7 @@ dependencies = [
 
 [[package]]
 name = "lb-java"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "jni",
  "lb-rs",
@@ -3881,7 +3881,7 @@ dependencies = [
 
 [[package]]
 name = "lb-rs"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -4120,7 +4120,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "cli-rs",
  "fs_extra",
@@ -4133,7 +4133,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-dev"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "clap",
  "dotenvy",
@@ -4144,7 +4144,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "dark-light",
  "eframe",
@@ -4168,7 +4168,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "egui",
  "egui_editor",
@@ -4188,7 +4188,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -4227,7 +4227,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "array-init",
  "clipboard-win 4.5.0",
@@ -5832,7 +5832,7 @@ checksum = "adad44e29e4c806119491a7f06f03de4d1af22c3a680dd47f1e6e179439d1f56"
 
 [[package]]
 name = "releaser"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "cli-rs",
  "fs_extra",
@@ -6819,7 +6819,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "bincode",
  "itertools 0.10.5",
@@ -8606,7 +8606,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -8616,7 +8616,7 @@ dependencies = [
 
 [[package]]
 name = "workspace"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "basic-human-duration",
  "bezier-rs",
@@ -8655,7 +8655,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-ffi"
-version = "0.9.17"
+version = "0.9.18"
 dependencies = [
  "egui",
  "egui_extras",
