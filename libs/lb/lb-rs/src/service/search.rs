@@ -6,8 +6,10 @@ use crate::Lb;
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use tokio::sync::RwLock;
@@ -160,7 +162,7 @@ impl Lb {
             return Ok(());
         }
 
-        let tasks = FuturesUnordered::new();
+        let mut tasks = vec![];
         for file in self.list_metadatas().await? {
             let id = file.id;
             let is_doc_searchable =
@@ -189,10 +191,14 @@ impl Lb {
             });
         }
 
-        let results: Vec<LbResult<SearchIndexEntry>> = tasks.collect().await;
-        let mut replacement_index = Vec::with_capacity(results.len());
-        for result in results {
-            replacement_index.push(result?);
+        let mut results = stream::iter(tasks).buffer_unordered(
+            thread::available_parallelism()
+                .unwrap_or(NonZeroUsize::new(4).unwrap())
+                .into(),
+        );
+        let mut replacement_index = vec![];
+        while let Some(res) = results.next().await {
+            replacement_index.push(res?);
         }
 
         // swap in replacement index (index lock)
