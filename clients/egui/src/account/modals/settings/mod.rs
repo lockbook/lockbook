@@ -7,6 +7,7 @@ mod usage_tab;
 use std::sync::Mutex;
 use std::sync::{mpsc, Arc, RwLock};
 
+use egui::TextStyle;
 use egui_extras::{Size, StripBuilder};
 use lb::blocking::Lb;
 use workspace_rs::theme::icons::Icon;
@@ -47,7 +48,7 @@ impl SettingsModal {
         core: &Lb, s: &Arc<RwLock<Settings>>, ws_persistent_store: &WsPersistentStore,
     ) -> Self {
         let export_result = core
-            .export_account_private_key()
+            .export_account_phrase()
             .map_err(|err| format!("{:?}", err)); // TODO
 
         let (info_tx, info_rx) = mpsc::channel();
@@ -207,6 +208,12 @@ impl super::Modal for SettingsModal {
 
         ui.set_max_height(ui.available_height().min(400.0));
         ui.set_width(520.0);
+
+        ui.style_mut()
+            .text_styles
+            .get_mut(&TextStyle::Heading)
+            .unwrap()
+            .size = 20.0;
 
         StripBuilder::new(ui)
             .size(Size::exact(140.0))

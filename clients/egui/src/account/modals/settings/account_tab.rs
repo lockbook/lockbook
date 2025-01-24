@@ -1,7 +1,6 @@
-use std::sync::mpsc;
+use std::{fs, sync::mpsc};
 
-use egui::{vec2, Image};
-use egui_extras::{Size, StripBuilder};
+use egui::{vec2, Button, Image, TextWrapMode, Widget};
 
 pub struct AccountSettings {
     update_tx: mpsc::Sender<Update>,
@@ -9,13 +8,21 @@ pub struct AccountSettings {
     export_result: Result<String, String>,
     maybe_qr_result: Option<Result<Image<'static>, String>>,
     generating_qr: bool,
+    logging_out: bool,
 }
 
 impl AccountSettings {
     pub fn new(export_result: Result<String, String>) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
 
-        Self { update_tx, update_rx, export_result, maybe_qr_result: None, generating_qr: false }
+        Self {
+            update_tx,
+            update_rx,
+            export_result,
+            maybe_qr_result: None,
+            generating_qr: false,
+            logging_out: false,
+        }
     }
 }
 
@@ -41,7 +48,30 @@ impl super::SettingsModal {
             }
         }
 
-        if let Some(qr_result) = &self.account.maybe_qr_result {
+        if self.account.logging_out {
+            ui.vertical(|ui| {
+                ui.heading("Logout");
+                ui.add_space(12.0);
+
+                ui.label(LOGOUT_CONFIRMATION);
+                ui.add_space(12.0);
+
+                ui.horizontal(|ui| {
+                    if Button::new("Cancel").ui(ui).clicked() {
+                        self.account.logging_out = false;
+                    }
+                    if Button::new("Logout")
+                        .fill(ui.visuals().error_fg_color)
+                        .ui(ui)
+                        .clicked()
+                    {
+                        // todo: deduplicate
+                        fs::remove_dir_all(self.core.get_config().writeable_path).unwrap();
+                        std::process::exit(0);
+                    }
+                });
+            });
+        } else if let Some(qr_result) = &self.account.maybe_qr_result {
             ui.vertical_centered(|ui| {
                 match qr_result {
                     Ok(img) => {
@@ -64,29 +94,39 @@ impl super::SettingsModal {
                     ui.label(EXPORT_DESC);
                     ui.add_space(12.0);
 
-                    StripBuilder::new(ui)
-                        .size(Size::remainder())
-                        .size(Size::remainder())
-                        .horizontal(|mut strip| {
-                            strip.cell(|ui| {
-                                if ui.button("Copy to Clipboard").clicked() {
-                                    ui.output_mut(|out| out.copied_text = key.to_owned());
-                                }
-                            });
-                            strip.cell(|ui| {
-                                let text = if self.account.generating_qr {
-                                    "Generating QR Code..."
-                                } else {
-                                    "Show QR Code"
-                                };
-                                if ui.button(text).clicked() {
-                                    // Can't simply call `self.generate_qr` here because of
-                                    // borrowing within closure errors, so we just queue an update
-                                    // for next frame.
-                                    self.account.update_tx.send(Update::GenerateQr).unwrap();
-                                }
-                            });
-                        });
+                    ui.horizontal(|ui| {
+                        if Button::new("Copy to Clipboard")
+                            .wrap_mode(TextWrapMode::Extend)
+                            .ui(ui)
+                            .clicked()
+                        {
+                            ui.output_mut(|out| out.copied_text = key.to_owned());
+                        }
+
+                        let text = if self.account.generating_qr {
+                            "Generating QR Code..."
+                        } else {
+                            "Show QR Code"
+                        };
+                        if ui.button(text).clicked() {
+                            // Can't simply call `self.generate_qr` here because of
+                            // borrowing within closure errors, so we just queue an update
+                            // for next frame.
+                            self.account.update_tx.send(Update::GenerateQr).unwrap();
+                        }
+                    });
+                    ui.add_space(12.0);
+
+                    ui.heading("Logout");
+                    ui.add_space(12.0);
+
+                    ui.label(LOGOUT_DESC);
+                    ui.add_space(12.0);
+
+                    if Button::new("Logout").ui(ui).clicked() {
+                        // present confirmation
+                        self.account.logging_out = true;
+                    }
                 }
                 Err(err) => {
                     ui.label(err);
@@ -116,3 +156,11 @@ Lockbook encrypts your data with a secret key that remains on your devices. \
 Whoever has access to this key has complete knowledge and control of your data.
 
 Do not give this key to anyone. Do not display the QR code if there are cameras around.";
+
+const LOGOUT_DESC: &str = "\
+Logging out will remove your key and all data from this device. \
+You will need to re-enter your key to log back in.";
+
+const LOGOUT_CONFIRMATION: &str = "\
+Are you sure you want to logout? \
+If you haven't saved your account key, you will not be able to recover your account!";

@@ -1056,7 +1056,7 @@ pub extern "system" fn Java_net_lockbook_Lb_logout<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) {
     let lb = rlb(&mut env, &class);
-    fs::remove_dir_all(lb.get_config().writeable_path).unwrap();
+    fs::remove_dir_all(lb.get_config().writeable_path).unwrap(); // todo: deduplicate
 }
 
 #[no_mangle]

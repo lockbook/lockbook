@@ -92,9 +92,12 @@ impl Lockbook {
                     ctx.request_repaint();
                 }
             }
-            // On the account screen, we're just waiting for it to gracefully shutdown.
+            // On the account screen, we're just waiting for it to gracefully shutdown or for the user to log out.
             Self::Account(screen) => {
                 screen.update(ctx);
+                if screen.is_shutdown() {
+                    output.close = true;
+                }
                 if screen.is_shutdown() {
                     output.close = true;
                 }
