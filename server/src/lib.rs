@@ -5,7 +5,8 @@ use document_service::DocumentService;
 use lb_rs::model::clock;
 use std::env;
 use std::fmt::Debug;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use lb_rs::logic::{pubkey, SharedError};
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
