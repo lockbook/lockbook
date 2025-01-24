@@ -541,7 +541,6 @@ impl fmt::Display for TestRepoError {
 pub enum Warning {
     EmptyFile(Uuid),
     InvalidUTF8(Uuid),
-    UnreadableDrawing(Uuid),
 }
 
 impl fmt::Display for Warning {
@@ -549,7 +548,6 @@ impl fmt::Display for Warning {
         match self {
             Self::EmptyFile(id) => write!(f, "empty file: {}", id),
             Self::InvalidUTF8(id) => write!(f, "invalid utf8 in file: {}", id),
-            Self::UnreadableDrawing(id) => write!(f, "unreadable drawing: {}", id),
         }
     }
 }
