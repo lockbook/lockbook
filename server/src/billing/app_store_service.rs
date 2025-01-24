@@ -32,12 +32,13 @@ where
     G: GooglePlayClient,
     D: DocumentService,
 {
-    pub fn get_public_key_from_tx(
+    pub async fn get_public_key_from_tx(
         &self, trans: &TransactionInfo,
     ) -> Result<PublicKey, ServerError<AppStoreNotificationError>> {
         let public_key: PublicKey = self
             .index_db
-            .lock()?
+            .lock()
+            .await
             .app_store_ids
             .get()
             .get(&trans.app_account_token)

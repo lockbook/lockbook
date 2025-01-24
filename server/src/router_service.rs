@@ -95,17 +95,16 @@ macro_rules! core_req {
 
                         debug!("request verified successfully");
                         let req_pk = request.signed_request.public_key;
-                        let username = match state.index_db.lock().map(|db| {
-                            db.accounts
+                        let username = {
+                            let db = state.index_db.lock().await;
+                            match db
+                                .accounts
                                 .get()
                                 .get(&Owner(req_pk))
                                 .map(|account| account.username.clone())
-                        }) {
-                            Ok(Some(username)) => username,
-                            Ok(None) => "~unknown~".to_string(),
-                            Err(error) => {
-                                error!(?error, "dbrs error");
-                                "~error~".to_string()
+                            {
+                                Some(username) => username,
+                                None => "~unknown~".to_string(),
                             }
                         };
                         let req_pk = base64::encode(req_pk.serialize_compressed());

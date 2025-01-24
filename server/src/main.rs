@@ -1,7 +1,6 @@
 #![recursion_limit = "256"]
 
-use db_rs::compacter::BackgroundCompacter;
-use db_rs::{CancelSig, Db};
+use db_rs::Db;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::document_service::OnDiskDocuments;
@@ -11,7 +10,8 @@ use lockbook_server_lib::router_service::{
 };
 use lockbook_server_lib::schema::ServerV4;
 use lockbook_server_lib::*;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use tracing::*;
 use warp::Filter;
 
@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     let index_db = Arc::new(Mutex::new(index_db));
-    index_db.begin_compacter(cfg.index_db.time_between_compacts, CancelSig::default());
+    spawn_compacter(&cfg, &index_db);
 
     let document_service = OnDiskDocuments::from(&config);
 
@@ -81,4 +81,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     };
 
     Ok(())
+}
+
+fn spawn_compacter(cfg: &Config, db: &Arc<Mutex<ServerV4>>) {
+    let cfg = cfg.clone();
+    let db = db.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(cfg.index_db.time_between_compacts).await;
+            if let Err(e) = db.lock().await.compact_log() {
+                error!("failed to compact log: {e:?}");
+            }
+        }
+    });
 }

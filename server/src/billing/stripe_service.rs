@@ -75,7 +75,8 @@ where
                         info!(?owner, ?customer_id, "Created customer_id");
 
                         self.index_db
-                            .lock()?
+                            .lock()
+                            .await
                             .stripe_ids
                             .insert(customer_id, Owner(*public_key))?;
 
@@ -152,7 +153,7 @@ where
         })
     }
 
-    pub fn get_public_key_from_invoice(
+    pub async fn get_public_key_from_invoice(
         &self, invoice: &Invoice,
     ) -> Result<PublicKey, ServerError<StripeWebhookError>> {
         let customer_id = match invoice.customer.as_ref().ok_or_else(|| {
@@ -166,7 +167,8 @@ where
 
         let public_key = self
             .index_db
-            .lock()?
+            .lock()
+            .await
             .stripe_ids
             .get()
             .get(&customer_id)
