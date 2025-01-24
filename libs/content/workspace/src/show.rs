@@ -2,7 +2,11 @@ use basic_human_duration::ChronoHumanDuration;
 use core::f32;
 use egui::emath::easing;
 use egui::os::OperatingSystem;
-use egui::{EventFilter, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand};
+use egui::{
+    include_image, Color32, EventFilter, Id, Image, Key, Modifiers, RichText, Sense, TextWrapMode,
+    ViewportCommand, WidgetText,
+};
+use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
 use std::mem;
 use std::time::{Duration, Instant};
@@ -62,61 +66,126 @@ impl Workspace {
     }
 
     fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
-        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-            ui.add_space(ui.clip_rect().height() / 3.0);
+        // ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
+        // ui.visuals_mut().widgets.hovered.bg_fill = ui.visuals().widgets.active.bg_fill;
+        // ui.add_space(ui.clip_rect().height() / 3.0);
 
-            ui.label(egui::RichText::new("Welcome to your Lockbook").size(40.0));
-            ui.label(
-                "Right click on your file tree to explore all that your lockbook has to offer",
-            );
+        // let text_stroke =
+        //     egui::Stroke { color: ui.visuals().extreme_bg_color, ..Default::default() };
+        // ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
+        // ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
+        // ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
 
-            ui.add_space(40.0);
+        // ui.visuals_mut().widgets.inactive.fg_stroke =
+        //     egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+        // ui.visuals_mut().widgets.hovered.fg_stroke =
+        //     egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+        // if Button::default().text("New folder").show(ui).clicked() {
+        //     self.out.new_folder_clicked = true;
+        // }
 
-            ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
-            ui.visuals_mut().widgets.hovered.bg_fill = ui.visuals().widgets.active.bg_fill;
+        // if Button::default()
+        //     .text("New document")
+        //     .rounding(egui::Rounding::same(3.0))
+        //     .frame(true)
+        //     .show(ui)
+        //     .clicked()
+        // {
+        //     self.create_file(false);
+        // }
+        // if Button::default()
+        //     .text("New drawing")
+        //     .rounding(egui::Rounding::same(3.0))
+        //     .frame(true)
+        //     .show(ui)
+        //     .clicked()
+        // {
+        //     self.create_file(true);
+        // }
 
-            let text_stroke =
-                egui::Stroke { color: ui.visuals().extreme_bg_color, ..Default::default() };
-            ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
-            ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
-            ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+        // StripBuilder has no way to configure unequal remainders after exact allocations so we do our own math
+        let available_height = ui.available_height();
+        let padding = 100.;
+        let total_content_height = available_height - 3. * padding;
+        StripBuilder::new(ui)
+            .size(Size::exact(padding)) // padding
+            .size(Size::exact(total_content_height * 1. / 3.)) // logo
+            .size(Size::exact(padding)) // spacing
+            .size(Size::exact(total_content_height * 2. / 3.)) // nested content
+            .size(Size::exact(padding)) // padding
+            .vertical(|mut strip| {
+                strip.cell(|_| {});
+                strip.cell(|ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.add(
+                            Image::new(include_image!("../logo.png"))
+                                .max_size(ui.max_rect().size()),
+                        );
+                    });
+                });
+                strip.cell(|_| {});
+                strip.cell(|ui| {
+                    let available_width = ui.available_width();
+                    let padding = 100.;
+                    let total_content_width = available_width - 3. * padding;
+                    StripBuilder::new(ui)
+                        .size(Size::exact(padding)) // padding
+                        .size(Size::exact(total_content_width * 1. / 3.)) // actions and tips
+                        .size(Size::exact(padding)) // spacing
+                        .size(Size::exact(total_content_width * 2. / 3.)) // suggestions and activity
+                        .size(Size::exact(padding)) // padding
+                        .horizontal(|mut strip| {
+                            strip.cell(|_| {});
+                            strip.cell(|ui| {
+                                ui.label(WidgetText::from(RichText::from("CREATE").weak()));
+                                ui.horizontal(|ui| {
+                                    if Button::default()
+                                        .icon(&Icon::DOC_TEXT)
+                                        .text(
+                                            WidgetText::from("New Document")
+                                                .color(ui.visuals().widgets.active.fg_stroke.color),
+                                        )
+                                        .frame(true)
+                                        .default_fill(ui.visuals().widgets.active.bg_fill)
+                                        .rounding(3.)
+                                        .show(ui)
+                                        .clicked()
+                                    {
+                                        self.create_file(false, false);
+                                    }
+                                    if Button::default()
+                                        .icon(&Icon::DRAW)
+                                        .text(
+                                            WidgetText::from("New Drawing").color(
+                                                ui.visuals().widgets.inactive.fg_stroke.color,
+                                            ),
+                                        )
+                                        .frame(true)
+                                        .default_fill(ui.visuals().widgets.inactive.bg_fill)
+                                        .rounding(3.)
+                                        .show(ui)
+                                        .clicked()
+                                    {
+                                        self.create_file(true, false);
+                                    }
+                                });
+                                ui.add_space(20.);
 
-            if Button::default()
-                .text("New document")
-                .rounding(egui::Rounding::same(3.0))
-                .frame(true)
-                .show(ui)
-                .clicked()
-            {
-                self.create_file(false, false);
-            }
-            if Button::default()
-                .text("New drawing")
-                .rounding(egui::Rounding::same(3.0))
-                .frame(true)
-                .show(ui)
-                .clicked()
-            {
-                self.create_file(true, false);
-            }
+                                ui.label(WidgetText::from(RichText::from("TIPS").weak()));
+                            });
+                            strip.cell(|_| {});
+                            strip.cell(|ui| {
+                                ui.label(WidgetText::from(RichText::from("SUGGESTED").weak()));
 
-            if Button::default()
-                .text("Mind Map")
-                .rounding(egui::Rounding::same(3.0))
-                .frame(true)
-                .show(ui)
-                .clicked()
-            {
-                self.graph_called(self.core.clone());
-            }
-            ui.visuals_mut().widgets.inactive.fg_stroke =
-                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-            ui.visuals_mut().widgets.hovered.fg_stroke =
-                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-            if Button::default().text("New folder").show(ui).clicked() {
-                self.out.new_folder_clicked = true;
-            }
-        });
+                                ui.add_space(20.);
+
+                                ui.label(WidgetText::from(RichText::from("ACTIVITY").weak()));
+                            });
+                            strip.cell(|_| {});
+                        });
+                });
+                strip.cell(|_| {});
+            });
     }
 
     fn show_tabs(&mut self, ui: &mut egui::Ui) {
