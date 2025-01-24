@@ -3,7 +3,7 @@ use core::f32;
 use egui::emath::easing;
 use egui::os::OperatingSystem;
 use egui::{
-    include_image, Color32, EventFilter, Id, Image, Key, Modifiers, RichText, Sense, TextWrapMode,
+    include_image, EventFilter, Id, Image, Key, Modifiers, RichText, Sense, TextWrapMode,
     ViewportCommand, WidgetText,
 };
 use egui_extras::{Size, StripBuilder};
@@ -172,6 +172,10 @@ impl Workspace {
                                 ui.add_space(20.);
 
                                 ui.label(WidgetText::from(RichText::from("TIPS").weak()));
+                                for tip in TIPS {
+                                    let text = "•".to_owned() + tip;
+                                    ui.label(text);
+                                }
                             });
                             strip.cell(|_| {});
                             strip.cell(|ui| {
@@ -815,3 +819,9 @@ impl InstantExt for Instant {
         }
     }
 }
+
+const TIPS: [&str; 3] = [
+    "Import files by dragging and dropping them into the app",
+    "You can share and collaborate on files with other Lockbook users",
+    "Lockbook is end-to-end encrypted and 100% open source",
+];
