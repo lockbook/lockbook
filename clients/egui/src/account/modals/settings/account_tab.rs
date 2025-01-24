@@ -92,10 +92,15 @@ impl super::SettingsModal {
                                 }
                             });
                             strip.cell(|ui| {
-                                if ui.button("Logout").clicked() {
+                                if Button::new("Logout")
+                                    .fill(ui.visuals().error_fg_color)
+                                    .ui(ui)
+                                    .clicked()
+                                {
                                     // todo: deduplicate
                                     fs::remove_dir_all(self.core.get_config().writeable_path)
                                         .unwrap();
+                                    std::process::exit(0);
                                 }
                             });
                         });
