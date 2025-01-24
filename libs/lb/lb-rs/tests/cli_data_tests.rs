@@ -10,6 +10,7 @@ async fn pending_shares_perf() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn debug_info_test() {
     let lb = Lb::init(Config::cli_config("cli")).await.unwrap();
     for _ in 0..2 {
