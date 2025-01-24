@@ -22,7 +22,7 @@ where
     G: GooglePlayClient,
     D: DocumentService,
 {
-    pub fn get_public_key_from_subnotif(
+    pub async fn get_public_key_from_subnotif(
         &self, sub_notif: &SubscriptionNotification, subscription: &SubscriptionPurchase,
         notification_type: &NotificationType,
     ) -> Result<PublicKey, ServerError<GooglePlayWebhookError>> {
@@ -41,7 +41,8 @@ where
 
         let public_key: PublicKey = self
             .index_db
-            .lock()?
+            .lock()
+            .await
             .google_play_ids
             .get()
             .get(account_id)
