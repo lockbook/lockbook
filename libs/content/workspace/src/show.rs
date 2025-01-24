@@ -2,9 +2,10 @@ use basic_human_duration::ChronoHumanDuration;
 use core::f32;
 use egui::emath::easing;
 use egui::os::OperatingSystem;
+use egui::text::LayoutJob;
 use egui::{
-    include_image, EventFilter, Id, Image, Key, Modifiers, RichText, Sense, TextWrapMode,
-    ViewportCommand, WidgetText,
+    include_image, Align, EventFilter, FontSelection, Id, Image, Key, Modifiers, RichText, Sense,
+    TextWrapMode, ViewportCommand, WidgetText,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
@@ -66,43 +67,6 @@ impl Workspace {
     }
 
     fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
-        // ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
-        // ui.visuals_mut().widgets.hovered.bg_fill = ui.visuals().widgets.active.bg_fill;
-        // ui.add_space(ui.clip_rect().height() / 3.0);
-
-        // let text_stroke =
-        //     egui::Stroke { color: ui.visuals().extreme_bg_color, ..Default::default() };
-        // ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
-        // ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
-        // ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
-
-        // ui.visuals_mut().widgets.inactive.fg_stroke =
-        //     egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-        // ui.visuals_mut().widgets.hovered.fg_stroke =
-        //     egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-        // if Button::default().text("New folder").show(ui).clicked() {
-        //     self.out.new_folder_clicked = true;
-        // }
-
-        // if Button::default()
-        //     .text("New document")
-        //     .rounding(egui::Rounding::same(3.0))
-        //     .frame(true)
-        //     .show(ui)
-        //     .clicked()
-        // {
-        //     self.create_file(false);
-        // }
-        // if Button::default()
-        //     .text("New drawing")
-        //     .rounding(egui::Rounding::same(3.0))
-        //     .frame(true)
-        //     .show(ui)
-        //     .clicked()
-        // {
-        //     self.create_file(true);
-        // }
-
         // StripBuilder has no way to configure unequal remainders after exact allocations so we do our own math
         let available_height = ui.available_height();
         let padding = 100.;
@@ -137,31 +101,47 @@ impl Workspace {
                         .horizontal(|mut strip| {
                             strip.cell(|_| {});
                             strip.cell(|ui| {
-                                ui.label(WidgetText::from(RichText::from("CREATE").weak()));
+                                ui.label(WidgetText::from(RichText::from("CREATE").weak().small()));
                                 ui.horizontal(|ui| {
+                                    let blue = ui.visuals().widgets.active.bg_fill;
+                                    let weak_blue = blue.gamma_multiply(0.9);
+                                    let weaker_blue = blue.gamma_multiply(0.3);
+                                    let weakest_blue = blue.gamma_multiply(0.2);
+                                    let extreme_bg = ui.visuals().extreme_bg_color;
+
+                                    ui.visuals_mut().widgets.inactive.bg_fill = blue;
+                                    ui.visuals_mut().widgets.inactive.fg_stroke.color = extreme_bg;
+
+                                    ui.visuals_mut().widgets.hovered.bg_fill = weak_blue;
+                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = extreme_bg;
+
+                                    ui.visuals_mut().widgets.active.bg_fill = weak_blue;
+                                    ui.visuals_mut().widgets.active.fg_stroke.color = extreme_bg;
+
                                     if Button::default()
                                         .icon(&Icon::DOC_TEXT)
-                                        .text(
-                                            WidgetText::from("New Document")
-                                                .color(ui.visuals().widgets.active.fg_stroke.color),
-                                        )
+                                        .text("New Document")
                                         .frame(true)
-                                        .default_fill(ui.visuals().widgets.active.bg_fill)
                                         .rounding(3.)
                                         .show(ui)
                                         .clicked()
                                     {
                                         self.create_file(false, false);
                                     }
+
+                                    ui.visuals_mut().widgets.inactive.bg_fill = weaker_blue;
+                                    ui.visuals_mut().widgets.inactive.fg_stroke.color = blue;
+
+                                    ui.visuals_mut().widgets.hovered.bg_fill = weakest_blue;
+                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
+
+                                    ui.visuals_mut().widgets.active.bg_fill = weakest_blue;
+                                    ui.visuals_mut().widgets.active.fg_stroke.color = blue;
+
                                     if Button::default()
                                         .icon(&Icon::DRAW)
-                                        .text(
-                                            WidgetText::from("New Drawing").color(
-                                                ui.visuals().widgets.inactive.fg_stroke.color,
-                                            ),
-                                        )
+                                        .text("New Drawing")
                                         .frame(true)
-                                        .default_fill(ui.visuals().widgets.inactive.bg_fill)
                                         .rounding(3.)
                                         .show(ui)
                                         .clicked()
@@ -171,19 +151,40 @@ impl Workspace {
                                 });
                                 ui.add_space(20.);
 
-                                ui.label(WidgetText::from(RichText::from("TIPS").weak()));
+                                ui.label(WidgetText::from(RichText::from("TIPS").weak().small()));
                                 for tip in TIPS {
-                                    let text = "•".to_owned() + tip;
-                                    ui.label(text);
+                                    let mut layout_job = LayoutJob::default();
+                                    RichText::new("- ")
+                                        .color(ui.style().visuals.hyperlink_color)
+                                        .append_to(
+                                            &mut layout_job,
+                                            ui.style(),
+                                            FontSelection::Default,
+                                            Align::Center,
+                                        );
+                                    RichText::from(tip)
+                                        .color(ui.style().visuals.text_color())
+                                        .append_to(
+                                            &mut layout_job,
+                                            ui.style(),
+                                            FontSelection::Default,
+                                            Align::Center,
+                                        );
+
+                                    ui.label(layout_job);
                                 }
                             });
                             strip.cell(|_| {});
                             strip.cell(|ui| {
-                                ui.label(WidgetText::from(RichText::from("SUGGESTED").weak()));
+                                ui.label(WidgetText::from(
+                                    RichText::from("SUGGESTED").weak().small(),
+                                ));
 
                                 ui.add_space(20.);
 
-                                ui.label(WidgetText::from(RichText::from("ACTIVITY").weak()));
+                                ui.label(WidgetText::from(
+                                    RichText::from("ACTIVITY").weak().small(),
+                                ));
                             });
                             strip.cell(|_| {});
                         });
