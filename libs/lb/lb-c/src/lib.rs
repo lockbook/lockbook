@@ -135,7 +135,7 @@ pub extern "C" fn lb_delete_account(lb: *mut Lb) -> *mut LbFfiErr {
 #[no_mangle]
 pub extern "C" fn lb_logout_and_exit(lb: *mut Lb) {
     let lb = rlb(lb);
-    fs::remove_dir_all(lb.get_config().writeable_path).unwrap();
+    fs::remove_dir_all(lb.get_config().writeable_path).unwrap(); // todo: deduplicate
     process::exit(0);
 }
 
