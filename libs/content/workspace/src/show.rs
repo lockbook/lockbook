@@ -2,10 +2,10 @@ use basic_human_duration::ChronoHumanDuration;
 use core::f32;
 use egui::emath::easing;
 use egui::os::OperatingSystem;
-use egui::text::LayoutJob;
+use egui::text::{LayoutJob, TextWrapping};
 use egui::{
     include_image, Align, EventFilter, FontSelection, Id, Image, Key, Modifiers, RichText, Sense,
-    TextWrapMode, ViewportCommand, WidgetText,
+    TextStyle, TextWrapMode, Vec2, ViewportCommand, WidgetText,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use tracing::instrument;
 
 use crate::output::Response;
-use crate::tab::{TabContent, TabFailure};
+use crate::tab::{image_viewer, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::Workspace;
@@ -67,14 +67,21 @@ impl Workspace {
     }
 
     fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
-        // StripBuilder has no way to configure unequal remainders after exact allocations so we do our own math
-        let available_height = ui.available_height();
+        let blue = ui.visuals().widgets.active.bg_fill;
+        let weak_blue = blue.gamma_multiply(0.9);
+        let weaker_blue = blue.gamma_multiply(0.2);
+        let weakest_blue = blue.gamma_multiply(0.15);
+        let extreme_bg = ui.visuals().extreme_bg_color;
+
+        // StripBuilder has no way to configure unequal remainders after exact allocations so we must do our own math
+        // We must be careful to use layout wrapping when necessary, otherwise cells will expand and math will be wrong
         let padding = 100.;
-        let total_content_height = available_height - 3. * padding;
+        let spacing = 50.;
+        let total_content_height = ui.available_height() - 2. * padding - 1. * spacing;
         StripBuilder::new(ui)
             .size(Size::exact(padding)) // padding
             .size(Size::exact(total_content_height * 1. / 3.)) // logo
-            .size(Size::exact(padding)) // spacing
+            .size(Size::exact(spacing)) // spacing
             .size(Size::exact(total_content_height * 2. / 3.)) // nested content
             .size(Size::exact(padding)) // padding
             .vertical(|mut strip| {
@@ -89,26 +96,24 @@ impl Workspace {
                 });
                 strip.cell(|_| {});
                 strip.cell(|ui| {
-                    let available_width = ui.available_width();
                     let padding = 100.;
-                    let total_content_width = available_width - 3. * padding;
+                    let spacing = 50.;
+                    let total_content_width = ui.available_width() - 2. * padding - 1. * spacing;
+                    let actions_and_tips_width = total_content_width * 1. / 3.;
+                    let suggestions_and_activity_width =
+                        total_content_width - actions_and_tips_width;
+
                     StripBuilder::new(ui)
                         .size(Size::exact(padding)) // padding
-                        .size(Size::exact(total_content_width * 1. / 3.)) // actions and tips
-                        .size(Size::exact(padding)) // spacing
-                        .size(Size::exact(total_content_width * 2. / 3.)) // suggestions and activity
+                        .size(Size::exact(actions_and_tips_width)) // actions and tips
+                        .size(Size::exact(spacing)) // spacing
+                        .size(Size::exact(suggestions_and_activity_width)) // suggestions and activity
                         .size(Size::exact(padding)) // padding
                         .horizontal(|mut strip| {
                             strip.cell(|_| {});
                             strip.cell(|ui| {
                                 ui.label(WidgetText::from(RichText::from("CREATE").weak().small()));
-                                ui.horizontal(|ui| {
-                                    let blue = ui.visuals().widgets.active.bg_fill;
-                                    let weak_blue = blue.gamma_multiply(0.9);
-                                    let weaker_blue = blue.gamma_multiply(0.3);
-                                    let weakest_blue = blue.gamma_multiply(0.2);
-                                    let extreme_bg = ui.visuals().extreme_bg_color;
-
+                                ui.horizontal_wrapped(|ui| {
                                     ui.visuals_mut().widgets.inactive.bg_fill = blue;
                                     ui.visuals_mut().widgets.inactive.fg_stroke.color = extreme_bg;
 
@@ -185,6 +190,96 @@ impl Workspace {
                                 ui.label(WidgetText::from(
                                     RichText::from("ACTIVITY").weak().small(),
                                 ));
+
+                                let mut open_file = None;
+                                if let Some(files) = &mut self.files {
+                                    // this is a hacky way to quickly get the most recently modified files
+                                    // if someplace else we use the same technique but a different sort order, we will end up sorting every frame
+                                    if !files.files.is_sorted_by_key(|f| f.last_modified) {
+                                        files.files.sort_by_key(|f| f.last_modified);
+                                    }
+
+                                    for file in files.files.iter().rev().take(5) {
+                                        ui.horizontal(|ui| {
+                                            ui.style_mut().spacing.item_spacing.x = 0.0;
+                                            ui.spacing_mut().button_padding.x = 0.;
+                                            ui.spacing_mut().button_padding.y = 2.;
+
+                                            // In a classic egui move, when rendering a shorter widget before a taller
+                                            // widget in a horizontal layout, the shorter widget is vertically aligned
+                                            // as if the taller widget was not there. To solve this, we pre-allocate a
+                                            // zero-width rect the height of the button (referencing the button's
+                                            // implementation).
+                                            let button_height =
+                                                ui.text_style_height(&TextStyle::Body);
+                                            ui.allocate_exact_size(
+                                                Vec2 {
+                                                    x: 0.,
+                                                    y: button_height
+                                                        + 2. * ui.spacing().button_padding.y,
+                                                },
+                                                Sense::hover(),
+                                            );
+
+                                            ui.label(
+                                                RichText::new("- ")
+                                                    .color(ui.style().visuals.hyperlink_color),
+                                            );
+
+                                            // This is enough width to show the year and month of a pasted_image_...
+                                            // but not the day, which seems sufficient
+                                            let truncate_width = 200.;
+                                            let truncated_name = WidgetText::from(
+                                                WidgetText::from(&file.name).into_galley_impl(
+                                                    ui.ctx(),
+                                                    ui.style(),
+                                                    TextWrapping::truncate_at_width(truncate_width),
+                                                    Default::default(),
+                                                    Default::default(),
+                                                ),
+                                            );
+
+                                            ui.visuals_mut().widgets.inactive.fg_stroke.color =
+                                                ui.style().visuals.hyperlink_color;
+                                            ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
+                                            ui.visuals_mut().widgets.active.fg_stroke.color = blue;
+
+                                            let icon = DocType::from_name(&file.name).to_icon();
+                                            if Button::default()
+                                                .icon(&icon)
+                                                .text(truncated_name)
+                                                .show(ui)
+                                                .clicked()
+                                            {
+                                                open_file = Some(file.id);
+                                            }
+
+                                            // The rest of the space is available for the modified_at text
+                                            let modified_at = format!(
+                                                " was edited {}",
+                                                file.last_modified.elapsed_human_string()
+                                            );
+                                            let truncate_width = ui.available_width();
+                                            let truncated_modified_at = WidgetText::from(
+                                                WidgetText::from(&modified_at).into_galley_impl(
+                                                    ui.ctx(),
+                                                    ui.style(),
+                                                    TextWrapping::truncate_at_width(truncate_width),
+                                                    Default::default(),
+                                                    Default::default(),
+                                                ),
+                                            );
+
+                                            ui.label(truncated_modified_at);
+                                        });
+                                    }
+                                } else {
+                                    ui.label(WidgetText::from("Loading...").weak());
+                                }
+
+                                if let Some(open_file) = open_file {
+                                    self.open_file(open_file, false, true);
+                                }
                             });
                             strip.cell(|_| {});
                         });
@@ -800,15 +895,14 @@ impl InputStateExt for egui::InputState {
     }
 }
 
-trait InstantExt {
+trait ElapsedHumanString {
     fn elapsed_human_string(&self) -> String;
 }
 
-impl InstantExt for Instant {
+impl ElapsedHumanString for time::Duration {
     fn elapsed_human_string(&self) -> String {
-        let d = time::Duration::milliseconds(self.elapsed().as_millis() as _);
-        let minutes = d.whole_minutes();
-        let seconds = d.whole_seconds();
+        let minutes = self.whole_minutes();
+        let seconds = self.whole_seconds();
         if seconds > 0 && minutes == 0 {
             if seconds <= 1 {
                 "1 second ago".to_string()
@@ -816,7 +910,60 @@ impl InstantExt for Instant {
                 format!("{seconds} seconds ago")
             }
         } else {
-            d.format_human().to_string()
+            self.format_human().to_string()
+        }
+    }
+}
+
+impl ElapsedHumanString for std::time::Duration {
+    fn elapsed_human_string(&self) -> String {
+        time::Duration::milliseconds(self.as_millis() as _).elapsed_human_string()
+    }
+}
+
+impl ElapsedHumanString for Instant {
+    fn elapsed_human_string(&self) -> String {
+        time::Duration::milliseconds(self.elapsed().as_millis() as _).elapsed_human_string()
+    }
+}
+
+impl ElapsedHumanString for u64 {
+    fn elapsed_human_string(&self) -> String {
+        time::Duration::milliseconds(lb_rs::model::clock::get_time().0 - *self as i64)
+            .elapsed_human_string()
+    }
+}
+
+pub enum DocType {
+    PlainText,
+    Markdown,
+    Drawing,
+    Image,
+    ImageUnsupported,
+    Code,
+    Unknown,
+}
+
+impl DocType {
+    pub fn from_name(name: &str) -> Self {
+        let ext = name.split('.').last().unwrap_or_default();
+        match ext {
+            "draw" | "svg" => Self::Drawing,
+            "md" => Self::Markdown,
+            "txt" => Self::PlainText,
+            "cr2" => Self::ImageUnsupported,
+            "go" => Self::Code,
+            _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
+            _ => Self::Unknown,
+        }
+    }
+    pub fn to_icon(&self) -> Icon {
+        match self {
+            DocType::Markdown | DocType::PlainText => Icon::DOC_TEXT,
+            DocType::Drawing => Icon::DRAW,
+            DocType::Image => Icon::IMAGE,
+            DocType::Code => Icon::CODE,
+            _ => Icon::DOC_UNKNOWN,
         }
     }
 }

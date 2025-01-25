@@ -8,7 +8,7 @@ use lb::blocking::Lb;
 use lb::service::search::{SearchConfig, SearchResult};
 use lb::Uuid;
 
-use crate::model::DocType;
+use workspace_rs::show::DocType;
 
 pub struct SearchModal {
     core: Lb,

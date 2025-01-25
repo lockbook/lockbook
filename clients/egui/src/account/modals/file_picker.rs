@@ -4,7 +4,7 @@ use lb::model::file_metadata::FileType;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 
-use crate::model::DocType;
+use workspace_rs::show::DocType;
 
 pub struct FilePicker {
     core: Lb,
