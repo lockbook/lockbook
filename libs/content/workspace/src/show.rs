@@ -188,6 +188,12 @@ impl Workspace {
 
                                 let mut open_file = None;
                                 if let Some(files) = &mut self.files {
+                                    // this is a hacky way to quickly get the most recently modified files
+                                    // if someplace else we use the same technique but a different sort order, we will end up sorting every frame
+                                    if !files.suggested.is_sorted() {
+                                        files.suggested.sort();
+                                    }
+
                                     ScrollArea::horizontal().show(ui, |ui| {
                                         ui.horizontal(|ui| {
                                             for &suggested_id in &files.suggested {
