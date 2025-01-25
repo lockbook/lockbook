@@ -4,8 +4,8 @@ use egui::emath::easing;
 use egui::os::OperatingSystem;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    include_image, Align, EventFilter, FontSelection, Id, Image, Key, Modifiers, RichText, Sense,
-    TextStyle, TextWrapMode, Vec2, ViewportCommand, WidgetText,
+    include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Label, Modifiers,
+    RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2, ViewportCommand, WidgetText,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
@@ -33,7 +33,7 @@ impl Workspace {
         self.status.message = self.status_message();
 
         if self.is_empty() {
-            self.show_empty_workspace(ui);
+            self.show_landing_page(ui);
         } else {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
         }
@@ -66,7 +66,7 @@ impl Workspace {
         }
     }
 
-    fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
+    fn show_landing_page(&mut self, ui: &mut egui::Ui) {
         let blue = ui.visuals().widgets.active.bg_fill;
         let weak_blue = blue.gamma_multiply(0.9);
         let weaker_blue = blue.gamma_multiply(0.2);
@@ -154,7 +154,8 @@ impl Workspace {
                                         self.create_file(true, false);
                                     }
                                 });
-                                ui.add_space(20.);
+
+                                ui.add_space(50.);
 
                                 ui.label(WidgetText::from(RichText::from("TIPS").weak().small()));
                                 for tip in TIPS {
@@ -185,13 +186,89 @@ impl Workspace {
                                     RichText::from("SUGGESTED").weak().small(),
                                 ));
 
-                                ui.add_space(20.);
+                                let mut open_file = None;
+                                if let Some(files) = &mut self.files {
+                                    ScrollArea::horizontal().show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            for &suggested_id in &files.suggested {
+                                                let Some(file) = files
+                                                    .files
+                                                    .iter()
+                                                    .find(|f| f.id == suggested_id)
+                                                else {
+                                                    continue;
+                                                };
+
+                                                let (id, rect) =
+                                                    ui.allocate_space(Vec2 { x: 120., y: 100. });
+                                                let resp = ui.interact(rect, id, Sense::click());
+                                                if resp.hovered() {
+                                                    ui.output_mut(|o| {
+                                                        o.cursor_icon = CursorIcon::PointingHand
+                                                    });
+                                                }
+                                                if resp.clicked() {
+                                                    open_file = Some(file.id);
+                                                }
+
+                                                ui.painter().rect_filled(
+                                                    rect,
+                                                    3.,
+                                                    if resp.hovered() || resp.clicked() {
+                                                        ui.visuals().widgets.inactive.bg_fill
+                                                    } else {
+                                                        ui.visuals()
+                                                            .widgets
+                                                            .inactive
+                                                            .bg_fill
+                                                            .gamma_multiply(0.9)
+                                                    },
+                                                );
+
+                                                ui.allocate_ui_at_rect(rect, |ui| {
+                                                    ui.vertical_centered(|ui| {
+                                                        ui.add_space(15.);
+
+                                                        ui.label(
+                                                            &DocType::from_name(&file.name)
+                                                                .to_icon(),
+                                                        );
+
+                                                        let truncated_name = WidgetText::from(
+                                                            WidgetText::from(&file.name)
+                                                                .into_galley_impl(
+                                                                    ui.ctx(),
+                                                                    ui.style(),
+                                                                    TextWrapping {
+                                                                        max_width: ui
+                                                                            .available_width(),
+                                                                        max_rows: 2,
+                                                                        break_anywhere: false,
+                                                                        overflow_character: Some(
+                                                                            '…',
+                                                                        ),
+                                                                    },
+                                                                    Default::default(),
+                                                                    Default::default(),
+                                                                ),
+                                                        );
+
+                                                        ui.label(truncated_name);
+                                                    });
+                                                });
+                                            }
+                                        });
+                                    });
+                                } else {
+                                    ui.label(WidgetText::from("Loading...").weak());
+                                }
+
+                                ui.add_space(50.);
 
                                 ui.label(WidgetText::from(
                                     RichText::from("ACTIVITY").weak().small(),
                                 ));
 
-                                let mut open_file = None;
                                 if let Some(files) = &mut self.files {
                                     // this is a hacky way to quickly get the most recently modified files
                                     // if someplace else we use the same technique but a different sort order, we will end up sorting every frame
