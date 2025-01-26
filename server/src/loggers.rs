@@ -1,6 +1,7 @@
-use std::env;
+use std::backtrace::Backtrace;
 use std::fmt::{Debug, Write};
 use std::time::SystemTime;
+use std::{env, panic};
 
 use serde::Serialize;
 
@@ -54,6 +55,7 @@ pub fn init(config: &Config) {
         );
 
     tracing::subscriber::set_global_default(subscriber).unwrap();
+    panic_hook();
 }
 
 fn file_logger(config: &Config) -> RollingFileAppender {
@@ -174,4 +176,11 @@ fn dedup_key(record: &str) -> String {
     hasher.update(record);
     let result = hasher.finalize();
     base64::encode(result)
+}
+
+fn panic_hook() {
+    panic::set_hook(Box::new(move |panic_info| {
+        let bt = Backtrace::force_capture();
+        tracing::error!("panic detected: {panic_info} {}", bt);
+    }));
 }

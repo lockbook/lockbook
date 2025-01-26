@@ -29,7 +29,7 @@ impl Lb {
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
             .to_lazy();
-        db.pub_key_lookup.insert(sharee, String::from(username))?;
+        db.pub_key_lookup.insert(sharee, username)?;
 
         tree.add_share(id, sharee, mode, &self.keychain)?;
 
