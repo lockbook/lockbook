@@ -13,10 +13,11 @@ impl Lb {
     #[instrument(level = "debug", skip(self))]
     pub async fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> LbResult<()> {
         let account = self.get_account()?;
+        let username = username.to_lowercase();
 
         let sharee = Owner(
             self.client
-                .request(account, GetPublicKeyRequest { username: String::from(username) })
+                .request(account, GetPublicKeyRequest { username: username.clone() })
                 .await
                 .map_err(LbErr::from)?
                 .key,
