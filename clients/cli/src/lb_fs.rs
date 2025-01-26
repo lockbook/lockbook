@@ -37,8 +37,7 @@ fn copy_data() -> CliResult<()> {
     Ok(())
 }
 
-const WARNING: &str = r#"
-lb-fs is in it's early stages, please expect bugs and report them. macOS is 8/10 stable,
+const WARNING: &str = r#"lb-fs is in it's early stages, please expect bugs and report them. macOS is 8/10 stable,
 linux is 7/10 stable, and windows is largely untested at the moment.
 
 This version will cp your your CLI's data directory and create a dedicated one for lb-fs. Future
