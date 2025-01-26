@@ -37,7 +37,12 @@ where
         let last_modified = meta.timestamped_value.timestamp as u64;
         let name = self.name_using_links(id, keychain)?;
         let parent = self.parent_using_links(id)?;
-        let last_modified_by = account.username.clone();
+        let last_modified_by = public_key_cache
+            .get()
+            .get(&Owner(meta.public_key))
+            .cloned()
+            .unwrap_or_else(|| String::from("<unknown>"));
+
         let id = *id;
 
         let mut shares = Vec::new();
