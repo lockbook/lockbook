@@ -2388,3 +2388,35 @@ async fn delete_folder_with_shared_child() {
     cores[0].sync(None).await.unwrap();
     cores[1].sync(None).await.unwrap();
 }
+
+#[tokio::test]
+async fn populate_last_modified_by() {
+    let c1 = test_core_with_account().await;
+    let a1 = c1.get_account().unwrap();
+
+    let c2 = test_core_with_account().await;
+    let a2 = c2.get_account().unwrap();
+
+    let doc = c1.create_at_path("/doc.md").await.unwrap();
+    c1.share_file(doc.id, &a2.username, ShareMode::Write).await.unwrap();
+    c1.sync(None).await.unwrap();
+    c2.sync(None).await.unwrap();
+
+    assert_eq!(doc.last_modified_by, a1.username);
+    let doc = c1.get_file_by_id(doc.id).await.unwrap();
+    assert_eq!(doc.last_modified_by, a1.username);
+    let doc = c2.get_file_by_id(doc.id).await.unwrap();
+    assert_eq!(doc.last_modified_by, a1.username);
+
+    c2.write_document(doc.id, b"a2's creative changes").await.unwrap();
+    let doc = c2.get_file_by_id(doc.id).await.unwrap();
+    assert_eq!(doc.last_modified_by, a2.username);
+
+    c2.sync(None).await.unwrap();
+    c1.sync(None).await.unwrap();
+
+    let doc = c1.get_file_by_id(doc.id).await.unwrap();
+    assert_eq!(doc.last_modified_by, a2.username);
+    let doc = c2.get_file_by_id(doc.id).await.unwrap();
+    assert_eq!(doc.last_modified_by, a2.username);
+}
