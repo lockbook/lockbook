@@ -150,7 +150,7 @@ fn run() -> CliResult<()> {
                 .handler(|target| create_file(target.get()))
         )
         .subcommand(
-            Command::name("stream")
+            Command::name("stream").description("interact with stdout and stdin")
                 .subcommand(
                     Command::name("out")
                         .description("print a document to stdout")
