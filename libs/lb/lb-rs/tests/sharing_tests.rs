@@ -2398,7 +2398,9 @@ async fn populate_last_modified_by() {
     let a2 = c2.get_account().unwrap();
 
     let doc = c1.create_at_path("/doc.md").await.unwrap();
-    c1.share_file(doc.id, &a2.username, ShareMode::Write).await.unwrap();
+    c1.share_file(doc.id, &a2.username, ShareMode::Write)
+        .await
+        .unwrap();
     c1.sync(None).await.unwrap();
     c2.sync(None).await.unwrap();
 
@@ -2408,7 +2410,9 @@ async fn populate_last_modified_by() {
     let doc = c2.get_file_by_id(doc.id).await.unwrap();
     assert_eq!(doc.last_modified_by, a1.username);
 
-    c2.write_document(doc.id, b"a2's creative changes").await.unwrap();
+    c2.write_document(doc.id, b"a2's creative changes")
+        .await
+        .unwrap();
     let doc = c2.get_file_by_id(doc.id).await.unwrap();
     assert_eq!(doc.last_modified_by, a2.username);
 
