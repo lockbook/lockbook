@@ -337,7 +337,7 @@ impl Workspace {
                                                 open_file = Some(file.id);
                                             }
 
-                                            // The rest of the space is available for the modified_at text
+                                            // The rest of the space is available for the modified_at/by text
                                             let modified_at = format!(
                                                 " was edited {} by @{}",
                                                 file.last_modified.elapsed_human_string(),
