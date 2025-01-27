@@ -88,10 +88,12 @@ impl Workspace {
                 strip.cell(|_| {});
                 strip.cell(|ui| {
                     ui.vertical_centered(|ui| {
-                        ui.add(
-                            Image::new(include_image!("../logo.png"))
-                                .max_size(ui.max_rect().size()),
-                        );
+                        let punchout = if ui.visuals().dark_mode {
+                            include_image!("../punchout-dark.png")
+                        } else {
+                            include_image!("../punchout-light.png")
+                        };
+                        ui.add(Image::new(punchout).max_size(ui.max_rect().size()));
                     });
                 });
                 strip.cell(|_| {});
