@@ -4,7 +4,7 @@ use egui::emath::easing;
 use egui::os::OperatingSystem;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Label, Modifiers,
+    include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Modifiers,
     RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2, ViewportCommand, WidgetText,
 };
 use egui_extras::{Size, StripBuilder};
