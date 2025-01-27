@@ -339,8 +339,9 @@ impl Workspace {
 
                                             // The rest of the space is available for the modified_at text
                                             let modified_at = format!(
-                                                " was edited {}",
-                                                file.last_modified.elapsed_human_string()
+                                                " was edited {} by @{}",
+                                                file.last_modified.elapsed_human_string(),
+                                                file.last_modified_by,
                                             );
                                             let truncate_width = ui.available_width();
                                             let truncated_modified_at = WidgetText::from(
