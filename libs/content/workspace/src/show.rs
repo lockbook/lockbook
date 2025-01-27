@@ -4,7 +4,7 @@ use egui::emath::easing;
 use egui::os::OperatingSystem;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Modifiers,
+    include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Label, Modifiers,
     RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2, ViewportCommand, WidgetText,
 };
 use egui_extras::{Size, StripBuilder};
@@ -75,7 +75,7 @@ impl Workspace {
 
         // StripBuilder has no way to configure unequal remainders after exact allocations so we must do our own math
         // We must be careful to use layout wrapping when necessary, otherwise cells will expand and math will be wrong
-        let padding = 100.;
+        let padding = if ui.available_height() > 800. { 100. } else { 50. };
         let spacing = 50.;
         let total_content_height = ui.available_height() - 2. * padding - 1. * spacing;
         StripBuilder::new(ui)
@@ -209,7 +209,9 @@ impl Workspace {
 
                                                 let (id, rect) =
                                                     ui.allocate_space(Vec2 { x: 120., y: 100. });
-                                                let resp = ui.interact(rect, id, Sense::click());
+                                                let resp = ui
+                                                    .interact(rect, id, Sense::click())
+                                                    .on_hover_text(&file.name);
                                                 if resp.hovered() {
                                                     ui.output_mut(|o| {
                                                         o.cursor_icon = CursorIcon::PointingHand
@@ -229,7 +231,7 @@ impl Workspace {
                                                             .widgets
                                                             .inactive
                                                             .bg_fill
-                                                            .gamma_multiply(0.9)
+                                                            .gamma_multiply(0.5)
                                                     },
                                                 );
 
@@ -334,6 +336,7 @@ impl Workspace {
                                                 .icon(&icon)
                                                 .text(truncated_name)
                                                 .show(ui)
+                                                .on_hover_text(&file.name)
                                                 .clicked()
                                             {
                                                 open_file = Some(file.id);
