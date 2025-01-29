@@ -100,15 +100,15 @@ impl Workspace {
                 self.create_file(true, false);
             }
 
-            if Button::default()
-                .text("Mind Map")
-                .rounding(egui::Rounding::same(3.0))
-                .frame(true)
-                .show(ui)
-                .clicked()
-            {
-                self.graph_called(self.core.clone());
-            }
+            // if Button::default()
+            //     .text("Mind Map")
+            //     .rounding(egui::Rounding::same(3.0))
+            //     .frame(true)
+            //     .show(ui)
+            //     .clicked()
+            // {
+            //     self.graph_called(self.core.clone());
+            // }
             ui.visuals_mut().widgets.inactive.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
             ui.visuals_mut().widgets.hovered.fg_stroke =
