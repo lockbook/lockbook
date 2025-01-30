@@ -181,6 +181,24 @@ impl Workspace {
 
                                     ui.label(layout_job);
                                 }
+
+                                ui.add_space(50.);
+
+                                ui.label(WidgetText::from(RichText::from("TOOLS").weak().small()));
+                                ui.visuals_mut().widgets.inactive.fg_stroke.color = blue;
+                                ui.visuals_mut().widgets.hovered.fg_stroke.color = weak_blue;
+                                ui.visuals_mut().widgets.active.fg_stroke.color = weak_blue;
+
+                                if Button::default()
+                                    .icon(&Icon::LANGUAGE)
+                                    .text("Mind Map")
+                                    .frame(false)
+                                    .rounding(3.)
+                                    .show(ui)
+                                    .clicked()
+                                {
+                                    self.graph_called(self.core.clone());
+                                }
                             });
                             strip.cell(|_| {});
                             strip.cell(|ui| {
