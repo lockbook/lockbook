@@ -12,7 +12,7 @@ use workspace_rs::show::InputStateExt;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 
-use crate::model::DocType;
+use workspace_rs::show::DocType;
 
 #[derive(Default)]
 pub struct FullDocSearch {
