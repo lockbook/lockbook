@@ -18,7 +18,11 @@ impl FileCache {
     pub fn new(lb: &Lb) -> LbResult<Self> {
         Ok(Self {
             files: lb.list_metadatas()?,
-            suggested: lb.suggested_docs(Default::default())?,
+            suggested: lb
+                .suggested_docs(Default::default())?
+                .into_iter()
+                .take(5)
+                .collect(),
             usage: lb.get_usage()?,
         })
     }

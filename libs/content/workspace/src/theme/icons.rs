@@ -91,6 +91,7 @@ impl Icon {
     pub const INDENT: Self = ic("\u{e23e}");
     pub const DEINDENT: Self = ic("\u{e23d}");
     pub const BUG: Self = ic("\u{e868}");
+    pub const LANGUAGE: Self = ic("\u{e894}");
 
     //pub const ARTICLE: Self = ic("\u{ef42}");
     //pub const COMMAND_KEY: Self = Self('\u{eae7}');

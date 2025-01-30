@@ -2,14 +2,19 @@ use basic_human_duration::ChronoHumanDuration;
 use core::f32;
 use egui::emath::easing;
 use egui::os::OperatingSystem;
-use egui::{EventFilter, Id, Key, Modifiers, Sense, TextWrapMode, ViewportCommand};
+use egui::text::{LayoutJob, TextWrapping};
+use egui::{
+    include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Modifiers,
+    RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2, ViewportCommand, WidgetText,
+};
+use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
 use std::mem;
 use std::time::{Duration, Instant};
 use tracing::instrument;
 
 use crate::output::Response;
-use crate::tab::{TabContent, TabFailure};
+use crate::tab::{image_viewer, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::Workspace;
@@ -28,7 +33,7 @@ impl Workspace {
         self.status.message = self.status_message();
 
         if self.is_empty() {
-            self.show_empty_workspace(ui);
+            self.show_landing_page(ui);
         } else {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
         }
@@ -61,62 +66,333 @@ impl Workspace {
         }
     }
 
-    fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
-        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-            ui.add_space(ui.clip_rect().height() / 3.0);
+    fn show_landing_page(&mut self, ui: &mut egui::Ui) {
+        let blue = ui.visuals().widgets.active.bg_fill;
+        let weak_blue = blue.gamma_multiply(0.9);
+        let weaker_blue = blue.gamma_multiply(0.2);
+        let weakest_blue = blue.gamma_multiply(0.15);
+        let extreme_bg = ui.visuals().extreme_bg_color;
 
-            ui.label(egui::RichText::new("Welcome to your Lockbook").size(40.0));
-            ui.label(
-                "Right click on your file tree to explore all that your lockbook has to offer",
-            );
+        // StripBuilder has no way to configure unequal remainders after exact allocations so we must do our own math
+        // We must be careful to use layout wrapping when necessary, otherwise cells will expand and math will be wrong
+        let padding = if ui.available_height() > 800. { 100. } else { 50. };
+        let spacing = 50.;
+        let total_content_height = ui.available_height() - 2. * padding - 1. * spacing;
+        StripBuilder::new(ui)
+            .size(Size::exact(padding)) // padding
+            .size(Size::exact(total_content_height * 1. / 3.)) // logo
+            .size(Size::exact(spacing)) // spacing
+            .size(Size::exact(total_content_height * 2. / 3.)) // nested content
+            .size(Size::exact(padding)) // padding
+            .vertical(|mut strip| {
+                strip.cell(|_| {});
+                strip.cell(|ui| {
+                    ui.vertical_centered(|ui| {
+                        let punchout = if ui.visuals().dark_mode {
+                            include_image!("../punchout-dark.png")
+                        } else {
+                            include_image!("../punchout-light.png")
+                        };
+                        ui.add(Image::new(punchout).max_size(ui.max_rect().size()));
+                    });
+                });
+                strip.cell(|_| {});
+                strip.cell(|ui| {
+                    let padding = 100.;
+                    let spacing = 50.;
+                    let total_content_width = ui.available_width() - 2. * padding - 1. * spacing;
+                    let actions_and_tips_width = total_content_width * 1. / 3.;
+                    let suggestions_and_activity_width =
+                        total_content_width - actions_and_tips_width;
 
-            ui.add_space(40.0);
+                    StripBuilder::new(ui)
+                        .size(Size::exact(padding)) // padding
+                        .size(Size::exact(actions_and_tips_width)) // actions and tips
+                        .size(Size::exact(spacing)) // spacing
+                        .size(Size::exact(suggestions_and_activity_width)) // suggestions and activity
+                        .size(Size::exact(padding)) // padding
+                        .horizontal(|mut strip| {
+                            strip.cell(|_| {});
+                            strip.cell(|ui| {
+                                ui.label(WidgetText::from(RichText::from("CREATE").weak().small()));
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.visuals_mut().widgets.inactive.bg_fill = blue;
+                                    ui.visuals_mut().widgets.inactive.fg_stroke.color = extreme_bg;
 
-            ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
-            ui.visuals_mut().widgets.hovered.bg_fill = ui.visuals().widgets.active.bg_fill;
+                                    ui.visuals_mut().widgets.hovered.bg_fill = weak_blue;
+                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = extreme_bg;
 
-            let text_stroke =
-                egui::Stroke { color: ui.visuals().extreme_bg_color, ..Default::default() };
-            ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
-            ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
-            ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+                                    ui.visuals_mut().widgets.active.bg_fill = weak_blue;
+                                    ui.visuals_mut().widgets.active.fg_stroke.color = extreme_bg;
 
-            if Button::default()
-                .text("New document")
-                .rounding(egui::Rounding::same(3.0))
-                .frame(true)
-                .show(ui)
-                .clicked()
-            {
-                self.create_file(false, false);
-            }
-            if Button::default()
-                .text("New drawing")
-                .rounding(egui::Rounding::same(3.0))
-                .frame(true)
-                .show(ui)
-                .clicked()
-            {
-                self.create_file(true, false);
-            }
+                                    if Button::default()
+                                        .icon(&Icon::DOC_TEXT)
+                                        .text("New Document")
+                                        .frame(true)
+                                        .rounding(3.)
+                                        .show(ui)
+                                        .clicked()
+                                    {
+                                        self.create_file(false, false);
+                                    }
 
-            if Button::default()
-                .text("Mind Map")
-                .rounding(egui::Rounding::same(3.0))
-                .frame(true)
-                .show(ui)
-                .clicked()
-            {
-                self.graph_called(self.core.clone());
-            }
-            ui.visuals_mut().widgets.inactive.fg_stroke =
-                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-            ui.visuals_mut().widgets.hovered.fg_stroke =
-                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-            if Button::default().text("New folder").show(ui).clicked() {
-                self.out.new_folder_clicked = true;
-            }
-        });
+                                    ui.visuals_mut().widgets.inactive.bg_fill = weaker_blue;
+                                    ui.visuals_mut().widgets.inactive.fg_stroke.color = blue;
+
+                                    ui.visuals_mut().widgets.hovered.bg_fill = weakest_blue;
+                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
+
+                                    ui.visuals_mut().widgets.active.bg_fill = weakest_blue;
+                                    ui.visuals_mut().widgets.active.fg_stroke.color = blue;
+
+                                    if Button::default()
+                                        .icon(&Icon::DRAW)
+                                        .text("New Drawing")
+                                        .frame(true)
+                                        .rounding(3.)
+                                        .show(ui)
+                                        .clicked()
+                                    {
+                                        self.create_file(true, false);
+                                    }
+                                });
+
+                                ui.add_space(50.);
+
+                                ui.label(WidgetText::from(RichText::from("TIPS").weak().small()));
+                                for tip in TIPS {
+                                    let mut layout_job = LayoutJob::default();
+                                    RichText::new("- ")
+                                        .color(ui.style().visuals.hyperlink_color)
+                                        .append_to(
+                                            &mut layout_job,
+                                            ui.style(),
+                                            FontSelection::Default,
+                                            Align::Center,
+                                        );
+                                    RichText::from(tip)
+                                        .color(ui.style().visuals.text_color())
+                                        .append_to(
+                                            &mut layout_job,
+                                            ui.style(),
+                                            FontSelection::Default,
+                                            Align::Center,
+                                        );
+
+                                    ui.label(layout_job);
+                                }
+
+                                ui.add_space(50.);
+
+                                ui.label(WidgetText::from(RichText::from("TOOLS").weak().small()));
+                                ui.visuals_mut().widgets.inactive.fg_stroke.color = blue;
+                                ui.visuals_mut().widgets.hovered.fg_stroke.color = weak_blue;
+                                ui.visuals_mut().widgets.active.fg_stroke.color = weak_blue;
+
+                                if Button::default()
+                                    .icon(&Icon::LANGUAGE)
+                                    .text("Mind Map")
+                                    .frame(false)
+                                    .rounding(3.)
+                                    .show(ui)
+                                    .clicked()
+                                {
+                                    self.graph_called(self.core.clone());
+                                }
+                            });
+                            strip.cell(|_| {});
+                            strip.cell(|ui| {
+                                ui.label(WidgetText::from(
+                                    RichText::from("SUGGESTED").weak().small(),
+                                ));
+
+                                let mut open_file = None;
+                                if let Some(files) = &mut self.files {
+                                    // this is a hacky way to quickly get the most recently modified files
+                                    // if someplace else we use the same technique but a different sort order, we will end up sorting every frame
+                                    if !files.suggested.is_sorted() {
+                                        files.suggested.sort();
+                                    }
+
+                                    ScrollArea::horizontal().show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            for &suggested_id in &files.suggested {
+                                                let Some(file) = files
+                                                    .files
+                                                    .iter()
+                                                    .find(|f| f.id == suggested_id)
+                                                else {
+                                                    continue;
+                                                };
+
+                                                let (id, rect) =
+                                                    ui.allocate_space(Vec2 { x: 120., y: 100. });
+                                                let resp = ui
+                                                    .interact(rect, id, Sense::click())
+                                                    .on_hover_text(&file.name);
+                                                if resp.hovered() {
+                                                    ui.output_mut(|o| {
+                                                        o.cursor_icon = CursorIcon::PointingHand
+                                                    });
+                                                }
+                                                if resp.clicked() {
+                                                    open_file = Some(file.id);
+                                                }
+
+                                                ui.painter().rect_filled(
+                                                    rect,
+                                                    3.,
+                                                    if resp.hovered() || resp.clicked() {
+                                                        ui.visuals().widgets.inactive.bg_fill
+                                                    } else {
+                                                        ui.visuals()
+                                                            .widgets
+                                                            .inactive
+                                                            .bg_fill
+                                                            .gamma_multiply(0.5)
+                                                    },
+                                                );
+
+                                                ui.allocate_ui_at_rect(rect, |ui| {
+                                                    ui.vertical_centered(|ui| {
+                                                        ui.add_space(15.);
+
+                                                        ui.label(
+                                                            &DocType::from_name(&file.name)
+                                                                .to_icon(),
+                                                        );
+
+                                                        let truncated_name = WidgetText::from(
+                                                            WidgetText::from(&file.name)
+                                                                .into_galley_impl(
+                                                                    ui.ctx(),
+                                                                    ui.style(),
+                                                                    TextWrapping {
+                                                                        max_width: ui
+                                                                            .available_width(),
+                                                                        max_rows: 2,
+                                                                        break_anywhere: false,
+                                                                        overflow_character: Some(
+                                                                            '…',
+                                                                        ),
+                                                                    },
+                                                                    Default::default(),
+                                                                    Default::default(),
+                                                                ),
+                                                        );
+
+                                                        ui.label(truncated_name);
+                                                    });
+                                                });
+                                            }
+                                        });
+                                    });
+                                } else {
+                                    ui.label(WidgetText::from("Loading...").weak());
+                                }
+
+                                ui.add_space(50.);
+
+                                ui.label(WidgetText::from(
+                                    RichText::from("ACTIVITY").weak().small(),
+                                ));
+
+                                if let Some(files) = &mut self.files {
+                                    // this is a hacky way to quickly get the most recently modified files
+                                    // if someplace else we use the same technique but a different sort order, we will end up sorting every frame
+                                    if !files.files.is_sorted_by_key(|f| f.last_modified) {
+                                        files.files.sort_by_key(|f| f.last_modified);
+                                    }
+
+                                    for file in files.files.iter().rev().take(5) {
+                                        ui.horizontal(|ui| {
+                                            ui.style_mut().spacing.item_spacing.x = 0.0;
+                                            ui.spacing_mut().button_padding.x = 0.;
+                                            ui.spacing_mut().button_padding.y = 2.;
+
+                                            // In a classic egui move, when rendering a shorter widget before a taller
+                                            // widget in a horizontal layout, the shorter widget is vertically aligned
+                                            // as if the taller widget was not there. To solve this, we pre-allocate a
+                                            // zero-width rect the height of the button (referencing the button's
+                                            // implementation).
+                                            let button_height =
+                                                ui.text_style_height(&TextStyle::Body);
+                                            ui.allocate_exact_size(
+                                                Vec2 {
+                                                    x: 0.,
+                                                    y: button_height
+                                                        + 2. * ui.spacing().button_padding.y,
+                                                },
+                                                Sense::hover(),
+                                            );
+
+                                            ui.label(
+                                                RichText::new("- ")
+                                                    .color(ui.style().visuals.hyperlink_color),
+                                            );
+
+                                            // This is enough width to show the year and month of a pasted_image_...
+                                            // but not the day, which seems sufficient
+                                            let truncate_width = 200.;
+                                            let truncated_name = WidgetText::from(
+                                                WidgetText::from(&file.name).into_galley_impl(
+                                                    ui.ctx(),
+                                                    ui.style(),
+                                                    TextWrapping::truncate_at_width(truncate_width),
+                                                    Default::default(),
+                                                    Default::default(),
+                                                ),
+                                            );
+
+                                            ui.visuals_mut().widgets.inactive.fg_stroke.color =
+                                                ui.style().visuals.hyperlink_color;
+                                            ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
+                                            ui.visuals_mut().widgets.active.fg_stroke.color = blue;
+
+                                            let icon = DocType::from_name(&file.name).to_icon();
+                                            if Button::default()
+                                                .icon(&icon)
+                                                .text(truncated_name)
+                                                .show(ui)
+                                                .on_hover_text(&file.name)
+                                                .clicked()
+                                            {
+                                                open_file = Some(file.id);
+                                            }
+
+                                            // The rest of the space is available for the modified_at/by text
+                                            let modified_at = format!(
+                                                " was edited {} by @{}",
+                                                file.last_modified.elapsed_human_string(),
+                                                file.last_modified_by,
+                                            );
+                                            let truncate_width = ui.available_width();
+                                            let truncated_modified_at = WidgetText::from(
+                                                WidgetText::from(&modified_at).into_galley_impl(
+                                                    ui.ctx(),
+                                                    ui.style(),
+                                                    TextWrapping::truncate_at_width(truncate_width),
+                                                    Default::default(),
+                                                    Default::default(),
+                                                ),
+                                            );
+
+                                            ui.label(truncated_modified_at);
+                                        });
+                                    }
+                                } else {
+                                    ui.label(WidgetText::from("Loading...").weak());
+                                }
+
+                                if let Some(open_file) = open_file {
+                                    self.open_file(open_file, false, true);
+                                }
+                            });
+                            strip.cell(|_| {});
+                        });
+                });
+                strip.cell(|_| {});
+            });
     }
 
     fn show_tabs(&mut self, ui: &mut egui::Ui) {
@@ -357,7 +633,7 @@ impl Workspace {
             self.save_tab(self.active_tab);
         }
 
-        // Ctrl-G to open graph
+        // Ctrl-M to open graph
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::M)) {
             self.graph_called(self.core.clone());
         }
@@ -726,15 +1002,14 @@ impl InputStateExt for egui::InputState {
     }
 }
 
-trait InstantExt {
+trait ElapsedHumanString {
     fn elapsed_human_string(&self) -> String;
 }
 
-impl InstantExt for Instant {
+impl ElapsedHumanString for time::Duration {
     fn elapsed_human_string(&self) -> String {
-        let d = time::Duration::milliseconds(self.elapsed().as_millis() as _);
-        let minutes = d.whole_minutes();
-        let seconds = d.whole_seconds();
+        let minutes = self.whole_minutes();
+        let seconds = self.whole_seconds();
         if seconds > 0 && minutes == 0 {
             if seconds <= 1 {
                 "1 second ago".to_string()
@@ -742,7 +1017,66 @@ impl InstantExt for Instant {
                 format!("{seconds} seconds ago")
             }
         } else {
-            d.format_human().to_string()
+            self.format_human().to_string()
         }
     }
 }
+
+impl ElapsedHumanString for std::time::Duration {
+    fn elapsed_human_string(&self) -> String {
+        time::Duration::milliseconds(self.as_millis() as _).elapsed_human_string()
+    }
+}
+
+impl ElapsedHumanString for Instant {
+    fn elapsed_human_string(&self) -> String {
+        time::Duration::milliseconds(self.elapsed().as_millis() as _).elapsed_human_string()
+    }
+}
+
+impl ElapsedHumanString for u64 {
+    fn elapsed_human_string(&self) -> String {
+        time::Duration::milliseconds(lb_rs::model::clock::get_time().0 - *self as i64)
+            .elapsed_human_string()
+    }
+}
+
+pub enum DocType {
+    PlainText,
+    Markdown,
+    Drawing,
+    Image,
+    ImageUnsupported,
+    Code,
+    Unknown,
+}
+
+impl DocType {
+    pub fn from_name(name: &str) -> Self {
+        let ext = name.split('.').last().unwrap_or_default();
+        match ext {
+            "draw" | "svg" => Self::Drawing,
+            "md" => Self::Markdown,
+            "txt" => Self::PlainText,
+            "cr2" => Self::ImageUnsupported,
+            "go" => Self::Code,
+            _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
+            _ => Self::Unknown,
+        }
+    }
+    pub fn to_icon(&self) -> Icon {
+        match self {
+            DocType::Markdown | DocType::PlainText => Icon::DOC_TEXT,
+            DocType::Drawing => Icon::DRAW,
+            DocType::Image => Icon::IMAGE,
+            DocType::Code => Icon::CODE,
+            _ => Icon::DOC_UNKNOWN,
+        }
+    }
+}
+
+const TIPS: [&str; 3] = [
+    "Import files by dragging and dropping them into the app",
+    "You can share and collaborate on files with other Lockbook users",
+    "Lockbook is end-to-end encrypted and 100% open source",
+];

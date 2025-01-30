@@ -8623,6 +8623,7 @@ dependencies = [
  "chrono",
  "egui",
  "egui_animation",
+ "egui_extras",
  "epaint",
  "glam",
  "image 0.24.9",
