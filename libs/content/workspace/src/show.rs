@@ -88,7 +88,7 @@ impl Workspace {
                 .show(ui)
                 .clicked()
             {
-                self.create_file(false);
+                self.create_file(false, false);
             }
             if Button::default()
                 .text("New drawing")
@@ -97,7 +97,17 @@ impl Workspace {
                 .show(ui)
                 .clicked()
             {
-                self.create_file(true);
+                self.create_file(true, false);
+            }
+
+            if Button::default()
+                .text("Mind Map")
+                .rounding(egui::Rounding::same(3.0))
+                .frame(true)
+                .show(ui)
+                .clicked()
+            {
+                self.graph_called(self.core.clone());
             }
             ui.visuals_mut().widgets.inactive.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
@@ -175,6 +185,12 @@ impl Workspace {
                                 let res = svg.show(ui);
                                 if res.request_save {
                                     tab.last_changed = Instant::now();
+                                }
+                            }
+                            TabContent::Graph(mm) => {
+                                let response = mm.show(ui, false);
+                                if let Some(value) = response {
+                                    self.open_file(value, false, true);
                                 }
                             }
                         };
@@ -333,7 +349,7 @@ impl Workspace {
 
         // Ctrl-N pressed while new file modal is not open.
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::N)) {
-            self.create_file(false);
+            self.create_file(false, false);
         }
 
         // Ctrl-S to save current tab.
@@ -341,6 +357,10 @@ impl Workspace {
             self.save_tab(self.active_tab);
         }
 
+        // Ctrl-G to open graph
+        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::M)) {
+            self.graph_called(self.core.clone());
+        }
         // Ctrl-W to close current tab.
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::W)) && !self.is_empty() {
             self.close_tab(self.active_tab);

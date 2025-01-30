@@ -260,6 +260,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
                 // TabContent::PlainText(_) => 4,
                 TabContent::Pdf(_) => 5,
                 TabContent::Svg(_) => 6,
+                TabContent::Graph(_) => 7,
             },
             None => 1,
         },

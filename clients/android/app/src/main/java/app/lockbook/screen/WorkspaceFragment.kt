@@ -143,7 +143,8 @@ class WorkspaceFragment : Fragment() {
     private fun updateCurrentTab(workspaceWrapper: WorkspaceWrapperView, newTab: WorkspaceTab) {
         when (newTab) {
             WorkspaceTab.Welcome,
-            WorkspaceTab.Loading -> {
+            WorkspaceTab.Loading,
+            WorkspaceTab.Graph -> {
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share).isVisible = false
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share_externally).isVisible = false
             }
@@ -202,7 +203,8 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             WorkspaceTab.Svg,
             WorkspaceTab.Image,
             WorkspaceTab.Pdf,
-            WorkspaceTab.Loading -> { }
+            WorkspaceTab.Loading,
+            WorkspaceTab.Graph -> { }
             WorkspaceTab.Markdown,
             WorkspaceTab.PlainText -> {
                 (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
@@ -227,7 +229,8 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             WorkspaceTab.Svg,
             WorkspaceTab.Image,
             WorkspaceTab.Pdf,
-            WorkspaceTab.Loading -> {}
+            WorkspaceTab.Loading,
+            WorkspaceTab.Graph -> {}
             WorkspaceTab.Markdown,
             WorkspaceTab.PlainText -> {
                 val touchYOffset: Float

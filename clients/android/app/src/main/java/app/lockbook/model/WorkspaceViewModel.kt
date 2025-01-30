@@ -75,7 +75,8 @@ enum class WorkspaceTab(val value: Int) {
     Markdown(3),
     PlainText(4),
     Pdf(5),
-    Svg(6);
+    Svg(6),
+    Graph(7);
 
     companion object {
         fun fromInt(value: Int): WorkspaceTab? {
@@ -85,7 +86,7 @@ enum class WorkspaceTab(val value: Int) {
 
     fun viewWrapperId(): Int {
         return when (this) {
-            Welcome, Pdf, Loading, Image -> 1
+            Welcome, Pdf, Loading, Image, Graph -> 1
             Svg -> 2
             PlainText, Markdown -> 3
         }
