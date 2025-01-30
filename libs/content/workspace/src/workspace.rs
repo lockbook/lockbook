@@ -1,4 +1,5 @@
 use egui::{Context, ViewportCommand};
+
 use lb_rs::blocking::Lb;
 use lb_rs::logic::filename::NameComponents;
 use lb_rs::model::errors::{LbErr, LbErrKind};
@@ -13,6 +14,7 @@ use std::{fs, thread};
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::file_cache::FileCache;
+use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
@@ -204,7 +206,6 @@ impl Workspace {
 
         None
     }
-
     pub fn current_tab_svg_mut(&mut self) -> Option<&mut SVGEditor> {
         let current_tab = self.current_tab_mut()?;
 
@@ -264,6 +265,11 @@ impl Workspace {
     }
 
     pub fn close_tab(&mut self, i: usize) {
+        if self.tabs[i].name == "Mind Map" {
+            if let Some(TabContent::Graph(graph_app)) = &mut self.tabs[i].content {
+                graph_app.stop(true);
+            }
+        }
         self.save_tab(i);
         self.tabs[i].is_closing = true;
     }
@@ -286,6 +292,7 @@ impl Workspace {
     }
 
     #[instrument(level = "trace", skip_all)]
+
     pub fn process_updates(&mut self) {
         let task_manager::Response {
             completed_loads,
@@ -593,7 +600,7 @@ impl Workspace {
         }
     }
 
-    pub fn create_file(&mut self, is_drawing: bool) {
+    pub fn create_file(&mut self, is_drawing: bool, is_graph: bool) {
         let focused_parent = self
             .focused_parent
             .unwrap_or_else(|| self.core.get_root().unwrap().id);
@@ -605,6 +612,9 @@ impl Workspace {
             focused_parent.id
         };
 
+        if is_graph {
+            self.graph_called(self.core.clone());
+        }
         let file_format = if is_drawing { "svg" } else { "md" };
         let new_file = NameComponents::from(&format!("untitled.{}", file_format))
             .next_in_children(self.core.get_children(&focused_parent).unwrap());
@@ -617,6 +627,16 @@ impl Workspace {
         self.out.file_created = Some(result);
         self.tasks.queue_file_cache_refresh();
         self.ctx.request_repaint();
+    }
+
+    pub fn graph_called(&mut self, core: Lb) {
+        if !self.tabs.iter().any(|t| t.name == "Mind Map") {
+            let id = Uuid::new_v4();
+            self.upsert_tab(id, "Mind Map", "", false, true);
+            if let Some(tab) = self.get_mut_tab_by_id(id) {
+                tab.content = Some(TabContent::Graph(MindMap::new(&core)));
+            }
+        }
     }
 
     pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) {

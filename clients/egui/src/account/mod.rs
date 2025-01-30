@@ -17,6 +17,7 @@ use lb::model::file_metadata::FileType;
 use lb::service::import_export::ImportStatus;
 use lb::Uuid;
 use tree::FilesExt;
+use workspace_rs::tab::TabContent;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::Workspace;
@@ -231,12 +232,14 @@ impl AccountScreen {
 
                 if let Some(file) = wso.selected_file {
                     if !self.tree.selected.contains(&file) {
-                        self.tree.cursor = Some(file);
-                        self.tree.selected.clear();
-                        self.tree.selected.insert(file);
-                        self.tree.reveal_selection();
-                        self.tree.scroll_to_cursor = true;
-                        ctx.request_repaint();
+                        // must be a real file to reveal
+                        if let Some(tab) = self.workspace.tabs.iter().find(|t| t.id == file) {
+                            if !matches!(tab.content, Some(TabContent::Graph(_))) {
+                                self.tree.cursor = Some(file);
+                                self.tree.selected.clear();
+                                self.tree.selected.insert(file);
+                            }
+                        }
                     }
                 }
 
@@ -447,12 +450,12 @@ impl AccountScreen {
             .inner;
 
         if resp.new_file.is_some() {
-            self.workspace.create_file(false);
+            self.workspace.create_file(false, false);
             ui.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
         }
 
         if resp.new_drawing.is_some() {
-            self.workspace.create_file(true);
+            self.workspace.create_file(true, false);
         }
 
         if let Some(file) = resp.new_folder_modal {
