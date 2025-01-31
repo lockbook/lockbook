@@ -40,7 +40,7 @@ impl Debug for FileCache {
 
 pub trait FilesExt {
     fn root(&self) -> Uuid;
-    fn get_by_id(&self, id: Uuid) -> &File;
+    fn get_by_id(&self, id: Uuid) -> Option<&File>;
     fn children(&self, id: Uuid) -> Vec<&File>;
     fn descendents(&self, id: Uuid) -> Vec<&File>;
 }
@@ -55,12 +55,8 @@ impl FilesExt for [File] {
         unreachable!("unable to find root in metadata list")
     }
 
-    fn get_by_id(&self, id: Uuid) -> &File {
-        if let Some(file) = self.iter().find(|f| f.id == id) {
-            file
-        } else {
-            unreachable!("unable to find file with id: {:?}", id)
-        }
+    fn get_by_id(&self, id: Uuid) -> Option<&File> {
+        self.iter().find(|f| f.id == id)
     }
 
     fn children(&self, id: Uuid) -> Vec<&File> {
@@ -83,5 +79,23 @@ impl FilesExt for [File] {
             descendents.push(child);
         }
         descendents
+    }
+}
+
+impl FilesExt for Vec<File> {
+    fn root(&self) -> Uuid {
+        self.as_slice().root()
+    }
+
+    fn get_by_id(&self, id: Uuid) -> Option<&File> {
+        self.as_slice().get_by_id(id)
+    }
+
+    fn children(&self, id: Uuid) -> Vec<&File> {
+        self.as_slice().children(id)
+    }
+
+    fn descendents(&self, id: Uuid) -> Vec<&File> {
+        self.as_slice().descendents(id)
     }
 }

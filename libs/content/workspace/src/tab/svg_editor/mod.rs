@@ -42,7 +42,7 @@ pub struct SVGEditor {
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
     lb: Lb,
-    open_file: Uuid,
+    pub open_file: Uuid,
     skip_frame: bool,
     // last_render: Instant,
     renderer: Renderer,
