@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use tracing::instrument;
 
 use crate::output::Response;
-use crate::tab::{image_viewer, TabContent, TabFailure};
+use crate::tab::{image_viewer, ContentState, Tab, TabContent};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::Workspace;
@@ -37,8 +37,8 @@ impl Workspace {
         } else {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
         }
-        if self.out.tabs_changed || self.active_tab_changed {
-            self.cfg.set_tabs(&self.tabs, self.active_tab);
+        if self.out.tabs_changed || self.current_tab_changed {
+            self.cfg.set_tabs(&self.tabs, self.current_tab);
         }
 
         mem::take(&mut self.out)
@@ -133,7 +133,7 @@ impl Workspace {
                                         .show(ui)
                                         .clicked()
                                     {
-                                        self.create_file(false, false);
+                                        self.create_file(false);
                                     }
 
                                     ui.visuals_mut().widgets.inactive.bg_fill = weaker_blue;
@@ -153,7 +153,7 @@ impl Workspace {
                                         .show(ui)
                                         .clicked()
                                     {
-                                        self.create_file(true, false);
+                                        self.create_file(true);
                                     }
                                 });
 
@@ -197,7 +197,7 @@ impl Workspace {
                                     .show(ui)
                                     .clicked()
                                 {
-                                    self.graph_called(self.core.clone());
+                                    self.upsert_mind_map(self.core.clone());
                                 }
                             });
                             strip.cell(|_| {});
@@ -399,79 +399,69 @@ impl Workspace {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         ui.vertical(|ui| {
-            if !self.tabs.is_empty() {
+            if let Some(current_tab) = self.current_tab() {
                 if self.show_tabs {
-                    self.show_tab_strip(ui);
+                    if self.tabs.len() > 1 {
+                        self.show_tab_strip(ui);
+                    }
                 } else {
-                    self.show_mobile_title(ui);
+                    self.out.tab_title_clicked = self.show_mobile_title(ui, current_tab);
                 }
             }
 
             ui.centered_and_justified(|ui| {
                 let mut rename_req = None;
-                if let Some(tab) = self.tabs.get_mut(self.active_tab) {
-                    if let Some(fail) = &tab.failure {
-                        match fail {
-                            TabFailure::DeletedFromSync => {
-                                ui.vertical_centered(|ui| {
-                                    ui.add_space(50.0);
-                                    ui.label(format!(
-                                        "This file ({}) was deleted after syncing.",
-                                        tab.path
-                                    ));
-                                });
-                            }
-                            TabFailure::SimpleMisc(msg) => {
-                                ui.label(msg);
-                            }
-                            TabFailure::Unexpected(msg) => {
-                                ui.label(msg);
-                            }
-                        };
-                    } else if let Some(content) = &mut tab.content {
-                        match content {
-                            TabContent::Markdown(md) => {
-                                let resp = md.show(ui);
-                                // The editor signals a text change when the buffer is initially
-                                // loaded. Since we use that signal to trigger saves, we need to
-                                // check that this change was not from the initial frame.
-                                if resp.text_updated && md.past_first_frame() {
-                                    tab.last_changed = Instant::now();
-                                }
+                if let Some(tab) = self.current_tab_mut() {
+                    match &mut tab.content {
+                        ContentState::Loading(_) => {
+                            ui.spinner();
+                        }
+                        ContentState::Failed(fail) => {
+                            ui.label(fail.msg());
+                        }
+                        ContentState::Open(content) => {
+                            match content {
+                                TabContent::Markdown(md) => {
+                                    let resp = md.show(ui);
+                                    // The editor signals a text change when the buffer is initially
+                                    // loaded. Since we use that signal to trigger saves, we need to
+                                    // check that this change was not from the initial frame.
+                                    if resp.text_updated && md.past_first_frame() {
+                                        tab.last_changed = Instant::now();
+                                    }
 
-                                if let Some(new_name) = resp.suggest_rename {
-                                    rename_req = Some((tab.id, new_name))
-                                }
+                                    if let Some(new_name) = resp.suggest_rename {
+                                        rename_req = tab.id().map(|id| (id, new_name));
+                                    }
 
-                                if resp.text_updated {
-                                    self.out.markdown_editor_text_updated = true;
+                                    if resp.text_updated {
+                                        self.out.markdown_editor_text_updated = true;
+                                    }
+                                    if resp.cursor_screen_postition_updated {
+                                        // markdown_editor_selection_updated represents a change to the screen position of
+                                        // the cursor, which is also updated when scrolling
+                                        self.out.markdown_editor_selection_updated = true;
+                                    }
+                                    if resp.scroll_updated {
+                                        self.out.markdown_editor_scroll_updated = true;
+                                    }
                                 }
-                                if resp.cursor_screen_postition_updated {
-                                    // markdown_editor_selection_updated represents a change to the screen position of
-                                    // the cursor, which is also updated when scrolling
-                                    self.out.markdown_editor_selection_updated = true;
+                                TabContent::Image(img) => img.show(ui),
+                                TabContent::Pdf(pdf) => pdf.show(ui),
+                                TabContent::Svg(svg) => {
+                                    let res = svg.show(ui);
+                                    if res.request_save {
+                                        tab.last_changed = Instant::now();
+                                    }
                                 }
-                                if resp.scroll_updated {
-                                    self.out.markdown_editor_scroll_updated = true;
+                                TabContent::MindMap(mm) => {
+                                    let response = mm.show(ui, false);
+                                    if let Some(value) = response {
+                                        self.open_file(value, false, true);
+                                    }
                                 }
-                            }
-                            TabContent::Image(img) => img.show(ui),
-                            TabContent::Pdf(pdf) => pdf.show(ui),
-                            TabContent::Svg(svg) => {
-                                let res = svg.show(ui);
-                                if res.request_save {
-                                    tab.last_changed = Instant::now();
-                                }
-                            }
-                            TabContent::Graph(mm) => {
-                                let response = mm.show(ui, false);
-                                if let Some(value) = response {
-                                    self.open_file(value, false, true);
-                                }
-                            }
-                        };
-                    } else {
-                        ui.spinner();
+                            };
+                        }
                     }
                 }
                 if let Some(req) = rename_req {
@@ -481,10 +471,11 @@ impl Workspace {
         });
     }
 
-    fn show_mobile_title(&mut self, ui: &mut egui::Ui) {
+    /// Shows the mobile title and returns true if clicked.
+    fn show_mobile_title(&self, ui: &mut egui::Ui, tab: &Tab) -> bool {
         ui.horizontal(|ui| {
             let selectable_label =
-                egui::widgets::Button::new(egui::RichText::new(self.tabs[0].name.clone()))
+                egui::widgets::Button::new(egui::RichText::new(tab.title(&self.files)))
                     .frame(false)
                     .wrap_mode(TextWrapMode::Truncate)
                     .fill(if ui.visuals().dark_mode {
@@ -495,17 +486,18 @@ impl Workspace {
 
             ui.allocate_ui(ui.available_size(), |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
-                    if ui.add(selectable_label).clicked() {
-                        self.out.tab_title_clicked = true
-                    }
-                });
+                    ui.add(selectable_label).clicked()
+                })
+                .inner
             })
-        });
+            .inner
+        })
+        .inner
     }
 
     fn show_tab_strip(&mut self, parent_ui: &mut egui::Ui) {
-        let active_tab_changed = self.active_tab_changed;
-        self.active_tab_changed = false;
+        let active_tab_changed = self.current_tab_changed;
+        self.current_tab_changed = false;
 
         let mut ui =
             parent_ui.child_ui(parent_ui.painter().clip_rect(), egui::Layout::default(), None);
@@ -520,7 +512,7 @@ impl Workspace {
                         for i in 0..self.tabs.len() {
                             if let (true, Some(resp)) = (
                                 is_tab_strip_visible,
-                                self.tab_label(ui, i, self.active_tab == i, active_tab_changed),
+                                self.tab_label(ui, i, self.current_tab == i, active_tab_changed),
                             ) {
                                 responses.insert(i, resp);
                             }
@@ -530,11 +522,11 @@ impl Workspace {
                         for (i, resp) in responses {
                             match resp {
                                 TabLabelResponse::Clicked => {
-                                    if self.active_tab == i {
+                                    if self.current_tab == i {
                                         // we should rename the file.
 
                                         self.out.tab_title_clicked = true;
-                                        let active_name = self.tabs[i].name.clone();
+                                        let active_name = self.tabs[i].title(&self.files).clone();
 
                                         let mut rename_edit_state =
                                             egui::text_edit::TextEditState::default();
@@ -556,12 +548,12 @@ impl Workspace {
                                         self.tabs[i].rename = Some(active_name);
                                     } else {
                                         self.tabs[i].rename = None;
-                                        self.active_tab = i;
-                                        self.active_tab_changed = true;
+                                        self.current_tab = i;
+                                        self.current_tab_changed = true;
                                         self.ctx.send_viewport_cmd(ViewportCommand::Title(
-                                            self.tabs[i].name.clone(),
+                                            self.tabs[i].title(&self.files),
                                         ));
-                                        self.out.selected_file = Some(self.tabs[i].id);
+                                        self.out.selected_file = self.tabs[i].id();
                                     }
                                 }
                                 TabLabelResponse::Closed => {
@@ -569,13 +561,12 @@ impl Workspace {
                                 }
                                 TabLabelResponse::Renamed(name) => {
                                     self.tabs[i].rename = None;
-                                    let id = self.current_tab().unwrap().id;
-                                    if let Some(tab) = self.get_mut_tab_by_id(id) {
-                                        if let Some(TabContent::Markdown(md)) = &mut tab.content {
-                                            md.needs_name = false;
-                                        }
+                                    if let Some(md) = self.current_tab_markdown_mut() {
+                                        md.needs_name = false;
                                     }
-                                    self.rename_file((id, name.clone()), true);
+                                    if let Some(id) = self.tabs[i].id() {
+                                        self.rename_file((id, name.clone()), true);
+                                    }
                                 }
                             }
                             ui.ctx().request_repaint();
@@ -625,29 +616,27 @@ impl Workspace {
 
         // Ctrl-N pressed while new file modal is not open.
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::N)) {
-            self.create_file(false, false);
+            self.create_file(false);
         }
 
         // Ctrl-S to save current tab.
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::S)) {
-            self.save_tab(self.active_tab);
+            self.save_tab(self.current_tab);
         }
 
-        // Ctrl-M to open graph
+        // Ctrl-M to open mind map
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::M)) {
-            self.graph_called(self.core.clone());
+            self.upsert_mind_map(self.core.clone());
         }
+
         // Ctrl-W to close current tab.
         if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::W)) && !self.is_empty() {
-            self.close_tab(self.active_tab);
+            self.close_tab(self.current_tab);
             self.ctx.send_viewport_cmd(ViewportCommand::Title(
-                self.current_tab()
-                    .map(|tab| tab.name.as_str())
-                    .unwrap_or("Lockbook")
-                    .to_owned(),
+                self.current_tab_title().unwrap_or("Lockbook".to_owned()),
             ));
 
-            self.out.selected_file = self.current_tab().map(|tab| tab.id);
+            self.out.selected_file = self.current_tab_id();
         }
 
         // tab navigation
@@ -666,40 +655,30 @@ impl Workspace {
             }
 
             // Cmd+Shift+[ to go to previous tab
-            if input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket) && self.active_tab != 0 {
-                goto_tab = Some(self.active_tab - 1);
+            if input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket) && self.current_tab != 0 {
+                goto_tab = Some(self.current_tab - 1);
             }
 
             // Cmd+Shift+] to go to next tab
             if input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket)
-                && self.active_tab != self.tabs.len() - 1
+                && self.current_tab != self.tabs.len() - 1
             {
-                goto_tab = Some(self.active_tab + 1);
+                goto_tab = Some(self.current_tab + 1);
             }
         });
+
         if let Some(goto_tab) = goto_tab {
-            if self.active_tab != goto_tab {
-                self.active_tab_changed = true;
-            }
-
-            self.active_tab = goto_tab;
-
-            if let Some((name, id)) = self.current_tab().map(|tab| (tab.name.clone(), tab.id)) {
-                self.ctx.send_viewport_cmd(ViewportCommand::Title(name));
-                self.out.selected_file = Some(id);
-            };
+            self.make_current(goto_tab);
         }
     }
 
     fn tab_label(
         &mut self, ui: &mut egui::Ui, t: usize, is_active: bool, active_tab_changed: bool,
     ) -> Option<TabLabelResponse> {
-        let id = self.tabs[t].id;
-
         let mut result = None;
         let icon_size = 16.0;
         let x_icon = Icon::CLOSE.size(icon_size);
-        let status = self.tab_status(id);
+        let status = self.tab_status(t);
         let status_icon = status.icon();
 
         let padding_x = 10.;
@@ -793,7 +772,7 @@ impl Workspace {
                     .expand(2.0);
             let close_button_resp = ui.interact(
                 close_button_rect,
-                Id::new("tab label close button").with(self.tabs[t].id),
+                Id::new("tab label close button").with(t),
                 Sense { click: true, drag: false, focusable: false },
             );
 
@@ -853,11 +832,11 @@ impl Workspace {
                 .style_mut(|s| s.visuals.menu_rounding = (2.).into());
             ui.interact(
                 status_icon_rect,
-                Id::new("tab label status icon").with(self.tabs[t].id),
+                Id::new("tab label status icon").with(t),
                 Sense { click: false, drag: false, focusable: false },
             )
             .on_hover_ui(|ui| {
-                let text = self.tab_status(self.tabs[t].id).summary();
+                let text = self.tab_status(t).summary();
                 let text: egui::WidgetText = text.into();
                 let text =
                     text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Small);
@@ -873,7 +852,7 @@ impl Workspace {
             });
 
             // draw text
-            let text: egui::WidgetText = (&self.tabs[t].name).into();
+            let text: egui::WidgetText = (&self.tabs[t].title(&self.files)).into();
             let wrap_width = if show_close_button {
                 w - (padding_x + status_icon.size + padding_x + padding_x + x_icon.size + padding_x)
             } else {
@@ -886,7 +865,7 @@ impl Workspace {
             text_rect.max.x = close_button_rect.min.x;
             ui.interact(
                 text_rect,
-                Id::new("tab label text").with(self.tabs[t].id),
+                Id::new("tab label text").with(t),
                 Sense { click: false, drag: false, focusable: false },
             )
             .on_hover_ui(|ui| {
