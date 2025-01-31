@@ -327,6 +327,10 @@ impl MindMap {
 
     fn draw_graph(&mut self, ui: &mut egui::Ui, screen_size: egui::Vec2) {
         let screen = ui.available_rect_before_wrap();
+
+        ui.painter()
+            .rect_filled(screen, 0., ui.visuals().extreme_bg_color);
+
         let center =
             Pos2::new((screen.max.x + screen.min.x) / 2.0, (screen.max.y + screen.min.y) / 2.0);
         let radius = (15.0) / ((self.graph.len() as f32).sqrt() / 3.0).max(1.0);
@@ -557,11 +561,11 @@ impl MindMap {
             && self.cursor_loc.y < max_range.y
     }
 
-    pub fn stop(&mut self, stop: bool) {
+    pub fn stop(&mut self) {
         self.graph_complete = true;
         {
             let mut stop_lock = self.stop.write().unwrap();
-            *stop_lock = stop;
+            *stop_lock = true;
         }
     }
 

@@ -43,7 +43,7 @@ impl Workspace {
 
         for id in server_ids {
             for i in 0..self.tabs.len() {
-                if self.tabs[i].id == id && !self.tabs[i].is_closing {
+                if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
                     debug!("Reloading file after sync: {}", id);
                     self.open_file(id, false, false);
                 }
