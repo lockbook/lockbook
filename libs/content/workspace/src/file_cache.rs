@@ -56,11 +56,7 @@ impl FilesExt for [File] {
     }
 
     fn get_by_id(&self, id: Uuid) -> Option<&File> {
-        if let Some(file) = self.iter().find(|f| f.id == id) {
-            Some(&file)
-        } else {
-            None
-        }
+        self.iter().find(|f| f.id == id)
     }
 
     fn children(&self, id: Uuid) -> Vec<&File> {
