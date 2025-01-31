@@ -162,14 +162,12 @@ impl Workspace {
                                 ui.label(WidgetText::from(RichText::from("TIPS").weak().small()));
                                 for tip in TIPS {
                                     let mut layout_job = LayoutJob::default();
-                                    RichText::new("- ")
-                                        .color(ui.style().visuals.hyperlink_color)
-                                        .append_to(
-                                            &mut layout_job,
-                                            ui.style(),
-                                            FontSelection::Default,
-                                            Align::Center,
-                                        );
+                                    RichText::new("- ").color(weak_blue).append_to(
+                                        &mut layout_job,
+                                        ui.style(),
+                                        FontSelection::Default,
+                                        Align::Center,
+                                    );
                                     RichText::from(tip)
                                         .color(ui.style().visuals.text_color())
                                         .append_to(
@@ -185,9 +183,9 @@ impl Workspace {
                                 ui.add_space(50.);
 
                                 ui.label(WidgetText::from(RichText::from("TOOLS").weak().small()));
-                                ui.visuals_mut().widgets.inactive.fg_stroke.color = blue;
-                                ui.visuals_mut().widgets.hovered.fg_stroke.color = weak_blue;
-                                ui.visuals_mut().widgets.active.fg_stroke.color = weak_blue;
+                                ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
+                                ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
+                                ui.visuals_mut().widgets.active.fg_stroke.color = blue;
 
                                 if Button::default()
                                     .icon(&Icon::LANGUAGE)
@@ -243,13 +241,9 @@ impl Workspace {
                                                     rect,
                                                     3.,
                                                     if resp.hovered() || resp.clicked() {
-                                                        ui.visuals().widgets.inactive.bg_fill
+                                                        weakest_blue
                                                     } else {
-                                                        ui.visuals()
-                                                            .widgets
-                                                            .inactive
-                                                            .bg_fill
-                                                            .gamma_multiply(0.5)
+                                                        weaker_blue
                                                     },
                                                 );
 
@@ -326,10 +320,7 @@ impl Workspace {
                                                 Sense::hover(),
                                             );
 
-                                            ui.label(
-                                                RichText::new("- ")
-                                                    .color(ui.style().visuals.hyperlink_color),
-                                            );
+                                            ui.label(RichText::new("- ").color(weak_blue));
 
                                             // This is enough width to show the year and month of a pasted_image_...
                                             // but not the day, which seems sufficient
@@ -345,7 +336,7 @@ impl Workspace {
                                             );
 
                                             ui.visuals_mut().widgets.inactive.fg_stroke.color =
-                                                ui.style().visuals.hyperlink_color;
+                                                weak_blue;
                                             ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
                                             ui.visuals_mut().widgets.active.fg_stroke.color = blue;
 
