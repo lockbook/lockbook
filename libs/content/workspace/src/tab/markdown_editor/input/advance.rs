@@ -5,8 +5,8 @@ use crate::tab::markdown_editor::galleys::{GalleyInfo, Galleys};
 use crate::tab::markdown_editor::input::{Increment, Offset};
 use egui::epaint::text::cursor::Cursor as EguiCursor;
 use egui::{Pos2, Vec2};
-use lb_rs::text::offset_types::DocCharOffset;
-use lb_rs::text::unicode_segs::UnicodeSegs;
+use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::unicode_segs::UnicodeSegs;
 
 pub trait AdvanceExt {
     fn advance(

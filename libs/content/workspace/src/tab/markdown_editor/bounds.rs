@@ -6,9 +6,9 @@ use crate::tab::markdown_editor::input::Bound;
 use crate::tab::markdown_editor::style::{BlockNodeType, InlineNodeType, MarkdownNodeType};
 use crate::tab::markdown_editor::Editor;
 use egui::epaint::text::cursor::RCursor;
-use lb_rs::text::buffer::Buffer;
-use lb_rs::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
-use lb_rs::text::unicode_segs::UnicodeSegs;
+use lb_rs::model::text::buffer::Buffer;
+use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
+use lb_rs::model::text::unicode_segs::UnicodeSegs;
 use linkify::LinkFinder;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -950,7 +950,7 @@ impl Editor {
 
 #[cfg(test)]
 mod test {
-    use lb_rs::text::offset_types::DocCharOffset;
+    use lb_rs::model::text::offset_types::DocCharOffset;
 
     use super::{join, Bounds, RangesExt};
     use crate::tab::markdown_editor::{bounds::BoundExt as _, input::Bound};

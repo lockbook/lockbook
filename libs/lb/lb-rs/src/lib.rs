@@ -24,8 +24,6 @@ pub mod blocking;
 pub mod model;
 pub mod repo;
 pub mod service;
-pub mod svg;
-pub mod text;
 
 #[derive(Clone)]
 pub struct Lb {

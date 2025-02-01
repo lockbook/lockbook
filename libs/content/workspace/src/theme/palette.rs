@@ -1,5 +1,5 @@
 use egui::Color32;
-use lb_rs::svg::element::DynamicColor;
+use lb_rs::model::svg::element::DynamicColor;
 
 use serde::{Deserialize, Serialize};
 

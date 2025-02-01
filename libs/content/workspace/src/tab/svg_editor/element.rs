@@ -1,6 +1,6 @@
 use lb_rs::{
     blocking::Lb,
-    svg::{
+    model::svg::{
         diff::DiffState,
         element::{Element, Image, Path, WeakImage},
     },
