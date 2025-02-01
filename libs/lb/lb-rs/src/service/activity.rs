@@ -1,4 +1,4 @@
-use crate::logic::tree_like::TreeLike;
+use crate::model::tree_like::TreeLike;
 use crate::model::errors::LbResult;
 use crate::Lb;
 use serde::Deserialize;

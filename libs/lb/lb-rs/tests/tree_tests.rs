@@ -1,7 +1,7 @@
-use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::staged::StagedTreeLikeMut;
-use lb_rs::logic::tree_like::{TreeLike, TreeLikeMut};
-use lb_rs::logic::SharedResult;
+use lb_rs::model::file_like::FileLike;
+use lb_rs::model::staged::StagedTreeLikeMut;
+use lb_rs::model::tree_like::{TreeLike, TreeLikeMut};
+use lb_rs::model::SharedResult;
 use lb_rs::model::account::Account;
 use lb_rs::model::file_metadata::FileMetadata;
 use test_utils::*;

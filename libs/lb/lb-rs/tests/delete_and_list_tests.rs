@@ -1,4 +1,4 @@
-use lb_rs::logic::path_ops::Filter;
+use lb_rs::model::path_ops::Filter;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file_metadata::FileType;
 use test_utils::*;

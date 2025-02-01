@@ -1,5 +1,5 @@
-use crate::logic::crypto::*;
-use crate::logic::{SharedErrorKind, SharedResult};
+use crate::model::crypto::*;
+use crate::model::{SharedErrorKind, SharedResult};
 use crate::model::clock::{timestamp, TimeGetter};
 use libsecp256k1::Message;
 use libsecp256k1::{PublicKey, SecretKey, SharedSecret, Signature};
@@ -80,7 +80,7 @@ pub fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> SharedResult<AESKey> {
 mod unit_tests {
     use libsecp256k1::PublicKey;
 
-    use crate::logic::pubkey::*;
+    use crate::model::pubkey::*;
     use crate::model::clock::Timestamp;
 
     static EARLY_CLOCK: fn() -> Timestamp = || Timestamp(500);

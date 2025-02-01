@@ -1,7 +1,7 @@
 use egui::{Context, ViewportCommand};
 
 use lb_rs::blocking::Lb;
-use lb_rs::logic::filename::NameComponents;
+use lb_rs::model::filename::NameComponents;
 use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::svg::buffer::Buffer;

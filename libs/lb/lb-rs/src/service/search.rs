@@ -1,6 +1,6 @@
 use super::activity::RankingWeights;
 use super::events::Event;
-use crate::logic::filename::DocumentType;
+use crate::model::filename::DocumentType;
 use crate::model::errors::{LbErr, LbErrKind, LbResult, UnexpectedError};
 use crate::Lb;
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};

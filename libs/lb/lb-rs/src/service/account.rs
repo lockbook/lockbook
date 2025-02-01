@@ -1,4 +1,4 @@
-use crate::logic::file_like::FileLike;
+use crate::model::file_like::FileLike;
 use crate::model::account::{Account, MAX_USERNAME_LENGTH};
 use crate::model::api::{
     DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequest,

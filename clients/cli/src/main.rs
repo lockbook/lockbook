@@ -22,7 +22,7 @@ use cli_rs::{
 
 use input::FileInput;
 use lb_rs::{
-    logic::path_ops::Filter,
+    model::path_ops::Filter,
     model::{core_config::Config, errors::LbErrKind},
     service::sync::SyncProgress,
     Lb, Uuid,

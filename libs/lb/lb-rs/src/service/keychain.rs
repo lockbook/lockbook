@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    logic::crypto::AESKey,
     model::{
+        crypto::AESKey,
         account::Account,
         errors::{LbErrKind, LbResult},
     },

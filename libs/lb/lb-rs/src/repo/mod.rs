@@ -1,6 +1,6 @@
 pub mod docs;
 
-use crate::logic::signed_file::SignedFile;
+use crate::model::signed_file::SignedFile;
 use crate::model::account::Account;
 use crate::model::file_metadata::Owner;
 use crate::service::activity::DocEvent;

@@ -4,7 +4,7 @@ use reqwest::Client;
 use tokio::time::sleep;
 
 use crate::get_code_version;
-use crate::logic::pubkey;
+use crate::model::pubkey;
 use crate::model::account::Account;
 use crate::model::api::*;
 use crate::model::clock::{get_time, Timestamp};
@@ -31,7 +31,7 @@ pub enum ApiError<E> {
     ExpiredAuth,
     InternalError,
     BadRequest,
-    Sign(crate::logic::SharedError),
+    Sign(crate::model::SharedError),
     Serialize(String),
     SendFailed(String),
     ReceiveFailed(String),

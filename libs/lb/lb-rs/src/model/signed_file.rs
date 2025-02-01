@@ -1,7 +1,7 @@
-use crate::logic::crypto::ECSigned;
-use crate::logic::file_like::FileLike;
-use crate::logic::tree_like::{TreeLike, TreeLikeMut};
-use crate::logic::SharedResult;
+use crate::model::crypto::ECSigned;
+use crate::model::file_like::FileLike;
+use crate::model::tree_like::{TreeLike, TreeLikeMut};
+use crate::model::SharedResult;
 use crate::model::file_metadata::FileMetadata;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;

@@ -1,9 +1,9 @@
-use crate::logic::file_like::FileLike;
-use crate::logic::filename::MAX_ENCRYPTED_FILENAME_LENGTH;
-use crate::logic::lazy::LazyTree;
-use crate::logic::staged::StagedTreeLike;
-use crate::logic::tree_like::TreeLike;
-use crate::logic::{SharedErrorKind, SharedResult, ValidationFailure};
+use crate::model::file_like::FileLike;
+use crate::model::filename::MAX_ENCRYPTED_FILENAME_LENGTH;
+use crate::model::lazy::LazyTree;
+use crate::model::staged::StagedTreeLike;
+use crate::model::tree_like::TreeLike;
+use crate::model::{SharedErrorKind, SharedResult, ValidationFailure};
 use crate::model::access_info::UserAccessMode;
 use crate::model::file_metadata::{Diff, FileDiff, FileType, Owner};
 use std::collections::{HashMap, HashSet};

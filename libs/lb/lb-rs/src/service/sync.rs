@@ -1,10 +1,10 @@
 use super::network::ApiError;
-use crate::logic::file_like::FileLike;
-use crate::logic::filename::{DocumentType, NameComponents};
-use crate::logic::signed_file::SignedFile;
-use crate::logic::staged::StagedTreeLikeMut;
-use crate::logic::tree_like::TreeLike;
-use crate::logic::{symkey, SharedErrorKind, ValidationFailure};
+use crate::model::file_like::FileLike;
+use crate::model::filename::{DocumentType, NameComponents};
+use crate::model::signed_file::SignedFile;
+use crate::model::staged::StagedTreeLikeMut;
+use crate::model::tree_like::TreeLike;
+use crate::model::{symkey, SharedErrorKind, ValidationFailure};
 use crate::model::access_info::UserAccessMode;
 use crate::model::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
@@ -398,7 +398,7 @@ impl Lb {
                             }
                         }
                         return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topological order for file creations: {:?}",
+                            "sync failed to find a topomodelal order for file creations: {:?}",
                             deletion_creations
                         ))
                         .into());
@@ -477,7 +477,7 @@ impl Lb {
                             }
                         }
                         return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topological order for file creations: {:?}",
+                            "sync failed to find a topomodelal order for file creations: {:?}",
                             creations
                         ))
                         .into());

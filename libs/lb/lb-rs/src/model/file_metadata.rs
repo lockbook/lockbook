@@ -10,11 +10,11 @@ use super::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMod
 use super::account::Account;
 use super::clock::get_time;
 use super::errors::LbResult;
-use crate::logic::crypto::AESKey;
-use crate::logic::file_like::FileLike;
-use crate::logic::secret_filename::SecretFileName;
-use crate::logic::signed_file::SignedFile;
-use crate::logic::{pubkey, symkey, SharedResult};
+use crate::model::crypto::AESKey;
+use crate::model::file_like::FileLike;
+use crate::model::secret_filename::SecretFileName;
+use crate::model::signed_file::SignedFile;
+use crate::model::{pubkey, symkey, SharedResult};
 use crate::service::keychain::Keychain;
 
 pub type DocumentHmac = [u8; 32];

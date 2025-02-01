@@ -1,10 +1,10 @@
-use crate::logic::file_like::FileLike;
-use crate::logic::lazy::{LazyStaged1, LazyTree};
-use crate::logic::server_file::{IntoServerFile, ServerFile};
-use crate::logic::server_tree::ServerTree;
-use crate::logic::signed_file::SignedFile;
-use crate::logic::tree_like::TreeLike;
-use crate::logic::{SharedErrorKind, SharedResult};
+use crate::model::file_like::FileLike;
+use crate::model::lazy::{LazyStaged1, LazyTree};
+use crate::model::server_file::{IntoServerFile, ServerFile};
+use crate::model::server_tree::ServerTree;
+use crate::model::signed_file::SignedFile;
+use crate::model::tree_like::TreeLike;
+use crate::model::{SharedErrorKind, SharedResult};
 use crate::model::clock::get_time;
 use crate::model::file_metadata::FileDiff;
 

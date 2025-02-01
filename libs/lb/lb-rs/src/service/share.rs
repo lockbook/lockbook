@@ -1,5 +1,5 @@
-use crate::logic::file_like::FileLike;
-use crate::logic::tree_like::TreeLike;
+use crate::model::file_like::FileLike;
+use crate::model::tree_like::TreeLike;
 use crate::model::api::GetPublicKeyRequest;
 use crate::model::errors::{LbErr, LbResult};
 use crate::model::file::{File, ShareMode};

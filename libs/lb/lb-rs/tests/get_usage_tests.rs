@@ -1,4 +1,4 @@
-use lb_rs::logic::file_like::FileLike;
+use lb_rs::model::file_like::FileLike;
 use lb_rs::model::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;

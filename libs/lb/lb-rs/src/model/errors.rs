@@ -9,7 +9,7 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::logic::{SharedError, SharedErrorKind, ValidationFailure};
+use crate::model::{SharedError, SharedErrorKind, ValidationFailure};
 use crate::service::network::ApiError;
 
 use super::api;

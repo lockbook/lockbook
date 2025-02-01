@@ -2,9 +2,9 @@ use std::fmt::Debug;
 
 use uuid::Uuid;
 
-use crate::logic::secret_filename::SecretFileName;
-use crate::logic::server_file::ServerFile;
-use crate::logic::signed_file::SignedFile;
+use crate::model::secret_filename::SecretFileName;
+use crate::model::server_file::ServerFile;
+use crate::model::signed_file::SignedFile;
 use crate::model::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMode};
 use crate::model::file_metadata::{DocumentHmac, FileMetadata, FileType, Owner};
 

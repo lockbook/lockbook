@@ -1,8 +1,8 @@
-use crate::logic::crypto::AESKey;
-use crate::logic::file_like::FileLike;
-use crate::logic::staged::StagedTree;
-use crate::logic::tree_like::{TreeLike, TreeLikeMut};
-use crate::logic::{symkey, SharedErrorKind, SharedResult};
+use crate::model::crypto::AESKey;
+use crate::model::file_like::FileLike;
+use crate::model::staged::StagedTree;
+use crate::model::tree_like::{TreeLike, TreeLikeMut};
+use crate::model::{symkey, SharedErrorKind, SharedResult};
 use crate::model::access_info::UserAccessMode;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_metadata::{FileType, Owner};

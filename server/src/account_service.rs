@@ -8,12 +8,12 @@ use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use db_rs::Db;
-use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::lazy::LazyTree;
-use lb_rs::logic::server_file::IntoServerFile;
-use lb_rs::logic::server_tree::ServerTree;
-use lb_rs::logic::tree_like::TreeLike;
-use lb_rs::logic::usage::bytes_to_human;
+use lb_rs::model::file_like::FileLike;
+use lb_rs::model::lazy::LazyTree;
+use lb_rs::model::server_file::IntoServerFile;
+use lb_rs::model::server_tree::ServerTree;
+use lb_rs::model::tree_like::TreeLike;
+use lb_rs::model::usage::bytes_to_human;
 use lb_rs::model::account::Username;
 use lb_rs::model::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lb_rs::model::api::{

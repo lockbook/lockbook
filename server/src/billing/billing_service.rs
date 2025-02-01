@@ -12,8 +12,8 @@ use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use base64::DecodeError;
 use db_rs::Db;
-use lb_rs::logic::server_tree::ServerTree;
-use lb_rs::logic::tree_like::TreeLike;
+use lb_rs::model::server_tree::ServerTree;
+use lb_rs::model::tree_like::TreeLike;
 use lb_rs::model::api::{
     AdminSetUserTierError, AdminSetUserTierInfo, AdminSetUserTierRequest, AdminSetUserTierResponse,
     AppStoreAccountState, CancelSubscriptionError, CancelSubscriptionRequest,

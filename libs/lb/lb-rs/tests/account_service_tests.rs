@@ -1,4 +1,4 @@
-use lb_rs::logic::pubkey;
+use lb_rs::model::pubkey;
 use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::model::errors::LbErrKind;
 use test_utils::*;

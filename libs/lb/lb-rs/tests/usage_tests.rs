@@ -1,4 +1,4 @@
-use lb_rs::logic::usage::bytes_to_human;
+use lb_rs::model::usage::bytes_to_human;
 
 #[tokio::test]
 async fn bytes_to_human_kb() {

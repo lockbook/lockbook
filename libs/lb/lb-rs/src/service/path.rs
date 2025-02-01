@@ -1,5 +1,5 @@
-use crate::logic::path_ops::Filter;
-use crate::logic::tree_like::TreeLike;
+use crate::model::path_ops::Filter;
+use crate::model::tree_like::TreeLike;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::Lb;

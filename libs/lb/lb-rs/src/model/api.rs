@@ -1,7 +1,7 @@
-use crate::logic::crypto::*;
-use crate::logic::server_file::ServerFile;
-use crate::logic::signed_file::SignedFile;
-use crate::logic::ValidationFailure;
+use crate::model::crypto::*;
+use crate::model::server_file::ServerFile;
+use crate::model::signed_file::SignedFile;
+use crate::model::ValidationFailure;
 use crate::model::account::Account;
 use crate::model::account::Username;
 use crate::model::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};

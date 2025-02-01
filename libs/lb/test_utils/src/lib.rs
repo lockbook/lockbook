@@ -1,7 +1,7 @@
 pub mod assert;
 
 use itertools::Itertools as _;
-use lb_rs::logic::crypto::EncryptedDocument;
+use lb_rs::model::crypto::EncryptedDocument;
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::model::core_config::Config;
 use lb_rs::model::work_unit::WorkUnit;
