@@ -4,7 +4,7 @@ use super::element::BoundedElement;
 
 use bezier_rs::{Bezier, Subpath};
 use egui::TouchPhase;
-use lb_rs::svg::element::{Element, ManipulatorGroupId};
+use lb_rs::model::svg::element::{Element, ManipulatorGroupId};
 
 pub fn pointer_intersects_element(
     el: &Element, pos: egui::Pos2, last_pos: Option<egui::Pos2>, error_radius: f64,

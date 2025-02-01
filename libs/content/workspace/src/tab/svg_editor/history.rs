@@ -1,7 +1,7 @@
 use std::{collections::VecDeque, fmt::Debug};
 
 use lb_rs::{
-    svg::{buffer::Buffer, element::Element},
+    model::svg::{buffer::Buffer, element::Element},
     Uuid,
 };
 use resvg::usvg::Transform;

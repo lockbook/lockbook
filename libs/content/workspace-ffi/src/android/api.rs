@@ -2,7 +2,7 @@ use egui::{PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
 use jni::JNIEnv;
-use lb_c::text::offset_types::DocCharOffset;
+use lb_c::model::text::offset_types::DocCharOffset;
 use lb_c::Uuid;
 use serde::Serialize;
 use std::panic::catch_unwind;

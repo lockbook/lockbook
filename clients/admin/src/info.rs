@@ -3,11 +3,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use basic_human_duration::ChronoHumanDuration;
 use lb::blocking::Lb;
-use lb::logic::file_like::FileLike;
-use lb::logic::lazy::LazyTree;
-use lb::logic::server_file::ServerFile;
-use lb::logic::tree_like::TreeLike;
 use lb::model::api::AccountIdentifier;
+use lb::model::file_like::FileLike;
+use lb::model::lazy::LazyTree;
+use lb::model::server_file::ServerFile;
+use lb::model::tree_like::TreeLike;
 use lb::Uuid;
 use time::Duration;
 

@@ -1,7 +1,7 @@
 use crate::tab::markdown_editor;
 use egui::{Pos2, Vec2};
-use lb_rs::text::offset_types::DocCharOffset;
-use lb_rs::text::offset_types::RangeExt as _;
+use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::RangeExt as _;
 use markdown_editor::appearance::Appearance;
 use markdown_editor::bounds::Text;
 use markdown_editor::galleys::{self, Galleys};

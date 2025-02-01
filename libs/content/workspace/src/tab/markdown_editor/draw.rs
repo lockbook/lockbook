@@ -16,7 +16,7 @@ use egui::{
     Align2, Color32, CursorIcon, FontId, PlatformOutput, Pos2, Rect, Rounding, Sense, Stroke,
     TextFormat, TextStyle, TextWrapMode, Ui, Vec2, WidgetText,
 };
-use lb_rs::text::offset_types::RangeExt;
+use lb_rs::model::text::offset_types::RangeExt;
 use pulldown_cmark::HeadingLevel;
 
 use super::input::cursor;

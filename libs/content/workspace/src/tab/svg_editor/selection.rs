@@ -2,7 +2,7 @@ use bezier_rs::Subpath;
 use egui_animation::{animate_bool_eased, easing};
 use glam::DVec2;
 use lb_rs::{
-    svg::element::{Element, ManipulatorGroupId},
+    model::svg::element::{Element, ManipulatorGroupId},
     Uuid,
 };
 use resvg::usvg::Transform;

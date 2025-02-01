@@ -1,6 +1,6 @@
-use crate::{
-    logic::{crypto::EncryptedDocument, SharedErrorKind, SharedResult},
-    model::{core_config::Config, file_metadata::DocumentHmac},
+use crate::model::{
+    core_config::Config, crypto::EncryptedDocument, file_metadata::DocumentHmac, SharedErrorKind,
+    SharedResult,
 };
 use std::{
     collections::HashSet,

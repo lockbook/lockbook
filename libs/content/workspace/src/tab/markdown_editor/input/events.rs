@@ -4,8 +4,8 @@ use crate::tab::{self, markdown_editor, ClipContent, ExtendedInput as _, Extende
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 use egui::{Context, EventFilter, Pos2, Stroke, ViewportCommand};
-use lb_rs::text::buffer;
-use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
+use lb_rs::model::text::buffer;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 use markdown_editor::input::{Event, Region};
 use markdown_editor::Editor;
 

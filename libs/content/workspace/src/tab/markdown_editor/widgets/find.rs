@@ -1,5 +1,5 @@
 use egui::{EventFilter, Frame, Id, Key, Label, Margin, Stroke, TextEdit, Ui, Widget as _};
-use lb_rs::text::{
+use lb_rs::model::text::{
     buffer::Buffer,
     offset_types::{DocByteOffset, DocCharOffset, RangeExt as _},
 };

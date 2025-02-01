@@ -1,4 +1,4 @@
-use crate::logic::{pubkey, SharedErrorKind, SharedResult};
+use crate::model::{pubkey, SharedErrorKind, SharedResult};
 use bip39_dict::Language;
 use libsecp256k1::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};

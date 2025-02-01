@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use lb_rs::svg::element::Element;
+use lb_rs::model::svg::element::Element;
 use lb_rs::Uuid;
 
 use super::toolbar::ToolContext;

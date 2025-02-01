@@ -477,7 +477,7 @@ pub struct LbPathsRes {
 pub extern "C" fn lb_list_folder_paths(lb: *mut Lb) -> LbPathsRes {
     let lb = rlb(lb);
 
-    match lb.list_paths(Some(logic::path_ops::Filter::FoldersOnly)) {
+    match lb.list_paths(Some(model::path_ops::Filter::FoldersOnly)) {
         Ok(paths) => {
             let (paths, len) = cstring_array(paths);
 

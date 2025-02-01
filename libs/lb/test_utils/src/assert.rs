@@ -1,10 +1,10 @@
 use crate::{get_dirty_ids, slices_equal_ignore_order, test_core_from};
-use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::path_ops::Filter::DocumentsOnly;
-use lb_rs::logic::staged::StagedTreeLikeMut;
-use lb_rs::logic::tree_like::TreeLike;
 use lb_rs::model::api::GetUpdatesRequest;
+use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{FileType, Owner};
+use lb_rs::model::path_ops::Filter::DocumentsOnly;
+use lb_rs::model::staged::StagedTreeLikeMut;
+use lb_rs::model::tree_like::TreeLike;
 use lb_rs::Lb;
 use uuid::Uuid;
 

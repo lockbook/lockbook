@@ -5,8 +5,8 @@ use egui::{
 
 use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
-use lb_rs::text::buffer::Buffer;
-use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::buffer::Buffer;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use lb_rs::Uuid;
 
 use crate::tab::markdown_editor;

@@ -4,7 +4,6 @@ use tokio::runtime::Runtime;
 use uuid::Uuid;
 
 use crate::{
-    logic::{crypto::DecryptedDocument, path_ops::Filter},
     model::{
         account::{Account, Username},
         api::{
@@ -13,9 +12,11 @@ use crate::{
             StripeAccountTier, SubscriptionInfo,
         },
         core_config::Config,
+        crypto::DecryptedDocument,
         errors::{LbResult, TestRepoError, Warning},
         file::{File, ShareMode},
         file_metadata::{DocumentHmac, FileType},
+        path_ops::Filter,
     },
     service::{
         activity::RankingWeights,

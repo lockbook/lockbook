@@ -2,11 +2,13 @@ use crate::tab::markdown_editor;
 use crate::tab::markdown_editor::bounds::Bounds;
 use crate::tab::markdown_editor::style::InlineNode;
 use egui::Pos2;
-use lb_rs::text::buffer;
-use lb_rs::text::buffer::Buffer;
-use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _, ToRangeExt as _};
-use lb_rs::text::operation_types::{Operation, Replace};
-use lb_rs::text::unicode_segs::UnicodeSegs;
+use lb_rs::model::text::buffer;
+use lb_rs::model::text::buffer::Buffer;
+use lb_rs::model::text::offset_types::{
+    DocCharOffset, RangeExt as _, RangeIterExt as _, ToRangeExt as _,
+};
+use lb_rs::model::text::operation_types::{Operation, Replace};
+use lb_rs::model::text::unicode_segs::UnicodeSegs;
 use markdown_editor::ast::{Ast, AstTextRangeType};
 use markdown_editor::bounds::{AstTextRanges, RangesExt};
 use markdown_editor::bounds::{BoundExt as _, Text};

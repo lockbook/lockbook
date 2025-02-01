@@ -1,9 +1,9 @@
-use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::secret_filename::SecretFileName;
-use lb_rs::logic::tree_like::TreeLike;
 use lb_rs::model::errors::TestRepoError::*;
 use lb_rs::model::errors::Warning::*;
+use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileType::Document;
+use lb_rs::model::secret_filename::SecretFileName;
+use lb_rs::model::tree_like::TreeLike;
 use rand::Rng;
 use test_utils::*;
 

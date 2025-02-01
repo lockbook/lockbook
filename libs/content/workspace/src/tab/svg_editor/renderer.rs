@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use egui::{Mesh, TextureHandle};
 use glam::f64::DVec2;
-use lb_rs::svg::diff::DiffState;
-use lb_rs::svg::element::{Element, Image, Path};
+use lb_rs::model::svg::diff::DiffState;
+use lb_rs::model::svg::element::{Element, Image, Path};
 use lb_rs::Uuid;
 use lyon::math::Point;
 use lyon::path::{AttributeIndex, LineCap, LineJoin};

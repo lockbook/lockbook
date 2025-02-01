@@ -1,5 +1,5 @@
 use lb::{
-    logic::usage::bytes_to_human,
+    model::usage::bytes_to_human,
     model::{errors::LbErr, file::File},
     service::usage::UsageMetrics,
 };

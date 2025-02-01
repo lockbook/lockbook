@@ -9,8 +9,8 @@ use crate::{
 use base64::DecodeError;
 use db_rs::DbError;
 use jsonwebtoken::errors::ErrorKind;
-use lb_rs::logic::{SharedError, SharedErrorKind};
 use lb_rs::model::api::*;
+use lb_rs::model::{SharedError, SharedErrorKind};
 use std::fmt::Debug;
 use std::io::Error;
 use std::sync::PoisonError;

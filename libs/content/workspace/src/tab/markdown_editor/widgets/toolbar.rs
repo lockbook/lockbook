@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use egui::{Frame, Margin, Separator, Stroke, Ui};
-use lb_rs::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::DocCharOffset;
 use pulldown_cmark::{HeadingLevel, LinkType};
 
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};

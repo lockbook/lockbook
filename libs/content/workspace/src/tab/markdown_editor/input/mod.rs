@@ -8,7 +8,7 @@ pub mod mutation;
 use egui::Pos2;
 
 use crate::tab::markdown_editor;
-use lb_rs::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::DocCharOffset;
 use markdown_editor::style::MarkdownNode;
 
 // This module processes input events, with the following major concerns:

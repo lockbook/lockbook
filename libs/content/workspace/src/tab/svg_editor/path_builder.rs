@@ -4,7 +4,7 @@ use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;
 use resvg::usvg::Transform;
 
-use lb_rs::svg::element::ManipulatorGroupId;
+use lb_rs::model::svg::element::ManipulatorGroupId;
 
 /// Build a cubic bézier path with Catmull-Rom smoothing and Ramer–Douglas–Peucker compression
 #[derive(Debug)]
