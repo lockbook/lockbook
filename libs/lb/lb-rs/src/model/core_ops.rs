@@ -1,14 +1,14 @@
+use crate::model::access_info::{UserAccessInfo, UserAccessMode};
 use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
+use crate::model::errors::{LbErrKind, LbResult};
+use crate::model::file::{File, Share, ShareMode};
+use crate::model::file_metadata::{FileMetadata, FileType, Owner};
 use crate::model::lazy::LazyTree;
 use crate::model::secret_filename::{HmacSha256, SecretFileName};
 use crate::model::signed_file::SignedFile;
 use crate::model::staged::{StagedTree, StagedTreeLike};
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use crate::model::{compression_service, symkey, validate};
-use crate::model::access_info::{UserAccessInfo, UserAccessMode};
-use crate::model::errors::{LbErrKind, LbResult};
-use crate::model::file::{File, Share, ShareMode};
-use crate::model::file_metadata::{FileMetadata, FileType, Owner};
 use crate::service::keychain::Keychain;
 use db_rs::LookupTable;
 use hmac::{Mac, NewMac};

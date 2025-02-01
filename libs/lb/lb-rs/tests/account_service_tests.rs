@@ -1,6 +1,6 @@
-use lb_rs::model::pubkey;
 use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::model::errors::LbErrKind;
+use lb_rs::model::pubkey;
 use test_utils::*;
 
 #[tokio::test]

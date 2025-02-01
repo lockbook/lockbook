@@ -1,10 +1,4 @@
 use super::network::ApiError;
-use crate::model::file_like::FileLike;
-use crate::model::filename::{DocumentType, NameComponents};
-use crate::model::signed_file::SignedFile;
-use crate::model::staged::StagedTreeLikeMut;
-use crate::model::tree_like::TreeLike;
-use crate::model::{symkey, SharedErrorKind, ValidationFailure};
 use crate::model::access_info::UserAccessMode;
 use crate::model::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
@@ -13,8 +7,14 @@ use crate::model::api::{
 use crate::model::clock;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
+use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
+use crate::model::filename::{DocumentType, NameComponents};
+use crate::model::signed_file::SignedFile;
+use crate::model::staged::StagedTreeLikeMut;
+use crate::model::tree_like::TreeLike;
 use crate::model::work_unit::WorkUnit;
+use crate::model::{symkey, SharedErrorKind, ValidationFailure};
 use crate::svg::buffer::u_transform_to_bezier;
 use crate::svg::element::Element;
 use crate::text::buffer::Buffer;

@@ -1,6 +1,6 @@
+use crate::model::account::Account;
 use crate::model::crypto::{AESEncrypted, AESKey};
 use crate::model::{pubkey, symkey, SharedResult};
-use crate::model::account::Account;
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 
@@ -59,9 +59,9 @@ impl UserAccessInfo {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::model::symkey;
     use crate::model::access_info::{UserAccessInfo, UserAccessMode};
     use crate::model::account::Account;
+    use crate::model::symkey;
 
     #[test]
     fn encrypt_decrypt_1() {

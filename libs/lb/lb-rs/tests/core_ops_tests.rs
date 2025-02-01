@@ -1,8 +1,8 @@
+use lb_rs::model::account::Account;
 use lb_rs::model::file_like::FileLike;
+use lb_rs::model::file_metadata::{FileMetadata, FileType};
 use lb_rs::model::symkey;
 use lb_rs::model::tree_like::TreeLike;
-use lb_rs::model::account::Account;
-use lb_rs::model::file_metadata::{FileMetadata, FileType};
 use lb_rs::service::keychain::Keychain;
 use test_utils::*;
 use uuid::Uuid;

@@ -5,7 +5,7 @@ use std::{
 };
 
 use cli_rs::cli_error::{CliError, CliResult};
-use lb_rs::{model::path_ops::Filter, model::file::File, Lb, Uuid};
+use lb_rs::{model::file::File, model::path_ops::Filter, Lb, Uuid};
 
 use crate::core;
 

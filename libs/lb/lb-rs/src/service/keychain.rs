@@ -5,8 +5,8 @@ use std::{
 
 use crate::{
     model::{
-        crypto::AESKey,
         account::Account,
+        crypto::AESKey,
         errors::{LbErrKind, LbResult},
     },
     Lb,

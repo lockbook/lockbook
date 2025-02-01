@@ -1,6 +1,6 @@
 use lb_rs::{
-    model::usage::bytes_to_human,
     model::api::{AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo},
+    model::usage::bytes_to_human,
     service::usage::{UsageItemMetric, UsageMetrics},
 };
 

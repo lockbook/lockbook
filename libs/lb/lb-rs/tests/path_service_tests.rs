@@ -1,6 +1,6 @@
-use lb_rs::model::path_ops::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file_metadata::FileType;
+use lb_rs::model::path_ops::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use test_utils::*;
 
 #[tokio::test]

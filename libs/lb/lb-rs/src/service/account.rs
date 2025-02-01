@@ -1,9 +1,9 @@
-use crate::model::file_like::FileLike;
 use crate::model::account::{Account, MAX_USERNAME_LENGTH};
 use crate::model::api::{
     DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequest,
 };
 use crate::model::errors::{core_err_unexpected, LbErrKind, LbResult};
+use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileMetadata, FileType, Owner};
 use crate::{Lb, DEFAULT_API_LOCATION};
 use libsecp256k1::SecretKey;
