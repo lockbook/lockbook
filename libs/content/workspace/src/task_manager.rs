@@ -5,7 +5,7 @@ use std::{mem, thread};
 
 use egui::Context;
 use lb_rs::blocking::Lb;
-use lb_rs::logic::crypto::DecryptedDocument;
+use lb_rs::model::crypto::DecryptedDocument;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::service::sync::{SyncProgress, SyncStatus};

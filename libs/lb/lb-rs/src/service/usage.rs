@@ -1,8 +1,8 @@
-use crate::logic::file_like::FileLike;
-use crate::logic::tree_like::TreeLike;
-use crate::logic::usage::{bytes_to_human, get_usage};
 use crate::model::api::{FileUsage, GetUsageRequest};
 use crate::model::errors::LbResult;
+use crate::model::file_like::FileLike;
+use crate::model::tree_like::TreeLike;
+use crate::model::usage::{bytes_to_human, get_usage};
 use crate::Lb;
 use serde::Serialize;
 use std::collections::HashMap;

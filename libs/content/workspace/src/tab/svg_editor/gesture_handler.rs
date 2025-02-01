@@ -5,7 +5,7 @@ use resvg::usvg::Transform;
 use tracing::trace;
 
 use super::element::BoundedElement;
-use lb_rs::svg::{buffer::u_transform_to_bezier, element::Element};
+use lb_rs::model::svg::{buffer::u_transform_to_bezier, element::Element};
 
 use super::{toolbar::ToolContext, Buffer};
 

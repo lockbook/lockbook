@@ -1,5 +1,5 @@
 use lb_rs::{
-    svg::{
+    model::svg::{
         diff::DiffState,
         element::{Element, Image},
     },

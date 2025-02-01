@@ -1,5 +1,5 @@
-use lb_rs::logic::file_like::FileLike;
 use lb_rs::model::api::*;
+use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileDiff;
 use test_utils::*;
 

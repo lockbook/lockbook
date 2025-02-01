@@ -1,11 +1,12 @@
 use egui::{Context, ViewportCommand};
 
 use lb_rs::blocking::Lb;
-use lb_rs::logic::filename::NameComponents;
 use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file_metadata::FileType;
-use lb_rs::svg::buffer::Buffer;
-use lb_rs::{svg, Uuid};
+use lb_rs::model::filename::NameComponents;
+use lb_rs::model::svg;
+use lb_rs::model::svg::buffer::Buffer;
+use lb_rs::Uuid;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};

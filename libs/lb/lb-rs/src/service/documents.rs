@@ -1,15 +1,15 @@
 use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 
-use crate::logic::crypto::DecryptedDocument;
-use crate::logic::file_like::FileLike;
-use crate::logic::lazy::LazyTree;
-use crate::logic::signed_file::SignedFile;
-use crate::logic::tree_like::TreeLike;
-use crate::logic::validate;
 use crate::model::clock::get_time;
+use crate::model::crypto::DecryptedDocument;
 use crate::model::errors::{LbErrKind, LbResult};
+use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileType};
+use crate::model::lazy::LazyTree;
+use crate::model::signed_file::SignedFile;
+use crate::model::tree_like::TreeLike;
+use crate::model::validate;
 use crate::Lb;
 use uuid::Uuid;
 

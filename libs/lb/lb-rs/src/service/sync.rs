@@ -1,23 +1,23 @@
 use super::network::ApiError;
-use crate::logic::file_like::FileLike;
-use crate::logic::filename::{DocumentType, NameComponents};
-use crate::logic::signed_file::SignedFile;
-use crate::logic::staged::StagedTreeLikeMut;
-use crate::logic::tree_like::TreeLike;
-use crate::logic::{symkey, SharedErrorKind, ValidationFailure};
 use crate::model::access_info::UserAccessMode;
 use crate::model::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
     GetUsernameError, GetUsernameRequest, UpsertRequest,
 };
-use crate::model::clock;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
+use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
+use crate::model::filename::{DocumentType, NameComponents};
+use crate::model::signed_file::SignedFile;
+use crate::model::staged::StagedTreeLikeMut;
+use crate::model::svg::buffer::u_transform_to_bezier;
+use crate::model::svg::element::Element;
+use crate::model::text::buffer::Buffer;
+use crate::model::tree_like::TreeLike;
 use crate::model::work_unit::WorkUnit;
-use crate::svg::buffer::u_transform_to_bezier;
-use crate::svg::element::Element;
-use crate::text::buffer::Buffer;
+use crate::model::{clock, svg};
+use crate::model::{symkey, SharedErrorKind, ValidationFailure};
 use crate::Lb;
 pub use basic_human_duration::ChronoHumanDuration;
 use futures::stream;
@@ -398,7 +398,7 @@ impl Lb {
                             }
                         }
                         return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topological order for file creations: {:?}",
+                            "sync failed to find a topomodelal order for file creations: {:?}",
                             deletion_creations
                         ))
                         .into());
@@ -477,7 +477,7 @@ impl Lb {
                             }
                         }
                         return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topological order for file creations: {:?}",
+                            "sync failed to find a topomodelal order for file creations: {:?}",
                             creations
                         ))
                         .into());
@@ -627,12 +627,11 @@ impl Lb {
                                         let local_document =
                                             String::from_utf8_lossy(&local_document).to_string();
 
-                                        let base_buffer =
-                                            crate::svg::buffer::Buffer::new(&base_document);
+                                        let base_buffer = svg::buffer::Buffer::new(&base_document);
                                         let remote_buffer =
-                                            crate::svg::buffer::Buffer::new(&remote_document);
+                                            svg::buffer::Buffer::new(&remote_document);
                                         let mut local_buffer =
-                                            crate::svg::buffer::Buffer::new(&local_document);
+                                            svg::buffer::Buffer::new(&local_document);
 
                                         for (_, el) in local_buffer.elements.iter_mut() {
                                             if let Element::Path(path) = el {
@@ -641,7 +640,7 @@ impl Lb {
                                                 ));
                                             }
                                         }
-                                        crate::svg::buffer::Buffer::reload(
+                                        svg::buffer::Buffer::reload(
                                             &mut local_buffer.elements,
                                             &mut local_buffer.weak_images,
                                             local_buffer.master_transform,
