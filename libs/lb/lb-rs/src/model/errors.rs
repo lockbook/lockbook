@@ -128,6 +128,8 @@ impl Display for LbErrKind {
             LbErrKind::ReReadRequired => {
                 write!(f, "This document changed since you last read it, please re-read it!")
             }
+            LbErrKind::Validation(validation_failure) => todo!(),
+            LbErrKind::Diff(diff_error) => todo!(),
         }
     }
 }
@@ -141,21 +143,11 @@ impl From<LbErrKind> for LbErr {
 impl From<SharedError> for LbErr {
     fn from(err: SharedError) -> Self {
         let kind = match err.kind {
-            SharedErrorKind::RootNonexistent => LbErrKind::RootNonexistent,
             SharedErrorKind::FileNonexistent => LbErrKind::FileNonexistent,
             SharedErrorKind::FileParentNonexistent => LbErrKind::FileParentNonexistent,
             SharedErrorKind::Unexpected(err) => LbErrKind::Unexpected(err.to_string()),
-            SharedErrorKind::PathContainsEmptyFileName => LbErrKind::PathContainsEmptyFileName,
-            SharedErrorKind::PathTaken => LbErrKind::PathTaken,
-            SharedErrorKind::FileNameContainsSlash => LbErrKind::FileNameContainsSlash,
-            SharedErrorKind::RootModificationInvalid => LbErrKind::RootModificationInvalid,
-            SharedErrorKind::DeletedFileUpdated(_) => LbErrKind::FileNonexistent,
-            SharedErrorKind::FileNameEmpty => LbErrKind::FileNameEmpty,
             SharedErrorKind::FileNotFolder => LbErrKind::FileNotFolder,
             SharedErrorKind::FileNotDocument => LbErrKind::FileNotDocument,
-            SharedErrorKind::InsufficientPermission => LbErrKind::InsufficientPermission,
-            SharedErrorKind::ShareNonexistent => LbErrKind::ShareNonexistent,
-            SharedErrorKind::DuplicateShare => LbErrKind::ShareAlreadyExists,
             SharedErrorKind::KeyPhraseInvalid => LbErrKind::KeyPhraseInvalid,
             SharedErrorKind::ValidationFailure(failure) => match failure {
                 ValidationFailure::Cycle(_) => LbErrKind::FolderMovedIntoSelf,
@@ -301,7 +293,18 @@ pub enum LbErrKind {
     UsernamePublicKeyMismatch,
     UsernameTaken,
     ReReadRequired,
+    Diff(DiffError),
+    Validation(ValidationFailure),
     Unexpected(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DiffError {
+    OldVersionIncorrect,
+    OldFileNotFound,
+    OldVersionRequired,
+    DiffMalformed,
+    HmacModificationInvalid,
 }
 
 pub fn core_err_unexpected<T: fmt::Debug>(err: T) -> LbErrKind {
@@ -494,6 +497,7 @@ impl From<SharedError> for TestRepoError {
                     Self::FileWithDifferentOwnerParent(id)
                 }
                 ValidationFailure::FileNameTooLong(id) => Self::FileNameTooLong(id),
+                ValidationFailure::DeletedFileUpdated(uuid) => todo!(),
             },
             _ => Self::Shared(err),
         }

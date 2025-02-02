@@ -770,7 +770,7 @@ impl Lb {
                         break merge_changes;
                     }
                     Err(ref err) => match err.kind {
-                        SharedErrorKind::ValidationFailure(ref vf) => match vf {
+                        LbErrKind::Validation(ref vf) => match vf {
                             // merge changeset has resolvable validation errors and needs modification
                             ValidationFailure::Cycle(ids) => {
                                 // revert all local moves in the cycle
@@ -893,6 +893,7 @@ impl Lb {
                             | ValidationFailure::NonFolderWithChildren(_)
                             | ValidationFailure::FileWithDifferentOwnerParent(_)
                             | ValidationFailure::FileNameTooLong(_)
+                            | ValidationFailure::DeletedFileUpdated(_)
                             | ValidationFailure::NonDecryptableFileName(_) => {
                                 validate_result?;
                             }

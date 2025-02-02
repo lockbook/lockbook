@@ -6,6 +6,8 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use uuid::Uuid;
 
+use super::errors::{LbErrKind, LbResult};
+
 pub trait TreeLike: Sized {
     type F: FileLike + Debug;
 
@@ -13,9 +15,9 @@ pub trait TreeLike: Sized {
     fn ids(&self) -> Vec<Uuid>;
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F>;
 
-    fn find(&self, id: &Uuid) -> SharedResult<&Self::F> {
+    fn find(&self, id: &Uuid) -> LbResult<&Self::F> {
         self.maybe_find(id)
-            .ok_or_else(|| SharedErrorKind::FileNonexistent.into())
+            .ok_or_else(|| LbErrKind::FileNonexistent.into())
     }
 
     fn maybe_find_parent<F2: FileLike>(&self, file: &F2) -> Option<&Self::F> {
@@ -27,7 +29,7 @@ pub trait TreeLike: Sized {
             .ok_or_else(|| SharedErrorKind::FileParentNonexistent.into())
     }
 
-    fn all_files(&self) -> SharedResult<Vec<&Self::F>> {
+    fn all_files(&self) -> LbResult<Vec<&Self::F>> {
         let ids = self.ids();
         let mut all = Vec::with_capacity(ids.len());
         for id in self.ids() {

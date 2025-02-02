@@ -55,13 +55,7 @@ impl From<SharedErrorKind> for SharedError {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SharedErrorKind {
-    PathContainsEmptyFileName,
-    PathTaken,
-    RootNonexistent,
     FileNonexistent,
-    FileNameContainsSlash,
-    RootModificationInvalid,
-    FileNameEmpty,
     FileParentNonexistent,
     FileNotFolder,
     FileNotDocument,
@@ -77,34 +71,9 @@ pub enum SharedErrorKind {
     HmacValidationError(MacError),
     ParseError(libsecp256k1::Error),
     ShareNonexistent,
-    DuplicateShare,
     SharedSecretUnexpectedSize,
     SharedSecretError(libsecp256k1::Error),
     ValidationFailure(ValidationFailure),
-
-    /// Arises during a call to upsert, when the caller does not have the correct old version of the
-    /// File they're trying to modify
-    OldVersionIncorrect,
-
-    /// Arises during a call to upsert, when the old file is not known to the server
-    OldFileNotFound,
-
-    /// Arises during a call to upsert, when the caller suggests that a file is new, but the id already
-    /// exists
-    OldVersionRequired,
-
-    /// Arises during a call to upsert, when the person making the request is not an owner of the file
-    /// or has not signed the update
-    InsufficientPermission,
-
-    /// Arises during a call to upsert, when a diff's new.id != old.id
-    DiffMalformed,
-
-    /// Metas in upsert cannot contain changes to digest
-    HmacModificationInvalid,
-
-    /// Found update to a deleted file
-    DeletedFileUpdated(Uuid),
 
     Io(String),
 
