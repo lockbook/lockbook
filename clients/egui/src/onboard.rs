@@ -447,7 +447,7 @@ You can't change your username later."#
             }
             Route::Import => {
                 r#"Enter your phrase or private key.
- If you enter a phrase, please separate each word by a space or comma."#
+If you enter a phrase, please separate each word by a space or comma."#
             }
             Route::Welcome => {
                 r#"The private note-taking platform.
