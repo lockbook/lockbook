@@ -1,4 +1,4 @@
-use super::data::{lockbook_data, Graph, LinkNode};
+use super::data::{lockbook_data, start_extraction_names, Graph, LinkNode, URL_NAME_STORE};
 use egui::ahash::{HashMap, HashMapExt};
 use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
@@ -35,6 +35,9 @@ pub struct MindMap {
     last_fps_update: Instant,
     inside: Option<Uuid>,
     inside_found: bool,
+    urls_complete: bool,
+    names_uploaded: bool,
+    url_titles: Vec<String>,
 }
 
 impl Grid {
@@ -95,6 +98,9 @@ impl MindMap {
             last_fps_update: Instant::now(),
             inside: None,
             inside_found: false,
+            urls_complete: false,
+            names_uploaded: false,
+            url_titles: vec!["".to_string(); graph.len()],
         }
     }
 
@@ -334,6 +340,14 @@ impl MindMap {
             let pos_lock = self.thread_positions.read().unwrap();
             pos_lock.clone()
         };
+        if !self.urls_complete {
+            let info = &URL_NAME_STORE.lock().unwrap().clone();
+            let completed = info.first().unwrap().found;
+            if completed {
+                self.urls_complete = true;
+                self.populate_url_titles();
+            }
+        }
         self.last_pan += self.pan / self.zoom_factor;
         self.pan = Vec2::ZERO;
         let is_dark_mode = ui.ctx().style().visuals.dark_mode;
@@ -409,7 +423,9 @@ impl MindMap {
                 text = text.trim_end_matches(")").to_string();
             }
             text = truncate_after_second_punct(&text);
-
+            if self.names_uploaded {
+                text = self.url_titles[i].clone();
+            }
             if node.cluster_id.is_some() {
                 let pos = transformed_positions[i];
                 ui.painter().circle(
@@ -465,6 +481,15 @@ impl MindMap {
         } else {
             false
         }
+    }
+
+    fn populate_url_titles(&mut self) {
+        let info = URL_NAME_STORE.lock().unwrap();
+        let count = 0;
+        for item in info.iter() {
+            self.url_titles[count] = item.name.clone();
+        }
+        self.names_uploaded = true;
     }
 
     pub fn label_subgraphs(&mut self) {
@@ -615,6 +640,9 @@ impl MindMap {
                 Self::apply_spring_layout(postioninfo, &graph, 2500000, screen, stop, linkess);
             });
         }
+        if !self.urls_complete {
+            thread::spawn(move || start_extraction_names());
+        }
 
         self.draw_graph(ui, screen_size);
         ui.ctx().request_repaint();
@@ -703,11 +731,16 @@ fn intersect_stuff(from: Pos2, to: Pos2, size: f32, zero: bool) -> Pos2 {
 }
 fn truncate_after_second_punct(text: &str) -> String {
     let mut punct_count = 0;
+    let len = text.len();
     for (i, c) in text.char_indices() {
-        if c == '.' || c == '?' || c == '-' {
+        // if c == '.' || c == '?' || c == '-' {
+        if c == '?' {
             punct_count += 1;
-            if punct_count == 2 {
-                return text[..=i].to_string();
+            if punct_count == 1 {
+                if i == len && c == '/' {
+                    return text[..=i - 1].to_string();
+                }
+                return text[..=i - 1].to_string();
             }
         }
     }

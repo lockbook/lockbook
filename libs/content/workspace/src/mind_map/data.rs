@@ -1,6 +1,16 @@
 use lb_rs::{blocking::Lb, Uuid};
 use linkify::{LinkFinder, LinkKind};
+use regex::Regex;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::sync::mpsc;
+use std::sync::Mutex;
+use std::time::Duration;
+use tokio::runtime::Runtime;
+
+lazy_static::lazy_static! {
+    pub static ref URL_NAME_STORE: Mutex<Vec<LinkInfo>> = Mutex::new(Vec::new());
+}
 
 pub type Graph = Vec<LinkNode>;
 
@@ -22,11 +32,22 @@ pub struct NameId {
     pub links: Vec<usize>,
     pub internal: bool,
     pub file_id: Option<Uuid>,
+    pub url: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct LinkInfo {
+    pub id: usize,
+    pub url: String,
+    pub name: String,
+    pub found: bool,
 }
 
 impl NameId {
-    fn new(id: usize, name: String, links: Vec<usize>, file_id: Option<Uuid>) -> Self {
-        NameId { id, name, links, internal: true, file_id }
+    fn new(
+        id: usize, name: String, links: Vec<usize>, file_id: Option<Uuid>, url: Option<String>,
+    ) -> Self {
+        NameId { id, name, links, internal: true, file_id, url }
     }
 }
 
@@ -67,13 +88,27 @@ pub fn lockbook_data(core: &Lb) -> Graph {
         let file_id = n.2;
         let links = check_for_links(&mut classify, &mut id, &doc);
         id += 1;
-        classify.push(NameId::new(classify.len(), name.clone(), links, Some(file_id)));
+        classify.push(NameId::new(classify.len(), name.clone(), links, Some(file_id), None));
     }
+
+    // Populate the global URL_NAME_STORE
+    let mut store = URL_NAME_STORE.lock().unwrap();
+    *store = classify
+        .iter()
+        .filter_map(|item| {
+            item.url.as_ref().map(|url| LinkInfo {
+                id: item.id,
+                url: url.clone(),
+                name: item.name.clone(),
+                found: false,
+            })
+        })
+        .collect();
+
     for item in classify.iter() {
         let links = item.links.clone();
         if item.links.contains(&item.id) {
             let links = remove(links, &item.id);
-
             graph.push(LinkNode::new(item.id, item.name.to_string(), links, item.file_id));
         } else {
             graph.push(LinkNode::new(item.id, item.name.to_string(), links, item.file_id));
@@ -85,12 +120,8 @@ pub fn lockbook_data(core: &Lb) -> Graph {
 
 fn remove(links: Vec<usize>, id: &usize) -> Vec<usize> {
     let mut output = links.clone();
-    let mut index;
-    for (count, link) in links.into_iter().enumerate() {
-        if &link == id {
-            index = count;
-            output.remove(index);
-        }
+    if let Some(pos) = output.iter().position(|x| x == id) {
+        output.remove(pos);
     }
     output
 }
@@ -100,7 +131,15 @@ fn check_for_links(classify: &mut Vec<NameId>, id: &mut usize, doc: &str) -> Vec
     let link_names = find_links(doc);
 
     for link in link_names {
-        let link_id = in_classify(&link, classify);
+        let url = link.clone();
+        let parts: Vec<&str> = link.split('/').collect();
+        let domain_name: &str = if parts.len() > 1 {
+            Box::leak(format!("{}/{}", parts[0], parts[1]).into_boxed_str())
+        } else {
+            parts[0]
+        };
+        let link = domain_name;
+        let link_id = in_classify(&link.to_string(), classify);
         if let Some(link_id) = link_id {
             if !links.contains(&link_id) {
                 links.push(link_id);
@@ -108,7 +147,7 @@ fn check_for_links(classify: &mut Vec<NameId>, id: &mut usize, doc: &str) -> Vec
         } else {
             links.push(*id);
             *id += 1;
-            classify.push(NameId::new(classify.len(), link.clone(), vec![], None));
+            classify.push(NameId::new(classify.len(), link.to_string(), vec![], None, Some(url)));
         }
     }
 
@@ -138,23 +177,78 @@ fn extract_website_name(url: &str) -> String {
         .replace("http://", "")
         .replace("www.", "");
 
-    let parts: Vec<&str> = domain.split('/').collect();
-    let domain_name: &str = if parts.len() > 1 {
-        Box::leak(format!("{}/{}", parts[0], parts[1]).into_boxed_str())
-    } else {
-        parts[0]
-    };
-    domain_name.to_string()
+    domain.to_string()
 }
 
 fn in_classify(name: &String, classify: &Vec<NameId>) -> Option<usize> {
-    let mut id: Option<usize> = None;
-    for linkinfo in classify {
-        if &linkinfo.name == name {
-            let optional_num: Option<usize> = Some(linkinfo.id);
-            id = optional_num;
-            break;
+    classify.iter().find_map(
+        |linkinfo| {
+            if &linkinfo.name == name {
+                Some(linkinfo.id)
+            } else {
+                None
+            }
+        },
+    )
+}
+
+pub fn start_extraction_names() {
+    let (tx, rx) = mpsc::channel();
+    let mut handles = vec![];
+
+    // Clone data outside async context
+    let url_name = URL_NAME_STORE.lock().unwrap().clone();
+
+    // Create single runtime
+    let rt = Runtime::new().unwrap();
+
+    for (i, link_info) in url_name.iter().enumerate() {
+        println!("{:?}", &i);
+        let url = link_info.url.clone();
+        let tx = tx.clone();
+
+        // Spawn async task on the runtime
+        handles.push(rt.spawn(async move {
+            let result = get_url_names(url).await;
+            tx.send((i, result)).unwrap();
+        }));
+    }
+
+    drop(tx);
+
+    // Process results
+    for received in rx {
+        let (index, result) = received;
+        let mut store = URL_NAME_STORE.lock().unwrap();
+        if let Ok(name) = result {
+            store[index].found = true;
+            store[index].name = name;
         }
     }
-    id
+
+    // Block until all tasks complete
+    rt.block_on(async {
+        for handle in handles {
+            handle.await.unwrap();
+        }
+    });
+}
+
+async fn get_url_names(
+    url: String,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync + 'static>> {
+    let client = Client::builder()
+        .timeout(Duration::from_millis(250))
+        .build()?;
+
+    let response = client.get(&url).send().await?;
+    let body = response.bytes().await?;
+    let title_re = Regex::new(r"<title>(.*?)</title>")?;
+
+    let title = match title_re.captures(&String::from_utf8_lossy(&body)) {
+        Some(caps) => caps[1].trim().to_string(),
+        None => url.clone(),
+    };
+
+    Ok(title)
 }
