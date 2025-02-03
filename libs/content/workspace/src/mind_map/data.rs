@@ -3,7 +3,9 @@ use linkify::{LinkFinder, LinkKind};
 use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::sync::mpsc;
+use std::sync::atomic::AtomicIsize;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use tokio::runtime::Runtime;
@@ -193,37 +195,35 @@ fn in_classify(name: &String, classify: &Vec<NameId>) -> Option<usize> {
 }
 
 pub fn start_extraction_names() {
-    let (tx, rx) = mpsc::channel();
-    let mut handles = vec![];
-
-    // Clone data outside async context
-    let url_name = URL_NAME_STORE.lock().unwrap().clone();
-
-    // Create single runtime
+    let link_infos: Vec<LinkInfo> = URL_NAME_STORE.lock().unwrap().clone();
     let rt = Runtime::new().unwrap();
 
-    for (i, link_info) in url_name.iter().enumerate() {
-        println!("{:?}", &i);
-        let url = link_info.url.clone();
-        let tx = tx.clone();
+    // Workers take one work unit at a time from the queue and send the results back over the channel
+    // Work units are represented as indexes into the link_infos array, so the queue is represented as simply the next
+    // index to be processed.
+    let queue = Arc::new(AtomicIsize::new((link_infos.len() - 1) as isize));
+    let mut handles = vec![];
 
-        // Spawn async task on the runtime
+    const NUM_WORKERS: usize = 100;
+    for _ in 0..NUM_WORKERS {
+        let queue = queue.clone();
         handles.push(rt.spawn(async move {
-            let result = get_url_names(url).await;
-            tx.send((i, result)).unwrap();
+            // Atomically grab a work unit from the queue
+            let index = queue.fetch_sub(1, Ordering::SeqCst);
+            if index <= 0 {
+                return;
+            }
+
+            // Perform the work and put the results directly into the global store
+            let index = (index - 1) as usize;
+            let clone = URL_NAME_STORE.lock().unwrap().clone();
+            if let Ok(name) = get_url_names(&clone[index].url).await {
+                // Update the global store with the result, re-locking as to not hold a lock across an await
+                let mut store = URL_NAME_STORE.lock().unwrap();
+                store[index].found = true;
+                store[index].name = name;
+            }
         }));
-    }
-
-    drop(tx);
-
-    // Process results
-    for received in rx {
-        let (index, result) = received;
-        let mut store = URL_NAME_STORE.lock().unwrap();
-        if let Ok(name) = result {
-            store[index].found = true;
-            store[index].name = name;
-        }
     }
 
     // Block until all tasks complete
@@ -235,19 +235,19 @@ pub fn start_extraction_names() {
 }
 
 async fn get_url_names(
-    url: String,
+    url: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync + 'static>> {
     let client = Client::builder()
         .timeout(Duration::from_millis(250))
         .build()?;
 
-    let response = client.get(&url).send().await?;
+    let response = client.get(url).send().await?;
     let body = response.bytes().await?;
     let title_re = Regex::new(r"<title>(.*?)</title>")?;
 
     let title = match title_re.captures(&String::from_utf8_lossy(&body)) {
         Some(caps) => caps[1].trim().to_string(),
-        None => url.clone(),
+        None => url.to_owned(),
     };
 
     Ok(title)
