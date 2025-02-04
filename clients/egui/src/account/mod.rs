@@ -17,7 +17,6 @@ use lb::model::file_metadata::FileType;
 use lb::service::import_export::ImportStatus;
 use lb::Uuid;
 use tree::FilesExt;
-use workspace_rs::tab::TabContent;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::Workspace;

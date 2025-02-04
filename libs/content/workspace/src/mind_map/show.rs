@@ -4,8 +4,6 @@ use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
 use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
-
-use std::collections::VecDeque;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
