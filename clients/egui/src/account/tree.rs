@@ -15,13 +15,12 @@ use egui::{
 use egui_notify::Toasts;
 use lb::{
     blocking::Lb,
-    logic::filename::DocumentType,
     model::{file::File, file_metadata::FileType},
     service::activity::RankingWeights,
     Uuid,
 };
 use rfd::FileDialog;
-use workspace_rs::{theme::icons::Icon, widgets::Button};
+use workspace_rs::{show::DocType, theme::icons::Icon, widgets::Button};
 
 #[derive(Debug)]
 pub struct FileTree {
@@ -940,34 +939,15 @@ impl FileTree {
                     default_fill = ui.style().visuals.selection.bg_fill
                 }
 
-                let doc_type = DocumentType::from_file_name_using_extension(&file.name);
-
-                let file_resp = match doc_type {
-                    DocumentType::Text => Button::default()
-                        .icon(&Icon::DOC_TEXT)
-                        .text(text)
-                        .default_fill(default_fill)
-                        .frame(true)
-                        .hexpand(true)
-                        .indent(15.)
-                        .show(ui),
-                    DocumentType::Drawing => Button::default()
-                        .icon(&Icon::DRAW)
-                        .text(text)
-                        .default_fill(default_fill)
-                        .frame(true)
-                        .hexpand(true)
-                        .indent(15.)
-                        .show(ui),
-                    DocumentType::Other => Button::default()
-                        .icon(&Icon::DOC_UNKNOWN)
-                        .text(text)
-                        .default_fill(default_fill)
-                        .frame(true)
-                        .hexpand(true)
-                        .indent(15.)
-                        .show(ui),
-                };
+                let icon = DocType::from_name(&file.name).to_icon();
+                let file_resp = Button::default()
+                    .icon(&icon)
+                    .text(text)
+                    .default_fill(default_fill)
+                    .frame(true)
+                    .hexpand(true)
+                    .indent(15.)
+                    .show(ui);
 
                 if file_resp.clicked() {
                     ui.memory_mut(|m| m.request_focus(suggested_docs_id));
@@ -1064,14 +1044,9 @@ impl FileTree {
 
         // render
         let file_resp = if file.is_document() {
-            let doc_type = DocumentType::from_file_name_using_extension(&file.name);
-            let icon = match doc_type {
-                DocumentType::Text => &Icon::DOC_TEXT,
-                DocumentType::Drawing => &Icon::DRAW,
-                DocumentType::Other => &Icon::DOC_UNKNOWN,
-            };
+            let icon = DocType::from_name(&file.name).to_icon();
             let file_resp = Button::default()
-                .icon(icon)
+                .icon(&icon)
                 .text(text)
                 .default_fill(default_fill)
                 .frame(true)

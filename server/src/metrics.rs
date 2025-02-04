@@ -6,11 +6,11 @@ use crate::document_service::DocumentService;
 use crate::schema::ServerDb;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
-use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::server_tree::ServerTree;
-use lb_rs::logic::tree_like::TreeLike;
 use lb_rs::model::clock::get_time;
+use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
+use lb_rs::model::server_tree::ServerTree;
+use lb_rs::model::tree_like::TreeLike;
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
 use std::fmt::Debug;
@@ -93,7 +93,7 @@ where
         loop {
             info!("Metrics refresh started");
 
-            let public_keys_and_usernames = self.index_db.lock()?.usernames.get().clone();
+            let public_keys_and_usernames = self.index_db.lock().await.usernames.get().clone();
 
             let total_users_ever = public_keys_and_usernames.len() as i64;
             let mut total_documents = 0;
@@ -109,7 +109,7 @@ where
 
             for (username, owner) in public_keys_and_usernames {
                 {
-                    let mut db = self.index_db.lock()?;
+                    let mut db = self.index_db.lock().await;
                     let maybe_user_info = Self::get_user_info(&mut db, owner)?;
 
                     let user_info = match maybe_user_info {

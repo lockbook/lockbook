@@ -1,6 +1,6 @@
-use crate::logic::file_like::FileLike;
-use crate::logic::tree_like::{TreeLike, TreeLikeMut};
-use crate::logic::SharedResult;
+use crate::model::file_like::FileLike;
+use crate::model::tree_like::{TreeLike, TreeLikeMut};
+use crate::model::SharedResult;
 use serde::Serialize;
 use uuid::Uuid;
 

@@ -13,8 +13,8 @@ android {
         applicationId "app.lockbook"
         minSdkVersion 24
         targetSdkVersion 34
-        versionCode 55
-        versionName "0.9.17"
+        versionCode 56
+        versionName "0.9.18"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

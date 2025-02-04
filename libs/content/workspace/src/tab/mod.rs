@@ -1,3 +1,5 @@
+use crate::file_cache::FileCache;
+use crate::file_cache::FilesExt as _;
 use crate::mind_map::show::MindMap;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
@@ -6,16 +8,18 @@ use crate::tab::svg_editor::SVGEditor;
 use crate::task_manager::TaskManager;
 use crate::theme::icons::Icon;
 use crate::workspace::Workspace;
+
 use chrono::DateTime;
 use egui::Id;
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
-use lb_rs::{svg, Uuid};
+use lb_rs::model::svg;
+use lb_rs::Uuid;
+use std::ops::IndexMut;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
-use tracing::instrument;
 
 pub mod image_viewer;
 pub mod markdown_editor;
@@ -23,22 +27,105 @@ pub mod pdf_viewer;
 pub mod svg_editor;
 
 pub struct Tab {
-    pub id: lb_rs::Uuid,
-    pub name: String,
-    pub rename: Option<String>,
-    pub path: String,
-    pub failure: Option<TabFailure>,
-    pub content: Option<TabContent>,
-    pub is_closing: bool,
+    pub content: ContentState,
 
-    pub is_new_file: bool,
     pub last_changed: Instant,
     pub last_saved: Instant,
+
+    pub rename: Option<String>,
+    pub is_closing: bool,
 }
 
 impl Tab {
+    pub fn id(&self) -> Option<Uuid> {
+        match &self.content {
+            ContentState::Loading(id) => Some(*id),
+            ContentState::Open(TabContent::Markdown(md)) => Some(md.file_id),
+            ContentState::Open(TabContent::Svg(svg)) => Some(svg.open_file),
+            _ => None,
+        }
+    }
+
+    pub fn hmac(&self) -> Option<DocumentHmac> {
+        match &self.content {
+            ContentState::Open(TabContent::Markdown(md)) => md.hmac,
+            ContentState::Open(TabContent::Svg(svg)) => svg.open_file_hmac,
+            _ => None,
+        }
+    }
+
+    pub fn seq(&self) -> usize {
+        match &self.content {
+            ContentState::Open(TabContent::Markdown(md)) => md.buffer.current.seq,
+            _ => 0,
+        }
+    }
+
+    pub fn markdown(&self) -> Option<&Markdown> {
+        match &self.content {
+            ContentState::Open(TabContent::Markdown(md)) => Some(md),
+            _ => None,
+        }
+    }
+
+    pub fn markdown_mut(&mut self) -> Option<&mut Markdown> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Markdown(md)) => Some(md),
+            _ => None,
+        }
+    }
+
+    pub fn svg(&self) -> Option<&SVGEditor> {
+        match &self.content {
+            ContentState::Open(TabContent::Svg(svg)) => Some(svg),
+            _ => None,
+        }
+    }
+
+    pub fn svg_mut(&mut self) -> Option<&mut SVGEditor> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Svg(svg)) => Some(svg),
+            _ => None,
+        }
+    }
+
+    pub fn mind_map(&self) -> Option<&MindMap> {
+        match &self.content {
+            ContentState::Open(TabContent::MindMap(mm)) => Some(mm),
+            _ => None,
+        }
+    }
+
+    pub fn mind_map_mut(&mut self) -> Option<&mut MindMap> {
+        match &mut self.content {
+            ContentState::Open(TabContent::MindMap(mm)) => Some(mm),
+            _ => None,
+        }
+    }
+
+    /// Clones the content required to save the tab. This is intended for use on the UI thread. Returns `None` if the
+    /// tab does not have an editable file type open.
+    pub fn clone_content(&self) -> Option<TabSaveContent> {
+        match &self.content {
+            ContentState::Open(content) => content.clone_content(),
+            _ => None,
+        }
+    }
+
+    pub fn title(&self, files: &Option<FileCache>) -> String {
+        match (self.id(), files) {
+            (Some(id), Some(files)) => files
+                .files
+                .get_by_id(id)
+                .map(|f| f.name.clone())
+                .unwrap_or("Unknown".into()),
+            (Some(_), None) => "Loading".into(),
+            (None, _) => "Mind Map".into(),
+        }
+    }
+
     pub fn is_dirty(&self, tasks: &TaskManager) -> bool {
-        if let Some(queued_at) = tasks.save_queued_at(self.id) {
+        if let Some(queued_at) = self.id().and_then(|id| tasks.save_queued_at(id)) {
             self.last_changed > queued_at
         } else {
             self.last_changed > self.last_saved
@@ -46,12 +133,40 @@ impl Tab {
     }
 }
 
+pub trait TabsExt: IndexMut<usize, Output = Tab> {
+    fn position_by_id(&self, id: Uuid) -> Option<usize>;
+    fn get_by_id(&self, id: Uuid) -> Option<&Tab> {
+        self.position_by_id(id).map(|pos| &self[pos])
+    }
+    fn get_mut_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
+        self.position_by_id(id).map(move |pos| &mut self[pos])
+    }
+}
+
+impl TabsExt for [Tab] {
+    fn position_by_id(&self, id: Uuid) -> Option<usize> {
+        self.iter().position(|tab| tab.id() == Some(id))
+    }
+}
+
+impl TabsExt for Vec<Tab> {
+    fn position_by_id(&self, id: Uuid) -> Option<usize> {
+        self.iter().position(|tab| tab.id() == Some(id))
+    }
+}
+
+pub enum ContentState {
+    Loading(Uuid),
+    Open(TabContent),
+    Failed(TabFailure),
+}
+
 pub enum TabContent {
     Image(ImageViewer),
     Markdown(Markdown),
     Pdf(PdfViewer),
     Svg(SVGEditor),
-    Graph(MindMap),
+    MindMap(MindMap),
 }
 
 impl std::fmt::Debug for TabContent {
@@ -61,12 +176,20 @@ impl std::fmt::Debug for TabContent {
             TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
-            TabContent::Graph(_) => write!(f, "TabContent::Graph"),
+            TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
         }
     }
 }
 
 impl TabContent {
+    pub fn id(&self) -> Option<Uuid> {
+        match self {
+            TabContent::Markdown(md) => Some(md.file_id),
+            TabContent::Svg(svg) => Some(svg.open_file),
+            _ => None,
+        }
+    }
+
     pub fn hmac(&self) -> Option<DocumentHmac> {
         match self {
             TabContent::Markdown(md) => md.hmac,
@@ -82,8 +205,8 @@ impl TabContent {
         }
     }
 
-    /// Clones the content required to save the tab. This is intended for use on the UI thread.
-    #[instrument(level = "error", skip_all)]
+    /// Clones the content required to save the tab. This is intended for use on the UI thread. Returns `None` if the
+    /// content type is not editable.
     pub fn clone_content(&self) -> Option<TabSaveContent> {
         match self {
             TabContent::Markdown(md) => {
@@ -116,7 +239,6 @@ impl TabSaveContent {
 
 #[derive(Debug)]
 pub enum TabFailure {
-    DeletedFromSync,
     SimpleMisc(String),
     Unexpected(String),
 }
@@ -126,6 +248,15 @@ impl From<LbErr> for TabFailure {
         match err.kind {
             LbErrKind::Unexpected(msg) => Self::Unexpected(msg),
             _ => Self::SimpleMisc(format!("{:?}", err)),
+        }
+    }
+}
+
+impl TabFailure {
+    pub fn msg(&self) -> String {
+        match self {
+            TabFailure::SimpleMisc(msg) => msg.clone(),
+            TabFailure::Unexpected(msg) => format!("Unexpected error: {}", msg),
         }
     }
 }
@@ -178,23 +309,24 @@ impl TabStatus {
 }
 
 impl Workspace {
-    pub fn tab_status(&self, id: Uuid) -> TabStatus {
-        if let Some(tab) = self.tabs.iter().find(|t| t.id == id) {
-            if self.tasks.load_in_progress(tab.id) {
-                TabStatus::LoadInProgress
-            } else if self.tasks.save_in_progress(tab.id) {
-                TabStatus::SaveInProgress
-            } else if self.tasks.load_queued(tab.id) {
-                TabStatus::LoadQueued
-            } else if self.tasks.save_queued(tab.id) {
-                TabStatus::SaveQueued
-            } else if tab.is_dirty(&self.tasks) {
-                TabStatus::Dirty
-            } else {
-                TabStatus::Clean
-            };
+    pub fn tab_status(&self, i: usize) -> TabStatus {
+        if let Some(tab) = self.tabs.get(i) {
+            if let Some(id) = tab.id() {
+                if self.tasks.load_in_progress(id) {
+                    return TabStatus::LoadInProgress;
+                } else if self.tasks.save_in_progress(id) {
+                    return TabStatus::SaveInProgress;
+                } else if self.tasks.load_queued(id) {
+                    return TabStatus::LoadQueued;
+                } else if self.tasks.save_queued(id) {
+                    return TabStatus::SaveQueued;
+                }
+            }
+            if tab.is_dirty(&self.tasks) {
+                return TabStatus::Dirty;
+            }
         }
-        TabStatus::Clean
+        TabStatus::Clean // can't get any cleaner than nonexistent!
     }
 }
 

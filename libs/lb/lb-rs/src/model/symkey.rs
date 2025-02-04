@@ -1,5 +1,5 @@
-use crate::logic::crypto::*;
-use crate::logic::{SharedErrorKind, SharedResult};
+use crate::model::crypto::*;
+use crate::model::{SharedErrorKind, SharedResult};
 use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;
 use rand::rngs::OsRng;
@@ -46,7 +46,7 @@ pub fn generate_nonce() -> [u8; 12] {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::logic::symkey::{decrypt, encrypt, generate_key};
+    use crate::model::symkey::{decrypt, encrypt, generate_key};
 
     #[test]
     fn test_generate_encrypt_decrypt() {

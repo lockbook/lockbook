@@ -2,14 +2,14 @@ use egui::{PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
 use jni::JNIEnv;
-use lb_c::text::offset_types::DocCharOffset;
+use lb_c::model::text::offset_types::DocCharOffset;
 use lb_c::Uuid;
 use serde::Serialize;
 use std::panic::catch_unwind;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
 use workspace_rs::tab::svg_editor::Tool;
-use workspace_rs::tab::ExtendedInput;
 use workspace_rs::tab::TabContent;
+use workspace_rs::tab::{ContentState, ExtendedInput};
 
 use super::keyboard::AndroidKeys;
 use super::response::*;
@@ -215,6 +215,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     obj.workspace.open_file(id, new_file == 1, true);
 }
 
+// todo: can't close non-file tabs (mind map)
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
     mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
@@ -224,7 +225,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
-    if let Some(tab_id) = obj.workspace.tabs.iter().position(|tab| tab.id == id) {
+    if let Some(tab_id) = obj
+        .workspace
+        .tabs
+        .iter()
+        .position(|tab| tab.id() == Some(id))
+    {
         obj.workspace.close_tab(tab_id);
     }
 }
@@ -254,15 +260,19 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
 
     match obj.workspace.current_tab() {
         Some(tab) => match &tab.content {
-            Some(tab) => match tab {
+            ContentState::Open(tab) => match tab {
                 TabContent::Image(_) => 2,
                 TabContent::Markdown(_) => 3,
                 // TabContent::PlainText(_) => 4,
                 TabContent::Pdf(_) => 5,
                 TabContent::Svg(_) => 6,
+<<<<<<< HEAD
                 TabContent::Graph(_) => 7,
+=======
+                TabContent::MindMap(_) => 7,
+>>>>>>> 00bb744c73ae6ae2ad36af7e34a2c4cb41158ee3
             },
-            None => 1,
+            _ => 1,
         },
         None => 0,
     }

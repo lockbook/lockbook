@@ -12,8 +12,6 @@ use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use base64::DecodeError;
 use db_rs::Db;
-use lb_rs::logic::server_tree::ServerTree;
-use lb_rs::logic::tree_like::TreeLike;
 use lb_rs::model::api::{
     AdminSetUserTierError, AdminSetUserTierInfo, AdminSetUserTierRequest, AdminSetUserTierResponse,
     AppStoreAccountState, CancelSubscriptionError, CancelSubscriptionRequest,
@@ -26,6 +24,8 @@ use lb_rs::model::api::{
 };
 use lb_rs::model::clock::get_time;
 use lb_rs::model::file_metadata::Owner;
+use lb_rs::model::server_tree::ServerTree;
+use lb_rs::model::tree_like::TreeLike;
 use libsecp256k1::PublicKey;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -45,11 +45,11 @@ where
     G: GooglePlayClient,
     D: DocumentService,
 {
-    fn lock_subscription_profile(
+    async fn lock_subscription_profile(
         &self, public_key: &PublicKey,
     ) -> Result<Account, ServerError<LockBillingWorkflowError>> {
         let owner = Owner(*public_key);
-        let mut db = self.index_db.lock()?;
+        let mut db = self.index_db.lock().await;
         let tx = db.begin_transaction()?;
         let mut account = db
             .accounts
@@ -77,12 +77,13 @@ where
         Ok(account)
     }
 
-    fn release_subscription_profile<T: Debug>(
+    async fn release_subscription_profile<T: Debug>(
         &self, public_key: PublicKey, mut account: Account,
     ) -> Result<(), ServerError<T>> {
         account.billing_info.last_in_payment_flow = 0;
         self.index_db
-            .lock()?
+            .lock()
+            .await
             .accounts
             .insert(Owner(public_key), account)?;
         Ok(())
@@ -93,12 +94,12 @@ where
     ) -> Result<UpgradeAccountAppStoreResponse, ServerError<UpgradeAccountAppStoreError>> {
         let request = &context.request;
 
-        let mut account = self.lock_subscription_profile(&context.public_key)?;
+        let mut account = self.lock_subscription_profile(&context.public_key).await?;
 
         debug!("Upgrading the account of a user through app store billing");
 
         {
-            let db = self.index_db.lock()?;
+            let db = self.index_db.lock().await;
             if let Some(owner) = db.app_store_ids.get().get(&request.app_account_token) {
                 if let Some(other_account) = db.accounts.get().get(owner) {
                     if let Some(BillingPlatform::AppStore(ref info)) =
@@ -139,14 +140,16 @@ where
         }));
 
         self.index_db
-            .lock()?
+            .lock()
+            .await
             .app_store_ids
             .insert(request.app_account_token.clone(), Owner(context.public_key))?;
 
         self.release_subscription_profile::<UpgradeAccountAppStoreError>(
             context.public_key,
             account,
-        )?;
+        )
+        .await?;
 
         Ok(UpgradeAccountAppStoreResponse {})
     }
@@ -156,7 +159,7 @@ where
     ) -> Result<UpgradeAccountGooglePlayResponse, ServerError<UpgradeAccountGooglePlayError>> {
         let request = &context.request;
 
-        let mut account = self.lock_subscription_profile(&context.public_key)?;
+        let mut account = self.lock_subscription_profile(&context.public_key).await?;
 
         if account.billing_info.is_premium() {
             return Err(ClientError(UpgradeAccountGooglePlayError::AlreadyPremium));
@@ -182,14 +185,16 @@ where
         )?);
 
         self.index_db
-            .lock()?
+            .lock()
+            .await
             .google_play_ids
             .insert(request.account_id.clone(), Owner(context.public_key))?;
 
         self.release_subscription_profile::<UpgradeAccountGooglePlayError>(
             context.public_key,
             account,
-        )?;
+        )
+        .await?;
 
         debug!("Successfully upgraded a user through a google play subscription. public_key");
 
@@ -203,7 +208,7 @@ where
 
         debug!("Attempting to upgrade the account tier of to premium");
 
-        let mut account = self.lock_subscription_profile(&context.public_key)?;
+        let mut account = self.lock_subscription_profile(&context.public_key).await?;
 
         if account.billing_info.is_premium() {
             return Err(ClientError(UpgradeAccountStripeError::AlreadyPremium));
@@ -222,10 +227,8 @@ where
             .await?;
 
         account.billing_info.billing_platform = Some(BillingPlatform::Stripe(user_info));
-        self.release_subscription_profile::<UpgradeAccountStripeError>(
-            context.public_key,
-            account,
-        )?;
+        self.release_subscription_profile::<UpgradeAccountStripeError>(context.public_key, account)
+            .await?;
 
         debug!("Successfully upgraded the account tier of from free to premium");
 
@@ -237,7 +240,8 @@ where
     ) -> Result<GetSubscriptionInfoResponse, ServerError<GetSubscriptionInfoError>> {
         let platform = self
             .index_db
-            .lock()?
+            .lock()
+            .await
             .accounts
             .get()
             .get(&Owner(context.public_key))
@@ -267,14 +271,14 @@ where
     pub async fn cancel_subscription(
         &self, context: RequestContext<CancelSubscriptionRequest>,
     ) -> Result<CancelSubscriptionResponse, ServerError<CancelSubscriptionError>> {
-        let mut account = self.lock_subscription_profile(&context.public_key)?;
+        let mut account = self.lock_subscription_profile(&context.public_key).await?;
 
         if account.billing_info.data_cap() == FREE_TIER_USAGE_SIZE {
             return Err(ClientError(CancelSubscriptionError::NotPremium));
         }
 
         {
-            let mut lock = self.index_db.lock()?;
+            let mut lock = self.index_db.lock().await;
             let db = lock.deref_mut();
 
             let mut tree = ServerTree::new(
@@ -332,7 +336,8 @@ where
         }
     }
 
-        self.release_subscription_profile::<CancelSubscriptionError>(context.public_key, account)?;
+        self.release_subscription_profile::<CancelSubscriptionError>(context.public_key, account)
+            .await?;
 
         Ok(CancelSubscriptionResponse {})
     }
@@ -343,7 +348,7 @@ where
         let request = &context.request;
 
         {
-            let db = self.index_db.lock()?;
+            let db = self.index_db.lock().await;
 
             if !Self::is_admin::<AdminSetUserTierError>(
                 &db,
@@ -356,13 +361,14 @@ where
 
         let public_key = self
             .index_db
-            .lock()?
+            .lock()
+            .await
             .usernames
             .get()
             .get(&request.username)
             .ok_or(ClientError(AdminSetUserTierError::UserNotFound))?
             .0;
-        let mut account = self.lock_subscription_profile(&public_key)?;
+        let mut account = self.lock_subscription_profile(&public_key).await?;
 
         let billing_config = &self.config.billing;
 
@@ -417,7 +423,8 @@ where
 
         account.username = request.username.clone();
 
-        self.release_subscription_profile::<AdminSetUserTierError>(public_key, account)?;
+        self.release_subscription_profile::<AdminSetUserTierError>(public_key, account)
+            .await?;
 
         Ok(AdminSetUserTierResponse {})
     }
@@ -430,10 +437,11 @@ where
     ) -> Result<(), ServerError<T>> {
         let millis_between_lock_attempts = self.config.billing.time_between_lock_attempts;
         loop {
-            match self.lock_subscription_profile(public_key) {
+            match self.lock_subscription_profile(public_key).await {
                 Ok(ref mut sub_profile) => {
                     update_subscription_profile(sub_profile)?;
-                    self.release_subscription_profile(*public_key, sub_profile.clone())?;
+                    self.release_subscription_profile(*public_key, sub_profile.clone())
+                        .await?;
                     break;
                 }
                 Err(ClientError(ExistingRequestPending)) => {
@@ -462,7 +470,7 @@ where
                 if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) =
                     invoice.billing_reason
                 {
-                    let public_key = self.get_public_key_from_invoice(invoice)?;
+                    let public_key = self.get_public_key_from_invoice(invoice).await?;
                     let owner = Owner(public_key);
 
                     debug!(
@@ -491,7 +499,7 @@ where
                 if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) =
                     invoice.billing_reason
                 {
-                    let public_key = self.get_public_key_from_invoice(invoice)?;
+                    let public_key = self.get_public_key_from_invoice(invoice).await?;
                     let owner = Owner(public_key);
 
                     debug!(
@@ -567,8 +575,9 @@ where
                 return Ok(());
             }
 
-            let public_key =
-                self.get_public_key_from_subnotif(&sub_notif, &subscription, &notification_type)?;
+            let public_key = self
+                .get_public_key_from_subnotif(&sub_notif, &subscription, &notification_type)
+                .await?;
             let owner = Owner(public_key);
 
             debug!(
@@ -685,12 +694,13 @@ where
                 .encoded_transaction_info
                 .ok_or(ClientError(AppStoreNotificationError::InvalidJWS))?,
         )?;
-        let public_key = self.get_public_key_from_tx(&trans)?;
+        let public_key = self.get_public_key_from_tx(&trans).await?;
 
         let owner = Owner(public_key);
         let maybe_username = &self
             .index_db
-            .lock()?
+            .lock()
+            .await
             .accounts
             .get()
             .get(&owner)

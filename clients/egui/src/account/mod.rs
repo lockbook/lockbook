@@ -232,14 +232,9 @@ impl AccountScreen {
 
                 if let Some(file) = wso.selected_file {
                     if !self.tree.selected.contains(&file) {
-                        // must be a real file to reveal
-                        if let Some(tab) = self.workspace.tabs.iter().find(|t| t.id == file) {
-                            if !matches!(tab.content, Some(TabContent::Graph(_))) {
-                                self.tree.cursor = Some(file);
-                                self.tree.selected.clear();
-                                self.tree.selected.insert(file);
-                            }
-                        }
+                        self.tree.cursor = Some(file);
+                        self.tree.selected.clear();
+                        self.tree.selected.insert(file);
                     }
                 }
 
@@ -450,12 +445,12 @@ impl AccountScreen {
             .inner;
 
         if resp.new_file.is_some() {
-            self.workspace.create_file(false, false);
+            self.workspace.create_file(false);
             ui.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
         }
 
         if resp.new_drawing.is_some() {
-            self.workspace.create_file(true, false);
+            self.workspace.create_file(true);
         }
 
         if let Some(file) = resp.new_folder_modal {
@@ -667,9 +662,6 @@ impl AccountScreen {
                 println!("error moving file: {:?}", err);
                 return;
             } else {
-                if let Some(tab) = self.workspace.get_mut_tab_by_id(f) {
-                    tab.path = self.core.get_path_by_id(f).unwrap();
-                }
                 ctx.request_repaint();
             }
         }
@@ -774,7 +766,7 @@ impl AccountScreen {
 
         let mut tabs_to_delete = vec![];
         for (i, tab) in self.workspace.tabs.iter().enumerate() {
-            if files.iter().any(|f| f.id.eq(&tab.id)) {
+            if files.iter().any(|f| Some(f.id) == tab.id()) {
                 tabs_to_delete.push(i);
             }
         }

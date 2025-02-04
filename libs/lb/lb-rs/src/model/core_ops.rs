@@ -1,14 +1,14 @@
-use crate::logic::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
-use crate::logic::lazy::LazyTree;
-use crate::logic::secret_filename::{HmacSha256, SecretFileName};
-use crate::logic::signed_file::SignedFile;
-use crate::logic::staged::{StagedTree, StagedTreeLike};
-use crate::logic::tree_like::{TreeLike, TreeLikeMut};
-use crate::logic::{compression_service, symkey, validate};
 use crate::model::access_info::{UserAccessInfo, UserAccessMode};
+use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
 use crate::model::file_metadata::{FileMetadata, FileType, Owner};
+use crate::model::lazy::LazyTree;
+use crate::model::secret_filename::{HmacSha256, SecretFileName};
+use crate::model::signed_file::SignedFile;
+use crate::model::staged::{StagedTree, StagedTreeLike};
+use crate::model::tree_like::{TreeLike, TreeLikeMut};
+use crate::model::{compression_service, symkey, validate};
 use crate::service::keychain::Keychain;
 use db_rs::LookupTable;
 use hmac::{Mac, NewMac};
@@ -37,7 +37,12 @@ where
         let last_modified = meta.timestamped_value.timestamp as u64;
         let name = self.name_using_links(id, keychain)?;
         let parent = self.parent_using_links(id)?;
-        let last_modified_by = account.username.clone();
+        let last_modified_by = public_key_cache
+            .get()
+            .get(&Owner(meta.public_key))
+            .cloned()
+            .unwrap_or_else(|| String::from("<unknown>"));
+
         let id = *id;
 
         let mut shares = Vec::new();
