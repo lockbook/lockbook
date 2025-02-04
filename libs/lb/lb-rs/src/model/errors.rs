@@ -143,12 +143,7 @@ impl From<LbErrKind> for LbErr {
 impl From<SharedError> for LbErr {
     fn from(err: SharedError) -> Self {
         let kind = match err.kind {
-            SharedErrorKind::FileNonexistent => LbErrKind::FileNonexistent,
-            SharedErrorKind::FileParentNonexistent => LbErrKind::FileParentNonexistent,
             SharedErrorKind::Unexpected(err) => LbErrKind::Unexpected(err.to_string()),
-            SharedErrorKind::FileNotFolder => LbErrKind::FileNotFolder,
-            SharedErrorKind::FileNotDocument => LbErrKind::FileNotDocument,
-            SharedErrorKind::KeyPhraseInvalid => LbErrKind::KeyPhraseInvalid,
             SharedErrorKind::ValidationFailure(failure) => match failure {
                 ValidationFailure::Cycle(_) => LbErrKind::FolderMovedIntoSelf,
                 ValidationFailure::PathConflict(_) => LbErrKind::PathTaken,

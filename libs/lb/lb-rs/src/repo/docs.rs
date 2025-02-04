@@ -1,6 +1,5 @@
 use crate::model::{
-    core_config::Config, crypto::EncryptedDocument, file_metadata::DocumentHmac, SharedErrorKind,
-    SharedResult,
+    core_config::Config, crypto::EncryptedDocument, errors::{LbErrKind, LbResult}, file_metadata::DocumentHmac, SharedErrorKind, SharedResult
 };
 use std::{
     collections::HashSet,
@@ -45,10 +44,10 @@ impl AsyncDocs {
 
     pub async fn get(
         &self, id: Uuid, hmac: Option<DocumentHmac>,
-    ) -> SharedResult<EncryptedDocument> {
+    ) -> LbResult<EncryptedDocument> {
         self.maybe_get(id, hmac)
             .await?
-            .ok_or_else(|| SharedErrorKind::FileNonexistent.into())
+            .ok_or_else(|| LbErrKind::FileNonexistent.into())
     }
 
     pub async fn maybe_get(

@@ -28,19 +28,19 @@ pub fn not_root<F: FileLike>(file: &F) -> LbResult<()> {
     }
 }
 
-pub fn is_folder<F: FileLike>(file: &F) -> SharedResult<()> {
+pub fn is_folder<F: FileLike>(file: &F) -> LbResult<()> {
     if file.is_folder() {
         Ok(())
     } else {
-        Err(SharedErrorKind::FileNotFolder.into())
+        Err(LbErrKind::FileNotFolder)?
     }
 }
 
-pub fn is_document<F: FileLike>(file: &F) -> SharedResult<()> {
+pub fn is_document<F: FileLike>(file: &F) -> LbResult<()> {
     if file.is_document() {
         Ok(())
     } else {
-        Err(SharedErrorKind::FileNotDocument.into())
+        Err(LbErrKind::FileNotDocument)?
     }
 }
 

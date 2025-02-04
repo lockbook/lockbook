@@ -55,13 +55,8 @@ impl From<SharedErrorKind> for SharedError {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SharedErrorKind {
-    FileNonexistent,
-    FileParentNonexistent,
-    FileNotFolder,
-    FileNotDocument,
     SignatureInvalid,
     WrongPublicKey,
-    KeyPhraseInvalid,
     SignatureInTheFuture(u64),
     SignatureExpired(u64),
     BincodeError(String),

@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fmt::Write;
 
+use super::errors::{LbErrKind, LbResult};
+
 pub const MAX_USERNAME_LENGTH: usize = 32;
 
 pub type Username = String;
@@ -28,7 +30,7 @@ impl Account {
         PublicKey::from_secret_key(&self.private_key)
     }
 
-    pub fn get_phrase(&self) -> SharedResult<[&'static str; 24]> {
+    pub fn get_phrase(&self) -> LbResult<[&'static str; 24]> {
         let key = self.private_key.serialize();
         let key_bits = key.iter().fold(String::new(), |mut out, byte| {
             let _ = write!(out, "{:08b}", byte);
@@ -56,8 +58,8 @@ impl Account {
         {
             let index =
                 u16::from_str_radix(&chunk.iter().collect::<String>(), 2).map_err(|_| {
-                    SharedErrorKind::Unexpected(
-                        "could not parse appropriate private key bits into u16",
+                    LbErrKind::Unexpected(
+                        "could not parse appropriate private key bits into u16".to_string(),
                     )
                 })?;
             let word = bip39_dict::ENGLISH.lookup_word(bip39_dict::MnemonicIndex(index));
@@ -68,7 +70,7 @@ impl Account {
         Ok(phrase)
     }
 
-    pub fn phrase_to_private_key(phrases: [&str; 24]) -> SharedResult<SecretKey> {
+    pub fn phrase_to_private_key(phrases: [&str; 24]) -> LbResult<SecretKey> {
         let mut combined_bits = phrases
             .iter()
             .map(|word| {
@@ -77,10 +79,10 @@ impl Account {
                     .map(|index| format!("{:011b}", index.0))
             })
             .collect::<Result<String, _>>()
-            .map_err(|_| SharedErrorKind::KeyPhraseInvalid)?;
+            .map_err(|_| LbErrKind::KeyPhraseInvalid)?;
 
         if combined_bits.len() != 264 {
-            return Err(SharedErrorKind::Unexpected("the number of bits after translating the phrase does not equal the expected amount (264)").into());
+            return Err(LbErrKind::Unexpected("the number of bits after translating the phrase does not equal the expected amount (264)".to_string()).into());
         }
 
         for _ in 0..4 {
@@ -93,7 +95,9 @@ impl Account {
         let mut key: Vec<u8> = Vec::new();
         for chunk in key_bits.chars().collect::<Vec<_>>().chunks(8) {
             let comp = u8::from_str_radix(&chunk.iter().collect::<String>(), 2).map_err(|_| {
-                SharedErrorKind::Unexpected("could not parse appropriate phrases bits into u8")
+                LbErrKind::Unexpected(
+                    "could not parse appropriate phrases bits into u8".to_string(),
+                )
             })?;
 
             key.push(comp);
@@ -110,10 +114,13 @@ impl Account {
         let gen_checksum_last_4 = &gen_checksum[..4];
 
         if gen_checksum_last_4 != checksum_last_4_bits {
-            return Err(SharedErrorKind::KeyPhraseInvalid.into());
+            return Err(LbErrKind::KeyPhraseInvalid)?;
         }
 
-        Ok(SecretKey::parse_slice(&key).map_err(SharedErrorKind::ParseError)?)
+        Ok(SecretKey::parse_slice(&key).map_err(|e| {
+            error!("unexpected secretkey parse error: {e:?}");
+            LbErrKind::KeyPhraseInvalid
+        })?)
     }
 
     /// hashes the username and takes the first three bytes of the has as rgb values

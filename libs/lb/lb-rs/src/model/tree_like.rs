@@ -24,9 +24,9 @@ pub trait TreeLike: Sized {
         self.maybe_find(file.parent())
     }
 
-    fn find_parent<F2: FileLike>(&self, file: &F2) -> SharedResult<&Self::F> {
+    fn find_parent<F2: FileLike>(&self, file: &F2) -> LbResult<&Self::F> {
         self.maybe_find_parent(file)
-            .ok_or_else(|| SharedErrorKind::FileParentNonexistent.into())
+            .ok_or_else(|| LbErrKind::FileParentNonexistent.into())
     }
 
     fn all_files(&self) -> LbResult<Vec<&Self::F>> {
