@@ -180,22 +180,31 @@ impl Workspace {
                                     ui.label(layout_job);
                                 }
 
-                                ui.add_space(50.);
+                                let is_beta = self
+                                    .core
+                                    .get_account()
+                                    .map(|a| a.is_beta())
+                                    .unwrap_or_default();
+                                if is_beta {
+                                    ui.add_space(50.);
 
-                                ui.label(WidgetText::from(RichText::from("TOOLS").weak().small()));
-                                ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
-                                ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
-                                ui.visuals_mut().widgets.active.fg_stroke.color = blue;
+                                    ui.label(WidgetText::from(
+                                        RichText::from("TOOLS").weak().small(),
+                                    ));
+                                    ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
+                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
+                                    ui.visuals_mut().widgets.active.fg_stroke.color = blue;
 
-                                if Button::default()
-                                    .icon(&Icon::LANGUAGE)
-                                    .text("Mind Map")
-                                    .frame(false)
-                                    .rounding(3.)
-                                    .show(ui)
-                                    .clicked()
-                                {
-                                    self.upsert_mind_map(self.core.clone());
+                                    if Button::default()
+                                        .icon(&Icon::LANGUAGE)
+                                        .text("Mind Map")
+                                        .frame(false)
+                                        .rounding(3.)
+                                        .show(ui)
+                                        .clicked()
+                                    {
+                                        self.upsert_mind_map(self.core.clone());
+                                    }
                                 }
                             });
                             strip.cell(|_| {});
@@ -616,7 +625,12 @@ impl Workspace {
         }
 
         // Ctrl-M to open mind map
-        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::M)) {
+        let is_beta = self
+            .core
+            .get_account()
+            .map(|a| a.is_beta())
+            .unwrap_or_default();
+        if is_beta && self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::M)) {
             self.upsert_mind_map(self.core.clone());
         }
 
