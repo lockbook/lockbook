@@ -55,17 +55,12 @@ impl From<SharedErrorKind> for SharedError {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SharedErrorKind {
-    SignatureInvalid,
-    WrongPublicKey,
-    SignatureInTheFuture(u64),
-    SignatureExpired(u64),
     BincodeError(String),
     Encryption(aead::Error),
     HmacCreationError(InvalidKeyLength),
     Decryption(aead::Error),
     HmacValidationError(MacError),
     ParseError(libsecp256k1::Error),
-    ShareNonexistent,
     SharedSecretUnexpectedSize,
     SharedSecretError(libsecp256k1::Error),
     ValidationFailure(ValidationFailure),
@@ -73,8 +68,6 @@ pub enum SharedErrorKind {
     Io(String),
 
     Db(String),
-
-    Unexpected(&'static str),
 }
 
 impl From<DbError> for SharedError {

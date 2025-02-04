@@ -6,22 +6,25 @@ use flate2::Compression;
 
 use crate::model::{SharedErrorKind, SharedResult};
 
-pub fn compress(content: &[u8]) -> SharedResult<Vec<u8>> {
+use super::errors::{LbErrKind, LbResult};
+
+pub fn compress(content: &[u8]) -> LbResult<Vec<u8>> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     encoder
         .write_all(content)
-        .map_err(|_| SharedErrorKind::Unexpected("unexpected compression error"))?;
-    encoder
+        .map_err(|err| LbErrKind::Unexpected(format!("unexpected compression error: {err:?}")))?;
+
+    Ok(encoder
         .finish()
-        .map_err(|_| SharedErrorKind::Unexpected("unexpected compression error").into())
+        .map_err(|err| LbErrKind::Unexpected(format!("unexpected compression error: {err:?}")))?)
 }
 
-pub fn decompress(content: &[u8]) -> SharedResult<Vec<u8>> {
+pub fn decompress(content: &[u8]) -> LbResult<Vec<u8>> {
     let mut decoder = ZlibDecoder::new(content);
     let mut result = Vec::<u8>::new();
     decoder
         .read_to_end(&mut result)
-        .map_err(|_| SharedErrorKind::Unexpected("unexpected decompression error"))?;
+        .map_err(|err| LbErrKind::Unexpected(format!("unexpected compression error: {err:?}")))?;
     Ok(result)
 }
 

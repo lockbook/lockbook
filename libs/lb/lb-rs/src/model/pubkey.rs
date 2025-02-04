@@ -8,6 +8,8 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::convert::TryInto;
 
+use super::errors::{LbErrKind, LbResult, SignError};
+
 pub fn generate_key() -> SecretKey {
     SecretKey::random(&mut OsRng)
 }
@@ -30,9 +32,9 @@ pub fn sign<T: Serialize>(
 pub fn verify<T: Serialize>(
     pk: &PublicKey, signed: &ECSigned<T>, max_delay_ms: u64, max_skew_ms: u64,
     time_getter: TimeGetter,
-) -> SharedResult<()> {
+) -> LbResult<()> {
     if &signed.public_key != pk {
-        return Err(SharedErrorKind::WrongPublicKey.into());
+        return Err(LbErrKind::Sign(SignError::WrongPublicKey))?;
     }
 
     let auth_time = signed.timestamped_value.timestamp;
@@ -41,30 +43,35 @@ pub fn verify<T: Serialize>(
     let max_delay_ms = max_delay_ms as i64;
 
     if current_time < auth_time - max_skew_ms {
-        return Err(SharedErrorKind::SignatureInTheFuture(
+        return Err(LbErrKind::Sign(SignError::SignatureInTheFuture(
             (current_time - (auth_time - max_delay_ms)) as u64,
-        )
-        .into());
+        )))?;
     }
 
     if current_time > auth_time + max_delay_ms {
-        return Err(SharedErrorKind::SignatureExpired(
+        return Err(LbErrKind::Sign(SignError::SignatureExpired(
             (auth_time + max_delay_ms - current_time) as u64,
-        )
-        .into());
+        )))?;
     }
 
+    // todo: evaluate potential waste here: didn't we just have this in it's
+    // serialized form?
     let serialized = bincode::serialize(&signed.timestamped_value)?;
 
     let digest = Sha256::digest(&serialized).to_vec();
-    let message = &Message::parse_slice(&digest).map_err(SharedErrorKind::ParseError)?;
-    let signature =
-        Signature::parse_standard_slice(&signed.signature).map_err(SharedErrorKind::ParseError)?;
+    let message = &Message::parse_slice(&digest).map_err(|err| {
+        LbErrKind::Unexpected(format!(
+            "unexpected failure to produce a message after hashing: {err:?}"
+        ))
+    })?;
+
+    let signature = Signature::parse_standard_slice(&signed.signature)
+        .map_err(|err| LbErrKind::Sign(SignError::SignatureParseError(err)))?;
 
     if libsecp256k1::verify(message, &signature, &signed.public_key) {
         Ok(())
     } else {
-        Err(SharedErrorKind::SignatureInvalid.into())
+        Err(LbErrKind::Sign(SignError::SignatureInvalid))?
     }
 }
 

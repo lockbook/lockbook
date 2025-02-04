@@ -130,6 +130,7 @@ impl Display for LbErrKind {
             }
             LbErrKind::Validation(validation_failure) => todo!(),
             LbErrKind::Diff(diff_error) => todo!(),
+            LbErrKind::Sign(sign_error) => todo!(),
         }
     }
 }
@@ -143,7 +144,6 @@ impl From<LbErrKind> for LbErr {
 impl From<SharedError> for LbErr {
     fn from(err: SharedError) -> Self {
         let kind = match err.kind {
-            SharedErrorKind::Unexpected(err) => LbErrKind::Unexpected(err.to_string()),
             SharedErrorKind::ValidationFailure(failure) => match failure {
                 ValidationFailure::Cycle(_) => LbErrKind::FolderMovedIntoSelf,
                 ValidationFailure::PathConflict(_) => LbErrKind::PathTaken,
@@ -290,6 +290,12 @@ pub enum LbErrKind {
     ReReadRequired,
     Diff(DiffError),
     Validation(ValidationFailure),
+    Sign(SignError),
+
+    /// If no programmer in any part of the stack (including tests) expects
+    /// to see a particular error, we debug format the underlying error to
+    /// keep the number of error types in check. Commonly used for errors
+    /// originating in other crates.
     Unexpected(String),
 }
 
@@ -302,8 +308,23 @@ pub enum DiffError {
     HmacModificationInvalid,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SignError {
+    SignatureInvalid,
+    SignatureParseError(libsecp256k1::Error),
+    WrongPublicKey,
+    SignatureInTheFuture(u64),
+    SignatureExpired(u64),
+}
+
+impl From<bincode::Error> for LbErr {
+    fn from(err: bincode::Error) -> Self {
+        core_err_unexpected(err).into()
+    }
+}
+
 pub fn core_err_unexpected<T: fmt::Debug>(err: T) -> LbErrKind {
-    LbErrKind::Unexpected(format!("{:#?}", err))
+    LbErrKind::Unexpected(format!("{:?}", err))
 }
 
 impl From<db_rs::DbError> for LbErr {

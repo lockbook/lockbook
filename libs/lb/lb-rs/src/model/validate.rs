@@ -82,7 +82,7 @@ where
     }
 
     // note: deleted access keys permissible
-    pub fn assert_all_files_decryptable(&mut self, owner: Owner) -> SharedResult<()> {
+    pub fn assert_all_files_decryptable(&mut self, owner: Owner) -> LbResult<()> {
         for file in self.ids().into_iter().filter_map(|id| self.maybe_find(&id)) {
             if self.maybe_find_parent(file).is_none()
                 && !file
@@ -90,7 +90,7 @@ where
                     .iter()
                     .any(|k| k.encrypted_for == owner.0)
             {
-                Err(SharedErrorKind::ValidationFailure(ValidationFailure::Orphan(*file.id())))?;
+                Err(LbErrKind::Validation(ValidationFailure::Orphan(*file.id())))?;
             }
         }
         Ok(())

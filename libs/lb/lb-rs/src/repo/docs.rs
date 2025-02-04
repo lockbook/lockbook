@@ -91,7 +91,7 @@ impl AsyncDocs {
         Ok(())
     }
 
-    pub(crate) async fn retain(&self, file_hmacs: HashSet<(Uuid, [u8; 32])>) -> SharedResult<()> {
+    pub(crate) async fn retain(&self, file_hmacs: HashSet<(Uuid, [u8; 32])>) -> LbResult<()> {
         let dir_path = namespace_path(&self.location);
         fs::create_dir_all(&dir_path).await?;
         let mut entries = fs::read_dir(&dir_path).await?;
@@ -101,23 +101,23 @@ impl AsyncDocs {
             let file_name = path
                 .file_name()
                 .and_then(|name| name.to_str())
-                .ok_or(SharedErrorKind::Unexpected("document disk file name malformed"))?;
+                .ok_or(LbErrKind::Unexpected("could not get filename from os".to_string()))?;
 
             let (id_str, hmac_str) = file_name.split_at(36); // UUIDs are 36 characters long in string form
 
             let id = Uuid::parse_str(id_str)
-                .map_err(|_| SharedErrorKind::Unexpected("document disk file name malformed"))?;
+                .map_err(|err| LbErrKind::Unexpected(format!("could not parse doc name as uuid {err:?}")))?;
 
             let hmac_base64 = hmac_str
                 .strip_prefix('-')
-                .ok_or(SharedErrorKind::Unexpected("document disk file name malformed"))?;
+                .ok_or(LbErrKind::Unexpected("doc name missing -".to_string()))?;
 
             let hmac_bytes = base64::decode_config(hmac_base64, base64::URL_SAFE)
-                .map_err(|_| SharedErrorKind::Unexpected("document disk file name malformed"))?;
+                .map_err(|err| LbErrKind::Unexpected(format!("document disk file name malformed: {err:?}")))?;
 
             let hmac: DocumentHmac = hmac_bytes
                 .try_into()
-                .map_err(|_| SharedErrorKind::Unexpected("document disk file name malformed"))?;
+                .map_err(|err| LbErrKind::Unexpected(format!("document disk file name malformed {err:?}")))?;
 
             if !file_hmacs.contains(&(id, hmac)) {
                 self.delete(id, Some(hmac)).await?;
