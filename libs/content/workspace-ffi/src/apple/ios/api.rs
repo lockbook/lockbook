@@ -847,11 +847,7 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
                 // TabContent::PlainText(_) => 4,
                 TabContent::Pdf(_) => 5,
                 TabContent::Svg(_) => 6,
-<<<<<<< HEAD
-                TabContent::Graph(_) => 7,
-=======
                 TabContent::MindMap(_) => 7,
->>>>>>> 00bb744c73ae6ae2ad36af7e34a2c4cb41158ee3
             },
             _ => 1,
         },
