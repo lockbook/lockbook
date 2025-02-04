@@ -205,7 +205,7 @@ impl MindMap {
     ) {
         let center =
             Pos2::new((screen.max.x + screen.min.x) / 2.0, (screen.max.y + screen.min.y) / 2.0);
-        let mut previous_postions: VecDeque<Vec<Pos2>> = VecDeque::new();
+        // let mut previous_postions: VecDeque<Vec<Pos2>> = VecDeque::new();
         let num_nodes = graph.len() as f32;
         let width = screen.max.x - screen.min.x;
         let height = screen.max.y - screen.min.y;
@@ -302,8 +302,8 @@ impl MindMap {
                 new_positions[i] += movement * c;
             }
 
-            let clone_positions = positions.clone();
-            previous_postions.push_back(clone_positions);
+            // let clone_positions = positions.clone();
+            // previous_postions.push_back(clone_positions);
 
             {
                 let mut pos_lock = thread_positions.write().unwrap();
