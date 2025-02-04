@@ -3,6 +3,7 @@ use linkify::{LinkFinder, LinkKind};
 use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicIsize;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -12,6 +13,7 @@ use tokio::runtime::Runtime;
 
 lazy_static::lazy_static! {
     pub static ref URL_NAME_STORE: Mutex<Vec<LinkInfo>> = Mutex::new(Vec::new());
+    pub static ref DONE: AtomicBool = AtomicBool::new(false);
 }
 
 pub type Graph = Vec<LinkNode>;
@@ -37,7 +39,7 @@ pub struct NameId {
     pub url: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LinkInfo {
     pub id: usize,
     pub url: String,
@@ -134,6 +136,7 @@ fn check_for_links(classify: &mut Vec<NameId>, id: &mut usize, doc: &str) -> Vec
 
     for link in link_names {
         let url = link.clone();
+        let link = extract_website_name(&link);
         let parts: Vec<&str> = link.split('/').collect();
         let domain_name: &str = if parts.len() > 1 {
             Box::leak(format!("{}/{}", parts[0], parts[1]).into_boxed_str())
@@ -165,7 +168,7 @@ fn find_links(text: &str) -> Vec<String> {
         .filter_map(|link| {
             let url = link.as_str();
             if url.starts_with("http://") || url.starts_with("https://") {
-                Some(extract_website_name(url))
+                Some(url.to_string())
             } else {
                 None
             }
@@ -232,13 +235,14 @@ pub fn start_extraction_names() {
             handle.await.unwrap();
         }
     });
+    DONE.store(true, Ordering::SeqCst);
 }
 
 async fn get_url_names(
     url: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync + 'static>> {
     let client = Client::builder()
-        .timeout(Duration::from_millis(250))
+        .timeout(Duration::from_millis(1000))
         .build()?;
 
     let response = client.get(url).send().await?;

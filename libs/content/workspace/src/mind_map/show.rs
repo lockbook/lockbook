@@ -1,4 +1,4 @@
-use super::data::{lockbook_data, start_extraction_names, Graph, LinkNode, URL_NAME_STORE};
+use super::data::{lockbook_data, start_extraction_names, Graph, LinkNode, DONE, URL_NAME_STORE};
 use egui::ahash::{HashMap, HashMapExt};
 use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
@@ -6,6 +6,7 @@ use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
 
 use std::collections::VecDeque;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
@@ -340,10 +341,11 @@ impl MindMap {
             let pos_lock = self.thread_positions.read().unwrap();
             pos_lock.clone()
         };
-        if !self.urls_complete {
+        if DONE.load(Ordering::SeqCst) && !self.names_uploaded {
             let info = &URL_NAME_STORE.lock().unwrap().clone();
-            let completed = info.first().unwrap().found;
+            let completed = info.iter().any(|item| item.found);
             if completed {
+                println!("done2");
                 self.urls_complete = true;
                 self.populate_url_titles();
             }
@@ -485,11 +487,13 @@ impl MindMap {
 
     fn populate_url_titles(&mut self) {
         let info = URL_NAME_STORE.lock().unwrap();
-        let count = 0;
+        let mut count = 0;
         for item in info.iter() {
             self.url_titles[count] = item.name.clone();
+            count += 1;
         }
         self.names_uploaded = true;
+        println!("{:?} this is some stuff", self.url_titles);
     }
 
     pub fn label_subgraphs(&mut self) {
@@ -642,6 +646,7 @@ impl MindMap {
         }
         if !self.urls_complete {
             thread::spawn(move || start_extraction_names());
+            self.urls_complete = true;
         }
 
         self.draw_graph(ui, screen_size);
