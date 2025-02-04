@@ -2,7 +2,7 @@ use bezier_rs::Subpath;
 use egui::{PointerButton, TouchId, TouchPhase};
 use egui_animation::{animate_bool_eased, easing};
 use lb_rs::{
-    svg::{
+    model::svg::{
         diff::DiffState,
         element::{DynamicColor, Element, Path, Stroke},
     },
@@ -503,7 +503,7 @@ fn correct_start_of_path() {
             egui::LayerId::background(),
             egui::Rect::EVERYTHING,
         ),
-        buffer: &mut lb_rs::svg::buffer::Buffer::default(),
+        buffer: &mut lb_rs::model::svg::buffer::Buffer::default(),
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_touch_frame: true,
@@ -557,7 +557,7 @@ fn cancel_touch_ui_event() {
             egui::LayerId::background(),
             egui::Rect::EVERYTHING,
         ),
-        buffer: &mut lb_rs::svg::buffer::Buffer::default(),
+        buffer: &mut lb_rs::model::svg::buffer::Buffer::default(),
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_touch_frame: true,

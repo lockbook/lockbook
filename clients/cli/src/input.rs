@@ -5,7 +5,7 @@ use std::{
 };
 
 use cli_rs::cli_error::{CliError, CliResult};
-use lb_rs::{logic::path_ops::Filter, model::file::File, Lb, Uuid};
+use lb_rs::{model::file::File, model::path_ops::Filter, Lb, Uuid};
 
 use crate::core;
 
@@ -50,7 +50,7 @@ impl FromStr for FileInput {
 pub async fn file_completor(prompt: &str, filter: Option<Filter>) -> CliResult<Vec<String>> {
     let lb = &core().await?;
     if !prompt.is_empty() && prompt.chars().all(|c| c == '-' || c.is_ascii_hexdigit()) {
-        return id_completor(lb, prompt, filter);
+        return id_completor(lb, prompt, filter).await;
     }
 
     let working_dir = prompt
@@ -84,7 +84,6 @@ pub async fn file_completor(prompt: &str, filter: Option<Filter>) -> CliResult<V
     Ok(candidates)
 }
 
-#[tokio::main]
 pub async fn id_completor(lb: &Lb, prompt: &str, filter: Option<Filter>) -> CliResult<Vec<String>> {
     // todo: potential optimization opportunity inside lb
     Ok(lb

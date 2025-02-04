@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::ServerError;
 use async_trait::async_trait;
-use lb_rs::logic::crypto::EncryptedDocument;
+use lb_rs::model::crypto::EncryptedDocument;
 use lb_rs::model::file_metadata::DocumentHmac;
 use std::collections::HashMap;
 use std::fmt::Debug;

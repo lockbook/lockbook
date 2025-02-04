@@ -1,9 +1,9 @@
-use crate::logic::file_like::FileLike;
-use crate::logic::tree_like::TreeLike;
 use crate::model::api::GetPublicKeyRequest;
 use crate::model::errors::{LbErr, LbResult};
 use crate::model::file::{File, ShareMode};
+use crate::model::file_like::FileLike;
 use crate::model::file_metadata::Owner;
+use crate::model::tree_like::TreeLike;
 use crate::Lb;
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
@@ -13,10 +13,11 @@ impl Lb {
     #[instrument(level = "debug", skip(self))]
     pub async fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> LbResult<()> {
         let account = self.get_account()?;
+        let username = username.to_lowercase();
 
         let sharee = Owner(
             self.client
-                .request(account, GetPublicKeyRequest { username: String::from(username) })
+                .request(account, GetPublicKeyRequest { username: username.clone() })
                 .await
                 .map_err(LbErr::from)?
                 .key,
@@ -28,7 +29,7 @@ impl Lb {
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
             .to_lazy();
-        db.pub_key_lookup.insert(sharee, String::from(username))?;
+        db.pub_key_lookup.insert(sharee, username)?;
 
         tree.add_share(id, sharee, mode, &self.keychain)?;
 

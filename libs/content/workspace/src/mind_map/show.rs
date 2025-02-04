@@ -5,7 +5,6 @@ use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
 use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
 
-use std::collections::VecDeque;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -212,7 +211,6 @@ impl MindMap {
     ) {
         let center =
             Pos2::new((screen.max.x + screen.min.x) / 2.0, (screen.max.y + screen.min.y) / 2.0);
-        let mut previous_postions: VecDeque<Vec<Pos2>> = VecDeque::new();
         let num_nodes = graph.len() as f32;
         let width = screen.max.x - screen.min.x;
         let height = screen.max.y - screen.min.y;
@@ -309,9 +307,6 @@ impl MindMap {
                 new_positions[i] += movement * c;
             }
 
-            let clone_positions = positions.clone();
-            previous_postions.push_back(clone_positions);
-
             {
                 let mut pos_lock = thread_positions.write().unwrap();
                 *pos_lock = new_positions.clone();
@@ -334,6 +329,9 @@ impl MindMap {
 
     fn draw_graph(&mut self, ui: &mut egui::Ui, screen_size: egui::Vec2) {
         let screen = ui.available_rect_before_wrap();
+        ui.painter()
+            .rect_filled(screen, 0., ui.visuals().extreme_bg_color);
+
         let center =
             Pos2::new((screen.max.x + screen.min.x) / 2.0, (screen.max.y + screen.min.y) / 2.0);
         let radius = (15.0) / ((self.graph.len() as f32).sqrt() / 3.0).max(1.0);
@@ -586,11 +584,11 @@ impl MindMap {
             && self.cursor_loc.y < max_range.y
     }
 
-    pub fn stop(&mut self, stop: bool) {
+    pub fn stop(&mut self) {
         self.graph_complete = true;
         {
             let mut stop_lock = self.stop.write().unwrap();
-            *stop_lock = stop;
+            *stop_lock = true;
         }
     }
 

@@ -72,7 +72,7 @@ impl<'window> WgpuWorkspace<'window> {
         self.context.begin_frame(self.raw_input.take());
 
         let workspace_response = egui::CentralPanel::default()
-            .frame(egui::Frame::default().fill(self.context.style().visuals.window_fill))
+            .frame(egui::Frame::default().fill(self.context.style().visuals.panel_fill))
             .show(&self.context, |ui| self.workspace.show(ui))
             .inner;
 

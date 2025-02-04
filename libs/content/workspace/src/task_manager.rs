@@ -5,7 +5,7 @@ use std::{mem, thread};
 
 use egui::Context;
 use lb_rs::blocking::Lb;
-use lb_rs::logic::crypto::DecryptedDocument;
+use lb_rs::model::crypto::DecryptedDocument;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
@@ -14,6 +14,7 @@ use tracing::{debug, error, instrument, span, trace, warn, Level};
 
 use crate::file_cache::FileCache;
 use crate::output::DirtynessMsg;
+use crate::tab::TabsExt as _;
 use crate::tab::{Tab, TabSaveContent};
 
 #[derive(Default)]
@@ -541,16 +542,16 @@ impl TaskManager {
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
             let (old_hmac, seq, content) = {
-                let Some(tab) = tabs.iter().find(|tab| tab.id == request.id) else {
+                let Some(tab) = tabs.get_by_id(request.id) else {
                     error!("could not launch save because its tab does not exist");
                     continue;
                 };
 
                 let start = Instant::now();
 
-                let old_hmac = tab.content.as_ref().and_then(|c| c.hmac());
-                let seq = tab.content.as_ref().map(|c| c.seq()).unwrap_or_default();
-                let Some(content) = tab.content.as_ref().and_then(|c| c.clone_content()) else {
+                let old_hmac = tab.hmac();
+                let seq = tab.seq();
+                let Some(content) = tab.clone_content() else {
                     break;
                 };
 
@@ -836,4 +837,26 @@ impl TaskManager {
 
         self.ctx.request_repaint();
     }
+
+    pub fn task_status(&self, id: Uuid) -> TaskStatus {
+        if self.load_in_progress(id) {
+            TaskStatus::LoadInProgress
+        } else if self.save_in_progress(id) {
+            TaskStatus::SaveInProgress
+        } else if self.load_queued(id) {
+            TaskStatus::LoadQueued
+        } else if self.save_queued(id) {
+            TaskStatus::SaveQueued
+        } else {
+            TaskStatus::Clean
+        }
+    }
+}
+
+pub enum TaskStatus {
+    LoadInProgress,
+    SaveInProgress,
+    LoadQueued,
+    SaveQueued,
+    Clean,
 }

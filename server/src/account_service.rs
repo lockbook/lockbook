@@ -8,12 +8,6 @@ use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use db_rs::Db;
-use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::lazy::LazyTree;
-use lb_rs::logic::server_file::IntoServerFile;
-use lb_rs::logic::server_tree::ServerTree;
-use lb_rs::logic::tree_like::TreeLike;
-use lb_rs::logic::usage::bytes_to_human;
 use lb_rs::model::account::Username;
 use lb_rs::model::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lb_rs::model::api::{
@@ -26,7 +20,13 @@ use lb_rs::model::api::{
     NewAccountResponse, PaymentPlatform, METADATA_FEE,
 };
 use lb_rs::model::clock::get_time;
+use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
+use lb_rs::model::lazy::LazyTree;
+use lb_rs::model::server_file::IntoServerFile;
+use lb_rs::model::server_tree::ServerTree;
+use lb_rs::model::tree_like::TreeLike;
+use lb_rs::model::usage::bytes_to_human;
 use libsecp256k1::PublicKey;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -63,7 +63,7 @@ where
         let now = get_time().0 as u64;
         let root = root.add_time(now);
 
-        let mut db = self.index_db.lock()?;
+        let mut db = self.index_db.lock().await;
         let handle = db.begin_transaction()?;
 
         if db.accounts.get().contains_key(&Owner(request.public_key)) {
@@ -102,14 +102,15 @@ where
         &self, context: RequestContext<GetPublicKeyRequest>,
     ) -> Result<GetPublicKeyResponse, ServerError<GetPublicKeyError>> {
         let request = &context.request;
-        self.public_key_from_username(&request.username)
+        self.public_key_from_username(&request.username).await
     }
 
-    pub fn public_key_from_username(
+    pub async fn public_key_from_username(
         &self, username: &str,
     ) -> Result<GetPublicKeyResponse, ServerError<GetPublicKeyError>> {
         self.index_db
-            .lock()?
+            .lock()
+            .await
             .usernames
             .get()
             .get(username)
@@ -120,14 +121,15 @@ where
     pub async fn get_username(
         &self, context: RequestContext<GetUsernameRequest>,
     ) -> Result<GetUsernameResponse, ServerError<GetUsernameError>> {
-        self.username_from_public_key(context.request.key)
+        self.username_from_public_key(context.request.key).await
     }
 
-    pub fn username_from_public_key(
+    pub async fn username_from_public_key(
         &self, key: PublicKey,
     ) -> Result<GetUsernameResponse, ServerError<GetUsernameError>> {
         self.index_db
-            .lock()?
+            .lock()
+            .await
             .accounts
             .get()
             .get(&Owner(key))
@@ -138,7 +140,7 @@ where
     pub async fn get_usage(
         &self, context: RequestContext<GetUsageRequest>,
     ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
-        let mut lock = self.index_db.lock()?;
+        let mut lock = self.index_db.lock().await;
         let db = lock.deref_mut();
 
         let cap = Self::get_cap(db, &context.public_key)?;
@@ -222,7 +224,7 @@ where
         &self, context: RequestContext<AdminDisappearAccountRequest>,
     ) -> Result<(), ServerError<AdminDisappearAccountError>> {
         let owner = {
-            let db = &self.index_db.lock()?;
+            let db = &self.index_db.lock().await;
 
             if !Self::is_admin::<AdminDisappearAccountError>(
                 db,
@@ -256,7 +258,7 @@ where
     pub async fn admin_list_users(
         &self, context: RequestContext<AdminListUsersRequest>,
     ) -> Result<AdminListUsersResponse, ServerError<AdminListUsersError>> {
-        let (db, request) = (&self.index_db.lock()?, &context.request);
+        let (db, request) = (&self.index_db.lock().await, &context.request);
 
         if !Self::is_admin::<AdminListUsersError>(
             db,
@@ -308,7 +310,7 @@ where
     pub async fn admin_get_account_info(
         &self, context: RequestContext<AdminGetAccountInfoRequest>,
     ) -> Result<AdminGetAccountInfoResponse, ServerError<AdminGetAccountInfoError>> {
-        let (mut lock, request) = (self.index_db.lock()?, &context.request);
+        let (mut lock, request) = (self.index_db.lock().await, &context.request);
         let db = lock.deref_mut();
 
         if !Self::is_admin::<AdminGetAccountInfoError>(
@@ -409,7 +411,7 @@ where
         let mut docs_to_delete = Vec::new();
 
         {
-            let mut lock = self.index_db.lock()?;
+            let mut lock = self.index_db.lock().await;
             let db = lock.deref_mut();
             let tx = db.begin_transaction()?;
 

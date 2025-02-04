@@ -1,10 +1,10 @@
-use crate::logic::filename::MAX_FILENAME_LENGTH;
-use crate::logic::symkey;
-use crate::logic::tree_like::TreeLike;
 use crate::model::access_info::UserAccessMode;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::file_metadata::{FileType, Owner};
+use crate::model::filename::MAX_FILENAME_LENGTH;
+use crate::model::symkey;
+use crate::model::tree_like::TreeLike;
 use crate::Lb;
 use std::iter;
 use uuid::Uuid;
@@ -156,7 +156,7 @@ impl Lb {
             &self.keychain,
             descendants.into_iter().chain(iter::once(*id)),
             &db.pub_key_lookup,
-            false,
+            true,
         )
     }
 

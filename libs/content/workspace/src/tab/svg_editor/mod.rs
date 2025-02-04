@@ -19,11 +19,11 @@ pub use history::Event;
 pub use history::InsertElement;
 use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
-use lb_rs::svg::buffer::u_transform_to_bezier;
-use lb_rs::svg::buffer::Buffer;
-use lb_rs::svg::diff::DiffState;
-use lb_rs::svg::element::Element;
-use lb_rs::svg::element::Image;
+use lb_rs::model::svg::buffer::u_transform_to_bezier;
+use lb_rs::model::svg::buffer::Buffer;
+use lb_rs::model::svg::diff::DiffState;
+use lb_rs::model::svg::element::Element;
+use lb_rs::model::svg::element::Image;
 use lb_rs::Uuid;
 pub use path_builder::PathBuilder;
 pub use pen::Pen;
@@ -42,7 +42,7 @@ pub struct SVGEditor {
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
     lb: Lb,
-    open_file: Uuid,
+    pub open_file: Uuid,
     skip_frame: bool,
     // last_render: Instant,
     renderer: Renderer,

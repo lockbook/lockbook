@@ -1,13 +1,15 @@
 use super::activity::RankingWeights;
 use super::events::Event;
-use crate::logic::filename::DocumentType;
 use crate::model::errors::{LbErr, LbErrKind, LbResult, UnexpectedError};
+use crate::model::filename::DocumentType;
 use crate::Lb;
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use tokio::sync::RwLock;
@@ -160,7 +162,7 @@ impl Lb {
             return Ok(());
         }
 
-        let tasks = FuturesUnordered::new();
+        let mut tasks = vec![];
         for file in self.list_metadatas().await? {
             let id = file.id;
             let is_doc_searchable =
@@ -189,10 +191,14 @@ impl Lb {
             });
         }
 
-        let results: Vec<LbResult<SearchIndexEntry>> = tasks.collect().await;
-        let mut replacement_index = Vec::with_capacity(results.len());
-        for result in results {
-            replacement_index.push(result?);
+        let mut results = stream::iter(tasks).buffer_unordered(
+            thread::available_parallelism()
+                .unwrap_or(NonZeroUsize::new(4).unwrap())
+                .into(),
+        );
+        let mut replacement_index = vec![];
+        while let Some(res) = results.next().await {
+            replacement_index.push(res?);
         }
 
         // swap in replacement index (index lock)
@@ -209,9 +215,12 @@ impl Lb {
             tokio::spawn(async move {
                 lb.build_index().await.unwrap();
                 loop {
-                    let Ok(evt) = rx.recv().await else {
-                        error!("failed to receive from a channel");
-                        return;
+                    let evt = match rx.recv().await {
+                        Ok(evt) => evt,
+                        Err(err) => {
+                            error!("failed to receive from a channel {err}");
+                            return;
+                        }
                     };
 
                     match evt {
@@ -238,7 +247,6 @@ impl Lb {
                             index.retain(|entry| all_file_ids.contains(&entry.id));
 
                             // update any of the paths of this file and the children
-                            let mut index = lb.search.index.write().await;
                             for entry in index.iter_mut() {
                                 if paths.contains_key(&entry.id) {
                                     entry.path = paths.remove(&entry.id).unwrap();
@@ -253,19 +261,31 @@ impl Lb {
                         }
 
                         Event::DocumentWritten(id) => {
+                            let file = lb.get_file_by_id(id).await.unwrap();
+                            let is_searchable =
+                                DocumentType::from_file_name_using_extension(&file.name)
+                                    == DocumentType::Text;
+
                             let doc = lb.read_document(id, false).await.unwrap();
-                            let doc = if doc.len() > MAX_CONTENT_MATCH_LENGTH {
+                            let doc = if doc.len() >= CONTENT_MAX_LEN_BYTES || !is_searchable {
                                 None
                             } else {
                                 Some(String::from_utf8_lossy(&doc).to_string())
                             };
 
                             let mut index = lb.search.index.write().await;
+                            let mut found = false;
+                            // todo: consider warn! when doc not found
                             for entries in index.iter_mut() {
                                 if entries.id == id {
                                     entries.content = doc;
+                                    found = true;
                                     break;
                                 }
+                            }
+
+                            if !found {
+                                warn!("could {file:?} not insert doc into index");
                             }
                         }
                     };

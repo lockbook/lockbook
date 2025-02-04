@@ -1,5 +1,5 @@
 use lb_c::{
-    text::offset_types::{DocCharOffset, RelCharOffset},
+    model::text::offset_types::{DocCharOffset, RelCharOffset},
     Uuid,
 };
 use serde::Serialize;

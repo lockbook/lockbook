@@ -1,5 +1,5 @@
 use lb_c::{
-    text::offset_types::{DocCharOffset, RangeExt as _},
+    model::text::offset_types::{DocCharOffset, RangeExt as _},
     Uuid,
 };
 use std::ffi::{c_char, CString};

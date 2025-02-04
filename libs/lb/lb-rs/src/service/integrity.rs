@@ -1,14 +1,14 @@
-use std::path::Path;
+use std::num::NonZeroUsize;
+use std::thread;
 
-use crate::logic::file_like::FileLike;
-use crate::logic::tree_like::TreeLike;
+use futures::{stream, StreamExt};
+
 use crate::model::file_metadata::Owner;
+use crate::model::filename::DocumentType;
+use crate::model::tree_like::TreeLike;
 
 use crate::model::errors::{TestRepoError, Warning};
 use crate::Lb;
-
-const UTF8_SUFFIXES: [&str; 12] =
-    ["md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs"];
 
 impl Lb {
     // todo good contender for async treatment, to speedup debug_info
@@ -35,31 +35,37 @@ impl Lb {
             }
         }
 
+        drop(tree);
+
         let mut warnings = Vec::new();
-        for id in tree.ids() {
-            let file = tree.find(&id)?;
-            let id = *file.id();
-            let doc = file.is_document();
-            let cont = file.document_hmac().is_some();
-            let not_deleted = !tree.calculate_deleted(&id)?;
-            if not_deleted && doc && cont {
-                let doc = self.read_document_helper(id, &mut tree).await?;
+        let mut tasks = vec![];
+        for file in self.list_metadatas().await? {
+            if file.is_document() {
+                let is_text =
+                    DocumentType::from_file_name_using_extension(&file.name) == DocumentType::Text;
 
-                if doc.len() as u64 == 0 {
-                    warnings.push(Warning::EmptyFile(id));
-                    continue;
+                if is_text {
+                    tasks.push(async move { (file.id, self.read_document(file.id, false).await) });
                 }
+            }
+        }
 
-                let name = tree.name(&id, &self.keychain)?;
-                let extension = Path::new(&name)
-                    .extension()
-                    .and_then(|ext| ext.to_str())
-                    .unwrap_or("");
+        let mut results = stream::iter(tasks).buffer_unordered(
+            thread::available_parallelism()
+                .unwrap_or(NonZeroUsize::new(4).unwrap())
+                .into(),
+        );
 
-                if UTF8_SUFFIXES.contains(&extension) && String::from_utf8(doc.clone()).is_err() {
-                    warnings.push(Warning::InvalidUTF8(id));
-                    continue;
-                }
+        while let Some((id, res)) = results.next().await {
+            let doc = res?;
+            if doc.is_empty() {
+                warnings.push(Warning::EmptyFile(id));
+                continue;
+            }
+
+            if String::from_utf8(doc).is_err() {
+                warnings.push(Warning::InvalidUTF8(id));
+                continue;
             }
         }
 

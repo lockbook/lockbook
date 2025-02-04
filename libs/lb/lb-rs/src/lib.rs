@@ -11,7 +11,6 @@
 //!   See the [service] module for evolving this functionality.
 //! - The [model] module contains the specification of our data structures and contracts between
 //!   components.
-//! - The [logic] module contains our important algorithms and routines.
 //!
 //! - The `"blocking"` feature flag enables the [blocking] module and and the corresponding
 //!   blocking `Lb` variant.
@@ -22,12 +21,9 @@
 extern crate tracing;
 
 pub mod blocking;
-pub mod logic;
 pub mod model;
 pub mod repo;
 pub mod service;
-pub mod svg;
-pub mod text;
 
 #[derive(Clone)]
 pub struct Lb {
