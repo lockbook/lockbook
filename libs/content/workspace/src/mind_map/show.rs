@@ -555,7 +555,6 @@ impl MindMap {
             && self.cursor_loc.y < max_range.y
     }
 
-
     pub fn stop(&mut self) {
         self.graph_complete = true;
         {
