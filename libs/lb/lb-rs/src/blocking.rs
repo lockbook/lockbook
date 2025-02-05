@@ -13,7 +13,7 @@ use crate::{
         },
         core_config::Config,
         crypto::DecryptedDocument,
-        errors::{LbResult, TestRepoError, Warning},
+        errors::{LbResult,  Warning},
         file::{File, ShareMode},
         file_metadata::{DocumentHmac, FileType},
         path_ops::Filter,
@@ -236,7 +236,7 @@ impl Lb {
         self.rt.block_on(self.lb.search(input, cfg))
     }
 
-    pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
+    pub fn validate(&self) -> LbResult<Vec<Warning>> {
         self.rt.block_on(self.lb.test_repo_integrity())
     }
 

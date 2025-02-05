@@ -37,7 +37,6 @@ use std::io;
 
 use db_rs::DbError;
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
-use uuid::Uuid;
 
 pub type SharedResult<T> = Result<T, SharedError>;
 
@@ -63,7 +62,6 @@ pub enum SharedErrorKind {
     ParseError(libsecp256k1::Error),
     SharedSecretUnexpectedSize,
     SharedSecretError(libsecp256k1::Error),
-    ValidationFailure(ValidationFailure),
 
     Io(String),
 

@@ -334,13 +334,10 @@ impl<T: TreeLike> LazyTree<T> {
     }
 
     // todo: optimize
-    pub fn assert_names_decryptable(&mut self, keychain: &Keychain) -> SharedResult<()> {
+    pub fn assert_names_decryptable(&mut self, keychain: &Keychain) -> LbResult<()> {
         for id in self.ids() {
             if self.name(&id, keychain).is_err() {
-                return Err(SharedErrorKind::ValidationFailure(
-                    ValidationFailure::NonDecryptableFileName(id),
-                )
-                .into());
+                return Err(LbErrKind::Validation(ValidationFailure::NonDecryptableFileName(id)))?;
             }
         }
         Ok(())

@@ -144,16 +144,6 @@ impl From<LbErrKind> for LbErr {
 impl From<SharedError> for LbErr {
     fn from(err: SharedError) -> Self {
         let kind = match err.kind {
-            SharedErrorKind::ValidationFailure(failure) => match failure {
-                ValidationFailure::Cycle(_) => LbErrKind::FolderMovedIntoSelf,
-                ValidationFailure::PathConflict(_) => LbErrKind::PathTaken,
-                ValidationFailure::SharedLink { .. } => LbErrKind::LinkInSharedFolder,
-                ValidationFailure::DuplicateLink { .. } => LbErrKind::MultipleLinksToSameFile,
-                ValidationFailure::BrokenLink(_) => LbErrKind::LinkTargetNonexistent,
-                ValidationFailure::OwnedLink(_) => LbErrKind::LinkTargetIsOwned,
-                ValidationFailure::NonFolderWithChildren(_) => LbErrKind::FileNotFolder,
-                vf => LbErrKind::Unexpected(format!("unexpected validation failure {:?}", vf)),
-            },
             _ => LbErrKind::Unexpected(format!("unexpected shared error {:?}", err)),
         };
         Self { kind, backtrace: err.backtrace }
@@ -469,91 +459,6 @@ impl From<ApiError<api::GetUsageError>> for LbErr {
             e => core_err_unexpected(e),
         }
         .into()
-    }
-}
-
-#[derive(Debug)]
-pub enum TestRepoError {
-    NoAccount,
-    NoRootFolder,
-    DocumentTreatedAsFolder(Uuid),
-    FileOrphaned(Uuid),
-    CycleDetected(HashSet<Uuid>),
-    FileNameEmpty(Uuid),
-    FileNameTooLong(Uuid),
-    FileNameContainsSlash(Uuid),
-    PathConflict(HashSet<Uuid>),
-    NonDecryptableFileName(Uuid),
-    FileWithDifferentOwnerParent(Uuid),
-    SharedLink { link: Uuid, shared_ancestor: Uuid },
-    DuplicateLink { target: Uuid },
-    BrokenLink(Uuid),
-    OwnedLink(Uuid),
-    DocumentReadError(Uuid, LbErrKind),
-    Core(LbErr),
-    Shared(SharedError),
-}
-
-impl From<SharedError> for TestRepoError {
-    fn from(err: SharedError) -> Self {
-        match err.kind {
-            SharedErrorKind::ValidationFailure(validation) => match validation {
-                ValidationFailure::Orphan(id) => Self::FileOrphaned(id),
-                ValidationFailure::Cycle(ids) => Self::CycleDetected(ids),
-                ValidationFailure::PathConflict(ids) => Self::PathConflict(ids),
-                ValidationFailure::NonFolderWithChildren(id) => Self::DocumentTreatedAsFolder(id),
-                ValidationFailure::NonDecryptableFileName(id) => Self::NonDecryptableFileName(id),
-                ValidationFailure::SharedLink { link, shared_ancestor } => {
-                    Self::SharedLink { link, shared_ancestor }
-                }
-                ValidationFailure::DuplicateLink { target } => Self::DuplicateLink { target },
-                ValidationFailure::BrokenLink(id) => Self::BrokenLink(id),
-                ValidationFailure::OwnedLink(id) => Self::OwnedLink(id),
-                ValidationFailure::FileWithDifferentOwnerParent(id) => {
-                    Self::FileWithDifferentOwnerParent(id)
-                }
-                ValidationFailure::FileNameTooLong(id) => Self::FileNameTooLong(id),
-                ValidationFailure::DeletedFileUpdated(uuid) => todo!(),
-            },
-            _ => Self::Shared(err),
-        }
-    }
-}
-
-impl From<LbErr> for TestRepoError {
-    fn from(value: LbErr) -> Self {
-        if value.kind == LbErrKind::AccountNonexistent {
-            return Self::NoAccount;
-        }
-        Self::Core(value)
-    }
-}
-
-impl fmt::Display for TestRepoError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use TestRepoError::*;
-        match self {
-            NoAccount => write!(f, "no account"),
-            NoRootFolder => write!(f, "no root folder"),
-            DocumentTreatedAsFolder(id) => write!(f, "doc '{}' treated as folder", id),
-            FileOrphaned(id) => write!(f, "orphaned file '{}'", id),
-            CycleDetected(ids) => write!(f, "cycle for files: {:?}", ids),
-            FileNameEmpty(id) => write!(f, "file '{}' name is empty", id),
-            FileNameContainsSlash(id) => write!(f, "file '{}' name contains slash", id),
-            FileNameTooLong(id) => write!(f, "file '{}' name is too long", id),
-            PathConflict(ids) => write!(f, "path conflict between: {:?}", ids),
-            NonDecryptableFileName(id) => write!(f, "can't decrypt file '{}' name", id),
-            FileWithDifferentOwnerParent(id) => write!(f, "file '{}' different owner parent", id),
-            SharedLink { link, shared_ancestor } => {
-                write!(f, "shared link: {}, ancestor: {}", link, shared_ancestor)
-            }
-            DuplicateLink { target } => write!(f, "duplicate link '{}'", target),
-            BrokenLink(id) => write!(f, "broken link '{}'", id),
-            OwnedLink(id) => write!(f, "owned link '{}'", id),
-            DocumentReadError(id, err) => write!(f, "doc '{}' read err: {:#?}", id, err),
-            Core(err) => write!(f, "core err: {:#?}", err),
-            Shared(err) => write!(f, "shared err: {:#?}", err),
-        }
     }
 }
 
