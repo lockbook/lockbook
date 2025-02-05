@@ -307,7 +307,9 @@ impl Workspace {
                                         files.files.sort_by_key(|f| f.last_modified);
                                     }
 
-                                    for file in files.files.iter().rev().take(5) {
+                                    for file in
+                                        files.files.iter().rev().filter(|&f| !f.is_folder()).take(5)
+                                    {
                                         ui.horizontal(|ui| {
                                             ui.style_mut().spacing.item_spacing.x = 0.0;
                                             ui.spacing_mut().button_padding.x = 0.;
