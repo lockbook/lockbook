@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<!-- Disable zooming: -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<head>
+    <title>lockbook</title>
+
+    <!-- <link data-trunk rel="copy-file" href="assets/sw.js"/> -->
+    
+    
+    
+
+    <!-- <link data-trunk rel="rust" data-wasm-opt="2" /> -->
+
+
+    <link rel="stylesheet" href="/tailwind-7224d4893d90f4d9.css" integrity="sha384&#x2D;2ojnSrl5xPKB1VQF3&#x2B;MD9sPbplc5vLauXfbwxLQHexoUkOWXEVNoPk7CiWK&#x2F;eKr6"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&display=swap" rel="stylesheet" />
+    
+    <style>
+        html {
+            /* Remove touch delay: */
+            touch-action: manipulation;
+        }
+        
+        /* Allow canvas to fill entire web page: */
+        html,
+        body {
+            overflow: hidden;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+<link rel="modulepreload" href="/public-site-2215c5060d0d0045.js" crossorigin=anonymous integrity="sha384-NGQf3F/Fn4bAgj/embM0Yesb066qXr6t7z5XHTVbV9PDOH+riNdQrVbZY8DKC1gt"><link rel="preload" href="/public-site-2215c5060d0d0045_bg.wasm" crossorigin=anonymous integrity="sha384-XOIFU03s2S7ltHgPGxviQZNga0IcMNLWnckAC8njRgbB7p/qMrWnP1BO7iA8VxgQ" as="fetch" type="application/wasm"></head>
+
+<body class="overflow-auto bg-abyss-900">
+    <nav class="flex justify-between px-10 py-6 align-middle text-egshell">
+        <div class="flex"><a href="/"><img src="/logo.svg" alt="lockbook's logo" /></a></div>
+        <div class="flex items-baseline">
+            <ul class="flex mr-10">
+                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
+                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
+                <a class="block mx-3 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
+            </ul>
+            <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline">Download</button>
+        </div>
+    </nav>
+    
+
+<div id="blog-content"class="max-w-2xl mx-auto my-24 text-egshell">
+  <h1 class="title">
+    Introducing Lockbook
+  </h1>
+  <p class="subtitle"><strong>2019-11-27</strong></p>
+  <h1 id="a-new-note-taking-app">A new note-taking app</h1>
+<p>Many moons ago my friends and I found ourselves frustrated with our computing experience. Our most important tools: our messengers, our note-taking apps, and our file storage all seemed to leave us with the same bitter taste in our mouths. Most of the mainstream solutions were trapped inside a browser, the epitome of sacrificing quality for the lowest common denominator. They didn’t pass muster for basic security and privacy concerns. Building on top of these systems was a painful experience. We were also growing concerned that we did not share the same ethics and values as the <a href="https://bigtech.fail/">large companies</a> running these platforms.</p>
+<p>So we ventured out into the land of FOSS. We built our systems from the ground up and experimented with self-hosted solutions. While we learned a lot from this experience, these solutions didn’t stand the test of time. As we brought our friends into this world, we found ourselves constantly apologizing for the sub-par experience. It felt like we solved some of our problems, but made other ones (UX) worse.</p>
+<p>At this point, we took a step back. I knew we could do better. The apps we were being critical of weren’t some of the fresher ideas in computing. They are things that we’ve been doing for decades. Why don’t these products feel more mature? What should software that’s been around this long feel like?</p>
+<h2 id="what-is-ideal">What is ideal?</h2>
+<p>Software that’s been around this long shouldn’t be trapped in the browser. A browser is a convenient place for the discovery of new information, it’s not the place I want to visit for heavily used, critical, applications. When I look at my devices, whether on my iPhone or my Linux laptop, the apps I can use with the least friction are simple, native applications. They have the largest context about the device I’m using encoded into the application. This friction-free experience is why people reach for Apple Notes on their iPhones. And when they open those same notes on their iPad they find rich support for their Apple Pencil. For me, a minimal, friction-free context-aware experience is more valuable than feature richness.</p>
+<p>Whatever experience I have on one device should carry over seamlessly to any device I may end up owning in the future. My notes shouldn’t be trapped on Apple Devices should I want to transition to Linux. Very few actions should require a network connection, and any network interactions should be deferrable so people outside of metropolitan areas don’t have a poor experience.</p>
+<p>For now, likely most of these services will have to interact with some sort of backend. Everything that backend receives should be encrypted by the customer themselves, in a manner that nobody besides them and the people they give access to can see that content. We shouldn’t ask the customer for any information the service doesn’t require. There is very little reason that a user <em>must</em> provide an email address or a <em>phone number</em> to use a note-taking app. This level of security and privacy shouldn’t <em>cost</em> the user anything in terms of quality. Our customers may be whistle-blowers, journalists, or citizens living under oppressive regimes. They simply cannot afford to trust and they shouldn’t have to.</p>
+<p>This software is too important to not open source. Any software claiming to be secure needs to be open source to prove that claim. Sensitive customers need the ability to build minimal clients with small dependency trees from sources on secure systems. Open-sourcing components like your server signal to the world that they can host critical infrastructure themselves, even if the people behind the product lose the will to keep the lights on. Open source doesn’t end in making the source code available, this software should be built out in the open with help from an enthusiastic community. People should be able to extend the tools for fun or profit with minimal friction.</p>
+<h2 id="reaching-for-an-ideal">Reaching for an ideal</h2>
+<p><a href="https://substackcdn.com/image/fetch/f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fbucketeer-e05bbc84-baa3-437e-9518-adb32be77984.s3.amazonaws.com%2Fpublic%2Fimages%2Fb958cf3d-c608-4398-8d56-ca3429d86e26_1920x1216.jpeg"><img src="https://substackcdn.com/image/fetch/w_1456,c_limit,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fbucketeer-e05bbc84-baa3-437e-9518-adb32be77984.s3.amazonaws.com%2Fpublic%2Fimages%2Fb958cf3d-c608-4398-8d56-ca3429d86e26_1920x1216.jpeg" alt="" /></a></p>
+<p>After much discussion, we decided that the best place to start was a note-taking app. We felt it was the product category with the largest room for growth. Architecturally it also paves the way for us to tackle storing files. And so began the three-year-long journey to create <a href="https://lockbook.net/">Lockbook</a> a body of work I’m proud to say has stayed true to the vision outlined above. At the moment, Lockbook is not quite ready for adoption as it’s in the early stages of alpha testing. But I’d like to use this space to share updates on our progress as well as document how we overcame some interesting engineering challenges like:</p>
+<ul>
+<li>
+<p>Productively maintaining several native apps with a small team</p>
+</li>
+<li>
+<p>How we create rich non-web cross-platform UI elements.</p>
+</li>
+<li>
+<p>How we leverage a powerful computer to find bugs.</p>
+</li>
+</ul>
+<p>If you’d like to learn more about Lockbook you can:</p>
+<ul>
+<li>
+<p><a href="https://lockbook.net/">Checkout our website</a></p>
+</li>
+<li>
+<p><a href="https://github.com/lockbook/lockbook">Browse our source code</a></p>
+</li>
+<li>
+<p><a href="https://discord.gg/lockbook">Join our discord</a></p>
+</li>
+</ul>
+<p>If you’d like to take an early look at Lockbook, <a href="https://github.com/lockbook/lockbook/tree/master/docs/guides/install">we’re available on all platforms</a>.</p>
+<ul>
+<li>
+<p><a href="https://github.com/lockbook/lockbook/releases">Github Releases</a></p>
+</li>
+<li>
+<p>Apple App Store</p>
+</li>
+<li>
+<p>Google Play</p>
+</li>
+<li>
+<p>Brew</p>
+</li>
+<li>
+<p>AUR</p>
+</li>
+<li>
+<p>Snap</p>
+</li>
+</ul>
+<p>Parth’s Corner is a reader-supported publication. To receive new posts and support my work, consider becoming a free or paid subscriber.</p>
+<p>Subscribe</p>
+  
+</div>
+
+
+<style>
+  #blog-content{
+    h2, h3, h4 {
+        font-weight: 400;
+    }
+    h1, h2, h3, h4, h5, p {
+        margin-bottom: 24px;
+        padding: 0;
+    }
+    h1 {
+        font-size: 35px;
+        font-weight: bold;
+    }
+    h2 {
+        font-size: 30px;
+        margin: 24px 0 6px;
+    }
+    h3 {
+        font-size: 24px;
+    }
+    h4 {
+        font-size: 21px;
+    }
+    h5 {
+        font-size: 18px;
+    }
+    a {
+        color: #28CCDF; /* should be the same as surfline in tailwind.config.js */
+        margin: 0;
+        padding: 0;
+        text-decoration: none;
+        vertical-align: baseline;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
+    a:visited {
+        opacity: 0.7
+    }
+    ul, ol {
+        padding: 0;
+        margin: 0;
+    }
+    li {
+        line-height: 24px;
+    }
+    li ul, li ul {
+        margin-left: 24px;
+    }
+    p, ul, ol {
+        font-size: 13px;
+        line-height: 24px;
+    }
+    pre {
+        padding: 0px 24px;
+        white-space: pre-wrap;
+    }
+    code {
+        font-family: Consolas, Monaco, Andale Mono, monospace;
+        line-height: 1.5;
+        font-size: 13px;
+    }
+    aside {
+        display: block;
+        float: right;
+        width: 390px;
+    }
+    blockquote {
+        border-left:.5em solid #eee;
+        padding: 0 2em;
+        margin-left:0;
+    }
+    blockquote  cite {
+        font-size:14px;
+        line-height:20px;
+        color:#bfbfbf;
+    }
+    blockquote cite:before {
+        content: '\2014 \00A0';
+    }
+
+    blockquote p {  
+        color: #666;
+    }
+    hr {
+        width: 540px;
+        text-align: left;
+        margin: 0 auto 0 0;
+        color: #999;
+    }
+}
+</style>
+
+
+<script type="module" nonce="BDimjGNOHqxR6nRN7q1Ftg==">
+import init, * as bindings from '/public-site-2215c5060d0d0045.js';
+const wasm = await init({ module_or_path: '/public-site-2215c5060d0d0045_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script></body>
+</html>

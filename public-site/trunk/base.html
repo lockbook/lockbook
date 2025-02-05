@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<!-- Disable zooming: -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<head>
+    <title>lockbook</title>
+
+    <!-- <link data-trunk rel="copy-file" href="assets/sw.js"/> -->
+    <link data-trunk rel="copy-file" href="../static/screenshot.png"/>
+    <link data-trunk rel="copy-file" href="../static/logo.svg"/>
+    <link data-trunk rel="copy-file" href="../static/banner-bg.svg"/>
+
+    <!-- <link data-trunk rel="rust" data-wasm-opt="2" /> -->
+
+
+    <link data-trunk rel="tailwind-css" href="tailwind.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&display=swap" rel="stylesheet" />
+    
+    <style>
+        html {
+            /* Remove touch delay: */
+            touch-action: manipulation;
+        }
+        
+        /* Allow canvas to fill entire web page: */
+        html,
+        body {
+            overflow: hidden;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body class="overflow-auto bg-abyss-900">
+    <nav class="flex justify-between px-10 py-6 align-middle text-egshell">
+        <div class="flex"><a href="/"><img src="/logo.svg" alt="lockbook's logo" /></a></div>
+        <div class="flex items-baseline">
+            <ul class="flex mr-10">
+                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
+                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
+                <a class="block mx-3 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
+            </ul>
+            <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline">Download</button>
+        </div>
+    </nav>
+    {% block content %} {% endblock %}
+</body>
+</html>

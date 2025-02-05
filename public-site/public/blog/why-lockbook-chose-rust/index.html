@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<!-- Disable zooming: -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<head>
+    <title>lockbook</title>
+
+    <!-- <link data-trunk rel="copy-file" href="assets/sw.js"/> -->
+    
+    
+    
+
+    <!-- <link data-trunk rel="rust" data-wasm-opt="2" /> -->
+
+
+    <link rel="stylesheet" href="/tailwind-7224d4893d90f4d9.css" integrity="sha384&#x2D;2ojnSrl5xPKB1VQF3&#x2B;MD9sPbplc5vLauXfbwxLQHexoUkOWXEVNoPk7CiWK&#x2F;eKr6"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&display=swap" rel="stylesheet" />
+    
+    <style>
+        html {
+            /* Remove touch delay: */
+            touch-action: manipulation;
+        }
+        
+        /* Allow canvas to fill entire web page: */
+        html,
+        body {
+            overflow: hidden;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+<link rel="modulepreload" href="/public-site-2215c5060d0d0045.js" crossorigin=anonymous integrity="sha384-NGQf3F/Fn4bAgj/embM0Yesb066qXr6t7z5XHTVbV9PDOH+riNdQrVbZY8DKC1gt"><link rel="preload" href="/public-site-2215c5060d0d0045_bg.wasm" crossorigin=anonymous integrity="sha384-XOIFU03s2S7ltHgPGxviQZNga0IcMNLWnckAC8njRgbB7p/qMrWnP1BO7iA8VxgQ" as="fetch" type="application/wasm"></head>
+
+<body class="overflow-auto bg-abyss-900">
+    <nav class="flex justify-between px-10 py-6 align-middle text-egshell">
+        <div class="flex"><a href="/"><img src="/logo.svg" alt="lockbook's logo" /></a></div>
+        <div class="flex items-baseline">
+            <ul class="flex mr-10">
+                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
+                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
+                <a class="block mx-3 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
+            </ul>
+            <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline">Download</button>
+        </div>
+    </nav>
+    
+
+<div id="blog-content"class="max-w-2xl mx-auto my-24 text-egshell">
+  <h1 class="title">
+    Why Lockbook chose Rust
+  </h1>
+  <p class="subtitle"><strong>2019-11-27</strong></p>
+  <p><a href="https://lockbook.net/">Lockbook</a> began it’s <a href="https://parth.cafe/p/introducing-lockbook">journey</a> as a bash script. As it started to evolve into something more serious, one of our earliest challenges was identifying a UI framework we were willing to bet on. As we explored, we were weighing things like UI quality, developer experience, language selections, and so on.</p>
+<p>Our choice of UI framework had implications for our server as well. If we chose JavaFX and native Android, we would likely want to choose a JVM-based language for our server to share as much code as possible.</p>
+<p>As we wrote and re-wrote our application, we discovered that most of our effort, even on our clients, was not front-end code. When we were implementing user management, billing, file operations, collaboration, compression, and encryption, the lion’s share of the work was around traditional backend-oriented tasks. Things like data modeling, error propagation, managing complex logic, handling database interactions, and writing tests were where we were spending most of our time. Many of these things had to take place on our clients because all our user data is <a href="https://en.wikipedia.org/wiki/End-to-end_encryption">end-to-end-encrypted</a>. Additionally, some of these operations were sensitive to slight differences in implementation. If your encryption and decryption are subtly different across two different clients, your file may be unreadable.</p>
+<p>It was also becoming clear to us that the applications that looked and felt the best to us were created in that platform’s native UI framework. So our initial investigation around UI frameworks morphed into an inquiry into what the best repository for business logic was. Ideally, this repository would give us great tools for writing complex business logic and would be ultimately portable.</p>
+<p><a href="https://substackcdn.com/image/fetch/f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fbucketeer-e05bbc84-baa3-437e-9518-adb32be77984.s3.amazonaws.com%2Fpublic%2Fimages%2F8e8f9520-2b63-4f2c-ac05-20a12f699a82_612x408.jpeg"><img src="https://substackcdn.com/image/fetch/w_1456,c_limit,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fbucketeer-e05bbc84-baa3-437e-9518-adb32be77984.s3.amazonaws.com%2Fpublic%2Fimages%2F8e8f9520-2b63-4f2c-ac05-20a12f699a82_612x408.jpeg" alt="Screenshot for " /></a></p>
+<h2 id="tools-for-managing-complexity">Tools for managing complexity</h2>
+<p>Our collective experience made us gravitate towards a particular spirit. At <a href="https://www.gemini.com/">Gemini</a>, <a href="https://raayan.net/">Raayan</a> and I saw how productive we were within a foreign, large-scale, Scala codebase. Informed by the experience we were looking for a language with an expressive, robust type system.</p>
+<p>A “robust type system” goes beyond what you’d find in languages like Java, Python, or Go. We were looking for type systems where <code>null</code> or <code>nil</code> were the exception, rather than the norm. We want it to be apparent when a function could return an error, or an empty value, and have ergonomic ways to handle those scenarios.</p>
+<p>We wanted to have sophisticated interactions with things like <code>enums</code>, specifically, we wanted to be able to model the idea of exhaustivity. When an idea we were working with evolved to have more <em>cases</em> we wanted our compiler to guide us to all the locations that need to be updated.</p>
+<p>There were a handful of other features we were looking for which can broadly be categorized into two similar ideas:</p>
+<p>We wanted to express as much as we could in our primary programming language. Things that would traditionally be documented ( <em>this fn will return null in this situation</em> ) or things that would be expressed in configuration (TLS configuration handled by a different program in YAML) would ideally be expressed in a language that contributors understood intimately. Ideally in a language where the compiler was providing strong guarantees against mistakes and misuse.</p>
+<p>We wanted our language and tools to help us detect defects as <a href="https://en.wikipedia.org/wiki/Shift-left_testing">early as possible</a> in the development lifecycle. Most software developers are used to trying to capture defects at test time, but we found that trying to capture defects even earlier, at compile time, allowed us to drop into <a href="https://en.wikipedia.org/wiki/Flow_(psychology)">flow</a> more easily. The following is our preference for when we’d like to catch defects:</p>
+<ol>
+<li>
+<p>at compile time</p>
+</li>
+<li>
+<p>test time</p>
+</li>
+<li>
+<p>startup time</p>
+</li>
+<li>
+<p>pr time</p>
+</li>
+<li>
+<p>internal test time</p>
+</li>
+<li>
+<p>by a customer</p>
+</li>
+</ol>
+<p>Our strongest contenders for languages here were Rust, Haskell, and Scala.</p>
+<h2 id="ultra-portability">Ultra-portability</h2>
+<p>Ideally, this repository would not place constraints on where it could be used. If our repository was in Scala, for instance, we’d be able to use it on Desktop, our Server, and Android, but we’d run into problems on Apple devices.</p>
+<p>We could use something like JS, virtually every platform has a way to invoke some sort of WebView which allows you to execute JS. But we’d had plenty of <a href="https://www.destroyallsoftware.com/talks/wat">bad experiences</a> with vanilla javascript. We found that evolutions on JS like Typescript were also on a <a href="https://www.youtube.com/watch?v=jjMbPt_H3RQ">shaky foundation</a>. Despite the JS ecosystem being popular and old, it didn’t feel very mature. Finally, we didn’t like the way most JS-based applications, whether <a href="https://medium.com/commitlog/why-i-still-use-vim-67afd76b4db6">Electron</a> or React Native <a href="https://parth.cafe/i/87442376/what-is-ideal">felt</a>.</p>
+<p>Both JS and Scala would require tremendous overhead due to the default environments in which they run. We needed something lighter weight than invoking a little browser every time we wanted to call into our <em>core</em>. Our team members were pretty experienced in Golang, and <a href="https://go.dev/blog/cgo">Cgo</a> was an ideal fit for what we were looking for. It would allow us to ship our <em>core</em> as a C library accessible from any programing language we were interested in inter-operating with. There were some concerns we had about the long-term overhead of <a href="https://github.com/dyu/ffi-overhead">cgo</a> and garbage collection generally, but those wouldn’t be immediate concerns.</p>
+<p>Similarly, Rust had a pretty rich collection of tools for generating C bindings for Rust programs and a pretty mature conceptualization of <a href="https://en.wikipedia.org/wiki/Foreign_function_interface">FFI</a>. Though it wasn’t an immediate criterion we were inspired by the fact that most everything in Rust was a <a href="https://stackoverflow.com/questions/69178380/what-does-zero-cost-abstraction-mean">zero-cost abstraction</a>. In that spirit, FFI in Rust would have virtually no additional overhead when compared to a C program. We were also drawn to <a href="https://doc.rust-lang.org/cargo/">Cargo</a> which felt like the package manager for a language we were waiting for, particularly useful for our complicated build process.</p>
+<p>Our strongest contenders for languages here were Rust, Go, and C.</p>
+<h2 id="taking-the-plunge">Taking the plunge</h2>
+<p>Learning Rust wasn’t a smooth process, but solid documentation helped us overcome the steep learning curve. Every language I’ve learned so far has shaped the way I view programming, it was refreshing to see the interaction of high-level concepts like Iterators, Dynamic Dispatch, and pattern matching discussed alongside their performance implications.</p>
+<p>Rust has an interesting approach to memory management: it heavily restricts what you can do with references. In return, it will guarantee all your references are always valid and free of race conditions. It will do this at compile time, without the need for any costly runtime abstraction like Garbage Collection.</p>
+<p>Once we were over the learning curve we prototyped the <a href="https://github.com/lockbook/lockbook/tree/master/core">core library</a> we’d been planning, a CLI, and a Server that used it. During a period when many of us were rapidly prototyping many different solutions, this was the one that stood the test of time. Soon after the CLI, a C binding followed, then an <a href="https://apps.apple.com/us/app/lockbook/id1526775001">iOS and macOS application</a>. Today we have a <a href="https://en.wikipedia.org/wiki/Java_Native_Interface">JNI bindings</a> and an <a href="https://play.google.com/store/apps/details?id=app.lockbook&amp;pli=1">Android app</a> as well. This core library will one day be packaged and documented as the <em>Lockbook SDK</em> allowing you to extend Lockbook from any language (more on this later).</p>
+<h2 id="further-personal-reflections">Further personal reflections</h2>
+<p>You can probably predict what your experience with Rust is going to be based on how you felt about the above two priorities. Rust is an experiment in the highest-level features implemented at no runtime cost. If you feel like the <code>Option&lt;T&gt;</code> is not a useful construct, you’re not likely to appreciate waiting for the compiler. If you don’t mind the latency introduced by garbage collection you’re not going to enjoy wrestling the <a href="https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html">borrow checker</a>.</p>
+<p>I wasn’t specifically seeking out performance, but before Rust, while programming there was always a slight uncertainty about whether I would have to re-write a given component in C, or spend time tuning a garbage collector. In Rust I don’t write everything optimally initially, when I need to, I’ll <code>clone()</code> things or stick them in an <code>Arc&lt;Mutex&lt;T&gt;&gt;</code> to revisit at a later time, but I appreciate that all these artifacts of the productivity vs. performance trade-offs are explicitly present for me to review, rather than implicitly constrained by my development environment.</p>
+<p>For our team, learning Rust has certainly been a dynamic in onboarding new contributors. Certainly, we’ve lost contributors who didn’t buy into the ideas and were turned away because of Rust. But we’ve also encountered people who are specifically seeking out Rust projects because they share our excitement. It’s hard to tell what the net impact here is, but as is the case every year: Rust is a <a href="https://survey.stackoverflow.co/2022/">a language a lot of people love</a>. Significant Open Source and Commercial entities from Linux to AWS are making permanent investments in Rust.</p>
+<p>This excitement does however bring a lot of Junior talent to the ecosystem, subsequently, even though it’s roughly as old as Go, many of Rust’s packages feel like they’re not ready for production. By my estimation, this is because in addition to understanding the subject matter of the package they’re creating a maintainer of a library needs to understand Rust pretty deeply. Additionally, within the Rust ecosystem, some people are optimizing for different things. Some people are optimizing for compile times and binary size, while others are optimizing for static inference and performance, in many cases these are mutually exclusive values.</p>
+<p>In some cases, this is a short-term problem as features are stabilized, and best practices are identified. In other cases, this is an irreconcilable aspect of the ecosystem that will simply result in lots of packages that are solving the same problem in slightly different ways.</p>
+<p>This is something we should expect, as Rust is a language that’s trying to serve all programmers from UI developers to OS designers. And though it may cost me some productivity in the short term while I’m forced to contend with this nuance, in the long term it massively broadens my horizons as a software engineer.</p>
+<p>Personally what got me over the steep learning curve is a rare feeling that the knowledge I’m building while learning Rust is a permanent investment in my future, not a trivial detail about a flaw of the tool I’m using. I’m very excited to see where Rust takes us all in the future.</p>
+  
+</div>
+
+
+<style>
+  #blog-content{
+    h2, h3, h4 {
+        font-weight: 400;
+    }
+    h1, h2, h3, h4, h5, p {
+        margin-bottom: 24px;
+        padding: 0;
+    }
+    h1 {
+        font-size: 35px;
+        font-weight: bold;
+    }
+    h2 {
+        font-size: 30px;
+        margin: 24px 0 6px;
+    }
+    h3 {
+        font-size: 24px;
+    }
+    h4 {
+        font-size: 21px;
+    }
+    h5 {
+        font-size: 18px;
+    }
+    a {
+        color: #28CCDF; /* should be the same as surfline in tailwind.config.js */
+        margin: 0;
+        padding: 0;
+        text-decoration: none;
+        vertical-align: baseline;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
+    a:visited {
+        opacity: 0.7
+    }
+    ul, ol {
+        padding: 0;
+        margin: 0;
+    }
+    li {
+        line-height: 24px;
+    }
+    li ul, li ul {
+        margin-left: 24px;
+    }
+    p, ul, ol {
+        font-size: 13px;
+        line-height: 24px;
+    }
+    pre {
+        padding: 0px 24px;
+        white-space: pre-wrap;
+    }
+    code {
+        font-family: Consolas, Monaco, Andale Mono, monospace;
+        line-height: 1.5;
+        font-size: 13px;
+    }
+    aside {
+        display: block;
+        float: right;
+        width: 390px;
+    }
+    blockquote {
+        border-left:.5em solid #eee;
+        padding: 0 2em;
+        margin-left:0;
+    }
+    blockquote  cite {
+        font-size:14px;
+        line-height:20px;
+        color:#bfbfbf;
+    }
+    blockquote cite:before {
+        content: '\2014 \00A0';
+    }
+
+    blockquote p {  
+        color: #666;
+    }
+    hr {
+        width: 540px;
+        text-align: left;
+        margin: 0 auto 0 0;
+        color: #999;
+    }
+}
+</style>
+
+
+<script type="module" nonce="BDimjGNOHqxR6nRN7q1Ftg==">
+import init, * as bindings from '/public-site-2215c5060d0d0045.js';
+const wasm = await init({ module_or_path: '/public-site-2215c5060d0d0045_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script></body>
+</html>

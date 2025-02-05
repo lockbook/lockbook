@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<!-- Disable zooming: -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<head>
+    <title>lockbook</title>
+
+    <!-- <link data-trunk rel="copy-file" href="assets/sw.js"/> -->
+    
+    
+    
+
+    <!-- <link data-trunk rel="rust" data-wasm-opt="2" /> -->
+
+
+    <link rel="stylesheet" href="/tailwind-7224d4893d90f4d9.css" integrity="sha384&#x2D;2ojnSrl5xPKB1VQF3&#x2B;MD9sPbplc5vLauXfbwxLQHexoUkOWXEVNoPk7CiWK&#x2F;eKr6"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&display=swap" rel="stylesheet" />
+    
+    <style>
+        html {
+            /* Remove touch delay: */
+            touch-action: manipulation;
+        }
+        
+        /* Allow canvas to fill entire web page: */
+        html,
+        body {
+            overflow: hidden;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+<link rel="modulepreload" href="/public-site-2215c5060d0d0045.js" crossorigin=anonymous integrity="sha384-NGQf3F/Fn4bAgj/embM0Yesb066qXr6t7z5XHTVbV9PDOH+riNdQrVbZY8DKC1gt"><link rel="preload" href="/public-site-2215c5060d0d0045_bg.wasm" crossorigin=anonymous integrity="sha384-XOIFU03s2S7ltHgPGxviQZNga0IcMNLWnckAC8njRgbB7p/qMrWnP1BO7iA8VxgQ" as="fetch" type="application/wasm"></head>
+
+<body class="overflow-auto bg-abyss-900">
+    <nav class="flex justify-between px-10 py-6 align-middle text-egshell">
+        <div class="flex"><a href="/"><img src="/logo.svg" alt="lockbook's logo" /></a></div>
+        <div class="flex items-baseline">
+            <ul class="flex mr-10">
+                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
+                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
+                <a class="block mx-3 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
+            </ul>
+            <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline">Download</button>
+        </div>
+    </nav>
+    
+
+<div id="blog-content"class="max-w-2xl mx-auto my-24 text-egshell">
+  <h1 class="title">
+    Migrating Lockbook to a Better Key Format
+  </h1>
+  <p class="subtitle"><strong>2019-11-27</strong></p>
+  <p>On Lockbook, creating an account is simple. You choose a username, and Lockbook will generate an account key. This is what it looks like:</p>
+<pre><code>CwAAAAAAAABzbWFpbHRlc3RzMR0AAAAAAAAAaHR0cHM6Ly9hcGkucHJvZC5sb2NrYm9vay5uZXQgAAAAAAAAAJ&#x2F;1ORmw56YptpNdQvJmGNsE1Lh4qpyYxRl6pp5dE7z0
+</code></pre>
+<p>This key is the only thing you need to access your files on your device. You don't even need to remember your username. And besides, creating your own password is always less secure. Most people reuse passwords from other accounts or use weak passwords. But with a generated account key, Lockbook keeps your notes safe and secure against attacks like <a href="https://en.wikipedia.org/wiki/Credential_stuffing">credential stuffing</a> and <a href="https://en.wikipedia.org/wiki/Dictionary_attack">dictionary attacks</a>.</p>
+<p>The account key is a critical part of our <a href="https://en.wikipedia.org/wiki/End-to-end_encryption">end-to-end encryption scheme</a>. This ensures that no one besides you can see your notes, not even us. This account key corresponds to a private key <a href="https://en.bitcoin.it/wiki/Secp256k1">from the </a><code>secp256k1</code> encryption standard. A user's files are encrypted hierarchically <a href="https://en.wikipedia.org/wiki/Advanced_Encryption_Standard">using </a><code>AES</code>, another encryption standard, and the uppermost key is encrypted using the public key corresponding to your private key. This is called hybrid encryption, and it combines the benefits of both symmetric and asymmetric encryption capabilities. You can read more about it <a href="https://en.wikipedia.org/wiki/Hybrid_cryptosystem">here</a>.</p>
+<p>Our current account key has some issues though. It contains unnecessary information, like what server your Lockbook communicates to, and the username. All of which is <a href="https://en.wikipedia.org/wiki/Base64">Base64 encoded</a>, resulting in a combination of random characters. This isn't necessarily bad, but for someone who might want to write their account key down, it is difficult and error prone. It reminds me of an xkcd comic:</p>
+<p><a href="https://substackcdn.com/image/fetch/f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F50192293-c310-4ef7-9963-928b3b032e80_1480x1202.png"><img src="https://substackcdn.com/image/fetch/w_1456,c_limit,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F50192293-c310-4ef7-9963-928b3b032e80_1480x1202.png" alt="" /></a></p>
+<h2 id="passphrases">Passphrases</h2>
+<p>To solve this issue we took some inspiration from Bitcoin since they use the same private keys. <a href="https://en.bitcoin.it/wiki/BIP_0039">BIP (Bitcoin Improvement Proposal) 39</a> described a way to turn bytes into a mnemonic phrase. Every combination of 11 bits corresponded to a unique word. The motivation was that words are harder to input incorrectly than random characters, and this is exactly what we need. In addition, these words were specifically chosen to be simple. Here's what it looks like:</p>
+<pre><code>turkey, era, velvet, detail, prison, income, dose, royal, fever, truly, unique, couple, party, example, piece, art, leaf, follow, rose, access, vacant, gather, wasp, audit
+</code></pre>
+<p>Another aspect of this proposal was the inclusion of a checksum, which added a self-verifying mechanism to ensure that a phrase has been entered correctly. Since Lockbook uses 256-bit private keys with an additional 4 bits for the checksum, the total key length is 260 bits. This corresponds to a word count of 24 words. This is great and solves the writing issue we discussed before.</p>
+<p>But sometimes users still want a compact key; like for a QR code or for a password manager. Our previous key had its advantages, and we can reduce its size by removing the username and server URL. This effectively halves the number of characters. It looks something like this:</p>
+<pre><code>nvo7SItwXYmoxxzmOCUrNJiw85V8CwJ+SXb8cOHPIlo=
+</code></pre>
+<p>So, when you enter your settings, you have two choices. You can export your phrase or a compact version of your account key. Either will work across all your devices.</p>
+<h2 id="migration">Migration</h2>
+<p>Changing private keys is hard. If we just updated our code to use the new keys in the next release, people would have issues logging in. Additionally, some users may have the old account key saved in password managers, and it would be unacceptable if users couldn't sign in after returning to Lockbook.</p>
+<p>As a result, because we take breaking changes very seriously, we decided to support the previous key format indefinitely. Once most users are on the new version, we will switch to using the new key format. Minimizing the risk of someone using a new key with an incompatible app. We'll also communicate this change across all our social media platforms.</p>
+<h2 id="coding">Coding</h2>
+<p>The majority of the business logic in our apps is written in Rust. This is thanks to <code>lb-rs</code>, <a href="https://blog.lockbook.net/cp/136569912">a shared library we use</a> to iterate quickly across our platforms. This is where I wrote the new key logic. I started by importing a <a href="https://github.com/vincenthz/bip39-dict/">library called </a><code>bip39-dict</code>, which provided the binary-to-word translations. In BIP 39, every 11 bits corresponded to a word, so I had to split up the <code>Vec&lt;u8&gt;</code> private key into 11-bit chunks. The implementation was simple. After implementing a method to convert the private key into a phrase, I made a method to turn the phrase into a private key. This simply involved turning each word it into a <code>u16</code>, and converting chunks of <code>u16</code>s (considering only the first 11 bits) into <code>u8</code>s. I added some tests to verify the inverse properties of these two functions. More details on my efforts can be found <a href="https://github.com/lockbook/lockbook/pull/2811">here</a>.</p>
+<h2 id="final-thoughts">Final Thoughts</h2>
+<p>With these updates in place, we're excited to continue improving Lockbook. As a unique open-source project, Lockbook has a myriad of interesting problems. If you're interested in contributing, feel free to check out the <a href="https://github.com/lockbook/lockbook/">GitHub</a> and join our <a href="https://discord.com/invite/lockbook">Discord</a>. We would love to have you.</p>
+  
+</div>
+
+
+<style>
+  #blog-content{
+    h2, h3, h4 {
+        font-weight: 400;
+    }
+    h1, h2, h3, h4, h5, p {
+        margin-bottom: 24px;
+        padding: 0;
+    }
+    h1 {
+        font-size: 35px;
+        font-weight: bold;
+    }
+    h2 {
+        font-size: 30px;
+        margin: 24px 0 6px;
+    }
+    h3 {
+        font-size: 24px;
+    }
+    h4 {
+        font-size: 21px;
+    }
+    h5 {
+        font-size: 18px;
+    }
+    a {
+        color: #28CCDF; /* should be the same as surfline in tailwind.config.js */
+        margin: 0;
+        padding: 0;
+        text-decoration: none;
+        vertical-align: baseline;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
+    a:visited {
+        opacity: 0.7
+    }
+    ul, ol {
+        padding: 0;
+        margin: 0;
+    }
+    li {
+        line-height: 24px;
+    }
+    li ul, li ul {
+        margin-left: 24px;
+    }
+    p, ul, ol {
+        font-size: 13px;
+        line-height: 24px;
+    }
+    pre {
+        padding: 0px 24px;
+        white-space: pre-wrap;
+    }
+    code {
+        font-family: Consolas, Monaco, Andale Mono, monospace;
+        line-height: 1.5;
+        font-size: 13px;
+    }
+    aside {
+        display: block;
+        float: right;
+        width: 390px;
+    }
+    blockquote {
+        border-left:.5em solid #eee;
+        padding: 0 2em;
+        margin-left:0;
+    }
+    blockquote  cite {
+        font-size:14px;
+        line-height:20px;
+        color:#bfbfbf;
+    }
+    blockquote cite:before {
+        content: '\2014 \00A0';
+    }
+
+    blockquote p {  
+        color: #666;
+    }
+    hr {
+        width: 540px;
+        text-align: left;
+        margin: 0 auto 0 0;
+        color: #999;
+    }
+}
+</style>
+
+
+<script type="module" nonce="BDimjGNOHqxR6nRN7q1Ftg==">
+import init, * as bindings from '/public-site-2215c5060d0d0045.js';
+const wasm = await init({ module_or_path: '/public-site-2215c5060d0d0045_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script></body>
+</html>

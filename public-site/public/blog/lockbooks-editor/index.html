@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<!-- Disable zooming: -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<head>
+    <title>lockbook</title>
+
+    <!-- <link data-trunk rel="copy-file" href="assets/sw.js"/> -->
+    
+    
+    
+
+    <!-- <link data-trunk rel="rust" data-wasm-opt="2" /> -->
+
+
+    <link rel="stylesheet" href="/tailwind-7224d4893d90f4d9.css" integrity="sha384&#x2D;2ojnSrl5xPKB1VQF3&#x2B;MD9sPbplc5vLauXfbwxLQHexoUkOWXEVNoPk7CiWK&#x2F;eKr6"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&display=swap" rel="stylesheet" />
+    
+    <style>
+        html {
+            /* Remove touch delay: */
+            touch-action: manipulation;
+        }
+        
+        /* Allow canvas to fill entire web page: */
+        html,
+        body {
+            overflow: hidden;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+<link rel="modulepreload" href="/public-site-2215c5060d0d0045.js" crossorigin=anonymous integrity="sha384-NGQf3F/Fn4bAgj/embM0Yesb066qXr6t7z5XHTVbV9PDOH+riNdQrVbZY8DKC1gt"><link rel="preload" href="/public-site-2215c5060d0d0045_bg.wasm" crossorigin=anonymous integrity="sha384-XOIFU03s2S7ltHgPGxviQZNga0IcMNLWnckAC8njRgbB7p/qMrWnP1BO7iA8VxgQ" as="fetch" type="application/wasm"></head>
+
+<body class="overflow-auto bg-abyss-900">
+    <nav class="flex justify-between px-10 py-6 align-middle text-egshell">
+        <div class="flex"><a href="/"><img src="/logo.svg" alt="lockbook's logo" /></a></div>
+        <div class="flex items-baseline">
+            <ul class="flex mr-10">
+                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
+                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
+                <a class="block mx-3 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
+            </ul>
+            <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline">Download</button>
+        </div>
+    </nav>
+    
+
+<div id="blog-content"class="max-w-2xl mx-auto my-24 text-egshell">
+  <h1 class="title">
+    Lockbook&#x27;s Editor
+  </h1>
+  <p class="subtitle"><strong>2019-11-27</strong></p>
+  <p><a href="https://substackcdn.com/image/fetch/f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2Fa916acc9-8271-495e-b20c-ae853d06a34f_2000x1500.png"><img src="https://substackcdn.com/image/fetch/w_1456,c_limit,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2Fa916acc9-8271-495e-b20c-ae853d06a34f_2000x1500.png" alt="" /></a></p>
+<p>As <a href="https://parth.cafe/p/introducing-lockbook">Lockbook</a>'s infrastructure stabilized, we began to focus on our markdown editing experience. Across our various platforms, we've experimented with a few approaches for providing our users with an ergonomic way to edit their files. On Android, we use <a href="https://github.com/noties/Markwon">Markwon</a>, a community-built markdown editor. On Apple, we initially did the same thing but found that the community components didn't have many of the features our users were asking for. So as a next step, we dove into Apple's <a href="https://developer.apple.com/documentation/appkit/textkit">TextKit</a> API to begin work on a more ambitious editor.</p>
+<p>Initially, this was fine, but as we worked through our backlog of requests, I found things that were going to be very time-expensive to implement using this API. We were having performance problems when editing large documents. The API was difficult to work with, especially because there were no open existing bodies of work that implemented features like automatic insertion of text (when adding to a list), support for non-text-characters (bullets, checkboxes, inline images), or multiple cursors (real-time collaboration or power user text editing). Even if we did invest the effort to pioneer these features using TextKit, we would have to replicate our efforts on our other platforms. And lastly, none of my other teammates knew the TextKit API intimately, so I wouldn't be able to easily call on their help for one of the most important aspects of our product. We needed a different approach.</p>
+<p>In the past, I've discussed our <a href="https://parth.cafe/p/why-lockbook-chose-rust">core library</a> -- a place we've been able to solve some of our hardest "backend" problems and bring them to foreign programming environments. We needed something like this for a UI component we needed a place where we could invest the time, build an editor from the ground up, and embed it in any UI library.</p>
+<p><a href="https://substackcdn.com/image/fetch/f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F31cca6aa-cf31-4f08-9a9e-f440fb533048_3000x2000.png"><img src="https://substackcdn.com/image/fetch/w_1456,c_limit,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F31cca6aa-cf31-4f08-9a9e-f440fb533048_3000x2000.png" alt="" /></a></p>
+<p>We considered creating a web component. Perhaps we could mitigate some of the downsides of web apps if we were only presenting a web-based view when a document was loaded. Maybe we could leverage Rust's great support for web assembly for the complicated internals. Ultimately I felt like we could do better, so I continued thinking about the problem. On Linux, we'd begun experimenting with <a href="https://github.com/emilk/egui">egui</a>: a lightweight, Rust, UI library. Their README had a long list of places you could embed egui, and I wondered if I could add SwiftUI or Android to that list.</p>
+<p>And so began my journey of gaining a deeper understanding of <a href="https://wgpu.rs/">wgpu</a>, <a href="https://eliasnaur.com/blog/immediate-mode-gui-programming">immediate mode UIs</a>, and how this editor might work on mobile devices.</p>
+<p>Most UI frameworks have an API for directly interfacing with a lower-level graphics API. In SwiftUI, for instance, you can create an <code>MTKView</code> which gives you access to <a href="https://developer.apple.com/documentation/metalkit">MetalKit</a> (Apple's hardware accelerated graphics API). Using this view, you can effectively pass a reference to the GPU into Rust code and initialize an egui component. In the host UI framework you can capture whichever events you need (keyboard &amp; mouse events for instance) and pass them to the embedded UI framework. It's the simplicity of immediate mode programming which enables this to be achievable in a short period, and it's the flexibility of immediate mode programming which makes it a great choice for complex and ambitious UI components. The approach seemed like it held promise so we gave it a go.</p>
+<p>After a month of prototyping and pair programming with my co-founder Travis, we had done it. We shipped a version of our Text Editor on macOS, Windows, and Linux which supported many of the features our team and users had been craving. The editor was incredibly high-performance, easily achieving 120fps on massive documents. Most importantly we have a clear picture of how we would go about implementing our most ambitious features over the next couple of years.</p>
+<p>After we released the editor on the desktop, we began the process of bringing it to mobile devices. This was a new frontier for this approach. On macOS, we just had to pass through keyboard and mouse events. On a mobile device, there are many subtle ways people can edit documents. There are auto-correct, speech-to-text, and clever ways to navigate documents. After some research, we found a neatly documented protocol -- <code>UITextInput</code> -- which outlines the various ways in which you can interact with a software keyboard on iOS. We also found a <a href="https://developer.android.com/reference/android/view/inputmethod/InputMethodManager">corresponding document</a> in Android's documentation.</p>
+<p><a href="https://substackcdn.com/image/fetch/f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F5308aaf8-09b9-440e-802b-209b32204490_600x1300.gif"><img src="https://substackcdn.com/image/fetch/w_1456,c_limit,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F5308aaf8-09b9-440e-802b-209b32204490_600x1300.gif" alt="" /></a></p>
+<p><em>(on iOS you can quickly move the cursor by long-pressing the spacebar)</em></p>
+<p>So back to work we went. We expanded on our SwiftUI &lt;--&gt; egui integration giving it the ability to handle events that egui doesn't recognize. We piped through these new events, refined the way we handle mouse/touch inputs, and a couple of weeks ago, we merged our iOS editor bringing many of our gains to a new form factor.</p>
+<p>We're very excited about the possibilities this technique opens up for us. It allows us to maintain the look &amp; feel that users crave while giving us an escape hatch down into our preferred programming environment when we need it. Once our editor is more mature and the kinks of our integration are worked out, we plan to apply this strategy to more document types. Long term we're interested in making it easy for people to quickly spin up their own SwiftUI component backed by Rust (as presently this still requires a lot of boilerplate code).</p>
+<p>On net, the editor has been a big step forward for us. It's already live on desktops and will be shipping on iOS as part of our upcoming 0.7.5 release. It's a large and fresh body of work, so we anticipate some bugs. If you encounter any, please report them to our <a href="https://github.com/lockbook/lockbook/issues">Github issues</a>. And, as always, if you'd like to join our community, we'd love to have you on our <a href="https://discord.gg/lockbook">Discord server</a>.</p>
+  
+</div>
+
+
+<style>
+  #blog-content{
+    h2, h3, h4 {
+        font-weight: 400;
+    }
+    h1, h2, h3, h4, h5, p {
+        margin-bottom: 24px;
+        padding: 0;
+    }
+    h1 {
+        font-size: 35px;
+        font-weight: bold;
+    }
+    h2 {
+        font-size: 30px;
+        margin: 24px 0 6px;
+    }
+    h3 {
+        font-size: 24px;
+    }
+    h4 {
+        font-size: 21px;
+    }
+    h5 {
+        font-size: 18px;
+    }
+    a {
+        color: #28CCDF; /* should be the same as surfline in tailwind.config.js */
+        margin: 0;
+        padding: 0;
+        text-decoration: none;
+        vertical-align: baseline;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
+    a:visited {
+        opacity: 0.7
+    }
+    ul, ol {
+        padding: 0;
+        margin: 0;
+    }
+    li {
+        line-height: 24px;
+    }
+    li ul, li ul {
+        margin-left: 24px;
+    }
+    p, ul, ol {
+        font-size: 13px;
+        line-height: 24px;
+    }
+    pre {
+        padding: 0px 24px;
+        white-space: pre-wrap;
+    }
+    code {
+        font-family: Consolas, Monaco, Andale Mono, monospace;
+        line-height: 1.5;
+        font-size: 13px;
+    }
+    aside {
+        display: block;
+        float: right;
+        width: 390px;
+    }
+    blockquote {
+        border-left:.5em solid #eee;
+        padding: 0 2em;
+        margin-left:0;
+    }
+    blockquote  cite {
+        font-size:14px;
+        line-height:20px;
+        color:#bfbfbf;
+    }
+    blockquote cite:before {
+        content: '\2014 \00A0';
+    }
+
+    blockquote p {  
+        color: #666;
+    }
+    hr {
+        width: 540px;
+        text-align: left;
+        margin: 0 auto 0 0;
+        color: #999;
+    }
+}
+</style>
+
+
+<script type="module" nonce="BDimjGNOHqxR6nRN7q1Ftg==">
+import init, * as bindings from '/public-site-2215c5060d0d0045.js';
+const wasm = await init({ module_or_path: '/public-site-2215c5060d0d0045_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script></body>
+</html>
