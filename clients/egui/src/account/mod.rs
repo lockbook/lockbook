@@ -599,11 +599,11 @@ impl AccountScreen {
 
     fn focused_parent(&mut self) -> Option<Uuid> {
         if let Some(cursor) = self.tree.cursor {
-            if cursor != self.tree.suggested_docs_folder_id {
-                if self.tree.files.iter().any(|f| f.id == cursor) {
-                    let cursor = self.tree.files.get_by_id(cursor);
-                    return if cursor.is_folder() { Some(cursor.id) } else { Some(cursor.parent) };
-                }
+            if cursor != self.tree.suggested_docs_folder_id
+                && self.tree.files.iter().any(|f| f.id == cursor)
+            {
+                let cursor = self.tree.files.get_by_id(cursor);
+                return if cursor.is_folder() { Some(cursor.id) } else { Some(cursor.parent) };
             }
         }
         None
