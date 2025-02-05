@@ -246,7 +246,7 @@ impl Workspace {
 
     pub fn close_tab(&mut self, i: usize) {
         if let ContentState::Open(TabContent::MindMap(mm)) = &mut self.tabs[i].content {
-            mm.stop(true);
+            mm.stop();
         }
 
         self.save_tab(i);
