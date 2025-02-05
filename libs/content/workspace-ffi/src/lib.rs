@@ -71,6 +71,10 @@ impl<'window> WgpuWorkspace<'window> {
         self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
         self.context.begin_frame(self.raw_input.take());
 
+        if cfg!(target_os = "android") || cfg!(target_os = "ios") {
+            self.context
+                .style_mut(|s| s.visuals.panel_fill = s.visuals.extreme_bg_color);
+        }
         let workspace_response = egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(self.context.style().visuals.panel_fill))
             .show(&self.context, |ui| self.workspace.show(ui))
