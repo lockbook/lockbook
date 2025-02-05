@@ -221,6 +221,10 @@ impl Workspace {
                                         files.suggested.sort();
                                     }
 
+                                    if files.suggested.is_empty() {
+                                        ui.label("Suggestions are based on your activity on this device. Suggestions will appear after some use.");
+                                    }
+
                                     ScrollArea::horizontal().show(ui, |ui| {
                                         ui.horizontal(|ui| {
                                             for &suggested_id in &files.suggested {
