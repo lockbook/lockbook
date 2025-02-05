@@ -602,11 +602,7 @@ impl AccountScreen {
             if cursor != self.tree.suggested_docs_folder_id {
                 if self.tree.files.iter().any(|f| f.id == cursor) {
                     let cursor = self.tree.files.get_by_id(cursor);
-                    return if cursor.is_folder() {
-                         Some(cursor.id)
-                    } else {
-                         Some(cursor.parent)
-                    };
+                    return if cursor.is_folder() { Some(cursor.id) } else { Some(cursor.parent) };
                 }
             }
         }
