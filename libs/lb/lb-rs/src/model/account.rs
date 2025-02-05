@@ -144,7 +144,7 @@ impl Account {
     /// their name to this list. Certainly telemetry in lockbook will always be opt in but the
     /// mechanism of consent may evolve over time.
     pub fn is_beta(&self) -> bool {
-        matches!(self.username.as_str(), "parth" | "travis")
+        matches!(self.username.as_str(), "parth" | "travis" | "smail" | "adam" | "krish")
     }
 }
 
