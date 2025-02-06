@@ -8,7 +8,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::convert::TryInto;
 
-use super::errors::{LbErrKind, LbResult, SignError};
+use super::errors::{core_err_unexpected, unexpected, LbErrKind, LbResult, SignError};
 
 pub fn generate_key() -> SecretKey {
     SecretKey::random(&mut OsRng)
@@ -75,12 +75,12 @@ pub fn verify<T: Serialize>(
     }
 }
 
-pub fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> SharedResult<AESKey> {
+pub fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> LbResult<AESKey> {
     SharedSecret::<Sha256>::new(pk, sk)
-        .map_err(SharedErrorKind::SharedSecretError)?
+        .map_err(unexpected)?
         .as_ref()
         .try_into()
-        .map_err(|_| SharedErrorKind::SharedSecretUnexpectedSize.into())
+        .map_err(unexpected)
 }
 
 #[cfg(test)]

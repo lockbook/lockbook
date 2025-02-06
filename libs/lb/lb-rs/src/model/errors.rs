@@ -317,6 +317,15 @@ pub fn core_err_unexpected<T: fmt::Debug>(err: T) -> LbErrKind {
     LbErrKind::Unexpected(format!("{:?}", err))
 }
 
+// todo call location becomes useless here, and we want that
+pub fn unexpected<T: fmt::Debug>(err: T) -> LbErr {
+    LbErrKind::Unexpected(format!("{:?}", err)).into()
+}
+
+pub trait Unexpected {
+    fn unexpected_err(self) -> LbErr;
+}
+
 impl From<db_rs::DbError> for LbErr {
     fn from(err: db_rs::DbError) -> Self {
         core_err_unexpected(err).into()
