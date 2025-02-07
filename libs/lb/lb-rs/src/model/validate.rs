@@ -5,7 +5,7 @@ use crate::model::filename::MAX_ENCRYPTED_FILENAME_LENGTH;
 use crate::model::lazy::LazyTree;
 use crate::model::staged::StagedTreeLike;
 use crate::model::tree_like::TreeLike;
-use crate::model::{SharedErrorKind, SharedResult, ValidationFailure};
+use crate::model::ValidationFailure;
 use std::collections::{HashMap, HashSet};
 
 use super::errors::{LbErrKind, LbResult};

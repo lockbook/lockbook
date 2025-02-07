@@ -1,5 +1,4 @@
 use crate::model::crypto::*;
-use crate::model::{SharedErrorKind, SharedResult};
 use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;
 use rand::rngs::OsRng;

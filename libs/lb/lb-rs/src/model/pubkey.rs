@@ -1,6 +1,5 @@
 use crate::model::clock::{timestamp, TimeGetter};
 use crate::model::crypto::*;
-use crate::model::{SharedErrorKind, SharedResult};
 use libsecp256k1::Message;
 use libsecp256k1::{PublicKey, SecretKey, SharedSecret, Signature};
 use rand::rngs::OsRng;
@@ -8,7 +7,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::convert::TryInto;
 
-use super::errors::{core_err_unexpected, unexpected, LbErrKind, LbResult, SignError, Unexpected};
+use super::errors::{LbErrKind, LbResult, SignError, Unexpected};
 
 pub fn generate_key() -> SecretKey {
     SecretKey::random(&mut OsRng)
@@ -35,7 +34,7 @@ pub fn verify<T: Serialize>(
     time_getter: TimeGetter,
 ) -> LbResult<()> {
     if &signed.public_key != pk {
-        return Err(LbErrKind::Sign(SignError::WrongPublicKey))?;
+        Err(LbErrKind::Sign(SignError::WrongPublicKey))?;
     }
 
     let auth_time = signed.timestamped_value.timestamp;
@@ -44,13 +43,13 @@ pub fn verify<T: Serialize>(
     let max_delay_ms = max_delay_ms as i64;
 
     if current_time < auth_time - max_skew_ms {
-        return Err(LbErrKind::Sign(SignError::SignatureInTheFuture(
+        Err(LbErrKind::Sign(SignError::SignatureInTheFuture(
             (current_time - (auth_time - max_delay_ms)) as u64,
         )))?;
     }
 
     if current_time > auth_time + max_delay_ms {
-        return Err(LbErrKind::Sign(SignError::SignatureExpired(
+        Err(LbErrKind::Sign(SignError::SignatureExpired(
             (auth_time + max_delay_ms - current_time) as u64,
         )))?;
     }

@@ -33,9 +33,7 @@ pub mod work_unit;
 pub use lazy::ValidationFailure;
 
 use std::backtrace::Backtrace;
-use std::io;
 
-use db_rs::DbError;
 
 pub type SharedResult<T> = Result<T, SharedError>;
 

@@ -1,5 +1,5 @@
 use crate::model::{
-    core_config::Config, crypto::EncryptedDocument, errors::{LbErrKind, LbResult, Unexpected}, file_metadata::DocumentHmac, SharedErrorKind, SharedResult
+    core_config::Config, crypto::EncryptedDocument, errors::{LbErrKind, LbResult, Unexpected}, file_metadata::DocumentHmac
 };
 use std::{
     collections::HashSet,

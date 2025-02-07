@@ -17,7 +17,7 @@ use crate::model::text::buffer::Buffer;
 use crate::model::tree_like::TreeLike;
 use crate::model::work_unit::WorkUnit;
 use crate::model::{clock, svg};
-use crate::model::{symkey, SharedErrorKind, ValidationFailure};
+use crate::model::{symkey, ValidationFailure};
 use crate::Lb;
 pub use basic_human_duration::ChronoHumanDuration;
 use futures::stream;

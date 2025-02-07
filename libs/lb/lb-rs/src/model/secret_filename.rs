@@ -1,6 +1,5 @@
 use crate::model::crypto::{AESEncrypted, AESKey};
 use crate::model::symkey::{convert_key, generate_nonce};
-use crate::model::{SharedErrorKind, SharedResult};
 use aead::{generic_array::GenericArray, Aead};
 use hmac::{Hmac, Mac, NewMac};
 use serde::{Deserialize, Serialize};

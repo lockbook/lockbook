@@ -1,5 +1,4 @@
 use std::backtrace::Backtrace;
-use std::collections::HashSet;
 use std::fmt::Display;
 use std::fmt::{self, Formatter};
 use std::io;
@@ -11,7 +10,7 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::model::{SharedError, SharedErrorKind, ValidationFailure};
+use crate::model::{SharedError, ValidationFailure};
 use crate::service::network::ApiError;
 
 use super::api;
@@ -146,9 +145,7 @@ impl From<LbErrKind> for LbErr {
 
 impl From<SharedError> for LbErr {
     fn from(err: SharedError) -> Self {
-        let kind = match err.kind {
-            _ => LbErrKind::Unexpected(format!("unexpected shared error {:?}", err)),
-        };
+        let kind = LbErrKind::Unexpected(format!("unexpected shared error {:?}", err));
         Self { kind, backtrace: err.backtrace }
     }
 }

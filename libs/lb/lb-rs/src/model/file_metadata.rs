@@ -14,7 +14,7 @@ use crate::model::crypto::AESKey;
 use crate::model::file_like::FileLike;
 use crate::model::secret_filename::SecretFileName;
 use crate::model::signed_file::SignedFile;
-use crate::model::{pubkey, symkey, SharedResult};
+use crate::model::{pubkey, symkey};
 use crate::service::keychain::Keychain;
 
 pub type DocumentHmac = [u8; 32];
@@ -75,11 +75,11 @@ impl FileMetadata {
     }
 
     pub fn sign(self, keychain: &Keychain) -> LbResult<SignedFile> {
-        Ok(pubkey::sign(&keychain.get_account()?.private_key, &keychain.get_pk()?, self, get_time)?)
+        pubkey::sign(&keychain.get_account()?.private_key, &keychain.get_pk()?, self, get_time)
     }
 
     pub fn sign_with(self, account: &Account) -> LbResult<SignedFile> {
-        Ok(pubkey::sign(&account.private_key, &account.public_key(), self, get_time)?)
+        pubkey::sign(&account.private_key, &account.public_key(), self, get_time)
     }
 }
 
