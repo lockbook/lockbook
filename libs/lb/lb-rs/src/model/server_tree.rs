@@ -66,7 +66,7 @@ impl TreeLike for ServerTree<'_> {
 }
 
 impl TreeLikeMut for ServerTree<'_> {
-    fn insert(&mut self, f: Self::F) -> SharedResult<Option<Self::F>> {
+    fn insert(&mut self, f: Self::F) -> LbResult<Option<Self::F>> {
         let id = *f.id();
         let owner = f.owner();
         let maybe_prior = LookupTable::insert(self.files, id, f.clone())?;
@@ -121,12 +121,12 @@ impl TreeLikeMut for ServerTree<'_> {
         Ok(maybe_prior)
     }
 
-    fn remove(&mut self, _id: Uuid) -> SharedResult<Option<Self::F>> {
+    fn remove(&mut self, _id: Uuid) -> LbResult<Option<Self::F>> {
         error!("remove metadata called in server!");
         Ok(None)
     }
 
-    fn clear(&mut self) -> SharedResult<()> {
+    fn clear(&mut self) -> LbResult<()> {
         error!("clear called in server!");
         Ok(())
     }

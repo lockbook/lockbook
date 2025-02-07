@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::hash::Hash;
 
+use super::errors::{CryptoError, LbErrKind, LbResult, Unexpected};
+
 pub type HmacSha256 = Hmac<Sha256>;
 
 /// A secret value that can impl an equality check by hmac'ing the
@@ -18,12 +20,11 @@ pub struct SecretFileName {
 }
 
 impl SecretFileName {
-    pub fn from_str(to_encrypt: &str, key: &AESKey, parent_key: &AESKey) -> SharedResult<Self> {
-        let serialized = bincode::serialize(to_encrypt)?;
+    pub fn from_str(to_encrypt: &str, key: &AESKey, parent_key: &AESKey) -> LbResult<Self> {
+        let serialized = bincode::serialize(to_encrypt).map_unexpected()?;
 
         let hmac = {
-            let mut mac = HmacSha256::new_from_slice(parent_key)
-                .map_err(SharedErrorKind::HmacCreationError)?;
+            let mut mac = HmacSha256::new_from_slice(parent_key).map_unexpected()?;
             mac.update(serialized.as_ref());
             mac.finalize().into_bytes()
         }
@@ -36,29 +37,29 @@ impl SecretFileName {
                     GenericArray::from_slice(nonce),
                     aead::Payload { msg: &serialized, aad: &[] },
                 )
-                .map_err(SharedErrorKind::Encryption)?;
+                .map_unexpected()?;
             AESEncrypted::new(encrypted, nonce.to_vec())
         };
 
         Ok(SecretFileName { encrypted_value, hmac })
     }
 
-    pub fn to_string(&self, key: &AESKey) -> SharedResult<String> {
+    pub fn to_string(&self, key: &AESKey) -> LbResult<String> {
         let nonce = GenericArray::from_slice(&self.encrypted_value.nonce);
         let decrypted = convert_key(key)
             .decrypt(nonce, aead::Payload { msg: &self.encrypted_value.value, aad: &[] })
-            .map_err(SharedErrorKind::Decryption)?;
-        let deserialized = bincode::deserialize(&decrypted)?;
+            .map_err(|err| LbErrKind::Crypto(CryptoError::Decryption(err)))?;
+        let deserialized = bincode::deserialize(&decrypted).map_unexpected()?;
         Ok(deserialized)
     }
 
-    pub fn verify_hmac(&self, key: &AESKey, parent_key: &AESKey) -> SharedResult<()> {
+    pub fn verify_hmac(&self, key: &AESKey, parent_key: &AESKey) -> LbResult<()> {
         let decrypted = self.to_string(key)?;
         let mut mac =
-            HmacSha256::new_from_slice(parent_key).map_err(SharedErrorKind::HmacCreationError)?;
+            HmacSha256::new_from_slice(parent_key).map_unexpected()?;
         mac.update(decrypted.as_ref());
         mac.verify(&self.hmac)
-            .map_err(SharedErrorKind::HmacValidationError)?;
+            .map_err(|err| LbErrKind::Crypto(CryptoError::HmacVerification(err)))?;
         Ok(())
     }
 }

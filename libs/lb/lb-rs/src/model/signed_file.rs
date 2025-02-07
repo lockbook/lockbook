@@ -6,6 +6,8 @@ use crate::model::SharedResult;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
+use super::errors::LbResult;
+
 pub type SignedFile = ECSigned<FileMetadata>;
 
 // Impl'd to avoid comparing encrypted
@@ -52,11 +54,11 @@ impl<F> TreeLikeMut for Option<F>
 where
     F: FileLike,
 {
-    fn insert(&mut self, f: F) -> SharedResult<Option<F>> {
+    fn insert(&mut self, f: F) -> LbResult<Option<F>> {
         Ok(self.replace(f))
     }
 
-    fn remove(&mut self, id: Uuid) -> SharedResult<Option<F>> {
+    fn remove(&mut self, id: Uuid) -> LbResult<Option<F>> {
         if let Some(f) = self {
             if &id == f.id() {
                 Ok(self.take())
@@ -68,7 +70,7 @@ where
         }
     }
 
-    fn clear(&mut self) -> SharedResult<()> {
+    fn clear(&mut self) -> LbResult<()> {
         *self = None;
         Ok(())
     }

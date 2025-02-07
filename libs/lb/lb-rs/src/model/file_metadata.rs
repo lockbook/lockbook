@@ -33,7 +33,7 @@ pub struct FileMetadata {
 }
 
 impl FileMetadata {
-    pub fn create_root(account: &Account) -> SharedResult<Self> {
+    pub fn create_root(account: &Account) -> LbResult<Self> {
         let id = Uuid::new_v4();
         let key = symkey::generate_key();
         let pub_key = account.public_key();
@@ -60,7 +60,7 @@ impl FileMetadata {
     pub fn create(
         id: Uuid, key: AESKey, owner: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str,
         file_type: FileType,
-    ) -> SharedResult<Self> {
+    ) -> LbResult<Self> {
         Ok(FileMetadata {
             id,
             file_type,

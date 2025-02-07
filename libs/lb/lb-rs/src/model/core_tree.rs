@@ -4,6 +4,8 @@ use crate::model::SharedResult;
 use serde::Serialize;
 use uuid::Uuid;
 
+use super::errors::{LbResult, Unexpected};
+
 impl<F> TreeLike for db_rs::LookupTable<Uuid, F>
 where
     F: FileLike + Serialize,
@@ -23,15 +25,15 @@ impl<F> TreeLikeMut for db_rs::LookupTable<Uuid, F>
 where
     F: FileLike + Serialize,
 {
-    fn insert(&mut self, f: Self::F) -> SharedResult<Option<Self::F>> {
-        Ok(db_rs::LookupTable::insert(self, *f.id(), f)?)
+    fn insert(&mut self, f: Self::F) -> LbResult<Option<Self::F>> {
+        Ok(db_rs::LookupTable::insert(self, *f.id(), f).map_unexpected()?)
     }
 
-    fn remove(&mut self, id: Uuid) -> SharedResult<Option<Self::F>> {
-        Ok(db_rs::LookupTable::remove(self, &id)?)
+    fn remove(&mut self, id: Uuid) -> LbResult<Option<Self::F>> {
+        Ok(db_rs::LookupTable::remove(self, &id).map_unexpected()?)
     }
 
-    fn clear(&mut self) -> SharedResult<()> {
-        Ok(db_rs::LookupTable::clear(self)?)
+    fn clear(&mut self) -> LbResult<()> {
+        Ok(db_rs::LookupTable::clear(self).map_unexpected()?)
     }
 }

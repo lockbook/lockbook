@@ -371,7 +371,7 @@ where
 {
     pub fn stage_and_promote<S: TreeLikeMut<F = T::F>>(
         &mut self, mut staged: S,
-    ) -> SharedResult<()> {
+    ) -> LbResult<()> {
         for id in staged.ids() {
             if let Some(removed) = staged.remove(id)? {
                 self.tree.insert(removed)?;
@@ -396,7 +396,7 @@ where
     }
 
     // todo: this is dead code
-    pub fn stage_removals_and_promote(&mut self, removed: HashSet<Uuid>) -> SharedResult<()> {
+    pub fn stage_removals_and_promote(&mut self, removed: HashSet<Uuid>) -> LbResult<()> {
         for id in removed {
             self.tree.remove(id)?;
         }

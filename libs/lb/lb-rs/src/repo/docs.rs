@@ -1,5 +1,5 @@
 use crate::model::{
-    core_config::Config, crypto::EncryptedDocument, errors::{LbErrKind, LbResult}, file_metadata::DocumentHmac, SharedErrorKind, SharedResult
+    core_config::Config, crypto::EncryptedDocument, errors::{LbErrKind, LbResult, Unexpected}, file_metadata::DocumentHmac, SharedErrorKind, SharedResult
 };
 use std::{
     collections::HashSet,
@@ -22,9 +22,9 @@ pub struct AsyncDocs {
 impl AsyncDocs {
     pub async fn insert(
         &self, id: Uuid, hmac: Option<DocumentHmac>, document: &EncryptedDocument,
-    ) -> SharedResult<()> {
+    ) -> LbResult<()> {
         if let Some(hmac) = hmac {
-            let value = &bincode::serialize(document)?;
+            let value = &bincode::serialize(document).map_unexpected()?;
             let path_str = key_path(&self.location, id, hmac) + ".pending";
             let path = Path::new(&path_str);
             trace!("write\t{} {:?} bytes", &path_str, value.len());
@@ -52,7 +52,7 @@ impl AsyncDocs {
 
     pub async fn maybe_get(
         &self, id: Uuid, hmac: Option<DocumentHmac>,
-    ) -> SharedResult<Option<EncryptedDocument>> {
+    ) -> LbResult<Option<EncryptedDocument>> {
         if let Some(hmac) = hmac {
             let path_str = key_path(&self.location, id, hmac);
             let path = Path::new(&path_str);
@@ -70,7 +70,7 @@ impl AsyncDocs {
             };
 
             Ok(match maybe_data {
-                Some(data) => bincode::deserialize(&data).map(Some)?,
+                Some(data) => bincode::deserialize(&data).map(Some).map_unexpected()?,
                 None => None,
             })
         } else {
@@ -78,13 +78,13 @@ impl AsyncDocs {
         }
     }
 
-    pub async fn delete(&self, id: Uuid, hmac: Option<DocumentHmac>) -> SharedResult<()> {
+    pub async fn delete(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult <()> {
         if let Some(hmac) = hmac {
             let path_str = key_path(&self.location, id, hmac);
             let path = Path::new(&path_str);
             trace!("delete\t{}", &path_str);
             if path.exists() {
-                fs::remove_file(path).await?;
+                fs::remove_file(path).await.map_unexpected()?;
             }
         }
 

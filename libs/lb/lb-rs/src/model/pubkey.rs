@@ -8,7 +8,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::convert::TryInto;
 
-use super::errors::{core_err_unexpected, unexpected, LbErrKind, LbResult, SignError};
+use super::errors::{core_err_unexpected, unexpected, LbErrKind, LbResult, SignError, Unexpected};
 
 pub fn generate_key() -> SecretKey {
     SecretKey::random(&mut OsRng)
@@ -16,11 +16,12 @@ pub fn generate_key() -> SecretKey {
 
 pub fn sign<T: Serialize>(
     sk: &SecretKey, pk: &PublicKey, to_sign: T, time_getter: TimeGetter,
-) -> SharedResult<ECSigned<T>> {
+) -> LbResult<ECSigned<T>> {
     let timestamped = timestamp(to_sign, time_getter);
-    let serialized = bincode::serialize(&timestamped)?;
+    let serialized = bincode::serialize(&timestamped).map_unexpected()?;
     let digest = Sha256::digest(&serialized);
-    let message = &Message::parse_slice(&digest).map_err(SharedErrorKind::ParseError)?;
+    let message = &Message::parse_slice(&digest)
+        .map_err(|err| LbErrKind::Sign(SignError::SignatureParseError(err)))?;
     let (signature, _) = libsecp256k1::sign(message, sk);
     Ok(ECSigned {
         timestamped_value: timestamped,
@@ -77,10 +78,10 @@ pub fn verify<T: Serialize>(
 
 pub fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> LbResult<AESKey> {
     SharedSecret::<Sha256>::new(pk, sk)
-        .map_err(unexpected)?
+        .map_unexpected()?
         .as_ref()
         .try_into()
-        .map_err(unexpected)
+        .map_unexpected()
 }
 
 #[cfg(test)]

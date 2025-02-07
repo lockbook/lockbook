@@ -17,7 +17,6 @@ use lb_rs::model::file_metadata::{Diff, Owner};
 use lb_rs::model::server_file::{IntoServerFile, ServerFile};
 use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
-use lb_rs::model::{SharedErrorKind, SharedResult};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::ops::DerefMut;

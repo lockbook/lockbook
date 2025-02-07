@@ -36,7 +36,6 @@ use std::backtrace::Backtrace;
 use std::io;
 
 use db_rs::DbError;
-use hmac::crypto_mac::{InvalidKeyLength, MacError};
 
 pub type SharedResult<T> = Result<T, SharedError>;
 
@@ -53,35 +52,4 @@ impl From<SharedErrorKind> for SharedError {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum SharedErrorKind {
-    BincodeError(String),
-    Encryption(aead::Error),
-    HmacCreationError(InvalidKeyLength),
-    Decryption(aead::Error),
-    HmacValidationError(MacError),
-    ParseError(libsecp256k1::Error),
-    SharedSecretUnexpectedSize,
-    SharedSecretError(libsecp256k1::Error),
-
-    Io(String),
-
-    Db(String),
-}
-
-impl From<DbError> for SharedError {
-    fn from(value: DbError) -> Self {
-        SharedErrorKind::Db(format!("db error: {:?}", value)).into()
-    }
-}
-
-impl From<bincode::Error> for SharedError {
-    fn from(err: bincode::Error) -> Self {
-        SharedErrorKind::BincodeError(err.to_string()).into()
-    }
-}
-
-impl From<io::Error> for SharedError {
-    fn from(err: io::Error) -> Self {
-        SharedErrorKind::Io(err.to_string()).into()
-    }
-}
+pub enum SharedErrorKind {}

@@ -3,8 +3,10 @@ use std::collections::HashSet;
 use std::fmt::Display;
 use std::fmt::{self, Formatter};
 use std::io;
+use std::panic::Location;
 use std::sync::PoisonError;
 
+use hmac::crypto_mac::MacError;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
@@ -131,6 +133,7 @@ impl Display for LbErrKind {
             LbErrKind::Validation(validation_failure) => todo!(),
             LbErrKind::Diff(diff_error) => todo!(),
             LbErrKind::Sign(sign_error) => todo!(),
+            LbErrKind::Crypto(crypto_error) => todo!(),
         }
     }
 }
@@ -147,6 +150,25 @@ impl From<SharedError> for LbErr {
             _ => LbErrKind::Unexpected(format!("unexpected shared error {:?}", err)),
         };
         Self { kind, backtrace: err.backtrace }
+    }
+}
+
+pub trait Unexpected<T> {
+    fn map_unexpected(self) -> LbResult<T>;
+}
+
+impl<T, E: std::fmt::Debug> Unexpected<T> for Result<T, E> {
+    #[track_caller]
+    fn map_unexpected(self) -> LbResult<T> {
+        let location = Location::caller();
+        self.map_err(|err| {
+            LbErrKind::Unexpected(format!(
+                "unexpected error at {}:{} {err:?}",
+                location.file(),
+                location.line(),
+            ))
+            .into()
+        })
     }
 }
 
@@ -281,6 +303,7 @@ pub enum LbErrKind {
     Diff(DiffError),
     Validation(ValidationFailure),
     Sign(SignError),
+    Crypto(CryptoError),
 
     /// If no programmer in any part of the stack (including tests) expects
     /// to see a particular error, we debug format the underlying error to
@@ -301,10 +324,17 @@ pub enum DiffError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SignError {
     SignatureInvalid,
+    // todo: candidate for unexpected
     SignatureParseError(libsecp256k1::Error),
     WrongPublicKey,
     SignatureInTheFuture(u64),
     SignatureExpired(u64),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CryptoError {
+    Decryption(aead::Error),
+    HmacVerification(MacError)
 }
 
 impl From<bincode::Error> for LbErr {
@@ -320,10 +350,6 @@ pub fn core_err_unexpected<T: fmt::Debug>(err: T) -> LbErrKind {
 // todo call location becomes useless here, and we want that
 pub fn unexpected<T: fmt::Debug>(err: T) -> LbErr {
     LbErrKind::Unexpected(format!("{:?}", err)).into()
-}
-
-pub trait Unexpected {
-    fn unexpected_err(self) -> LbErr;
 }
 
 impl From<db_rs::DbError> for LbErr {
