@@ -184,7 +184,6 @@ impl Workspace {
     pub fn current_tab_markdown_mut(&mut self) -> Option<&mut Markdown> {
         self.current_tab_mut()?.markdown_mut()
     }
-
     pub fn current_tab_svg_mut(&mut self) -> Option<&mut SVGEditor> {
         self.current_tab_mut()?.svg_mut()
     }
@@ -269,6 +268,7 @@ impl Workspace {
     }
 
     #[instrument(level = "trace", skip_all)]
+
     pub fn process_updates(&mut self) {
         let task_manager::Response {
             completed_loads,
