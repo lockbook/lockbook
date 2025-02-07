@@ -4,8 +4,6 @@ use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
 use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
-
-use std::collections::VecDeque;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
@@ -205,7 +203,6 @@ impl MindMap {
     ) {
         let center =
             Pos2::new((screen.max.x + screen.min.x) / 2.0, (screen.max.y + screen.min.y) / 2.0);
-        let mut previous_postions: VecDeque<Vec<Pos2>> = VecDeque::new();
         let num_nodes = graph.len() as f32;
         let width = screen.max.x - screen.min.x;
         let height = screen.max.y - screen.min.y;
@@ -301,9 +298,6 @@ impl MindMap {
                 };
                 new_positions[i] += movement * c;
             }
-
-            let clone_positions = positions.clone();
-            previous_postions.push_back(clone_positions);
 
             {
                 let mut pos_lock = thread_positions.write().unwrap();
