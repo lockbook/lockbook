@@ -157,7 +157,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
             scroll_wheel(wsHandle, Float(event.scrollingDeltaX * 10), Float(event.scrollingDeltaY * 10), event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
         }
         setNeedsDisplay(self.frame)
-    }
+    } 
 
     public override func magnify(with event: NSEvent) {
         magnify_gesture(wsHandle, Float(event.magnification))
@@ -165,10 +165,15 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     public override func keyDown(with event: NSEvent) {
+        print("got event:" + (event.characters ?? "dis got nun"))
+        
+        
         if event.modifierFlags.contains(.command) && event.keyCode == 9 { // cmd+v
             let _ = importFromPasteboard(NSPasteboard.general, isPaste: true)
         } else {
-            key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
+            let text = event.characters ?? ""
+            
+            key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, text)
         }
 
         setNeedsDisplay(self.frame)
