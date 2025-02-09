@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
 
-  <div class="relative mt-40">
-      <h1 class="max-w-4xl mx-auto text-4xl font-bold text-center text-egshell">
+  <div class="relative mt-14 lg:mt-40">
+      <h1 class="max-w-4xl px-3 mx-auto text-3xl/relaxed [word-spacing:-6px] font-bold lg:text-center lg:text-4xl/snug  text-egshell">
           The secure place for
-          <p class="relative inline">
-            <span class="absolute left-0 px-2 py-1 text-xs font-medium tracking-normal uppercase -translate-x-4 -translate-y-2 text-abyss-900 -z-10 -rotate-6 text-abyss rounded-2xl bg-sundown">markdown</span> writing</p>
-          notes,
-          <p class="relative inline">sketching 
+          <p class="relative inline-block">
+            <span class="absolute left-0 px-2 py-1 text-xs font-medium tracking-normal uppercase -translate-x-4 -translate-y-1 lg:-translate-y-2 text-abyss-900 -z-10 -rotate-6 text-abyss rounded-2xl bg-sundown">markdown</span> writing</p>
+          notes
+          <p class="relative inline-block">sketching 
           <span class="absolute right-0 px-2 py-1 text-xs font-medium tracking-normal uppercase -translate-x-1 -translate-y-1 text-abyss-900 -z-10 rotate-6 text-abyss rounded-2xl bg-dusk">svg</span></p>
           ideas and storing files
       </h1>
-      <span class="pointer-events-none  w-screen h-screen absolute inset-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(at_center,_theme('colors.egshell')_-200%,_transparent_30%)]"></span>
+      <span class="pointer-events-none  w-[100rem] lg:w-[100rem] n h-screen absolute left-0 top-0 lg:inset-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(at_center,_theme('colors.egshell')_-200%,_transparent_30%)]"></span>
   </div>
 
 
@@ -24,18 +24,18 @@
 
 
 
-  <div class="grid max-w-2xl grid-cols-2 m-auto my-56 text-xs text-egshell font-extralight gap-y-10">
+  <div class="grid max-w-2xl grid-cols-2 px-3 m-auto my-56 text-xs max-sm:grid-cols-1 max-sm:gap-y-12 text-egshell font-extralight gap-y-10">
       <div class="relative">
           <h2 class="text-lg font-bold">## Community Driven</h2>
           <p class="mt-3 leading-5">Lockbook is in open beta. Join our community, share your feedback, and help achieve our vision of open-source privacy without compromises.</p>
           <span class="pointer-events-none  w-[45rem]  h-[45rem] left-0 top-0 absolute transform  -translate-x-[45%] -translate-y-[48%] bg-[radial-gradient(at_center,_theme('colors.egshell')_-200%,_transparent_30%)]"></span>
       </div>
-      <div class="relative col-start-2 row-start-2">
+      <div class="relative lg:col-start-2 lg:row-start-2">
           <h2 class="text-lg font-bold" >## Private & Transparent</h2>
           <p class="mt-3 leading-5">Lockbook is 100% open source. Be the customer, not the product. We sell a note-taking app, not your data.</p>
           <span class="pointer-events-none  w-[55rem]  h-[55rem] left-0 top-0 absolute transform  -translate-x-[45%] -translate-y-[48%] bg-[radial-gradient(at_center,_theme('colors.egshell')_-300%,_transparent_30%)]"></span>
       </div>
-      <div class="relative col-start-1 row-start-3">
+      <div class="relative lg:col-start-1 lg:row-start-3">
           <h2 class="text-lg font-bold">## Developer-Friendly</h2>
           <p class="mt-3 leading-5">our CLI will fit right into your favorite chain of piped-together Unix commands. Search your notes with `fzf` edit them with `vim` and schedule backups with `cron`.</p>
           <span class="pointer-events-none  w-[65rem]  h-[65rem] left-0 top-0 absolute transform  -translate-x-[45%]  -translate-y-[48%] bg-[radial-gradient(at_center,_theme('colors.egshell')_-400%,_transparent_30%)]"></span>

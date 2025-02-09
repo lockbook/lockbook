@@ -3,7 +3,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 
 <!-- Disable zooming: -->
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <head>
     <title>lockbook</title>
@@ -16,7 +16,7 @@
     <!-- <link data-trunk rel="rust" data-wasm-opt="2" /> -->
 
 
-    <link rel="stylesheet" href="/tailwind-7224d4893d90f4d9.css" integrity="sha384&#x2D;2ojnSrl5xPKB1VQF3&#x2B;MD9sPbplc5vLauXfbwxLQHexoUkOWXEVNoPk7CiWK&#x2F;eKr6"/>
+    <link rel="stylesheet" href="/tailwind-8f2bd36cd1d2ce20.css" integrity="sha384&#x2D;ocqCS8C2bRqfOYeW8qbn0fBe3NmciJFD4VCzDB6RKUvyDegpsof&#x2F;a07hiPgaxPXT"/>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&display=swap" rel="stylesheet" />
@@ -39,16 +39,26 @@
     </style>
 <link rel="modulepreload" href="/public-site-2215c5060d0d0045.js" crossorigin=anonymous integrity="sha384-NGQf3F/Fn4bAgj/embM0Yesb066qXr6t7z5XHTVbV9PDOH+riNdQrVbZY8DKC1gt"><link rel="preload" href="/public-site-2215c5060d0d0045_bg.wasm" crossorigin=anonymous integrity="sha384-XOIFU03s2S7ltHgPGxviQZNga0IcMNLWnckAC8njRgbB7p/qMrWnP1BO7iA8VxgQ" as="fetch" type="application/wasm"></head>
 
-<body class="overflow-auto bg-abyss-900">
-    <nav class="flex justify-between px-10 py-6 align-middle text-egshell">
-        <div class="flex"><a href="/"><img src="/logo.svg" alt="lockbook's logo" /></a></div>
-        <div class="flex items-baseline">
-            <ul class="flex mr-10">
-                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
-                <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
-                <a class="block mx-3 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
+<body class="overflow-scroll bg-abyss-900">
+    <nav class="sticky top-0 z-40 px-10 py-4 overflow-scroll border-b-2 max-sm:pr-0 text-egshell bg-abyss-900/80 border-abyss-400 backdrop-blur-md">
+        <div class="flex justify-between w-full align-middle">
+            <div class="flex"><a class="flex" href="/"><img src="/logo.svg" alt="lockbook's logo" class=""/></a></div>
+            <div class="flex items-center">
+                <ul class="flex mr-10 max-sm:hidden">
+                    <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
+                    <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
+                    <a class="block mx-3 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
+                </ul>
+                <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline">Download</button>
+                <button data-expanded="false" class="relative mx-6 text-4xl bottom-1 text-surfline sm:hidden" id="nav-hamburger-btn">≡</button>
+            </div>
+        </div>
+        <div>
+            <ul class="flex-col hidden mt-10 mr-16 " id="mobile-nav-links">
+                <a class="block mx-3 mt-6 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
+                <a class="block mx-3 mt-6 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
+                <a class="block mx-3 mt-6 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
             </ul>
-            <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline">Download</button>
         </div>
     </nav>
     
@@ -86,7 +96,7 @@
 
 
 
-<script type="module" nonce="BDimjGNOHqxR6nRN7q1Ftg==">
+<script type="module" nonce="AejOvQLrbaIxFWHA1kxh5A==">
 import init, * as bindings from '/public-site-2215c5060d0d0045.js';
 const wasm = await init({ module_or_path: '/public-site-2215c5060d0d0045_bg.wasm' });
 
@@ -97,4 +107,35 @@ window.wasmBindings = bindings;
 dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
 </script></body>
+
+<script>
+    let navBurgerBtn = document.querySelector("#nav-hamburger-btn")
+    let nav = document.querySelector("nav");
+    let navLinks = document.querySelector("#mobile-nav-links");
+    
+    navBurgerBtn.addEventListener('click', e=>{
+        navNeedsExpansion = navBurgerBtn.dataset.expanded === "false" ? true : false
+        navBurgerBtn.dataset.expanded = navNeedsExpansion
+
+        let expandedNavStyles =["h-screen"] 
+
+        if (navNeedsExpansion) {
+            nav.classList.add(...expandedNavStyles)
+            navLinks.classList.remove("hidden");
+            navLinks.classList.add("flex");
+            navBurgerBtn.textContent = "x"
+            document.body.classList.remove("overflow-scroll")
+            document.body.classList.add("overflow-hidden")
+        } else {
+            nav.classList.remove(...expandedNavStyles)
+            navLinks.classList.add("hidden");
+            navLinks.classList.remove("flex");  
+            navBurgerBtn.textContent = "≡"
+            document.body.classList.add("overflow-scroll")
+            document.body.classList.remove("overflow-hidden")
+        }
+
+    })
+</script>
+
 </html>
