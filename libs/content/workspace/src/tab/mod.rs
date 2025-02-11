@@ -40,8 +40,7 @@ impl Tab {
     pub fn id(&self) -> Option<Uuid> {
         match &self.content {
             ContentState::Loading(id) => Some(*id),
-            ContentState::Open(TabContent::Markdown(md)) => Some(md.file_id),
-            ContentState::Open(TabContent::Svg(svg)) => Some(svg.open_file),
+            ContentState::Open(content) => content.id(),
             _ => None,
         }
     }
@@ -186,7 +185,9 @@ impl TabContent {
         match self {
             TabContent::Markdown(md) => Some(md.file_id),
             TabContent::Svg(svg) => Some(svg.open_file),
-            _ => None,
+            TabContent::Image(image_viewer) => Some(image_viewer.id),
+            TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
+            TabContent::MindMap(_) => None,
         }
     }
 
