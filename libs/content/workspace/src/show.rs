@@ -4,8 +4,9 @@ use egui::emath::easing;
 use egui::os::OperatingSystem;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Modifiers,
-    RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2, ViewportCommand, WidgetText,
+    include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Label, Modifiers,
+    RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2, ViewportCommand, Widget as _,
+    WidgetText,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
@@ -264,10 +265,7 @@ impl Workspace {
                                                     ui.vertical_centered(|ui| {
                                                         ui.add_space(15.);
 
-                                                        ui.label(
-                                                            &DocType::from_name(&file.name)
-                                                                .to_icon(),
-                                                        );
+                                                        Label::new(&DocType::from_name(&file.name).to_icon()).selectable(false).ui(ui);
 
                                                         let truncated_name = WidgetText::from(
                                                             WidgetText::from(&file.name)
@@ -288,7 +286,8 @@ impl Workspace {
                                                                 ),
                                                         );
 
-                                                        ui.label(truncated_name);
+
+                                                        Label::new(truncated_name).selectable(false).ui(ui);
                                                     });
                                                 });
                                             }
