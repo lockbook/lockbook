@@ -27,13 +27,9 @@ pub unsafe extern "C" fn key_event(
 
     let Some(key) = NSKeys::from(key_code) else { return };
 
-    // Event::Text
-    let alt_only = modifiers.alt
-        && !modifiers.ctrl
-        && !modifiers.shift
-        && !modifiers.mac_cmd
-        && !modifiers.command;
-    let text_modifiers = modifiers.shift_only() || alt_only || modifiers.is_none();
+    let alt_without_ctrl_cmd =
+        modifiers.alt && !modifiers.ctrl && !modifiers.mac_cmd && !modifiers.command;
+    let text_modifiers = modifiers.shift_only() || alt_without_ctrl_cmd || modifiers.is_none();
     let text = CStr::from_ptr(characters).to_str().unwrap().to_string();
     let is_valid_text = text.chars().any(|c| !c.is_control());
 
