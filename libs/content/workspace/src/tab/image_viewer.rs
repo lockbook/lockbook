@@ -14,6 +14,12 @@ impl ImageViewer {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        ui.painter().rect_filled(
+            ui.available_rect_before_wrap(),
+            0.,
+            ui.visuals().extreme_bg_color,
+        );
+
         egui::ScrollArea::both().show(ui, |ui| {
             ui.add(self.img.clone()); // nb: doesn't clone the image data
         });

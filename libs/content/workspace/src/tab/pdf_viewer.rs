@@ -120,9 +120,14 @@ impl PdfViewer {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        ui.painter().rect_filled(
+            ui.available_rect_before_wrap(),
+            0.,
+            ui.visuals().extreme_bg_color,
+        );
+
         ui.vertical(|ui| {
             self.show_toolbar(ui);
-            ui.separator();
         });
 
         self.show_sidebar(ui);
