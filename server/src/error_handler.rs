@@ -11,7 +11,6 @@ use db_rs::DbError;
 use jsonwebtoken::errors::ErrorKind;
 use lb_rs::model::api::*;
 use lb_rs::model::errors::{DiffError, LbErr, LbErrKind};
-use lb_rs::model::{SharedError, SharedErrorKind};
 use std::fmt::Debug;
 use std::io::Error;
 use std::sync::PoisonError;
@@ -334,7 +333,7 @@ impl From<LbErr> for ServerError<UpsertError> {
             LbErrKind::InsufficientPermission => ClientError(NotPermissioned),
             LbErrKind::Validation(fail) => ClientError(Validation(fail)),
             LbErrKind::RootModificationInvalid => ClientError(RootModificationInvalid),
-            LbErrKind::Unexpected(msg) => InternalError(String::from(msg)),
+            LbErrKind::Unexpected(msg) => InternalError(msg),
             _ => internal!("{:?}", err),
         }
     }

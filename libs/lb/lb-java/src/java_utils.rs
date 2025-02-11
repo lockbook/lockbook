@@ -81,7 +81,6 @@ pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject
         LbErrKind::FileNameEmpty => "FileNameEmpty",
         LbErrKind::FileNonexistent => "FileNonexistent",
         LbErrKind::FileNotDocument => "FileNotDocument",
-        LbErrKind::FileNotFolder => "FileNotFolder",
         LbErrKind::FileParentNonexistent => "FileParentNonexistent",
         LbErrKind::FolderMovedIntoSelf => "FolderMovedIntoSelf",
         LbErrKind::InsufficientPermission => "InsufficientPermission",

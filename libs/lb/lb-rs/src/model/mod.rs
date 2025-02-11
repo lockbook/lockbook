@@ -32,22 +32,3 @@ pub mod work_unit;
 
 pub use lazy::ValidationFailure;
 
-use std::backtrace::Backtrace;
-
-
-pub type SharedResult<T> = Result<T, SharedError>;
-
-#[derive(Debug)]
-pub struct SharedError {
-    pub kind: SharedErrorKind,
-    pub backtrace: Option<Backtrace>,
-}
-
-impl From<SharedErrorKind> for SharedError {
-    fn from(kind: SharedErrorKind) -> Self {
-        Self { kind, backtrace: Some(Backtrace::force_capture()) }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum SharedErrorKind {}

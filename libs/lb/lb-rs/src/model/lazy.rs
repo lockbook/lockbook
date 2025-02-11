@@ -352,16 +352,33 @@ pub type LazyStage2<Base, Local, Staged> = LazyTree<Stage2<Base, Local, Staged>>
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Eq)]
 pub enum ValidationFailure {
     Orphan(Uuid),
+
+    /// A folder was moved into itself
     Cycle(HashSet<Uuid>),
+
+    /// A filename is not available
     PathConflict(HashSet<Uuid>),
+
+    /// This filename is too long
     FileNameTooLong(Uuid),
+
+    /// A link or document was treated as a folder
     NonFolderWithChildren(Uuid),
+
+    /// You cannot have a link to a file you own
+    OwnedLink(Uuid),
+
+    /// You cannot have a link that points to a nonexistent file
+    BrokenLink(Uuid),
+
+    /// You cannot have multiple links to the same file
+    DuplicateLink { target: Uuid },
+
+    /// You cannot have a link inside a shared folder
+    SharedLink { link: Uuid, shared_ancestor: Uuid },
+
     FileWithDifferentOwnerParent(Uuid),
     NonDecryptableFileName(Uuid),
-    SharedLink { link: Uuid, shared_ancestor: Uuid },
-    DuplicateLink { target: Uuid },
-    BrokenLink(Uuid),
-    OwnedLink(Uuid),
     DeletedFileUpdated(Uuid),
 }
 

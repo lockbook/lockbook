@@ -79,7 +79,9 @@ async fn move_document_deleted() {
         .await;
     assert_matches!(
         result,
-        Err(ApiError::<UpsertError>::Endpoint(UpsertError::DeletedFileUpdated))
+        Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(
+            ValidationFailure::DeletedFileUpdated(_)
+        )))
     );
 }
 

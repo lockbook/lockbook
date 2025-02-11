@@ -10,7 +10,7 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::model::{SharedError, ValidationFailure};
+use crate::model::ValidationFailure;
 use crate::service::network::ApiError;
 
 use super::api;
@@ -71,9 +71,7 @@ impl Display for LbErrKind {
             LbErrKind::FileNameEmpty => write!(f, "A file name cannot be empty"),
             LbErrKind::FileNonexistent => write!(f, "That file does not exist"),
             LbErrKind::FileNotDocument => write!(f, "That file is not a document"),
-            LbErrKind::FileNotFolder => write!(f, "That file is not a folder"),
             LbErrKind::FileParentNonexistent => write!(f, "Could not find that file parent"),
-            LbErrKind::FolderMovedIntoSelf => write!(f, "You cannot move a folder into itself"),
             LbErrKind::InsufficientPermission => {
                 write!(f, "You don't have the permission to do that")
             }
@@ -83,16 +81,6 @@ impl Display for LbErrKind {
             }
             LbErrKind::KeyPhraseInvalid => {
                 write!(f, "Your private key phrase is wrong")
-            }
-            LbErrKind::LinkInSharedFolder => {
-                write!(f, "You cannot move a link into a shared folder")
-            }
-            LbErrKind::LinkTargetIsOwned => {
-                write!(f, "You cannot create a link to a file that you own")
-            }
-            LbErrKind::LinkTargetNonexistent => write!(f, "That link target does not exist"),
-            LbErrKind::MultipleLinksToSameFile => {
-                write!(f, "You cannot have multiple links to the same file")
             }
             LbErrKind::NotPremium => write!(f, "You do not have a premium subscription"),
             LbErrKind::UsageIsOverDataCap => {
@@ -105,7 +93,6 @@ impl Display for LbErrKind {
             LbErrKind::PathContainsEmptyFileName => {
                 write!(f, "That path contains an empty file name")
             }
-            LbErrKind::PathTaken => write!(f, "That path is not available"),
             LbErrKind::RootModificationInvalid => write!(f, "You cannot modify your root"),
             LbErrKind::RootNonexistent => write!(f, "Could not find your root file"),
             LbErrKind::ServerDisabled => write!(
@@ -129,10 +116,22 @@ impl Display for LbErrKind {
             LbErrKind::ReReadRequired => {
                 write!(f, "This document changed since you last read it, please re-read it!")
             }
-            LbErrKind::Validation(validation_failure) => todo!(),
-            LbErrKind::Diff(diff_error) => todo!(),
-            LbErrKind::Sign(sign_error) => todo!(),
-            LbErrKind::Crypto(crypto_error) => todo!(),
+            LbErrKind::Validation(validation_failure) => match validation_failure {
+                ValidationFailure::Cycle(_) => write!(f, "Cannot move a folder into itself"),
+                ValidationFailure::NonFolderWithChildren(_) => write!(f, "A document or a link was treated as a folder."),
+                ValidationFailure::PathConflict(_) => write!(f, "A file already exists at that path."),
+                ValidationFailure::DeletedFileUpdated(id) => write!(f, "this file has been deleted {id}"),
+                _ => write!(f, "unexpected validation failure: {validation_failure:?}"),
+            },
+            LbErrKind::Diff(diff_error) => {
+                write!(f, "unexpected diff error: {diff_error:?}")
+            }
+            LbErrKind::Sign(sign_error) => {
+                write!(f, "unexpected signing error: {sign_error:?}")
+            }
+            LbErrKind::Crypto(crypto_error) => {
+                write!(f, "unexpected crypto error: {crypto_error:?}")
+            }
         }
     }
 }
@@ -140,13 +139,6 @@ impl Display for LbErrKind {
 impl From<LbErrKind> for LbErr {
     fn from(kind: LbErrKind) -> Self {
         Self { kind, backtrace: Some(Backtrace::force_capture()) }
-    }
-}
-
-impl From<SharedError> for LbErr {
-    fn from(err: SharedError) -> Self {
-        let kind = LbErrKind::Unexpected(format!("unexpected shared error {:?}", err));
-        Self { kind, backtrace: err.backtrace }
     }
 }
 
@@ -268,23 +260,16 @@ pub enum LbErrKind {
     FileNameEmpty,
     FileNonexistent,
     FileNotDocument,
-    FileNotFolder,
     FileParentNonexistent,
-    FolderMovedIntoSelf,
     InsufficientPermission,
     InvalidPurchaseToken,
     InvalidAuthDetails,
     KeyPhraseInvalid,
-    LinkInSharedFolder,
-    LinkTargetIsOwned,
-    LinkTargetNonexistent,
-    MultipleLinksToSameFile,
     NotPremium,
     UsageIsOverDataCap,
     UsageIsOverFreeTierDataCap,
     OldCardDoesNotExist,
     PathContainsEmptyFileName,
-    PathTaken,
     RootModificationInvalid,
     RootNonexistent,
     ServerDisabled,
@@ -298,6 +283,8 @@ pub enum LbErrKind {
     UsernameTaken,
     ReReadRequired,
     Diff(DiffError),
+
+    /// Errors that describe invalid modifications to trees. See [ValidationFailure] for more info
     Validation(ValidationFailure),
     Sign(SignError),
     Crypto(CryptoError),
@@ -331,7 +318,7 @@ pub enum SignError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CryptoError {
     Decryption(aead::Error),
-    HmacVerification(MacError)
+    HmacVerification(MacError),
 }
 
 impl From<bincode::Error> for LbErr {

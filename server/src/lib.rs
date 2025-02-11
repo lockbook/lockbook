@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
-use lb_rs::model::{pubkey, SharedError};
+use lb_rs::model::pubkey;
 use libsecp256k1::PublicKey;
 use semver::Version;
 use serde::{Deserialize, Serialize};

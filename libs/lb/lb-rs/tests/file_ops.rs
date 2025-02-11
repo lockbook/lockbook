@@ -1,4 +1,4 @@
-use lb_rs::model::errors::LbErrKind;
+use lb_rs::model::{errors::LbErrKind, ValidationFailure};
 use lb_rs::model::filename::MAX_FILENAME_LENGTH;
 use test_utils::{assert_matches, test_core_with_account};
 use uuid::Uuid;
@@ -43,7 +43,7 @@ async fn name_taken() {
     let core = test_core_with_account().await;
     core.create_at_path("doc1.md").await.unwrap();
     let id = core.create_at_path("doc2.md").await.unwrap().id;
-    assert_matches!(core.rename_file(&id, "doc1.md").await.unwrap_err().kind, LbErrKind::PathTaken);
+    assert_matches!(core.rename_file(&id, "doc1.md").await.unwrap_err().kind, LbErrKind::Validation(ValidationFailure::PathConflict(_)));
 }
 
 #[tokio::test]
@@ -100,7 +100,7 @@ async fn move_parent_document() {
     let core = test_core_with_account().await;
     let id = core.create_at_path("folder/doc1.md").await.unwrap().id;
     let target = core.create_at_path("doc2.md").await.unwrap().id;
-    assert_matches!(core.move_file(&id, &target).await.unwrap_err().kind, LbErrKind::FileNotFolder);
+    assert_matches!(core.move_file(&id, &target).await.unwrap_err().kind, LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(_)));
 }
 
 #[tokio::test]
@@ -121,7 +121,7 @@ async fn move_path_conflict() {
     let core = test_core_with_account().await;
     let dest = core.create_at_path("folder/test.md").await.unwrap().parent;
     let src = core.create_at_path("test.md").await.unwrap().id;
-    assert_matches!(core.move_file(&src, &dest).await.unwrap_err().kind, LbErrKind::PathTaken);
+    assert_matches!(core.move_file(&src, &dest).await.unwrap_err().kind, LbErrKind::Validation(ValidationFailure::PathConflict(_)));
 }
 
 #[tokio::test]
@@ -135,7 +135,7 @@ async fn folder_into_self() {
         .id;
     assert_matches!(
         core.move_file(&src, &dest).await.unwrap_err().kind,
-        LbErrKind::FolderMovedIntoSelf
+        LbErrKind::Validation(ValidationFailure::Cycle(_))
     );
 }
 

@@ -80,6 +80,7 @@ pub enum UpsertError {
     RootModificationInvalid,
 
     /// Found update to a deleted file
+    #[deprecated]
     DeletedFileUpdated,
 
     /// Over the User's Tier Limit

@@ -1,6 +1,7 @@
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::path_ops::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
+use lb_rs::model::ValidationFailure;
 use test_utils::*;
 
 #[tokio::test]
@@ -67,7 +68,7 @@ async fn create_at_path_path_taken() {
     let core = test_core_with_account().await;
     core.create_at_path("/folder/document").await.unwrap();
     let result = core.create_at_path("/folder/document").await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::PathTaken);
+    assert_matches!(result.unwrap_err().kind, LbErrKind::Validation(ValidationFailure::PathConflict(_)));
 }
 
 #[tokio::test]
@@ -75,7 +76,7 @@ async fn create_at_path_not_folder() {
     let core = test_core_with_account().await;
     core.create_at_path("/not-folder").await.unwrap();
     let result = core.create_at_path("/not-folder/document").await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::FileNotFolder);
+    assert_matches!(result.unwrap_err().kind, LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(_)));
 }
 
 #[tokio::test]

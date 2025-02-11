@@ -10,7 +10,6 @@ use lazy_static::lazy_static;
 use lb_rs::model::api::*;
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
 use lb_rs::model::errors::{LbErrKind, SignError};
-use lb_rs::model::SharedErrorKind;
 use prometheus::{
     register_counter_vec, register_histogram_vec, CounterVec, HistogramVec, TextEncoder,
 };

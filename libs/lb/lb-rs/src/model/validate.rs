@@ -32,7 +32,7 @@ pub fn is_folder<F: FileLike>(file: &F) -> LbResult<()> {
     if file.is_folder() {
         Ok(())
     } else {
-        Err(LbErrKind::FileNotFolder)?
+        Err(LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(*file.id())))?
     }
 }
 
