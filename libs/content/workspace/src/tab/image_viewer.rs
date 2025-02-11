@@ -1,16 +1,19 @@
 use egui::Image;
+use lb_rs::Uuid;
 
 pub struct ImageViewer {
+    pub id: Uuid,
+
     img: Image<'static>,
 }
 
 impl ImageViewer {
-    pub fn new(id: &str, ext: &str, bytes: &[u8]) -> Self {
+    pub fn new(id: Uuid, ext: &str, bytes: &[u8]) -> Self {
         let bytes = Vec::from(bytes);
         let uri = format!("bytes://{}.{}", id, ext);
         let img = Image::from_bytes(uri, bytes);
 
-        Self { img }
+        Self { id, img }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {

@@ -1,9 +1,12 @@
 use egui::load::SizedTexture;
 use lb_pdf::{PdfPageRenderRotation, PdfRenderConfig};
+use lb_rs::Uuid;
 // use lb_pdf::PdfiumWrapper;
 use crate::{theme::icons::Icon, widgets::Button};
 
 pub struct PdfViewer {
+    pub id: Uuid,
+
     renders: Vec<Content>,
     zoom_factor: Option<f32>,
     fit_page_zoom: Option<f32>,
@@ -37,7 +40,7 @@ const SPACE_BETWEEN_PAGES: f32 = 10.0;
 
 impl PdfViewer {
     pub fn new(
-        bytes: &[u8], ctx: &egui::Context, data_dir: &str, is_mobile_viewport: bool,
+        id: Uuid, bytes: &[u8], ctx: &egui::Context, data_dir: &str, is_mobile_viewport: bool,
     ) -> Self {
         let available_height = ctx.used_rect().height();
         let blowup_factor = 1.5; // improves the resolution of the rendered image at the cost of rendering time
@@ -110,6 +113,7 @@ impl PdfViewer {
         };
 
         Self {
+            id,
             renders,
             zoom_factor: None,
             fit_page_zoom: None,
