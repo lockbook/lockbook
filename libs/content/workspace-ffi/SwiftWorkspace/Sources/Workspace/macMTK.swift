@@ -168,7 +168,9 @@ public class MacMTK: MTKView, MTKViewDelegate {
         if event.modifierFlags.contains(.command) && event.keyCode == 9 { // cmd+v
             let _ = importFromPasteboard(NSPasteboard.general, isPaste: true)
         } else {
-            key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
+            let text = event.characters ?? ""
+            
+            key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, text)
         }
 
         setNeedsDisplay(self.frame)
@@ -185,7 +187,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     public override func keyUp(with event: NSEvent) {
-        key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, event.characters)
+        let text = event.characters ?? ""
+        
+        key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, text)
+        
         setNeedsDisplay(self.frame)
     }
 
