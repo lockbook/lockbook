@@ -188,7 +188,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     public override func keyUp(with event: NSEvent) {
         let text = event.characters ?? ""
-        print(text)
         
         key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, text)
         
