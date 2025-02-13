@@ -1,12 +1,11 @@
 use basic_human_duration::ChronoHumanDuration;
 use core::f32;
-use egui::emath::easing;
 use egui::os::OperatingSystem;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
     include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Label, Modifiers,
-    RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2, ViewportCommand, Widget as _,
-    WidgetText,
+    Rangef, Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2, ViewportCommand,
+    Widget as _, WidgetText,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
@@ -406,9 +405,7 @@ impl Workspace {
         ui.vertical(|ui| {
             if let Some(current_tab) = self.current_tab() {
                 if self.show_tabs {
-                    if self.tabs.len() > 1 {
-                        self.show_tab_strip(ui);
-                    }
+                    self.show_tab_strip(ui);
                 } else {
                     self.out.tab_title_clicked = self.show_mobile_title(ui, current_tab);
                 }
@@ -507,7 +504,6 @@ impl Workspace {
         let mut ui =
             parent_ui.child_ui(parent_ui.painter().clip_rect(), egui::Layout::default(), None);
 
-        let is_tab_strip_visible = self.tabs.len() > 1;
         let cursor = ui
             .horizontal(|ui| {
                 egui::ScrollArea::horizontal()
@@ -515,10 +511,9 @@ impl Workspace {
                     .show(ui, |ui| {
                         let mut responses = HashMap::new();
                         for i in 0..self.tabs.len() {
-                            if let (true, Some(resp)) = (
-                                is_tab_strip_visible,
-                                self.tab_label(ui, i, self.current_tab == i, active_tab_changed),
-                            ) {
+                            if let Some(resp) =
+                                self.tab_label(ui, i, self.current_tab == i, active_tab_changed)
+                            {
                                 responses.insert(i, resp);
                             }
                         }
@@ -583,24 +578,16 @@ impl Workspace {
 
         ui.style_mut().animation_time = 2.0;
 
-        let how_on = ui.ctx().animate_bool_with_easing(
-            "toolbar_height".into(),
-            is_tab_strip_visible,
-            easing::cubic_in_out,
+        let end_of_tabs = cursor.min.x;
+        let available_width = ui.available_width();
+        let remaining_rect = Rect::from_x_y_ranges(
+            Rangef { min: end_of_tabs, max: end_of_tabs + available_width },
+            cursor.y_range(),
         );
-        parent_ui.add_space(cursor.height() * how_on);
-        ui.set_opacity(how_on);
-
-        if is_tab_strip_visible {
-            let end_of_tabs = cursor.min.x;
-            let available_width = ui.available_width();
-            let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
-            ui.painter().hline(
-                egui::Rangef { min: end_of_tabs, max: end_of_tabs + available_width },
-                cursor.max.y,
-                sep_stroke,
-            );
-        }
+        let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+        ui.painter()
+            .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
+        parent_ui.advance_cursor_after_rect(remaining_rect);
     }
 
     fn process_keys(&mut self) {
@@ -736,6 +723,7 @@ impl Workspace {
                 .allocate_ui_at_rect(tab_label_rect, |ui| {
                     ui.add(
                         egui::TextEdit::singleline(str)
+                            .font(TextStyle::Small)
                             .frame(false)
                             .id(egui::Id::new("rename_tab")),
                     )
