@@ -18,13 +18,14 @@
   <!-- the id is hardcoded in main.rs. change with caution  -->
    <div class="max-w-[38rem] m-auto mt-40 border  h-[40rem] mb-10 relative">
       <canvas id="editor_demo" class="w-full h-full"></canvas>
+      <!-- <input  type="text" class="absolute top-0 w-full h-full "/> -->
       <span class="absolute top-0 left-0 w-full h-full pointer-events-none  bg-[linear-gradient(to_top,_theme('colors.abyss.900')_2%,_transparent_30%)]"></span>
   </div>
 
 
 
 
-  <div class="grid max-w-2xl grid-cols-2 px-3 m-auto my-56 text-xs max-sm:grid-cols-1 max-sm:gap-y-12 text-egshell font-extralight gap-y-10">
+  <div class="grid max-w-2xl grid-cols-2 px-3 m-auto my-56 text-xs max-sm:my-28 max-sm:grid-cols-1 max-sm:gap-y-12 text-egshell font-extralight gap-y-10">
       <div class="relative">
           <h2 class="text-lg font-bold">## Community Driven</h2>
           <p class="mt-3 leading-5">Lockbook is in open beta. Join our community, share your feedback, and help achieve our vision of open-source privacy without compromises.</p>
@@ -47,22 +48,26 @@
   </div>
 
   <div class="bg-surfline">
-      <h2 class="pt-24 text-2xl font-bold text-center">Protect your data across your favorite devices</h2>
-      <h3 class="mb-20 text-center">handcrafted clients for each platform. no electron bs</h3>
+    <div class="px-3 text-center max-sm:text-left">
+        <h2 class="pt-24 text-2xl font-bold">Protect your data across your favorite devices</h2>
+        <h3 class="mt-2 mb-20">handcrafted clients for each platform. no electron bs</h3>
+    </div>
 
-      <div class="mx-auto w-1/2 h-[34rem] relative">
+      <div class="mx-auto w-1/2 h-[34rem] relative max-sm:w-full max-sm:mt-36 ">
         <div id="screenshots" class="flex h-full">
             <img src="ios-screenshot.png" alt="screenshot of the ui on an iOS device" class="absolute object-contain object-bottom w-full h-full" data-platform="ios" > 
             <img src="macos-screenshot.png" alt="screenshot of the ui on an macos device" class="absolute object-contain object-bottom w-full h-full" data-platform="macos" > 
         </div>
         
-        <div class="absolute top-0 left-0 flex flex-col items-start justify-center -translate-x-full translate-y-full" id="toggle-screenshots">
+        <div class="absolute top-0 left-0 px-3 -translate-x-full translate-y-full max-sm:-translate-y-[110%]  max-sm:translate-x-0 " id="toggle-screenshots">
             <p class="mb-2 uppercase opacity-30">toggle</p>
-            <button class="pt-1 pl-4 border-l-8 font-extralight border-abyss-400 border-opacity-30" data-platform="ios">iOS</button>
-            <button class="pt-1 pl-4 border-l-8 font-extralight border-abyss-400 border-opacity-30" data-platform="macos">macOS</button>
-            <button class="pt-1 pl-4 border-l-8 font-extralight border-abyss-400 border-opacity-30" data-platform="windows">windows</button>
-            <button class="pt-1 pl-4 border-l-8 border-abyss-400" data-platform="linux">linux</button>
-            <button class="pt-1 pl-4 border-l-8 font-extralight border-abyss-400 border-opacity-30 "data-platform="android">android</button>
+            <div class="flex flex-col flex-wrap items-start justify-center max-sm:flex-row">
+                <button class="pt-1 pl-4 border-l-8 max-sm:px-2 font-extralight border-abyss-400 border-opacity-30" data-platform="ios">iOS</button>
+                <button class="pt-1 pl-4 border-l-8 max-sm:px-2 font-extralight border-abyss-400 border-opacity-30" data-platform="macos">macOS</button>
+                <button class="pt-1 pl-4 border-l-8 max-sm:px-2 font-extralight border-abyss-400 border-opacity-30" data-platform="windows">windows</button>
+                <button class="pt-1 pl-4 border-l-8 max-sm:px-2 border-abyss-400" data-platform="linux">linux</button>
+                <button class="pt-1 pl-4 border-l-8 max-sm:px-2 font-extralight border-abyss-400 border-opacity-30 "data-platform="android">android</button>
+            </div>
         </div>
       </div>
 
@@ -77,11 +82,13 @@
   </div>
 
 
-  <div class="pb-32 bg-abyss-400 text-egshell">
-      <h2 class="pt-24 text-2xl font-bold text-center">Pricing</h2>
-      <h3 class="mb-20 text-center">Be the customer, not the product. We sell a note-taking app, not your data. </h3>
+  <div class="pb-32 max-sm:pb-0 bg-abyss-400 text-egshell">
+    <div class="px-3 text-center max-sm:text-left">
+        <h2 class="pt-24 text-2xl font-bold ">Pricing</h2>
+        <h3 class="mt-2 mb-20">Be the customer, not the product. We sell a note-taking app, not your data. </h3>
+    </div>
       
-      <div class="flex justify-center">
+      <div class="flex justify-center max-sm:flex-col max-sm:mx-7">
           <div class="bg-abyss-900 p-11">
               <h4 class="mb-12 text-xl font-bold " >Free</h4>
               <ul class="mb-20 text-xs list-disc list-inside ">
@@ -94,7 +101,7 @@
               <a href="#" class="text-sm underline text-surfline font-xs">Download for free</a>
           </div>
   
-          <div class="w-full max-w-xl ml-8 bg-surfline text-abyss-900 p-11">
+          <div class="w-full max-w-xl ml-8 max-sm:ml-0 bg-surfline text-abyss-900 p-11 max-sm:py-20">
               <div class="flex flex-row justify-between mb-8" >
                   <h4  class="text-xl font-bold" >Premium</h4>
                   <div>
@@ -115,17 +122,17 @@
 
   </div>
   
-  <div class="relative py-20 pl-24 text-egshell">
-      <h1 class="text-4xl font-bold mb-28 ">Join the community</h1>
-      <div class="flex items-center ">
-          <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline">Download for macOS</button>
-          <p class="ml-8 text-xs opacity-70 font-extralight">also available for 
+  <div class="relative py-20 pl-24 max-sm:px-3 text-egshell">
+      <h1 class="text-4xl font-bold mb-28 max-sm:text-3xl">Join the community</h1>
+      <div class="flex items-center max-sm:items-start max-sm:flex-col ">
+          <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline ">Download for macOS</button>
+          <p class="ml-8 text-xs opacity-70 font-extralight max-sm:mx-0 max-sm:mt-4">also available for 
               <a href="#" class="underline text-surfline ">iOS</a>,
               <a href="#" class="underline text-surfline ">android</a>
               <a href="#" class="underline text-surfline ">linux</a>, and
               <a href="#" class="underline text-surfline ">windows</a></p>
       </div>
-      <div class="absolute top-0 right-0 w-1/4 h-full overflow-hidden min-w-80">
+      <div class="absolute top-0 right-0 w-1/4 h-full overflow-hidden min-w-80 max-sm:h-full max-sm:w-full max-sm:-z-10 max-sm:opacity-5 ">
           <img src="./banner-bg.svg" alt="pattern of lockbook's logo" class="">
       </div>
   </div>
@@ -136,7 +143,7 @@
   <script>
       // We disable caching during development so that we always view the latest version.
       if ('serviceWorker' in navigator && window.location.hash !== "#dev") {
-          window.addEventListener('load', function () {
+          window.addEventListener('load', function() {
               navigator.serviceWorker.register('sw.js');
           });
       }
@@ -145,19 +152,45 @@
       let selectedStyles = "pt-1 pl-4 border-l-8 border-abyss-400";
 
       let screenshotToggleBtns = [...document.querySelector("#toggle-screenshots").children].filter(el => el.nodeName === "BUTTON");
-      
+
       let screenshotImgs = [...document.querySelector("#screenshots").children]
 
       screenshotToggleBtns.forEach(clickedBtn => clickedBtn.addEventListener('click', e => {
-        screenshotToggleBtns.forEach(nonClickedBtn => nonClickedBtn.className = unselectedStyles)
-        clickedBtn.className = selectedStyles;
-        
-        let clickedPlatform = clickedBtn.dataset.platform
-        
-        screenshotImgs.forEach(img => img.style.display = "none")
-        screenshotImgs.find(img => img.dataset.platform === clickedPlatform).style.display = "block"
-        
-    }))
+          screenshotToggleBtns.forEach(nonClickedBtn => nonClickedBtn.className = unselectedStyles)
+          clickedBtn.className = selectedStyles;
+
+          let clickedPlatform = clickedBtn.dataset.platform
+
+          screenshotImgs.forEach(img => img.style.display = "none")
+          screenshotImgs.find(img => img.dataset.platform === clickedPlatform).style.display = "block"
+
+      }))
+      let editorCanvas = document.querySelector("#editor_demo")
+
+      // Make canvas focusable
+      editorCanvas.setAttribute("tabindex", "0");
+
+      // List of events to prevent propagation and default behavior
+      const eventsToBlock = [
+          "keydown", "keyup", "keypress",
+          "wheel", "mousedown", "mouseup",
+          "click", "dblclick", "touchstart",
+          "touchmove", "touchend", "contextmenu"
+      ];
+
+      eventsToBlock.forEach(eventType => {
+          editorCanvas.addEventListener(eventType, function(event) {
+              event.preventDefault();
+          }, {
+              passive: false
+          }); // passive: false ensures preventDefault works on wheel/touch events
+      });
+
+      // Focus canvas when clicked so it can receive key events
+      editorCanvas.addEventListener("click", () => {
+          editorCanvas.focus();
+      });
+
   </script>
 
 {% endblock content %}
