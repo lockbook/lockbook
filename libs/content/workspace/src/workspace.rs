@@ -131,15 +131,15 @@ impl Workspace {
         }
     }
 
-    /// Loads a file, creating a tab for it if needed, and returns true if a tab was created
-    pub fn load_file(&mut self, id: Uuid, make_current: bool) -> bool {
-        if make_current && self.make_current_by_id(id) {
-            return false;
+    /// Creates a loading-state tab for a file if needed and returns true if a tab was created
+    pub fn upsert_loading_tab(&mut self, id: Uuid, make_current: bool) -> bool {
+        let tab_exists = self.tabs.iter().any(|t| t.id() == Some(id));
+        if !tab_exists {
+            self.create_tab(ContentState::Loading(id), make_current);
+        } else if make_current {
+            self.make_current_by_id(id);
         }
-
-        self.create_tab(ContentState::Loading(id), make_current);
-
-        true
+        !tab_exists
     }
 
     pub fn create_tab(&mut self, content: ContentState, make_current: bool) {
@@ -231,15 +231,7 @@ impl Workspace {
     }
 
     pub fn open_file(&mut self, id: Uuid, is_new_file: bool, make_current: bool) {
-        if self.tabs.get_by_id(id).is_some() {
-            if make_current {
-                self.make_current_by_id(id);
-            }
-            return;
-        }
-
-        let tab_created = self.load_file(id, make_current);
-
+        let tab_created = self.upsert_loading_tab(id, make_current);
         self.tasks
             .queue_load(LoadRequest { id, is_new_file, tab_created });
     }
