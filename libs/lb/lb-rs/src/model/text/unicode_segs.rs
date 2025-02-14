@@ -36,7 +36,13 @@ impl UnicodeSegs {
             return DocCharOffset(0);
         }
 
-        DocCharOffset(self.grapheme_indexes.binary_search(&i).unwrap())
+        match self.grapheme_indexes.binary_search(&i) {
+            Ok(index) => DocCharOffset(index),
+            Err(_) => {
+                eprintln!("Error: DocByteOffset not found in grapheme_indexes: {:?}", i);
+                DocCharOffset(0)
+            }
+        }
     }
 
     pub fn range_to_char(
