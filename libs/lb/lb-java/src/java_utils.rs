@@ -1,10 +1,10 @@
 use jni::{
-    objects::{JByteArray, JClass, JObject, JString, JThrowable, JValue},
+   objects::{JByteArray, JClass, JObject, JString, JThrowable, JValue},
     JNIEnv,
 };
 use lb_rs::{
     blocking::Lb,
-    model::errors::{LbErr, LbErrKind},
+    model::{errors::{LbErr, LbErrKind}, ValidationFailure},
 };
 
 pub(crate) fn rstring<'local>(env: &mut JNIEnv<'local>, input: JString<'local>) -> String {
@@ -82,21 +82,15 @@ pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject
         LbErrKind::FileNonexistent => "FileNonexistent",
         LbErrKind::FileNotDocument => "FileNotDocument",
         LbErrKind::FileParentNonexistent => "FileParentNonexistent",
-        LbErrKind::FolderMovedIntoSelf => "FolderMovedIntoSelf",
         LbErrKind::InsufficientPermission => "InsufficientPermission",
         LbErrKind::InvalidPurchaseToken => "InvalidPurchaseToken",
         LbErrKind::InvalidAuthDetails => "InvalidAuthDetails",
         LbErrKind::KeyPhraseInvalid => "KeyPhraseInvalid",
-        LbErrKind::LinkInSharedFolder => "LinkInSharedFolder",
-        LbErrKind::LinkTargetIsOwned => "LinkTargetIsOwned",
-        LbErrKind::LinkTargetNonexistent => "LinkTargetNonexistent",
-        LbErrKind::MultipleLinksToSameFile => "MultipleLinksToSameFile",
         LbErrKind::NotPremium => "NotPremium",
         LbErrKind::UsageIsOverDataCap => "UsageIsOverDataCap",
         LbErrKind::UsageIsOverFreeTierDataCap => "UsageIsOverFreeTierDataCap",
         LbErrKind::OldCardDoesNotExist => "OldCardDoesNotExist",
         LbErrKind::PathContainsEmptyFileName => "PathContainsEmptyFileName",
-        LbErrKind::PathTaken => "PathTaken",
         LbErrKind::RootModificationInvalid => "RootModificationInvalid",
         LbErrKind::RootNonexistent => "RootNonexistent",
         LbErrKind::ServerDisabled => "ServerDisabled",
@@ -109,7 +103,21 @@ pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject
         LbErrKind::UsernamePublicKeyMismatch => "UsernamePublicKeyMismatch",
         LbErrKind::UsernameTaken => "UsernameTaken",
         LbErrKind::ReReadRequired => "ReReadRequired",
+        LbErrKind::Validation(vf) => match vf {
+            ValidationFailure::Cycle(_) => "FolderMovedIntoSelf",
+            ValidationFailure::PathConflict(_) => "PathTaken",
+            ValidationFailure::FileNameTooLong(_) => todo!(),
+            ValidationFailure::NonFolderWithChildren(_) => todo!(),
+            ValidationFailure::OwnedLink(_) => "LinkTargetIsOwned",
+            ValidationFailure::BrokenLink(_) => "LinkTargetNonexistent",
+            ValidationFailure::DuplicateLink { .. } => "MultipleLinksToSameFile",
+            ValidationFailure::SharedLink { .. } => "LinkInSharedFolder",
+            // todo: give this scenario it's own type
+            ValidationFailure::DeletedFileUpdated(_) => "FileNonexistent",
+            _ => "Unexpected"
+        }
         LbErrKind::Unexpected(_) => "Unexpected",
+        _ => "Unexpected"
     };
     let enum_constant = env
         .get_static_field(enum_class, name, "Lnet/lockbook/LbError$LbEC;")

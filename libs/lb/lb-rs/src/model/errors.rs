@@ -32,6 +32,12 @@ impl Display for LbErr {
     }
 }
 
+/// The purpose of this Display implementation is to provide uniformity for the
+/// description of errors that a customer may see. And to provide a productivity
+/// boost for the UI developer processing (and ultimately showing) these errors.
+/// If an error is not expected to be propegated outside of this crate the
+/// the language associated with the error will reflect that (and may use an
+/// uglier debug impl for details).
 impl Display for LbErrKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -118,9 +124,26 @@ impl Display for LbErrKind {
             }
             LbErrKind::Validation(validation_failure) => match validation_failure {
                 ValidationFailure::Cycle(_) => write!(f, "Cannot move a folder into itself"),
-                ValidationFailure::NonFolderWithChildren(_) => write!(f, "A document or a link was treated as a folder."),
-                ValidationFailure::PathConflict(_) => write!(f, "A file already exists at that path."),
-                ValidationFailure::DeletedFileUpdated(id) => write!(f, "this file has been deleted {id}"),
+                ValidationFailure::NonFolderWithChildren(_) => {
+                    write!(f, "A document or a link was treated as a folder.")
+                }
+                ValidationFailure::PathConflict(_) => {
+                    write!(f, "A file already exists at that path.")
+                }
+                ValidationFailure::DeletedFileUpdated(id) => {
+                    write!(f, "this file has been deleted {id}")
+                }
+                ValidationFailure::FileNameTooLong(_) => write!(f, "this filename is too long!"),
+                ValidationFailure::OwnedLink(_) => {
+                    write!(f, "you cannot have a link to a file you own")
+                }
+                ValidationFailure::BrokenLink(_) => write!(f, "that link target does not exist!"),
+                ValidationFailure::DuplicateLink { .. } => {
+                    write!(f, "you already have a link to that file")
+                }
+                ValidationFailure::SharedLink { .. } => {
+                    write!(f, "you cannot place a link inside a shared folder!")
+                }
                 _ => write!(f, "unexpected validation failure: {validation_failure:?}"),
             },
             LbErrKind::Diff(diff_error) => {
@@ -240,6 +263,7 @@ pub enum LbErrKind {
     AlreadyPremium,
     AppStoreAccountAlreadyLinked,
     AlreadySyncing,
+    // todo: group billing
     CannotCancelSubscriptionForAppStore,
     CardDecline,
     CardExpired,
@@ -255,7 +279,9 @@ pub enum LbErrKind {
     DiskPathTaken,
     DrawingInvalid,
     ExistingRequestPending,
+    // todo: Group
     FileNameContainsSlash,
+    // todo: #[deprecated]
     FileNameTooLong,
     FileNameEmpty,
     FileNonexistent,
@@ -277,6 +303,7 @@ pub enum LbErrKind {
     ShareAlreadyExists,
     ShareNonexistent,
     TryAgain,
+    // todo: group username errors
     UsernameInvalid,
     UsernameNotFound,
     UsernamePublicKeyMismatch,

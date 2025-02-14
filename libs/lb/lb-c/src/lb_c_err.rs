@@ -3,7 +3,10 @@ use std::{
     ptr,
 };
 
-use lb_rs::model::errors::{LbErr, LbErrKind};
+use lb_rs::model::{
+    errors::{LbErr, LbErrKind},
+    ValidationFailure,
+};
 
 use crate::ffi_utils::cstring;
 
@@ -123,23 +126,16 @@ impl From<&LbErrKind> for LbEC {
             LbErrKind::FileNameEmpty => Self::FileNameEmpty,
             LbErrKind::FileNonexistent => Self::FileNonexistent,
             LbErrKind::FileNotDocument => Self::FileNotDocument,
-            LbErrKind::FileNotFolder => Self::FileNotFolder,
             LbErrKind::FileParentNonexistent => Self::FileParentNonexistent,
-            LbErrKind::FolderMovedIntoSelf => Self::FolderMovedIntoSelf,
             LbErrKind::InsufficientPermission => Self::InsufficientPermission,
             LbErrKind::InvalidPurchaseToken => Self::InvalidPurchaseToken,
             LbErrKind::InvalidAuthDetails => Self::InvalidAuthDetails,
             LbErrKind::KeyPhraseInvalid => Self::KeyPhraseInvalid,
-            LbErrKind::LinkInSharedFolder => Self::LinkInSharedFolder,
-            LbErrKind::LinkTargetIsOwned => Self::LinkTargetIsOwned,
-            LbErrKind::LinkTargetNonexistent => Self::LinkTargetNonexistent,
-            LbErrKind::MultipleLinksToSameFile => Self::MultipleLinksToSameFile,
             LbErrKind::NotPremium => Self::NotPremium,
             LbErrKind::UsageIsOverDataCap => Self::UsageIsOverDataCap,
             LbErrKind::UsageIsOverFreeTierDataCap => Self::UsageIsOverFreeTierDataCap,
             LbErrKind::OldCardDoesNotExist => Self::OldCardDoesNotExist,
             LbErrKind::PathContainsEmptyFileName => Self::PathContainsEmptyFileName,
-            LbErrKind::PathTaken => Self::PathTaken,
             LbErrKind::RootModificationInvalid => Self::RootModificationInvalid,
             LbErrKind::RootNonexistent => Self::RootNonexistent,
             LbErrKind::ServerDisabled => Self::ServerDisabled,
@@ -151,8 +147,24 @@ impl From<&LbErrKind> for LbEC {
             LbErrKind::UsernameNotFound => Self::UsernameNotFound,
             LbErrKind::UsernamePublicKeyMismatch => Self::UsernamePublicKeyMismatch,
             LbErrKind::UsernameTaken => Self::UsernameTaken,
-            LbErrKind::Unexpected(_) => Self::ReReadRequired,
-            LbErrKind::ReReadRequired => todo!(),
+            LbErrKind::ReReadRequired => Self::ReReadRequired,
+            LbErrKind::Validation(vf) => match vf {
+                ValidationFailure::Orphan(_) => todo!(),
+                ValidationFailure::Cycle(_) => Self::FolderMovedIntoSelf,
+                ValidationFailure::PathConflict(_) => Self::PathTaken,
+                ValidationFailure::FileNameTooLong(_) => Self::FileNameTooLong,
+                ValidationFailure::NonFolderWithChildren(_) => Self::FileNotFolder,
+                ValidationFailure::OwnedLink(_) => Self::LinkTargetIsOwned,
+                ValidationFailure::BrokenLink(_) => Self::LinkTargetNonexistent,
+                ValidationFailure::DuplicateLink { .. } => Self::MultipleLinksToSameFile,
+                ValidationFailure::SharedLink { .. } => Self::LinkInSharedFolder,
+
+                // todo: probably worthwhile to give this error it's own type
+                ValidationFailure::DeletedFileUpdated(_) => Self::FileNonexistent,
+                _ => Self::Unexpected,
+            },
+            LbErrKind::Unexpected(_) => Self::Unexpected,
+            _ => Self::Unexpected,
         }
     }
 }
