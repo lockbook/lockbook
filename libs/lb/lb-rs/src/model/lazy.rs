@@ -4,8 +4,8 @@ use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::staged::StagedTree;
-use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use crate::model::symkey;
+use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use crate::service::keychain::Keychain;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -372,10 +372,15 @@ pub enum ValidationFailure {
     BrokenLink(Uuid),
 
     /// You cannot have multiple links to the same file
-    DuplicateLink { target: Uuid },
+    DuplicateLink {
+        target: Uuid,
+    },
 
     /// You cannot have a link inside a shared folder
-    SharedLink { link: Uuid, shared_ancestor: Uuid },
+    SharedLink {
+        link: Uuid,
+        shared_ancestor: Uuid,
+    },
 
     FileWithDifferentOwnerParent(Uuid),
     NonDecryptableFileName(Uuid),
@@ -386,9 +391,7 @@ impl<T> LazyTree<T>
 where
     T: TreeLikeMut,
 {
-    pub fn stage_and_promote<S: TreeLikeMut<F = T::F>>(
-        &mut self, mut staged: S,
-    ) -> LbResult<()> {
+    pub fn stage_and_promote<S: TreeLikeMut<F = T::F>>(&mut self, mut staged: S) -> LbResult<()> {
         for id in staged.ids() {
             if let Some(removed) = staged.remove(id)? {
                 self.tree.insert(removed)?;

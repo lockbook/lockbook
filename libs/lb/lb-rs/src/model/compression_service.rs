@@ -4,7 +4,6 @@ use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 
-
 use super::errors::{LbErrKind, LbResult};
 
 pub fn compress(content: &[u8]) -> LbResult<Vec<u8>> {

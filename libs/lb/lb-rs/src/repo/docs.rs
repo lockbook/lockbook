@@ -1,5 +1,8 @@
 use crate::model::{
-    core_config::Config, crypto::EncryptedDocument, errors::{LbErrKind, LbResult, Unexpected}, file_metadata::DocumentHmac
+    core_config::Config,
+    crypto::EncryptedDocument,
+    errors::{LbErrKind, LbResult, Unexpected},
+    file_metadata::DocumentHmac,
 };
 use std::{
     collections::HashSet,
@@ -42,9 +45,7 @@ impl AsyncDocs {
         }
     }
 
-    pub async fn get(
-        &self, id: Uuid, hmac: Option<DocumentHmac>,
-    ) -> LbResult<EncryptedDocument> {
+    pub async fn get(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult<EncryptedDocument> {
         self.maybe_get(id, hmac)
             .await?
             .ok_or_else(|| LbErrKind::FileNonexistent.into())
@@ -78,7 +79,7 @@ impl AsyncDocs {
         }
     }
 
-    pub async fn delete(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult <()> {
+    pub async fn delete(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult<()> {
         if let Some(hmac) = hmac {
             let path_str = key_path(&self.location, id, hmac);
             let path = Path::new(&path_str);
@@ -105,19 +106,22 @@ impl AsyncDocs {
 
             let (id_str, hmac_str) = file_name.split_at(36); // UUIDs are 36 characters long in string form
 
-            let id = Uuid::parse_str(id_str)
-                .map_err(|err| LbErrKind::Unexpected(format!("could not parse doc name as uuid {err:?}")))?;
+            let id = Uuid::parse_str(id_str).map_err(|err| {
+                LbErrKind::Unexpected(format!("could not parse doc name as uuid {err:?}"))
+            })?;
 
             let hmac_base64 = hmac_str
                 .strip_prefix('-')
                 .ok_or(LbErrKind::Unexpected("doc name missing -".to_string()))?;
 
-            let hmac_bytes = base64::decode_config(hmac_base64, base64::URL_SAFE)
-                .map_err(|err| LbErrKind::Unexpected(format!("document disk file name malformed: {err:?}")))?;
+            let hmac_bytes =
+                base64::decode_config(hmac_base64, base64::URL_SAFE).map_err(|err| {
+                    LbErrKind::Unexpected(format!("document disk file name malformed: {err:?}"))
+                })?;
 
-            let hmac: DocumentHmac = hmac_bytes
-                .try_into()
-                .map_err(|err| LbErrKind::Unexpected(format!("document disk file name malformed {err:?}")))?;
+            let hmac: DocumentHmac = hmac_bytes.try_into().map_err(|err| {
+                LbErrKind::Unexpected(format!("document disk file name malformed {err:?}"))
+            })?;
 
             if !file_hmacs.contains(&(id, hmac)) {
                 self.delete(id, Some(hmac)).await?;

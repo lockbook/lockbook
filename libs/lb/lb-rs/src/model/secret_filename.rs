@@ -54,8 +54,7 @@ impl SecretFileName {
 
     pub fn verify_hmac(&self, key: &AESKey, parent_key: &AESKey) -> LbResult<()> {
         let decrypted = self.to_string(key)?;
-        let mut mac =
-            HmacSha256::new_from_slice(parent_key).map_unexpected()?;
+        let mut mac = HmacSha256::new_from_slice(parent_key).map_unexpected()?;
         mac.update(decrypted.as_ref());
         mac.verify(&self.hmac)
             .map_err(|err| LbErrKind::Crypto(CryptoError::HmacVerification(err)))?;

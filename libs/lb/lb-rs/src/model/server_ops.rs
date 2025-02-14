@@ -1,3 +1,4 @@
+use super::errors::{DiffError, LbErrKind, LbResult};
 use crate::model::clock::get_time;
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::FileDiff;
@@ -6,7 +7,6 @@ use crate::model::server_file::{IntoServerFile, ServerFile};
 use crate::model::server_tree::ServerTree;
 use crate::model::signed_file::SignedFile;
 use crate::model::tree_like::TreeLike;
-use super::errors::{DiffError, LbErrKind, LbResult};
 
 type LazyServerStaged1<'a> = LazyStaged1<ServerTree<'a>, Vec<ServerFile>>;
 

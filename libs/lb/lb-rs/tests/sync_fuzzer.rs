@@ -133,7 +133,10 @@ impl Actions {
                         let move_file_result = client.move_file(&file.id, &new_parent.id).await;
                         match move_file_result {
                             Ok(()) => {}
-                            Err(LbErr { kind: LbErrKind::Validation(ValidationFailure::Cycle(_)), .. }) => {}
+                            Err(LbErr {
+                                kind: LbErrKind::Validation(ValidationFailure::Cycle(_)),
+                                ..
+                            }) => {}
                             _ => panic!(
                                 "Unexpected error while moving file: {:#?}",
                                 move_file_result

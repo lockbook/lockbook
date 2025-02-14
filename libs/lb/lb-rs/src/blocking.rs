@@ -13,7 +13,7 @@ use crate::{
         },
         core_config::Config,
         crypto::DecryptedDocument,
-        errors::{LbResult,  Warning},
+        errors::{LbResult, Warning},
         file::{File, ShareMode},
         file_metadata::{DocumentHmac, FileType},
         path_ops::Filter,

@@ -76,7 +76,8 @@ impl Lb {
                 }
                 Err(err)
                     if matches!(
-                        err.kind, LbErrKind::Validation(ValidationFailure::PathConflict(_))
+                        err.kind,
+                        LbErrKind::Validation(ValidationFailure::PathConflict(_))
                     ) =>
                 {
                     tries += 1;

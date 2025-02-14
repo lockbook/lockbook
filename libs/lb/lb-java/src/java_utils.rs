@@ -1,10 +1,13 @@
 use jni::{
-   objects::{JByteArray, JClass, JObject, JString, JThrowable, JValue},
+    objects::{JByteArray, JClass, JObject, JString, JThrowable, JValue},
     JNIEnv,
 };
 use lb_rs::{
     blocking::Lb,
-    model::{errors::{LbErr, LbErrKind}, ValidationFailure},
+    model::{
+        errors::{LbErr, LbErrKind},
+        ValidationFailure,
+    },
 };
 
 pub(crate) fn rstring<'local>(env: &mut JNIEnv<'local>, input: JString<'local>) -> String {
@@ -114,10 +117,10 @@ pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject
             ValidationFailure::SharedLink { .. } => "LinkInSharedFolder",
             // todo: give this scenario it's own type
             ValidationFailure::DeletedFileUpdated(_) => "FileNonexistent",
-            _ => "Unexpected"
-        }
+            _ => "Unexpected",
+        },
         LbErrKind::Unexpected(_) => "Unexpected",
-        _ => "Unexpected"
+        _ => "Unexpected",
     };
     let enum_constant = env
         .get_static_field(enum_class, name, "Lnet/lockbook/LbError$LbEC;")

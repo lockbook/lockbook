@@ -68,7 +68,10 @@ async fn create_at_path_path_taken() {
     let core = test_core_with_account().await;
     core.create_at_path("/folder/document").await.unwrap();
     let result = core.create_at_path("/folder/document").await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::Validation(ValidationFailure::PathConflict(_)));
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::PathConflict(_))
+    );
 }
 
 #[tokio::test]
@@ -76,7 +79,10 @@ async fn create_at_path_not_folder() {
     let core = test_core_with_account().await;
     core.create_at_path("/not-folder").await.unwrap();
     let result = core.create_at_path("/not-folder/document").await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(_)));
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(_))
+    );
 }
 
 #[tokio::test]

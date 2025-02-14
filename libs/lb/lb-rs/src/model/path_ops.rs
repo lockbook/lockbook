@@ -184,7 +184,9 @@ where
 
                     current = match self.find(&child)?.file_type() {
                         FileType::Document => {
-                            return Err(LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(child)))?;
+                            return Err(LbErrKind::Validation(
+                                ValidationFailure::NonFolderWithChildren(child),
+                            ))?;
                         }
                         FileType::Folder => child,
                         FileType::Link { target } => {
