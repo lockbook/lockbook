@@ -593,8 +593,10 @@ impl Workspace {
             .create_file(new_file.to_name().as_str(), &focused_parent, FileType::Document)
             .map_err(|err| format!("{:?}", err));
 
-        self.out.file_created = Some(result);
-        self.tasks.queue_file_cache_refresh();
+        self.out.file_created = Some(result.clone());
+        if let (Some(cache), Ok(file)) = (&mut self.files, result) {
+            cache.files.push(file);
+        }
         self.ctx.request_repaint();
     }
 
