@@ -1,6 +1,6 @@
 [package]
 name = "releaser"
-version = "0.9.19"
+version = "0.9.20"
 edition = "2021"
 
 [dependencies]
