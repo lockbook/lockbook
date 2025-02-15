@@ -1,6 +1,7 @@
 use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::file_metadata::FileType;
+use crate::model::ValidationFailure;
 use crate::Lb;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -25,7 +26,7 @@ impl Lb {
 
         let parent = self.get_file_by_id(dest).await?;
         if !parent.is_folder() {
-            return Err(LbErrKind::FileNotFolder.into());
+            return Err(LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(dest)))?;
         }
 
         let import_file_futures = FuturesUnordered::new();
@@ -73,7 +74,12 @@ impl Lb {
                     file = new_file;
                     break;
                 }
-                Err(err) if err.kind == LbErrKind::PathTaken => {
+                Err(err)
+                    if matches!(
+                        err.kind,
+                        LbErrKind::Validation(ValidationFailure::PathConflict(_))
+                    ) =>
+                {
                     tries += 1;
                     retry_name = format!("{}-{}", name, tries);
                 }

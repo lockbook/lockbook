@@ -1,6 +1,7 @@
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::FileType;
+use lb_rs::model::ValidationFailure;
 use lb_rs::Lb;
 use test_utils::*;
 use uuid::Uuid;
@@ -528,7 +529,10 @@ async fn create_document_in_link_folder_by_sharee() {
         .await
         .unwrap_err();
 
-    assert_eq!(result.kind, LbErrKind::FileNotFolder);
+    assert_matches!(
+        result.kind,
+        LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(_))
+    );
 }
 
 #[tokio::test]
@@ -1095,7 +1099,10 @@ async fn share_folder_with_link_inside() {
     let result = cores[1]
         .share_file(folder1.id, &accounts[2].username, ShareMode::Read)
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkInSharedFolder);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::SharedLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -1423,7 +1430,10 @@ async fn create_link_at_path_target_is_owned() {
         .unwrap();
 
     let result = core.create_link_at_path("link", document.id).await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkTargetIsOwned);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::OwnedLink(_))
+    );
 }
 
 #[tokio::test]
@@ -1431,7 +1441,10 @@ async fn create_link_at_path_target_nonexistent() {
     let core = test_core_with_account().await;
 
     let result = core.create_link_at_path("link", Uuid::new_v4()).await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkTargetNonexistent);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::BrokenLink(_))
+    );
 }
 
 #[tokio::test]
@@ -1470,7 +1483,10 @@ async fn create_link_at_path_link_in_shared_folder() {
     let result = cores[1]
         .create_link_at_path("folder_link/document", document0.id)
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkInSharedFolder);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::SharedLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -1499,7 +1515,10 @@ async fn create_link_at_path_link_duplicate() {
         .unwrap();
 
     let result = cores[1].create_link_at_path("/link2", document0.id).await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::MultipleLinksToSameFile);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::DuplicateLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -1510,7 +1529,10 @@ async fn create_file_link_target_nonexistent() {
     let result = core
         .create_file("link", &root.id, FileType::Link { target: Uuid::new_v4() })
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkTargetNonexistent);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::BrokenLink(_))
+    );
 }
 
 #[tokio::test]
@@ -1526,7 +1548,10 @@ async fn create_file_link_target_owned() {
     let result = core
         .create_file("link", &root.id, FileType::Link { target: document.id })
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkTargetIsOwned);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::OwnedLink(_))
+    );
 }
 
 #[tokio::test]
@@ -1565,7 +1590,10 @@ async fn create_file_shared_link() {
     let result = cores[1]
         .create_file("document_link", &folder.id, FileType::Link { target: document.id })
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkInSharedFolder);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::SharedLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -1596,7 +1624,10 @@ async fn create_file_duplicate_link() {
     let result = cores[1]
         .create_file("link_2", &roots[1].id, FileType::Link { target: document.id })
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::MultipleLinksToSameFile);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::DuplicateLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -1940,7 +1971,10 @@ async fn move_file_under_link() {
         .await
         .unwrap_err();
 
-    assert_matches!(result.kind, LbErrKind::FileNotFolder);
+    assert_matches!(
+        result.kind,
+        LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(_))
+    );
 }
 
 #[tokio::test]
@@ -1981,7 +2015,10 @@ async fn move_file_shared_link() {
         .unwrap();
 
     let result = cores[1].move_file(&document_link.id, &folder.id).await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkInSharedFolder);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::SharedLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -2028,7 +2065,10 @@ async fn move_file_shared_link_in_folder_a() {
     let result = cores[1]
         .move_file(&document_link.id, &child_folder.id)
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkInSharedFolder);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::SharedLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -2073,7 +2113,10 @@ async fn move_file_shared_link_in_folder_b() {
         .unwrap();
 
     let result = cores[1].move_file(&child_folder.id, &folder.id).await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkInSharedFolder);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::SharedLink { .. })
+    );
 }
 
 #[tokio::test]

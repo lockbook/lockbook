@@ -4,8 +4,8 @@ use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::staged::StagedTree;
+use crate::model::symkey;
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
-use crate::model::{symkey, SharedErrorKind, SharedResult};
 use crate::service::keychain::Keychain;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -33,7 +33,7 @@ impl<T: TreeLike> LazyTree<T> {
 }
 
 impl<T: TreeLike> LazyTree<T> {
-    pub fn access_mode(&self, owner: Owner, id: &Uuid) -> SharedResult<Option<UserAccessMode>> {
+    pub fn access_mode(&self, owner: Owner, id: &Uuid) -> LbResult<Option<UserAccessMode>> {
         let mut file = self.find(id)?;
         let mut max_access_mode = None;
         let mut visited_ids = vec![];
@@ -54,7 +54,7 @@ impl<T: TreeLike> LazyTree<T> {
         Ok(max_access_mode)
     }
 
-    pub fn in_pending_share(&mut self, id: &Uuid) -> SharedResult<bool> {
+    pub fn in_pending_share(&mut self, id: &Uuid) -> LbResult<bool> {
         let mut id = *id;
         loop {
             if self.find(&id)?.parent() == self.find(&id)?.id() {
@@ -69,7 +69,7 @@ impl<T: TreeLike> LazyTree<T> {
         }
     }
 
-    pub fn all_children(&mut self) -> SharedResult<&HashMap<Uuid, HashSet<Uuid>>> {
+    pub fn all_children(&mut self) -> LbResult<&HashMap<Uuid, HashSet<Uuid>>> {
         if self.children.is_empty() {
             let mut all_children: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
             for file in self.all_files()? {
@@ -85,7 +85,7 @@ impl<T: TreeLike> LazyTree<T> {
         Ok(&self.children)
     }
 
-    pub fn calculate_deleted(&mut self, id: &Uuid) -> SharedResult<bool> {
+    pub fn calculate_deleted(&mut self, id: &Uuid) -> LbResult<bool> {
         let (visited_ids, deleted) = {
             let mut file = self.find(id)?;
             let mut visited_ids = vec![];
@@ -112,7 +112,7 @@ impl<T: TreeLike> LazyTree<T> {
                         if !file.user_access_keys().is_empty() {
                             break;
                         } else {
-                            return Err(SharedErrorKind::FileParentNonexistent.into());
+                            return Err(LbErrKind::FileParentNonexistent)?;
                         }
                     }
                 }
@@ -194,12 +194,12 @@ impl<T: TreeLike> LazyTree<T> {
         self.name(&id, keychain)
     }
 
-    pub fn parent_using_links(&mut self, id: &Uuid) -> SharedResult<Uuid> {
+    pub fn parent_using_links(&mut self, id: &Uuid) -> LbResult<Uuid> {
         let id = if let Some(link) = self.linked_by(id)? { link } else { *id };
         Ok(*self.find(&id)?.parent())
     }
 
-    pub fn linked_by(&mut self, id: &Uuid) -> SharedResult<Option<Uuid>> {
+    pub fn linked_by(&mut self, id: &Uuid) -> LbResult<Option<Uuid>> {
         if self.linked_by.is_empty() {
             for link_id in self.ids() {
                 if let FileType::Link { target } = self.find(&link_id)?.file_type() {
@@ -215,7 +215,7 @@ impl<T: TreeLike> LazyTree<T> {
 
     /// Returns ids of files whose parent is the argument. Does not include the argument.
     /// TODO could consider returning a reference to the underlying cached value
-    pub fn children(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+    pub fn children(&mut self, id: &Uuid) -> LbResult<HashSet<Uuid>> {
         // Check cache
         if let Some(children) = self.children.get(id) {
             return Ok(children.clone());
@@ -239,7 +239,7 @@ impl<T: TreeLike> LazyTree<T> {
     }
 
     // todo: cache?
-    pub fn children_using_links(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+    pub fn children_using_links(&mut self, id: &Uuid) -> LbResult<HashSet<Uuid>> {
         let mut children = HashSet::new();
         for child in self.children(id)? {
             if let FileType::Link { target } = self.find(&child)?.file_type() {
@@ -256,7 +256,7 @@ impl<T: TreeLike> LazyTree<T> {
 
     /// Returns ids of files for which the argument is an ancestor—the files' children, recursively. Does not include the argument.
     /// This function tolerates cycles.
-    pub fn descendants(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+    pub fn descendants(&mut self, id: &Uuid) -> LbResult<HashSet<Uuid>> {
         // todo: caching?
         let mut result = HashSet::new();
         let mut to_process = vec![*id];
@@ -275,7 +275,7 @@ impl<T: TreeLike> LazyTree<T> {
         Ok(result)
     }
 
-    pub fn descendants_using_links(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+    pub fn descendants_using_links(&mut self, id: &Uuid) -> LbResult<HashSet<Uuid>> {
         // todo: caching?
         let mut result = HashSet::new();
         let mut to_process = vec![*id];
@@ -297,7 +297,7 @@ impl<T: TreeLike> LazyTree<T> {
     // todo: move to TreeLike
     /// Returns ids of files for which the argument is a descendent—the files' parent, recursively. Does not include the argument.
     /// This function tolerates cycles.
-    pub fn ancestors(&self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+    pub fn ancestors(&self, id: &Uuid) -> LbResult<HashSet<Uuid>> {
         let mut result = HashSet::new();
         let mut current_file = self.find(id)?;
         while !current_file.is_root()
@@ -334,13 +334,10 @@ impl<T: TreeLike> LazyTree<T> {
     }
 
     // todo: optimize
-    pub fn assert_names_decryptable(&mut self, keychain: &Keychain) -> SharedResult<()> {
+    pub fn assert_names_decryptable(&mut self, keychain: &Keychain) -> LbResult<()> {
         for id in self.ids() {
             if self.name(&id, keychain).is_err() {
-                return Err(SharedErrorKind::ValidationFailure(
-                    ValidationFailure::NonDecryptableFileName(id),
-                )
-                .into());
+                return Err(LbErrKind::Validation(ValidationFailure::NonDecryptableFileName(id)))?;
             }
         }
         Ok(())
@@ -355,25 +352,46 @@ pub type LazyStage2<Base, Local, Staged> = LazyTree<Stage2<Base, Local, Staged>>
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Eq)]
 pub enum ValidationFailure {
     Orphan(Uuid),
+
+    /// A folder was moved into itself
     Cycle(HashSet<Uuid>),
+
+    /// A filename is not available
     PathConflict(HashSet<Uuid>),
+
+    /// This filename is too long
     FileNameTooLong(Uuid),
+
+    /// A link or document was treated as a folder
     NonFolderWithChildren(Uuid),
+
+    /// You cannot have a link to a file you own
+    OwnedLink(Uuid),
+
+    /// You cannot have a link that points to a nonexistent file
+    BrokenLink(Uuid),
+
+    /// You cannot have multiple links to the same file
+    DuplicateLink {
+        target: Uuid,
+    },
+
+    /// You cannot have a link inside a shared folder
+    SharedLink {
+        link: Uuid,
+        shared_ancestor: Uuid,
+    },
+
     FileWithDifferentOwnerParent(Uuid),
     NonDecryptableFileName(Uuid),
-    SharedLink { link: Uuid, shared_ancestor: Uuid },
-    DuplicateLink { target: Uuid },
-    BrokenLink(Uuid),
-    OwnedLink(Uuid),
+    DeletedFileUpdated(Uuid),
 }
 
 impl<T> LazyTree<T>
 where
     T: TreeLikeMut,
 {
-    pub fn stage_and_promote<S: TreeLikeMut<F = T::F>>(
-        &mut self, mut staged: S,
-    ) -> SharedResult<()> {
+    pub fn stage_and_promote<S: TreeLikeMut<F = T::F>>(&mut self, mut staged: S) -> LbResult<()> {
         for id in staged.ids() {
             if let Some(removed) = staged.remove(id)? {
                 self.tree.insert(removed)?;
@@ -389,7 +407,7 @@ where
 
     pub fn stage_validate_and_promote<S: TreeLikeMut<F = T::F>>(
         &mut self, mut staged: S, owner: Owner,
-    ) -> SharedResult<()> {
+    ) -> LbResult<()> {
         StagedTree::new(&self.tree, &mut staged)
             .to_lazy()
             .validate(owner)?;
@@ -398,7 +416,7 @@ where
     }
 
     // todo: this is dead code
-    pub fn stage_removals_and_promote(&mut self, removed: HashSet<Uuid>) -> SharedResult<()> {
+    pub fn stage_removals_and_promote(&mut self, removed: HashSet<Uuid>) -> LbResult<()> {
         for id in removed {
             self.tree.remove(id)?;
         }
@@ -417,7 +435,7 @@ where
     Staged: TreeLikeMut<F = Base::F>,
 {
     // todo: incrementalism
-    pub fn promote(self) -> SharedResult<LazyTree<Base>> {
+    pub fn promote(self) -> LbResult<LazyTree<Base>> {
         let mut staged = self.tree.staged;
         let mut base = self.tree.base;
         for id in staged.ids() {

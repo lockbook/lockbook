@@ -5,46 +5,48 @@ use crate::model::filename::MAX_ENCRYPTED_FILENAME_LENGTH;
 use crate::model::lazy::LazyTree;
 use crate::model::staged::StagedTreeLike;
 use crate::model::tree_like::TreeLike;
-use crate::model::{SharedErrorKind, SharedResult, ValidationFailure};
+use crate::model::ValidationFailure;
 use std::collections::{HashMap, HashSet};
 
-pub fn file_name(name: &str) -> SharedResult<()> {
+use super::errors::{LbErrKind, LbResult};
+
+pub fn file_name(name: &str) -> LbResult<()> {
     if name.is_empty() {
-        Err(SharedErrorKind::FileNameEmpty)?;
+        Err(LbErrKind::FileNameEmpty)?;
     }
     if name.contains('/') {
-        Err(SharedErrorKind::FileNameContainsSlash)?;
+        Err(LbErrKind::FileNameContainsSlash)?;
     }
     Ok(())
 }
 
-pub fn not_root<F: FileLike>(file: &F) -> SharedResult<()> {
+pub fn not_root<F: FileLike>(file: &F) -> LbResult<()> {
     if file.is_root() {
-        Err(SharedErrorKind::RootModificationInvalid.into())
+        Err(LbErrKind::RootModificationInvalid)?
     } else {
         Ok(())
     }
 }
 
-pub fn is_folder<F: FileLike>(file: &F) -> SharedResult<()> {
+pub fn is_folder<F: FileLike>(file: &F) -> LbResult<()> {
     if file.is_folder() {
         Ok(())
     } else {
-        Err(SharedErrorKind::FileNotFolder.into())
+        Err(LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(*file.id())))?
     }
 }
 
-pub fn is_document<F: FileLike>(file: &F) -> SharedResult<()> {
+pub fn is_document<F: FileLike>(file: &F) -> LbResult<()> {
     if file.is_document() {
         Ok(())
     } else {
-        Err(SharedErrorKind::FileNotDocument.into())
+        Err(LbErrKind::FileNotDocument)?
     }
 }
 
-pub fn path(path: &str) -> SharedResult<()> {
+pub fn path(path: &str) -> LbResult<()> {
     if path.contains("//") || path.is_empty() {
-        Err(SharedErrorKind::PathContainsEmptyFileName)?;
+        Err(LbErrKind::PathContainsEmptyFileName)?;
     }
 
     Ok(())
@@ -56,7 +58,7 @@ where
     Base: TreeLike<F = T::F>,
     Local: TreeLike<F = T::F>,
 {
-    pub fn validate(&mut self, owner: Owner) -> SharedResult<()> {
+    pub fn validate(&mut self, owner: Owner) -> LbResult<()> {
         // point checks
         self.assert_no_root_changes()?;
         self.assert_no_changes_to_deleted_files()?;
@@ -80,7 +82,7 @@ where
     }
 
     // note: deleted access keys permissible
-    pub fn assert_all_files_decryptable(&mut self, owner: Owner) -> SharedResult<()> {
+    pub fn assert_all_files_decryptable(&mut self, owner: Owner) -> LbResult<()> {
         for file in self.ids().into_iter().filter_map(|id| self.maybe_find(&id)) {
             if self.maybe_find_parent(file).is_none()
                 && !file
@@ -88,30 +90,28 @@ where
                     .iter()
                     .any(|k| k.encrypted_for == owner.0)
             {
-                Err(SharedErrorKind::ValidationFailure(ValidationFailure::Orphan(*file.id())))?;
+                Err(LbErrKind::Validation(ValidationFailure::Orphan(*file.id())))?;
             }
         }
         Ok(())
     }
 
-    pub fn assert_all_filenames_size_limit(&self) -> SharedResult<()> {
+    pub fn assert_all_filenames_size_limit(&self) -> LbResult<()> {
         for file in self.all_files()? {
             if file.secret_name().encrypted_value.value.len() > MAX_ENCRYPTED_FILENAME_LENGTH {
-                return Err(SharedErrorKind::ValidationFailure(
-                    ValidationFailure::FileNameTooLong(*file.id()),
-                ))?;
+                return Err(LbErrKind::Validation(ValidationFailure::FileNameTooLong(*file.id())))?;
             }
         }
         Ok(())
     }
 
-    pub fn assert_only_folders_have_children(&self) -> SharedResult<()> {
+    pub fn assert_only_folders_have_children(&self) -> LbResult<()> {
         for file in self.all_files()? {
             if let Some(parent) = self.maybe_find(file.parent()) {
                 if !parent.is_folder() {
-                    Err(SharedErrorKind::ValidationFailure(
-                        ValidationFailure::NonFolderWithChildren(*parent.id()),
-                    ))?;
+                    Err(LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(
+                        *parent.id(),
+                    )))?;
                 }
             }
         }
@@ -120,7 +120,7 @@ where
 
     // note: deleted files exempt because otherwise moving a folder with a deleted file in it
     // to/from a folder with a different owner would require updating a deleted file
-    pub fn assert_all_files_same_owner_as_parent(&mut self) -> SharedResult<()> {
+    pub fn assert_all_files_same_owner_as_parent(&mut self) -> LbResult<()> {
         for id in self.ids() {
             if self.calculate_deleted(&id)? {
                 continue;
@@ -128,9 +128,9 @@ where
             let file = self.find(&id)?;
             if let Some(parent) = self.maybe_find(file.parent()) {
                 if parent.owner() != file.owner() {
-                    Err(SharedErrorKind::ValidationFailure(
-                        ValidationFailure::FileWithDifferentOwnerParent(*file.id()),
-                    ))?;
+                    Err(LbErrKind::Validation(ValidationFailure::FileWithDifferentOwnerParent(
+                        *file.id(),
+                    )))?;
                 }
             }
         }
@@ -138,7 +138,7 @@ where
     }
 
     // assumption: no orphans
-    pub fn assert_no_cycles(&mut self) -> SharedResult<()> {
+    pub fn assert_no_cycles(&mut self) -> LbResult<()> {
         let mut owners_with_found_roots = HashSet::new();
         let mut no_cycles_in_ancestors = HashSet::new();
         for id in self.ids() {
@@ -152,12 +152,10 @@ where
                         ancestors.insert(*current_file.id());
                         break;
                     } else {
-                        Err(SharedErrorKind::ValidationFailure(ValidationFailure::Cycle(
-                            HashSet::from([id]),
-                        )))?;
+                        Err(LbErrKind::Validation(ValidationFailure::Cycle(HashSet::from([id]))))?;
                     }
                 } else if ancestors.contains(current_file.parent()) {
-                    Err(SharedErrorKind::ValidationFailure(ValidationFailure::Cycle(
+                    Err(LbErrKind::Validation(ValidationFailure::Cycle(
                         self.ancestors(current_file.id())?,
                     )))?;
                 }
@@ -168,7 +166,7 @@ where
                         if !current_file.user_access_keys().is_empty() {
                             break;
                         } else {
-                            return Err(SharedErrorKind::FileParentNonexistent.into());
+                            return Err(LbErrKind::FileParentNonexistent)?;
                         }
                     }
                 }
@@ -178,7 +176,7 @@ where
         Ok(())
     }
 
-    pub fn assert_no_path_conflicts(&mut self) -> SharedResult<()> {
+    pub fn assert_no_path_conflicts(&mut self) -> LbResult<()> {
         let mut id_by_name = HashMap::new();
         for id in self.ids() {
             if !self.calculate_deleted(&id)? {
@@ -187,9 +185,10 @@ where
                     continue;
                 }
                 if let Some(conflicting) = id_by_name.remove(file.secret_name()) {
-                    Err(SharedErrorKind::ValidationFailure(ValidationFailure::PathConflict(
-                        HashSet::from([conflicting, *file.id()]),
-                    )))?;
+                    Err(LbErrKind::Validation(ValidationFailure::PathConflict(HashSet::from([
+                        conflicting,
+                        *file.id(),
+                    ]))))?;
                 }
                 id_by_name.insert(file.secret_name().clone(), *file.id());
             }
@@ -197,19 +196,19 @@ where
         Ok(())
     }
 
-    pub fn assert_no_shared_links(&self) -> SharedResult<()> {
+    pub fn assert_no_shared_links(&self) -> LbResult<()> {
         for link in self.ids() {
             let meta = self.find(&link)?;
             if let FileType::Link { target: _ } = meta.file_type() {
                 if meta.is_shared() {
-                    Err(SharedErrorKind::ValidationFailure(ValidationFailure::SharedLink {
+                    Err(LbErrKind::Validation(ValidationFailure::SharedLink {
                         link,
                         shared_ancestor: link,
                     }))?;
                 }
                 for ancestor in self.ancestors(&link)? {
                     if self.find(&ancestor)?.is_shared() {
-                        Err(SharedErrorKind::ValidationFailure(ValidationFailure::SharedLink {
+                        Err(LbErrKind::Validation(ValidationFailure::SharedLink {
                             link,
                             shared_ancestor: ancestor,
                         }))?;
@@ -220,7 +219,7 @@ where
         Ok(())
     }
 
-    pub fn assert_no_duplicate_links(&mut self) -> SharedResult<()> {
+    pub fn assert_no_duplicate_links(&mut self) -> LbResult<()> {
         let mut linked_targets = HashSet::new();
         for link in self.ids() {
             if self.calculate_deleted(&link)? {
@@ -228,9 +227,7 @@ where
             }
             if let FileType::Link { target } = self.find(&link)?.file_type() {
                 if !linked_targets.insert(target) {
-                    Err(SharedErrorKind::ValidationFailure(ValidationFailure::DuplicateLink {
-                        target,
-                    }))?;
+                    Err(LbErrKind::Validation(ValidationFailure::DuplicateLink { target }))?;
                 }
             }
         }
@@ -242,25 +239,23 @@ where
     // note: a deleted link to a nonexistent file is not considered broken, because targets of
     // deleted links may have their shares deleted, would not appear in the server tree for a user,
     // and would be pruned from client trees
-    pub fn assert_no_broken_links(&mut self) -> SharedResult<()> {
+    pub fn assert_no_broken_links(&mut self) -> LbResult<()> {
         for link in self.ids() {
             if let FileType::Link { target } = self.find(&link)?.file_type() {
                 if !self.calculate_deleted(&link)? && self.maybe_find(&target).is_none() {
-                    Err(SharedErrorKind::ValidationFailure(ValidationFailure::BrokenLink(link)))?;
+                    Err(LbErrKind::Validation(ValidationFailure::BrokenLink(link)))?;
                 }
             }
         }
         Ok(())
     }
 
-    pub fn assert_no_owned_links(&self) -> SharedResult<()> {
+    pub fn assert_no_owned_links(&self) -> LbResult<()> {
         for link in self.ids() {
             if let FileType::Link { target } = self.find(&link)?.file_type() {
                 if let Some(target_owner) = self.maybe_find(&target).map(|f| f.owner()) {
                     if self.find(&link)?.owner() == target_owner {
-                        Err(SharedErrorKind::ValidationFailure(ValidationFailure::OwnedLink(
-                            link,
-                        )))?;
+                        Err(LbErrKind::Validation(ValidationFailure::OwnedLink(link)))?;
                     }
                 }
             }
@@ -268,17 +263,17 @@ where
         Ok(())
     }
 
-    pub fn assert_no_root_changes(&mut self) -> SharedResult<()> {
+    pub fn assert_no_root_changes(&mut self) -> LbResult<()> {
         for id in self.tree.staged().ids() {
             // already root
             if let Some(base) = self.tree.base().maybe_find(&id) {
                 if base.is_root() {
-                    Err(SharedErrorKind::RootModificationInvalid)?;
+                    Err(LbErrKind::RootModificationInvalid)?;
                 }
             }
             // newly root
             if self.find(&id)?.is_root() {
-                Err(SharedErrorKind::ValidationFailure(ValidationFailure::Cycle(
+                Err(LbErrKind::Validation(ValidationFailure::Cycle(
                     vec![id].into_iter().collect(),
                 )))?;
             }
@@ -286,12 +281,12 @@ where
         Ok(())
     }
 
-    pub fn assert_no_changes_to_deleted_files(&mut self) -> SharedResult<()> {
+    pub fn assert_no_changes_to_deleted_files(&mut self) -> LbResult<()> {
         for id in self.tree.staged().ids() {
             // already deleted files cannot have updates
             let mut base = self.tree.base().to_lazy();
             if base.maybe_find(&id).is_some() && base.calculate_deleted(&id)? {
-                Err(SharedErrorKind::DeletedFileUpdated(id))?;
+                Err(LbErrKind::Validation(ValidationFailure::DeletedFileUpdated(id)))?;
             }
             // newly deleted files cannot have non-deletion updates
             if self.calculate_deleted(&id)? {
@@ -301,7 +296,7 @@ where
                         .iter()
                         .any(|d| d != &Diff::Deleted)
                     {
-                        Err(SharedErrorKind::DeletedFileUpdated(id))?;
+                        Err(LbErrKind::Validation(ValidationFailure::DeletedFileUpdated(id)))?;
                     }
                 }
             }
@@ -309,7 +304,7 @@ where
         Ok(())
     }
 
-    pub fn assert_changes_authorized(&mut self, owner: Owner) -> SharedResult<()> {
+    pub fn assert_changes_authorized(&mut self, owner: Owner) -> LbResult<()> {
         // Design rationale:
         // * No combination of individually valid changes should compose into an invalid change.
         //   * Owner and write access must be indistinguishable, otherwise you could e.g. move a
@@ -353,11 +348,11 @@ where
                                     < Some(UserAccessMode::Write)
                                 {
                                     // parent is shared with access < write
-                                    Err(SharedErrorKind::InsufficientPermission)?;
+                                    Err(LbErrKind::InsufficientPermission)?;
                                 }
                             } else {
                                 // this file is shared and its parent is not
-                                Err(SharedErrorKind::InsufficientPermission)?;
+                                Err(LbErrKind::InsufficientPermission)?;
                             }
                         }
                     }
@@ -367,8 +362,8 @@ where
                             let parent = if let Some(ref old) = file_diff.old {
                                 old.parent()
                             } else {
-                                return Err(SharedErrorKind::Unexpected(
-                                    "Non-New FileDiff with no old",
+                                return Err(LbErrKind::Unexpected(
+                                    "Non-New FileDiff with no old".to_string(),
                                 )
                                 .into());
                             };
@@ -379,11 +374,11 @@ where
                                     < Some(UserAccessMode::Write)
                                 {
                                     // parent is shared with access < write
-                                    Err(SharedErrorKind::InsufficientPermission)?;
+                                    Err(LbErrKind::InsufficientPermission)?;
                                 }
                             } else {
                                 // this file is shared and its parent is not
-                                Err(SharedErrorKind::InsufficientPermission)?;
+                                Err(LbErrKind::InsufficientPermission)?;
                             }
                         }
                         // check access for staged parent
@@ -398,11 +393,11 @@ where
                                         < Some(UserAccessMode::Write)
                                     {
                                         // parent is shared with access < write
-                                        Err(SharedErrorKind::InsufficientPermission)?;
+                                        Err(LbErrKind::InsufficientPermission)?;
                                     }
                                 } else {
                                     // this file is shared and its parent is not
-                                    Err(SharedErrorKind::InsufficientPermission)?;
+                                    Err(LbErrKind::InsufficientPermission)?;
                                 }
                             }
                         }
@@ -410,7 +405,7 @@ where
                     Diff::Hmac => {
                         // check self access
                         if self.access_mode(owner, file_diff.id())? < Some(UserAccessMode::Write) {
-                            Err(SharedErrorKind::InsufficientPermission)?;
+                            Err(LbErrKind::InsufficientPermission)?;
                         }
                     }
                     Diff::UserKeys => {
@@ -426,10 +421,9 @@ where
                                 }
                                 base_keys
                             } else {
-                                return Err(SharedErrorKind::Unexpected(
-                                    "Non-New FileDiff with no old",
-                                )
-                                .into());
+                                return Err(LbErrKind::Unexpected(
+                                    "Non-New FileDiff with no old".to_string(),
+                                ))?;
                             }
                         };
                         for key in file_diff.new.user_access_keys() {
@@ -446,21 +440,21 @@ where
                                         < Some(UserAccessMode::Write)
                                     && owner.0 != key.encrypted_for
                                 {
-                                    Err(SharedErrorKind::InsufficientPermission)?;
+                                    Err(LbErrKind::InsufficientPermission)?;
                                 }
                                 // cannot grant yourself write access
                                 if staged_mode != base_mode
                                     && self.access_mode(owner, file_diff.id())?
                                         < Some(UserAccessMode::Write)
                                 {
-                                    Err(SharedErrorKind::InsufficientPermission)?;
+                                    Err(LbErrKind::InsufficientPermission)?;
                                 }
                             } else {
                                 // adding a new share
 
                                 // to add a share, need equal access
                                 if self.access_mode(owner, file_diff.id())? < Some(key.mode) {
-                                    Err(SharedErrorKind::InsufficientPermission)?;
+                                    Err(LbErrKind::InsufficientPermission)?;
                                 }
                             }
                         }
@@ -472,7 +466,7 @@ where
         Ok(())
     }
 
-    fn diffs(&self) -> SharedResult<Vec<FileDiff<Base::F>>> {
+    fn diffs(&self) -> LbResult<Vec<FileDiff<Base::F>>> {
         let mut result = Vec::new();
         for id in self.tree.staged().ids() {
             let staged = self.tree.staged().find(&id)?;

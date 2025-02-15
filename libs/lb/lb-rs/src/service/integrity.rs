@@ -7,20 +7,20 @@ use crate::model::file_metadata::Owner;
 use crate::model::filename::DocumentType;
 use crate::model::tree_like::TreeLike;
 
-use crate::model::errors::{TestRepoError, Warning};
+use crate::model::errors::{LbErrKind, LbResult, Warning};
 use crate::Lb;
 
 impl Lb {
     // todo good contender for async treatment, to speedup debug_info
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub async fn test_repo_integrity(&self) -> Result<Vec<Warning>, TestRepoError> {
+    pub async fn test_repo_integrity(&self) -> LbResult<Vec<Warning>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
         if db.last_synced.get().unwrap_or(&0) != &0 && db.root.get().is_none() {
-            return Err(TestRepoError::NoRootFolder);
+            return Err(LbErrKind::RootNonexistent)?;
         }
 
         tree.validate(Owner(self.keychain.get_pk()?))?;
@@ -28,10 +28,10 @@ impl Lb {
         for id in tree.ids() {
             let name = tree.name(&id, &self.keychain)?;
             if name.is_empty() {
-                return Err(TestRepoError::FileNameEmpty(id));
+                return Err(LbErrKind::FileNameEmpty)?; // todo: context candidate
             }
             if name.contains('/') {
-                return Err(TestRepoError::FileNameContainsSlash(id));
+                return Err(LbErrKind::FileNameContainsSlash)?; // todo: context candidate
             }
         }
 

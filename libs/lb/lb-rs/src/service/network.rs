@@ -7,6 +7,7 @@ use crate::get_code_version;
 use crate::model::account::Account;
 use crate::model::api::*;
 use crate::model::clock::{get_time, Timestamp};
+use crate::model::errors::LbErr;
 use crate::model::pubkey;
 
 impl<E> From<ErrorWrapper<E>> for ApiError<E> {
@@ -31,7 +32,7 @@ pub enum ApiError<E> {
     ExpiredAuth,
     InternalError,
     BadRequest,
-    Sign(crate::model::SharedError),
+    Sign(LbErr),
     Serialize(String),
     SendFailed(String),
     ReceiveFailed(String),

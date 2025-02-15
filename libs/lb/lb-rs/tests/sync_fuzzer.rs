@@ -5,6 +5,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType::{Document, Folder};
+use lb_rs::model::ValidationFailure;
 use lb_rs::Lb;
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::StdRng;
@@ -132,7 +133,10 @@ impl Actions {
                         let move_file_result = client.move_file(&file.id, &new_parent.id).await;
                         match move_file_result {
                             Ok(()) => {}
-                            Err(LbErr { kind: LbErrKind::FolderMovedIntoSelf, .. }) => {}
+                            Err(LbErr {
+                                kind: LbErrKind::Validation(ValidationFailure::Cycle(_)),
+                                ..
+                            }) => {}
                             _ => panic!(
                                 "Unexpected error while moving file: {:#?}",
                                 move_file_result

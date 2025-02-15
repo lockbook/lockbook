@@ -3,13 +3,14 @@ use billing::google_play_client::GooglePlayClient;
 use billing::stripe_client::StripeClient;
 use document_service::DocumentService;
 use lb_rs::model::clock;
+use lb_rs::model::errors::LbResult;
 use std::env;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
-use lb_rs::model::{pubkey, SharedError};
+use lb_rs::model::pubkey;
 use libsecp256k1::PublicKey;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -80,7 +81,7 @@ pub fn handle_version_header<Req: Request>(
 
 pub fn verify_auth<TRequest>(
     config: &config::Config, request: &RequestWrapper<TRequest>,
-) -> Result<(), SharedError>
+) -> LbResult<()>
 where
     TRequest: Request + Serialize,
 {
