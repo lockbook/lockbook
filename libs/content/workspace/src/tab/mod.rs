@@ -1,4 +1,3 @@
-use crate::file_cache::FileCache;
 use crate::file_cache::FilesExt as _;
 use crate::mind_map::show::MindMap;
 use crate::tab::image_viewer::ImageViewer;
@@ -108,18 +107,6 @@ impl Tab {
         match &self.content {
             ContentState::Open(content) => content.clone_content(),
             _ => None,
-        }
-    }
-
-    pub fn title(&self, files: &Option<FileCache>) -> String {
-        match (self.id(), files) {
-            (Some(id), Some(files)) => files
-                .files
-                .get_by_id(id)
-                .map(|f| f.name.clone())
-                .unwrap_or("Unknown".into()),
-            (Some(_), None) => "Loading".into(),
-            (None, _) => "Mind Map".into(),
         }
     }
 
@@ -328,6 +315,23 @@ impl Workspace {
             }
         }
         TabStatus::Clean // can't get any cleaner than nonexistent!
+    }
+
+    pub fn tab_title(&self, tab: &Tab) -> String {
+        match (tab.id(), &self.files) {
+            (Some(id), Some(files)) => {
+                if let Some(file) = files.files.get_by_id(id) {
+                    file.name.clone()
+                } else if let Ok(file) = self.core.get_file_by_id(id) {
+                    // read-through (can remove when we master cache refreshes)
+                    file.name.clone()
+                } else {
+                    "Unknown".into()
+                }
+            }
+            (Some(_), None) => "Loading".into(),
+            (None, _) => "Mind Map".into(),
+        }
     }
 }
 
