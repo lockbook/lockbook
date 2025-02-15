@@ -477,7 +477,7 @@ impl Workspace {
     fn show_mobile_title(&self, ui: &mut egui::Ui, tab: &Tab) -> bool {
         ui.horizontal(|ui| {
             let selectable_label =
-                egui::widgets::Button::new(egui::RichText::new(tab.title(&self.files)))
+                egui::widgets::Button::new(egui::RichText::new(self.tab_title(tab)))
                     .frame(false)
                     .wrap_mode(TextWrapMode::Truncate)
                     .fill(if ui.visuals().dark_mode {
@@ -526,7 +526,7 @@ impl Workspace {
                                         // we should rename the file.
 
                                         self.out.tab_title_clicked = true;
-                                        let active_name = self.tabs[i].title(&self.files).clone();
+                                        let active_name = self.tab_title(&self.tabs[i]);
 
                                         let mut rename_edit_state =
                                             egui::text_edit::TextEditState::default();
@@ -551,7 +551,7 @@ impl Workspace {
                                         self.current_tab = i;
                                         self.current_tab_changed = true;
                                         self.ctx.send_viewport_cmd(ViewportCommand::Title(
-                                            self.tabs[i].title(&self.files),
+                                            self.tab_title(&self.tabs[i]),
                                         ));
                                         self.out.selected_file = self.tabs[i].id();
                                     }
@@ -850,7 +850,7 @@ impl Workspace {
             });
 
             // draw text
-            let text: egui::WidgetText = (&self.tabs[t].title(&self.files)).into();
+            let text: egui::WidgetText = self.tab_title(&self.tabs[t]).into();
             let wrap_width = if show_close_button {
                 w - (padding_x + status_icon.size + padding_x + padding_x + x_icon.size + padding_x)
             } else {
