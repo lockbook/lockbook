@@ -170,7 +170,7 @@ impl Workspace {
     }
 
     pub fn current_tab_title(&self) -> Option<String> {
-        self.current_tab().map(|tab| tab.title(&self.files))
+        self.current_tab().map(|tab| self.tab_title(tab))
     }
 
     pub fn current_tab_mut(&mut self) -> Option<&mut Tab> {
@@ -196,7 +196,7 @@ impl Workspace {
             self.tabs[i].is_closing = false;
             self.out.selected_file = self.tabs[i].id();
             self.ctx
-                .send_viewport_cmd(ViewportCommand::Title(self.tabs[i].title(&self.files)));
+                .send_viewport_cmd(ViewportCommand::Title(self.tab_title(&self.tabs[i])));
 
             true
         } else {
@@ -283,7 +283,7 @@ impl Workspace {
 
                     if let Some(tab) = self.current_tab() {
                         self.ctx
-                            .send_viewport_cmd(ViewportCommand::Title(tab.title(&self.files)));
+                            .send_viewport_cmd(ViewportCommand::Title(self.tab_title(tab)));
                         self.out.selected_file = tab.id();
                     };
 
@@ -562,7 +562,7 @@ impl Workspace {
                 removed_tabs += 1;
 
                 let title = match self.current_tab() {
-                    Some(tab) => tab.title(&self.files),
+                    Some(tab) => self.tab_title(tab),
                     None => "Lockbook".to_owned(),
                 };
                 self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
@@ -594,9 +594,6 @@ impl Workspace {
             .map_err(|err| format!("{:?}", err));
 
         self.out.file_created = Some(result.clone());
-        if let (Some(cache), Ok(file)) = (&mut self.files, result) {
-            cache.files.push(file);
-        }
         self.ctx.request_repaint();
     }
 
@@ -628,10 +625,10 @@ impl Workspace {
 
     pub fn file_renamed(&mut self, id: Uuid, new_name: String) {
         let mut different_file_type = false;
-        if let Some(tab) = self.tabs.get_mut_by_id(id) {
+        if let Some(tab) = self.tabs.get_by_id(id) {
             different_file_type = !NameComponents::from(&new_name)
                 .extension
-                .eq(&NameComponents::from(&tab.title(&self.files)).extension);
+                .eq(&NameComponents::from(&self.tab_title(tab)).extension);
         }
 
         if Some(id) == self.current_tab_id() {
