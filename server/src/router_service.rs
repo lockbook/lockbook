@@ -9,7 +9,7 @@ use crate::{handle_version_header, router_service, verify_auth, ServerError, Ser
 use lazy_static::lazy_static;
 use lb_rs::model::api::*;
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
-use lb_rs::model::SharedErrorKind;
+use lb_rs::model::errors::{LbErrKind, SignError};
 use prometheus::{
     register_counter_vec, register_histogram_vec, CounterVec, HistogramVec, TextEncoder,
 };
@@ -479,7 +479,8 @@ where
     })?;
 
     verify_auth(config, &request).map_err(|err| match err.kind {
-        SharedErrorKind::SignatureExpired(_) | SharedErrorKind::SignatureInTheFuture(_) => {
+        LbErrKind::Sign(SignError::SignatureExpired(_))
+        | LbErrKind::Sign(SignError::SignatureInTheFuture(_)) => {
             warn!("expired auth");
             ErrorWrapper::<Req::Error>::ExpiredAuth
         }

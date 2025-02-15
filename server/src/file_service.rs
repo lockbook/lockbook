@@ -11,12 +11,12 @@ use db_rs::Db;
 use lb_rs::model::api::UpsertError;
 use lb_rs::model::api::*;
 use lb_rs::model::clock::get_time;
+use lb_rs::model::errors::{LbErrKind, LbResult};
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{Diff, Owner};
 use lb_rs::model::server_file::{IntoServerFile, ServerFile};
 use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
-use lb_rs::model::{SharedErrorKind, SharedResult};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::ops::DerefMut;
@@ -633,7 +633,7 @@ where
 
     pub fn validate_account_helper(
         &self, db: &mut ServerDb, owner: Owner,
-    ) -> SharedResult<AdminValidateAccount> {
+    ) -> LbResult<AdminValidateAccount> {
         let mut result = AdminValidateAccount::default();
 
         let mut tree = ServerTree::new(
@@ -667,7 +667,7 @@ where
         match validation_res {
             Ok(_) => {}
             Err(err) => match err.kind {
-                SharedErrorKind::ValidationFailure(validation) => {
+                LbErrKind::Validation(validation) => {
                     result.tree_validation_failures.push(validation)
                 }
                 _ => {

@@ -17,7 +17,7 @@ use crate::model::text::buffer::Buffer;
 use crate::model::tree_like::TreeLike;
 use crate::model::work_unit::WorkUnit;
 use crate::model::{clock, svg};
-use crate::model::{symkey, SharedErrorKind, ValidationFailure};
+use crate::model::{symkey, ValidationFailure};
 use crate::Lb;
 pub use basic_human_duration::ChronoHumanDuration;
 use futures::stream;
@@ -770,7 +770,7 @@ impl Lb {
                         break merge_changes;
                     }
                     Err(ref err) => match err.kind {
-                        SharedErrorKind::ValidationFailure(ref vf) => match vf {
+                        LbErrKind::Validation(ref vf) => match vf {
                             // merge changeset has resolvable validation errors and needs modification
                             ValidationFailure::Cycle(ids) => {
                                 // revert all local moves in the cycle
@@ -893,6 +893,7 @@ impl Lb {
                             | ValidationFailure::NonFolderWithChildren(_)
                             | ValidationFailure::FileWithDifferentOwnerParent(_)
                             | ValidationFailure::FileNameTooLong(_)
+                            | ValidationFailure::DeletedFileUpdated(_)
                             | ValidationFailure::NonDecryptableFileName(_) => {
                                 validate_result?;
                             }

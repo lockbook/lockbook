@@ -11,6 +11,8 @@ use crate::service::keychain::Keychain;
 use std::collections::HashSet;
 use uuid::Uuid;
 
+use super::ValidationFailure;
+
 impl<Base, Local, Staged> LazyTree<Staged>
 where
     Base: TreeLike<F = SignedFile>,
@@ -175,12 +177,16 @@ where
 
                 if self.name_using_links(&child, keychain)? == path_components[index] {
                     if index == path_components.len() - 1 {
-                        return Err(LbErrKind::PathTaken.into());
+                        return Err(LbErrKind::Validation(ValidationFailure::PathConflict(
+                            HashSet::from([child]),
+                        )))?;
                     }
 
                     current = match self.find(&child)?.file_type() {
                         FileType::Document => {
-                            return Err(LbErrKind::FileNotFolder.into());
+                            return Err(LbErrKind::Validation(
+                                ValidationFailure::NonFolderWithChildren(child),
+                            ))?;
                         }
                         FileType::Folder => child,
                         FileType::Link { target } => {
