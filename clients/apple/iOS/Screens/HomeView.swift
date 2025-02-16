@@ -9,7 +9,7 @@ struct HomeView: View {
     @Environment(\.isPreview) var isPreview
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Group {
                 if horizontalSizeClass == .compact {
                     DrawerView(isOpened: true, menu: {
@@ -17,7 +17,6 @@ struct HomeView: View {
                     }, content: {
                         detail
                     })
-                    .environmentObject(homeState)
                     .environment(\.isConstrainedLayout, true)
                 } else {
                     NavigationSplitView(sidebar: {
@@ -25,17 +24,11 @@ struct HomeView: View {
                     }, detail: {
                         detail
                     })
-                    .environmentObject(homeState)
                     .environment(\.isConstrainedLayout, false)
                 }
             }
-            .navigationDestination(isPresented: $homeState.showSettings) {
-                
-            }
-            .navigationDestination(isPresented: $homeState.showPendingShares) {
-                
-            }
         }
+        .environmentObject(homeState)
     }
     
     @ViewBuilder
@@ -71,6 +64,7 @@ struct HomeView: View {
 }
 
 struct SidebarView: View {
+    @EnvironmentObject var homeState: HomeState
     @ObservedObject var workspaceState: WorkspaceState
     @StateObject var filesModel: FilesViewModel
             
@@ -112,6 +106,13 @@ struct SidebarView: View {
                         .padding(.horizontal, 20)
                 }
                 .navigationTitle(root.name)
+                .navigationDestination(isPresented: $homeState.showSettings) {
+                    SettingsView()
+                }
+                .navigationDestination(isPresented: $homeState.showPendingShares) {
+                    PendingSharesView()
+                        .environmentObject(filesModel)
+                }
             }
         } else {
             ProgressView()

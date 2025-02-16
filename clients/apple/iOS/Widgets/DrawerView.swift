@@ -38,7 +38,7 @@ public struct DrawerView<Menu: View, Content: View>: View {
                     menu
                 }
                     .transition(.move(edge: .leading))
-                    .padding(.trailing, 100)
+                    .padding(.trailing, 50)
                     .zIndex(1)
                     .environment(\.isSidebarOpen, isOpened)
             }

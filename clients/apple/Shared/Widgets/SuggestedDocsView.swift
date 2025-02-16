@@ -10,27 +10,31 @@ struct SuggestedDocsView: View {
     }
     
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack {
-                if let suggestedDocs = model.suggestedDocs {
-                    ForEach(suggestedDocs) { info in
-                        Button(action: {
-                            workspaceState.requestOpenDoc(info.id)
-                        }) {
-                            SuggestedDocCell(info: info)
+        if model.suggestedDocs?.isEmpty == true {
+            EmptyView()
+        } else {
+            ScrollView(.horizontal) {
+                HStack {
+                    if let suggestedDocs = model.suggestedDocs {
+                        ForEach(suggestedDocs) { info in
+                            Button(action: {
+                                workspaceState.requestOpenDoc(info.id)
+                            }) {
+                                SuggestedDocCell(info: info)
+                            }
+                        }
+                    } else {
+                        ForEach(0...2, id: \.self) { index in
+                            SuggestedDocLoadingCell()
                         }
                     }
-                } else {
-                    ForEach(0...2, id: \.self) { index in
-                        SuggestedDocLoadingCell()
-                    }
                 }
+                .frame(height: 80)
+                .padding(.horizontal)
             }
-            .frame(height: 80)
-            .padding(.horizontal)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
         }
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets())
     }
 }
 
