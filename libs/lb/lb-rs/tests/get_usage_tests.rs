@@ -4,7 +4,7 @@ use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::file_metadata::FileType::Folder;
-use lb_rs::repo::docs::AsyncDocs;
+use lb_rs::io::docs::AsyncDocs;
 use lb_rs::Lb;
 use test_utils::*;
 
