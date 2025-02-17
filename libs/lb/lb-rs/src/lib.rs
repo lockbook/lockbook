@@ -19,8 +19,8 @@
 extern crate tracing;
 
 pub mod blocking;
-pub mod model;
 pub mod io;
+pub mod model;
 pub mod service;
 
 #[derive(Clone)]
@@ -66,11 +66,11 @@ pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 use crate::io::CoreDb;
 use crate::service::logging;
 use db_rs::Db;
+use io::docs::AsyncDocs;
 use io::network::Network;
+use io::LbDb;
 use model::core_config::Config;
 use model::errors::{LbErrKind, LbResult};
-use io::docs::AsyncDocs;
-use io::LbDb;
 use service::events::EventSubs;
 use service::keychain::Keychain;
 use service::search::SearchIndex;

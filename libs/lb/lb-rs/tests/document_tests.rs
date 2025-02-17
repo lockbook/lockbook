@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
 use lb_rs::model::symkey;
-use lb_rs::{model::crypto::AESEncrypted, io::docs::AsyncDocs};
+use lb_rs::{io::docs::AsyncDocs, model::crypto::AESEncrypted};
 use test_utils::{self, test_config};
 
 #[tokio::test]
