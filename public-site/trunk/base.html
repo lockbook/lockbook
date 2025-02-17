@@ -45,19 +45,19 @@
             <div class="flex"><a class="flex" href="/"><img src="/logo.svg" alt="lockbook's logo" class=""/></a></div>
             <div class="flex items-center">
                 <ul class="flex mr-10 max-sm:hidden">
-                    <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
-                    <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
+                    <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook/lockbook" target="_blank">GitHub</a>
+                    <a class="block mx-3 text-sm underline font-extralight" href="/#pricing" >Pricing</a>
                     <a class="block mx-3 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
                 </ul>
-                <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline">Download</button>
+                <a class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline" href="/#download">Download</a>
                 <button data-expanded="false" class="relative mx-6 text-4xl bottom-1 text-surfline sm:hidden" id="nav-hamburger-btn">≡</button>
             </div>
         </div>
         <div>
             <ul class="flex-col hidden mt-10 mr-16 " id="mobile-nav-links">
-                <a class="block mx-3 mt-6 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
-                <a class="block mx-3 mt-6 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
-                <a class="block mx-3 mt-6 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
+                <a class="block mt-6 text-sm underline font-extralight" href="https://github.com/lockbook/lockbook" target="_blank">GitHub</a>
+                <a class="block mt-6 text-sm underline font-extralight" href="/#pricing" target="_blank">Pricing</a>
+                <a class="block mt-6 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
             </ul>
         </div>
     </nav>
@@ -80,14 +80,14 @@
             navLinks.classList.remove("hidden");
             navLinks.classList.add("flex");
             navBurgerBtn.textContent = "x"
-            document.body.classList.remove("overflow-scroll")
+            document.body.classList.remove("overflow-y-scroll")
             document.body.classList.add("overflow-hidden")
         } else {
             nav.classList.remove(...expandedNavStyles)
             navLinks.classList.add("hidden");
             navLinks.classList.remove("flex");  
             navBurgerBtn.textContent = "≡"
-            document.body.classList.add("overflow-scroll")
+            document.body.classList.add("overflow-y-scroll")
             document.body.classList.remove("overflow-hidden")
         }
 

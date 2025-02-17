@@ -16,7 +16,7 @@
     <!-- <link data-trunk rel="rust" data-wasm-opt="2" /> -->
 
 
-    <link rel="stylesheet" href="/tailwind-403e1efc386d1dcf.css" integrity="sha384&#x2D;zHNU8ziuRIlbOnoFdvvWIbGcNP84XIaNLDpUtLU17LgYKdF44rN8FuUENmvDlRsb"/>
+    <link rel="stylesheet" href="/tailwind-24b4eb6d7c88acfe.css" integrity="sha384&#x2D;ueh1SlfmPyj6FbJnsdusPjmyu8YkfaOUvNccfYZdMrvx3PSJEgyqfJofUz9MCR&#x2F;z"/>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&display=swap" rel="stylesheet" />
@@ -45,19 +45,19 @@
             <div class="flex"><a class="flex" href="/"><img src="/logo.svg" alt="lockbook's logo" class=""/></a></div>
             <div class="flex items-center">
                 <ul class="flex mr-10 max-sm:hidden">
-                    <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
-                    <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
+                    <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook/lockbook" target="_blank">GitHub</a>
+                    <a class="block mx-3 text-sm underline font-extralight" href="/#pricing" >Pricing</a>
                     <a class="block mx-3 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
                 </ul>
-                <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline">Download</button>
+                <a class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline" href="/#download">Download</a>
                 <button data-expanded="false" class="relative mx-6 text-4xl bottom-1 text-surfline sm:hidden" id="nav-hamburger-btn">≡</button>
             </div>
         </div>
         <div>
             <ul class="flex-col hidden mt-10 mr-16 " id="mobile-nav-links">
-                <a class="block mx-3 mt-6 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
-                <a class="block mx-3 mt-6 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
-                <a class="block mx-3 mt-6 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
+                <a class="block mt-6 text-sm underline font-extralight" href="https://github.com/lockbook/lockbook" target="_blank">GitHub</a>
+                <a class="block mt-6 text-sm underline font-extralight" href="/#pricing" target="_blank">Pricing</a>
+                <a class="block mt-6 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
             </ul>
         </div>
     </nav>
@@ -109,42 +109,36 @@
       <canvas id="canvas_demo" class="w-full h-full"></canvas>
   </div>
 
-  <div class="bg-surfline">
+  <div class="bg-abyss-900 text-egshell">
     <div class="px-3 text-center max-sm:text-left">
         <h2 class="pt-24 text-2xl font-bold">Protect your data across your favorite devices</h2>
         <h3 class="mt-2 mb-20">handcrafted clients for each platform. no electron bs</h3>
     </div>
 
-      <div class="mx-auto w-1/2 h-[34rem] relative max-sm:w-full max-sm:mt-36 ">
+      <div class="mx-auto w-1/2 h-[34rem] max-sm:h-72 relative max-sm:w-full max-sm:mt-36 ">
         <div id="screenshots" class="flex h-full">
-            <img src="ios-screenshot.png" alt="screenshot of the ui on an iOS device" class="absolute object-contain object-bottom w-full h-full" data-platform="ios" > 
-            <img src="macos-screenshot.png" alt="screenshot of the ui on an macos device" class="absolute object-contain object-bottom w-full h-full" data-platform="macos" > 
+            <img src="ios-screenshot.png" alt="screenshot of the ui on an iOS device" class="absolute hidden object-contain object-bottom w-full h-full" data-platform="ios" > 
+            <img src="macos-screenshot.png" alt="screenshot of the ui on an macos device" class="absolute hidden object-contain object-bottom w-full h-full" data-platform="macos" > 
+            <img src="linux-screenshot1.png" alt="screenshot of the ui on an linux device" class="absolute visible object-contain object-bottom w-full h-full" data-platform="linux" > 
+            <img src="android-screenshot.png" alt="screenshot of the ui on an android device" class="absolute hidden object-contain object-bottom w-full h-full" data-platform="android" > 
+            <img src="windows-screenshot.png" alt="screenshot of the ui on an windows device" class="absolute hidden object-contain object-bottom w-full h-full" data-platform="windows" > 
         </div>
         
-        <div class="absolute top-0 left-0 px-3 -translate-x-full translate-y-full max-sm:-translate-y-[110%]  max-sm:translate-x-0 " id="toggle-screenshots">
+        <div class="absolute top-0 left-0 px-3 -translate-x-full translate-y-full max-sm:-translate-y-[110%]  max-sm:translate-x-0 ">
             <p class="mb-2 uppercase opacity-30">toggle</p>
-            <div class="flex flex-col flex-wrap items-start justify-center max-sm:flex-row">
-                <button class="pt-1 pl-4 border-l-8 max-sm:px-2 font-extralight border-abyss-400 border-opacity-30" data-platform="ios">iOS</button>
-                <button class="pt-1 pl-4 border-l-8 max-sm:px-2 font-extralight border-abyss-400 border-opacity-30" data-platform="macos">macOS</button>
-                <button class="pt-1 pl-4 border-l-8 max-sm:px-2 font-extralight border-abyss-400 border-opacity-30" data-platform="windows">windows</button>
-                <button class="pt-1 pl-4 border-l-8 max-sm:px-2 border-abyss-400" data-platform="linux">linux</button>
-                <button class="pt-1 pl-4 border-l-8 max-sm:px-2 font-extralight border-abyss-400 border-opacity-30 "data-platform="android">android</button>
+            <div class="flex flex-col flex-wrap items-start justify-center max-sm:flex-row max-sm:justify-around " id="toggle-screenshots">
+                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30" data-platform="ios">iOS</button>
+                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30" data-platform="macos">macOS</button>
+                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30" data-platform="windows">windows</button>
+                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 border-surfline" data-platform="linux">linux</button>
+                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30 "data-platform="android">android</button>
             </div>
         </div>
       </div>
-
-      
-          <!-- <div class="w-full h-[34rem]  relative" id="screenshots"> -->
-              <!-- <img src="ios-screenshot.png" alt="screenshot of the ui on an iOS device " class="absolute object-contain w-full h-full" data-platform="ios" >  -->
-              <!-- <img src="macos-screenshot`.png" alt="screenshot of the ui on an iOS device " class="absolute object-contain w-full h-full" data-platform="macos" >  -->
-              <!-- <img src="screenshot.png" alt="screenshot of the ui on an iOS device " class="absolute object-contain w-full h-full hue-rotate-30" data-platform="windows"> -->
-              <!-- <img src="screenshot.png" alt="screenshot of the ui on an iOS device " class="absolute object-contain w-full h-full -hue-rotate-30" data-platform="linux">  -->
-              <!-- <img src="screenshot.png" alt="screenshot of the ui on an iOS device " class="absolute object-contain w-full h-full -hue-rotate-90" data-platform="android">  -->
-            <!-- </div> -->
   </div>
 
 
-  <div class="pb-32 max-sm:pb-0 bg-abyss-400 text-egshell">
+  <div class="pb-32 max-sm:pb-0 bg-[linear-gradient(30deg,_theme('colors.abyss.900'),_theme('colors.abyss.400')_90%)]  text-egshell" id="pricing">
     <div class="px-3 text-center max-sm:text-left">
         <h2 class="pt-24 text-2xl font-bold ">Pricing</h2>
         <h3 class="mt-2 mb-20">Be the customer, not the product. We sell a note-taking app, not your data. </h3>
@@ -160,7 +154,7 @@
                   <li class="mb-4">drawing support</li>
                   <li class="mb-4">offline mode</li>
               </ul>
-              <a href="#" class="text-sm underline text-surfline font-xs">Download for free</a>
+              <a href="#" class="text-sm underline text-surfline font-xs" id="free-download" >Download for free</a>
           </div>
   
           <div class="w-full max-w-xl ml-8 max-sm:ml-0 bg-surfline text-abyss-900 p-11 max-sm:py-20">
@@ -178,23 +172,23 @@
                   <li class="mb-4 opacity-60">drawing support</li>
                   <li class="mb-4 opacity-60">offline mode</li>
               </ul>
-              <a href="#" class="px-6 py-2 text-sm bg-abyss-900 text-surfline" >Purchase in app</a>
+              <a href="#" class="px-6 py-2 text-sm bg-abyss-900 text-surfline" id="paid-download" >Purchase in app</a>
           </div>
       </div>
 
   </div>
   
-  <div class="relative py-20 pl-24 max-sm:px-3 text-egshell">
+  <div class="relative py-20 pl-24 max-sm:px-3 text-egshell" id="download">
       <h1 class="text-4xl font-bold mb-28 max-sm:text-3xl">Join the community</h1>
-      <div class="flex items-center max-sm:items-start max-sm:flex-col ">
-          <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline ">Download for macOS</button>
+      <div class="flex items-center max-sm:items-start max-sm:flex-col " id="download-center">
+          <a href="" class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline ">Download for macOS</a>
           <p class="ml-8 text-xs opacity-70 font-extralight max-sm:mx-0 max-sm:mt-4">also available for 
               <a href="#" class="underline text-surfline ">iOS</a>,
               <a href="#" class="underline text-surfline ">android</a>
               <a href="#" class="underline text-surfline ">linux</a>, and
               <a href="#" class="underline text-surfline ">windows</a></p>
       </div>
-      <div class="absolute top-0 right-0 w-1/4 h-full overflow-hidden min-w-80 max-sm:h-full max-sm:w-full max-sm:-z-10 max-sm:opacity-5 ">
+      <div class="absolute top-0 right-0 w-1/4 h-full overflow-hidden pointer-events-none min-w-80 max-sm:h-full max-sm:w-full max-sm:-z-10 max-sm:opacity-5">
           <img src="./banner-bg.svg" alt="pattern of lockbook's logo" class="">
       </div>
   </div>
@@ -210,8 +204,8 @@
           });
       }
 
-      let unselectedStyles = "pt-1 pl-4 border-l-8 font-extralight border-abyss-400 border-opacity-30";
-      let selectedStyles = "pt-1 pl-4 border-l-8 border-abyss-400";
+      let unselectedStyles = "pt-1 px-4 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30";
+      let selectedStyles = "pt-1 px-4 border-l-8 max-sm:border-l-4 border-surfline";
 
       let screenshotToggleBtns = [...document.querySelector("#toggle-screenshots").children].filter(el => el.nodeName === "BUTTON");
 
@@ -220,11 +214,15 @@
       screenshotToggleBtns.forEach(clickedBtn => clickedBtn.addEventListener('click', e => {
           screenshotToggleBtns.forEach(nonClickedBtn => nonClickedBtn.className = unselectedStyles)
           clickedBtn.className = selectedStyles;
-
           let clickedPlatform = clickedBtn.dataset.platform
 
-          screenshotImgs.forEach(img => img.style.display = "none")
-          screenshotImgs.find(img => img.dataset.platform === clickedPlatform).style.display = "block"
+          screenshotImgs.forEach(img => {
+            img.classList.remove("visible")
+            img.classList.add("hidden")
+        })
+          selectedImg = screenshotImgs.find(img => img.dataset.platform === clickedPlatform)
+          selectedImg.classList.remove("hidden")
+          selectedImg.classList.add("visible")
 
       }))
       let editorCanvas = document.querySelector("#editor_demo")
@@ -253,11 +251,45 @@
           editorCanvas.focus();
       });
 
+
+      function getUserPlatform() {
+        if (window.navigator.userAgent.includes("Windows"))
+            return "windows"
+        if (window.navigator.userAgent.includes("iPhone"))
+            return "iphone"
+        if (window.navigator.userAgent.includes("Mac"))
+            return "macos"
+        if (window.navigator.userAgent.includes("Android"))
+            return "android"
+        if (window.navigator.userAgent.includes("Linux"))
+            return "linux"
+    }
+
+    let downloadHrefMap = {
+        windows: {prettyName: "Windows", others: ["iphone", "macos", "android", "linux"], href: "https://github.com/lockbook/lockbook/releases/latest/download/lockbook-windows-setup-x86_64.exe"},
+        macos: {prettyName: "macOS", others: ["iphone", "linux", "android", "windows"], href: "https://apps.apple.com/us/app/lockbook/id1526775001"},
+        iphone: {prettyName: "iPhone", others: ["macos", "linux", "android", "windows"],  href: "https://apps.apple.com/us/app/lockbook/id1526775001"},
+        linux: {prettyName: "Linux",others: ["android", "macos", "iphone", "windows"], href: "https://github.com/lockbook/lockbook/releases/latest/download/lockbook-linux"},
+        android: {prettyName: "Android", others: ["linux", "windows", "iphone", "macos"], href: "https://play.google.com/store/apps/details?id=app.lockbook"}
+    };
+
+    let userPlatform = getUserPlatform();
+    
+    [...document.querySelectorAll("#download-center a")].forEach((link,i) => {
+            let platform =  i === 0 ? userPlatform : downloadHrefMap[userPlatform].others[i-1]
+            let platformObj = downloadHrefMap[platform]
+            link.textContent = link.textContent.replace(/\S+$/, platformObj.prettyName)
+            link.href = platformObj.href
+    });
+
+    [...document.querySelectorAll("#paid-download, #free-download")]
+        .forEach(link => link.href = downloadHrefMap[userPlatform].href )
+ 
   </script>
 
 
 
-<script type="module" nonce="9IBvsitj5NVSb1LSh5T8xQ==">
+<script type="module" nonce="qug3RIRBwOe9g6cJNx/KIQ==">
 import init, * as bindings from '/public-site-2215c5060d0d0045.js';
 const wasm = await init({ module_or_path: '/public-site-2215c5060d0d0045_bg.wasm' });
 
@@ -285,14 +317,14 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
             navLinks.classList.remove("hidden");
             navLinks.classList.add("flex");
             navBurgerBtn.textContent = "x"
-            document.body.classList.remove("overflow-scroll")
+            document.body.classList.remove("overflow-y-scroll")
             document.body.classList.add("overflow-hidden")
         } else {
             nav.classList.remove(...expandedNavStyles)
             navLinks.classList.add("hidden");
             navLinks.classList.remove("flex");  
             navBurgerBtn.textContent = "≡"
-            document.body.classList.add("overflow-scroll")
+            document.body.classList.add("overflow-y-scroll")
             document.body.classList.remove("overflow-hidden")
         }
 

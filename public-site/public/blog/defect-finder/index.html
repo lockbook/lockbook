@@ -16,7 +16,7 @@
     <!-- <link data-trunk rel="rust" data-wasm-opt="2" /> -->
 
 
-    <link rel="stylesheet" href="/tailwind-403e1efc386d1dcf.css" integrity="sha384&#x2D;zHNU8ziuRIlbOnoFdvvWIbGcNP84XIaNLDpUtLU17LgYKdF44rN8FuUENmvDlRsb"/>
+    <link rel="stylesheet" href="/tailwind-24b4eb6d7c88acfe.css" integrity="sha384&#x2D;ueh1SlfmPyj6FbJnsdusPjmyu8YkfaOUvNccfYZdMrvx3PSJEgyqfJofUz9MCR&#x2F;z"/>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&display=swap" rel="stylesheet" />
@@ -45,19 +45,19 @@
             <div class="flex"><a class="flex" href="/"><img src="/logo.svg" alt="lockbook's logo" class=""/></a></div>
             <div class="flex items-center">
                 <ul class="flex mr-10 max-sm:hidden">
-                    <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
-                    <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
+                    <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook/lockbook" target="_blank">GitHub</a>
+                    <a class="block mx-3 text-sm underline font-extralight" href="/#pricing" >Pricing</a>
                     <a class="block mx-3 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
                 </ul>
-                <button class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline">Download</button>
+                <a class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline" href="/#download">Download</a>
                 <button data-expanded="false" class="relative mx-6 text-4xl bottom-1 text-surfline sm:hidden" id="nav-hamburger-btn">≡</button>
             </div>
         </div>
         <div>
             <ul class="flex-col hidden mt-10 mr-16 " id="mobile-nav-links">
-                <a class="block mx-3 mt-6 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">GitHub</a>
-                <a class="block mx-3 mt-6 text-sm underline font-extralight" href="https://github.com/lockbook" target="_blank">Pricing</a>
-                <a class="block mx-3 mt-6 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
+                <a class="block mt-6 text-sm underline font-extralight" href="https://github.com/lockbook/lockbook" target="_blank">GitHub</a>
+                <a class="block mt-6 text-sm underline font-extralight" href="/#pricing" target="_blank">Pricing</a>
+                <a class="block mt-6 text-sm underline font-extralight" href="/blog" target="_blank">Blog</a>
             </ul>
         </div>
     </nav>
@@ -200,7 +200,7 @@
 </style>
 
 
-<script type="module" nonce="9IBvsitj5NVSb1LSh5T8xQ==">
+<script type="module" nonce="qug3RIRBwOe9g6cJNx/KIQ==">
 import init, * as bindings from '/public-site-2215c5060d0d0045.js';
 const wasm = await init({ module_or_path: '/public-site-2215c5060d0d0045_bg.wasm' });
 
@@ -228,14 +228,14 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
             navLinks.classList.remove("hidden");
             navLinks.classList.add("flex");
             navBurgerBtn.textContent = "x"
-            document.body.classList.remove("overflow-scroll")
+            document.body.classList.remove("overflow-y-scroll")
             document.body.classList.add("overflow-hidden")
         } else {
             nav.classList.remove(...expandedNavStyles)
             navLinks.classList.add("hidden");
             navLinks.classList.remove("flex");  
             navBurgerBtn.textContent = "≡"
-            document.body.classList.add("overflow-scroll")
+            document.body.classList.add("overflow-y-scroll")
             document.body.classList.remove("overflow-hidden")
         }
 

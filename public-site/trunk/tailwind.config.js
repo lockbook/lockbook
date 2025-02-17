@@ -7,9 +7,9 @@ module.exports = {
           400: '#262C32',
         },
         egshell: '#F0EBE7',
-        surfline: '#28CCDF',
-        sundown: '#DF5F28',
-        dusk: '#BA28DF',
+        surfline: '#2bb8d4',
+        sundown: '#e66419',
+        dusk: '#7855aa',
       },
       fontFamily: {
         'sans': ['"Martian Mono"', 'serif'],
