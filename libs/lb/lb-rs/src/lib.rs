@@ -11,11 +11,9 @@
 //!   See the [service] module for evolving this functionality.
 //! - The [model] module contains the specification of our data structures and contracts between
 //!   components.
-//!
-//! - The `"blocking"` feature flag enables the [blocking] module and and the corresponding
-//!   blocking `Lb` variant.
-//! - The `"ffi"` feature flag enables `blocking` as well as an API for C ffi clients
-//! - The `"jni"` feature flag enables `blocking` as well as an API for JVM clients
+//! - The [blocking] module contains blocking variants of all [Lb] functions for consumers without
+//!   async runtimes.
+//! - The [io] module contains interactions with disk and network.
 
 #[macro_use]
 extern crate tracing;
