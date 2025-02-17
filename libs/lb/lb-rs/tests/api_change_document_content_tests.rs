@@ -1,7 +1,7 @@
+use lb_rs::io::network::ApiError;
 use lb_rs::model::api::*;
 use lb_rs::model::crypto::AESEncrypted;
 use lb_rs::model::file_metadata::FileDiff;
-use lb_rs::service::network::ApiError;
 use test_utils::assert_matches;
 use test_utils::*;
 use uuid::Uuid;

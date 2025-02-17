@@ -1,4 +1,4 @@
-use super::network::ApiError;
+use crate::io::network::ApiError;
 use crate::model::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
     StripeAccountTier, SubscriptionInfo, UpgradeAccountAppStoreError,

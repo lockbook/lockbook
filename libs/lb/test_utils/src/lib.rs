@@ -143,7 +143,7 @@ pub fn doc_repo_get_all(config: &Config) -> Vec<EncryptedDocument> {
 }
 
 fn list_files(db: &Config) -> Vec<String> {
-    let path = lb_rs::repo::docs::namespace_path(&PathBuf::from(db.writeable_path.clone()));
+    let path = lb_rs::io::docs::namespace_path(&PathBuf::from(db.writeable_path.clone()));
     let path = Path::new(&path);
 
     match fs::read_dir(path) {

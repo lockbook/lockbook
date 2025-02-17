@@ -10,8 +10,8 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
+use crate::io::network::ApiError;
 use crate::model::ValidationFailure;
-use crate::service::network::ApiError;
 
 use super::api;
 

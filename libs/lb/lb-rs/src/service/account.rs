@@ -9,7 +9,7 @@ use crate::{Lb, DEFAULT_API_LOCATION};
 use libsecp256k1::SecretKey;
 use qrcode_generator::QrCodeEcc;
 
-use super::network::ApiError;
+use crate::io::network::ApiError;
 
 impl Lb {
     /// CoreError::AccountExists,
