@@ -85,6 +85,4 @@ class FilesViewModel: ObservableObject {
             self.loadFiles()
         }
     }
-    
-    
 }

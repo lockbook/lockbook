@@ -10,9 +10,9 @@ struct FileTreeView: View {
     
     var root: File
     
-    init(root: File, workspaceState: WorkspaceState) {
+    init(root: File, workspaceState: WorkspaceState, filesModel: FilesViewModel) {
         self.root = root
-        self._fileTreeModel = StateObject(wrappedValue: FileTreeViewModel(workspaceState: workspaceState))
+        self._fileTreeModel = StateObject(wrappedValue: FileTreeViewModel(workspaceState: workspaceState, filesModel: filesModel))
     }
 
     var body: some View {
@@ -32,17 +32,50 @@ struct FileTreeView: View {
             workspaceState.requestSync()
         }
         .padding(.leading)
+        .toolbar {
+            switch fileTreeModel.selectedFilesState {
+            case .selected(explicitly: _, implicitly: _):
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: {
+                        withAnimation {
+                            fileTreeModel.selectedFilesState = .unselected
+                        }
+                    }, label: {
+                        Text("Done")
+                            .foregroundStyle(.blue)
+                    })
+                }
+            case .unselected:
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button(action: {
+                        withAnimation(.linear(duration: 0.2)) {
+                            fileTreeModel.selectedFilesState = .selected(explicitly: [], implicitly: [])
+                        }
+                    }, label: {
+                        Text("Edit")
+                            .foregroundStyle(.blue)
+                    })
+                }
+            }
+            
+        }
     }
 }
 
 #Preview {
-    FileTreeView(root: (AppState.lb as! MockLb).file0, workspaceState: WorkspaceState())
-        .environmentObject(HomeState())
-        .environmentObject(FilesViewModel(workspaceState: WorkspaceState()))
-        .environmentObject(WorkspaceState())
+    NavigationView {
+        FileTreeView(root: (AppState.lb as! MockLb).file0, workspaceState: WorkspaceState(), filesModel: FilesViewModel(workspaceState: WorkspaceState()))
+    }
+    .environmentObject(HomeState())
+    .environmentObject(FilesViewModel(workspaceState: WorkspaceState()))
+    .environmentObject(WorkspaceState())
 }
 
 struct FileRowView: View {
+    @EnvironmentObject var filesModel: FilesViewModel
+    @EnvironmentObject var fileTreeModel: FileTreeViewModel
+    @EnvironmentObject var workspaceState: WorkspaceState
+    
     let file: File
     let level: CGFloat
     
@@ -60,20 +93,24 @@ struct FileRowView: View {
         
     var isOpen: Bool {
         get {
-            fileTreeModel.openFiles.contains(file.id) || fileTreeModel.implicitlyOpenFiles.contains(file.id)
+            fileTreeModel.openFolders.contains(file.id) || fileTreeModel.implicitlyOpenFolders.contains(file.id)
         }
     }
-        
-    @EnvironmentObject var filesModel: FilesViewModel
-    @EnvironmentObject var fileTreeModel: FileTreeViewModel
-    @EnvironmentObject var workspaceState: WorkspaceState
-        
+    
+    var isSelected: Bool {
+        fileTreeModel.selectedFilesState.isSelected(file)
+    }
+    
+    var isSelectable: Bool {
+        fileTreeModel.selectedFilesState.isSelectableState()
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if level != -1 {
                 fileRow
                     .onTapGesture {
-                        openFile()
+                        self.openOrSelectFile()
                     }
             }
             
@@ -90,6 +127,21 @@ struct FileRowView: View {
     
     var fileRow: some View {
         HStack {
+            if isSelectable {
+                ZStack {
+                    if isSelected {
+                        Image(systemName: "circle.fill")
+                            .foregroundStyle(.blue)
+                            .font(.system(size: 17))
+                    }
+                    
+                    Image(systemName: isSelected ? "checkmark" : "circle")
+                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                        .font(.system(size: (isSelected ? 10 : 17)))
+                }
+                .padding(.trailing, 5)
+            }
+            
             Image(systemName: FileIconHelper.fileToSystemImageName(file: file))
                 .font(.system(size: 16))
                 .frame(width: 16)
@@ -119,12 +171,20 @@ struct FileRowView: View {
         .padding(.trailing, 10)
     }
     
-    func openFile() {
+    func openOrSelectFile() {
+        if isSelectable {
+            if isSelected {
+                fileTreeModel.removeFileFromSelection(file: file)
+            } else {
+                fileTreeModel.addFileToSelection(file: file)
+            }
+        }
+        
         if file.isFolder {
             workspaceState.selectedFolder = file.id
             
             withAnimation {
-                let _ = fileTreeModel.openFiles.insert(file.id)
+                let _ = fileTreeModel.openFolders.insert(file.id)
             }
         } else {
             workspaceState.requestOpenDoc(file.id)

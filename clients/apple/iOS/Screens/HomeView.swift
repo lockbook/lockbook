@@ -101,7 +101,7 @@ struct SidebarView: View {
                         .font(.headline)
                         .padding(.bottom, 3)
                         .padding(.top, 8)) {
-                            FileTreeView(root: root, workspaceState: workspaceState)
+                            FileTreeView(root: root, workspaceState: workspaceState, filesModel: filesModel)
                                 .environmentObject(workspaceState)
                                 .environmentObject(filesModel)
                         }

@@ -6,10 +6,7 @@ struct UpgradeAccountView: View {
     @EnvironmentObject var billingState: BillingState
     
     var body: some View {
-        
-        
         VStack(alignment: .leading) {
-            
             Text("Expand your storage to **30GB** for **\(billingState.subProduct?.displayPrice ?? "$2.99")** a month.")
                 .padding(.bottom, 30)
             
@@ -67,7 +64,6 @@ struct UpgradeAccountView: View {
             Text("Please review our [Terms of Service](https://lockbook.net/tos) and our [Privacy Policy](https://lockbook.net/privacy-policy).")
                 .foregroundColor(.gray)
                 .font(.caption)
-                .padding(.bottom)
                 .padding(.top, 5)
                 .frame(maxWidth: .infinity, alignment: .center)
         }
