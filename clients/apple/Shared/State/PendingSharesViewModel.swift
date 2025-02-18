@@ -4,9 +4,7 @@ import SwiftWorkspace
 class PendingSharesViewModel: ObservableObject {
     @Published var pendingShares: [File]? = nil
     @Published var error: String? = nil
-    
-    @Published var selectSheetInfo: SelectFolderAction? = nil
-    
+        
     init() {
         self.loadPendingShares()
     }

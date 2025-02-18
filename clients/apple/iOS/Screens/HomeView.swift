@@ -65,8 +65,10 @@ struct HomeView: View {
 
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
+    
     @ObservedObject var workspaceState: WorkspaceState
     @StateObject var filesModel: FilesViewModel
+    @State var sheetHeight: CGFloat = 0
             
     init(_ workspaceState: WorkspaceState) {
         self.workspaceState = workspaceState
@@ -104,6 +106,8 @@ struct SidebarView: View {
                                 .environmentObject(filesModel)
                         }
                         .padding(.horizontal, 20)
+                    
+                    StatusBarView(filesModel: filesModel, workspaceState: workspaceState)
                 }
                 .navigationTitle(root.name)
                 .navigationDestination(isPresented: $homeState.showSettings) {
@@ -113,6 +117,7 @@ struct SidebarView: View {
                     PendingSharesView()
                         .environmentObject(filesModel)
                 }
+                .fileOpSheets(constrainedSheetHeight: $sheetHeight)
             }
         } else {
             ProgressView()
@@ -122,4 +127,5 @@ struct SidebarView: View {
 
 #Preview("Home View") {
     HomeView()
+        .environmentObject(BillingState())
 }

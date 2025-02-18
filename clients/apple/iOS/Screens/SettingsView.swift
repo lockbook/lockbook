@@ -7,22 +7,28 @@ struct SettingsView: View {
     @State var confirmLogout = false
     @State var deleteAccountConfirmation = false
     
-    @State var showCompactAccountKey = false
-    
-    @State var sheetHeight: CGFloat = 0.0
+    @State var showAccountKeys = false
     
     var body: some View {
         Form {
             Section("Account") {
                 if let account = model.account {
                     HStack {
-                        Text("Username")
+                        Text("Username:")
                         Spacer()
                         Text(account.username)
                     }
                 } else {
                     ProgressView()
                 }
+                
+                Button(action: {
+                    AuthHelper.authenticateWithBiometricsOrPasscode { success in
+                        showAccountKeys = success
+                    }
+                }, label: {
+                    Text("Reveal account keys")
+                })
                 
                 Button(role: .destructive, action: {
                     self.confirmLogout = true
@@ -36,21 +42,36 @@ struct SettingsView: View {
                 }
             }
             
-            Section("Account Key") {
-                Button(action: {
-                    self.showCompactAccountKey = true
-                }, label: {
-                    Text("Reveal account key")
-                })
-                .optimizedSheet(isPresented: $showCompactAccountKey, constrainedSheetHeight: $sheetHeight, presentedContent: {
-                    AccountKeyView()
-                })
+            Section("Usage") {
+                if let isPremium = model.isPremium {
+                    HStack {
+                        Text("Current Tier:")
+                        Spacer()
+                        Text(isPremium ? "Premium" : "Free")
+                    }
+                    
+                    if !isPremium {
+                        NavigationLink("Upgrade now") {
+                            UpgradeAccountView(settingsModel: model)
+                        }
+                    }
+                }
                 
-                Button(action: {
-                    self.showCompactAccountKey = true
-                }, label: {
-                    Text("Show account phrase")
-                })
+                if let usage = model.usage {
+                    VStack {
+                        HStack {
+                            Text("Server Utilization:")
+                            Spacer()
+                            Text("\(usage.serverUsedHuman) / \(usage.serverCapHuman)")
+                        }
+                        
+                        ProgressView(value: Double(usage.serverUsedExact), total: Double(usage.serverCapExact))
+                            .padding(.top, 10)
+                            .padding(.bottom, 8)
+                    }
+                } else {
+                    ProgressView()
+                }
             }
             
             Section(header: Text("Privacy")) {
@@ -69,82 +90,84 @@ struct SettingsView: View {
                     }
                 }
             }
-
             
             Section("Debug") {
                 if let account = model.account {
                     HStack {
-                        Text("Server")
-                        Spacer()
+                        Text("Server:")
+                            .padding(.trailing, 10)
                         Text(account.apiUrl)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 } else {
                     ProgressView()
                 }
                 
                 NavigationLink(destination: DebugView()) {
-                    Text("Debug info")
+                    Text("Debug Info")
                 }
             }
         }
+        .navigationDestination(isPresented: $showAccountKeys, destination: {
+            AccountKeysView()
+        })
         .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.large)
     }
 }
 
-struct AccountKeyView: View {
+struct AccountKeysView: View {
     let accountKey = (try? AppState.lb.exportAccountPrivateKey().get()) ?? "ERROR"
-    
+
     var body: some View {
-        VStack(spacing: 10) {
-            HStack {
-                Text("Account Key")
-                    .bold()
-                
-                Spacer()
+        Form {
+            Section("Phrase") {
+                AccountPhraseView(includeBackground: false)
             }
 
-            Text(accountKey)
-                .monospaced()
-            
-            QRView(text: accountKey)
+            Section("Compact") {
+                VStack {
+                    HStack {
+                        Text(accountKey)
+                            .font(.system(.body, design: .monospaced))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .padding(10)
+
+                        Spacer()
+
+                        Button(action: {
+                            ClipboardHelper.copyToClipboard(accountKey)
+                        }) {
+                            Image(systemName: "doc.on.doc")
+                                .foregroundColor(.blue)
+                                .padding(8)
+                        }
+                    }
+
+                    HStack {
+                        Spacer()
+                        QRView(text: accountKey)
+                        Spacer()
+                    }
+                    .padding(.top, 5)
+                }
+                .padding(.vertical, 5)
+            }
         }
-        .padding(.horizontal)
-        .padding(.top, 3)
+        .navigationTitle("Account Keys")
+        .navigationBarTitleDisplayMode(.large)
     }
 }
 
-class SettingsViewModel: ObservableObject {
-    var account: Account? = nil
-    var error: String? = nil
-    
-    init() {
-        self.loadAccount()
-    }
-    
-    func loadAccount() {
-        switch AppState.lb.getAccount() {
-        case .success(let account):
-            self.account = account
-        case .failure(let err):
-            error = err.msg
-        }
-    }
-    
-    func getAccountPhrase() -> String {
-        (try? AppState.lb.exportAccountPhrase().get()) ?? "ERROR"
-    }
-    
-    func deleteAccountAndExit() {
-        AppState.lb.deleteAccount()
-        exit(0)
-    }
-
-}
 
 #Preview {
     NavigationStack {
         SettingsView()
     }
+    .environmentObject(BillingState())
 }
 
 

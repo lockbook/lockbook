@@ -6,7 +6,7 @@ struct OnboardingView: View {
         NavigationStack {
             VStack(alignment: .leading) {
                 HStack {
-                    logo
+                    LogoView()
                     
                     Spacer()
                 }
@@ -56,19 +56,7 @@ struct OnboardingView: View {
         }
     }
     
-    var logo: some View {
-        #if os(iOS)
-        Image(uiImage: UIImage(named: "logo")!)
-            .resizable()
-            .scaledToFit()
-            .frame(width: 75)
-        #else
-        Image(nsImage: NSImage(named: NSImage.Name("logo"))!)
-            .resizable()
-            .scaledToFit()
-            .frame(width: 75)
-        #endif
-    }
+    
     
     var subText: some View {
         #if os(iOS)
@@ -111,7 +99,7 @@ struct OnboardingOneHorizontalPadding: ViewModifier {
 private struct OnboardingTwoView: View {
     @State var username: String = ""
     @State var createdAccount = false
-    @State var keyPhrase: (String, String)? = nil
+    @State var showAccountInformation: String? = nil
     
     @State var error: String? = nil
     @State var working: Bool = false
@@ -161,9 +149,7 @@ private struct OnboardingTwoView: View {
         .padding(.bottom)
         .padding(.horizontal, 25)
         .navigationDestination(isPresented: $createdAccount, destination: {
-            if let keyPhrase = keyPhrase {
-                OnboardingThreeView(username: username, keyPhrasePart1: keyPhrase.0, keyPhrasePart2: keyPhrase.1)
-            }
+            OnboardingThreeView(username: username)
         })
     }
     
@@ -173,36 +159,15 @@ private struct OnboardingTwoView: View {
         
         DispatchQueue.global(qos: .userInitiated).async {
             let operation = AppState.lb.createAccount(username: username, apiUrl: AppState.LB_API_URL, welcomeDoc: true)
+            DispatchQueue.main.async {
                 switch operation {
                 case .success:
-                    switch AppState.lb.exportAccountPhrase() {
-                    case .success(let phrase):
-                        DispatchQueue.main.async {
-                            let phrase = phrase.split(separator: " ")
-                            let first12 = Array(phrase.prefix(12)).enumerated().map { (index, item) in
-                                return "\(index + 1). \(item)"
-                            }.joined(separator: "\n")
-                            
-                            let last12 = Array(phrase.suffix(12)).enumerated().map { (index, item) in
-                                return "\(index + 13). \(item)"
-                            }.joined(separator: "\n")
-                            
-                            keyPhrase = (first12, last12)
-                            
-                            createdAccount = true
-                        }
-                    case .failure(_):
-                        error = "An unexpected error has occurred."
-                    }
-                    
-                    break
+                    self.createdAccount = true
                 case .failure(let err):
-                    DispatchQueue.main.async {
-                        working = false
-                        error = err.msg
-                    }
-                    break
+                    working = false
+                    error = err.msg
                 }
+            }
         }
 
     }
@@ -214,8 +179,6 @@ private struct OnboardingTwoView: View {
 
 private struct OnboardingThreeView: View {
     let username: String
-    let keyPhrasePart1: String
-    let keyPhrasePart2: String
     
     @State var storedSecurely = false
     @State var working = false
@@ -233,27 +196,8 @@ private struct OnboardingThreeView: View {
                 .padding(.top, 6)
                 .padding(.bottom)
             
-            HStack {
-                VStack(alignment: .leading) {
-                    ForEach(parseKeyPhrase(keyPhrasePart1), id: \.self) { phrase in
-                        keyText(from: phrase)
-                    }
-                }
-                .padding(.leading, 30)
-                
-                Spacer()
-                
-                VStack(alignment: .leading) {
-                    ForEach(parseKeyPhrase(keyPhrasePart2), id: \.self) { phrase in
-                        keyText(from: phrase)
-                    }
-                }
-                .padding(.trailing, 30)
-            }
-            .frame(maxWidth: 350)
-            .padding()
-            .background(RoundedRectangle(cornerRadius: 6).foregroundStyle(.gray).opacity(0.1))
-
+            AccountPhraseView()
+            
             Spacer()
             
             Toggle(isOn: $storedSecurely, label: {
@@ -299,29 +243,6 @@ private struct OnboardingThreeView: View {
         }
     }
     
-    func parseKeyPhrase(_ keyPhrase: String) -> [String] {
-         return keyPhrase.components(separatedBy: "\n")
-     }
-     
-     @ViewBuilder
-     func keyText(from phrase: String) -> some View {
-         let components = phrase.split(separator: " ", maxSplits: 1)
-         
-         if components.count == 2 {
-             let number = components[0]
-             let word = components[1]
-             
-             HStack {
-                 Text("\(number)")
-                     .foregroundColor(.accentColor)
-                 
-                 Text(word)
-                     .foregroundColor(.primary)
-                     .font(.system(.callout, design: .monospaced))
-             }
-         }
-     }
-    
     func goToMainScreen() {
         working = true
         AppState.shared.isLoggedIn = true
@@ -329,7 +250,7 @@ private struct OnboardingThreeView: View {
 }
 
 #Preview("Onboarding 3") {
-    OnboardingThreeView(username: "smail", keyPhrasePart1: "1. turkey\n2. era\n3. velvet\n4. detail\n5. prison\n6. income\n7. dose\n8. royal\n9. fever\n10. truly\n11. unique\n12. couple", keyPhrasePart2: "13. party\n14. example\n15. piece\n16. art\n17. leaf\n18. follow\n19. rose\n20. access\n21. vacant\n22. gather\n23. wasp\n24. audit")
+    OnboardingThreeView(username: "smail")
 }
 
 struct iOSCheckboxToggleStyle: ToggleStyle {

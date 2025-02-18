@@ -7,6 +7,9 @@ class HomeState: ObservableObject {
     
     @Published var showSettings: Bool = false
     @Published var showPendingShares: Bool = false
+    
+    @Published var sheetInfo: FileOperationSheetInfo? = nil
+    @Published var selectSheetInfo: SelectFolderAction? = nil
 }
 
 public enum FileAction {

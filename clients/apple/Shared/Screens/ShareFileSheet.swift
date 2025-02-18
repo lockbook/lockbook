@@ -195,6 +195,7 @@ struct ShareFileTextField: ViewModifier {
     }
 }
 
+#if os(iOS)
 @available(iOS 17.0, *)
 #Preview {
     @Previewable @State var file: File? = (AppState.lb as! MockLb).file1
@@ -216,3 +217,4 @@ struct ShareFileTextField: ViewModifier {
             }
         )
 }
+#endif

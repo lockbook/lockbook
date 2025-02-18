@@ -25,9 +25,6 @@ struct PendingSharesView: View {
                 ProgressView()
             }
         }
-        .sheet(item: $model.selectSheetInfo) { action in
-            SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)
-        }
         .navigationTitle("Pending Shares")
         .navigationBarTitleDisplayMode(.large)
     }
@@ -66,6 +63,8 @@ struct PendingSharesView: View {
 }
 
 struct PendingShareFileCell: View {
+    @EnvironmentObject var homeState: HomeState
+    
     @ObservedObject var pendingSharesModel: PendingSharesViewModel
     @State var confirmRejection = false
     
@@ -83,7 +82,7 @@ struct PendingShareFileCell: View {
             Spacer()
             
             Button {
-                pendingSharesModel.selectSheetInfo = .acceptShare(name: file.name, id: file.id)
+                homeState.selectSheetInfo = .acceptShare(name: file.name, id: file.id)
             } label: {
                 Image(systemName: "plus.circle")
                     .imageScale(.large)

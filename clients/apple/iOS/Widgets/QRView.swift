@@ -32,4 +32,8 @@ struct QRView: View {
     }
 }
 
+#Preview {
+    QRView(text: "turkey, era, velvet, detail, prison, income, dose, royal, fever, truly, unique, couple, party, example, piece, art, leaf, follow, rose, access, vacant, gather, wasp, audit")
+}
+
 

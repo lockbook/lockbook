@@ -26,10 +26,19 @@ struct ContentView: View {
     
     var body: some View {
         if isLoggedIn {
-            HomeView()
+            HomeBillingWrapperView()
         } else {
             OnboardingView()
         }
+    }
+}
+
+struct HomeBillingWrapperView: View {
+    @StateObject var billingState = BillingState()
+    
+    var body: some View {
+        HomeView()
+            .environmentObject(billingState)
     }
 }
 
