@@ -21,9 +21,9 @@ use model::api::{
 };
 use service::{
     import_export::ImportStatus,
-    search::{SearchConfig, SearchResult},
     sync::SyncProgress,
 };
+use subscribers::search::{SearchConfig, SearchResult};
 
 use std::sync::atomic::AtomicPtr;
 use std::sync::Arc;

@@ -16,7 +16,6 @@ pub mod integrity;
 pub mod keychain;
 pub mod logging;
 pub mod path;
-pub mod search;
 pub mod share;
 pub mod sync;
 pub mod usage;
