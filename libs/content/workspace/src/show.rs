@@ -497,12 +497,9 @@ impl Workspace {
         .inner
     }
 
-    fn show_tab_strip(&mut self, parent_ui: &mut egui::Ui) {
+    fn show_tab_strip(&mut self, ui: &mut egui::Ui) {
         let active_tab_changed = self.current_tab_changed;
         self.current_tab_changed = false;
-
-        let mut ui =
-            parent_ui.child_ui(parent_ui.painter().clip_rect(), egui::Layout::default(), None);
 
         let cursor = ui
             .horizontal(|ui| {
@@ -587,7 +584,6 @@ impl Workspace {
         let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
         ui.painter()
             .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
-        parent_ui.advance_cursor_after_rect(remaining_rect);
     }
 
     fn process_keys(&mut self) {
