@@ -22,6 +22,7 @@ pub mod blocking;
 pub mod io;
 pub mod model;
 pub mod service;
+pub mod subscribers;
 
 #[derive(Clone)]
 pub struct Lb {
@@ -73,7 +74,7 @@ use model::core_config::Config;
 use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
 use service::keychain::Keychain;
-use service::search::SearchIndex;
+use subscribers::search::SearchIndex;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tokio::sync::RwLock;

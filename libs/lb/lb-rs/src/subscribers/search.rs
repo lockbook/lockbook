@@ -1,7 +1,7 @@
-use super::activity::RankingWeights;
-use super::events::Event;
 use crate::model::errors::{LbErr, LbErrKind, LbResult, UnexpectedError};
 use crate::model::filename::DocumentType;
+use crate::service::activity::RankingWeights;
+use crate::service::events::Event;
 use crate::Lb;
 use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 use serde::Serialize;
