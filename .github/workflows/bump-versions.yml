@@ -24,7 +24,7 @@ jobs:
           toolchain: stable
       - name: run bump script
         run: |
-          cargo run -p releaser -- bump-versions --bump-type=${{ github.event.inputs.bump_type }}
+          cargo run -p releaser -- bump-versions ${{ github.event.inputs.bump_type }}
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: automatically bumped versions
