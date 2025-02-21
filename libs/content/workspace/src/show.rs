@@ -692,9 +692,14 @@ impl Workspace {
         let mut status_icon = status.icon();
         status_icon.size = 15.0;
 
-        let padding_x = 7.5;
-        let w = if self.tabs[t].is_closing { 40. } else { 110. };
-        let h = 35.;
+        let text: egui::WidgetText = (&self.tabs[t].title(&self.files)).into();
+
+        let text = text.into_galley(ui, Some(TextWrapMode::Extend), 200.0, egui::TextStyle::Body);
+
+        let padding_x = 5.5;
+        // let w = if self.tabs[t].is_closing { 40. } else { 110. };
+        let h = 40.;
+        let w = text.rect.width() + 40.0;
 
         ui.style_mut()
             .text_styles
@@ -709,7 +714,7 @@ impl Workspace {
             ui.painter().rect(
                 tab_label_rect,
                 0.,
-                ui.style().visuals.extreme_bg_color,
+                ui.style().visuals.hyperlink_color.linear_multiply(0.01),
                 egui::Stroke::NONE,
             );
         };
@@ -839,12 +844,12 @@ impl Workspace {
                     egui::TextStyle::Body,
                 );
 
-                let opacity = if is_active { 1.0 } else { 0.5 };
-                ui.painter().galley(
-                    icon_draw_pos,
-                    icon,
-                    ui.visuals().text_color().linear_multiply(opacity),
-                );
+                let color = if is_active {
+                    ui.style().visuals.hyperlink_color.linear_multiply(0.3)
+                } else {
+                    ui.visuals().text_color().linear_multiply(0.01)
+                };
+                ui.painter().galley(icon_draw_pos, icon, color);
             }
 
             // status icon tooltip explains situation
@@ -949,12 +954,12 @@ impl Workspace {
 
         // draw separators
         let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
-        if !is_active {
-            ui.painter()
-                .hline(tab_label_rect.x_range(), tab_label_rect.max.y, sep_stroke);
-        }
+        // if !is_active {
         ui.painter()
-            .vline(tab_label_rect.max.x, tab_label_rect.y_range(), sep_stroke);
+            .hline(tab_label_rect.x_range(), tab_label_rect.max.y, sep_stroke);
+        // }
+        // ui.painter()
+        //     .vline(tab_label_rect.max.x, tab_label_rect.y_range(), sep_stroke);
 
         result
     }
