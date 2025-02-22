@@ -2,6 +2,9 @@ import SwiftUI
 import SwiftWorkspace
 
 struct SuggestedDocsView: View {
+    @Environment(\.isConstrainedLayout) var isConstrainedLayout
+
+    @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var workspaceState: WorkspaceState
     @StateObject var model: SuggestedDocsViewModel
     
@@ -18,6 +21,10 @@ struct SuggestedDocsView: View {
                     if let suggestedDocs = model.suggestedDocs {
                         ForEach(suggestedDocs) { info in
                             Button(action: {
+                                if isConstrainedLayout {
+                                    homeState.isConstrainedSidebarOpen = false
+                                }
+                                
                                 workspaceState.requestOpenDoc(info.id)
                             }) {
                                 SuggestedDocCell(info: info)
@@ -41,6 +48,7 @@ struct SuggestedDocsView: View {
 #Preview {
     SuggestedDocsView(filesModel: FilesViewModel(workspaceState: WorkspaceState()))
         .environmentObject(WorkspaceState())
+        .environmentObject(HomeState())
 }
 
 struct SuggestedDocCell: View {

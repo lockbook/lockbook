@@ -32,56 +32,23 @@ struct FileTreeView: View {
             workspaceState.requestSync()
         }
         .padding(.leading)
-        .toolbar {
-            switch fileTreeModel.selectedFilesState {
-            case .selected(explicitly: _, implicitly: _):
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: {
-                        withAnimation {
-                            fileTreeModel.selectedFilesState = .unselected
-                        }
-                    }, label: {
-                        Text("Done")
-                            .foregroundStyle(.blue)
-                    })
-                }
-            case .unselected:
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button(action: {
-                        withAnimation(.linear(duration: 0.2)) {
-                            fileTreeModel.selectedFilesState = .selected(explicitly: [], implicitly: [])
-                        }
-                    }, label: {
-                        Text("Edit")
-                            .foregroundStyle(.blue)
-                    })
-                }
-            }
-            
-        }
     }
-}
-
-#Preview {
-    NavigationView {
-        FileTreeView(root: (AppState.lb as! MockLb).file0, workspaceState: WorkspaceState(), filesModel: FilesViewModel(workspaceState: WorkspaceState()))
-    }
-    .environmentObject(HomeState())
-    .environmentObject(FilesViewModel(workspaceState: WorkspaceState()))
-    .environmentObject(WorkspaceState())
 }
 
 struct FileRowView: View {
+    @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var fileTreeModel: FileTreeViewModel
     @EnvironmentObject var workspaceState: WorkspaceState
+    
+    @Environment(\.isConstrainedLayout) var isConstrainedLayout
     
     let file: File
     let level: CGFloat
     
     var children: [File] {
         get {
-            filesModel.childrens[file.id] ?? []
+            (filesModel.childrens[file.id] ?? []).sorted { $1 > $0 }
         }
     }
 
@@ -93,16 +60,16 @@ struct FileRowView: View {
         
     var isOpen: Bool {
         get {
-            fileTreeModel.openFolders.contains(file.id) || fileTreeModel.implicitlyOpenFolders.contains(file.id)
+            fileTreeModel.openFolders.contains(file.id)
         }
     }
     
     var isSelected: Bool {
-        fileTreeModel.selectedFilesState.isSelected(file)
+        filesModel.selectedFilesState.isSelected(file)
     }
     
     var isSelectable: Bool {
-        fileTreeModel.selectedFilesState.isSelectableState()
+        filesModel.selectedFilesState.isSelectableState()
     }
     
     var body: some View {
@@ -169,25 +136,43 @@ struct FileRowView: View {
         .contentShape(Rectangle())
         .padding(.leading, level * 20 + 5)
         .padding(.trailing, 10)
+        .confirmationDialog(
+            "Are you sure? This action cannot be undone.",
+            isPresented: Binding(
+                get: { filesModel.isFileInDeletion(id: file.id) },
+                set: { _, _ in filesModel.deleteFileConfirmation = nil }
+            ),
+            titleVisibility: .visible, actions: {
+                if let files = filesModel.deleteFileConfirmation {
+                    DeleteConfirmationButtons(files: files)
+                }
+            }
+        )
     }
     
     func openOrSelectFile() {
         if isSelectable {
             if isSelected {
-                fileTreeModel.removeFileFromSelection(file: file)
+                filesModel.removeFileFromSelection(file: file)
             } else {
-                fileTreeModel.addFileToSelection(file: file)
+                filesModel.addFileToSelection(file: file)
             }
+            
+            return
         }
         
         if file.isFolder {
             workspaceState.selectedFolder = file.id
             
             withAnimation {
-                let _ = fileTreeModel.openFolders.insert(file.id)
+                let _ = fileTreeModel.toggleFolder(file.id)
             }
         } else {
             workspaceState.requestOpenDoc(file.id)
+            
+            if isConstrainedLayout {
+                homeState.isConstrainedSidebarOpen = false
+            }
         }
     }
 }
@@ -195,6 +180,7 @@ struct FileRowView: View {
 struct FileRowContextMenu: View {
     let file: File
     
+    @EnvironmentObject var fileTreeModel: FileTreeViewModel
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var homeState: HomeState
     
@@ -256,11 +242,20 @@ struct FileRowContextMenu: View {
                 Divider()
                 
                 Button(role: .destructive, action: {
-//                    DI.sheets.deleteConfirmationInfo = [meta]
+                    filesModel.deleteFileConfirmation = [file]
                 }) {
                     Label("Delete", systemImage: "trash.fill")
                 }
             }
         }
     }
+}
+
+#Preview {
+    NavigationView {
+        FileTreeView(root: (AppState.lb as! MockLb).file0, workspaceState: WorkspaceState(), filesModel: FilesViewModel(workspaceState: WorkspaceState()))
+    }
+    .environmentObject(HomeState())
+    .environmentObject(FilesViewModel(workspaceState: WorkspaceState()))
+    .environmentObject(WorkspaceState())
 }

@@ -10,6 +10,9 @@ class FilesViewModel: ObservableObject {
     var idsToFiles: [UUID: File] = [:]
     var childrens: [UUID: [File]] = [:]
     
+    @Published var selectedFilesState: SelectedFilesState = .unselected
+    @Published var deleteFileConfirmation: [File]? = nil
+    
     var error: String? = nil
     
     private var cancellables: Set<AnyCancellable> = []
@@ -26,6 +29,140 @@ class FilesViewModel: ObservableObject {
         .store(in: &cancellables)
         
         self.loadFiles()
+    }
+    
+    func isFileInDeletion(id: UUID) -> Bool {
+        return deleteFileConfirmation?.count == 1 && deleteFileConfirmation?[0].id == id
+    }
+    
+    func isMoreThanOneFileInDeletion() -> Bool {
+        return deleteFileConfirmation?.count ?? 0 > 1
+    }
+    
+    func addFileToSelection(file: File) {
+        var (explicitly, implicitly): (Set<File>, Set<File>) = switch selectedFilesState {
+        case .unselected:
+            ([], [])
+        case .selected(explicitly: let explicitly, implicitly: let implicitly):
+            (explicitly, implicitly)
+        }
+        
+        if implicitly.contains(file) {
+            return
+        }
+        
+        explicitly.insert(file)
+        implicitly.insert(file)
+                
+        if file.type == .folder {
+            var childrenToAdd = self.childrens[file.id] ?? []
+            
+            while !childrenToAdd.isEmpty {
+                var newChildren: [File] = []
+                for child in childrenToAdd {
+                    implicitly.insert(child)
+                    explicitly.remove(child)
+                    if child.type == .folder {
+                        newChildren.append(contentsOf: self.childrens[child.id] ?? [])
+                    }
+                }
+                
+                childrenToAdd = newChildren
+            }
+        }
+        
+        self.selectedFilesState = .selected(explicitly: explicitly, implicitly: implicitly)
+    }
+    
+    func removeFileFromSelection(file: File) {
+        var (explicitly, implicitly): (Set<File>, Set<File>) = switch selectedFilesState {
+        case .unselected:
+            ([], [])
+        case .selected(explicitly: let explicitly, implicitly: let implicitly):
+            (explicitly, implicitly)
+        }
+        
+        if !implicitly.contains(file) {
+            return
+        }
+    
+        explicitly.remove(file)
+        implicitly.remove(file)
+        
+        var before = file
+        var maybeCurrent = self.idsToFiles[file.parent]
+        
+        if maybeCurrent?.id != maybeCurrent?.parent {
+            while let current = maybeCurrent {
+                if implicitly.contains(current) {
+                    explicitly.remove(current)
+                    implicitly.remove(current)
+                    
+                    let children = self.childrens[current.id] ?? []
+                    for child in children {
+                        if child != before {
+                            implicitly.insert(child)
+                            explicitly.insert(child)
+                        }
+                    }
+                    
+                    let newCurrent = self.idsToFiles[current.parent]
+                    before = current
+                    maybeCurrent = newCurrent?.id == newCurrent?.parent ? nil : newCurrent
+                } else {
+                    maybeCurrent = nil
+                }
+            }
+        }
+        
+        if file.type == .folder {
+            var childrenToRemove = self.childrens[file.id] ?? []
+            
+            while !childrenToRemove.isEmpty {
+                var newChildren: [File] = []
+                
+                for child in childrenToRemove {
+                    if (explicitly.remove(child) == child || implicitly.remove(child) == child) && child.type == .folder {
+                        newChildren.append(contentsOf: self.childrens[child.id] ?? [])
+                    }
+                }
+                
+                childrenToRemove = newChildren
+            }
+        }
+        
+        self.selectedFilesState = .selected(explicitly: explicitly, implicitly: implicitly)
+    }
+    
+    func getConsolidatedSelection() -> [File] {
+        var selected: [File] = []
+        let (explicitly, implicitly): (Set<File>, Set<File>) = switch selectedFilesState {
+        case .unselected:
+            ([], [])
+        case .selected(explicitly: let explicitly, implicitly: let implicitly):
+            (explicitly, implicitly)
+        }
+        
+        
+        for file in explicitly {
+            var isUniq = true
+            var parent = self.idsToFiles[file.parent]
+            
+            while let newParent = parent, !newParent.isRoot {
+                if explicitly.contains(newParent) == true {
+                    isUniq = false
+                    break
+                }
+                
+                parent = self.idsToFiles[newParent.parent]
+            }
+            
+            if isUniq {
+                selected.append(file)
+            }
+        }
+        
+        return selected
     }
     
     func loadFiles() {
@@ -84,5 +221,16 @@ class FilesViewModel: ObservableObject {
             // Optimization: Can add the new file to our caches ourselves
             self.loadFiles()
         }
+    }
+    
+    func deleteFiles(files: [File]) {
+        for file in files {
+            if case .failure(let err) = AppState.lb.deleteFile(id: file.id) {
+                self.error = err.msg
+            }
+        }
+        
+        self.loadFiles()
+        self.selectedFilesState = .unselected
     }
 }

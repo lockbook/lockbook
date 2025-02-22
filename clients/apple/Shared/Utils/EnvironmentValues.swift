@@ -7,7 +7,6 @@ extension EnvironmentValues {
     }
     
     #if os(iOS)
-    @Entry var isSidebarOpen: Bool = false
     @Entry var isConstrainedLayout: Bool = UIDevice.current.userInterfaceIdiom == .phone
     #else
     

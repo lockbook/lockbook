@@ -3,9 +3,10 @@ import SwiftWorkspace
 
 extension View {
     func fileOpSheets(
+        workspaceState: WorkspaceState,
         constrainedSheetHeight: Binding<CGFloat>
     ) -> some View {
-        modifier(FileOpSheets(constrainedSheetHeight: constrainedSheetHeight))
+        modifier(FileOpSheets(workspaceState: workspaceState, constrainedSheetHeight: constrainedSheetHeight))
     }
 }
 
@@ -13,8 +14,9 @@ extension View {
 struct FileOpSheets: ViewModifier {
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
     @EnvironmentObject var homeState: HomeState
-    @EnvironmentObject var workspaceState: WorkspaceState
     @EnvironmentObject var filesModel: FilesViewModel
+    
+    @ObservedObject var workspaceState: WorkspaceState
     
     @Binding var constrainedSheetHeight: CGFloat
     
@@ -36,6 +38,7 @@ struct FileOpSheets: ViewModifier {
                 }
                 .sheet(item: $homeState.selectSheetInfo) { action in
                     SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)
+                        .presentationDetents([.medium, .large])
                 }
         } else {
             content

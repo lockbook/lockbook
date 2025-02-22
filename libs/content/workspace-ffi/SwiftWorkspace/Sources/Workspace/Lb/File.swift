@@ -50,8 +50,8 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
     
     public static func <(lhs: File, rhs: File) -> Bool {
         if lhs.type == .folder && rhs.type == .document {
-                return true
-            }
+            return true
+        }
 
         if rhs.type == .folder && lhs.type == .document {
             return false

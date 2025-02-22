@@ -80,7 +80,7 @@ class SelectFolderViewModel: ObservableObject {
             
             homeState.fileActionCompleted = .move
             filesModel.loadFiles()
-//            DI.selected.selectedFiles = nil
+            filesModel.selectedFilesState = .unselected
             
             return true
         case .externalImport(let paths):
@@ -92,7 +92,7 @@ class SelectFolderViewModel: ObservableObject {
             
             homeState.fileActionCompleted = .importFiles
             filesModel.loadFiles()
-//            DI.selected.selectedFiles = nil
+            filesModel.selectedFilesState = .unselected
             
             return true
         case .acceptShare(let name, let id):
@@ -103,8 +103,7 @@ class SelectFolderViewModel: ObservableObject {
             
             homeState.fileActionCompleted = .acceptedShare
             filesModel.loadFiles()
-//            DI.share.calculatePendingShares()
-//            DI.selected.selectedFiles = nil
+            filesModel.selectedFilesState = .unselected
             
             return true
         }

@@ -10,6 +10,10 @@ class HomeState: ObservableObject {
     
     @Published var sheetInfo: FileOperationSheetInfo? = nil
     @Published var selectSheetInfo: SelectFolderAction? = nil
+    @Published var tabsSheetInfo: TabSheetInfo? = nil
+    
+    @Published var isConstrainedSidebarOpen: Bool = true
+    @Published var showTabsSheet: Bool = false
 }
 
 public enum FileAction {
@@ -23,4 +27,10 @@ public enum FileAction {
 enum UIError {
     case lb(error: LbError)
     case custom(title: String, msg: String)
+}
+
+struct TabSheetInfo: Identifiable {
+    let id = UUID()
+    
+    let info: [(name: String, id: UUID)]
 }

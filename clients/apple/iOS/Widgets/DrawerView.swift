@@ -2,7 +2,7 @@ import SwiftUI
 
 public struct DrawerView<Menu: View, Content: View>: View {
 
-    @State var isOpened: Bool
+    @ObservedObject var homeState: HomeState
     @ViewBuilder let menu: Menu
     @ViewBuilder let content: Content
 
@@ -10,11 +10,10 @@ public struct DrawerView<Menu: View, Content: View>: View {
         ZStack(alignment: .leading) {
             NavigationView {
                 content
-                    .environment(\.isSidebarOpen, isOpened)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button(action: {
-                                isOpened.toggle()
+                                homeState.isConstrainedSidebarOpen.toggle()
                             }) {
                                 Image(systemName: "sidebar.left")
                                     .imageScale(.large)
@@ -23,14 +22,14 @@ public struct DrawerView<Menu: View, Content: View>: View {
                     }
             }
             
-            if isOpened {
+            if homeState.isConstrainedSidebarOpen {
                 Color
                     .gray
                     .opacity(0.1)
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        if isOpened {
-                            isOpened.toggle()
+                        if homeState.isConstrainedSidebarOpen {
+                            homeState.isConstrainedSidebarOpen.toggle()
                         }
                     }
                 
@@ -40,26 +39,16 @@ public struct DrawerView<Menu: View, Content: View>: View {
                     .transition(.move(edge: .leading))
                     .padding(.trailing, 50)
                     .zIndex(1)
-                    .environment(\.isSidebarOpen, isOpened)
             }
         }
-        .animation(.spring(), value: isOpened)
+        .animation(.spring(), value: homeState.isConstrainedSidebarOpen)
     }
 }
 
-#Preview("Drawer Open") {
-    DrawerView(isOpened: true, menu: {
+#Preview("Drawer") {
+    DrawerView(homeState: HomeState(), menu: {
         Color.blue
     }, content: {
         Color.red
     })
 }
-
-#Preview("Drawer Closed") {
-    DrawerView(isOpened: false, menu: {
-        Color.blue
-    }, content: {
-        Color.red
-    })
-}
-
