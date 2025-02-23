@@ -1,8 +1,9 @@
-use lb_rs::logic::tree_like::TreeLike;
-use lb_rs::logic::{symkey, SharedErrorKind, ValidationFailure};
 use lb_rs::model::access_info::{UserAccessInfo, UserAccessMode};
+use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::{FileType, Owner};
+use lb_rs::model::tree_like::TreeLike;
+use lb_rs::model::{symkey, ValidationFailure};
 use test_utils::*;
 use uuid::Uuid;
 
@@ -38,7 +39,7 @@ async fn create_two_files_with_same_path() {
     let result = tree.validate(Owner(account.public_key()));
     assert_matches!(
         result.unwrap_err().kind,
-        SharedErrorKind::ValidationFailure(ValidationFailure::PathConflict(_))
+        LbErrKind::Validation(ValidationFailure::PathConflict(_))
     );
 }
 
@@ -94,6 +95,6 @@ async fn directly_shared_link() {
     let result = tree.validate(Owner(accounts[1].public_key()));
     assert_matches!(
         result.unwrap_err().kind,
-        SharedErrorKind::ValidationFailure(ValidationFailure::SharedLink { .. })
+        LbErrKind::Validation(ValidationFailure::SharedLink { .. })
     );
 }

@@ -1,5 +1,5 @@
 use lb_c::{
-    text::offset_types::{DocCharOffset, RelCharOffset},
+    model::text::offset_types::{DocCharOffset, RelCharOffset},
     Uuid,
 };
 use serde::Serialize;
@@ -42,7 +42,6 @@ impl From<crate::Response> for AndroidResponse {
                     new_folder_clicked,
                     tab_title_clicked,
                     file_created,
-                    error: _,
                     settings_updated: _,
                     sync_done,
                     status_updated,
@@ -50,6 +49,7 @@ impl From<crate::Response> for AndroidResponse {
                     markdown_editor_selection_updated,
                     markdown_editor_scroll_updated: _,
                     tabs_changed: _,
+                    failure_messages: _,
                 },
             redraw_in,
             copied_text,

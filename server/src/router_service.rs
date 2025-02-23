@@ -7,9 +7,9 @@ use crate::document_service::DocumentService;
 use crate::utils::get_build_info;
 use crate::{handle_version_header, router_service, verify_auth, ServerError, ServerState};
 use lazy_static::lazy_static;
-use lb_rs::logic::SharedErrorKind;
 use lb_rs::model::api::*;
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
+use lb_rs::model::errors::{LbErrKind, SignError};
 use prometheus::{
     register_counter_vec, register_histogram_vec, CounterVec, HistogramVec, TextEncoder,
 };
@@ -95,17 +95,16 @@ macro_rules! core_req {
 
                         debug!("request verified successfully");
                         let req_pk = request.signed_request.public_key;
-                        let username = match state.index_db.lock().map(|db| {
-                            db.accounts
+                        let username = {
+                            let db = state.index_db.lock().await;
+                            match db
+                                .accounts
                                 .get()
                                 .get(&Owner(req_pk))
                                 .map(|account| account.username.clone())
-                        }) {
-                            Ok(Some(username)) => username,
-                            Ok(None) => "~unknown~".to_string(),
-                            Err(error) => {
-                                error!(?error, "dbrs error");
-                                "~error~".to_string()
+                            {
+                                Some(username) => username,
+                                None => "~unknown~".to_string(),
                             }
                         };
                         let req_pk = base64::encode(req_pk.serialize_compressed());
@@ -480,7 +479,8 @@ where
     })?;
 
     verify_auth(config, &request).map_err(|err| match err.kind {
-        SharedErrorKind::SignatureExpired(_) | SharedErrorKind::SignatureInTheFuture(_) => {
+        LbErrKind::Sign(SignError::SignatureExpired(_))
+        | LbErrKind::Sign(SignError::SignatureInTheFuture(_)) => {
             warn!("expired auth");
             ErrorWrapper::<Req::Error>::ExpiredAuth
         }

@@ -3,8 +3,8 @@ use web_time::{Duration, Instant};
 
 use crate::tab::markdown_editor;
 use egui::Pos2;
-use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt};
-use lb_rs::text::unicode_segs::UnicodeSegs;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt};
+use lb_rs::model::text::unicode_segs::UnicodeSegs;
 use markdown_editor::appearance::{Appearance, CaptureCondition};
 use markdown_editor::ast::{Ast, AstTextRangeType};
 use markdown_editor::bounds::{AstTextRanges, Bounds, RangesExt as _};

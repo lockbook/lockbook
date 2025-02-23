@@ -1,4 +1,4 @@
-use egui::{Rounding, TextStyle, TextWrapMode, WidgetText};
+use egui::{CursorIcon, Rounding, TextStyle, TextWrapMode, WidgetText};
 
 use crate::theme::icons::Icon;
 
@@ -181,6 +181,10 @@ impl<'a> Button<'a> {
                 ui.painter()
                     .galley(text_pos, text, text_visuals.text_color())
             }
+        }
+
+        if resp.hovered() {
+            ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand)
         }
 
         resp

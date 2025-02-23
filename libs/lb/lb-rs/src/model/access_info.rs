@@ -1,8 +1,10 @@
-use crate::logic::crypto::{AESEncrypted, AESKey};
-use crate::logic::{pubkey, symkey, SharedResult};
 use crate::model::account::Account;
+use crate::model::crypto::{AESEncrypted, AESKey};
+use crate::model::{pubkey, symkey};
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
+
+use super::errors::LbResult;
 
 pub type EncryptedUserAccessKey = AESEncrypted<AESKey>;
 pub type EncryptedFolderAccessKey = AESEncrypted<AESKey>;
@@ -36,7 +38,7 @@ impl UserAccessInfo {
     pub fn encrypt(
         account: &Account, encrypted_by: &PublicKey, encrypted_for: &PublicKey, key: &AESKey,
         mode: UserAccessMode,
-    ) -> SharedResult<Self> {
+    ) -> LbResult<Self> {
         let private_key = account.private_key;
         let user_key = pubkey::get_aes_key(&private_key, encrypted_for)?;
         let encrypted_file_key = symkey::encrypt(&user_key, key)?;
@@ -49,7 +51,7 @@ impl UserAccessInfo {
         })
     }
 
-    pub fn decrypt(&self, account: &Account) -> SharedResult<AESKey> {
+    pub fn decrypt(&self, account: &Account) -> LbResult<AESKey> {
         let shared_secret = pubkey::get_aes_key(&account.private_key, &self.encrypted_by)?;
         let encrypted = &self.access_key;
         let decrypted = symkey::decrypt(&shared_secret, encrypted)?;
@@ -59,9 +61,9 @@ impl UserAccessInfo {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::logic::symkey;
     use crate::model::access_info::{UserAccessInfo, UserAccessMode};
     use crate::model::account::Account;
+    use crate::model::symkey;
 
     #[test]
     fn encrypt_decrypt_1() {

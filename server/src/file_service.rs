@@ -8,15 +8,15 @@ use crate::ServerError::ClientError;
 
 use crate::{RequestContext, ServerState};
 use db_rs::Db;
-use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::server_file::{IntoServerFile, ServerFile};
-use lb_rs::logic::server_tree::ServerTree;
-use lb_rs::logic::tree_like::TreeLike;
-use lb_rs::logic::{SharedErrorKind, SharedResult};
 use lb_rs::model::api::UpsertError;
 use lb_rs::model::api::*;
 use lb_rs::model::clock::get_time;
+use lb_rs::model::errors::{LbErrKind, LbResult};
+use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{Diff, Owner};
+use lb_rs::model::server_file::{IntoServerFile, ServerFile};
+use lb_rs::model::server_tree::ServerTree;
+use lb_rs::model::tree_like::TreeLike;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::ops::DerefMut;
@@ -40,7 +40,7 @@ where
             let mut prior_deleted = HashSet::new();
             let mut current_deleted = HashSet::new();
 
-            let mut lock = self.index_db.lock()?;
+            let mut lock = self.index_db.lock().await;
             let db = lock.deref_mut();
             let tx = db.begin_transaction()?;
 
@@ -212,7 +212,7 @@ where
         let req_pk = context.public_key;
 
         {
-            let mut lock = self.index_db.lock()?;
+            let mut lock = self.index_db.lock().await;
             let db = lock.deref_mut();
             let usage_cap =
                 Self::get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
@@ -312,8 +312,8 @@ where
             .await?;
         debug!(?id, ?hmac, "Inserted document contents");
 
-        let result = || {
-            let mut lock = self.index_db.lock()?;
+        let result = async {
+            let mut lock = self.index_db.lock().await;
             let db = lock.deref_mut();
             let tx = db.begin_transaction()?;
 
@@ -351,7 +351,7 @@ where
             Ok(())
         };
 
-        let result = result();
+        let result = result.await;
 
         if result.is_err() {
             // Cleanup the NEW file created if, for some reason, the tx failed
@@ -384,7 +384,7 @@ where
     ) -> Result<GetDocumentResponse, ServerError<GetDocumentError>> {
         let request = &context.request;
         {
-            let mut lock = self.index_db.lock()?;
+            let mut lock = self.index_db.lock().await;
             let db = lock.deref_mut();
             let tx = db.begin_transaction()?;
 
@@ -434,7 +434,7 @@ where
         &self, context: RequestContext<GetFileIdsRequest>,
     ) -> Result<GetFileIdsResponse, ServerError<GetFileIdsError>> {
         let owner = Owner(context.public_key);
-        let mut db = self.index_db.lock()?;
+        let mut db = self.index_db.lock().await;
         let db = db.deref_mut();
 
         Ok(GetFileIdsResponse {
@@ -457,7 +457,7 @@ where
         let request = &context.request;
         let owner = Owner(context.public_key);
 
-        let mut db = self.index_db.lock()?;
+        let mut db = self.index_db.lock().await;
         let db = db.deref_mut();
         let mut tree = ServerTree::new(
             owner,
@@ -502,7 +502,7 @@ where
         let mut docs_to_delete = Vec::new();
 
         {
-            let mut db = self.index_db.lock()?;
+            let mut db = self.index_db.lock().await;
             let db = db.deref_mut();
             let tx = db.begin_transaction()?;
 
@@ -613,7 +613,7 @@ where
         &self, context: RequestContext<AdminValidateAccountRequest>,
     ) -> Result<AdminValidateAccount, ServerError<AdminValidateAccountError>> {
         let request = &context.request;
-        let mut db = self.index_db.lock()?;
+        let mut db = self.index_db.lock().await;
         if !Self::is_admin::<AdminValidateAccountError>(
             &db,
             &context.public_key,
@@ -633,7 +633,7 @@ where
 
     pub fn validate_account_helper(
         &self, db: &mut ServerDb, owner: Owner,
-    ) -> SharedResult<AdminValidateAccount> {
+    ) -> LbResult<AdminValidateAccount> {
         let mut result = AdminValidateAccount::default();
 
         let mut tree = ServerTree::new(
@@ -667,7 +667,7 @@ where
         match validation_res {
             Ok(_) => {}
             Err(err) => match err.kind {
-                SharedErrorKind::ValidationFailure(validation) => {
+                LbErrKind::Validation(validation) => {
                     result.tree_validation_failures.push(validation)
                 }
                 _ => {
@@ -682,7 +682,7 @@ where
     pub async fn admin_validate_server(
         &self, context: RequestContext<AdminValidateServerRequest>,
     ) -> Result<AdminValidateServer, ServerError<AdminValidateServerError>> {
-        let mut db = self.index_db.lock()?;
+        let mut db = self.index_db.lock().await;
         let db = db.deref_mut();
 
         if !Self::is_admin::<AdminValidateServerError>(
@@ -893,7 +893,7 @@ where
         &self, context: RequestContext<AdminFileInfoRequest>,
     ) -> Result<AdminFileInfoResponse, ServerError<AdminFileInfoError>> {
         let request = &context.request;
-        let mut db = self.index_db.lock()?;
+        let mut db = self.index_db.lock().await;
         let db = db.deref_mut();
         if !Self::is_admin::<AdminFileInfoError>(
             db,
@@ -938,7 +938,7 @@ where
     pub async fn admin_rebuild_index(
         &self, context: RequestContext<AdminRebuildIndexRequest>,
     ) -> Result<(), ServerError<AdminRebuildIndexError>> {
-        let mut db = self.index_db.lock()?;
+        let mut db = self.index_db.lock().await;
 
         match context.request.index {
             ServerIndex::OwnedFiles => {

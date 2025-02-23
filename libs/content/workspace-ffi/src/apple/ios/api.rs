@@ -1,5 +1,5 @@
 use egui::{Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
-use lb_c::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt, RelCharOffset};
+use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt, RelCharOffset};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::ptr::null;
@@ -10,8 +10,8 @@ use workspace_rs::tab::markdown_editor::input::{cursor, mutation};
 use workspace_rs::tab::markdown_editor::input::{Bound, Event, Increment, Offset, Region};
 use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;
-use workspace_rs::tab::ExtendedInput as _;
 use workspace_rs::tab::TabContent;
+use workspace_rs::tab::{ContentState, ExtendedInput as _};
 
 use super::super::response::*;
 use super::response::*;
@@ -149,11 +149,8 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 
     CTextRange {
         none: false,
-        start: CTextPosition {
-            pos: markdown.buffer.current.selection.start().0,
-            ..Default::default()
-        },
-        end: CTextPosition { pos: markdown.buffer.current.selection.end().0, ..Default::default() },
+        start: CTextPosition { pos: markdown.buffer.current.selection.start().0, none: false },
+        end: CTextPosition { pos: markdown.buffer.current.selection.end().0, none: false },
     }
 }
 
@@ -755,7 +752,13 @@ pub unsafe extern "C" fn free_selection_rects(rects: UITextSelectionRects) {
 #[no_mangle]
 pub unsafe extern "C" fn get_tabs_ids(obj: *mut c_void) -> TabsIds {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let ids: Vec<CUuid> = obj.workspace.tabs.iter().map(|tab| tab.id.into()).collect();
+    let ids: Vec<CUuid> = obj
+        .workspace
+        .tabs
+        .iter()
+        .flat_map(|tab| tab.id())
+        .map(|id| id.into())
+        .collect();
 
     TabsIds { size: ids.len() as i32, ids: Box::into_raw(ids.into_boxed_slice()) as *const CUuid }
 }
@@ -838,14 +841,15 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
 
     match obj.workspace.current_tab() {
         Some(tab) => match &tab.content {
-            Some(tab) => match tab {
+            ContentState::Open(tab) => match tab {
                 TabContent::Image(_) => 2,
                 TabContent::Markdown(_) => 3,
                 // TabContent::PlainText(_) => 4,
                 TabContent::Pdf(_) => 5,
                 TabContent::Svg(_) => 6,
+                TabContent::MindMap(_) => 7,
             },
-            None => 1,
+            _ => 1,
         },
         None => 0,
     }
@@ -881,7 +885,7 @@ pub unsafe extern "C" fn set_pencil_only_drawing(obj: *mut c_void, val: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     obj.workspace.tabs.iter_mut().for_each(|t| {
-        if let Some(TabContent::Svg(svg)) = &mut t.content {
+        if let ContentState::Open(TabContent::Svg(svg)) = &mut t.content {
             svg.settings.pencil_only_drawing = val
         }
     });
@@ -914,7 +918,7 @@ pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if !obj.workspace.tabs.is_empty() {
-        obj.workspace.close_tab(obj.workspace.active_tab)
+        obj.workspace.close_tab(obj.workspace.current_tab)
     }
 }
 
@@ -924,8 +928,8 @@ pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
 pub unsafe extern "C" fn close_all_tabs(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    while !obj.workspace.tabs.is_empty() {
-        obj.workspace.close_tab(obj.workspace.tabs.len() - 1);
+    for i in 0..obj.workspace.tabs.len() {
+        obj.workspace.close_tab(i);
     }
 }
 

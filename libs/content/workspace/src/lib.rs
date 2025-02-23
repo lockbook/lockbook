@@ -1,3 +1,5 @@
+pub mod file_cache;
+pub mod mind_map;
 pub mod output;
 pub mod show;
 pub mod syncing;

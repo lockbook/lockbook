@@ -1,8 +1,8 @@
-use lb_rs::logic::pubkey;
+use lb_rs::io::network::{ApiError, Network};
 use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::model::api::*;
 use lb_rs::model::file_metadata::FileMetadata;
-use lb_rs::service::network::{ApiError, Network};
+use lb_rs::model::pubkey;
 use test_utils::*;
 
 async fn random_account() -> Account {

@@ -5,8 +5,8 @@ use egui::{
 
 use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
-use lb_rs::text::buffer::Buffer;
-use lb_rs::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::buffer::Buffer;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use lb_rs::Uuid;
 
 use crate::tab::markdown_editor;
@@ -135,6 +135,12 @@ impl Editor {
 
     pub fn focused(&self, ctx: &Context) -> bool {
         ctx.memory(|m| m.has_focus(self.id()))
+    }
+
+    pub fn surrender_focus(&self, ctx: &Context) {
+        ctx.memory_mut(|m| {
+            m.surrender_focus(self.id());
+        });
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
@@ -351,7 +357,9 @@ impl Editor {
             ui.scroll_to_rect(rect.expand(rect.height()), None);
         }
 
-        let suggested_title = self.get_suggested_title();
+        let suggested_title =
+            self.get_suggested_title()
+                .and_then(|s| if s == ".md" { None } else { Some(s) });
         let suggest_rename =
             if suggested_title != prior_suggested_title { suggested_title } else { None };
 

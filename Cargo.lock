@@ -110,7 +110,7 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "admin"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -1031,7 +1031,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40723b8fb387abc38f4f4a37c09073622e41dd12327033091ef8950659e6dc0c"
 dependencies = [
  "memchr",
- "regex-automata 0.4.6",
+ "regex-automata 0.4.9",
  "serde",
 ]
 
@@ -2197,7 +2197,7 @@ dependencies = [
 
 [[package]]
 name = "egui_editor"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "eframe",
  "egui 0.28.1",
@@ -3958,7 +3958,7 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "lb-c"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "lb-rs",
 ]
@@ -3970,7 +3970,7 @@ source = "git+https://github.com/lockbook/lb-fonts#b2718aad58a7ff1c7bbe85f03cb37
 
 [[package]]
 name = "lb-fs"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "async-trait",
  "cli-rs",
@@ -3983,7 +3983,7 @@ dependencies = [
 
 [[package]]
 name = "lb-java"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "jni",
  "lb-rs",
@@ -4000,7 +4000,7 @@ dependencies = [
 
 [[package]]
 name = "lb-rs"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -4241,7 +4241,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "cli-rs",
  "fs_extra",
@@ -4254,7 +4254,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-dev"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "clap",
  "dotenvy",
@@ -4265,7 +4265,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "dark-light",
  "eframe",
@@ -4289,7 +4289,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "egui 0.28.1",
  "egui_editor",
@@ -4309,7 +4309,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -4348,7 +4348,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "array-init",
  "clipboard-win 4.5.0",
@@ -5930,14 +5930,14 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.10.4"
+version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c117dbdfde9c8308975b6a18d71f3f385c89461f7b3fb054288ecf2a2058ba4c"
+checksum = "b544ef1b4eac5dc2db33ea63606ae9ffcfac26c1416a2806ae0bf5f56b201191"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-automata 0.4.6",
- "regex-syntax 0.8.3",
+ "regex-automata 0.4.9",
+ "regex-syntax 0.8.5",
 ]
 
 [[package]]
@@ -5951,13 +5951,13 @@ dependencies = [
 
 [[package]]
 name = "regex-automata"
-version = "0.4.6"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86b83b8b9847f9bf95ef68afb0b8e6cdb80f498442f5179a29fad448fcc1eaea"
+checksum = "809e8dc61f6de73b46c85f4c96486310fe304c434cfa43669d7b40f711150908"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-syntax 0.8.3",
+ "regex-syntax 0.8.5",
 ]
 
 [[package]]
@@ -5968,13 +5968,13 @@ checksum = "f162c6dd7b008981e4d40210aca20b4bd0f9b60ca9271061b07f78537722f2e1"
 
 [[package]]
 name = "regex-syntax"
-version = "0.8.3"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adad44e29e4c806119491a7f06f03de4d1af22c3a680dd47f1e6e179439d1f56"
+checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "releaser"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "cli-rs",
  "fs_extra",
@@ -6998,7 +6998,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "bincode",
  "itertools 0.10.5",
@@ -8821,7 +8821,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -8831,13 +8831,14 @@ dependencies = [
 
 [[package]]
 name = "workspace"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "basic-human-duration",
  "bezier-rs",
  "chrono",
  "egui 0.28.1",
  "egui_animation",
+ "egui_extras",
  "epaint 0.28.1",
  "futures",
  "glam",
@@ -8855,9 +8856,11 @@ dependencies = [
  "rand 0.8.5",
  "raw-window-handle 0.6.2",
  "rayon",
+ "regex",
  "reqwest",
  "resvg",
  "serde",
+ "serde_json",
  "svgtypes 0.13.0",
  "time",
  "tld",
@@ -8865,13 +8868,14 @@ dependencies = [
  "tracing",
  "tracing-test",
  "unicode-segmentation",
+ "url 2.5.2",
  "usvg-parser",
  "web-time 1.1.0",
 ]
 
 [[package]]
 name = "workspace-ffi"
-version = "0.9.16"
+version = "0.9.21"
 dependencies = [
  "egui 0.28.1",
  "egui_extras",

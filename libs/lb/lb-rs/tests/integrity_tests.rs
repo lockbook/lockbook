@@ -1,9 +1,9 @@
-use lb_rs::logic::file_like::FileLike;
-use lb_rs::logic::secret_filename::SecretFileName;
-use lb_rs::logic::tree_like::TreeLike;
-use lb_rs::model::errors::TestRepoError::*;
-use lb_rs::model::errors::Warning::*;
+use lb_rs::model::errors::{LbErrKind, Warning::*};
+use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileType::Document;
+use lb_rs::model::secret_filename::SecretFileName;
+use lb_rs::model::tree_like::TreeLike;
+use lb_rs::model::ValidationFailure;
 use rand::Rng;
 use test_utils::*;
 
@@ -23,7 +23,10 @@ async fn test_integrity_no_problems_but_more_complicated() {
 #[tokio::test]
 async fn test_no_account() {
     let core = test_core().await;
-    assert_matches!(core.test_repo_integrity().await, Err(NoAccount));
+    assert_matches!(
+        core.test_repo_integrity().await.unwrap_err().kind,
+        LbErrKind::AccountNonexistent
+    );
 }
 
 #[tokio::test]
@@ -33,7 +36,7 @@ async fn test_no_root() {
     tx.db().base_metadata.clear().unwrap();
     tx.db().root.clear().unwrap();
     tx.end();
-    assert_matches!(core.test_repo_integrity().await, Err(NoRootFolder));
+    assert_matches!(core.test_repo_integrity().await.unwrap_err().kind, LbErrKind::RootNonexistent);
 }
 
 #[tokio::test]
@@ -52,7 +55,7 @@ async fn test_orphaned_children() {
         .local_metadata
         .remove(&parent)
         .unwrap();
-    assert_matches!(core.test_repo_integrity().await, Err(FileOrphaned(_)));
+    assert_matches!(core.test_repo_integrity().await.unwrap_err().kind, LbErrKind::Validation(_));
 }
 
 #[tokio::test]
@@ -71,7 +74,10 @@ async fn test_invalid_file_name_slash() {
 
     tx.end();
 
-    assert_matches!(core.test_repo_integrity().await, Err(FileNameContainsSlash(_)));
+    assert_matches!(
+        core.test_repo_integrity().await.unwrap_err().kind,
+        LbErrKind::FileNameContainsSlash
+    );
 }
 
 #[tokio::test]
@@ -90,7 +96,7 @@ async fn empty_filename() {
 
     tx.end();
 
-    assert_matches!(core.test_repo_integrity().await, Err(FileNameEmpty(_)));
+    assert_matches!(core.test_repo_integrity().await.unwrap_err().kind, LbErrKind::FileNameEmpty);
 }
 
 #[tokio::test]
@@ -124,7 +130,10 @@ async fn test_cycle() {
         .local_metadata
         .insert(*parent.id(), parent)
         .unwrap();
-    assert_matches!(core.test_repo_integrity().await, Err(CycleDetected(_)));
+    assert_matches!(
+        core.test_repo_integrity().await.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::Cycle(_))
+    );
 }
 
 #[tokio::test]
@@ -150,7 +159,10 @@ async fn test_documents_treated_as_folders() {
         .local_metadata
         .insert(*parent.id(), parent)
         .unwrap();
-    assert_matches!(core.test_repo_integrity().await, Err(DocumentTreatedAsFolder(_)));
+    assert_matches!(
+        core.test_repo_integrity().await.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(_))
+    );
 }
 
 #[tokio::test]
@@ -170,7 +182,10 @@ async fn test_name_conflict() {
 
     tx.end();
 
-    assert_matches!(core.test_repo_integrity().await, Err(PathConflict(_)));
+    assert_matches!(
+        core.test_repo_integrity().await.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::PathConflict(_))
+    );
 }
 
 #[tokio::test]

@@ -2,7 +2,7 @@ use bezier_rs::Subpath;
 use egui_animation::{animate_bool_eased, easing};
 use glam::DVec2;
 use lb_rs::{
-    svg::element::{Element, ManipulatorGroupId},
+    model::svg::element::{Element, ManipulatorGroupId},
     Uuid,
 };
 use resvg::usvg::Transform;
@@ -113,7 +113,7 @@ impl Selection {
                     ui.painter().rect_filled(
                         laso_rect,
                         egui::Rounding::ZERO,
-                        ui.visuals().hyperlink_color.gamma_multiply(0.1),
+                        ui.visuals().hyperlink_color.linear_multiply(0.1),
                     );
                 };
 
@@ -539,7 +539,7 @@ impl Selection {
         if Button::default()
             .icon(&Icon::BRING_TO_BACK.color(
                 if max_current_index == selection_ctx.buffer.elements.len() - 1 {
-                    ui.visuals().text_color().gamma_multiply(0.4)
+                    ui.visuals().text_color().linear_multiply(0.4)
                 } else {
                     ui.visuals().text_color()
                 },
@@ -563,7 +563,7 @@ impl Selection {
         if Button::default()
             .icon(&Icon::BRING_BACK.color(
                 if max_current_index == selection_ctx.buffer.elements.len() - 1 {
-                    ui.visuals().text_color().gamma_multiply(0.4)
+                    ui.visuals().text_color().linear_multiply(0.4)
                 } else {
                     ui.visuals().text_color()
                 },
@@ -585,7 +585,7 @@ impl Selection {
 
         if Button::default()
             .icon(&Icon::BRING_FRONT.color(if min_cureent_index == 0 {
-                ui.visuals().text_color().gamma_multiply(0.4)
+                ui.visuals().text_color().linear_multiply(0.4)
             } else {
                 ui.visuals().text_color()
             }))
@@ -606,7 +606,7 @@ impl Selection {
 
         if Button::default()
             .icon(&Icon::BRING_TO_FRONT.color(if min_cureent_index == 0 {
-                ui.visuals().text_color().gamma_multiply(0.4)
+                ui.visuals().text_color().linear_multiply(0.4)
             } else {
                 ui.visuals().text_color()
             }))
@@ -633,7 +633,7 @@ impl Selection {
             .add(
                 egui::Button::new(
                     egui::RichText::new("Delete")
-                        .color(ui.visuals().error_fg_color.gamma_multiply(0.8)),
+                        .color(ui.visuals().error_fg_color.linear_multiply(0.8)),
                 )
                 .fill(egui::Color32::TRANSPARENT)
                 .stroke(egui::Stroke::NONE),
@@ -665,7 +665,7 @@ impl Selection {
         ui.painter().rect_stroke(
             rect,
             egui::Rounding::ZERO,
-            egui::Stroke { width: 1.0, color: ui.visuals().hyperlink_color.gamma_multiply(0.4) },
+            egui::Stroke { width: 1.0, color: ui.visuals().hyperlink_color.linear_multiply(0.4) },
         );
     }
 

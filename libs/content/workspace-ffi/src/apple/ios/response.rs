@@ -1,5 +1,5 @@
 use lb_c::{
-    text::offset_types::{DocCharOffset, RangeExt as _},
+    model::text::offset_types::{DocCharOffset, RangeExt as _},
     Uuid,
 };
 use std::ffi::{c_char, CString};
@@ -41,7 +41,6 @@ impl From<crate::Response> for IOSResponse {
                     new_folder_clicked,
                     tab_title_clicked,
                     file_created,
-                    error: _,
                     settings_updated: _,
                     sync_done,
                     status_updated,
@@ -49,6 +48,7 @@ impl From<crate::Response> for IOSResponse {
                     markdown_editor_selection_updated,
                     markdown_editor_scroll_updated,
                     tabs_changed,
+                    failure_messages: _,
                 },
             redraw_in,
             copied_text,

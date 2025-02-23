@@ -1,9 +1,9 @@
 pub mod assert;
 
 use itertools::Itertools as _;
-use lb_rs::logic::crypto::EncryptedDocument;
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::model::core_config::Config;
+use lb_rs::model::crypto::EncryptedDocument;
 use lb_rs::model::work_unit::WorkUnit;
 use lb_rs::Lb;
 use std::collections::HashMap;
@@ -19,6 +19,7 @@ pub fn test_config() -> Config {
     Config {
         writeable_path: format!("/tmp/{}", Uuid::new_v4()),
         logs: false,
+        stdout_logs: false,
         colored_logs: false,
         background_work: false,
     }
@@ -142,7 +143,7 @@ pub fn doc_repo_get_all(config: &Config) -> Vec<EncryptedDocument> {
 }
 
 fn list_files(db: &Config) -> Vec<String> {
-    let path = lb_rs::repo::docs::namespace_path(&PathBuf::from(db.writeable_path.clone()));
+    let path = lb_rs::io::docs::namespace_path(&PathBuf::from(db.writeable_path.clone()));
     let path = Path::new(&path);
 
     match fs::read_dir(path) {

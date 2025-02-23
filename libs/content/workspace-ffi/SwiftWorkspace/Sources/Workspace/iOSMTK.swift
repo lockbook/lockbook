@@ -19,7 +19,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
 
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
     var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
-
+    
     public override var undoManager: UndoManager? {
         return textUndoManager
     }
@@ -535,13 +535,13 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public func firstRect(for range: UITextRange) -> CGRect {
         let range = (range as! LBTextRange).c
         let result = first_rect(wsHandle, range)
-        return CGRect(x: result.min_x, y: result.min_y - iOSMTK.TAB_BAR_HEIGHT, width: result.max_x-result.min_x, height: result.max_y-result.min_y)
+        return CGRect(x: result.min_x, y: result.min_y - mtkView.docHeaderSize, width: result.max_x-result.min_x, height: result.max_y-result.min_y)
     }
 
     public func caretRect(for position: UITextPosition) -> CGRect {
         let position = (position as! LBTextPos).c
         let result = cursor_rect_at_position(wsHandle, position)
-        return CGRect(x: result.min_x, y: result.min_y - iOSMTK.TAB_BAR_HEIGHT, width: 1, height:result.max_y - result.min_y)
+        return CGRect(x: result.min_x, y: result.min_y - mtkView.docHeaderSize, width: 1, height:result.max_y - result.min_y)
     }
 
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
@@ -553,7 +553,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         free_selection_rects(result)
         
         let selectionRects: [UITextSelectionRect] = buffer.enumerated().map { (index, rect) in
-            let new_rect = CRect(min_x: rect.min_x, min_y: rect.min_y - iOSMTK.TAB_BAR_HEIGHT, max_x: rect.max_x, max_y: rect.max_y - iOSMTK.TAB_BAR_HEIGHT)
+            let new_rect = CRect(min_x: rect.min_x, min_y: rect.min_y - mtkView.docHeaderSize, max_x: rect.max_x, max_y: rect.max_y - mtkView.docHeaderSize)
 
             return LBTextSelectionRect(cRect: new_rect, loc: index, size: buffer.count)
         }
@@ -564,7 +564,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
         let (x, y) = floatingCursor.isHidden ? (point.x, point.y) : (point.x - floatingCursorNewStartX, point.y - floatingCursorNewStartY)
 
-        let point = CPoint(x: x, y: y + iOSMTK.TAB_BAR_HEIGHT)
+        let point = CPoint(x: x, y: y + mtkView.docHeaderSize)
         let result = position_at_point(wsHandle, point)
 
         return LBTextPos(c: result)
@@ -812,7 +812,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
 
 public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
-    public static let TAB_BAR_HEIGHT: CGFloat = 50
+    public static let TAB_BAR_HEIGHT: CGFloat = 40
+    public static let TITLE_BAR_HEIGHT: CGFloat = 33
     public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
 
     public var wsHandle: UnsafeMutableRawPointer?
@@ -830,6 +831,12 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
     var showTabs = true
     var overrideDefaultKeyboardBehavior = false
+    
+    var docHeaderSize: Double {
+        get {
+            showTabs ? ((workspaceState?.tabCount ?? 0) > 1 ? iOSMTK.TAB_BAR_HEIGHT : 0) : iOSMTK.TITLE_BAR_HEIGHT
+        }
+    }
     
     var ignoreSelectionUpdate = false
     var ignoreTextUpdate = false
@@ -912,10 +919,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     }
 
     public func pointerInteraction(_ interaction: UIPointerInteraction, regionFor request: UIPointerRegionRequest, defaultRegion: UIPointerRegion) -> UIPointerRegion? {
-        let offsetY: CGFloat = if interaction.view is iOSMTKTextInputWrapper {
-            Self.TAB_BAR_HEIGHT
-        } else if interaction.view is iOSMTKDrawingWrapper {
-            Self.TAB_BAR_HEIGHT + iOSMTKDrawingWrapper.TOOL_BAR_HEIGHT
+        let offsetY: CGFloat = if interaction.view is iOSMTKTextInputWrapper || interaction.view is iOSMTKDrawingWrapper {
+            docHeaderSize
         } else {
             0
         }
@@ -1020,7 +1025,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         }
         
         if output.tabs_changed {
-            workspaceState?.openTabs = Int(tab_count(wsHandle))
+            workspaceState?.tabCount = Int(tab_count(wsHandle))
         }
         
         workspaceState?.reloadFiles = output.refresh_files
@@ -1459,10 +1464,11 @@ public enum WorkspaceTab: Int {
     case PlainText = 4
     case Pdf = 5
     case Svg = 6
+    case Graph = 7
 
     func viewWrapperId() -> Int {
         switch self {
-        case .Welcome, .Pdf, .Loading, .Image:
+        case .Welcome, .Pdf, .Loading, .Image, .Graph:
             1
         case .Svg:
             2

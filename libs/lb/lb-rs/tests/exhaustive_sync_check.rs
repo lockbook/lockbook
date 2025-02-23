@@ -8,7 +8,7 @@ pub mod sync_fuzzer2 {
 
     #[ignore]
     #[tokio::test]
-    fn exhaustive_test_sync() {
+    async fn exhaustive_test_sync() {
         Coordinator::default().kick_off();
     }
 }

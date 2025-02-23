@@ -1,6 +1,6 @@
-use lb_rs::logic::pubkey;
 use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::model::errors::LbErrKind;
+use lb_rs::model::pubkey;
 use test_utils::*;
 
 #[tokio::test]
@@ -18,7 +18,7 @@ async fn create_account_success_with_welcome() {
         .await
         .unwrap();
     let welcome_doc = core.get_by_path("welcome.md").await.unwrap().id;
-    assert!(String::from_utf8_lossy(&core.read_document(welcome_doc).await.unwrap())
+    assert!(String::from_utf8_lossy(&core.read_document(welcome_doc, false).await.unwrap())
         .to_lowercase()
         .contains("welcome"));
 }

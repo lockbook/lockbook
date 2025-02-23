@@ -19,11 +19,11 @@ pub use history::Event;
 pub use history::InsertElement;
 use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
-use lb_rs::svg::buffer::u_transform_to_bezier;
-use lb_rs::svg::buffer::Buffer;
-use lb_rs::svg::diff::DiffState;
-use lb_rs::svg::element::Element;
-use lb_rs::svg::element::Image;
+use lb_rs::model::svg::buffer::u_transform_to_bezier;
+use lb_rs::model::svg::buffer::Buffer;
+use lb_rs::model::svg::diff::DiffState;
+use lb_rs::model::svg::element::Element;
+use lb_rs::model::svg::element::Image;
 use lb_rs::Uuid;
 pub use path_builder::PathBuilder;
 pub use pen::Pen;
@@ -35,11 +35,14 @@ use tracing::Level;
 
 pub struct SVGEditor {
     pub buffer: Buffer,
+    pub opened_content: Buffer,
+    pub open_file_hmac: Option<DocumentHmac>,
+
     history: History,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
     lb: Lb,
-    open_file: Uuid,
+    pub open_file: Uuid,
     skip_frame: bool,
     // last_render: Instant,
     renderer: Renderer,
@@ -71,7 +74,7 @@ impl SVGEditor {
     ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
-        let mut buffer = Buffer::new(content, hmac);
+        let mut buffer = Buffer::new(content);
         for (_, el) in buffer.elements.iter_mut() {
             if let Element::Path(path) = el {
                 path.data
@@ -85,6 +88,8 @@ impl SVGEditor {
 
         Self {
             buffer,
+            opened_content: Buffer::new(content),
+            open_file_hmac: hmac,
             history: History::default(),
             toolbar,
             inner_rect: egui::Rect::NOTHING,

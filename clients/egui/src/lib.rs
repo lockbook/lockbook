@@ -92,9 +92,12 @@ impl Lockbook {
                     ctx.request_repaint();
                 }
             }
-            // On the account screen, we're just waiting for it to gracefully shutdown.
+            // On the account screen, we're just waiting for it to gracefully shutdown or for the user to log out.
             Self::Account(screen) => {
                 screen.update(ctx);
+                if screen.is_shutdown() {
+                    output.close = true;
+                }
                 if screen.is_shutdown() {
                     output.close = true;
                 }
@@ -109,7 +112,7 @@ mod lb_wgpu {
     use std::{iter, time::Instant};
 
     use egui::{PlatformOutput, Pos2, Rect, ViewportIdMap, ViewportOutput};
-    use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode, TextureDescriptor, TextureUsages};
+    use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode};
 
     use crate::{Lockbook, Response};
 
@@ -170,17 +173,19 @@ mod lb_wgpu {
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
 
-            let msaa_texture = self.device.create_texture(&TextureDescriptor {
+            #[cfg(not(target_os = "linux"))]
+            let msaa_texture = self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("msaa_texture"),
                 size: output_frame.texture.size(),
                 mip_level_count: output_frame.texture.mip_level_count(),
                 sample_count: 4,
                 dimension: output_frame.texture.dimension(),
                 format: output_frame.texture.format(),
-                usage: TextureUsages::RENDER_ATTACHMENT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
             });
 
+            #[cfg(not(target_os = "linux"))]
             let msaa_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
             // can probably use run
@@ -222,6 +227,7 @@ mod lb_wgpu {
                 });
             }
 
+            #[cfg(not(target_os = "linux"))]
             {
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: None,
@@ -240,6 +246,18 @@ mod lb_wgpu {
 
                 self.rpass
                     .execute_with_renderpass(&mut pass, &paint_jobs, &self.screen)
+                    .unwrap();
+            }
+            #[cfg(target_os = "linux")]
+            {
+                self.rpass
+                    .execute(
+                        &mut encoder,
+                        &output_view,
+                        &paint_jobs,
+                        &self.screen,
+                        Some(wgpu::Color::BLACK),
+                    )
                     .unwrap();
             }
 
@@ -280,6 +298,7 @@ mod lb_wgpu {
         pub fn surface_format(&self) -> wgpu::TextureFormat {
             // todo: is this really fine?
             // from here: https://github.com/hasenbanck/egui_example/blob/master/src/main.rs#L65
+            println!("{:#?}", self.surface.get_capabilities(&self.adapter));
             self.surface.get_capabilities(&self.adapter).formats[0]
         }
 

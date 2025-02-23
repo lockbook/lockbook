@@ -1,10 +1,13 @@
 
 use egui::load::SizedTexture;
 use lb_pdf::{PdfPageRenderRotation, PdfRenderConfig};
+use lb_rs::Uuid;
 // use lb_pdf::PdfiumWrapper;
 use crate::{theme::icons::Icon, widgets::Button};
 
 pub struct PdfViewer {
+    pub id: Uuid,
+
     renders: Vec<Content>,
     zoom_factor: Option<f32>,
     fit_page_zoom: Option<f32>,
@@ -38,7 +41,7 @@ const SPACE_BETWEEN_PAGES: f32 = 10.0;
 
 impl PdfViewer {
     pub fn new(
-        bytes: &[u8], ctx: &egui::Context, data_dir: &str, is_mobile_viewport: bool,
+        id: Uuid, bytes: &[u8], ctx: &egui::Context, data_dir: &str, is_mobile_viewport: bool,
     ) -> Self {
         let available_height = ctx.used_rect().height();
         let blowup_factor = 1.5; // improves the resolution of the rendered image at the cost of rendering time
@@ -111,6 +114,7 @@ impl PdfViewer {
         };
 
         Self {
+            id,
             renders,
             zoom_factor: None,
             fit_page_zoom: None,
@@ -121,9 +125,14 @@ impl PdfViewer {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        ui.painter().rect_filled(
+            ui.available_rect_before_wrap(),
+            0.,
+            ui.visuals().extreme_bg_color,
+        );
+
         ui.vertical(|ui| {
             self.show_toolbar(ui);
-            ui.separator();
         });
 
         self.show_sidebar(ui);
@@ -285,7 +294,7 @@ impl PdfViewer {
                     ui.vertical(|ui| {
                         ui.add_space(7.0);
                         ui.colored_label(
-                            ui.visuals().text_color().gamma_multiply(0.7),
+                            ui.visuals().text_color().linear_multiply(0.7),
                             format!("{}%", zoom_percentage),
                         );
                     });

@@ -1,5 +1,5 @@
-use crate::logic::tree_like::TreeLike;
 use crate::model::errors::LbResult;
+use crate::model::tree_like::TreeLike;
 use crate::Lb;
 use serde::Deserialize;
 use serde::Serialize;
@@ -18,6 +18,8 @@ impl Lb {
         self.normalize(&mut scores);
 
         scores.sort_unstable_by_key(|b| cmp::Reverse(b.score(settings)));
+
+        scores.truncate(10);
 
         let mut result = Vec::new();
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();

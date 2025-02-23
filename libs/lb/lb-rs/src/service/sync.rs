@@ -1,23 +1,23 @@
-use super::network::ApiError;
-use crate::logic::file_like::FileLike;
-use crate::logic::filename::{DocumentType, NameComponents};
-use crate::logic::signed_file::SignedFile;
-use crate::logic::staged::StagedTreeLikeMut;
-use crate::logic::tree_like::TreeLike;
-use crate::logic::{symkey, SharedErrorKind, ValidationFailure};
+use crate::io::network::ApiError;
 use crate::model::access_info::UserAccessMode;
 use crate::model::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
     GetUsernameError, GetUsernameRequest, UpsertRequest,
 };
-use crate::model::clock;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
+use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
+use crate::model::filename::{DocumentType, NameComponents};
+use crate::model::signed_file::SignedFile;
+use crate::model::staged::StagedTreeLikeMut;
+use crate::model::svg::buffer::u_transform_to_bezier;
+use crate::model::svg::element::Element;
+use crate::model::text::buffer::Buffer;
+use crate::model::tree_like::TreeLike;
 use crate::model::work_unit::WorkUnit;
-use crate::svg::buffer::u_transform_to_bezier;
-use crate::svg::element::Element;
-use crate::text::buffer::Buffer;
+use crate::model::{clock, svg};
+use crate::model::{symkey, ValidationFailure};
 use crate::Lb;
 pub use basic_human_duration::ChronoHumanDuration;
 use futures::stream;
@@ -29,6 +29,7 @@ use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
+use std::time::Instant;
 use time::Duration;
 use uuid::Uuid;
 
@@ -46,6 +47,7 @@ pub struct SyncContext {
     root: Option<Uuid>,
     pushed_metas: Vec<FileDiff<SignedFile>>,
     pushed_docs: Vec<FileDiff<SignedFile>>,
+    pulled_docs: Vec<Uuid>,
 }
 
 impl Lb {
@@ -121,7 +123,10 @@ impl Lb {
         ctx.done_msg();
 
         if got_updates {
-            self.spawn_build_index();
+            self.events.meta_changed(self.root().await?.id);
+            for id in &ctx.pulled_docs {
+                self.events.doc_written(*id);
+            }
         }
 
         Ok(ctx.summarize())
@@ -152,6 +157,7 @@ impl Lb {
             remote_changes: Default::default(),
             pushed_docs: Default::default(),
             pushed_metas: Default::default(),
+            pulled_docs: Default::default(),
         })
     }
 
@@ -261,6 +267,7 @@ impl Lb {
 
         let tx = self.ro_tx().await;
         let db = tx.db();
+        let start = Instant::now();
 
         let mut remote = db.base_metadata.stage(ctx.remote_changes.clone()).to_lazy(); // this used to be owned remote changes
         for id in remote.tree.staged.ids() {
@@ -282,7 +289,11 @@ impl Lb {
                 docs_to_pull.push((id, remote_hmac));
             }
         }
+
         drop(tx);
+        if start.elapsed() > std::time::Duration::from_millis(100) {
+            warn!("sync fetch_docs held lock for {:?}", start.elapsed());
+        }
 
         let num_docs = docs_to_pull.len();
         ctx.total += num_docs;
@@ -300,6 +311,7 @@ impl Lb {
         let mut idx = 0;
         while let Some(fut) = stream.next().await {
             let id = fut?;
+            ctx.pulled_docs.push(id);
             ctx.file_msg(id, &format!("Downloaded file {idx} of {num_docs}."));
             idx += 1;
         }
@@ -323,6 +335,7 @@ impl Lb {
     async fn merge(&self, ctx: &mut SyncContext) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
+        let start = Instant::now();
 
         let remote_changes = &ctx.remote_changes;
 
@@ -385,7 +398,7 @@ impl Lb {
                             }
                         }
                         return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topological order for file creations: {:?}",
+                            "sync failed to find a topomodelal order for file creations: {:?}",
                             deletion_creations
                         ))
                         .into());
@@ -464,7 +477,7 @@ impl Lb {
                             }
                         }
                         return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topological order for file creations: {:?}",
+                            "sync failed to find a topomodelal order for file creations: {:?}",
                             creations
                         ))
                         .into());
@@ -611,11 +624,14 @@ impl Lb {
                                             String::from_utf8_lossy(&base_document).to_string();
                                         let remote_document =
                                             String::from_utf8_lossy(&remote_document).to_string();
+                                        let local_document =
+                                            String::from_utf8_lossy(&local_document).to_string();
 
-                                        let mut local_buffer = crate::svg::buffer::Buffer::new(
-                                            String::from_utf8_lossy(&local_document).as_ref(),
-                                            None,
-                                        );
+                                        let base_buffer = svg::buffer::Buffer::new(&base_document);
+                                        let remote_buffer =
+                                            svg::buffer::Buffer::new(&remote_document);
+                                        let mut local_buffer =
+                                            svg::buffer::Buffer::new(&local_document);
 
                                         for (_, el) in local_buffer.elements.iter_mut() {
                                             if let Element::Path(path) = el {
@@ -624,12 +640,12 @@ impl Lb {
                                                 ));
                                             }
                                         }
-                                        crate::svg::buffer::Buffer::reload(
+                                        svg::buffer::Buffer::reload(
                                             &mut local_buffer.elements,
                                             &mut local_buffer.weak_images,
                                             local_buffer.master_transform,
-                                            &base_document,
-                                            &remote_document,
+                                            &base_buffer,
+                                            &remote_buffer,
                                         );
 
                                         let merged_document = local_buffer.serialize();
@@ -754,7 +770,7 @@ impl Lb {
                         break merge_changes;
                     }
                     Err(ref err) => match err.kind {
-                        SharedErrorKind::ValidationFailure(ref vf) => match vf {
+                        LbErrKind::Validation(ref vf) => match vf {
                             // merge changeset has resolvable validation errors and needs modification
                             ValidationFailure::Cycle(ids) => {
                                 // revert all local moves in the cycle
@@ -877,6 +893,7 @@ impl Lb {
                             | ValidationFailure::NonFolderWithChildren(_)
                             | ValidationFailure::FileWithDifferentOwnerParent(_)
                             | ValidationFailure::FileNameTooLong(_)
+                            | ValidationFailure::DeletedFileUpdated(_)
                             | ValidationFailure::NonDecryptableFileName(_) => {
                                 validate_result?;
                             }
@@ -904,6 +921,11 @@ impl Lb {
         // todo who else calls this did they manage locks right?
         // self.cleanup_local_metadata()?;
         db.base_metadata.stage(&mut db.local_metadata).prune()?;
+
+        if start.elapsed() > std::time::Duration::from_millis(100) {
+            warn!("sync merge held lock for {:?}", start.elapsed());
+        }
+
         Ok(())
     }
 
@@ -965,6 +987,7 @@ impl Lb {
 
         let tx = self.ro_tx().await;
         let db = tx.db();
+        let start = Instant::now();
 
         let local = db.base_metadata.stage(&db.local_metadata).to_lazy();
 
@@ -988,6 +1011,9 @@ impl Lb {
         }
 
         drop(tx);
+        if start.elapsed() > std::time::Duration::from_millis(100) {
+            warn!("sync push_docs held lock for {:?}", start.elapsed());
+        }
 
         let docs_count = updates.len();
         ctx.total += docs_count;

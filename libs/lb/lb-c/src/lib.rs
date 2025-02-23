@@ -36,9 +36,14 @@ pub struct LbInitRes {
 
 #[no_mangle]
 pub extern "C" fn lb_init(writeable_path: *const c_char, logs: bool) -> LbInitRes {
-    let writeable_path = rstring(writeable_path);
+    let config = Config {
+        writeable_path: rstring(writeable_path),
+        background_work: true,
+        logs,
+        stdout_logs: true,
+        colored_logs: false,
+    };
 
-    let config = Config { logs, colored_logs: false, writeable_path, background_work: true };
     match Lb::init(config) {
         Ok(lb) => {
             let lb = Box::into_raw(Box::new(lb));
@@ -130,7 +135,7 @@ pub extern "C" fn lb_delete_account(lb: *mut Lb) -> *mut LbFfiErr {
 #[no_mangle]
 pub extern "C" fn lb_logout_and_exit(lb: *mut Lb) {
     let lb = rlb(lb);
-    fs::remove_dir_all(lb.get_config().writeable_path).unwrap();
+    fs::remove_dir_all(lb.get_config().writeable_path).unwrap(); // todo: deduplicate
     process::exit(0);
 }
 
@@ -325,7 +330,8 @@ pub struct LbDocRes {
 pub extern "C" fn lb_read_doc(lb: *mut Lb, id: LbUuid) -> LbDocRes {
     let lb = rlb(lb);
 
-    match lb.read_document(id.into()) {
+    // todo: expose activity field when desired
+    match lb.read_document(id.into(), false) {
         Ok(doc) => {
             let (doc, len) = carray(doc);
             LbDocRes { err: null_mut(), doc, len }
@@ -471,7 +477,7 @@ pub struct LbPathsRes {
 pub extern "C" fn lb_list_folder_paths(lb: *mut Lb) -> LbPathsRes {
     let lb = rlb(lb);
 
-    match lb.list_paths(Some(logic::path_ops::Filter::FoldersOnly)) {
+    match lb.list_paths(Some(model::path_ops::Filter::FoldersOnly)) {
         Ok(paths) => {
             let (paths, len) = cstring_array(paths);
 

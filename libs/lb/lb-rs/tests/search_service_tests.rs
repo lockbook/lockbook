@@ -173,7 +173,6 @@ async fn search_exclude_pending_share() {
         .await
         .unwrap();
 
-    core1.build_index().await.unwrap();
     core2.build_index().await.unwrap();
 
     let search1 = core2

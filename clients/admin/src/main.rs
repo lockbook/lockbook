@@ -10,7 +10,6 @@ use lb::blocking::Lb;
 use lb::model::api::UnixTimeMillis;
 use lb::model::core_config::Config;
 use lb::Uuid;
-use std::env;
 
 use crate::error::Error;
 use crate::indexes::CliIndex;
@@ -107,16 +106,7 @@ pub enum SetUserTier {
 type Res<T> = Result<T, Error>;
 
 pub fn main() {
-    let writeable_path = match (env::var("LOCKBOOK_PATH"), env::var("HOME"), env::var("HOMEPATH")) {
-        (Ok(s), _, _) => s,
-        (Err(_), Ok(s), _) => format!("{}/.lockbook/cli", s),
-        (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook/cli", s),
-        _ => panic!("no lockbook location"),
-    };
-
-    let core =
-        Lb::init(Config { writeable_path, logs: true, colored_logs: true, background_work: false })
-            .unwrap();
+    let core = Lb::init(Config::cli_config("cli")).unwrap(); // use the cli account
 
     let result = match Admin::parse() {
         Admin::DisappearAccount { username } => disappear::account(&core, username),

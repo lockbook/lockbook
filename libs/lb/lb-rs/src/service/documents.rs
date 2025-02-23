@@ -1,15 +1,15 @@
 use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 
-use crate::logic::crypto::DecryptedDocument;
-use crate::logic::file_like::FileLike;
-use crate::logic::lazy::LazyTree;
-use crate::logic::signed_file::SignedFile;
-use crate::logic::tree_like::TreeLike;
-use crate::logic::validate;
 use crate::model::clock::get_time;
+use crate::model::crypto::DecryptedDocument;
 use crate::model::errors::{LbErrKind, LbResult};
+use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileType};
+use crate::model::lazy::LazyTree;
+use crate::model::signed_file::SignedFile;
+use crate::model::tree_like::TreeLike;
+use crate::model::validate;
 use crate::Lb;
 use uuid::Uuid;
 
@@ -17,7 +17,9 @@ use super::activity;
 
 impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub async fn read_document(&self, id: Uuid) -> LbResult<DecryptedDocument> {
+    pub async fn read_document(
+        &self, id: Uuid, user_activity: bool,
+    ) -> LbResult<DecryptedDocument> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
@@ -26,19 +28,20 @@ impl Lb {
         let doc = self.read_document_helper(id, &mut tree).await?;
 
         let bg_lb = self.clone();
-        tokio::spawn(async move {
-            bg_lb
-                .add_doc_event(activity::DocEvent::Read(id, get_time().0))
-                .await
-                .unwrap();
-        });
+        if user_activity {
+            tokio::spawn(async move {
+                bg_lb
+                    .add_doc_event(activity::DocEvent::Read(id, get_time().0))
+                    .await
+                    .unwrap();
+            });
+        }
 
         Ok(doc)
     }
 
     #[instrument(level = "debug", skip(self, content), err(Debug))]
     pub async fn write_document(&self, id: Uuid, content: &[u8]) -> LbResult<()> {
-        debug!("doc length: {}", content.len());
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
@@ -55,6 +58,7 @@ impl Lb {
         self.docs.insert(id, hmac, &encrypted_document).await?;
         tx.end();
 
+        self.events.doc_written(id);
         let bg_lb = self.clone();
         tokio::spawn(async move {
             bg_lb
@@ -64,14 +68,12 @@ impl Lb {
             bg_lb.cleanup().await.unwrap();
         });
 
-        self.spawn_build_index();
-
         Ok(())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn read_document_with_hmac(
-        &self, id: Uuid,
+        &self, id: Uuid, user_activity: bool,
     ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -81,13 +83,15 @@ impl Lb {
         let doc = self.read_document_helper(id, &mut tree).await?;
         let hmac = tree.find(&id)?.document_hmac().copied();
 
-        let bg_lb = self.clone();
-        tokio::spawn(async move {
-            bg_lb
-                .add_doc_event(activity::DocEvent::Read(id, get_time().0))
-                .await
-                .unwrap();
-        });
+        if user_activity {
+            let bg_lb = self.clone();
+            tokio::spawn(async move {
+                bg_lb
+                    .add_doc_event(activity::DocEvent::Read(id, get_time().0))
+                    .await
+                    .unwrap();
+            });
+        }
 
         Ok((hmac, doc))
     }
@@ -96,7 +100,6 @@ impl Lb {
     pub async fn safe_write(
         &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>,
     ) -> LbResult<DocumentHmac> {
-        debug!("doc length: {}", content.len());
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
@@ -122,6 +125,7 @@ impl Lb {
             .insert(id, Some(hmac), &encrypted_document)
             .await?;
         tx.end();
+        self.events.doc_written(id);
 
         let bg_lb = self.clone();
         tokio::spawn(async move {
@@ -131,8 +135,6 @@ impl Lb {
                 .unwrap();
             bg_lb.cleanup().await.unwrap();
         });
-
-        self.spawn_build_index();
 
         Ok(hmac)
     }

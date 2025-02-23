@@ -1,7 +1,7 @@
-use crate::logic::path_ops::Filter;
-use crate::logic::tree_like::TreeLike;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
+use crate::model::path_ops::Filter;
+use crate::model::tree_like::TreeLike;
 use crate::Lb;
 use uuid::Uuid;
 
@@ -21,7 +21,7 @@ impl Lb {
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
-        self.spawn_build_index();
+        self.events.meta_changed(*root);
 
         Ok(ui_file)
     }
@@ -41,7 +41,7 @@ impl Lb {
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
-        self.spawn_build_index();
+        self.events.meta_changed(*root);
 
         Ok(ui_file)
     }

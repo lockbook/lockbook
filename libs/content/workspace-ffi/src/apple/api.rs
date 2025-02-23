@@ -33,7 +33,7 @@ pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_file: bool) {
 #[no_mangle]
 pub extern "C" fn request_sync(obj: *mut c_void) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.perform_sync()
+    obj.workspace.tasks.queue_sync();
 }
 
 #[no_mangle]
@@ -171,6 +171,7 @@ pub unsafe extern "C" fn tab_renamed(obj: *mut c_void, id: *const c_char, new_na
     obj.workspace.file_renamed(id, new_name);
 }
 
+// todo: can't close non-file tabs (mind map)
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
@@ -184,7 +185,12 @@ pub unsafe extern "C" fn close_tab(obj: *mut c_void, id: *const c_char) {
         .parse()
         .expect("Could not String -> Uuid");
 
-    if let Some(tab_id) = obj.workspace.tabs.iter().position(|tab| tab.id == id) {
+    if let Some(tab_id) = obj
+        .workspace
+        .tabs
+        .iter()
+        .position(|tab| tab.id() == Some(id))
+    {
         obj.workspace.close_tab(tab_id);
     }
 }
@@ -201,7 +207,7 @@ pub struct FfiWsStatus {
 #[no_mangle]
 pub unsafe extern "C" fn get_status(obj: *mut c_void) -> FfiWsStatus {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let syncing = obj.workspace.status.syncing();
+    let syncing = obj.workspace.visibly_syncing();
     let msg = obj.workspace.status.message.clone();
     let msg = CString::new(msg)
         .expect("Could not Rust String -> C String")

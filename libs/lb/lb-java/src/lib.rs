@@ -30,8 +30,13 @@ use lb_rs::{
 pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, path: JString<'local>,
 ) {
-    let writeable_path = rstring(&mut env, path);
-    let config = Config { logs: true, colored_logs: false, writeable_path, background_work: true };
+    let config = Config {
+        writeable_path: rstring(&mut env, path),
+        background_work: true,
+        logs: true,
+        stdout_logs: true,
+        colored_logs: false,
+    };
 
     match Lb::init(config) {
         Ok(lb) => {
@@ -455,7 +460,7 @@ pub extern "system" fn Java_net_lockbook_Lb_readDocument<'local>(
 
     let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
 
-    match lb.read_document(id) {
+    match lb.read_document(id, false) {
         Ok(doc) => jni_string(&mut env, String::from(String::from_utf8_lossy(&doc))).into_raw(),
         Err(err) => throw_err(&mut env, err).into_raw(),
     }
@@ -469,7 +474,8 @@ pub extern "system" fn Java_net_lockbook_Lb_readDocumentBytes<'local>(
 
     let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
 
-    match lb.read_document(id) {
+    // todo: expose activity field when desired
+    match lb.read_document(id, false) {
         Ok(doc) => jbyte_array(&mut env, doc).into_raw(),
         Err(err) => throw_err(&mut env, err).into_raw(),
     }
@@ -1050,7 +1056,7 @@ pub extern "system" fn Java_net_lockbook_Lb_logout<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) {
     let lb = rlb(&mut env, &class);
-    fs::remove_dir_all(lb.get_config().writeable_path).unwrap();
+    fs::remove_dir_all(lb.get_config().writeable_path).unwrap(); // todo: deduplicate
 }
 
 #[no_mangle]

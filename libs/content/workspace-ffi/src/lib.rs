@@ -71,8 +71,12 @@ impl<'window> WgpuWorkspace<'window> {
         self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
         self.context.begin_frame(self.raw_input.take());
 
+        if cfg!(target_os = "android") || cfg!(target_os = "ios") {
+            self.context
+                .style_mut(|s| s.visuals.panel_fill = s.visuals.extreme_bg_color);
+        }
         let workspace_response = egui::CentralPanel::default()
-            .frame(egui::Frame::default().fill(self.context.style().visuals.window_fill))
+            .frame(egui::Frame::default().fill(self.context.style().visuals.panel_fill))
             .show(&self.context, |ui| self.workspace.show(ui))
             .inner;
 
@@ -166,8 +170,7 @@ impl<'window> WgpuWorkspace<'window> {
     pub fn surface_format(&self) -> wgpu::TextureFormat {
         // todo: is this really fine?
         // from here: https://github.com/hasenbanck/egui_example/blob/master/src/main.rs#L65
-        let avail_formats = self.surface.get_capabilities(&self.adapter).formats;
-        *avail_formats.get(1).unwrap_or(&avail_formats[0])
+        self.surface.get_capabilities(&self.adapter).formats[0]
     }
 
     pub fn configure_surface(&mut self) {

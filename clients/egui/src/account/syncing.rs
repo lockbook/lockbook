@@ -3,13 +3,14 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use egui::TextWrapMode;
+use lb::model::errors::LbErr;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::{Button, ProgressBar};
 
 use super::AccountUpdate;
 
 pub struct SyncPanel {
-    initial_status: Result<String, String>,
+    initial_status: Result<String, LbErr>,
     btn_lost_hover_after_sync: bool,
     lock: Arc<Mutex<()>>,
     usage_msg_gained_hover: Option<Instant>,
@@ -17,7 +18,7 @@ pub struct SyncPanel {
 }
 
 impl SyncPanel {
-    pub fn new(initial_status: Result<String, String>) -> Self {
+    pub fn new(initial_status: Result<String, LbErr>) -> Self {
         Self {
             initial_status,
             lock: Arc::new(Mutex::new(())),
@@ -49,7 +50,7 @@ impl super::AccountScreen {
                         };
 
                         let text: egui::WidgetText = text.into();
-                        let text = text.color(ui.visuals().text_color().gamma_multiply(0.8));
+                        let text = text.color(ui.visuals().text_color().linear_multiply(0.8));
                         let galley = text.into_galley(
                             ui,
                             Some(TextWrapMode::Extend),
@@ -121,11 +122,11 @@ impl super::AccountScreen {
             .padding(egui::vec2(10.0, 7.0))
             .frame(true)
             .rounding(egui::Rounding::same(5.0))
-            .is_loading(self.workspace.status.syncing())
+            .is_loading(self.workspace.visibly_syncing())
             .show(ui);
 
         if sync_btn.clicked() {
-            self.workspace.perform_sync();
+            self.workspace.tasks.queue_sync();
             self.sync.btn_lost_hover_after_sync = false;
         }
 
@@ -147,9 +148,10 @@ impl super::AccountScreen {
 
         ui.set_style(visuals_before_button);
     }
+
     pub fn show_sync_error_warn(&mut self, ui: &mut egui::Ui) {
         let msg = if let Err(err_msg) = &self.sync.initial_status {
-            err_msg.to_owned()
+            err_msg.kind.to_string()
         } else {
             let dirty_files_count = self.workspace.status.dirtyness.dirty_files.len();
             if dirty_files_count > 5 {
@@ -170,7 +172,7 @@ impl super::AccountScreen {
         };
 
         egui::Frame::default()
-            .fill(color.gamma_multiply(0.1))
+            .fill(color.linear_multiply(0.1))
             .inner_margin(egui::Margin::symmetric(10.0, 7.0))
             .rounding(egui::Rounding::same(10.0))
             .show(ui, |ui| {

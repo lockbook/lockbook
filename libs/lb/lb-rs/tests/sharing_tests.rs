@@ -1,6 +1,7 @@
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::FileType;
+use lb_rs::model::ValidationFailure;
 use lb_rs::Lb;
 use test_utils::*;
 use uuid::Uuid;
@@ -118,10 +119,16 @@ async fn write_document_write_share() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -150,10 +157,16 @@ async fn write_document_in_write_shared_folder() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -190,10 +203,16 @@ async fn write_document_in_write_shared_folder_in_read_shared_folder() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -230,10 +249,16 @@ async fn write_document_in_read_shared_folder_in_write_shared_folder() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -299,10 +324,16 @@ async fn write_document_in_shared_folder_in_rejected_share_folder() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -340,11 +371,17 @@ async fn write_document_in_rejected_shared_folder_in_share_folder() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[1].get_file_by_id(document.id).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -415,8 +452,14 @@ async fn write_link_by_sharee() {
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
 
-    assert_eq!(cores[0].read_document(document1.id).await.unwrap(), b"document content by sharee");
-    assert_eq!(cores[1].read_document(document1.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document1.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
+    assert_eq!(
+        cores[1].read_document(document1.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -449,8 +492,14 @@ async fn write_target_by_sharee() {
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
 
-    assert_eq!(cores[0].read_document(document1.id).await.unwrap(), b"document content by sharee");
-    assert_eq!(cores[1].read_document(document1.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document1.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
+    assert_eq!(
+        cores[1].read_document(document1.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -480,7 +529,10 @@ async fn create_document_in_link_folder_by_sharee() {
         .await
         .unwrap_err();
 
-    assert_eq!(result.kind, LbErrKind::FileNotFolder);
+    assert_matches!(
+        result.kind,
+        LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(_))
+    );
 }
 
 #[tokio::test]
@@ -722,10 +774,16 @@ async fn write_document_write_share_by_link() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -763,10 +821,16 @@ async fn write_document_deleted_link() {
         .await
         .unwrap();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee 2");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee 2"
+    );
     cores[1].sync(None).await.unwrap();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharee 2");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee 2"
+    );
 }
 
 #[tokio::test]
@@ -802,11 +866,17 @@ async fn write_document_link_deleted_when_share_rejected() {
     cores[1].reject_share(&document.id).await.unwrap();
     cores[1].get_file_by_id(link.id).await.unwrap_err();
 
-    assert_eq!(cores[1].read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        cores[1].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
     cores[1].sync(None).await.unwrap();
     cores[1].get_file_by_id(document.id).await.unwrap_err();
     cores[0].sync(None).await.unwrap();
-    assert_eq!(cores[0].read_document(document.id).await.unwrap(), b"document content by sharer");
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharer"
+    );
 }
 
 #[tokio::test]
@@ -939,7 +1009,10 @@ async fn share_file_duplicate_original_deleted() {
     sharee_core.sync(None).await.unwrap();
 
     core.sync(None).await.unwrap();
-    assert_eq!(core.read_document(document.id).await.unwrap(), b"document content by sharee");
+    assert_eq!(
+        core.read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
 }
 
 #[tokio::test]
@@ -1026,7 +1099,10 @@ async fn share_folder_with_link_inside() {
     let result = cores[1]
         .share_file(folder1.id, &accounts[2].username, ShareMode::Read)
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkInSharedFolder);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::SharedLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -1354,7 +1430,10 @@ async fn create_link_at_path_target_is_owned() {
         .unwrap();
 
     let result = core.create_link_at_path("link", document.id).await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkTargetIsOwned);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::OwnedLink(_))
+    );
 }
 
 #[tokio::test]
@@ -1362,7 +1441,10 @@ async fn create_link_at_path_target_nonexistent() {
     let core = test_core_with_account().await;
 
     let result = core.create_link_at_path("link", Uuid::new_v4()).await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkTargetNonexistent);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::BrokenLink(_))
+    );
 }
 
 #[tokio::test]
@@ -1401,7 +1483,10 @@ async fn create_link_at_path_link_in_shared_folder() {
     let result = cores[1]
         .create_link_at_path("folder_link/document", document0.id)
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkInSharedFolder);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::SharedLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -1430,7 +1515,10 @@ async fn create_link_at_path_link_duplicate() {
         .unwrap();
 
     let result = cores[1].create_link_at_path("/link2", document0.id).await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::MultipleLinksToSameFile);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::DuplicateLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -1441,7 +1529,10 @@ async fn create_file_link_target_nonexistent() {
     let result = core
         .create_file("link", &root.id, FileType::Link { target: Uuid::new_v4() })
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkTargetNonexistent);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::BrokenLink(_))
+    );
 }
 
 #[tokio::test]
@@ -1457,7 +1548,10 @@ async fn create_file_link_target_owned() {
     let result = core
         .create_file("link", &root.id, FileType::Link { target: document.id })
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkTargetIsOwned);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::OwnedLink(_))
+    );
 }
 
 #[tokio::test]
@@ -1496,7 +1590,10 @@ async fn create_file_shared_link() {
     let result = cores[1]
         .create_file("document_link", &folder.id, FileType::Link { target: document.id })
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkInSharedFolder);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::SharedLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -1527,7 +1624,10 @@ async fn create_file_duplicate_link() {
     let result = cores[1]
         .create_file("link_2", &roots[1].id, FileType::Link { target: document.id })
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::MultipleLinksToSameFile);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::DuplicateLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -1871,7 +1971,10 @@ async fn move_file_under_link() {
         .await
         .unwrap_err();
 
-    assert_matches!(result.kind, LbErrKind::FileNotFolder);
+    assert_matches!(
+        result.kind,
+        LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(_))
+    );
 }
 
 #[tokio::test]
@@ -1912,7 +2015,10 @@ async fn move_file_shared_link() {
         .unwrap();
 
     let result = cores[1].move_file(&document_link.id, &folder.id).await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkInSharedFolder);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::SharedLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -1959,7 +2065,10 @@ async fn move_file_shared_link_in_folder_a() {
     let result = cores[1]
         .move_file(&document_link.id, &child_folder.id)
         .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkInSharedFolder);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::SharedLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -2004,7 +2113,10 @@ async fn move_file_shared_link_in_folder_b() {
         .unwrap();
 
     let result = cores[1].move_file(&child_folder.id, &folder.id).await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::LinkInSharedFolder);
+    assert_matches!(
+        result.unwrap_err().kind,
+        LbErrKind::Validation(ValidationFailure::SharedLink { .. })
+    );
 }
 
 #[tokio::test]
@@ -2318,4 +2430,40 @@ async fn delete_folder_with_shared_child() {
 
     cores[0].sync(None).await.unwrap();
     cores[1].sync(None).await.unwrap();
+}
+
+#[tokio::test]
+async fn populate_last_modified_by() {
+    let c1 = test_core_with_account().await;
+    let a1 = c1.get_account().unwrap();
+
+    let c2 = test_core_with_account().await;
+    let a2 = c2.get_account().unwrap();
+
+    let doc = c1.create_at_path("/doc.md").await.unwrap();
+    c1.share_file(doc.id, &a2.username, ShareMode::Write)
+        .await
+        .unwrap();
+    c1.sync(None).await.unwrap();
+    c2.sync(None).await.unwrap();
+
+    assert_eq!(doc.last_modified_by, a1.username);
+    let doc = c1.get_file_by_id(doc.id).await.unwrap();
+    assert_eq!(doc.last_modified_by, a1.username);
+    let doc = c2.get_file_by_id(doc.id).await.unwrap();
+    assert_eq!(doc.last_modified_by, a1.username);
+
+    c2.write_document(doc.id, b"a2's creative changes")
+        .await
+        .unwrap();
+    let doc = c2.get_file_by_id(doc.id).await.unwrap();
+    assert_eq!(doc.last_modified_by, a2.username);
+
+    c2.sync(None).await.unwrap();
+    c1.sync(None).await.unwrap();
+
+    let doc = c1.get_file_by_id(doc.id).await.unwrap();
+    assert_eq!(doc.last_modified_by, a2.username);
+    let doc = c2.get_file_by_id(doc.id).await.unwrap();
+    assert_eq!(doc.last_modified_by, a2.username);
 }

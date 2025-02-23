@@ -5,7 +5,6 @@ mod tree;
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc, RwLock};
 use std::time::Duration;
 use std::{path, process, thread};
@@ -20,11 +19,10 @@ use lb::Uuid;
 use tree::FilesExt;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
-use workspace_rs::workspace::{Workspace, WsConfig};
+use workspace_rs::workspace::Workspace;
 
 use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
-use crate::util::data_dir;
 
 use self::full_doc_search::FullDocSearch;
 use self::modals::*;
@@ -48,7 +46,6 @@ pub struct AccountScreen {
     workspace: Workspace,
     modals: Modals,
     shutdown: Option<AccountShutdownProgress>,
-    sidebar_expanded: bool,
 }
 
 impl AccountScreen {
@@ -63,18 +60,9 @@ impl AccountScreen {
         let core_clone = core.clone();
 
         let toasts = egui_notify::Toasts::default()
-            .with_margin(egui::vec2(40.0, 30.0))
-            .with_padding(egui::vec2(20.0, 20.0));
-        let reference_settings = settings.read().unwrap();
-        let ws_cfg = WsConfig::new(
-            data_dir().unwrap(),
-            reference_settings.auto_save,
-            reference_settings.auto_sync,
-            reference_settings.zen_mode,
-        );
-        drop(reference_settings);
+            .with_margin(egui::vec2(20.0, 20.0))
+            .with_padding(egui::vec2(10.0, 10.0));
 
-        let sidebar_expanded = !settings.read().unwrap().zen_mode;
         let mut result = Self {
             settings,
             core: core.clone(),
@@ -86,10 +74,9 @@ impl AccountScreen {
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(sync_status),
             usage,
-            workspace: Workspace::new(ws_cfg, &core_clone, &ctx.clone()),
+            workspace: Workspace::new(&core_clone, &ctx.clone()),
             modals: Modals::default(),
             shutdown: None,
-            sidebar_expanded,
         };
         result.tree.recalc_suggested_files(&core, ctx);
         result
@@ -125,12 +112,16 @@ impl AccountScreen {
         // focus management
         let full_doc_search_id = Id::from("full_doc_search");
         let suggested_docs_id = Id::from("suggested_docs");
+        let sidebar_expanded = !self.settings.read().unwrap().zen_mode;
+
         if ctx.input(|i| i.key_pressed(Key::F) && i.modifiers.command && i.modifiers.shift) {
-            if !self.sidebar_expanded {
-                self.sidebar_expanded = true;
+            if !sidebar_expanded {
+                self.settings.write().unwrap().zen_mode = false;
+
                 ctx.memory_mut(|m| m.request_focus(full_doc_search_id));
             } else if ctx.memory(|m| m.has_focus(full_doc_search_id)) {
-                self.sidebar_expanded = false;
+                self.settings.write().unwrap().zen_mode = true;
+
                 ctx.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
             } else {
                 ctx.memory_mut(|m| m.request_focus(full_doc_search_id));
@@ -140,7 +131,7 @@ impl AccountScreen {
         egui::SidePanel::left("sidebar_panel")
             .frame(egui::Frame::none().fill(ctx.style().visuals.extreme_bg_color))
             .min_width(300.0)
-            .show_animated(ctx, self.sidebar_expanded, |ui| {
+            .show_animated(ctx, sidebar_expanded, |ui| {
                 if self.is_any_modal_open() {
                     ui.disable();
                 }
@@ -192,21 +183,28 @@ impl AccountScreen {
                 if self.is_any_modal_open() {
                     ui.disable();
                 }
-                let settings = self.settings.read().unwrap();
-                self.workspace.cfg.update(
-                    settings.auto_save,
-                    settings.auto_sync,
-                    settings.zen_mode,
-                );
-                drop(settings);
+
                 self.workspace.focused_parent = self.focused_parent();
                 let wso = self.workspace.show(ui);
-                if wso.settings_updated {
-                    self.settings.write().unwrap().zen_mode =
-                        self.workspace.cfg.zen_mode.load(Ordering::Relaxed);
-                    self.settings.read().unwrap().to_file().unwrap();
-                    self.sidebar_expanded = !self.settings.read().unwrap().zen_mode;
+
+                if self.settings.read().unwrap().zen_mode {
+                    let mut min = ui.clip_rect().left_bottom();
+                    min.y -= 37.0; // 37 is approximating the height of the button
+                    let max = ui.clip_rect().left_bottom();
+
+                    let rect = egui::Rect { min, max };
+                    ui.allocate_ui_at_rect(rect, |ui| {
+                        let zen_mode_btn = Button::default()
+                            .icon(&Icon::TOGGLE_SIDEBAR)
+                            .frame(true)
+                            .show(ui);
+                        if zen_mode_btn.clicked() {
+                            self.settings.write().unwrap().zen_mode = false;
+                        }
+                        zen_mode_btn.on_hover_text("Show side panel");
+                    });
                 }
+
                 if let Some((id, new_name)) = wso.file_renamed {
                     for file in self.tree.files.iter_mut() {
                         if file.id == id {
@@ -242,10 +240,18 @@ impl AccountScreen {
                 if wso.sync_done.is_some() {
                     self.refresh_tree(ctx);
                 }
+
+                for msg in wso.failure_messages {
+                    self.toasts.error(msg);
+                }
             });
 
         if self.is_new_user {
-            self.modals.account_backup = Some(AccountBackup);
+            if let Ok(metas) = self.core.list_metadatas() {
+                if let Some(welcome_doc) = metas.iter().find(|meta| meta.name == "welcome.md") {
+                    self.workspace.open_file(welcome_doc.id, false, true);
+                }
+            }
             self.is_new_user = false;
         }
 
@@ -292,13 +298,17 @@ impl AccountScreen {
                     OpenModal::InitiateShare(target) => self.open_share_modal(target),
                     OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
                     OpenModal::Settings => {
-                        self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
+                        self.modals.settings = Some(SettingsModal::new(
+                            &self.core,
+                            &self.settings,
+                            &self.workspace.cfg,
+                        ));
                     }
                 },
                 AccountUpdate::ShareAccepted(result) => match result {
                     Ok(_) => {
                         self.modals.file_picker = None;
-                        self.workspace.perform_sync();
+                        self.workspace.tasks.queue_sync();
                         // todo: figure out how to call reveal_file after the file tree is updated with the new sync info
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
@@ -329,7 +339,7 @@ impl AccountScreen {
                 AccountUpdate::FileShared(result) => match result {
                     Ok(_) => {
                         self.modals.create_share = None;
-                        self.workspace.perform_sync();
+                        self.workspace.tasks.queue_sync();
                     }
                     Err(msg) => {
                         if let Some(m) = &mut self.modals.create_share {
@@ -343,7 +353,6 @@ impl AccountScreen {
 
     /// See also workspace::process_keys
     fn process_keys(&mut self, ctx: &egui::Context) {
-        const ALT: egui::Modifiers = egui::Modifiers::ALT;
         const COMMAND: egui::Modifiers = egui::Modifiers::COMMAND;
 
         // Escape (without modifiers) to close something such as an open modal.
@@ -364,9 +373,11 @@ impl AccountScreen {
             self.settings.write().unwrap().zen_mode = zen_mode;
         }
 
-        // Ctrl-Space or Ctrl-L pressed while search modal is not open.
+        // Ctrl-Space or Ctrl-O or Ctrl-L pressed while search modal is not open.
         let is_search_open = ctx.input_mut(|i| {
-            i.consume_key(COMMAND, egui::Key::Space) || i.consume_key(COMMAND, egui::Key::L)
+            i.consume_key(COMMAND, egui::Key::Space)
+                || i.consume_key(COMMAND, egui::Key::O)
+                || i.consume_key(COMMAND, egui::Key::L)
         });
         if is_search_open {
             if let Some(search) = &mut self.modals.search {
@@ -380,11 +391,12 @@ impl AccountScreen {
         if self.modals.settings.is_none()
             && ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::Comma))
         {
-            self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
+            self.modals.settings =
+                Some(SettingsModal::new(&self.core, &self.settings, &self.workspace.cfg));
         }
 
-        // Alt-H pressed to toggle the help modal.
-        if ctx.input_mut(|i| i.consume_key(ALT, egui::Key::H)) {
+        // Ctrl-/ to toggle the help modal.
+        if ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::Slash)) {
             let d = &mut self.modals.help;
             *d = match d {
                 Some(_) => None,
@@ -423,7 +435,7 @@ impl AccountScreen {
                         .stroke(Stroke::NONE)
                         .show(ui, |ui| {
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
-                            self.tree.show(ui, max_rect)
+                            self.tree.show(ui, max_rect, &mut self.toasts)
                         })
                 })
             })
@@ -459,7 +471,7 @@ impl AccountScreen {
         }
 
         if let Some(rename_req) = resp.rename_request {
-            self.workspace.rename_file(rename_req);
+            self.workspace.rename_file(rename_req, true);
         }
 
         for id in resp.open_requests {
@@ -523,7 +535,6 @@ impl AccountScreen {
                         if let Err(err) = self.settings.read().unwrap().to_file() {
                             self.modals.error = Some(ErrorModal::new(err));
                         }
-                        self.sidebar_expanded = false;
                     }
 
                     zen_mode_btn.on_hover_text("Hide side panel");
@@ -588,13 +599,11 @@ impl AccountScreen {
 
     fn focused_parent(&mut self) -> Option<Uuid> {
         if let Some(cursor) = self.tree.cursor {
-            if cursor != self.tree.suggested_docs_folder_id {
+            if cursor != self.tree.suggested_docs_folder_id
+                && self.tree.files.iter().any(|f| f.id == cursor)
+            {
                 let cursor = self.tree.files.get_by_id(cursor);
-                if cursor.is_folder() {
-                    return Some(cursor.id);
-                } else {
-                    return Some(cursor.parent);
-                }
+                return if cursor.is_folder() { Some(cursor.id) } else { Some(cursor.parent) };
             }
         }
         None
@@ -650,9 +659,6 @@ impl AccountScreen {
                 println!("error moving file: {:?}", err);
                 return;
             } else {
-                if let Some(tab) = self.workspace.get_mut_tab_by_id(f) {
-                    tab.path = self.core.get_path_by_id(f).unwrap();
-                }
                 ctx.request_repaint();
             }
         }
@@ -757,7 +763,7 @@ impl AccountScreen {
 
         let mut tabs_to_delete = vec![];
         for (i, tab) in self.workspace.tabs.iter().enumerate() {
-            if files.iter().any(|f| f.id.eq(&tab.id)) {
+            if files.iter().any(|f| Some(f.id) == tab.id()) {
                 tabs_to_delete.push(i);
             }
         }

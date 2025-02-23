@@ -4,7 +4,7 @@ use lb::model::file_metadata::FileType;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 
-use crate::model::DocType;
+use workspace_rs::show::DocType;
 
 pub struct FilePicker {
     core: Lb,
@@ -208,7 +208,7 @@ fn show_node(
 
     if is_node_grayed_out {
         let icon_stroke = egui::Stroke {
-            color: ui.visuals().hyperlink_color.gamma_multiply(0.3),
+            color: ui.visuals().hyperlink_color.linear_multiply(0.3),
             ..Default::default()
         };
         icon_style.visuals.widgets.inactive.fg_stroke = icon_stroke;

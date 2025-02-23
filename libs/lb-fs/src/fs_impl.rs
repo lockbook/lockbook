@@ -56,7 +56,7 @@ impl NFSFileSystem for Drive {
         let entry = data.get_mut(&id).unwrap();
         let id = entry.file.id;
 
-        let mut doc = self.lb.read_document(id).await.unwrap();
+        let mut doc = self.lb.read_document(id, false).await.unwrap();
         let mut expanded = false;
         if offset + buffer.len() > doc.len() {
             doc.resize(offset + buffer.len(), 0);
@@ -180,7 +180,7 @@ impl NFSFileSystem for Drive {
             set_size3::Void => {}
             set_size3::size(new) => {
                 if entry.fattr.size != new {
-                    let mut doc = self.lb.read_document(entry.file.id).await.unwrap();
+                    let mut doc = self.lb.read_document(entry.file.id, false).await.unwrap();
                     doc.resize(new as usize, 0);
                     self.lb.write_document(entry.file.id, &doc).await.unwrap();
                     entry.fattr.mtime = FileEntry::ts_from_u64(now);
@@ -248,7 +248,7 @@ impl NFSFileSystem for Drive {
         let count = count as usize;
         let id = self.data.lock().await.get(&id).unwrap().file.id;
 
-        let doc = self.lb.read_document(id).await.unwrap();
+        let doc = self.lb.read_document(id, false).await.unwrap();
 
         if offset >= doc.len() {
             info!("[] EOF");
@@ -382,7 +382,7 @@ impl NFSFileSystem for Drive {
             // we are overwriting a file
             Some(id) => {
                 info!("overwrite {from_id} -> {id}");
-                let from_doc = self.lb.read_document(from_id).await.unwrap();
+                let from_doc = self.lb.read_document(from_id, false).await.unwrap();
                 info!("|{}|", from_doc.len());
                 let doc_len = from_doc.len() as u64;
                 self.lb.write_document(id, &from_doc).await.unwrap();

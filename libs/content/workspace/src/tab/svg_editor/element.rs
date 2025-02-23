@@ -1,6 +1,6 @@
 use lb_rs::{
     blocking::Lb,
-    svg::{
+    model::svg::{
         diff::DiffState,
         element::{Element, Image, Path, WeakImage},
     },
@@ -54,7 +54,9 @@ pub trait PromoteWeakImage {
 }
 impl PromoteWeakImage for Image {
     fn from_weak(value: WeakImage, lb: &Lb) -> Self {
-        let data = lb.read_document(value.href).expect("could not read image");
+        let data = lb
+            .read_document(value.href, false)
+            .expect("could not read image");
 
         Image {
             data: resvg::usvg::ImageKind::PNG(data.into()),

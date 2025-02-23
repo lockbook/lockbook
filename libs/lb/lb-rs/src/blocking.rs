@@ -10,7 +10,6 @@ use tokio::runtime::Runtime;
 use uuid::Uuid;
 
 use crate::{
-    logic::{crypto::DecryptedDocument, path_ops::Filter},
     model::{
         account::{Account, Username},
         api::{
@@ -19,9 +18,11 @@ use crate::{
             StripeAccountTier, SubscriptionInfo,
         },
         core_config::Config,
-        errors::{LbResult, TestRepoError, Warning},
+        crypto::DecryptedDocument,
+        errors::{LbResult, Warning},
         file::{File, ShareMode},
         file_metadata::{DocumentHmac, FileType},
+        path_ops::Filter,
     },
     service::{
         activity::RankingWeights,
@@ -134,13 +135,13 @@ impl Lb {
     }
 
     pub fn read_document(&self, id: Uuid) -> LbResult<DecryptedDocument> {
-        block_on(self.lb.read_document(id))
+        block_on(self.lb.read_document(id, user_activity))
     }
 
     pub fn read_document_with_hmac(
-        &self, id: Uuid,
+        &self, id: Uuid, user_activity: bool,
     ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
-        block_on(self.lb.read_document_with_hmac(id))
+        block_on(self.lb.read_document_with_hmac(id, user_activity))
     }
 
     pub fn list_metadatas(&self) -> LbResult<Vec<File>> {
@@ -257,7 +258,7 @@ impl Lb {
         block_on(self.lb.search(input, cfg))
     }
 
-    pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
+    pub fn validate(&self) ->  LbResult<Vec<Warning>> {
         block_on(self.lb.test_repo_integrity())
     }
 

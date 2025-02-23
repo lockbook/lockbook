@@ -22,7 +22,7 @@ use cli_rs::{
 
 use input::FileInput;
 use lb_rs::{
-    logic::path_ops::Filter,
+    model::path_ops::Filter,
     model::{core_config::Config, errors::LbErrKind},
     service::sync::SyncProgress,
     Lb, Uuid,
@@ -30,7 +30,7 @@ use lb_rs::{
 
 fn run() -> CliResult<()> {
     Command::name("lockbook")
-        .description("The private, polished note-taking platform.") 
+        .description("The private, polished note-taking platform.")
         .version(env!("CARGO_PKG_VERSION"))
         .subcommand(
             Command::name("account")
@@ -127,9 +127,9 @@ fn run() -> CliResult<()> {
         )
         .subcommand(
             Command::name("list").description("list files and file information")
-                .input(Flag::bool("long").description("display more information"))
-                .input(Flag::bool("recursive").description("include all children of the given directory, recursively"))
-                .input(Flag::bool("paths").description("include more info (such as the file ID)"))
+                .input(Flag::bool("long").description("'long listing format': displays id and sharee information in table format"))
+                .input(Flag::bool("recursive").description("include all children of the given directory, recursively. Implicitly enables --paths"))
+                .input(Flag::bool("paths").description("display the full path of any children"))
                 .input(Arg::<FileInput>::name("target").description("file path location whose files will be listed")
                             .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly)))
                             .default(FileInput::Path("/".to_string())))
@@ -150,7 +150,7 @@ fn run() -> CliResult<()> {
                 .handler(|target| create_file(target.get()))
         )
         .subcommand(
-            Command::name("stream")
+            Command::name("stream").description("interact with stdout and stdin")
                 .subcommand(
                     Command::name("out")
                         .description("print a document to stdout")
@@ -218,7 +218,7 @@ fn main() {
 }
 
 pub async fn core() -> CliResult<Lb> {
-    Lb::init(Config::cli_config())
+    Lb::init(Config::cli_config("cli"))
         .await
         .map_err(|err| CliError::from(err.to_string()))
 }
