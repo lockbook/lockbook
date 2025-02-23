@@ -57,6 +57,7 @@ impl Lb {
             search: Default::default(),
             client: Default::default(),
             syncing: Default::default(),
+            events: Default::default(),
         })
     }
 }

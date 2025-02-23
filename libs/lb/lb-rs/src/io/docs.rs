@@ -1,20 +1,23 @@
 use crate::model::{
     core_config::Config,
     crypto::EncryptedDocument,
-    errors::{LbErrKind, LbResult, Unexpected},
+    errors::{LbErrKind, LbResult},
     file_metadata::DocumentHmac,
 };
 use std::{
     collections::HashSet,
-    io::ErrorKind,
     path::{Path, PathBuf},
     sync::{atomic::AtomicBool, Arc},
 };
 
 #[cfg(not(target_family = "wasm"))]
-use tokio::{
-    fs::{self, File, OpenOptions},
-    io::{AsyncReadExt, AsyncWriteExt},
+use {
+    crate::model::errors::Unexpected,
+    std::io::ErrorKind,
+    tokio::{
+        fs::{self, File, OpenOptions},
+        io::{AsyncReadExt, AsyncWriteExt},
+    },
 };
 
 use uuid::Uuid;
@@ -28,28 +31,26 @@ pub struct AsyncDocs {
 #[cfg(target_family = "wasm")]
 impl AsyncDocs {
     pub async fn insert(
-        &self, id: Uuid, hmac: Option<DocumentHmac>, document: &EncryptedDocument,
-    ) -> SharedResult<()> {
+        &self, _id: Uuid, _hmac: Option<DocumentHmac>, _document: &EncryptedDocument,
+    ) -> LbResult<()> {
         Ok(())
     }
 
-    pub async fn get(
-        &self, id: Uuid, hmac: Option<DocumentHmac>,
-    ) -> SharedResult<EncryptedDocument> {
-        Err(SharedErrorKind::FileNonexistent.into())
+    pub async fn get(&self, _id: Uuid, _hmac: Option<DocumentHmac>) -> LbResult<EncryptedDocument> {
+        Err(LbErrKind::FileNonexistent.into())
     }
 
     pub async fn maybe_get(
-        &self, id: Uuid, hmac: Option<DocumentHmac>,
-    ) -> SharedResult<Option<EncryptedDocument>> {
+        &self, _id: Uuid, _hmac: Option<DocumentHmac>,
+    ) -> LbResult<Option<EncryptedDocument>> {
         Ok(None)
     }
 
-    pub async fn delete(&self, id: Uuid, hmac: Option<DocumentHmac>) -> SharedResult<()> {
+    pub async fn delete(&self, _id: Uuid, _hmac: Option<DocumentHmac>) -> LbResult<()> {
         Ok(())
     }
 
-    pub(crate) async fn retain(&self, file_hmacs: HashSet<(Uuid, [u8; 32])>) -> SharedResult<()> {
+    pub(crate) async fn retain(&self, _file_hmacs: HashSet<(Uuid, [u8; 32])>) -> LbResult<()> {
         Ok(())
     }
 }

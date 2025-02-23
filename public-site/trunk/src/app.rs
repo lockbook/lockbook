@@ -1,7 +1,7 @@
 use lb_rs::{blocking::Lb, model::core_config::Config, Uuid};
 use workspace_rs::{
     tab::{markdown_editor::Editor, svg_editor::SVGEditor},
-    workspace::{Workspace, WsConfig},
+    workspace::Workspace,
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -22,12 +22,12 @@ impl LbWebApp {
     pub fn new(cc: &eframe::CreationContext<'_>, initial_screen: InitialScreen) -> Self {
         let ctx = cc.egui_ctx.clone();
 
-        let config = WsConfig::new("/".into(), false, false, true);
         let lb = Lb::init(Config {
             logs: false,
             colored_logs: false,
             writeable_path: "".into(),
             background_work: false,
+            stdout_logs: false,
         })
         .unwrap();
 
@@ -55,12 +55,7 @@ impl LbWebApp {
 
         ctx.set_visuals(generate_visuals());
 
-        Self {
-            workspace: Workspace::new(config, &lb, &ctx),
-            editor: None,
-            canvas: None,
-            initial_screen,
-        }
+        Self { workspace: Workspace::new(&lb, &ctx), editor: None, canvas: None, initial_screen }
     }
 }
 

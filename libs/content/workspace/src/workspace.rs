@@ -10,9 +10,9 @@ use lb_rs::Uuid;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-use web_time::{Duration, Instant};
 use std::{fs, thread};
 use tracing::{debug, error, info, instrument, trace, warn};
+use web_time::{Duration, Instant};
 
 use crate::file_cache::FileCache;
 use crate::mind_map::show::MindMap;
@@ -292,8 +292,6 @@ impl Workspace {
 
                     let ctx = self.ctx.clone();
                     let core = self.core.clone();
-                    let writeable_dir = &self.core.get_config().writeable_path;
-                    let show_tabs = self.show_tabs;
 
                     let canvas_settings = self
                         .tabs
@@ -334,8 +332,8 @@ impl Workspace {
                                     id,
                                     &bytes,
                                     &ctx,
-                                    writeable_dir,
-                                    !show_tabs, // todo: use settings to determine toolbar visibility
+                                    &self.core.get_config().writeable_path,
+                                    !self.show_tabs, // todo: use settings to determine toolbar visibility
                                 )));
                             }
                         } else if ext == "svg" {

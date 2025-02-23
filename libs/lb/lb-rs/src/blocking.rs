@@ -1,13 +1,11 @@
-use std::{
-    collections::HashMap,
-    future::{Future, IntoFuture},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{collections::HashMap, future::Future, path::PathBuf};
 
 use futures::executor::block_on;
-use tokio::runtime::Runtime;
+
 use uuid::Uuid;
+
+#[cfg(not(target_family = "wasm"))]
+use {std::sync::Arc, tokio::runtime::Runtime};
 
 use crate::{
     model::{
@@ -107,15 +105,15 @@ impl Lb {
     pub fn safe_write(
         &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>,
     ) -> LbResult<DocumentHmac> {
-        block_on(self.lb.safe_write(id, old_hmac, content))
+        self.block_on(self.lb.safe_write(id, old_hmac, content))
     }
 
     pub fn write_document(&self, id: Uuid, content: &[u8]) -> LbResult<()> {
-        block_on(self.lb.write_document(id, content))
+        self.block_on(self.lb.write_document(id, content))
     }
 
     pub fn get_root(&self) -> LbResult<File> {
-        block_on(self.lb.root())
+        self.block_on(self.lb.root())
     }
 
     pub fn get_children(&self, id: &Uuid) -> LbResult<Vec<File>> {
@@ -127,45 +125,45 @@ impl Lb {
     }
 
     pub fn get_file_by_id(&self, id: Uuid) -> LbResult<File> {
-        block_on(self.lb.get_file_by_id(id))
+        self.block_on(self.lb.get_file_by_id(id))
     }
 
     pub fn delete_file(&self, id: &Uuid) -> LbResult<()> {
-        block_on(self.lb.delete(id))
+        self.block_on(self.lb.delete(id))
     }
 
-    pub fn read_document(&self, id: Uuid) -> LbResult<DecryptedDocument> {
-        block_on(self.lb.read_document(id, user_activity))
+    pub fn read_document(&self, id: Uuid, user_activity: bool) -> LbResult<DecryptedDocument> {
+        self.block_on(self.lb.read_document(id, user_activity))
     }
 
     pub fn read_document_with_hmac(
         &self, id: Uuid, user_activity: bool,
     ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
-        block_on(self.lb.read_document_with_hmac(id, user_activity))
+        self.block_on(self.lb.read_document_with_hmac(id, user_activity))
     }
 
     pub fn list_metadatas(&self) -> LbResult<Vec<File>> {
-        block_on(self.lb.list_metadatas())
+        self.block_on(self.lb.list_metadatas())
     }
 
     pub fn rename_file(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
-        block_on(self.lb.rename_file(id, new_name))
+        self.block_on(self.lb.rename_file(id, new_name))
     }
 
     pub fn move_file(&self, id: &Uuid, new_parent: &Uuid) -> LbResult<()> {
-        block_on(self.lb.move_file(id, new_parent))
+        self.block_on(self.lb.move_file(id, new_parent))
     }
 
     pub fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> LbResult<()> {
-        block_on(self.lb.share_file(id, username, mode))
+        self.block_on(self.lb.share_file(id, username, mode))
     }
 
     pub fn get_pending_shares(&self) -> LbResult<Vec<File>> {
-        block_on(self.lb.get_pending_shares())
+        self.block_on(self.lb.get_pending_shares())
     }
 
     pub fn delete_pending_share(&self, id: &Uuid) -> LbResult<()> {
-        block_on(async { self.lb.reject_share(id).await })
+        self.block_on(async { self.lb.reject_share(id).await })
     }
 
     pub fn create_link_at_path(&self, path_and_name: &str, target_id: Uuid) -> LbResult<File> {
@@ -173,23 +171,23 @@ impl Lb {
     }
 
     pub fn create_at_path(&self, path_and_name: &str) -> LbResult<File> {
-        block_on(self.lb.create_at_path(path_and_name))
+        self.block_on(self.lb.create_at_path(path_and_name))
     }
 
     pub fn get_by_path(&self, path: &str) -> LbResult<File> {
-        block_on(self.lb.get_by_path(path))
+        self.block_on(self.lb.get_by_path(path))
     }
 
     pub fn get_path_by_id(&self, id: Uuid) -> LbResult<String> {
-        block_on(self.lb.get_path_by_id(id))
+        self.block_on(self.lb.get_path_by_id(id))
     }
 
     pub fn list_paths(&self, filter: Option<Filter>) -> LbResult<Vec<String>> {
-        block_on(self.lb.list_paths(filter))
+        self.block_on(self.lb.list_paths(filter))
     }
 
     pub fn get_local_changes(&self) -> LbResult<Vec<Uuid>> {
-        block_on(async {
+        self.block_on(async {
             let tx = self.lb.ro_tx().await;
             let db = tx.db();
             Ok(db.local_metadata.get().keys().copied().collect())
@@ -197,15 +195,15 @@ impl Lb {
     }
 
     pub fn calculate_work(&self) -> LbResult<SyncStatus> {
-        block_on(self.lb.calculate_work())
+        self.block_on(self.lb.calculate_work())
     }
 
     pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress) + Send>>) -> LbResult<SyncStatus> {
-        block_on(self.lb.sync(f))
+        self.block_on(self.lb.sync(f))
     }
 
     pub fn get_last_synced(&self) -> LbResult<i64> {
-        block_on(async {
+        self.block_on(async {
             let tx = self.lb.ro_tx().await;
             let db = tx.db();
             Ok(db.last_synced.get().copied().unwrap_or(0))
@@ -213,7 +211,7 @@ impl Lb {
     }
 
     pub fn get_last_synced_human_string(&self) -> LbResult<String> {
-        block_on(self.lb.get_last_synced_human())
+        self.block_on(self.lb.get_last_synced_human())
     }
 
     pub fn get_timestamp_human_string(&self, timestamp: i64) -> String {
@@ -221,20 +219,20 @@ impl Lb {
     }
 
     pub fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
-        block_on(self.lb.suggested_docs(settings))
+        self.block_on(self.lb.suggested_docs(settings))
     }
 
     // TODO: examine why the old get_usage does a bunch of things
     pub fn get_usage(&self) -> LbResult<UsageMetrics> {
-        block_on(self.lb.get_usage())
+        self.block_on(self.lb.get_usage())
     }
 
     pub fn get_uncompressed_usage_breakdown(&self) -> LbResult<HashMap<Uuid, usize>> {
-        block_on(self.lb.get_uncompressed_usage_breakdown())
+        self.block_on(self.lb.get_uncompressed_usage_breakdown())
     }
 
     pub fn get_uncompressed_usage(&self) -> LbResult<UsageItemMetric> {
-        block_on(self.lb.get_uncompressed_usage())
+        self.block_on(self.lb.get_uncompressed_usage())
     }
 
     pub fn import_files<F: Fn(ImportStatus)>(
@@ -255,11 +253,11 @@ impl Lb {
     }
 
     pub fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
-        block_on(self.lb.search(input, cfg))
+        self.block_on(self.lb.search(input, cfg))
     }
 
-    pub fn validate(&self) ->  LbResult<Vec<Warning>> {
-        block_on(self.lb.test_repo_integrity())
+    pub fn validate(&self) -> LbResult<Vec<Warning>> {
+        self.block_on(self.lb.test_repo_integrity())
     }
 
     pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> LbResult<()> {
@@ -269,7 +267,7 @@ impl Lb {
     pub fn upgrade_account_google_play(
         &self, purchase_token: &str, account_id: &str,
     ) -> LbResult<()> {
-        block_on(
+        self.block_on(
             self.lb
                 .upgrade_account_google_play(purchase_token, account_id),
         )
@@ -278,58 +276,58 @@ impl Lb {
     pub fn upgrade_account_app_store(
         &self, original_transaction_id: String, app_account_token: String,
     ) -> LbResult<()> {
-        block_on(
+        self.block_on(
             self.lb
                 .upgrade_account_app_store(original_transaction_id, app_account_token),
         )
     }
 
     pub fn cancel_subscription(&self) -> LbResult<()> {
-        block_on(self.lb.cancel_subscription())
+        self.block_on(self.lb.cancel_subscription())
     }
 
     pub fn get_subscription_info(&self) -> LbResult<Option<SubscriptionInfo>> {
-        block_on(self.lb.get_subscription_info())
+        self.block_on(self.lb.get_subscription_info())
     }
 
     pub fn delete_account(&self) -> LbResult<()> {
-        block_on(self.lb.delete_account())
+        self.block_on(self.lb.delete_account())
     }
 
     pub fn admin_disappear_account(&self, username: &str) -> LbResult<()> {
-        block_on(self.lb.disappear_account(username))
+        self.block_on(self.lb.disappear_account(username))
     }
 
     pub fn admin_disappear_file(&self, id: Uuid) -> LbResult<()> {
-        block_on(self.lb.disappear_file(id))
+        self.block_on(self.lb.disappear_file(id))
     }
 
     pub fn admin_list_users(&self, filter: Option<AccountFilter>) -> LbResult<Vec<Username>> {
-        block_on(self.lb.list_users(filter))
+        self.block_on(self.lb.list_users(filter))
     }
 
     pub fn admin_get_account_info(&self, identifier: AccountIdentifier) -> LbResult<AccountInfo> {
-        block_on(self.lb.get_account_info(identifier))
+        self.block_on(self.lb.get_account_info(identifier))
     }
 
     pub fn admin_validate_account(&self, username: &str) -> LbResult<AdminValidateAccount> {
-        block_on(self.lb.validate_account(username))
+        self.block_on(self.lb.validate_account(username))
     }
 
     pub fn admin_validate_server(&self) -> LbResult<AdminValidateServer> {
-        block_on(self.lb.validate_server())
+        self.block_on(self.lb.validate_server())
     }
 
     pub fn admin_file_info(&self, id: Uuid) -> LbResult<AdminFileInfoResponse> {
-        block_on(self.lb.file_info(id))
+        self.block_on(self.lb.file_info(id))
     }
 
     pub fn admin_rebuild_index(&self, index: ServerIndex) -> LbResult<()> {
-        block_on(self.lb.rebuild_index(index))
+        self.block_on(self.lb.rebuild_index(index))
     }
 
     pub fn admin_set_user_tier(&self, username: &str, info: AdminSetUserTierInfo) -> LbResult<()> {
-        block_on(self.lb.set_user_tier(username, info))
+        self.block_on(self.lb.set_user_tier(username, info))
     }
 
     pub fn debug_info(&self, os_info: String) -> String {

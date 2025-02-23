@@ -1,3 +1,0 @@
-[submodule "public_site/blog/themes/themes/hacker"]
-	path = public_site/blog/themes/themes/hacker
-	url = git@github.com:en9inerd/zola-hacker.git

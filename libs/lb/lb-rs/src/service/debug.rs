@@ -1,19 +1,24 @@
-use crate::model::clock;
 use crate::model::errors::LbResult;
 use crate::Lb;
-use crate::{get_code_version, service::logging::LOG_FILE};
-use basic_human_duration::ChronoHumanDuration;
-use chrono::NaiveDateTime;
+
 use serde::Serialize;
-use std::env;
-use std::io::SeekFrom;
-use std::path::{Path, PathBuf};
-use time::Duration;
+#[cfg(not(target_family = "wasm"))]
+use {
+    crate::model::clock,
+    crate::{get_code_version, service::logging::LOG_FILE},
+    basic_human_duration::ChronoHumanDuration,
+    chrono::NaiveDateTime,
+};
 
 #[cfg(not(target_family = "wasm"))]
-use tokio::{
-    fs::{self, File},
-    io::{AsyncReadExt, AsyncSeekExt},
+use {
+    std::env,
+    std::io::SeekFrom,
+    std::path::{Path, PathBuf},
+    tokio::{
+        fs::{self, File},
+        io::{AsyncReadExt, AsyncSeekExt},
+    },
 };
 
 #[derive(Serialize)]
@@ -33,15 +38,7 @@ pub struct DebugInfo {
 
 #[cfg(target_family = "wasm")]
 impl Lb {
-    async fn tail_log(&self) -> LbResult<String> {
-        Ok("NO LOGS FOUND".to_string())
-    }
-
-    async fn find_most_recent_panic_log(&self) -> LbResult<String> {
-        Ok("NO LOGS FOUND".to_string())
-    }
-
-    pub async fn debug_info(&self, os_info: String) -> LbResult<String> {
+    pub async fn debug_info(&self, _os_info: String) -> LbResult<String> {
         Ok("NO LOGS FOUND".to_string())
     }
 }
@@ -77,7 +74,7 @@ impl Lb {
         let last_synced = *db.last_synced.get().unwrap_or(&0);
 
         if last_synced != 0 {
-            Duration::milliseconds(clock::get_time().0 - last_synced)
+            time::Duration::milliseconds(clock::get_time().0 - last_synced)
                 .format_human()
                 .to_string()
         } else {

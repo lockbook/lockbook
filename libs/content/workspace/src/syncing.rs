@@ -5,7 +5,6 @@ use tracing::{debug, error};
 
 use crate::task_manager::{CompletedSync, CompletedSyncStatusUpdate};
 use crate::workspace::Workspace;
-use web_time::Instant;
 
 impl Workspace {
     pub fn sync_done(&mut self, outcome: CompletedSync) {

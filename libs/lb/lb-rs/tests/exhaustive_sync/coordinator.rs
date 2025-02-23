@@ -1,4 +1,5 @@
 use super::{trial::Trial, trial_cache::TrialCache, worker::Worker};
+use std::time::Instant;
 use std::{
     collections::HashMap,
     fs,
@@ -8,7 +9,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 use uuid::Uuid;
-use web_time::Instant;
 
 pub type ThreadID = usize;
 pub type TrialID = Uuid;

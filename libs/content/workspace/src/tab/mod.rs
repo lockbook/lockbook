@@ -177,6 +177,7 @@ impl TabContent {
             TabContent::Markdown(md) => Some(md.file_id),
             TabContent::Svg(svg) => Some(svg.open_file),
             TabContent::Image(image_viewer) => Some(image_viewer.id),
+            #[cfg(not(target_family = "wasm"))]
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
             TabContent::MindMap(_) => None,
         }

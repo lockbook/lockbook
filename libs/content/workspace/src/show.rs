@@ -10,10 +10,8 @@ use egui::{
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
 use std::mem;
-use std::sync::atomic::Ordering;
-use web_time::{Duration, Instant};
 use tracing::instrument;
-
+use web_time::{Duration, Instant};
 
 use crate::output::Response;
 use crate::tab::{image_viewer, ContentState, Tab, TabContent};

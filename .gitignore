@@ -109,4 +109,6 @@ libs/content/workspace-ffi/SwiftWorkspace/Libs/
 libs/content/workspace-ffi/include/
 clients/apple/lockbook.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
-public_site/dist
+# website
+public-site/public
+public-site/templates/base.html
