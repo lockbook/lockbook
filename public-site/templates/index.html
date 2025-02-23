@@ -16,7 +16,7 @@
 
 
   <!-- the id is hardcoded in main.rs. change with caution  -->
-   <div class="max-w-[38rem] m-auto mt-40 border  h-[40rem] mb-10 relative">
+   <div class="max-w-[38rem] m-auto mt-40  h-[40rem] mb-10 relative">
       <canvas id="editor_demo" class="w-full h-full"></canvas>
       <!-- <input  type="text" class="absolute top-0 w-full h-full "/> -->
       <span class="absolute top-0 left-0 w-full h-full pointer-events-none  bg-[linear-gradient(to_top,_theme('colors.abyss.900')_2%,_transparent_30%)]"></span>
@@ -43,7 +43,7 @@
       </div>
   </div>
   
-  <div class="w-full  m-auto mt-40 border  h-[40rem] relative">
+  <div class="w-full  m-auto mt-40  h-[40rem] relative">
       <canvas id="canvas_demo" class="w-full h-full"></canvas>
   </div>
 
@@ -74,7 +74,7 @@
         </div>
       </div>
   </div>
-
+  
 
   <div class="pb-32 max-sm:pb-0 bg-[linear-gradient(30deg,_theme('colors.abyss.900'),_theme('colors.abyss.400')_90%)]  text-egshell" id="pricing">
     <div class="px-3 text-center max-sm:text-left">
@@ -113,9 +113,64 @@
               <a href="#" class="px-6 py-2 text-sm bg-abyss-900 text-surfline" id="paid-download" >Purchase in app</a>
           </div>
       </div>
-
   </div>
   
+
+  <div class="pb-56 bg-abyss-900 text-egshell max-sm:pb-32">
+    <div class="px-3 text-center max-sm:text-left">
+        <h2 class="pt-24 text-2xl font-bold ">Project roadmap</h2>
+        <h3 class="mt-2 mb-20">Lockbook is in its infancy. Here's what we accomplished and what we'll deliver</h3>
+    </div>
+
+    <div class="flex justify-between max-w-6xl px-3 mx-auto max-sm:flex-col">
+        <div>
+            <div class="relative">
+                <h4 class="text-lg font-bold ">Completed</h4>
+                <h5 class="text-xs mb-9 font-extralight">polished and reliable features</h5>
+                <span class="pointer-events-none  w-96 h-96  left-0 top-0 absolute transform  -translate-x-[45%] -translate-y-[50%] bg-[radial-gradient(at_center,green_-80%,_transparent_30%)]"></span>
+            </div>
+            <ul class="text-xs list-inside font-extralight">
+                <li class="mt-4 before:content-['✓'] before:pr-2 before:text-green-600 ">Sharing and collaboration</li>
+                <li class="mt-4 before:content-['✓'] before:pr-2 before:text-green-600">Markdown support</li>
+                <li class="mt-4 before:content-['✓'] before:pr-2 before:text-green-600">PDF preview</li>
+                <li class="mt-4 before:content-['✓'] before:pr-2 before:text-green-600">Offline mode</li>
+                <li class="mt-4 before:content-['✓'] before:pr-2 before:text-green-600">Files importing</li>
+            </ul>  
+        </div> 
+
+        <div class="mt-28 max-sm:mt-20">
+            <div class="relative">
+                <h4 class="text-lg font-bold ">In development</h4>
+                <h5 class="text-xs mb-9 font-extralight">still in beta. expect some bugs</h5>
+                <span class="pointer-events-none  w-96 h-96  left-0 top-0 absolute transform  -translate-x-[45%] -translate-y-[50%] bg-[radial-gradient(at_center,orange_-160%,_transparent_30%)]"></span>
+            </div>
+            <ul class="text-xs list-inside font-extralight">
+                <li class="mt-4 before:content-['◍'] before:pr-2 before:text-yellow-700 ">Sharing and collaboration</li>
+                <li class="mt-4 before:content-['◍'] before:pr-2 before:text-yellow-700">Markdown support</li>
+                <li class="mt-4 before:content-['◍'] before:pr-2 before:text-yellow-700">PDF preview</li>
+                <li class="mt-4 before:content-['◍'] before:pr-2 before:text-yellow-700">Offline mode</li>
+                <li class="mt-4 before:content-['◍'] before:pr-2 before:text-yellow-700">Files importing</li>
+            </ul>  
+        </div> 
+
+        <div class="max-sm:mt-20">
+            <div class="relative">
+                <h4 class="text-lg font-bold ">Coming soon</h4>
+                <h5 class="text-xs mb-9 font-extralight">currently cooking.</h5>
+                <span class="pointer-events-none  w-96 h-96  left-0 top-0 absolute transform  -translate-x-[45%] -translate-y-[50%] bg-[radial-gradient(at_center,_theme('colors.surfline')_-160%,_transparent_30%)]"></span>
+            </div>
+            <ul class="text-xs list-inside font-extralight">
+                <li class="mt-4 before:content-['➤'] before:pr-2 before:text-surfline">Sharing and collaboration</li>
+                <li class="mt-4 before:content-['➤'] before:pr-2 before:text-surfline">Markdown support</li>
+                <li class="mt-4 before:content-['➤'] before:pr-2 before:text-surfline">PDF preview</li>
+                <li class="mt-4 before:content-['➤'] before:pr-2 before:text-surfline">Offline mode</li>
+                <li class="mt-4 before:content-['➤'] before:pr-2 before:text-surfline">Files importing</li>
+            </ul>  
+        </div> 
+    </div>
+
+</div>
+
   <div class="relative py-20 pl-24 max-sm:px-3 text-egshell" id="download">
       <h1 class="text-4xl font-bold mb-28 max-sm:text-3xl">Join the community</h1>
       <div class="flex items-center max-sm:items-start max-sm:flex-col " id="download-center">

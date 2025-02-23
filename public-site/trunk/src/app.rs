@@ -1,7 +1,3 @@
-use std::sync::Arc;
-
-use egui::{FontData, FontFamily};
-use futures::executor::block_on;
 use lb_rs::{blocking::Lb, model::core_config::Config, Uuid};
 use workspace_rs::{
     tab::{markdown_editor::Editor, svg_editor::SVGEditor},
@@ -13,7 +9,6 @@ pub struct LbWebApp {
     workspace: Workspace,
     editor: Option<Editor>,
     canvas: Option<SVGEditor>,
-    label: String,
     initial_screen: InitialScreen,
 }
 
@@ -58,11 +53,10 @@ impl LbWebApp {
         ctx.set_fonts(fonts);
         ctx.set_zoom_factor(0.9);
 
-        ctx.set_visuals(generate_visuals(&ctx));
+        ctx.set_visuals(generate_visuals());
 
         Self {
             workspace: Workspace::new(config, &lb, &ctx),
-            label: "hey there".to_owned(),
             editor: None,
             canvas: None,
             initial_screen,
@@ -70,7 +64,7 @@ impl LbWebApp {
     }
 }
 
-fn generate_visuals(ctx: &egui::Context) -> egui::Visuals {
+fn generate_visuals() -> egui::Visuals {
     let mut visuals = egui::Visuals::dark();
     visuals.extreme_bg_color = egui::Color32::from_hex("#242B30").unwrap();
     visuals.code_bg_color = egui::Color32::from_hex("#DF5F28").unwrap();
@@ -81,12 +75,6 @@ fn generate_visuals(ctx: &egui::Context) -> egui::Visuals {
 }
 
 impl eframe::App for LbWebApp {
-    /// Called by the frame work to save state before shutdown.
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        // maybe persist the demo document here.
-        // eframe::set_value(storage, eframe::APP_KEY, self);
-    }
-
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default()
