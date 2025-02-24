@@ -1,5 +1,5 @@
 # The URL the site will be built for
-base_url = "http://localhost:5500"
+base_url = "/"
 
 # Whether to automatically compile all Sass files in the sass directory
 compile_sass = false

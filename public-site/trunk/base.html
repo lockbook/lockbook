@@ -21,6 +21,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&display=swap" rel="stylesheet" />
     
+
+    <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+    <link rel="manifest" href="/favicon/site.webmanifest" />
+
     <style>
         html {
             /* Remove touch delay: */
@@ -185,6 +192,52 @@
           color: #999;
       }
   }
+
+    .lds-ring {
+        /* change color here */
+        color: #f0ebe7
+    }
+    .lds-ring,
+    .lds-ring div {
+    box-sizing: border-box;
+    }
+    .lds-ring {
+    display: inline-block;
+    position: relative;
+    width: 60px;
+    height: 77px;
+    transform: scale(0.3);
+    }
+    .lds-ring div {
+    box-sizing: border-box;
+    display: block;
+    position: absolute;
+    width: 64px;
+    height: 64px;
+    margin: 8px;
+    border: 8px solid currentColor;
+    border-radius: 50%;
+    animation: lds-ring 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+    border-color: currentColor transparent transparent transparent;
+    }
+    .lds-ring div:nth-child(1) {
+    animation-delay: -0.45s;
+    }
+    .lds-ring div:nth-child(2) {
+    animation-delay: -0.3s;
+    }
+    .lds-ring div:nth-child(3) {
+    animation-delay: -0.15s;
+    }
+    @keyframes lds-ring {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+    }
+
   </style>
   
 </html>

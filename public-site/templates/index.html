@@ -17,8 +17,13 @@
 
   <!-- the id is hardcoded in main.rs. change with caution  -->
    <div class="max-w-[38rem] m-auto mt-40  h-[40rem] mb-10 relative">
-      <canvas id="editor_demo" class="w-full h-full"></canvas>
-      <!-- <input  type="text" class="absolute top-0 w-full h-full "/> -->
+      <canvas id="editor-demo" class="w-full h-full"></canvas>
+      <div class="absolute top-0 left-0 w-full h-full p-12 text-center bg-abyss-400 text-egshell" id="editor-loading"> 
+        <div class="flex items-center justify-center">
+            <p>Editor Demo</p>
+            <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
+        </div>
+      </div>
       <span class="absolute top-0 left-0 w-full h-full pointer-events-none  bg-[linear-gradient(to_top,_theme('colors.abyss.900')_2%,_transparent_30%)]"></span>
   </div>
 
@@ -43,8 +48,21 @@
       </div>
   </div>
   
-  <div class="w-full  m-auto mt-40  h-[40rem] relative">
-      <canvas id="canvas_demo" class="w-full h-full"></canvas>
+  <div class="w-full m-auto mt-40  h-[40rem] relative">
+    <div class="flex h-full">
+        <div class="w-[15vw] bg-[linear-gradient(90deg,_theme('colors.abyss.900'),_theme('colors.abyss.400'))]"></div>
+        <div class="w-[70vw]">
+            <canvas id="canvas_demo" class="w-full h-full"></canvas>
+        </div>
+        <div class="w-[15vw] bg-[linear-gradient(-90deg,_theme('colors.abyss.900'),_theme('colors.abyss.400'))]"></div>
+    </div>  
+      
+      <div class="absolute top-0 left-0 w-full h-full p-12 text-center bg-abyss-400 text-egshell" id="canvas-loading"> 
+        <div class="flex items-center justify-center">
+            <p>Canvas Demo</p>
+            <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
+        </div>
+      </div>
   </div>
 
   <div class="bg-abyss-900 text-egshell">
