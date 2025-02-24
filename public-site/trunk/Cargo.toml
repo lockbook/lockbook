@@ -22,25 +22,7 @@ workspace = { path = "../../libs/content/workspace" }
 lb-rs = {path = "../../libs/lb/lb-rs", features=["no-network"]}
 futures = "0.3.30"
 
-# native:
-
-# web:
 wasm-bindgen-futures = "0.4"
-# web-sys = { version="0.3.58", features=[
-#     "FontFaceSet",
-#     "Window",
-#     "Document",
-#     "FontFace",
-#     "FontFaceDescriptors",
-#     "FontFaceLoadStatus",
-#     "FontFaceSet",
-#     "FontFaceSetIterator",
-#     "FontFaceSetIteratorResult",
-#     "FontFaceSetLoadEvent",
-#     "FontFaceSetLoadEventInit",
-#     "FontFaceSetLoadStatus"
-# ]}
-
 
 [profile.release]
 opt-level = 2 # fast and small wasm
@@ -48,3 +30,8 @@ opt-level = 2 # fast and small wasm
 # Optimize all dependencies even in debug builds:
 [profile.dev.package."*"]
 opt-level = 2
+
+
+
+[build]
+rustflags = ["--cfg", "web_sys_unstable_apis"]

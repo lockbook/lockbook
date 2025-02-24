@@ -2,3 +2,4 @@
 target = "base.html"
 html_output = "base.html"
 dist = "../trunk-build"
+minify = "on_release"
