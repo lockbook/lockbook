@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+
 cd "$(dirname "$0")"
 
 cd trunk && trunk build  && mv ../trunk-build/index.html ../templates/base.html
