@@ -1,23 +1,87 @@
-use crate::Lb;
+use std::sync::Arc;
 
-pub struct Status {
-    pub offline: bool,
-    pub pending_shares: bool,
-    
-    pub local_status: Option<LocalStatus>,
-    pub sync_status: Option<SyncStatus>,
+use tokio::sync::RwLock;
+use uuid::Uuid;
 
-    pub space_used: Option<UsageInfo>,
+use crate::{
+    service::{
+        events::Event,
+        usage::{UsageItemMetric, UsageMetrics},
+    },
+    Lb,
+};
+
+#[derive(Clone, Default)]
+pub struct StatusUpdater {
+    current_status: Arc<RwLock<Status>>,
 }
 
-pub struct LocalStatus {}
+#[derive(Default)]
+pub struct Status {
+    pub offline: bool,
+    pub out_of_space: bool,
+    pub pending_shares: bool,
 
-pub struct SyncStatus {}
+    pub local_status: Option<LocalStatus>,
+    pub sync_status: Option<SyncStatus>,
+    pub space_used: Option<SpaceStatus>,
+}
 
-pub struct UsageInfo {}
+pub struct LocalStatus {
+    pub dirty_locally: Vec<Uuid>,
+    pub updates_available: Vec<Uuid>,
+}
+
+pub enum SyncStatus {
+    FetchingMetadata,
+    PushingMetadata,
+    SyncingDocuments {
+        pushes_queued: Vec<Uuid>,
+        pushes_progress: Vec<Uuid>,
+        pushes_completed: Vec<Uuid>,
+
+        pulls_queued: Vec<Uuid>,
+        pulls_progress: Vec<Uuid>,
+        pulls_completed: Vec<Uuid>,
+    },
+    CleaningUp,
+    LastSynced {
+        ts: i64,
+        desc: String,
+    },
+}
+
+pub struct SpaceStatus {
+    // todo: should this move over to usage?
+    pub unsynced_changes: UsageItemMetric,
+    pub server_usage: UsageItemMetric,
+    pub data_cap: UsageItemMetric,
+}
 
 impl Lb {
     fn status(&self) -> Status {
+        todo!()
+    }
+
+    pub fn setup_status(&self) {
+        let mut rx = self.subscribe();
+
+        tokio::spawn(async move {
+            loop {
+                let evt = match rx.recv().await {
+                    Ok(evt) => evt,
+                    Err(err) => {
+                        error!("failed to receive from a channel {err}");
+                        return;
+                    }
+                };
+
+                match evt {
+                    Event::MetadataChanged(_) => todo!(),
+                    Event::DocumentWritten(_) => todo!(),
+                }
+            }
+        });
     }
 }
 
@@ -28,3 +92,6 @@ impl Lb {
 // some of these fields can invalidate one another
 // offline for example can invalidate the other statuses, and it's nice to
 // centrally manage that data dependency here
+//
+// we should now be able to communicate status excellently
+//

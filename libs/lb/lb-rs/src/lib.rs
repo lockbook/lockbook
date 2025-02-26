@@ -34,6 +34,7 @@ pub struct Lb {
     pub client: Network,
     pub events: EventSubs,
     pub syncing: Arc<AtomicBool>,
+    pub status: StatusUpdater,
 }
 
 impl Lb {
@@ -48,11 +49,14 @@ impl Lb {
         let docs = AsyncDocs::from(&config);
         let client = Network::default();
         let search = SearchIndex::default();
+        let status = StatusUpdater::default();
         let syncing = Arc::default();
         let events = EventSubs::default();
 
-        let result = Self { config, keychain, db, docs, client, search, syncing, events };
+        let result = Self { config, keychain, db, docs, client, search, syncing, events, status };
+        
         result.setup_search();
+        result.setup_status();
         Ok(result)
     }
 }
@@ -74,8 +78,9 @@ use model::core_config::Config;
 use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
 use service::keychain::Keychain;
-use subscribers::search::SearchIndex;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use subscribers::search::SearchIndex;
+use subscribers::status::{Status, StatusUpdater};
 use tokio::sync::RwLock;
 pub use uuid::Uuid;
