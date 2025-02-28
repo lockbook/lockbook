@@ -343,7 +343,7 @@ impl MindMap {
             let info = &URL_NAME_STORE.lock().unwrap().clone();
             let completed = info.iter().any(|item| item.found);
             if completed {
-                println!("done2");
+                // println!("done2");
                 self.urls_complete = true;
                 self.populate_url_titles();
             }
@@ -418,14 +418,14 @@ impl MindMap {
             if node.title.ends_with(".md") {
                 outline_color = Color32::LIGHT_BLUE;
                 text = node.title.trim_end_matches(".md").to_string();
-            }
-            if text.ends_with(")") {
-                text = text.trim_end_matches(")").to_string();
-            }
-            text = truncate_after_second_punct(&text);
-            if self.names_uploaded {
+
+                if text.ends_with(")") {
+                    text = text.trim_end_matches(")").to_string();
+                }
+            } else if self.names_uploaded {
                 text = self.url_titles[i].clone();
             }
+            text = truncate_after_second_punct(&text);
             if node.cluster_id.is_some() {
                 let pos = transformed_positions[i];
                 ui.painter().circle(
@@ -485,13 +485,11 @@ impl MindMap {
 
     fn populate_url_titles(&mut self) {
         let info = URL_NAME_STORE.lock().unwrap();
-        let mut count = 0;
         for item in info.iter() {
-            self.url_titles[count] = item.name.clone();
-            count += 1;
+            self.url_titles[item.id] = item.name.clone();
         }
         self.names_uploaded = true;
-        println!("{:?} this is some stuff", self.url_titles);
+        // println!("{:?} this is some stuff", self.url_titles);
     }
 
     pub fn label_subgraphs(&mut self) {
@@ -732,20 +730,76 @@ fn intersect_stuff(from: Pos2, to: Pos2, size: f32, zero: bool) -> Pos2 {
 
     intersect
 }
-fn truncate_after_second_punct(text: &str) -> String {
-    let mut punct_count = 0;
-    let len = text.len();
-    for (i, c) in text.char_indices() {
-        // if c == '.' || c == '?' || c == '-' {
-        if c == '?' {
-            punct_count += 1;
-            if punct_count == 1 {
-                if i == len && c == '/' {
-                    return text[..=i - 1].to_string();
-                }
-                return text[..=i - 1].to_string();
-            }
+
+fn remove_words_with_backslash(text: &str) -> String {
+    // If the entire text is just one word (no spaces), return it as-is.
+    if text.split_whitespace().count() == 1 {
+        return text.to_string();
+    }
+
+    // Otherwise, filter out any words that contain '\' or '/'.
+    text.split_whitespace()
+        .filter(|word| !word.contains('\\') && !word.contains('/'))
+        .collect::<Vec<&str>>()
+        .join(" ")
+}
+
+fn rearrange_last_word(text: &str) -> String {
+    // Helper closure to check if a candidate is exactly one word with no trailing spaces.
+    let is_exact_single_word = |s: &str| {
+        let trimmed = s.trim();
+        // Check that there's exactly one word...
+        trimmed.split_whitespace().count() == 1
+        // ...and that there are no trailing spaces after trimming.
+        && s == s.trim_end()
+    };
+
+    // Check for the " · " separator first.
+    if let Some(pos) = text.rfind(" · ") {
+        let separator = " · ";
+        let first_part = &text[..pos];
+        let last_part = &text[pos + separator.len()..];
+        if is_exact_single_word(last_part) {
+            return format!("{}{}{}", last_part.trim(), separator, first_part.trim());
         }
     }
+    // Otherwise, check for the " - " separator.
+    if let Some(pos) = text.rfind(" - ") {
+        let separator = " - ";
+        let first_part = &text[..pos];
+        let last_part = &text[pos + separator.len()..];
+        if is_exact_single_word(last_part) {
+            return format!("{}{}{}", last_part.trim(), separator, first_part.trim());
+        }
+    }
+
     text.to_string()
+}
+
+fn truncate_after_second_punct(text: &str) -> String {
+    let mut punct_count = 0;
+    let mut number_count = 0;
+    let mut number_space = 0;
+    let mut return_meet = false;
+    let text = rearrange_last_word(&text);
+    let text = remove_words_with_backslash(&text);
+    for (i, c) in text.char_indices() {
+        if c.is_numeric() {
+            number_count += 1;
+        }
+        if c == ' ' {
+            number_space += 1;
+        }
+        if c == '?' || c == '/' || c == ',' {
+            punct_count += 1;
+        }
+        return_meet = return_meet || punct_count > 2 || number_count > 3 || number_space > 5;
+        if return_meet {
+            // When our condition is met, truncate the text up to and including this character
+            return text[..i].to_owned();
+            // Now, if the truncated text ends with a separator and a word, rearrange it
+        }
+    }
+    text
+    // If no truncation condition was met, still check the entire text
 }

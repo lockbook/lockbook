@@ -1,7 +1,6 @@
 use lb_rs::{blocking::Lb, Uuid};
 use linkify::{LinkFinder, LinkKind};
-use regex::Regex;
-use reqwest::Client;
+use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicIsize;
@@ -208,7 +207,7 @@ pub fn start_extraction_names() {
     let mut handles = vec![];
 
     const NUM_WORKERS: usize = 100;
-    for _ in 0..NUM_WORKERS {
+    for _ in 0..link_infos.len() {
         let queue = queue.clone();
         handles.push(rt.spawn(async move {
             // Atomically grab a work unit from the queue
@@ -220,11 +219,18 @@ pub fn start_extraction_names() {
             // Perform the work and put the results directly into the global store
             let index = (index - 1) as usize;
             let clone = URL_NAME_STORE.lock().unwrap().clone();
-            if let Ok(name) = get_url_names(&clone[index].url).await {
-                // Update the global store with the result, re-locking as to not hold a lock across an await
-                let mut store = URL_NAME_STORE.lock().unwrap();
-                store[index].found = true;
-                store[index].name = name;
+            let name = fetch_title(&clone[index].url).await;
+            match name {
+                Ok(name) => {
+                    // Update the global store with the result, re-locking as to not hold a lock across an await
+                    let mut store = URL_NAME_STORE.lock().unwrap();
+                    store[index].found = true;
+                    store[index].name = name.clone();
+                    println!("{}", name.clone());
+                }
+                Err(name) => {
+                    println!("{:?}", name)
+                }
             }
         }));
     }
@@ -236,23 +242,61 @@ pub fn start_extraction_names() {
         }
     });
     DONE.store(true, Ordering::SeqCst);
+    // let link_infos: Vec<LinkInfo> = URL_NAME_STORE.lock().unwrap().clone();
+    // println!("{:?}\n", link_infos);
 }
 
-async fn get_url_names(
-    url: &str,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync + 'static>> {
-    let client = Client::builder()
-        .timeout(Duration::from_millis(1000))
+use reqwest;
+
+async fn fetch_title(url: &str) -> Result<String, Box<dyn std::error::Error>> {
+    // Normalize the URL: if it doesn't start with "http" or "https", add "http://"
+    let normalized_url = if url.starts_with("http://") || url.starts_with("https://") {
+        url.to_string()
+    } else {
+        format!("https://{}", url)
+    };
+    // println!("{}", normalized_url);
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .user_agent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+                     AppleWebKit/537.36 (KHTML, like Gecko) \
+                     Chrome/115.0 Safari/537.36",
+        )
         .build()?;
 
-    let response = client.get(url).send().await?;
-    let body = response.bytes().await?;
-    let title_re = Regex::new(r"<title>(.*?)</title>")?;
+    let response = client
+        .get(&normalized_url)
+        .header("Accept-Language", "en-US,en;q=0.9")
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        .send()
+        .await?;
 
-    let title = match title_re.captures(&String::from_utf8_lossy(&body)) {
-        Some(caps) => caps[1].trim().to_string(),
-        None => url.to_owned(),
-    };
+    if !response.status().is_success() {
+        // Return the normalized URL if the request fails
+        // println!("{}", normalized_url);
+        return Ok(normalized_url);
+    }
 
-    Ok(title)
+    let body = response.text().await?;
+    let document = Html::parse_document(&body);
+
+    // Look for the first <title> tag
+    let title_selector = Selector::parse("title").unwrap();
+    if let Some(title_elem) = document.select(&title_selector).next() {
+        let title = title_elem
+            .text()
+            .collect::<Vec<_>>()
+            .join("")
+            .trim()
+            .to_string();
+        if !title.is_empty() {
+            return Ok(title);
+        } else {
+            // println!("{}", normalized_url);
+        }
+    }
+
+    // If no title found, return the normalized URL
+    Ok(normalized_url)
 }
