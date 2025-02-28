@@ -21,10 +21,9 @@ use crate::{
     service::{
         activity::RankingWeights,
         import_export::{ExportFileInfo, ImportStatus},
-        search::{SearchConfig, SearchResult},
         sync::{SyncProgress, SyncStatus},
         usage::{UsageItemMetric, UsageMetrics},
-    },
+    }, subscribers::search::{SearchConfig, SearchResult},
 };
 
 #[derive(Clone)]

@@ -20,11 +20,11 @@ use lb_rs::{
     },
     service::{
         activity::RankingWeights,
-        search::{SearchConfig, SearchResult},
         sync::{SyncProgress, SyncStatus},
         usage::{UsageItemMetric, UsageMetrics},
     },
 };
+use subscribers::search::{SearchConfig, SearchResult};
 
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
