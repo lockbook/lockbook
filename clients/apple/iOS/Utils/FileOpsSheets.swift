@@ -14,7 +14,6 @@ extension View {
 struct FileOpSheets: ViewModifier {
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
     @EnvironmentObject var homeState: HomeState
-    @EnvironmentObject var filesModel: FilesViewModel
     
     @ObservedObject var workspaceState: WorkspaceState
     
@@ -36,10 +35,6 @@ struct FileOpSheets: ViewModifier {
                             .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
                     }
                 }
-                .sheet(item: $homeState.selectSheetInfo) { action in
-                    SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)
-                        .presentationDetents([.medium, .large])
-                }
         } else {
             content
                 .formSheet(item: $homeState.sheetInfo) { info in
@@ -55,6 +50,33 @@ struct FileOpSheets: ViewModifier {
                             .frame(width: ShareFileSheet.FORM_WIDTH, height: ShareFileSheet.FORM_HEIGHT)
                     }
                 }
+        }
+    }
+}
+
+extension View {
+    func selectFolderSheets() -> some View {
+        modifier(SelectFolderSheets())
+    }
+}
+
+
+struct SelectFolderSheets: ViewModifier {
+    @Environment(\.isConstrainedLayout) var isConstrainedLayout
+
+    @EnvironmentObject var filesModel: FilesViewModel
+    @EnvironmentObject var homeState: HomeState
+
+    func body(content: Content) -> some View {
+        if isConstrainedLayout {
+            content
+                .sheet(item: $homeState.selectSheetInfo) { action in
+                    SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)
+                        .presentationDetents([.medium, .large])
+                }
+
+        } else {
+            content
                 .sheet(item: $homeState.selectSheetInfo) { action in
                     SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)
                 }

@@ -139,7 +139,7 @@ class RenameFileViewModel: ObservableObject {
             height: RenameFileSheet.FORM_HEIGHT,
             presentedContent: { item in
                 RenameFileSheet(
-                    homeState: HomeState(),
+                    homeState: HomeState(workspaceState: WorkspaceState()),
                     workspaceState: WorkspaceState(),
                     id: item.id,
                     name: item.name

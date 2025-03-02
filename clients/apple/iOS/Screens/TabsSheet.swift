@@ -15,7 +15,7 @@ struct TabsSheet: View {
             }, label: {
                 HStack {
                     Image(systemName: "xmark.circle")
-                        .foregroundColor(.primary)
+                        .foregroundColor(.red)
                         .imageScale(.medium)
                         .padding(.trailing)
                     
@@ -38,6 +38,15 @@ struct TabsSheet: View {
                     workspaceState.requestOpenDoc(info.id)
                 }, label: {
                     HStack {
+                        Button(action: {
+                            print("closing")
+                        }, label: {
+                            Image(systemName: "xmark.circle")
+                                .foregroundColor(.red)
+                                .imageScale(.medium)
+                                .padding(.trailing)
+                        })
+                        
                         Image(systemName: FileIconHelper.docNameToSystemImageName(name: info.name))
                             .foregroundColor(.primary)
                             .imageScale(.medium)
@@ -74,14 +83,14 @@ struct TabsSheet: View {
     Color.accentColor
         .optimizedSheet(
             item: $sheetInfo,
-            constrainedSheetHeight: .constant(200),
+            constrainedSheetHeight: .constant(100),
             presentedContent: { item in
                 TabsSheet(
                     info: item.info
                 )
             }
         )
-        .environmentObject(HomeState())
+        .environmentObject(HomeState(workspaceState: WorkspaceState()))
         .environmentObject(WorkspaceState())
 }
 #endif

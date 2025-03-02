@@ -206,12 +206,273 @@ impl Workspace {
         }
     }
 
-    /// Makes the tab with the given id the current tab, if it exists. Returns true if the tab exists.
-    pub fn make_current_by_id(&mut self, id: Uuid) -> bool {
-        if let Some(i) = self.tabs.iter().position(|t| t.id() == Some(id)) {
-            self.make_current(i)
-        } else {
-            false
+    fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+            ui.add_space(ui.clip_rect().height() / 3.0);
+            ui.add(self.backdrop.clone().fit_to_exact_size(vec2(100.0, 100.0)));
+
+            ui.label(egui::RichText::new("Welcome to your Lockbook").size(40.0));
+            ui.label(
+                "Right click on your file tree to explore all that your lockbook has to offer",
+            );
+
+            ui.add_space(40.0);
+
+            ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
+            ui.visuals_mut().widgets.hovered.bg_fill = ui.visuals().widgets.active.bg_fill;
+
+            let text_stroke =
+                egui::Stroke { color: ui.visuals().extreme_bg_color, ..Default::default() };
+            ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
+            ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
+            ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+
+            if Button::default()
+                .text("New document")
+                .rounding(egui::Rounding::same(3.0))
+                .frame(true)
+                .show(ui)
+                .clicked()
+            {
+                self.create_file(false);
+            }
+            if Button::default()
+                .text("New drawing")
+                .rounding(egui::Rounding::same(3.0))
+                .frame(true)
+                .show(ui)
+                .clicked()
+            {
+                self.create_file(true);
+            }
+            ui.visuals_mut().widgets.inactive.fg_stroke =
+                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+            ui.visuals_mut().widgets.hovered.fg_stroke =
+                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+            if Button::default().text("New folder").show(ui).clicked() {
+                self.out.new_folder_clicked = true;
+            }
+        });
+    }
+
+    fn show_tabs(&mut self, ui: &mut egui::Ui) {
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+
+        ui.vertical(|ui| {
+            if !self.tabs.is_empty() {
+                if self.show_tabs {
+                    self.show_tab_strip(ui);
+                } else if matches!(ui.ctx().os(), OperatingSystem::Android) {
+                    self.show_mobile_title(ui);
+                }
+            }
+
+            ui.centered_and_justified(|ui| {
+                let mut rename_req = None;
+                if let Some(tab) = self.tabs.get_mut(self.active_tab) {
+                    if let Some(fail) = &tab.failure {
+                        match fail {
+                            TabFailure::DeletedFromSync => {
+                                ui.vertical_centered(|ui| {
+                                    ui.add_space(50.0);
+                                    ui.label(format!(
+                                        "This file ({}) was deleted after syncing.",
+                                        tab.path
+                                    ));
+                                });
+                            }
+                            TabFailure::SimpleMisc(msg) => {
+                                ui.label(msg);
+                            }
+                            TabFailure::Unexpected(msg) => {
+                                ui.label(msg);
+                            }
+                        };
+                    } else if let Some(content) = &mut tab.content {
+                        match content {
+                            TabContent::Markdown(md) => {
+                                let resp = md.show(ui);
+                                // The editor signals a text change when the buffer is initially
+                                // loaded. Since we use that signal to trigger saves, we need to
+                                // check that this change was not from the initial frame.
+                                if resp.text_updated && md.past_first_frame() {
+                                    tab.last_changed = Instant::now();
+                                }
+
+                                if let Some(new_name) = resp.suggest_rename {
+                                    rename_req = Some((tab.id, new_name))
+                                }
+
+                                if resp.text_updated {
+                                    self.out.markdown_editor_text_updated = true;
+                                }
+                                if resp.cursor_screen_postition_updated {
+                                    // markdown_editor_selection_updated represents a change to the screen position of
+                                    // the cursor, which is also updated when scrolling
+                                    self.out.markdown_editor_selection_updated = true;
+                                }
+                                if resp.scroll_updated {
+                                    self.out.markdown_editor_scroll_updated = true;
+                                }
+                            }
+                            TabContent::Image(img) => img.show(ui),
+                            TabContent::Pdf(pdf) => pdf.show(ui),
+                            TabContent::Svg(svg) => {
+                                let res = svg.show(ui);
+                                if res.request_save {
+                                    tab.last_changed = Instant::now();
+                                }
+                            }
+                        };
+                    } else {
+                        ui.spinner();
+                    }
+                }
+                if let Some(req) = rename_req {
+                    self.rename_file(req);
+                }
+            });
+        });
+    }
+
+    fn show_mobile_title(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            let selectable_label =
+                egui::widgets::Button::new(egui::RichText::new(self.tabs[0].name.clone()))
+                    .frame(false)
+                    .wrap_mode(TextWrapMode::Truncate)
+                    .fill(if ui.visuals().dark_mode {
+                        egui::Color32::BLACK
+                    } else {
+                        egui::Color32::WHITE
+                    }); // matches iOS native toolbar
+
+            ui.allocate_ui(ui.available_size(), |ui| {
+                ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
+                    if ui.add(selectable_label).clicked() {
+                        self.out.tab_title_clicked = true
+                    }
+                });
+            })
+        });
+    }
+
+    fn show_tab_strip(&mut self, parent_ui: &mut egui::Ui) {
+        let active_tab_changed = self.active_tab_changed;
+        self.active_tab_changed = false;
+
+        let mut ui =
+            parent_ui.child_ui(parent_ui.painter().clip_rect(), egui::Layout::default(), None);
+
+        let is_tab_strip_visible = self.tabs.len() > 1;
+        let cursor = ui
+            .horizontal(|ui| {
+                egui::ScrollArea::horizontal()
+                    .max_width(ui.available_width())
+                    .show(ui, |ui| {
+                        for (i, maybe_resp) in self
+                            .tabs
+                            .iter_mut()
+                            .enumerate()
+                            .map(|(i, t)| {
+                                if is_tab_strip_visible {
+                                    tab_label(ui, t, self.active_tab == i, active_tab_changed)
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect::<Vec<Option<TabLabelResponse>>>()
+                            .iter()
+                            .enumerate()
+                        {
+                            if let Some(resp) = maybe_resp {
+                                match resp {
+                                    TabLabelResponse::Clicked => {
+                                        if self.active_tab == i {
+                                            // we should rename the file.
+
+                                            self.out.tab_title_clicked = true;
+                                            let active_name = self.tabs[i].name.clone();
+
+                                            let mut rename_edit_state =
+                                                egui::text_edit::TextEditState::default();
+                                            rename_edit_state.cursor.set_char_range(Some(
+                                                egui::text::CCursorRange {
+                                                    primary: egui::text::CCursor::new(
+                                                        active_name
+                                                            .rfind('.')
+                                                            .unwrap_or(active_name.len()),
+                                                    ),
+                                                    secondary: egui::text::CCursor::new(0),
+                                                },
+                                            ));
+                                            egui::TextEdit::store_state(
+                                                ui.ctx(),
+                                                egui::Id::new("rename_tab"),
+                                                rename_edit_state,
+                                            );
+                                            self.tabs[i].rename = Some(active_name);
+                                        } else {
+                                            self.tabs[i].rename = None;
+                                            self.active_tab = i;
+                                            self.active_tab_changed = true;
+                                            self.ctx.send_viewport_cmd(ViewportCommand::Title(
+                                                self.tabs[i].name.clone(),
+                                            ));
+                                            self.out.selected_file = Some(self.tabs[i].id);
+                                        }
+                                    }
+                                    TabLabelResponse::Closed => {
+                                        self.close_tab(i);
+
+                                        let title = match self.current_tab() {
+                                            Some(tab) => tab.name.clone(),
+                                            None => "Lockbook".to_owned(),
+                                        };
+                                        self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
+
+                                        self.out.selected_file =
+                                            self.current_tab().map(|tab| tab.id);
+                                    }
+                                    TabLabelResponse::Renamed(name) => {
+                                        self.tabs[i].rename = None;
+                                        let id = self.current_tab().unwrap().id;
+                                        if let Some(tab) = self.get_mut_tab_by_id(id) {
+                                            if let Some(TabContent::Markdown(md)) = &mut tab.content
+                                            {
+                                                md.needs_name = false;
+                                            }
+                                        }
+                                        self.rename_file((id, name.clone()));
+                                    }
+                                }
+                                ui.ctx().request_repaint();
+                            }
+                        }
+                    });
+                ui.cursor()
+            })
+            .inner;
+
+        ui.style_mut().animation_time = 2.0;
+
+        let how_on = ui.ctx().animate_bool_with_easing(
+            "toolbar_height".into(),
+            is_tab_strip_visible,
+            easing::cubic_in_out,
+        );
+        parent_ui.add_space(cursor.height() * how_on);
+        ui.set_opacity(how_on);
+
+        if is_tab_strip_visible {
+            let end_of_tabs = cursor.min.x;
+            let available_width = ui.available_width();
+            let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+            ui.painter().hline(
+                egui::Rangef { min: end_of_tabs, max: end_of_tabs + available_width },
+                cursor.max.y,
+                sep_stroke,
+            );
         }
     }
 
