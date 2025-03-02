@@ -1,7 +1,44 @@
 import SwiftUI
 import SwiftWorkspace
+import Combine
 
 class HomeState: ObservableObject {
+    private var cancellables: Set<AnyCancellable> = []
+    let workspaceState: WorkspaceState
+    
+    init(workspaceState: WorkspaceState) {
+        self.workspaceState = workspaceState
+        workspaceState.$renameOpenDoc.sink { [weak self] rename in
+            self?.runOnActiveWorkspaceState(doRun: rename) { file in
+                self?.sheetInfo = .rename(file: file)
+            }
+        }
+        .store(in: &cancellables)
+        
+        workspaceState.$newFolderButtonPressed.sink { [weak self] newFolder in
+            self?.runOnActiveWorkspaceState(doRun: newFolder) { file in
+                guard let root = try? AppState.lb.getRoot().get() else {
+                    return
+                }
+                
+                self?.sheetInfo = .createFolder(parent: root)
+            }
+        }
+        .store(in: &cancellables)
+    }
+    
+    func runOnActiveWorkspaceState(doRun: Bool, f: (File) -> Void) {
+        guard let openDoc = self.workspaceState.openDoc else {
+            return
+        }
+        
+        if doRun {
+            if let file = try? AppState.lb.getFile(id: openDoc).get() {
+                f(file)
+            }
+        }
+    }
+    
     @Published var error: UIError? = nil
     @Published var fileActionCompleted: FileAction? = nil
     

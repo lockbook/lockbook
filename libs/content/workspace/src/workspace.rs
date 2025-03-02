@@ -388,7 +388,7 @@ impl Workspace {
             if !self.tabs.is_empty() {
                 if self.show_tabs {
                     self.show_tab_strip(ui);
-                } else {
+                } else if matches!(ui.ctx().os(), OperatingSystem::Android) {
                     self.show_mobile_title(ui);
                 }
             }

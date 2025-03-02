@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftWorkspace
 
 public struct DrawerView<Menu: View, Content: View>: View {
 
@@ -46,7 +47,7 @@ public struct DrawerView<Menu: View, Content: View>: View {
 }
 
 #Preview("Drawer") {
-    DrawerView(homeState: HomeState(), menu: {
+    DrawerView(homeState: HomeState(workspaceState: WorkspaceState()), menu: {
         Color.blue
     }, content: {
         Color.red

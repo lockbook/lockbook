@@ -136,7 +136,7 @@ class CreateFolderViewModel: ObservableObject {
             height: CreateFolderSheet.FORM_HEIGHT,
             presentedContent: { item in
                 CreateFolderSheet(
-                    homeState: HomeState(),
+                    homeState: HomeState(workspaceState: WorkspaceState()),
                     workspaceState: WorkspaceState(),
                     parentId: item.id
                 )

@@ -48,7 +48,7 @@ struct SuggestedDocsView: View {
 #Preview {
     SuggestedDocsView(filesModel: FilesViewModel(workspaceState: WorkspaceState()))
         .environmentObject(WorkspaceState())
-        .environmentObject(HomeState())
+        .environmentObject(HomeState(workspaceState: WorkspaceState()))
 }
 
 struct SuggestedDocCell: View {

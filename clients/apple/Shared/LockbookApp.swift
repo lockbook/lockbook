@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftWorkspace
 
 @main struct LockbookApp: App {
     
@@ -26,19 +27,21 @@ struct ContentView: View {
     
     var body: some View {
         if isLoggedIn {
-            HomeBillingWrapperView()
+            HomeContextWrapper()
         } else {
             OnboardingView()
         }
     }
 }
 
-struct HomeBillingWrapperView: View {
+struct HomeContextWrapper: View {
     @StateObject var billingState = BillingState()
+    @StateObject var workspaceState = WorkspaceState()
     
     var body: some View {
-        HomeView()
+        HomeView(workspaceState: workspaceState)
             .environmentObject(billingState)
+            .environmentObject(workspaceState)
     }
 }
 

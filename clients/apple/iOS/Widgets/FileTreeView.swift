@@ -82,7 +82,7 @@ struct FileRowView: View {
             }
             
             if !isLeaf && (isOpen || level == -1) {
-                ForEach(children) { child in
+                ForEach(children, id: \.id) { child in
                     FileRowView(file: child, level: level + 1)
                 }
             }
@@ -255,7 +255,7 @@ struct FileRowContextMenu: View {
     NavigationView {
         FileTreeView(root: (AppState.lb as! MockLb).file0, workspaceState: WorkspaceState(), filesModel: FilesViewModel(workspaceState: WorkspaceState()))
     }
-    .environmentObject(HomeState())
+    .environmentObject(HomeState(workspaceState: WorkspaceState()))
     .environmentObject(FilesViewModel(workspaceState: WorkspaceState()))
     .environmentObject(WorkspaceState())
 }

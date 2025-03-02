@@ -23,6 +23,7 @@ class FilesViewModel: ObservableObject {
         self.workspaceState = workspaceState
         workspaceState.$reloadFiles.sink { [weak self] reload in
             if reload {
+                print("WORKSPACE SAID RELOAD")
                 self?.loadFiles()
             }
         }
@@ -167,6 +168,7 @@ class FilesViewModel: ObservableObject {
     
     func loadFiles() {
         DispatchQueue.global(qos: .userInitiated).async {
+            print("RELOADING THE FILES")
             let res = AppState.lb.listMetadatas()
             DispatchQueue.main.async {
                 switch res {

@@ -57,7 +57,7 @@ struct PendingSharesView: View {
 #Preview("Pending Shares") {
     NavigationStack {
         PendingSharesView()
-            .environmentObject(HomeState())
+            .environmentObject(HomeState(workspaceState: WorkspaceState()))
             .environmentObject(FilesViewModel(workspaceState: WorkspaceState()))
     }
 }

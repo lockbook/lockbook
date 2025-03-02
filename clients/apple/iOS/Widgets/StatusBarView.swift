@@ -136,7 +136,7 @@ struct StatusBarView: View {
         Spacer()
                 
         StatusBarView()
-            .environmentObject(HomeState())
+            .environmentObject(HomeState(workspaceState: WorkspaceState()))
             .environmentObject(FilesViewModel(workspaceState: workspaceState))
             .environmentObject(workspaceState)
     }
