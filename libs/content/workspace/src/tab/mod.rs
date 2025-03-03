@@ -276,6 +276,7 @@ pub enum ClipContent {
     Image(Vec<u8>), // image format guessed by egui
 }
 
+#[derive(PartialEq)]
 pub enum TabStatus {
     Dirty,
     LoadQueued,
