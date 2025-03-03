@@ -1235,3 +1235,12 @@ impl Display for SyncProgress {
         write!(f, "[{} / {}]: {}", self.progress, self.total, self.msg)
     }
 }
+
+#[derive(Debug, Clone)]
+pub enum SyncIncrement {
+    SyncStarted,
+    UpdatingMetadata,
+    PullingDocument(Uuid),
+    PushingDocument(Uuid),
+    SyncFinished(Option<LbErrKind>)
+}

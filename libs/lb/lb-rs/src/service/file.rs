@@ -178,4 +178,10 @@ impl Lb {
 
         Ok(file)
     }
+
+    pub async fn local_changes(&self) -> Vec<Uuid> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+        db.local_metadata.get().keys().copied().collect()
+    }
 }

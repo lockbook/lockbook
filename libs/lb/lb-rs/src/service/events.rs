@@ -4,12 +4,14 @@ use uuid::Uuid;
 
 use crate::Lb;
 
+use super::sync::SyncIncrement;
+
 #[derive(Clone)]
 pub struct EventSubs {
     tx: Sender<Event>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum Event {
     /// A metadata for a given id or it's descendants changed. The id returned
     /// may be deleted. Updates to document contents will not cause this
@@ -19,6 +21,10 @@ pub enum Event {
     /// The contents of this document have changed either by this lb
     /// library or as a result of sync
     DocumentWritten(Uuid),
+
+    Sync(SyncIncrement),
+
+    StatusUpdated,
 }
 
 impl Default for EventSubs {
@@ -37,8 +43,12 @@ impl EventSubs {
         self.queue(Event::DocumentWritten(id));
     }
 
+    pub fn sync(&self, s: SyncIncrement) {
+        self.queue(Event::Sync(s));
+    }
+
     fn queue(&self, evt: Event) {
-        if let Err(e) = self.tx.send(evt) {
+        if let Err(e) = self.tx.send(evt.clone()) {
             error!(?evt, ?e, "could not queue");
         }
     }

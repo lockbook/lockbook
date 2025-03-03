@@ -163,11 +163,7 @@ impl Lb {
     }
 
     pub fn get_local_changes(&self) -> LbResult<Vec<Uuid>> {
-        self.rt.block_on(async {
-            let tx = self.lb.ro_tx().await;
-            let db = tx.db();
-            Ok(db.local_metadata.get().keys().copied().collect())
-        })
+        Ok(self.rt.block_on(self.lb.local_changes()))
     }
 
     pub fn calculate_work(&self) -> LbResult<SyncStatus> {

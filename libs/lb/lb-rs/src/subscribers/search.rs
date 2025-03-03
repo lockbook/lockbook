@@ -288,6 +288,8 @@ impl Lb {
                                 warn!("could {file:?} not insert doc into index");
                             }
                         }
+
+                        _ => {}
                     };
                 }
             });

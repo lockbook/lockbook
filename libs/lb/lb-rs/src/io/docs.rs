@@ -79,6 +79,17 @@ impl AsyncDocs {
         }
     }
 
+    pub async fn maybe_size(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult<Option<u64>> {
+        match hmac {
+            Some(hmac) => {
+                let path_str = key_path(&self.location, id, hmac);
+                let path = Path::new(&path_str);
+                Ok(path.metadata().ok().map(|meta| meta.len()))
+            }
+            None => Ok(None),
+        }
+    }
+
     pub async fn delete(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult<()> {
         if let Some(hmac) = hmac {
             let path_str = key_path(&self.location, id, hmac);
