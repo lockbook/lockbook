@@ -1,24 +1,26 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use tokio::sync::RwLock;
+use tokio::{
+    sync::{Mutex, RwLock},
+    time::Instant,
+};
 use uuid::Uuid;
 
 use crate::{
-    model::{
-        api::FileUsage,
-        errors::{LbErr, LbErrKind, LbResult, Unexpected},
-    },
-    service::{
-        events::Event,
-        sync::SyncIncrement,
-        usage::{UsageItemMetric, UsageMetrics},
-    },
+    model::errors::{LbErrKind, LbResult, Unexpected},
+    service::{events::Event, sync::SyncIncrement, usage::UsageMetrics},
     Lb,
 };
 
 #[derive(Clone, Default)]
 pub struct StatusUpdater {
     current_status: Arc<RwLock<Status>>,
+    space_updated: Arc<Mutex<SpaceUpdater>>,
+}
+
+pub struct SpaceUpdater {
+    spawned: bool,
+    last_computed: Instant,
 }
 
 /// lb-rs may be used by multiple disconnected components which may
@@ -67,7 +69,19 @@ impl Lb {
         self.status.current_status.read().await.clone()
     }
 
-    pub fn setup_status(&self) {
+    pub async fn set_initial_state(&self) -> LbResult<()> {
+        let mut current = self.status.current_status.write().await;
+        current.dirty_locally = self.local_changes().await;
+        if current.dirty_locally.is_empty() {
+            current.sync_status = self.get_last_synced_human().await.log_and_ignore();
+        }
+        current.pending_shares = !self.get_pending_shares().await?.is_empty();
+
+        Ok(())
+    }
+
+    pub async fn setup_status(&self) -> LbResult<()> {
+        self.set_initial_state().await?;
         let mut rx = self.subscribe();
         let bg = self.clone();
 
@@ -83,42 +97,54 @@ impl Lb {
                 bg.process_event(evt).await.log_and_ignore();
             }
         });
+
+        Ok(())
     }
 
     async fn process_event(&self, e: Event) -> LbResult<()> {
+        let mut current = self.status.current_status.read().await.clone();
         match e {
-            Event::MetadataChanged(_) => todo!(),
-            Event::DocumentWritten(_) => todo!(),
-            Event::Sync(s) => todo!(),
+            Event::MetadataChanged | Event::DocumentWritten(_) => {
+                self.compute_dirty_locally(&mut current).await?;
+            }
+            Event::Sync(s) => self.update_sync(s, &mut current).await?,
             _ => {}
         }
         Ok(())
     }
 
     async fn compute_dirty_locally(&self, status: &mut Status) -> LbResult<()> {
-        status.dirty_locally = self.local_changes().await;
+        let new = self.local_changes().await;
+        if new != status.dirty_locally {
+            status.dirty_locally = self.local_changes().await;
+            self.events.status_updated();
+        }
         Ok(())
     }
 
-    async fn compute_usage(&self, status: &mut Status) -> LbResult<()> {
-        // this will need to be debounced, otherwise every keystroke is gonna trigger this
-        match self.get_usage().await.map_err(LbErr::from) {
-            Ok(usage) => {
-                status.space_used = Some(usage);
-            }
-            Err(err) => match err.kind {
-                LbErrKind::AccountNonexistent => todo!(),
-                LbErrKind::ClientUpdateRequired => {
-                    status.update_required = true;
-                }
-                LbErrKind::ServerUnreachable => {
-                    status.offline = true;
-                }
-                _ => todo!(),
-            },
-        };
+    async fn compute_usage(&self) {
+        let mut lock = self.status.space_updated.lock().await;
+        if lock.spawned {
+            return;
+        }
+        lock.spawned = true;
+        let computed = lock.last_computed;
+        drop(lock);
 
-        Ok(())
+        let bg = self.clone();
+        tokio::spawn(async move {
+            if computed.elapsed() < Duration::from_secs(60) {
+                tokio::time::sleep(Duration::from_secs(60) - computed.elapsed()).await;
+            }
+            let usage = bg.get_usage().await.log_and_ignore();
+            let mut lock = bg.status.space_updated.lock().await;
+            lock.spawned = false;
+            lock.last_computed = Instant::now();
+            drop(lock);
+
+            bg.status.current_status.write().await.space_used = usage;
+            bg.events.status_updated();
+        });
     }
 
     async fn update_sync(&self, s: SyncIncrement, status: &mut Status) -> LbResult<()> {
@@ -129,12 +155,13 @@ impl Lb {
             SyncIncrement::UpdatingMetadata => todo!(),
             SyncIncrement::PullingDocument(id) => {
                 status.pulling_files.push(id);
-            },
+            }
             SyncIncrement::PushingDocument(id) => {
                 status.pushing_files.push(id);
-            },
+            }
             SyncIncrement::SyncFinished(maybe_problem) => {
                 self.reset_sync(status);
+                self.compute_usage().await;
                 match maybe_problem {
                     Some(LbErrKind::ClientUpdateRequired) => {
                         status.update_required = true;
@@ -145,12 +172,21 @@ impl Lb {
                     Some(LbErrKind::UsageIsOverDataCap) => {
                         status.out_of_space = true;
                     }
+                    None => {
+                        status.dirty_locally = self.local_changes().await;
+                        if status.dirty_locally.is_empty() {
+                            status.sync_status = self.get_last_synced_human().await.ok();
+                        }
+                        status.pending_shares = !self.get_pending_shares().await?.is_empty();
+                    }
                     _ => {
                         error!("unexpected sync problem found {maybe_problem:?}");
                     }
                 }
             }
         }
+
+        self.events.status_updated();
 
         Ok(())
     }
@@ -161,5 +197,12 @@ impl Lb {
         status.offline = false;
         status.update_required = true;
         status.out_of_space = false;
+        status.sync_status = None;
+    }
+}
+
+impl Default for SpaceUpdater {
+    fn default() -> Self {
+        Self { spawned: false, last_computed: Instant::now() }
     }
 }

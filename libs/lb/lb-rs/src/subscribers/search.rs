@@ -224,7 +224,9 @@ impl Lb {
                     };
 
                     match evt {
-                        Event::MetadataChanged(mut id) => {
+                        Event::MetadataChanged => {
+                            let mut id = lb.root().await.unwrap().id;
+
                             // if this file is deleted recompute all our metadata
                             if lb.get_file_by_id(id).await.is_err() {
                                 id = lb.root().await.unwrap().id;

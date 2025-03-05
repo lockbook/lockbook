@@ -167,7 +167,7 @@ impl From<LbErrKind> for LbErr {
 }
 
 pub trait Unexpected<T> {
-    fn log_and_ignore(self);
+    fn log_and_ignore(self) -> Option<T>;
     fn map_unexpected(self) -> LbResult<T>;
 }
 
@@ -186,11 +186,13 @@ impl<T, E: std::fmt::Debug> Unexpected<T> for Result<T, E> {
     }
 
     #[track_caller]
-    fn log_and_ignore(self) {
+    fn log_and_ignore(self) -> Option<T> {
         let location = Location::caller();
-        if let Err(e) = self {
+        if let Err(e) = &self {
             error!("error ignored at {}:{} {e:?}", location.file(), location.line());
         }
+
+        self.ok()
     }
 }
 

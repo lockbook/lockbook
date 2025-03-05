@@ -16,11 +16,13 @@ pub enum Event {
     /// A metadata for a given id or it's descendants changed. The id returned
     /// may be deleted. Updates to document contents will not cause this
     /// message to be sent (unless a document was deleted).
-    MetadataChanged(Uuid),
+    MetadataChanged,
 
     /// The contents of this document have changed either by this lb
     /// library or as a result of sync
     DocumentWritten(Uuid),
+
+    PendingSharesChanged,
 
     Sync(SyncIncrement),
 
@@ -35,8 +37,8 @@ impl Default for EventSubs {
 }
 
 impl EventSubs {
-    pub fn meta_changed(&self, id: Uuid) {
-        self.queue(Event::MetadataChanged(id));
+    pub fn meta_changed(&self) {
+        self.queue(Event::MetadataChanged);
     }
 
     pub fn doc_written(&self, id: Uuid) {
@@ -45,6 +47,10 @@ impl EventSubs {
 
     pub fn sync(&self, s: SyncIncrement) {
         self.queue(Event::Sync(s));
+    }
+
+    pub fn status_updated(&self) {
+        self.queue(Event::StatusUpdated);
     }
 
     fn queue(&self, evt: Event) {
