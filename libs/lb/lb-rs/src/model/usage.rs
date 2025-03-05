@@ -41,7 +41,7 @@ pub(crate) fn get_usage(server_usage_and_cap: GetUsageResponse) -> UsageMetrics 
 
     UsageMetrics {
         usages: server_usage_and_cap.usages,
-        server_usage: UsageItemMetric { exact: server_usage as i64, readable: readable_usage },
-        data_cap: UsageItemMetric { exact: cap as i64, readable: readable_cap },
+        server_usage: UsageItemMetric { exact: server_usage, readable: readable_usage },
+        data_cap: UsageItemMetric { exact: cap, readable: readable_cap },
     }
 }

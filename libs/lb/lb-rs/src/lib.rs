@@ -56,7 +56,8 @@ impl Lb {
         let result = Self { config, keychain, db, docs, client, search, syncing, events, status };
 
         result.setup_search();
-        result.setup_status();
+        result.setup_status().await?;
+
         Ok(result)
     }
 }

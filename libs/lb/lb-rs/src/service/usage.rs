@@ -17,7 +17,7 @@ pub struct UsageMetrics {
 
 #[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub struct UsageItemMetric {
-    pub exact: i64,
+    pub exact: u64,
     pub readable: String,
 }
 
@@ -78,6 +78,6 @@ impl Lb {
         }
 
         let readable = bytes_to_human(local_usage);
-        Ok(UsageItemMetric { exact: local_usage as i64, readable })
+        Ok(UsageItemMetric { exact: local_usage, readable })
     }
 }
