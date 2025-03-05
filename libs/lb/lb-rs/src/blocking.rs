@@ -23,7 +23,8 @@ use crate::{
         import_export::{ExportFileInfo, ImportStatus},
         sync::{SyncProgress, SyncStatus},
         usage::{UsageItemMetric, UsageMetrics},
-    }, subscribers::search::{SearchConfig, SearchResult},
+    },
+    subscribers::search::{SearchConfig, SearchResult},
 };
 
 #[derive(Clone)]

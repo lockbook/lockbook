@@ -54,7 +54,7 @@ impl Lb {
         let events = EventSubs::default();
 
         let result = Self { config, keychain, db, docs, client, search, syncing, events, status };
-        
+
         result.setup_search();
         result.setup_status();
         Ok(result)
@@ -75,6 +75,7 @@ use io::docs::AsyncDocs;
 use io::network::Network;
 use io::LbDb;
 use model::core_config::Config;
+pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
 use service::keychain::Keychain;
 use std::sync::atomic::AtomicBool;
@@ -83,4 +84,3 @@ use subscribers::search::SearchIndex;
 use subscribers::status::StatusUpdater;
 use tokio::sync::RwLock;
 pub use uuid::Uuid;
-pub use model::errors::{LbErrKind, LbResult};

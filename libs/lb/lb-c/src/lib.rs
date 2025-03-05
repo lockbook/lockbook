@@ -19,10 +19,7 @@ use model::api::{
     AppStoreAccountState, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
     StripeAccountTier, UnixTimeMillis,
 };
-use service::{
-    import_export::ImportStatus,
-    sync::SyncProgress,
-};
+use service::{import_export::ImportStatus, sync::SyncProgress};
 use subscribers::search::{SearchConfig, SearchResult};
 
 use std::sync::atomic::AtomicPtr;

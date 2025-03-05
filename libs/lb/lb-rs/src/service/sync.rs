@@ -1243,5 +1243,5 @@ pub enum SyncIncrement {
     UpdatingMetadata,
     PullingDocument(Uuid),
     PushingDocument(Uuid),
-    SyncFinished(Option<LbErrKind>)
+    SyncFinished(Option<LbErrKind>),
 }
