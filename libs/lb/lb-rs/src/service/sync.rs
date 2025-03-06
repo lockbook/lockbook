@@ -96,7 +96,8 @@ impl Lb {
 
         let mut got_updates = false;
         let mut pipeline: LbResult<()> = async {
-            ctx.msg("Preparing Sync...");
+            ctx.msg("Preparing Sync..."); // todo remove
+            self.events.sync(SyncIncrement::SyncStarted);
             self.prune().await?;
             got_updates = self.fetch_meta(&mut ctx).await?;
             self.populate_pk_cache(&mut ctx).await?;
@@ -117,9 +118,14 @@ impl Lb {
 
         let cleanup = self.cleanup().await;
 
+        let ekind = pipeline.as_ref().err().map(|err| err.kind.clone());
+        self.events.sync(SyncIncrement::SyncFinished(ekind));
+
         self.syncing.store(false, Ordering::Relaxed);
         pipeline?;
         cleanup?;
+
+        // done not being sent if pipeline is an error is likely the reason we get stuck offline
         ctx.done_msg();
 
         if got_updates {
@@ -217,6 +223,7 @@ impl Lb {
 
         let empty = updates.file_metadata.is_empty();
         let (remote, as_of, root) = self.dedup(updates).await?;
+
         ctx.remote_changes = remote;
         ctx.update_as_of = as_of;
         ctx.root = root;
@@ -288,6 +295,7 @@ impl Lb {
 
             if let Some(remote_hmac) = remote_hmac {
                 docs_to_pull.push((id, remote_hmac));
+                self.events.sync(SyncIncrement::PullingDocument(id, true));
             }
         }
 
@@ -313,6 +321,7 @@ impl Lb {
         while let Some(fut) = stream.next().await {
             let id = fut?;
             ctx.pulled_docs.push(id);
+            self.events.sync(SyncIncrement::PullingDocument(id, false));
             ctx.file_msg(id, &format!("Downloaded file {idx} of {num_docs}."));
             idx += 1;
         }
@@ -1009,6 +1018,7 @@ impl Lb {
 
             updates.push(FileDiff { old: Some(base_file), new: local_change.clone() });
             local_changes_digests_only.push(local_change);
+            self.events.sync(SyncIncrement::PushingDocument(id, true));
         }
 
         drop(tx);
@@ -1029,6 +1039,7 @@ impl Lb {
         let mut idx = 0;
         while let Some(fut) = stream.next().await {
             let id = fut?;
+            self.events.sync(SyncIncrement::PushingDocument(id, false));
             ctx.file_msg(id, &format!("Pushed file {idx} of {docs_count}."));
             idx += 1;
         }
@@ -1240,8 +1251,7 @@ impl Display for SyncProgress {
 #[derive(Debug, Clone)]
 pub enum SyncIncrement {
     SyncStarted,
-    UpdatingMetadata,
-    PullingDocument(Uuid),
-    PushingDocument(Uuid),
+    PullingDocument(Uuid, bool),
+    PushingDocument(Uuid, bool),
     SyncFinished(Option<LbErrKind>),
 }

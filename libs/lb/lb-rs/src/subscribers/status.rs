@@ -37,6 +37,9 @@ pub struct Status {
     /// some recent server interaction failed due to network conditions
     pub offline: bool,
 
+    /// a sync is in progress
+    pub syncing: bool,
+
     /// at-least one document cannot be pushed due to a data cap
     pub out_of_space: bool,
 
@@ -70,12 +73,14 @@ impl Lb {
     }
 
     pub async fn set_initial_state(&self) -> LbResult<()> {
-        let mut current = self.status.current_status.write().await;
-        current.dirty_locally = self.local_changes().await;
-        if current.dirty_locally.is_empty() {
-            current.sync_status = self.get_last_synced_human().await.log_and_ignore();
+        if self.keychain.get_account().is_ok() {
+            let mut current = self.status.current_status.write().await;
+            current.dirty_locally = self.local_changes().await;
+            if current.dirty_locally.is_empty() {
+                current.sync_status = self.get_last_synced_human().await.log_and_ignore();
+            }
+            current.pending_shares = !self.get_pending_shares().await?.is_empty();
         }
-        current.pending_shares = !self.get_pending_shares().await?.is_empty();
 
         Ok(())
     }
@@ -151,13 +156,21 @@ impl Lb {
         match s {
             SyncIncrement::SyncStarted => {
                 self.reset_sync(status);
+                status.syncing = true;
             }
-            SyncIncrement::UpdatingMetadata => todo!(),
-            SyncIncrement::PullingDocument(id) => {
-                status.pulling_files.push(id);
+            SyncIncrement::PullingDocument(id, in_progress) => {
+                if in_progress {
+                    status.pulling_files.push(id);
+                } else {
+                    status.pulling_files.retain(|fid| id != *fid);
+                }
             }
-            SyncIncrement::PushingDocument(id) => {
-                status.pushing_files.push(id);
+            SyncIncrement::PushingDocument(id, in_progress) => {
+                if in_progress {
+                    status.pushing_files.push(id);
+                } else {
+                    status.pushing_files.retain(|fid| id != *fid);
+                }
             }
             SyncIncrement::SyncFinished(maybe_problem) => {
                 self.reset_sync(status);
@@ -192,10 +205,11 @@ impl Lb {
     }
 
     fn reset_sync(&self, status: &mut Status) {
+        status.syncing = false;
         status.pulling_files.clear();
         status.pushing_files.clear();
         status.offline = false;
-        status.update_required = true;
+        status.update_required = false;
         status.out_of_space = false;
         status.sync_status = None;
     }
