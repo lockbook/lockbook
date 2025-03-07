@@ -1,7 +1,7 @@
 use super::data::{lockbook_data, start_extraction_names, Graph, LinkNode, DONE, URL_NAME_STORE};
 use egui::ahash::{HashMap, HashMapExt};
 use egui::epaint::Shape;
-use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
+use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, TouchId, Vec2};
 use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
 
@@ -38,6 +38,7 @@ pub struct MindMap {
     urls_complete: bool,
     names_uploaded: bool,
     url_titles: Vec<String>,
+    touch_positions: HashMap<u64, Pos2>,
 }
 
 impl Grid {
@@ -101,6 +102,7 @@ impl MindMap {
             urls_complete: false,
             names_uploaded: false,
             url_titles: vec!["".to_string(); graph.len()],
+            touch_positions: HashMap::new(),
         }
     }
 
@@ -328,6 +330,7 @@ impl MindMap {
     }
 
     fn draw_graph(&mut self, ui: &mut egui::Ui, screen_size: egui::Vec2) {
+        println!("running");
         let screen = ui.available_rect_before_wrap();
         ui.painter()
             .rect_filled(screen, 0., ui.visuals().extreme_bg_color);
@@ -541,7 +544,7 @@ impl MindMap {
         }
     }
 
-    pub fn bidiretional(&mut self) {
+    pub fn bidirectional(&mut self) {
         let clonedgraph: &Graph = &self.graph.clone();
         for nodes in clonedgraph {
             let node: usize = nodes.id;
@@ -591,34 +594,76 @@ impl MindMap {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, stop: bool) -> Option<Uuid> {
-        let mut condintions = false;
-        ui.input(|i| {
-            if !self.graph_complete {
-                self.build_directional_links();
-                self.bidiretional();
-                self.label_clusters();
-                self.label_subgraphs();
-            }
-            let rect = ui.available_rect_before_wrap();
+        let mut conditions = false;
+        println!("new version");
 
-            if self.in_rect(rect) {
-                self.zoom_factor *= i.zoom_delta();
-                self.debug = (self.zoom_factor).to_string();
-                let scroll = i.raw_scroll_delta.to_pos2();
-                self.pan += (scroll).to_vec2();
-                self.debug = (self.zoom_factor).to_string();
+        // Do your graph-related building if necessary.
+        if !self.graph_complete {
+            self.build_directional_links();
+            self.bidirectional(); // corrected from "bidiretional"
+            self.label_clusters();
+            self.label_subgraphs();
+        }
+        // Get the available rect.
+        let rect = ui.available_rect_before_wrap();
+
+        // If the current context’s rect is within our target...
+        if self.in_rect(rect) {
+            // Clone the current input events so we can iterate over them.
+            let events = ui.input(|i| i.events.clone());
+            for event in events {
+                println!("touch event");
+                if let egui::Event::Touch { id, pos, phase, .. } = event {
+                    // Process the touch event only if the touch is inside our rect.
+                    let key = id.0;
+                    if rect.contains(pos) {
+                        match phase {
+                            egui::TouchPhase::Start => {
+                                // Save the starting position for this touch.
+                                self.touch_positions.insert(key, pos);
+                            }
+                            egui::TouchPhase::Move => {
+                                if let Some(prev_pos) = self.touch_positions.get(&key) {
+                                    self.pan += pos - *prev_pos;
+
+                                    println!("Touch {:?} moved by {:?}", id, self.pan);
+                                    // Update the stored position.
+                                    self.touch_positions.insert(key, pos);
+                                }
+                            }
+                            egui::TouchPhase::End | egui::TouchPhase::Cancel => {
+                                // Remove the touch tracking when it ends.
+                                self.touch_positions.remove(&key);
+                            }
+                        }
+                    }
+                }
             }
+
+            // Handle zoom and panning events.
+            ui.input(|i| {
+                self.zoom_factor *= i.zoom_delta();
+                self.debug = self.zoom_factor.to_string();
+                let scroll = i.raw_scroll_delta.to_pos2();
+                self.pan += scroll.to_vec2();
+                // You could update debug with pan if you wish.
+            });
+        }
+
+        // Process a click event (if any) from pointer input.
+        ui.input(|i| {
             if i.pointer.any_click() && self.inside_found {
-                condintions = true;
+                conditions = true;
                 self.inside_found = false;
             }
         });
 
-        if condintions {
-            if let Some(_val) = self.inside {
-                return self.inside;
+        if conditions {
+            if let Some(val) = self.inside {
+                return Some(val);
             }
         }
+
         {
             let mut stop_write = self.stop.write().unwrap();
             *stop_write = stop;
@@ -632,12 +677,11 @@ impl MindMap {
             self.initialize_positions(ui);
             self.graph_complete = true;
             let linkess = self.linkless_nodes.clone();
-
-            let postioninfo = Arc::clone(&self.thread_positions);
+            let positioninfo = Arc::clone(&self.thread_positions);
             let stop = Arc::clone(&self.stop);
             let graph = self.graph.clone();
             thread::spawn(move || {
-                Self::apply_spring_layout(postioninfo, &graph, 2500000, screen, stop, linkess);
+                Self::apply_spring_layout(positioninfo, &graph, 2500000, screen, stop, linkess);
             });
         }
         if !self.urls_complete {
@@ -651,7 +695,6 @@ impl MindMap {
         self.frame_count += 1;
         let now = Instant::now();
         let elapsed = now.duration_since(self.last_fps_update);
-
         if elapsed >= Duration::from_secs(1) {
             self.fps = self.frame_count as f32 / elapsed.as_secs_f32();
             self.frame_count = 0;
@@ -663,7 +706,6 @@ impl MindMap {
         None
     }
 }
-
 fn draw_arrow(
     painter: &Painter, from: Pos2, to: Pos2, color: Color32, zoom_factor: f32, size: f32,
     self_size: f32,
