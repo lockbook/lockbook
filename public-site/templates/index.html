@@ -5,18 +5,36 @@
       <h1 class="max-w-4xl px-3 mx-auto text-3xl/relaxed [word-spacing:-6px] font-bold lg:text-center lg:text-4xl/snug  text-egshell">
           The secure place for
           <p class="relative inline-block">
-            <span class="absolute left-0 px-2 py-1 text-xs font-medium tracking-normal uppercase -translate-x-4 -translate-y-1 lg:-translate-y-2 text-abyss-900 -z-10 -rotate-6 text-abyss rounded-2xl bg-sundown">markdown</span> writing</p>
+            <!-- <span class="absolute left-0 px-2 py-1 text-xs font-medium tracking-normal uppercase -translate-x-4 -translate-y-1 lg:-translate-y-2 text-abyss-900 -z-10 -rotate-6 text-abyss rounded-2xl bg-sundown">markdown</span>  -->
+            writing</p>
           notes
           <p class="relative inline-block">sketching 
-          <span class="absolute right-0 px-2 py-1 text-xs font-medium tracking-normal uppercase -translate-x-1 -translate-y-1 text-abyss-900 -z-10 rotate-6 text-abyss rounded-2xl bg-dusk">svg</span></p>
+          <!-- <span class="absolute right-0 px-2 py-1 text-xs font-medium tracking-normal uppercase -translate-x-1 -translate-y-1 text-abyss-900 -z-10 rotate-6 text-abyss rounded-2xl bg-dusk">svg</span> -->
+        </p>
           ideas and storing files
       </h1>
       <span class="pointer-events-none  w-[100rem] lg:w-[100rem] n h-screen absolute left-0 top-0 lg:inset-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(at_center,_theme('colors.egshell')_-200%,_transparent_30%)]"></span>
   </div>
 
 
-  <!-- the id is hardcoded in main.rs. change with caution  -->
-   <div class="max-w-[38rem] m-auto mt-40  h-[40rem] mb-10 relative">
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-3 px-7 sm:px-0 text-egshell max-w-[58rem] m-auto mt-20">
+        <div class="p-4 text-lbneutral-100 bg-abyss-400">
+            <h4 class="mb-4 text-lg text-surfline">Private</h4>
+            <p class="text-xs">We use cryptography to keep your data secret<span class="opacity-50">, </span>even from us<span class="opacity-50">.</span></p>
+        </div>
+
+        <div class="p-4 text-lbneutral-100 bg-abyss-400">
+            <h4 class="mb-4 text-lg text-lbyellow-700">Collaborative</h4>
+            <p class="text-xs">Share with friends<span class="opacity-50">, </span>teams<span class="opacity-50">, </span>and everyone else you trust<span class="opacity-50">.</span></p>
+        </div>
+
+        <div class="p-4 text-lbneutral-100 bg-abyss-400">
+            <h4 class="mb-4 text-lg text-lbblue-700">Extensible</h4>
+            <p class="text-xs">Open formats work nicely with your favorite apps and tools<span class="opacity-50">.</span></p>
+        </div>
+    </div>
+
+   <div class="max-w-[58rem] m-auto mt-8   h-[40rem] mb-10 relative">
       <canvas id="editor-demo" class="w-full h-full"></canvas>
       <div class="absolute top-0 left-0 w-full h-full p-12 text-center bg-abyss-400 text-egshell" id="editor-loading"> 
         <div class="flex items-center justify-center">
