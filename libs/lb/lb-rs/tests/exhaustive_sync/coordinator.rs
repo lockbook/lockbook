@@ -1,4 +1,5 @@
 use super::{trial::Trial, trial_cache::TrialCache, worker::Worker};
+use std::time::Instant;
 use std::{
     collections::HashMap,
     fs,
@@ -7,7 +8,6 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
     sync::{Arc, Mutex},
 };
-use time::Instant;
 use uuid::Uuid;
 
 pub type ThreadID = usize;

@@ -1,16 +1,25 @@
-use crate::model::clock;
 use crate::model::errors::LbResult;
 use crate::Lb;
-use crate::{get_code_version, service::logging::LOG_FILE};
-use basic_human_duration::ChronoHumanDuration;
-use chrono::NaiveDateTime;
+
 use serde::Serialize;
-use std::env;
-use std::io::SeekFrom;
-use std::path::{Path, PathBuf};
-use time::Duration;
-use tokio::fs::{self, File};
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
+#[cfg(not(target_family = "wasm"))]
+use {
+    crate::model::clock,
+    crate::{get_code_version, service::logging::LOG_FILE},
+    basic_human_duration::ChronoHumanDuration,
+    chrono::NaiveDateTime,
+};
+
+#[cfg(not(target_family = "wasm"))]
+use {
+    std::env,
+    std::io::SeekFrom,
+    std::path::{Path, PathBuf},
+    tokio::{
+        fs::{self, File},
+        io::{AsyncReadExt, AsyncSeekExt},
+    },
+};
 
 #[derive(Serialize)]
 pub struct DebugInfo {
@@ -27,6 +36,14 @@ pub struct DebugInfo {
     pub last_panic: String,
 }
 
+#[cfg(target_family = "wasm")]
+impl Lb {
+    pub async fn debug_info(&self, _os_info: String) -> LbResult<String> {
+        Ok("NO LOGS FOUND".to_string())
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
 impl Lb {
     async fn tail_log(&self) -> LbResult<String> {
         let mut path = PathBuf::from(&self.config.writeable_path);
@@ -57,7 +74,7 @@ impl Lb {
         let last_synced = *db.last_synced.get().unwrap_or(&0);
 
         if last_synced != 0 {
-            Duration::milliseconds(clock::get_time().0 - last_synced)
+            time::Duration::milliseconds(clock::get_time().0 - last_synced)
                 .format_human()
                 .to_string()
         } else {

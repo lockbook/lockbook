@@ -10,15 +10,16 @@ use lb_rs::Uuid;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
 use std::{fs, thread};
 use tracing::{debug, error, info, instrument, trace, warn};
+use web_time::{Duration, Instant};
 
 use crate::file_cache::FileCache;
 use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
+#[cfg(not(target_family = "wasm"))]
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
@@ -47,7 +48,9 @@ pub struct Workspace {
     // Resources & configuration
     pub cfg: WsPersistentStore,
     pub ctx: Context,
+
     pub core: Lb,
+
     pub show_tabs: bool,              // set on mobile to hide the tab strip
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
@@ -289,8 +292,6 @@ impl Workspace {
 
                     let ctx = self.ctx.clone();
                     let core = self.core.clone();
-                    let writeable_dir = &self.core.get_config().writeable_path;
-                    let show_tabs = self.show_tabs;
 
                     let canvas_settings = self
                         .tabs
@@ -325,13 +326,16 @@ impl Workspace {
                                 id, &ext, &bytes,
                             )));
                         } else if ext == "pdf" {
-                            tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
-                                id,
-                                &bytes,
-                                &ctx,
-                                writeable_dir,
-                                !show_tabs, // todo: use settings to determine toolbar visibility
-                            )));
+                            #[cfg(not(target_family = "wasm"))]
+                            {
+                                tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
+                                    id,
+                                    &bytes,
+                                    &ctx,
+                                    &self.core.get_config().writeable_path,
+                                    !self.show_tabs, // todo: use settings to determine toolbar visibility
+                                )));
+                            }
                         } else if ext == "svg" {
                             if tab_created {
                                 tab.content = ContentState::Open(TabContent::Svg(SVGEditor::new(

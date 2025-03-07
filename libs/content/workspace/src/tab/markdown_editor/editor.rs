@@ -29,7 +29,7 @@ use markdown_editor::Event;
 use markdown_editor::{ast, bounds, galleys, images};
 
 use serde::Serialize;
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 #[derive(Debug, Serialize, Default)]
 pub struct Response {
@@ -45,7 +45,7 @@ pub struct Response {
 pub struct Editor {
     // dependencies
     pub core: Lb,
-    pub client: reqwest::blocking::Client,
+    pub client: reqwest::Client,
 
     // input
     pub file_id: Uuid,
@@ -230,9 +230,15 @@ impl Editor {
                             // register widget id
                             ui.ctx().check_for_id_clash(self.id(), Rect::NOTHING, "");
 
+                            let inner_margin = if cfg!(target_family = "wasm") {
+                                egui::Margin::symmetric(70.0, 0.0)
+                            } else {
+                                Margin::same(15.)
+                            };
+
                             Frame::canvas(ui.style())
                                 .stroke(Stroke::NONE)
-                                .inner_margin(Margin::same(15.))
+                                .inner_margin(inner_margin)
                                 .show(ui, |ui| self.show_inner_inner(ui, touch_mode))
                                 .inner
                         })

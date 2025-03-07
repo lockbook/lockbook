@@ -10,7 +10,7 @@ use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use web_time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use tokio::sync::RwLock;
 use uuid::Uuid;
