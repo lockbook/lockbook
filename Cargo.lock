@@ -8994,6 +8994,7 @@ dependencies = [
  "linkify",
  "lyon",
  "ndk-sys 0.4.1+23.1.7779620",
+ "num_cpus",
  "pollster 0.2.5",
  "pulldown-cmark",
  "rand 0.8.5",

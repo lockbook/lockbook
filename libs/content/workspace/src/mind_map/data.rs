@@ -1,9 +1,11 @@
 use lb_rs::{blocking::Lb, Uuid};
 use linkify::{LinkFinder, LinkKind};
+use num_cpus;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicIsize;
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -204,11 +206,19 @@ pub fn start_extraction_names() {
     // Work units are represented as indexes into the link_infos array, so the queue is represented as simply the next
     // index to be processed.
     let queue = Arc::new(AtomicIsize::new((link_infos.len() - 1) as isize));
+    let max_workers = std::cmp::max(1, num_cpus::get() / 2);
+    let active_tasks = Arc::new(AtomicUsize::new(0));
     let mut handles = vec![];
 
-    const NUM_WORKERS: usize = 100;
     for _ in 0..link_infos.len() {
+        let mut active = active_tasks.load(Ordering::SeqCst);
+        while active == max_workers {
+            active = active_tasks.load(Ordering::SeqCst);
+        }
+
         let queue = queue.clone();
+        active_tasks.fetch_add(1, Ordering::SeqCst);
+        let async_clone_task = active_tasks.clone();
         handles.push(rt.spawn(async move {
             // Atomically grab a work unit from the queue
             let index = queue.fetch_sub(1, Ordering::SeqCst);
@@ -220,6 +230,7 @@ pub fn start_extraction_names() {
             let index = (index - 1) as usize;
             let clone = URL_NAME_STORE.lock().unwrap().clone();
             let name = fetch_title(&clone[index].url).await;
+            async_clone_task.fetch_sub(1, Ordering::SeqCst);
             match name {
                 Ok(name) => {
                     // Update the global store with the result, re-locking as to not hold a lock across an await
