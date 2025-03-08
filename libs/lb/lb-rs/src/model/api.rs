@@ -197,7 +197,7 @@ impl GetUsageResponse {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub struct FileUsage {
     pub file_id: Uuid,
     pub size_bytes: u64,

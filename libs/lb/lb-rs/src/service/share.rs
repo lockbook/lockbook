@@ -35,7 +35,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed(id);
+        self.events.meta_changed();
 
         Ok(())
     }
@@ -92,7 +92,7 @@ impl Lb {
         tree.delete_share(id, maybe_encrypted_for, &self.keychain)?;
 
         tx.end();
-        self.events.meta_changed(*id);
+        self.events.meta_changed();
 
         Ok(())
     }

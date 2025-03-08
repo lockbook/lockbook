@@ -5,7 +5,7 @@ use lb_rs::Uuid;
 use crate::{
     ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, lb_work::LbSyncRes, LbAccountRes,
     LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbIdListRes,
-    LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathsRes, LbSearchRes,
+    LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathsRes, LbSearchRes, LbStatus,
     LbSubscriptionInfoRes, LbUncompressedRes, LbUsageMetricsRes,
 };
 
@@ -277,6 +277,42 @@ pub extern "C" fn lb_free_sub_info(sub_info: LbSubscriptionInfoRes) {
 
         if !sub_info.google_play.is_null() {
             unsafe { drop(Box::from_raw(sub_info.google_play)) };
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_free_status(status: LbStatus) {
+    if !status.pushing_files.ids.is_null() {
+        drop(rvec(status.pushing_files.ids, status.pushing_files.len));
+    }
+
+    if !status.pulling_files.ids.is_null() {
+        drop(rvec(status.pulling_files.ids, status.pulling_files.len));
+    }
+
+    if !status.dirty_locally.ids.is_null() {
+        drop(rvec(status.dirty_locally.ids, status.dirty_locally.len));
+    }
+
+    unsafe {
+        if !status.space_used.is_null() {
+            let usage = status.space_used;
+            let usage = Box::from_raw(usage);
+
+            if !usage.server_cap_human.is_null() {
+                drop(CString::from_raw(usage.server_cap_human))
+            }
+
+            if !usage.server_used_human.is_null() {
+                drop(CString::from_raw(usage.server_used_human))
+            }
+
+            drop(usage);
+        }
+
+        if !status.sync_status.is_null() {
+            drop(CString::from_raw(status.sync_status));
         }
     }
 }
