@@ -56,7 +56,9 @@ pub struct Status {
     pub dirty_locally: Vec<Uuid>,
 
     /// metadata or content for this id is being from the server
-    pulling_files: Vec<Uuid>,
+    /// callers should be prepared to handle ids they don't know
+    /// about yet.
+    pub pulling_files: Vec<Uuid>,
 
     /// a mix of human readable and precise data for
     /// used, and available space

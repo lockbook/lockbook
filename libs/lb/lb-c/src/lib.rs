@@ -952,6 +952,67 @@ pub extern "C" fn lb_get_subscription_info(lb: *mut Lb) -> LbSubscriptionInfoRes
     }
 }
 
+#[repr(C)]
+pub struct LbIds {
+    ids: *mut LbUuid,
+    len: usize,
+}
+
+#[repr(C)]
+pub struct LbStatus {
+    pub syncing: bool,
+    pub out_of_space: bool,
+    pub pending_shares: bool,
+    pub update_required: bool,
+    pub pushing_files: LbIds,
+    pub dirty_locally: LbIds,
+    pub pulling_files: LbIds,
+    pub space_used: *mut LbUsageMetrics,
+    pub sync_status: *mut c_char,
+}
+
+#[no_mangle]
+pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
+    let lb = rlb(lb);
+    let status = lb.status();
+
+    let pushing_files = carray(status.pushing_files.into_iter().map(LbUuid::from).collect());
+    let pushing_files = LbIds { ids: pushing_files.0, len: pushing_files.1 };
+
+    let dirty_locally = carray(status.dirty_locally.into_iter().map(LbUuid::from).collect());
+    let dirty_locally = LbIds { ids: dirty_locally.0, len: dirty_locally.1 };
+
+    let pulling_files = carray(status.pulling_files.into_iter().map(LbUuid::from).collect());
+    let pulling_files = LbIds { ids: pulling_files.0, len: pulling_files.1 };
+
+    let space_used = match status.space_used {
+        Some(usage) => Box::into_raw(Box::new(LbUsageMetrics {
+            server_used_exact: usage.server_usage.exact,
+            server_used_human: cstring(usage.server_usage.readable),
+            server_cap_exact: usage.data_cap.exact,
+            server_cap_human: cstring(usage.data_cap.readable),
+        })),
+        None => null_mut(),
+    };
+
+    let sync_status = match status.sync_status {
+        Some(sync_status) => cstring(sync_status),
+        None => null_mut(),
+    };
+
+    LbStatus {
+        syncing: status.syncing,
+        out_of_space: status.out_of_space,
+        pending_shares: status.pending_shares,
+        update_required: status.update_required,
+        pushing_files,
+        dirty_locally,
+        pulling_files,
+        space_used,
+        sync_status,
+    }
+}
+
 mod ffi_utils;
 mod lb_c_err;
 mod lb_file;

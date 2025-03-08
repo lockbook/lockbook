@@ -24,7 +24,10 @@ use crate::{
         sync::{SyncProgress, SyncStatus},
         usage::{UsageItemMetric, UsageMetrics},
     },
-    subscribers::search::{SearchConfig, SearchResult},
+    subscribers::{
+        search::{SearchConfig, SearchResult},
+        status::Status,
+    },
 };
 
 #[derive(Clone)]
@@ -305,6 +308,10 @@ impl Lb {
 
     pub fn admin_set_user_tier(&self, username: &str, info: AdminSetUserTierInfo) -> LbResult<()> {
         self.rt.block_on(self.lb.set_user_tier(username, info))
+    }
+
+    pub fn status(&self) -> Status {
+        self.rt.block_on(self.lb.status())
     }
 
     pub fn debug_info(&self, os_info: String) -> String {
