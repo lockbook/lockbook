@@ -15,6 +15,7 @@ public struct DrawerView<Menu: View, Content: View>: View {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button(action: {
                                 homeState.isConstrainedSidebarOpen.toggle()
+                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                             }) {
                                 Image(systemName: "sidebar.left")
                                     .imageScale(.large)
@@ -47,7 +48,7 @@ public struct DrawerView<Menu: View, Content: View>: View {
 }
 
 #Preview("Drawer") {
-    DrawerView(homeState: HomeState(workspaceState: WorkspaceState()), menu: {
+    DrawerView(homeState: HomeState(), menu: {
         Color.blue
     }, content: {
         Color.red

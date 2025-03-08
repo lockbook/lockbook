@@ -249,8 +249,8 @@ struct HighlightedText: View {
     Color.accentColor
         .sheet(isPresented: .constant(true)) {
             SelectFolderSheet(
-                homeState: HomeState(workspaceState: WorkspaceState()),
-                filesModel: FilesViewModel(workspaceState: WorkspaceState()),
+                homeState: HomeState(),
+                filesModel: FilesViewModel(),
                 action: .move(files: [(AppState.lb as! MockLb).file1])
             )
         }
@@ -260,8 +260,8 @@ struct HighlightedText: View {
     Color.accentColor
         .sheet(isPresented: .constant(true)) {
             SelectFolderSheet(
-                homeState: HomeState(workspaceState: WorkspaceState()),
-                filesModel: FilesViewModel(workspaceState: WorkspaceState()),
+                homeState: HomeState(),
+                filesModel: FilesViewModel(),
                 action: .acceptShare(name: "work.md", id: UUID())
             )
         }
@@ -271,8 +271,8 @@ struct HighlightedText: View {
     Color.accentColor
         .sheet(isPresented: .constant(true)) {
             SelectFolderSheet(
-                homeState: HomeState(workspaceState: WorkspaceState()),
-                filesModel: FilesViewModel(workspaceState: WorkspaceState()),
+                homeState: HomeState(),
+                filesModel: FilesViewModel(),
                 action: .externalImport(paths: ["/path/to/file.txt", "/path/to/file2.txt"])
             )
         }

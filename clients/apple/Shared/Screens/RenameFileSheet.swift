@@ -9,8 +9,8 @@ struct RenameFileSheet: View {
     @StateObject var model: RenameFileViewModel
     @Environment(\.dismiss) private var dismiss
     
-    init(homeState: HomeState, workspaceState: WorkspaceState, id: UUID, name: String) {
-        self._model = StateObject(wrappedValue: RenameFileViewModel(homeState: homeState, workspaceState: workspaceState, id: id, name: name))
+    init(homeState: HomeState, id: UUID, name: String) {
+        self._model = StateObject(wrappedValue: RenameFileViewModel(homeState: homeState, id: id, name: name))
     }
         
     var body: some View {
@@ -82,14 +82,11 @@ class RenameFileViewModel: ObservableObject {
     @Published var newName: String
     @Published var error: String = ""
     @Published var parentPath: String? = nil
-    
-    let workspaceState: WorkspaceState
-    
+        
     let id: UUID
     let name: String
     
-    init(homeState: HomeState, workspaceState: WorkspaceState, id: UUID, name: String) {
-        self.workspaceState = workspaceState
+    init(homeState: HomeState, id: UUID, name: String) {
         self.id = id
         self.name = name
         self._newName = Published(initialValue: name)
@@ -100,7 +97,7 @@ class RenameFileViewModel: ObservableObject {
             DispatchQueue.main.async {
                 switch res {
                 case .success(let path):
-                    self.parentPath = path
+                    self.parentPath = path.nameAndPath().1
                 case .failure(let err):
                     homeState.error = .lb(error: err)
                 }
@@ -117,7 +114,7 @@ class RenameFileViewModel: ObservableObject {
         
         switch res {
         case .success(_):
-            workspaceState.fileOpCompleted = .Rename(id: id, newName: newName)
+            AppState.workspaceState.fileOpCompleted = .Rename(id: id, newName: newName)
             return true
         case .failure(let err):
             error = err.msg
@@ -139,8 +136,7 @@ class RenameFileViewModel: ObservableObject {
             height: RenameFileSheet.FORM_HEIGHT,
             presentedContent: { item in
                 RenameFileSheet(
-                    homeState: HomeState(workspaceState: WorkspaceState()),
-                    workspaceState: WorkspaceState(),
+                    homeState: HomeState(),
                     id: item.id,
                     name: item.name
                 )

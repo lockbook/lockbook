@@ -13,8 +13,8 @@ struct ShareFileSheet: View {
     
     @StateObject var model: ShareFileViewModel
     
-    init(workspaceState: WorkspaceState, id: UUID, name: String, shares: [Share]) {
-        self._model = StateObject(wrappedValue: ShareFileViewModel(workspaceState: workspaceState, id: id, name: name, shares: shares))
+    init(id: UUID, name: String, shares: [Share]) {
+        self._model = StateObject(wrappedValue: ShareFileViewModel(id: id, name: name, shares: shares))
     }
     
     var body: some View {
@@ -149,15 +149,12 @@ class ShareFileViewModel: ObservableObject {
     let shares: [Share]
     let readAccessUsers: [String]
     let writeAccessUsers: [String]
-    
-    let workspaceState: WorkspaceState
-    
+        
     @Published var username: String = ""
     @Published var mode: ShareMode = .write
     @Published var error: String = ""
     
-    init(workspaceState: WorkspaceState, id: UUID, name: String, shares: [Share]) {
-        self.workspaceState = workspaceState
+    init(id: UUID, name: String, shares: [Share]) {
         self.id = id
         self.name = name
         self.shares = shares
@@ -174,7 +171,7 @@ class ShareFileViewModel: ObservableObject {
         
         switch res {
         case .success():
-            workspaceState.syncRequested = true
+            AppState.workspaceState.syncRequested = true
             return true
         case .failure(let err):
             error = err.msg
@@ -209,7 +206,6 @@ struct ShareFileTextField: ViewModifier {
             height: ShareFileSheet.FORM_HEIGHT,
             presentedContent: { item in
                 ShareFileSheet(
-                    workspaceState: WorkspaceState(),
                     id: item.id,
                     name: item.name,
                     shares: item.shares

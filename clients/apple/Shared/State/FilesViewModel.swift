@@ -16,16 +16,14 @@ class FilesViewModel: ObservableObject {
     var error: String? = nil
     
     private var cancellables: Set<AnyCancellable> = []
-    
-    let workspaceState: WorkspaceState
-    
-    init(workspaceState: WorkspaceState) {
-        self.workspaceState = workspaceState
-        workspaceState.$reloadFiles.sink { [weak self] reload in
-            if reload {
-                print("WORKSPACE SAID RELOAD")
-                self?.loadFiles()
+        
+    init() {
+        AppState.workspaceState.$reloadFiles.sink { [weak self] reload in
+            guard reload else {
+                return
             }
+            
+            self?.loadFiles()
         }
         .store(in: &cancellables)
         
@@ -210,7 +208,7 @@ class FilesViewModel: ObservableObject {
                 switch AppState.lb.createFile(name: name, parent: parent, fileType: .document) {
                 case .success(let file):
                     created = file
-                    self.workspaceState.requestOpenDoc(file.id)
+                    AppState.workspaceState.requestOpenDoc(file.id)
                 case .failure(let error):
                     if error.code == .pathTaken {
                         attempt += 1

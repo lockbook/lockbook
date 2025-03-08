@@ -4,31 +4,31 @@ import Combine
 
 class HomeState: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
-    let workspaceState: WorkspaceState
     
-    init(workspaceState: WorkspaceState) {
-        self.workspaceState = workspaceState
-        workspaceState.$renameOpenDoc.sink { [weak self] rename in
+    init() {
+        AppState.workspaceState.$renameOpenDoc.sink { [weak self] rename in
             self?.runOnActiveWorkspaceState(doRun: rename) { file in
                 self?.sheetInfo = .rename(file: file)
             }
         }
         .store(in: &cancellables)
         
-        workspaceState.$newFolderButtonPressed.sink { [weak self] newFolder in
-            self?.runOnActiveWorkspaceState(doRun: newFolder) { file in
-                guard let root = try? AppState.lb.getRoot().get() else {
-                    return
-                }
-                
-                self?.sheetInfo = .createFolder(parent: root)
+        AppState.workspaceState.$newFolderButtonPressed.sink { [weak self] newFolder in
+            guard newFolder else {
+                return
             }
+            
+            guard let root = try? AppState.lb.getRoot().get() else {
+                return
+            }
+            
+            self?.sheetInfo = .createFolder(parent: root)
         }
         .store(in: &cancellables)
     }
     
     func runOnActiveWorkspaceState(doRun: Bool, f: (File) -> Void) {
-        guard let openDoc = self.workspaceState.openDoc else {
+        guard let openDoc = AppState.workspaceState.openDoc else {
             return
         }
         

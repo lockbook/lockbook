@@ -5,7 +5,6 @@ struct SuggestedDocsView: View {
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
 
     @EnvironmentObject var homeState: HomeState
-    @EnvironmentObject var workspaceState: WorkspaceState
     @StateObject var model: SuggestedDocsViewModel
     
     init(filesModel: FilesViewModel) {
@@ -25,7 +24,7 @@ struct SuggestedDocsView: View {
                                     homeState.isConstrainedSidebarOpen = false
                                 }
                                 
-                                workspaceState.requestOpenDoc(info.id)
+                                AppState.workspaceState.requestOpenDoc(info.id)
                             }) {
                                 SuggestedDocCell(info: info)
                             }
@@ -46,9 +45,8 @@ struct SuggestedDocsView: View {
 }
 
 #Preview {
-    SuggestedDocsView(filesModel: FilesViewModel(workspaceState: WorkspaceState()))
-        .environmentObject(WorkspaceState())
-        .environmentObject(HomeState(workspaceState: WorkspaceState()))
+    SuggestedDocsView(filesModel: FilesViewModel())
+        .environmentObject(HomeState())
 }
 
 struct SuggestedDocCell: View {

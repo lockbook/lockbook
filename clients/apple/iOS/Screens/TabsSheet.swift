@@ -5,13 +5,14 @@ struct TabsSheet: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var workspaceState: WorkspaceState
     
-    let info: [(name: String, id: UUID)]
+    @Environment(\.dismiss) private var dismiss
+    
+    @State var info: [(name: String, id: UUID)]
     
     var body: some View {
         VStack {
             Button(action: {
-                homeState.tabsSheetInfo = nil
-                workspaceState.requestCloseAllTabs()
+                self.closeAllTabs()
             }, label: {
                 HStack {
                     Image(systemName: "xmark.circle")
@@ -35,11 +36,11 @@ struct TabsSheet: View {
             
             ForEach(info, id: \.id) { info in
                 Button(action: {
-                    workspaceState.requestOpenDoc(info.id)
+                    AppState.workspaceState.requestOpenDoc(info.id)
                 }, label: {
                     HStack {
                         Button(action: {
-                            print("closing")
+                            self.closeTab(id: info.id)
                         }, label: {
                             Image(systemName: "xmark.circle")
                                 .foregroundColor(.red)
@@ -73,6 +74,24 @@ struct TabsSheet: View {
             }
         }
     }
+    
+    func closeTab(id: UUID) {
+        AppState.workspaceState.requestCloseDoc(id: id)
+        let i = self.info.firstIndex(where: {  $0.id == id })
+        
+        if let i {
+            self.info.remove(at: i)
+        }
+        
+        if info.isEmpty {
+            dismiss()
+        }
+    }
+    
+    func closeAllTabs() {
+        AppState.workspaceState.requestCloseAllTabs()
+        dismiss()
+    }
 }
 
 #if os(iOS)
@@ -90,7 +109,7 @@ struct TabsSheet: View {
                 )
             }
         )
-        .environmentObject(HomeState(workspaceState: WorkspaceState()))
+        .environmentObject(HomeState())
         .environmentObject(WorkspaceState())
 }
 #endif

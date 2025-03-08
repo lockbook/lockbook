@@ -3,16 +3,15 @@ import SwiftWorkspace
 
 struct FileTreeView: View {
     
-    @EnvironmentObject var workspaceState: WorkspaceState
     @StateObject var fileTreeModel: FileTreeViewModel
     
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
     
     var root: File
     
-    init(root: File, workspaceState: WorkspaceState, filesModel: FilesViewModel) {
+    init(root: File, filesModel: FilesViewModel) {
         self.root = root
-        self._fileTreeModel = StateObject(wrappedValue: FileTreeViewModel(workspaceState: workspaceState, filesModel: filesModel))
+        self._fileTreeModel = StateObject(wrappedValue: FileTreeViewModel(filesModel: filesModel))
     }
 
     var body: some View {
@@ -29,7 +28,7 @@ struct FileTreeView: View {
             FileRowContextMenu(file: root)
         }
         .refreshable {
-            workspaceState.requestSync()
+            AppState.workspaceState.requestSync()
         }
         .padding(.leading)
     }
@@ -39,7 +38,6 @@ struct FileRowView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var fileTreeModel: FileTreeViewModel
-    @EnvironmentObject var workspaceState: WorkspaceState
     
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
     
@@ -112,12 +110,13 @@ struct FileRowView: View {
             Image(systemName: FileIconHelper.fileToSystemImageName(file: file))
                 .font(.system(size: 16))
                 .frame(width: 16)
-                .foregroundColor(file.isFolder ? .accentColor : (false ? .white : .secondary ))
+                .foregroundColor(file.isFolder ? .accentColor : .secondary)
                         
             Text(file.name)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .allowsTightening(true)
+                .foregroundColor(.primary)
             
             Spacer()
             
@@ -136,6 +135,7 @@ struct FileRowView: View {
         .contentShape(Rectangle())
         .padding(.leading, level * 20 + 5)
         .padding(.trailing, 10)
+        .modifier(OpenDocModifier(file: file))
         .confirmationDialog(
             "Are you sure? This action cannot be undone.",
             isPresented: Binding(
@@ -162,13 +162,13 @@ struct FileRowView: View {
         }
         
         if file.isFolder {
-            workspaceState.selectedFolder = file.id
+            AppState.workspaceState.selectedFolder = file.id
             
             withAnimation {
                 let _ = fileTreeModel.toggleFolder(file.id)
             }
         } else {
-            workspaceState.requestOpenDoc(file.id)
+            AppState.workspaceState.requestOpenDoc(file.id)
             
             if isConstrainedLayout {
                 homeState.isConstrainedSidebarOpen = false
@@ -251,11 +251,31 @@ struct FileRowContextMenu: View {
     }
 }
 
+struct OpenDocModifier: ViewModifier {
+    @EnvironmentObject var fileTreeModel: FileTreeViewModel
+    
+    let file: File
+        
+    func body(content: Content) -> some View {
+        if fileTreeModel.openDoc == file.id {
+            content
+                .foregroundColor(Color.white)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .foregroundStyle(Color.primary.opacity(0.05))
+                        .padding(.vertical, 2)
+                        .padding(.trailing)
+                )
+        } else {
+            content
+        }
+    }
+}
+
 #Preview {
     NavigationView {
-        FileTreeView(root: (AppState.lb as! MockLb).file0, workspaceState: WorkspaceState(), filesModel: FilesViewModel(workspaceState: WorkspaceState()))
+        FileTreeView(root: (AppState.lb as! MockLb).file0, filesModel: FilesViewModel())
     }
-    .environmentObject(HomeState(workspaceState: WorkspaceState()))
-    .environmentObject(FilesViewModel(workspaceState: WorkspaceState()))
-    .environmentObject(WorkspaceState())
+    .environmentObject(HomeState())
+    .environmentObject(FilesViewModel())
 }
