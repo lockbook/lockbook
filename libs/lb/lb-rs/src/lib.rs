@@ -22,6 +22,7 @@ pub mod blocking;
 pub mod io;
 pub mod model;
 pub mod service;
+pub mod subscribers;
 
 #[derive(Clone)]
 pub struct Lb {
@@ -33,6 +34,7 @@ pub struct Lb {
     pub client: Network,
     pub events: EventSubs,
     pub syncing: Arc<AtomicBool>,
+    pub status: StatusUpdater,
 }
 
 impl Lb {
@@ -47,11 +49,15 @@ impl Lb {
         let docs = AsyncDocs::from(&config);
         let client = Network::default();
         let search = SearchIndex::default();
+        let status = StatusUpdater::default();
         let syncing = Arc::default();
         let events = EventSubs::default();
 
-        let result = Self { config, keychain, db, docs, client, search, syncing, events };
+        let result = Self { config, keychain, db, docs, client, search, syncing, events, status };
+
         result.setup_search();
+        result.setup_status().await?;
+
         Ok(result)
     }
 }
@@ -70,11 +76,12 @@ use io::docs::AsyncDocs;
 use io::network::Network;
 use io::LbDb;
 use model::core_config::Config;
-use model::errors::{LbErrKind, LbResult};
+pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
 use service::keychain::Keychain;
-use service::search::SearchIndex;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use subscribers::search::SearchIndex;
+use subscribers::status::StatusUpdater;
 use tokio::sync::RwLock;
 pub use uuid::Uuid;

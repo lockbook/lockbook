@@ -21,9 +21,12 @@ use crate::{
     service::{
         activity::RankingWeights,
         import_export::{ExportFileInfo, ImportStatus},
-        search::{SearchConfig, SearchResult},
         sync::{SyncProgress, SyncStatus},
         usage::{UsageItemMetric, UsageMetrics},
+    },
+    subscribers::{
+        search::{SearchConfig, SearchResult},
+        status::Status,
     },
 };
 
@@ -164,11 +167,7 @@ impl Lb {
     }
 
     pub fn get_local_changes(&self) -> LbResult<Vec<Uuid>> {
-        self.rt.block_on(async {
-            let tx = self.lb.ro_tx().await;
-            let db = tx.db();
-            Ok(db.local_metadata.get().keys().copied().collect())
-        })
+        Ok(self.rt.block_on(self.lb.local_changes()))
     }
 
     pub fn calculate_work(&self) -> LbResult<SyncStatus> {
@@ -309,6 +308,10 @@ impl Lb {
 
     pub fn admin_set_user_tier(&self, username: &str, info: AdminSetUserTierInfo) -> LbResult<()> {
         self.rt.block_on(self.lb.set_user_tier(username, info))
+    }
+
+    pub fn status(&self) -> Status {
+        self.rt.block_on(self.lb.status())
     }
 
     pub fn debug_info(&self, os_info: String) -> String {

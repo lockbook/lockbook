@@ -8,6 +8,7 @@ use std::sync::PoisonError;
 use hmac::crypto_mac::MacError;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
+use tracing::error;
 use uuid::Uuid;
 
 use crate::io::network::ApiError;
@@ -166,6 +167,7 @@ impl From<LbErrKind> for LbErr {
 }
 
 pub trait Unexpected<T> {
+    fn log_and_ignore(self) -> Option<T>;
     fn map_unexpected(self) -> LbResult<T>;
 }
 
@@ -181,6 +183,16 @@ impl<T, E: std::fmt::Debug> Unexpected<T> for Result<T, E> {
             ))
             .into()
         })
+    }
+
+    #[track_caller]
+    fn log_and_ignore(self) -> Option<T> {
+        let location = Location::caller();
+        if let Err(e) = &self {
+            error!("error ignored at {}:{} {e:?}", location.file(), location.line());
+        }
+
+        self.ok()
     }
 }
 
