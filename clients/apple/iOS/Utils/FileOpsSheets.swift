@@ -3,10 +3,9 @@ import SwiftWorkspace
 
 extension View {
     func fileOpSheets(
-        workspaceState: WorkspaceState,
         constrainedSheetHeight: Binding<CGFloat>
     ) -> some View {
-        modifier(FileOpSheets(workspaceState: workspaceState, constrainedSheetHeight: constrainedSheetHeight))
+        modifier(FileOpSheets(constrainedSheetHeight: constrainedSheetHeight))
     }
 }
 
@@ -14,9 +13,7 @@ extension View {
 struct FileOpSheets: ViewModifier {
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
     @EnvironmentObject var homeState: HomeState
-    
-    @ObservedObject var workspaceState: WorkspaceState
-    
+        
     @Binding var constrainedSheetHeight: CGFloat
     
     func body(content: Content) -> some View {
@@ -25,13 +22,13 @@ struct FileOpSheets: ViewModifier {
                 .sheet(item: $homeState.sheetInfo) { info in
                     switch info {
                     case .createFolder(parent: let parent):
-                        CreateFolderSheet(homeState: homeState, workspaceState: workspaceState, parentId: parent.id)
+                        CreateFolderSheet(homeState: homeState, parentId: parent.id)
                             .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
                     case .rename(file: let file):
-                        RenameFileSheet(homeState: homeState, workspaceState: workspaceState, id: file.id, name: file.name)
+                        RenameFileSheet(homeState: homeState, id: file.id, name: file.name)
                             .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
                     case .share(file: let file):
-                        ShareFileSheet(workspaceState: workspaceState, id: file.id, name: file.name, shares: file.shares)
+                        ShareFileSheet(id: file.id, name: file.name, shares: file.shares)
                             .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
                     }
                 }
@@ -40,13 +37,13 @@ struct FileOpSheets: ViewModifier {
                 .formSheet(item: $homeState.sheetInfo) { info in
                     switch info {
                     case .createFolder(parent: let parent):
-                        CreateFolderSheet(homeState: homeState, workspaceState: workspaceState, parentId: parent.id)
+                        CreateFolderSheet(homeState: homeState, parentId: parent.id)
                             .frame(width: CreateFolderSheet.FORM_WIDTH, height: CreateFolderSheet.FORM_HEIGHT)
                     case .rename(file: let file):
-                        RenameFileSheet(homeState: homeState, workspaceState: workspaceState, id: file.id, name: file.name)
+                        RenameFileSheet(homeState: homeState, id: file.id, name: file.name)
                             .frame(width: RenameFileSheet.FORM_WIDTH, height: RenameFileSheet.FORM_HEIGHT)
                     case .share(file: let file):
-                        ShareFileSheet(workspaceState: workspaceState, id: file.id, name: file.name, shares: file.shares)
+                        ShareFileSheet(id: file.id, name: file.name, shares: file.shares)
                             .frame(width: ShareFileSheet.FORM_WIDTH, height: ShareFileSheet.FORM_HEIGHT)
                     }
                 }

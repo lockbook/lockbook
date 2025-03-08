@@ -87,10 +87,13 @@ public struct UIWS: UIViewRepresentable {
             workspaceState.fileOpCompleted = nil
         }
         
-        if workspaceState.closeActiveTab {
-            workspaceState.closeActiveTab = false
-            uiView.mtkView.closeActiveTab()
-            uiView.currentWrapper?.resignFirstResponder()
+        if let id = workspaceState.closeDocRequested {
+            workspaceState.closeDocRequested = nil
+            let activeDoc = workspaceState.openDoc
+            uiView.mtkView.closeDoc(id: id)
+            if activeDoc == id {
+                uiView.currentWrapper?.resignFirstResponder()
+            }
         }
     }
 }

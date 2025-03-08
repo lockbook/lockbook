@@ -4,24 +4,21 @@ import SwiftWorkspace
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
-    @EnvironmentObject var workspaceState: WorkspaceState
-    @StateObject var homeState: HomeState
-    
-    init(workspaceState: WorkspaceState) {
-        self._homeState = StateObject(wrappedValue: HomeState(workspaceState: workspaceState))
-    }
-        
+    @StateObject var homeState = HomeState()
+            
     var body: some View {
-        NavigationStack {
-            Group {
-                if horizontalSizeClass == .compact {
+        Group {
+            if horizontalSizeClass == .compact {
+                NavigationStack {
                     DrawerView(homeState: homeState, menu: {
                         sidebar
                     }, content: {
                         DetailView()
                     })
                     .environment(\.isConstrainedLayout, true)
-                } else {
+                }
+            } else {
+                PathSearchActionbar {
                     NavigationSplitView(sidebar: {
                         sidebar
                     }, detail: {
@@ -32,12 +29,11 @@ struct HomeView: View {
             }
         }
         .environmentObject(homeState)
-        .environmentObject(workspaceState)
     }
     
     @ViewBuilder
     var sidebar: some View {
-        SidebarView(workspaceState)
+        SidebarView()
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     HStack(spacing: 0) {
@@ -61,14 +57,8 @@ struct HomeView: View {
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
     
-    @ObservedObject var workspaceState: WorkspaceState
-    @StateObject var filesModel: FilesViewModel
+    @StateObject var filesModel = FilesViewModel()
     @State var sheetHeight: CGFloat = 0
-            
-    init(_ workspaceState: WorkspaceState) {
-        self.workspaceState = workspaceState
-        self._filesModel = StateObject(wrappedValue: FilesViewModel(workspaceState: workspaceState))
-    }
     
     var body: some View {
         if let error = filesModel.error {
@@ -95,7 +85,7 @@ struct SidebarView: View {
                         .font(.headline)
                         .padding(.bottom, 3)
                         .padding(.top, 8)) {
-                            FileTreeView(root: root, workspaceState: workspaceState, filesModel: filesModel)
+                            FileTreeView(root: root, filesModel: filesModel)
                                 .toolbar {
                                     selectionToolbarItem
                                 }
@@ -164,7 +154,7 @@ struct SidebarView: View {
 #Preview("Home View") {
     let workspaceState = WorkspaceState()
     
-    return HomeView(workspaceState: workspaceState)
+    return HomeView()
         .environmentObject(BillingState())
         .environmentObject(workspaceState)
 }

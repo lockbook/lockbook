@@ -3,6 +3,7 @@ import SwiftWorkspace
 
 struct DetailView: View {
     @Environment(\.isPreview) var isPreview
+    @Environment(\.isConstrainedLayout) var isConstrainedLayout
 
     @EnvironmentObject var workspaceState: WorkspaceState
     @EnvironmentObject var homeState: HomeState
@@ -14,7 +15,7 @@ struct DetailView: View {
             if isPreview {
                 Text("This is a preview.")
             } else {
-                WorkspaceView(workspaceState, AppState.lb.lbUnsafeRawPtr)
+                WorkspaceView(AppState.workspaceState, AppState.lb.lbUnsafeRawPtr)
             }
         }
         .toolbar {
@@ -37,7 +38,7 @@ struct DetailView: View {
                             Image(systemName: "square.and.arrow.up.fill")
                         })
                         
-                        if workspaceState.openTabs > 1 {
+                        if isConstrainedLayout && workspaceState.openTabs > 1 {
                             Button(action: {
                                 self.showTabsSheet()
                             }, label: {
@@ -57,7 +58,7 @@ struct DetailView: View {
         .optimizedSheet(item: $homeState.tabsSheetInfo, constrainedSheetHeight: $sheetHeight) { info in
             TabsSheet(info: info.info)
         }
-        .fileOpSheets(workspaceState: workspaceState, constrainedSheetHeight: $sheetHeight)
+        .fileOpSheets(constrainedSheetHeight: $sheetHeight)
         .modifier(ConstrainedTitle())
     }
     
@@ -125,6 +126,6 @@ struct ConstrainedTitle: ViewModifier {
     return NavigationStack {
         DetailView()
             .environmentObject(workspaceState)
-            .environmentObject(HomeState(workspaceState: workspaceState))
+            .environmentObject(HomeState())
     }
 }

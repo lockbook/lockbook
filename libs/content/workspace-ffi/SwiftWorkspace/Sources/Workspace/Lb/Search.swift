@@ -52,23 +52,22 @@ extension Array<LbPathSearchResult> {
     }
 }
 
-public struct PathSearchResult: Hashable {
+public struct PathSearchResult: Hashable, Comparable {
     public let id: UUID
     public let path: String
     public let score: Int64
     public let matchedIndicies: [UInt]
-    
-    public lazy var nameAndPath: (String, String) = {
-        let components = path.split(separator: "/")
-        
-        let name = String(components.last ?? "ERROR")
-        let path = components.dropLast().joined(separator: "/")
-                
-        return (name, path)
-    }()
         
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+    }
+    
+    public static func <(lhs: PathSearchResult, rhs: PathSearchResult) -> Bool {
+        if lhs.score == rhs.score {
+            return lhs.path < rhs.path
+        }
+        
+        return lhs.score < rhs.score
     }
     
     init(_ res: LbPathSearchResult) {
@@ -95,15 +94,6 @@ public struct DocumentSearchResult: Hashable {
     public let id: UUID
     public let path: String
     public let contentMatches: [ContentMatch]
-    
-    public lazy var nameAndPath: (String, String) = {
-        let components = path.split(separator: "/")
-        
-        let name = String(components.last ?? "ERROR")
-        let path = components.dropLast().joined(separator: "/")
-                
-        return (name, path)
-    }()
     
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)

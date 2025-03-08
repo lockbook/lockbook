@@ -951,8 +951,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         setNeedsDisplay(self.frame)
     }
 
-    func closeActiveTab() {
-        close_active_tab(wsHandle)
+    func closeDoc(id: UUID) {
+        close_tab(wsHandle, id.uuidString)
         setNeedsDisplay(self.frame)
     }
     

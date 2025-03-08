@@ -20,7 +20,26 @@ struct PendingSharesView: View {
                 
                 Spacer()
             } else if let pendingShares = model.pendingShares {
-                self.pendingShares(pendingShares: pendingShares)
+                if pendingShares.isEmpty {
+                    Spacer()
+                    
+                    Image(systemName: "person.2.slash")
+                        .padding(.vertical, 5)
+                        .imageScale(.large)
+                    
+                    Text("You have no pending shares.")
+                    
+                    Spacer()
+                } else {
+                    ScrollView {
+                        VStack {
+                            ForEach(pendingShares.sorted { $0 > $1 }, id: \.id) { file in
+                                PendingShareFileCell(pendingSharesModel: model, file: file)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
             } else {
                 ProgressView()
             }
@@ -28,37 +47,13 @@ struct PendingSharesView: View {
         .navigationTitle("Pending Shares")
         .navigationBarTitleDisplayMode(.large)
     }
-    
-    @ViewBuilder
-    func pendingShares(pendingShares: [File]) -> some View {
-        if pendingShares.isEmpty {
-            Spacer()
-            
-            Image(systemName: "person.2.slash")
-                .padding(.vertical, 5)
-                .imageScale(.large)
-            
-            Text("You have no pending shares.")
-            
-            Spacer()
-        } else {
-            ScrollView {
-                VStack {
-                    ForEach(pendingShares.sorted { $0 > $1 }) { file in
-                        PendingShareFileCell(pendingSharesModel: model, file: file)
-                    }
-                }
-                .padding(.horizontal)
-            }
-        }
-    }
 }
 
 #Preview("Pending Shares") {
     NavigationStack {
         PendingSharesView()
-            .environmentObject(HomeState(workspaceState: WorkspaceState()))
-            .environmentObject(FilesViewModel(workspaceState: WorkspaceState()))
+            .environmentObject(HomeState())
+            .environmentObject(FilesViewModel())
     }
 }
 

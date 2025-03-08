@@ -10,8 +10,8 @@ struct CreateFolderSheet: View {
     
     @StateObject var model: CreateFolderViewModel
     
-    init(homeState: HomeState, workspaceState: WorkspaceState, parentId: UUID) {
-        self._model = StateObject(wrappedValue: CreateFolderViewModel(homeState: homeState, workspaceState: workspaceState, parentId: parentId))
+    init(homeState: HomeState, parentId: UUID) {
+        self._model = StateObject(wrappedValue: CreateFolderViewModel(homeState: homeState, parentId: parentId))
     }
     
     var body: some View {
@@ -83,12 +83,10 @@ class CreateFolderViewModel: ObservableObject {
     @Published var error: String = ""
     @Published var parentPath: String? = nil
     
-    let workspaceState: WorkspaceState
     
     let parentId: UUID
     
-    init(homeState: HomeState, workspaceState: WorkspaceState, parentId: UUID) {
-        self.workspaceState = workspaceState
+    init(homeState: HomeState, parentId: UUID) {
         self.parentId = parentId
         
         DispatchQueue.global(qos: .userInitiated).async {
@@ -136,8 +134,7 @@ class CreateFolderViewModel: ObservableObject {
             height: CreateFolderSheet.FORM_HEIGHT,
             presentedContent: { item in
                 CreateFolderSheet(
-                    homeState: HomeState(workspaceState: WorkspaceState()),
-                    workspaceState: WorkspaceState(),
+                    homeState: HomeState(),
                     parentId: item.id
                 )
             }

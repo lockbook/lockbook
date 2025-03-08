@@ -27,7 +27,7 @@ struct SettingsView: View {
                         showAccountKeys = success
                     }
                 }, label: {
-                    Text("Reveal account keys")
+                    Text("Reveal Account Keys")
                 })
                 
                 Button(role: .destructive, action: {

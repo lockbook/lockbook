@@ -65,6 +65,6 @@ class PendingSharesIconViewModel: ObservableObject {
 }
 
 #Preview("Pending Shares") {
-    PendingSharesIcon(homeState: HomeState(workspaceState: WorkspaceState()))
+    PendingSharesIcon(homeState: HomeState())
         .frame(width: 200, height: 200)
 }

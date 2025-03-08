@@ -4,17 +4,17 @@ import Combine
 
 class FileTreeViewModel: ObservableObject {
     @Published var openFolders: Set<UUID> = Set()
-    @Published var selectedDoc: UUID? = nil
+    @Published var openDoc: UUID? = nil
     
     private var cancellables: Set<AnyCancellable> = []
     
     let filesModel: FilesViewModel
     
-    init(workspaceState: WorkspaceState, filesModel: FilesViewModel) {
+    init(filesModel: FilesViewModel) {
         self.filesModel = filesModel
         
-        workspaceState.$openDoc.sink { [weak self] selectedDoc in
-            self?.selectedDoc = selectedDoc
+        AppState.workspaceState.$openDoc.sink { [weak self] openDoc in
+            self?.openDoc = openDoc
         }
         .store(in: &cancellables)
     }
@@ -25,6 +25,7 @@ class FileTreeViewModel: ObservableObject {
         }
         
         openFolders.insert(id)
+        print("added \(id)")
     }
         
     func getParents(_ file: File) -> [UUID] {
