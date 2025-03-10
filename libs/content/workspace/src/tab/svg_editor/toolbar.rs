@@ -614,7 +614,7 @@ impl Toolbar {
         &mut self, ui: &mut egui::Ui, history: &mut History, buffer: &mut Buffer,
     ) {
         if ui.input_mut(|r| {
-            r.consume_key(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, egui::Key::Z)
+            r.consume_key(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), egui::Key::Z)
         }) {
             history.redo(buffer);
         }
