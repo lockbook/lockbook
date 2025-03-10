@@ -33,7 +33,8 @@ pub unsafe extern "C" fn key_event(
 
     if pressed && text_modifiers && key.valid_text() {
         obj.raw_input.events.push(Event::Text(text.to_string()));
-    } else if let Some(key) = key.egui_key() {
+    }
+    if let Some(key) = key.egui_key() {
         obj.raw_input.events.push(Event::Key {
             key,
             physical_key: None,

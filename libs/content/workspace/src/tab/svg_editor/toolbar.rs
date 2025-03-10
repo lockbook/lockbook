@@ -619,20 +619,20 @@ impl Toolbar {
             history.redo(buffer);
         }
 
-        if ui.input_mut(|r| r.consume_key(egui::Modifiers::NONE, egui::Key::B)) {
-            set_tool!(self, Tool::Pen);
+        if ui.input_mut(|r| r.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
+            history.undo(buffer);
         }
 
-        if ui.input_mut(|r| r.consume_key(egui::Modifiers::NONE, egui::Key::E)) {
+        if ui.input(|r| r.key_pressed(egui::Key::E)) {
             set_tool!(self, Tool::Eraser);
         }
 
-        if ui.input_mut(|r| r.consume_key(egui::Modifiers::NONE, egui::Key::S)) {
+        if ui.input(|r| r.key_pressed(egui::Key::S)) {
             set_tool!(self, Tool::Selection);
         }
 
-        if ui.input_mut(|r| r.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
-            history.undo(buffer);
+        if ui.input(|r| r.key_pressed(egui::Key::B)) {
+            set_tool!(self, Tool::Pen);
         }
     }
 
