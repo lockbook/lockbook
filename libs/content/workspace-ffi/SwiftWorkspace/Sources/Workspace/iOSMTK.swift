@@ -740,7 +740,6 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     
     @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
         guard gesture.state == .began else { return }
-        
         let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: gesture.location(in: self))
         editMenuInteraction.presentEditMenu(with: config)
     }
