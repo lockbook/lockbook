@@ -64,19 +64,10 @@ impl Eraser {
                         });
 
                     self.delete_candidates.iter().for_each(|(id, &opacity)| {
-                        if let Some(el) = eraser_ctx.buffer.elements.get_mut(id) {
-                            if opacity == el.opacity() {
-                                match el {
-                                    Element::Path(p) => {
-                                        p.opacity *= 0.3;
-                                        p.diff_state.opacity_changed = true
-                                    }
-                                    Element::Image(img) => {
-                                        img.opacity = 0.3;
-                                        img.diff_state.opacity_changed = true
-                                    }
-                                    Element::Text(_) => todo!(),
-                                }
+                        if let Some(Element::Path(p)) = eraser_ctx.buffer.elements.get_mut(id) {
+                            if opacity == p.opacity {
+                                p.opacity *= 0.3;
+                                p.diff_state.opacity_changed = true
                             }
                         };
                     });
@@ -89,20 +80,10 @@ impl Eraser {
                     }
 
                     self.delete_candidates.iter().for_each(|(id, &opacity)| {
-                        if let Some(el) = eraser_ctx.buffer.elements.get_mut(id) {
-                            match el {
-                                Element::Path(p) => {
-                                    p.opacity = opacity;
-                                    p.deleted = true;
-                                    p.diff_state.delete_changed = true;
-                                }
-                                Element::Image(img) => {
-                                    img.opacity = opacity;
-                                    img.deleted = true;
-                                    img.diff_state.delete_changed = true
-                                }
-                                Element::Text(_) => todo!(),
-                            }
+                        if let Some(Element::Path(p)) = eraser_ctx.buffer.elements.get_mut(id) {
+                            p.opacity = opacity;
+                            p.deleted = true;
+                            p.diff_state.delete_changed = true;
                         };
                     });
                     let event = super::Event::Delete(
