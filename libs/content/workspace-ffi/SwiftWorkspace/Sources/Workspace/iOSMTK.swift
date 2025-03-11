@@ -731,6 +731,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         self.addInteraction(pointerInteraction)
         
         let longPress = UILongPressGestureRecognizer(target: self, action: #selector(self.handleLongPress(_:)))
+        longPress.cancelsTouchesInView = false
         self.addGestureRecognizer(longPress)
         
         self.isMultipleTouchEnabled = true
@@ -1192,7 +1193,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
             let location = touch.preciseLocation(in: self)
             let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+            
             touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+                        
         }
 
         self.setNeedsDisplay(self.frame)
