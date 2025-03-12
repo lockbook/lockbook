@@ -250,8 +250,15 @@ impl Selection {
                         if el.transform.is_identity() {
                             return None;
                         }
+
+                        let transform_elapsed = el.transform;
+                        el.transform = Transform::identity();
+
                         if selection_ctx.buffer.elements.get_mut(&el.id).is_some() {
-                            Some(TransformElement { id: el.id.to_owned(), transform: el.transform })
+                            Some(TransformElement {
+                                id: el.id.to_owned(),
+                                transform: transform_elapsed,
+                            })
                         } else {
                             None
                         }
