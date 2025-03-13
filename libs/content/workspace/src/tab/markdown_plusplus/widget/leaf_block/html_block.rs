@@ -1,9 +1,10 @@
-use comrak::nodes::NodeHtmlBlock;
+use comrak::nodes::{AstNode, NodeHtmlBlock};
 use egui::{Context, FontFamily, FontId, Pos2, TextFormat, Ui};
 
 use crate::tab::markdown_plusplus::{
     theme::Theme,
     widget::{Ast, Block},
+    MarkdownPlusPlus,
 };
 
 pub struct HtmlBlock<'a, 't, 'w> {
@@ -11,12 +12,20 @@ pub struct HtmlBlock<'a, 't, 'w> {
     node: &'w NodeHtmlBlock,
 }
 
+impl MarkdownPlusPlus {
+    pub fn text_format_html_block(&self, parent: &AstNode<'_>) -> TextFormat {
+        self.text_format_code_block(parent)
+    }
+}
+
 impl<'a, 't, 'w> HtmlBlock<'a, 't, 'w> {
     pub fn new(ast: &'w Ast<'a, 't>, node: &'w NodeHtmlBlock) -> Self {
         Self { ast, node }
     }
 
-    pub fn text_format(theme: &Theme, parent_text_format: TextFormat, ctx: &Context) -> TextFormat {
+    pub fn text_format(
+        _theme: &Theme, parent_text_format: TextFormat, _ctx: &Context,
+    ) -> TextFormat {
         TextFormat {
             font_id: FontId {
                 size: parent_text_format.font_id.size * 0.9,

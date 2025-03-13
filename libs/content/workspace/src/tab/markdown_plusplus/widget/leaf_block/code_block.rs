@@ -1,9 +1,10 @@
-use comrak::nodes::NodeCodeBlock;
+use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Context, FontFamily, FontId, Pos2, Rect, Sense, Stroke, TextFormat, Ui, Vec2};
 
 use crate::tab::markdown_plusplus::{
     theme::Theme,
     widget::{Ast, Block, WrapContext, BLOCK_SPACING, INLINE_PADDING},
+    MarkdownPlusPlus,
 };
 
 pub struct CodeBlock<'a, 't, 'w> {
@@ -11,12 +12,37 @@ pub struct CodeBlock<'a, 't, 'w> {
     node: &'w NodeCodeBlock,
 }
 
+impl MarkdownPlusPlus {
+    pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> TextFormat {
+        let parent_text_format = self.text_format(parent);
+        let parent_row_height = self
+            .ctx
+            .fonts(|fonts| fonts.row_height(&parent_text_format.font_id));
+        let monospace_row_height = self.ctx.fonts(|fonts| {
+            fonts
+                .row_height(&FontId { family: FontFamily::Monospace, ..parent_text_format.font_id })
+        });
+        let monospace_row_height_preserving_size =
+            parent_text_format.font_id.size * parent_row_height / monospace_row_height;
+        TextFormat {
+            font_id: FontId {
+                size: monospace_row_height_preserving_size,
+                family: FontFamily::Monospace,
+            },
+            line_height: Some(parent_row_height),
+            ..parent_text_format
+        }
+    }
+}
+
 impl<'a, 't, 'w> CodeBlock<'a, 't, 'w> {
     pub fn new(ast: &'w Ast<'a, 't>, node: &'w NodeCodeBlock) -> Self {
         Self { ast, node }
     }
 
-    pub fn text_format(theme: &Theme, parent_text_format: TextFormat, ctx: &Context) -> TextFormat {
+    pub fn text_format(
+        _theme: &Theme, parent_text_format: TextFormat, ctx: &Context,
+    ) -> TextFormat {
         let parent_row_height = ctx.fonts(|fonts| fonts.row_height(&parent_text_format.font_id));
         let monospace_row_height = ctx.fonts(|fonts| {
             fonts

@@ -1,14 +1,26 @@
-use comrak::nodes::NodeCode;
+use comrak::nodes::{AstNode, NodeCode};
 use egui::{Context, FontFamily, FontId, Pos2, TextFormat, Ui};
 
 use crate::tab::markdown_plusplus::{
     theme::Theme,
     widget::{Ast, Inline, WrapContext},
+    MarkdownPlusPlus,
 };
 
 pub struct Code<'a, 't, 'w> {
     ast: &'w Ast<'a, 't>,
     node: &'w NodeCode,
+}
+
+impl MarkdownPlusPlus {
+    pub fn text_format_code(&self, parent: &AstNode<'_>) -> TextFormat {
+        let theme = self.theme();
+        TextFormat {
+            color: theme.fg().accent_primary,
+            background: theme.bg().neutral_secondary,
+            ..self.text_format_code_block(parent)
+        }
+    }
 }
 
 impl<'a, 't, 'w> Code<'a, 't, 'w> {
