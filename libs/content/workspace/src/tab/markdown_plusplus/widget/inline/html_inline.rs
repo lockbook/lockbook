@@ -1,13 +1,21 @@
+use comrak::nodes::AstNode;
 use egui::{Context, FontFamily, FontId, Pos2, TextFormat, Ui};
 
 use crate::tab::markdown_plusplus::{
     theme::Theme,
     widget::{Ast, Inline, WrapContext},
+    MarkdownPlusPlus,
 };
 
 pub struct HtmlInline<'a, 't, 'w> {
     ast: &'w Ast<'a, 't>,
     html: &'w String,
+}
+
+impl MarkdownPlusPlus {
+    pub fn text_format_html_inline(&self, parent: &AstNode<'_>) -> TextFormat {
+        self.text_format_code(parent)
+    }
 }
 
 impl<'a, 't, 'w> HtmlInline<'a, 't, 'w> {
@@ -16,7 +24,9 @@ impl<'a, 't, 'w> HtmlInline<'a, 't, 'w> {
     }
 
     // rendered as code
-    pub fn text_format(theme: &Theme, parent_text_format: TextFormat, ctx: &Context) -> TextFormat {
+    pub fn text_format(
+        theme: &Theme, parent_text_format: TextFormat, _ctx: &Context,
+    ) -> TextFormat {
         TextFormat {
             color: theme.fg().accent_primary,
             font_id: FontId {

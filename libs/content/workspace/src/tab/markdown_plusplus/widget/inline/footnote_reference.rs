@@ -1,9 +1,10 @@
-use comrak::nodes::NodeFootnoteReference;
+use comrak::nodes::{AstNode, NodeFootnoteReference};
 use egui::{Context, FontId, Pos2, TextFormat, Ui};
 
 use crate::tab::markdown_plusplus::{
     theme::Theme,
     widget::{Ast, Inline, WrapContext},
+    MarkdownPlusPlus,
 };
 
 pub struct FootnoteReference<'a, 't, 'w> {
@@ -11,12 +12,21 @@ pub struct FootnoteReference<'a, 't, 'w> {
     node: &'w NodeFootnoteReference,
 }
 
+impl MarkdownPlusPlus {
+    pub fn text_format_footnote_reference(&self, parent: &AstNode<'_>) -> TextFormat {
+        let theme = self.theme();
+        TextFormat { color: theme.fg().neutral_tertiary, ..self.text_format_superscript(parent) }
+    }
+}
+
 impl<'a, 't, 'w> FootnoteReference<'a, 't, 'w> {
     pub fn new(ast: &'w Ast<'a, 't>, node: &'w NodeFootnoteReference) -> Self {
         Self { ast, node }
     }
 
-    pub fn text_format(theme: &Theme, parent_text_format: TextFormat, ctx: &Context) -> TextFormat {
+    pub fn text_format(
+        theme: &Theme, parent_text_format: TextFormat, _ctx: &Context,
+    ) -> TextFormat {
         TextFormat {
             color: theme.fg().neutral_tertiary,
             font_id: FontId { size: 10., ..parent_text_format.font_id },

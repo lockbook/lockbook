@@ -1,11 +1,34 @@
-use comrak::nodes::NodeHeading;
+use comrak::nodes::{AstNode, NodeHeading};
 use egui::{Context, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 
-use crate::tab::markdown_plusplus::widget::{Ast, Block, WrapContext, ROW_HEIGHT};
+use crate::tab::markdown_plusplus::{
+    widget::{Ast, Block, WrapContext, ROW_HEIGHT},
+    MarkdownPlusPlus,
+};
 
 pub struct Heading<'a, 't, 'w> {
     ast: &'w Ast<'a, 't>,
     node: &'w NodeHeading,
+}
+
+impl MarkdownPlusPlus {
+    pub fn text_format_heading(&self, parent: &AstNode<'_>, node: &NodeHeading) -> TextFormat {
+        let parent_text_format = self.text_format(parent);
+        TextFormat {
+            font_id: FontId {
+                size: match node.level {
+                    6 => 16.,
+                    5 => 19.,
+                    4 => 22.,
+                    3 => 25.,
+                    2 => 28.,
+                    _ => 32.,
+                },
+                ..parent_text_format.font_id
+            },
+            ..parent_text_format
+        }
+    }
 }
 
 impl<'a, 't, 'w> Heading<'a, 't, 'w> {
