@@ -128,7 +128,6 @@ impl Theme {
     }
 }
 
-#[expect(unused)]
 #[derive(Clone)]
 pub struct ColorSet {
     pub neutral_primary: Color32,

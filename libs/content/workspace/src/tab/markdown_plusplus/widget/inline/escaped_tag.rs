@@ -15,8 +15,9 @@ impl<'a, 't, 'w> EscapedTag<'a, 't, 'w> {
         Self { ast, escaped }
     }
 
-    // rendered as code
-    pub fn text_format(theme: &Theme, parent_text_format: TextFormat, ctx: &Context) -> TextFormat {
+    pub fn text_format(
+        _theme: &Theme, parent_text_format: TextFormat, _ctx: &Context,
+    ) -> TextFormat {
         parent_text_format
     }
 }

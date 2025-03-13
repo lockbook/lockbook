@@ -1,11 +1,12 @@
 use std::f32;
 
-use comrak::nodes::NodeLink;
+use comrak::nodes::{AstNode, NodeLink};
 use egui::{self, Context, Pos2, Stroke, TextFormat, Ui, Vec2};
 
 use crate::tab::markdown_plusplus::{
     theme::Theme,
     widget::{Ast, Block, Inline, WrapContext},
+    MarkdownPlusPlus,
 };
 
 pub struct Image<'a, 't, 'w> {
@@ -13,12 +14,20 @@ pub struct Image<'a, 't, 'w> {
     node: &'w NodeLink,
 }
 
+impl MarkdownPlusPlus {
+    pub fn text_format_image(&self, parent: &AstNode<'_>) -> TextFormat {
+        self.text_format_link(parent)
+    }
+}
+
 impl<'a, 't, 'w> Image<'a, 't, 'w> {
     pub fn new(ast: &'w Ast<'a, 't>, node: &'w NodeLink) -> Self {
         Self { ast, node }
     }
 
-    pub fn text_format(theme: &Theme, parent_text_format: TextFormat, ctx: &Context) -> TextFormat {
+    pub fn text_format(
+        theme: &Theme, parent_text_format: TextFormat, _ctx: &Context,
+    ) -> TextFormat {
         TextFormat {
             color: theme.fg().blue,
             underline: Stroke { width: 1., color: theme.fg().blue },

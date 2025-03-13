@@ -5,12 +5,12 @@ use crate::tab::markdown_plusplus::widget::{Ast, Block};
 
 pub struct Table<'a, 't, 'w> {
     ast: &'w Ast<'a, 't>,
-    node: &'w NodeTable,
+    _node: &'w NodeTable,
 }
 
 impl<'a, 't, 'w> Table<'a, 't, 'w> {
     pub fn new(ast: &'w Ast<'a, 't>, node: &'w NodeTable) -> Self {
-        Self { ast, node }
+        Self { ast, _node: node }
     }
 }
 

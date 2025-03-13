@@ -203,7 +203,7 @@ impl TabContent {
     pub fn hmac(&self) -> Option<DocumentHmac> {
         match self {
             TabContent::Markdown(md) => md.hmac,
-            TabContent::MarkdownPlusPlus(md) => None, // todo
+            TabContent::MarkdownPlusPlus(_) => None, // todo
             TabContent::Svg(svg) => svg.open_file_hmac,
             _ => None,
         }

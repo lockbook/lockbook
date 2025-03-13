@@ -385,6 +385,7 @@ impl Workspace {
                                     MarkdownPlusPlus {
                                         file_id: id,
                                         md: String::from_utf8_lossy(&bytes).into(),
+                                        ctx: self.ctx.clone(),
                                     },
                                 ));
                             } else {
@@ -392,6 +393,7 @@ impl Workspace {
                                     MarkdownPlusPlus {
                                         file_id: id,
                                         md: String::from_utf8_lossy(&bytes).into(),
+                                        ctx: self.ctx.clone(),
                                     },
                                 ));
 

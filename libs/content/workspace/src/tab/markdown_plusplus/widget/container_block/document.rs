@@ -3,10 +3,29 @@ use egui::{Context, FontId, Pos2, TextFormat, Ui};
 use crate::tab::markdown_plusplus::{
     theme::Theme,
     widget::{Ast, Block, ROW_HEIGHT},
+    MarkdownPlusPlus,
 };
 
 pub struct Document<'a, 't, 'w> {
     ast: &'w Ast<'a, 't>,
+}
+
+impl MarkdownPlusPlus {
+    pub fn text_format_document(&self) -> TextFormat {
+        let parent_text_format = TextFormat::default();
+        let theme = self.theme();
+        TextFormat {
+            color: theme.fg().neutral_secondary,
+            font_id: FontId {
+                size: parent_text_format.font_id.size * ROW_HEIGHT
+                    / self
+                        .ctx
+                        .fonts(|fonts| fonts.row_height(&parent_text_format.font_id)),
+                ..parent_text_format.font_id
+            },
+            ..parent_text_format
+        }
+    }
 }
 
 impl<'a, 't, 'w> Document<'a, 't, 'w> {

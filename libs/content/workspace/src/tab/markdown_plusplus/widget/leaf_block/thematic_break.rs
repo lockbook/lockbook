@@ -27,7 +27,7 @@ impl Block for ThematicBreak<'_, '_, '_> {
         //     .rect_stroke(rect, 2., egui::Stroke::new(1., self.ast.theme.bg().tertiary));
     }
 
-    fn height(&self, width: f32, ctx: &Context) -> f32 {
+    fn height(&self, _width: f32, _ctx: &Context) -> f32 {
         ROW_HEIGHT
     }
 }

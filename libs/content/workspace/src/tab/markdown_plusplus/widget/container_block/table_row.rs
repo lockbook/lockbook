@@ -1,12 +1,33 @@
 use std::sync::Arc;
 
+use comrak::nodes::AstNode;
 use egui::{Context, FontFamily, FontId, Pos2, Rangef, Rect, Stroke, TextFormat, Ui, Vec2};
 
-use crate::tab::markdown_plusplus::widget::{Ast, Block};
+use crate::tab::markdown_plusplus::{
+    widget::{Ast, Block},
+    MarkdownPlusPlus,
+};
 
 pub struct TableRow<'a, 't, 'w> {
     ast: &'w Ast<'a, 't>,
     is_header_row: bool,
+}
+
+impl MarkdownPlusPlus {
+    pub fn text_format_table_row(&self, parent: &AstNode<'_>, is_header_row: bool) -> TextFormat {
+        let parent_text_format = self.text_format(parent);
+        TextFormat {
+            font_id: FontId {
+                family: if is_header_row {
+                    FontFamily::Name(Arc::from("Bold"))
+                } else {
+                    FontFamily::Proportional
+                },
+                ..parent_text_format.font_id
+            },
+            ..parent_text_format
+        }
+    }
 }
 
 impl<'a, 't, 'w> TableRow<'a, 't, 'w> {

@@ -1,12 +1,22 @@
+use comrak::nodes::AstNode;
 use egui::{Context, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 
 use crate::tab::markdown_plusplus::{
     theme::Theme,
     widget::{Ast, Block, INDENT},
+    MarkdownPlusPlus,
 };
 
 pub struct BlockQuote<'a, 't, 'w> {
     ast: &'w Ast<'a, 't>,
+}
+
+impl MarkdownPlusPlus {
+    pub fn text_format_block_quote(&self, parent: &AstNode<'_>) -> TextFormat {
+        let parent_text_format = self.text_format(parent);
+        let theme = self.theme();
+        TextFormat { color: theme.fg().neutral_tertiary, ..parent_text_format }
+    }
 }
 
 impl<'a, 't, 'w> BlockQuote<'a, 't, 'w> {
@@ -14,7 +24,9 @@ impl<'a, 't, 'w> BlockQuote<'a, 't, 'w> {
         Self { ast }
     }
 
-    pub fn text_format(theme: &Theme, parent_text_format: TextFormat, ctx: &Context) -> TextFormat {
+    pub fn text_format(
+        theme: &Theme, parent_text_format: TextFormat, _ctx: &Context,
+    ) -> TextFormat {
         TextFormat { color: theme.fg().neutral_tertiary, ..parent_text_format }
     }
 }

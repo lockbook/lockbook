@@ -1,4 +1,4 @@
-use comrak::nodes::NodeValue;
+use comrak::nodes::{AstNode, NodeValue};
 use container_block::{
     BlockQuote, Document, FootnoteDefinition, Item, List, MultilineBlockQuote, Table, TableRow,
 };
@@ -9,7 +9,7 @@ use inline::{
 };
 use leaf_block::{CodeBlock, Heading, HtmlBlock, Paragraph, TableCell, TaskItem, ThematicBreak};
 
-use super::theme::Theme;
+use super::{theme::Theme, MarkdownPlusPlus};
 
 mod container_block;
 mod inline;
@@ -74,16 +74,74 @@ pub trait Inline {
 }
 
 pub struct Ast<'a, 't> {
-    node: &'a comrak::nodes::AstNode<'a>,
+    node: &'a AstNode<'a>,
     text_format: TextFormat,
     children: Vec<Ast<'a, 't>>,
     theme: &'t Theme,
 }
 
+impl MarkdownPlusPlus {
+    pub fn text_format(&self, node: &AstNode<'_>) -> TextFormat {
+        match &node.data.borrow().value {
+            NodeValue::FrontMatter(_) => self.text_format(node.parent().unwrap()),
+
+            // container_block
+            NodeValue::BlockQuote => self.text_format_block_quote(node.parent().unwrap()),
+            NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
+            NodeValue::DescriptionList => unimplemented!("extension disabled"),
+            NodeValue::Document => self.text_format_document(),
+            NodeValue::FootnoteDefinition(_) => {
+                self.text_format_footnote_definition(node.parent().unwrap())
+            }
+            NodeValue::Item(_) => self.text_format(node.parent().unwrap()),
+            NodeValue::List(_) => self.text_format(node.parent().unwrap()),
+            NodeValue::MultilineBlockQuote(_) => {
+                self.text_format_multiline_block_quote(node.parent().unwrap())
+            }
+            NodeValue::Table(_) => self.text_format(node.parent().unwrap()),
+            NodeValue::TableRow(is_header_row) => {
+                self.text_format_table_row(node.parent().unwrap(), *is_header_row)
+            }
+
+            // inline
+            NodeValue::Image(_) => self.text_format_image(node.parent().unwrap()),
+            NodeValue::Code(_) => self.text_format_code(node.parent().unwrap()),
+            NodeValue::Emph => self.text_format_emph(node.parent().unwrap()),
+            NodeValue::Escaped => self.text_format(node.parent().unwrap()),
+            NodeValue::EscapedTag(_) => self.text_format(node.parent().unwrap()),
+            NodeValue::FootnoteReference(_) => {
+                self.text_format_footnote_reference(node.parent().unwrap())
+            }
+            NodeValue::HtmlInline(_) => self.text_format_html_inline(node.parent().unwrap()),
+            NodeValue::LineBreak => self.text_format(node.parent().unwrap()),
+            NodeValue::Link(_) => self.text_format_link(node.parent().unwrap()),
+            NodeValue::Math(_) => self.text_format_math(node.parent().unwrap()),
+            NodeValue::SoftBreak => self.text_format(node.parent().unwrap()),
+            NodeValue::SpoileredText => self.text_format_spoilered_text(node.parent().unwrap()),
+            NodeValue::Strikethrough => self.text_format_strikethrough(node.parent().unwrap()),
+            NodeValue::Strong => self.text_format_strong(node.parent().unwrap()),
+            NodeValue::Superscript => self.text_format_superscript(node.parent().unwrap()),
+            NodeValue::Text(_) => self.text_format(node.parent().unwrap()),
+            NodeValue::Underline => self.text_format_underline(node.parent().unwrap()),
+            NodeValue::WikiLink(_) => self.text_format_wiki_link(node.parent().unwrap()),
+
+            // leaf_block
+            NodeValue::CodeBlock(_) => self.text_format_code_block(node.parent().unwrap()),
+            NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
+            NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
+            NodeValue::Heading(_) => self.text_format(node.parent().unwrap()),
+            NodeValue::HtmlBlock(_) => self.text_format_html_block(node.parent().unwrap()),
+            NodeValue::Paragraph => self.text_format(node.parent().unwrap()),
+            NodeValue::TableCell => self.text_format(node.parent().unwrap()),
+            NodeValue::TaskItem(_) => self.text_format(node.parent().unwrap()),
+            NodeValue::ThematicBreak => self.text_format(node.parent().unwrap()),
+        }
+    }
+}
+
 impl<'a, 't> Ast<'a, 't> {
     pub fn new(
-        node: &'a comrak::nodes::AstNode<'a>, parent_text_format: TextFormat, theme: &'t Theme,
-        ctx: &Context,
+        node: &'a AstNode<'a>, parent_text_format: TextFormat, theme: &'t Theme, ctx: &Context,
     ) -> Self {
         let text_format = match &node.data.borrow().value {
             NodeValue::BlockQuote => BlockQuote::text_format(theme, parent_text_format, ctx),
@@ -154,11 +212,8 @@ impl<'a, 't> Ast<'a, 't> {
 
         let mut spacing = 0.;
 
-        match value {
-            NodeValue::TableRow(_) => {
-                return 0.;
-            }
-            _ => {}
+        if let NodeValue::TableRow(_) = value {
+            return 0.;
         }
 
         if let Some(prev_sibling) = self.node.previous_sibling() {

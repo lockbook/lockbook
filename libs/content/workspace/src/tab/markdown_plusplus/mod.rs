@@ -4,8 +4,8 @@ use std::sync::Arc;
 use comrak::nodes::AstNode;
 use comrak::{Arena, Options};
 use egui::{
-    FontData, FontDefinitions, FontFamily, FontTweak, Frame, Margin, Rect, ScrollArea, Stroke,
-    TextEdit, TextFormat, Ui, Vec2,
+    Context, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Rect, ScrollArea, Stroke,
+    TextFormat, Ui, Vec2,
 };
 use lb_rs::Uuid;
 use theme::Theme;
@@ -17,18 +17,15 @@ mod widget;
 pub struct MarkdownPlusPlus {
     pub md: String,
     pub file_id: Uuid,
+    pub ctx: Context,
 }
 
 impl MarkdownPlusPlus {
-    fn new(file_id: Uuid, md: String) -> Self {
-        Self { file_id, md }
+    pub fn theme(&self) -> Theme {
+        Theme::new(self.ctx.clone())
     }
-}
 
-impl MarkdownPlusPlus {
     pub fn show(&mut self, ui: &mut Ui) {
-        println!("========================================");
-
         let start = std::time::Instant::now();
 
         let arena = Arena::new();
@@ -57,6 +54,7 @@ impl MarkdownPlusPlus {
         let ast_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
+        println!("========================================");
         print_ast(root);
 
         let print_elapsed = start.elapsed();
@@ -72,19 +70,12 @@ impl MarkdownPlusPlus {
         ScrollArea::vertical()
             .id_source(format!("markdown{}", self.file_id))
             .show(ui, |ui| {
-                // ui.add(
-                //     TextEdit::multiline(&mut self.md)
-                //         .code_editor()
-                //         .desired_width(ui.available_width())
-                //         .margin(Margin::same(MARGIN)),
-                // );
-
                 ui.vertical_centered_justified(|ui| {
                     Frame::canvas(ui.style())
                         .inner_margin(MARGIN)
                         .stroke(Stroke::NONE)
                         .fill(theme.bg().neutral_primary)
-                        .show(ui, |ui| render(ui, &theme, root));
+                        .show(ui, |ui| self.render(ui, &theme, root));
                 });
             });
 
@@ -95,35 +86,35 @@ impl MarkdownPlusPlus {
         println!("                        print: {:?}", print_elapsed);
         println!("                       render: {:?}", render_elapsed);
     }
-}
 
-fn render<'a>(ui: &mut Ui, theme: &Theme, root: &'a AstNode<'a>) {
-    let max_rect = ui.max_rect();
-    ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
+    fn render<'a>(&mut self, ui: &mut Ui, theme: &Theme, root: &'a AstNode<'a>) {
+        let max_rect = ui.max_rect();
+        ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
 
-    let width = ui.max_rect().width().min(MAX_WIDTH);
-    let padding = (ui.available_width() - ui.max_rect().width().min(MAX_WIDTH)) / 2.;
+        let width = ui.max_rect().width().min(MAX_WIDTH);
+        let padding = (ui.available_width() - ui.max_rect().width().min(MAX_WIDTH)) / 2.;
 
-    let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
-    let rect = Rect::from_min_size(top_left, Vec2::new(width, f32::INFINITY));
-    ui.allocate_ui_at_rect(rect, |ui| {
-        Ast::new(root, TextFormat::default(), theme, ui.ctx()).show(
-            ui.available_width(),
-            ui.max_rect().left_top(),
-            ui,
-        );
-    });
+        let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
+        let rect = Rect::from_min_size(top_left, Vec2::new(width, f32::INFINITY));
+        ui.allocate_ui_at_rect(rect, |ui| {
+            Ast::new(root, TextFormat::default(), theme, ui.ctx()).show(
+                ui.available_width(),
+                ui.max_rect().left_top(),
+                ui,
+            );
+        });
 
-    let mut desired_size = Vec2::new(ui.max_rect().width(), max_rect.height());
-    let min_rect = ui.min_rect();
-    desired_size.y = if min_rect.height() < max_rect.height() {
-        // fill available space
-        max_rect.height() - min_rect.height()
-    } else {
-        // end of text padding
-        max_rect.height() / 2.
-    };
-    ui.allocate_space(max_rect.size() - Vec2::new(0., ROW_HEIGHT));
+        let mut desired_size = Vec2::new(ui.max_rect().width(), max_rect.height());
+        let min_rect = ui.min_rect();
+        desired_size.y = if min_rect.height() < max_rect.height() {
+            // fill available space
+            max_rect.height() - min_rect.height()
+        } else {
+            // end of text padding
+            max_rect.height() / 2.
+        };
+        ui.allocate_space(max_rect.size() - Vec2::new(0., ROW_HEIGHT));
+    }
 }
 
 fn print_ast<'a>(root: &'a AstNode<'a>) {
@@ -158,7 +149,7 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
     }
 }
 
-fn register_fonts(fonts: &mut FontDefinitions) {
+pub fn register_fonts(fonts: &mut FontDefinitions) {
     let (sans, mono, bold, icons) = (
         lb_fonts::PT_SANS_REGULAR,
         lb_fonts::JETBRAINS_MONO,

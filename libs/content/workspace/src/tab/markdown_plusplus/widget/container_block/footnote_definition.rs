@@ -1,9 +1,10 @@
-use comrak::nodes::NodeFootnoteDefinition;
+use comrak::nodes::{AstNode, NodeFootnoteDefinition};
 use egui::{text::LayoutJob, Context, Pos2, Rect, TextFormat, Ui, Vec2};
 
 use crate::tab::markdown_plusplus::{
     theme::Theme,
     widget::{Ast, Block, INDENT},
+    MarkdownPlusPlus,
 };
 
 pub struct FootnoteDefinition<'a, 't, 'w> {
@@ -11,12 +12,22 @@ pub struct FootnoteDefinition<'a, 't, 'w> {
     node: &'w NodeFootnoteDefinition,
 }
 
+impl MarkdownPlusPlus {
+    pub fn text_format_footnote_definition(&self, parent: &AstNode<'_>) -> TextFormat {
+        let parent_text_format = self.text_format(parent);
+        let theme = self.theme();
+        TextFormat { color: theme.fg().neutral_tertiary, ..parent_text_format }
+    }
+}
+
 impl<'a, 't, 'w> FootnoteDefinition<'a, 't, 'w> {
     pub fn new(ast: &'w Ast<'a, 't>, node: &'w NodeFootnoteDefinition) -> Self {
         Self { ast, node }
     }
 
-    pub fn text_format(theme: &Theme, parent_text_format: TextFormat, ctx: &Context) -> TextFormat {
+    pub fn text_format(
+        theme: &Theme, parent_text_format: TextFormat, _ctx: &Context,
+    ) -> TextFormat {
         TextFormat { color: theme.fg().neutral_tertiary, ..parent_text_format }
     }
 }

@@ -1,9 +1,10 @@
-use comrak::nodes::NodeMath;
+use comrak::nodes::{AstNode, NodeMath};
 use egui::{Context, FontFamily, FontId, Pos2, TextFormat, Ui};
 
 use crate::tab::markdown_plusplus::{
     theme::Theme,
     widget::{Ast, Inline, WrapContext},
+    MarkdownPlusPlus,
 };
 
 pub struct Math<'a, 't, 'w> {
@@ -11,13 +12,20 @@ pub struct Math<'a, 't, 'w> {
     node: &'w NodeMath,
 }
 
+impl MarkdownPlusPlus {
+    pub fn text_format_math(&self, parent: &AstNode<'_>) -> TextFormat {
+        self.text_format_code(parent)
+    }
+}
+
 impl<'a, 't, 'w> Math<'a, 't, 'w> {
     pub fn new(ast: &'w Ast<'a, 't>, node: &'w NodeMath) -> Self {
         Self { ast, node }
     }
 
-    // rendered as code
-    pub fn text_format(theme: &Theme, parent_text_format: TextFormat, ctx: &Context) -> TextFormat {
+    pub fn text_format(
+        theme: &Theme, parent_text_format: TextFormat, _ctx: &Context,
+    ) -> TextFormat {
         TextFormat {
             color: theme.fg().accent_primary,
             font_id: FontId {
