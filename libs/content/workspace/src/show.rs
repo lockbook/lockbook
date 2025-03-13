@@ -510,6 +510,7 @@ impl Workspace {
                                         self.out.markdown_editor_scroll_updated = true;
                                     }
                                 }
+                                TabContent::MarkdownPlusPlus(md) => md.show(ui),
                                 TabContent::Image(img) => img.show(ui),
                                 TabContent::Pdf(pdf) => pdf.show(ui),
                                 TabContent::Svg(svg) => {

@@ -17,12 +17,14 @@ use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::model::svg;
 use lb_rs::Uuid;
+use markdown_plusplus::MarkdownPlusPlus;
 use std::ops::IndexMut;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub mod image_viewer;
 pub mod markdown_editor;
+pub mod markdown_plusplus;
 pub mod pdf_viewer;
 pub mod svg_editor;
 
@@ -165,6 +167,7 @@ pub enum ContentState {
 pub enum TabContent {
     Image(ImageViewer),
     Markdown(Markdown),
+    MarkdownPlusPlus(MarkdownPlusPlus),
     Pdf(PdfViewer),
     Svg(SVGEditor),
     MindMap(MindMap),
@@ -188,6 +191,7 @@ impl TabContent {
     pub fn id(&self) -> Option<Uuid> {
         match self {
             TabContent::Markdown(md) => Some(md.file_id),
+            TabContent::MarkdownPlusPlus(markdown_plus_plus) => Some(markdown_plus_plus.file_id),
             TabContent::Svg(svg) => Some(svg.open_file),
             TabContent::Image(image_viewer) => Some(image_viewer.id),
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
@@ -199,6 +203,7 @@ impl TabContent {
     pub fn hmac(&self) -> Option<DocumentHmac> {
         match self {
             TabContent::Markdown(md) => md.hmac,
+            TabContent::MarkdownPlusPlus(md) => None, // todo
             TabContent::Svg(svg) => svg.open_file_hmac,
             _ => None,
         }
