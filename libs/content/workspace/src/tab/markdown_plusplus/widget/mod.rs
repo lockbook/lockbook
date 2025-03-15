@@ -210,9 +210,7 @@ impl<'ast> MarkdownPlusPlus {
                     line_count +=
                         prev_sibling_sourcepos.end.line - prev_sibling_sourcepos.start.line
                 }
-                NodeValue::TableRow(_) => {
-                    return 0.;
-                }
+                NodeValue::Table(_) => line_count = line_count.saturating_sub(1),
                 _ => {}
             }
 
@@ -242,7 +240,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::MultilineBlockQuote(_) => {
                 self.show_multiline_block_quote(ui, node, top_left, width)
             }
-            NodeValue::Table(_) => self.show_block_children(ui, node, top_left, width),
+            NodeValue::Table(_) => self.show_table(ui, node, top_left, width),
             NodeValue::TableRow(is_header_row) => {
                 self.show_table_row(ui, node, top_left, width, *is_header_row)
             }
@@ -285,10 +283,10 @@ impl<'ast> MarkdownPlusPlus {
                 self.show_html_block(ui, node, top_left, width, literal)
             }
             NodeValue::Paragraph => {
-                self.show_inline_children(ui, node, top_left, &mut WrapContext::new(width))
+                self.show_paragraph(ui, node, top_left, &mut WrapContext::new(width))
             }
             NodeValue::TableCell => {
-                self.show_inline_children(ui, node, top_left, &mut WrapContext::new(width))
+                self.show_table_cell(ui, node, top_left, &mut WrapContext::new(width))
             }
             NodeValue::ThematicBreak => self.show_thematic_break(ui, top_left, width),
         }
@@ -310,8 +308,11 @@ impl<'ast> MarkdownPlusPlus {
                     ui.allocate_rect(spacing_rect, Sense::hover());
 
                     // debug
-                    // ui.painter()
-                    //     .rect_stroke(spacing_rect, 2., egui::Stroke::new(1., self.theme.bg().tertiary));
+                    // ui.painter().rect_stroke(
+                    //     spacing_rect,
+                    //     2.,
+                    //     egui::Stroke::new(spacing.min(1.), self.theme.bg().neutral_quarternary),
+                    // );
 
                     // ...soon all nodes will use the provided params
                     top_left.y += spacing;
@@ -325,8 +326,11 @@ impl<'ast> MarkdownPlusPlus {
                     ui.advance_cursor_after_rect(child_rect);
 
                     // debug
-                    // ui.painter()
-                    //     .rect_stroke(child_rect, 2., egui::Stroke::new(1., self.theme.bg().green));
+                    // ui.painter().rect_stroke(
+                    //     child_rect,
+                    //     2.,
+                    //     egui::Stroke::new(1., self.theme.bg().green),
+                    // );
 
                     // ...soon all nodes will use the provided params
                     top_left.y += child_height;
@@ -357,21 +361,21 @@ impl<'ast> MarkdownPlusPlus {
 
             // inline
             NodeValue::Image(NodeLink { title, .. }) => self.inline_span_image(node, wrap, title),
-            NodeValue::Code(NodeCode { literal, .. }) => self.text_span(node, wrap, literal),
+            NodeValue::Code(NodeCode { literal, .. }) => self.inline_span_text(node, wrap, literal),
             NodeValue::Emph => self.inline_children_span(node, wrap),
             NodeValue::Escaped => self.inline_children_span(node, wrap),
             NodeValue::EscapedTag(_) => self.inline_children_span(node, wrap),
             NodeValue::FootnoteReference(_) => self.inline_children_span(node, wrap),
-            NodeValue::HtmlInline(html) => self.text_span(node, wrap, html),
+            NodeValue::HtmlInline(html) => self.inline_span_text(node, wrap, html),
             NodeValue::LineBreak => self.inline_span_line_break(wrap),
             NodeValue::Link(NodeLink { title, .. }) => self.inline_span_link(node, wrap, title),
-            NodeValue::Math(NodeMath { literal, .. }) => self.text_span(node, wrap, literal),
+            NodeValue::Math(NodeMath { literal, .. }) => self.inline_span_text(node, wrap, literal),
             NodeValue::SoftBreak => self.inline_span_soft_break(wrap),
             NodeValue::SpoileredText => self.inline_children_span(node, wrap),
             NodeValue::Strikethrough => self.inline_children_span(node, wrap),
             NodeValue::Strong => self.inline_children_span(node, wrap),
             NodeValue::Superscript => self.inline_children_span(node, wrap),
-            NodeValue::Text(text) => self.text_span(node, wrap, text),
+            NodeValue::Text(text) => self.inline_span_text(node, wrap, text),
             NodeValue::Underline => self.inline_children_span(node, wrap),
             NodeValue::WikiLink(NodeWikiLink { url }) => {
                 self.inline_span_wiki_link(node, wrap, url)
@@ -392,11 +396,11 @@ impl<'ast> MarkdownPlusPlus {
 
     // the span of an inline that contains inlines is the sum of the spans of the inlines
     fn inline_children_span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
-        let mut result = 0.;
+        let mut tmp_wrap = wrap.clone();
         for child in node.children() {
-            result += self.inline_span(child, wrap);
+            tmp_wrap.offset += self.inline_span(child, &tmp_wrap);
         }
-        result
+        tmp_wrap.offset - wrap.offset
     }
 
     // the size of a block that contains inlines is the span of the inlines divided
@@ -409,7 +413,7 @@ impl<'ast> MarkdownPlusPlus {
 
     // the height of inline text; used for code blocks and other situations where text isn't in inlines
     fn inline_text_height(&self, node: &AstNode<'_>, wrap: &WrapContext, text: &str) -> f32 {
-        let span = self.text_span(node, wrap, text);
+        let span = self.inline_span_text(node, wrap, text);
         let rows = (span / wrap.width).ceil();
         rows * self.row_height(node) + (rows - 1.) * ROW_SPACING
     }
