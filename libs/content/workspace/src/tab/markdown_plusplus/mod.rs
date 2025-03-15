@@ -1,15 +1,17 @@
-use std::f32;
+use std::io::{BufReader, Cursor};
 use std::sync::Arc;
 
 use comrak::nodes::AstNode;
 use comrak::{Arena, Options};
 use egui::{
-    Context, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Rect, ScrollArea, Stroke,
-    TextFormat, Ui, Vec2,
+    Context, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Rect, ScrollArea, Stroke, Ui,
+    Vec2,
 };
 use lb_rs::Uuid;
+use syntect::highlighting::ThemeSet;
+use syntect::parsing::SyntaxSet;
 use theme::Theme;
-use widget::{Ast, Block as _, MARGIN, MAX_WIDTH, ROW_HEIGHT};
+use widget::{MARGIN, MAX_WIDTH, ROW_HEIGHT};
 
 mod theme;
 mod widget;
@@ -18,11 +20,31 @@ pub struct MarkdownPlusPlus {
     pub md: String,
     pub file_id: Uuid,
     pub ctx: Context,
+
+    theme: Theme,
+
+    syntax_set: SyntaxSet,
+    syntax_light_theme: syntect::highlighting::Theme,
+    syntax_dark_theme: syntect::highlighting::Theme,
 }
 
 impl MarkdownPlusPlus {
-    pub fn theme(&self) -> Theme {
-        Theme::new(self.ctx.clone())
+    pub fn new(md: String, file_id: Uuid, ctx: Context) -> Self {
+        let theme = Theme::new(ctx.clone());
+
+        let syntax_set = SyntaxSet::load_defaults_newlines();
+
+        let light_theme_bytes = include_bytes!("assets/mnemonic-light.tmTheme").as_ref();
+        let cursor = Cursor::new(light_theme_bytes);
+        let mut buffer = BufReader::new(cursor);
+        let syntax_light_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
+
+        let dark_theme_bytes = include_bytes!("assets/mnemonic-dark.tmTheme").as_ref();
+        let cursor = Cursor::new(dark_theme_bytes);
+        let mut buffer = BufReader::new(cursor);
+        let syntax_dark_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
+
+        Self { md, file_id, ctx, theme, syntax_set, syntax_light_theme, syntax_dark_theme }
     }
 
     pub fn show(&mut self, ui: &mut Ui) {
@@ -60,11 +82,9 @@ impl MarkdownPlusPlus {
         let print_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
-        let theme = Theme::new(ui.ctx().clone());
-
         ui.painter()
-            .rect_filled(ui.max_rect(), 0., theme.bg().neutral_primary);
-        theme.apply(ui);
+            .rect_filled(ui.max_rect(), 0., self.theme.bg().neutral_primary);
+        self.theme.apply(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
         ScrollArea::vertical()
@@ -74,8 +94,8 @@ impl MarkdownPlusPlus {
                     Frame::canvas(ui.style())
                         .inner_margin(MARGIN)
                         .stroke(Stroke::NONE)
-                        .fill(theme.bg().neutral_primary)
-                        .show(ui, |ui| self.render(ui, &theme, root));
+                        .fill(self.theme.bg().neutral_primary)
+                        .show(ui, |ui| self.render(ui, root));
                 });
             });
 
@@ -87,7 +107,7 @@ impl MarkdownPlusPlus {
         println!("                       render: {:?}", render_elapsed);
     }
 
-    fn render<'a>(&mut self, ui: &mut Ui, theme: &Theme, root: &'a AstNode<'a>) {
+    fn render<'a>(&mut self, ui: &mut Ui, root: &'a AstNode<'a>) {
         let max_rect = ui.max_rect();
         ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
 
@@ -95,13 +115,9 @@ impl MarkdownPlusPlus {
         let padding = (ui.available_width() - ui.max_rect().width().min(MAX_WIDTH)) / 2.;
 
         let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
-        let rect = Rect::from_min_size(top_left, Vec2::new(width, f32::INFINITY));
+        let rect = Rect::from_min_size(top_left, Vec2::new(width, 0.));
         ui.allocate_ui_at_rect(rect, |ui| {
-            Ast::new(root, TextFormat::default(), theme, ui.ctx()).show(
-                ui.available_width(),
-                ui.max_rect().left_top(),
-                ui,
-            );
+            self.show_block(ui, root, top_left, width);
         });
 
         let mut desired_size = Vec2::new(ui.max_rect().width(), max_rect.height());

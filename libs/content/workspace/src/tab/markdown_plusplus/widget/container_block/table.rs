@@ -1,36 +1,21 @@
-use comrak::nodes::NodeTable;
-use egui::{Context, Pos2, Rect, Stroke, Ui, Vec2};
+use comrak::nodes::AstNode;
+use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 
-use crate::tab::markdown_plusplus::widget::{Ast, Block};
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
-pub struct Table<'a, 't, 'w> {
-    ast: &'w Ast<'a, 't>,
-    _node: &'w NodeTable,
-}
-
-impl<'a, 't, 'w> Table<'a, 't, 'w> {
-    pub fn new(ast: &'w Ast<'a, 't>, node: &'w NodeTable) -> Self {
-        Self { ast, _node: node }
-    }
-}
-
-impl Block for Table<'_, '_, '_> {
-    fn show(&self, width: f32, top_left: Pos2, ui: &mut Ui) {
-        self.ast.show_block_children(width, top_left, ui);
+impl<'ast> MarkdownPlusPlus {
+    pub fn show_table(&self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32) {
+        self.show_block_children(ui, node, top_left, width);
 
         // draw exterior decoration
         let table = Rect::from_min_size(
             top_left,
-            Vec2::new(width, self.ast.block_children_height(width, ui.ctx())),
+            Vec2::new(width, self.block_children_height(node, width)),
         );
         ui.painter().rect_stroke(
             table,
             2.,
-            Stroke { width: 1., color: self.ast.theme.bg().neutral_tertiary },
+            Stroke { width: 1., color: self.theme.bg().neutral_tertiary },
         );
-    }
-
-    fn height(&self, width: f32, ctx: &Context) -> f32 {
-        self.ast.block_children_height(width, ctx)
     }
 }

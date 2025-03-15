@@ -1,74 +1,71 @@
-use std::io::{BufReader, Cursor};
 use std::mem;
 
-use comrak::nodes::NodeValue;
+use comrak::nodes::{AstNode, NodeValue};
 use egui::epaint::text::Row;
 use egui::text::LayoutJob;
-use egui::{Color32, Context, Pos2, Sense, Stroke, TextFormat, Ui, Vec2};
-use syntect::{easy::HighlightLines, highlighting::ThemeSet, parsing::SyntaxSet};
+use egui::{Color32, Pos2, Sense, Stroke, TextFormat, Ui, Vec2};
+use syntect::easy::HighlightLines;
 
-use crate::tab::markdown_plusplus::widget::{
-    Ast, Inline, WrapContext, INLINE_PADDING, ROW_SPACING,
-};
+use crate::tab::markdown_plusplus::widget::{WrapContext, INLINE_PADDING, ROW_SPACING};
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
-pub struct Text<'a, 't, 'w> {
-    ast: &'w Ast<'a, 't>,
-    text: &'w String,
-}
+impl<'ast> MarkdownPlusPlus {
+    pub fn inline_span_text(&self, node: &AstNode<'_>, wrap: &WrapContext, text: &str) -> f32 {
+        let mut tmp_wrap = wrap.clone();
+        for (i, line) in text.lines().enumerate() {
+            let mut layout_job = LayoutJob::single_section(line.into(), self.text_format(node));
+            layout_job.wrap.max_width = wrap.width;
+            layout_job.justify = false;
+            if let Some(first_section) = layout_job.sections.first_mut() {
+                first_section.leading_space = tmp_wrap.line_offset();
+            }
 
-impl<'a, 't, 'w> Text<'a, 't, 'w> {
-    pub fn new(ast: &'w Ast<'a, 't>, text: &'w String) -> Self {
-        Self { ast, text }
+            let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
+            for row in &galley.rows {
+                tmp_wrap.offset += row_span(row, &tmp_wrap);
+            }
+
+            if i < text.lines().count() - 1 {
+                tmp_wrap.offset = tmp_wrap.line_end();
+            }
+        }
+
+        if ends_with_multiple_newlines(text) {
+            tmp_wrap.offset += wrap.width;
+        }
+
+        tmp_wrap.offset - wrap.offset
     }
-}
 
-impl Inline for Text<'_, '_, '_> {
-    fn show(&self, wrap: &mut WrapContext, top_left: Pos2, ui: &mut Ui) {
-        self.ast.show_text(wrap, top_left, ui, self.text.clone());
-    }
-
-    fn span(&self, wrap: &WrapContext, ctx: &Context) -> f32 {
-        self.ast.text_span(wrap, ctx, self.text.clone())
-    }
-}
-
-impl Ast<'_, '_> {
     pub(crate) fn show_text(
-        &self, wrap: &mut WrapContext, top_left: Pos2, ui: &mut Ui, text: String,
+        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+        text: &str,
     ) {
-        let pre_span = self.text_pre_span(wrap);
-        let span = self.text_span(wrap, ui.ctx(), text.clone());
-        let post_span = self.text_post_span(wrap, span);
+        let pre_span = self.text_pre_span(node, wrap);
+        let mid_span = self.text_mid_span(node, wrap, pre_span, text);
+        let post_span = self.text_post_span(node, wrap, pre_span + mid_span);
 
         // we draw the underline & background ourselves
-        let mut text_format = self.text_format.clone();
+        let mut text_format = self.text_format(node);
         let underline = mem::take(&mut text_format.underline);
         let background = mem::take(&mut text_format.background);
 
         wrap.offset += pre_span;
 
         // syntax highlighting
-        let ss = SyntaxSet::load_defaults_newlines(); // todo: once at program start
-        let theme_bytes = if ui.visuals().dark_mode {
-            include_bytes!("../../assets/mnemonic-dark.tmTheme").as_slice()
-        } else {
-            include_bytes!("../../assets/mnemonic-light.tmTheme").as_slice()
-        };
-        let cursor = Cursor::new(theme_bytes);
-        let mut buffer = BufReader::new(cursor);
-        let theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
-
+        let syntax_theme =
+            if ui.visuals().dark_mode { &self.syntax_dark_theme } else { &self.syntax_light_theme };
         let mut highlighter = None;
-        for ancestor in self.node.ancestors() {
+        for ancestor in node.ancestors() {
             match &ancestor.data.borrow().value {
                 NodeValue::CodeBlock(code_block) => {
-                    if let Some(syntax) = ss.find_syntax_by_token(&code_block.info) {
-                        highlighter = Some(HighlightLines::new(syntax, &theme));
+                    if let Some(syntax) = self.syntax_set.find_syntax_by_token(&code_block.info) {
+                        highlighter = Some(HighlightLines::new(syntax, syntax_theme));
                     }
                 }
                 NodeValue::HtmlBlock(_) => {
-                    if let Some(syntax) = ss.find_syntax_by_token("html") {
-                        highlighter = Some(HighlightLines::new(syntax, &theme));
+                    if let Some(syntax) = self.syntax_set.find_syntax_by_token("html") {
+                        highlighter = Some(HighlightLines::new(syntax, syntax_theme));
                     }
                 }
                 _ => {}
@@ -77,10 +74,9 @@ impl Ast<'_, '_> {
 
         // most elements will contain only one line, as newline chars are parsed as soft breaks or node boundaries
         // this affects only a few of elements that contain multi-text instead of inline children e.g. code blocks
-
         for line in text.lines() {
             if let Some(highlighter) = highlighter.as_mut() {
-                let Ok(regions) = highlighter.highlight_line(line, &ss) else {
+                let Ok(regions) = highlighter.highlight_line(line, &self.syntax_set) else {
                     continue;
                 };
                 for &(ref style, region) in &regions {
@@ -93,7 +89,7 @@ impl Ast<'_, '_> {
                         ..text_format.clone()
                     };
 
-                    let region_span = self.text_span(wrap, ui.ctx(), region.into());
+                    let region_span = self.text_mid_span(node, wrap, 0., region);
 
                     let mut layout_job =
                         LayoutJob::single_section(region.into(), text_format.clone());
@@ -105,17 +101,14 @@ impl Ast<'_, '_> {
 
                     let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
                     let pos = top_left
-                        + Vec2::new(
-                            0.,
-                            wrap.line() as f32 * (self.row_height(ui.ctx()) + ROW_SPACING),
-                        );
+                        + Vec2::new(0., wrap.line() as f32 * (self.row_height(node) + ROW_SPACING));
 
                     let mut empty_rows = 0;
                     for (i, row) in galley.rows.iter().enumerate() {
                         let rect = row.rect.translate(pos.to_vec2());
                         let rect = rect.translate(Vec2::new(
                             0.,
-                            i as f32 * ROW_SPACING + empty_rows as f32 * self.row_height(ui.ctx()),
+                            i as f32 * ROW_SPACING + empty_rows as f32 * self.row_height(node),
                         ));
 
                         if row.rect.area() < 1. {
@@ -139,7 +132,7 @@ impl Ast<'_, '_> {
 
                 wrap.offset = wrap.line_end();
             } else {
-                let line_span = self.text_span(wrap, ui.ctx(), line.into());
+                let line_span = self.text_mid_span(node, wrap, Default::default(), line);
 
                 let mut layout_job = LayoutJob::single_section(line.into(), text_format.clone());
                 layout_job.wrap.max_width = wrap.width;
@@ -150,10 +143,9 @@ impl Ast<'_, '_> {
 
                 let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
                 let pos = top_left
-                    + Vec2::new(0., wrap.line() as f32 * (self.row_height(ui.ctx()) + ROW_SPACING));
+                    + Vec2::new(0., wrap.line() as f32 * (self.row_height(node) + ROW_SPACING));
 
-                let spoiler = self
-                    .node
+                let spoiler = node
                     .ancestors()
                     .any(|node| matches!(node.data.borrow().value, NodeValue::SpoileredText));
                 let mut hovered = false;
@@ -174,7 +166,7 @@ impl Ast<'_, '_> {
                     let rect = row.rect.translate(pos.to_vec2());
                     let rect = rect.translate(Vec2::new(
                         0.,
-                        i as f32 * ROW_SPACING + empty_rows as f32 * self.row_height(ui.ctx()),
+                        i as f32 * ROW_SPACING + empty_rows as f32 * self.row_height(node),
                     ));
 
                     if spoiler {
@@ -223,15 +215,23 @@ impl Ast<'_, '_> {
             }
         }
 
-        if ends_with_multiple_newlines(&text) {
+        if ends_with_multiple_newlines(text) {
             wrap.offset += wrap.width;
         }
 
         wrap.offset += post_span;
     }
 
-    pub(crate) fn text_pre_span(&self, wrap: &WrapContext) -> f32 {
-        let padded = self.text_format.background != Default::default();
+    pub(crate) fn text_span(&self, node: &AstNode<'_>, wrap: &WrapContext, text: &str) -> f32 {
+        let pre_span = self.text_pre_span(node, wrap);
+        let mid_span = self.text_mid_span(node, wrap, pre_span, text);
+        let post_span = self.text_post_span(node, wrap, pre_span + mid_span);
+
+        pre_span + mid_span + post_span
+    }
+
+    fn text_pre_span(&self, node: &AstNode<'_>, wrap: &WrapContext) -> f32 {
+        let padded = self.text_format(node).background != Default::default();
         if padded && wrap.line_offset() > 0.5 {
             wrap.line_remaining().min(INLINE_PADDING)
         } else {
@@ -239,65 +239,55 @@ impl Ast<'_, '_> {
         }
     }
 
-    pub(crate) fn text_span(&self, wrap: &WrapContext, ctx: &Context, text: String) -> f32 {
-        let mut tmp_wrap = wrap.clone();
+    fn text_mid_span(
+        &self, node: &AstNode<'_>, wrap: &WrapContext, pre_span: f32, text: &str,
+    ) -> f32 {
+        let mut tmp_wrap = WrapContext { offset: wrap.offset + pre_span, ..*wrap };
+        for (i, line) in text.lines().enumerate() {
+            let mut layout_job = LayoutJob::single_section(line.into(), self.text_format(node));
+            layout_job.wrap.max_width = wrap.width;
+            layout_job.justify = false;
+            if let Some(first_section) = layout_job.sections.first_mut() {
+                first_section.leading_space = tmp_wrap.line_offset();
+            }
 
-        let pre_span = self.text_pre_span(wrap);
-        tmp_wrap.offset += pre_span;
-        let mid_span = text_span(&tmp_wrap, ctx, &text, self.text_format.clone());
-        let post_span = self.text_post_span(wrap, pre_span + mid_span);
+            let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
+            for row in &galley.rows {
+                tmp_wrap.offset += row_span(row, &tmp_wrap);
+            }
 
-        pre_span + mid_span + post_span
+            if i < text.lines().count() - 1 {
+                tmp_wrap.offset = tmp_wrap.line_end();
+            }
+        }
+
+        if ends_with_multiple_newlines(text) {
+            tmp_wrap.offset += wrap.width;
+        }
+
+        tmp_wrap.offset - wrap.offset
     }
 
-    pub(crate) fn text_post_span(&self, wrap: &WrapContext, pre_plus_mid_span: f32) -> f32 {
-        let padded = self.text_format.background != Default::default();
+    fn text_post_span(
+        &self, node: &AstNode<'_>, wrap: &WrapContext, pre_plus_mid_span: f32,
+    ) -> f32 {
+        let padded = self.text_format(node).background != Default::default();
         if padded {
-            WrapContext { offset: wrap.offset + pre_plus_mid_span, ..*wrap }
-                .line_remaining()
-                .min(INLINE_PADDING)
+            let wrap = WrapContext { offset: wrap.offset + pre_plus_mid_span, ..*wrap };
+            wrap.line_remaining().min(INLINE_PADDING)
         } else {
             0.
         }
     }
 }
 
-pub(crate) fn text_span(
-    wrap: &WrapContext, ctx: &Context, text: &str, text_format: TextFormat,
-) -> f32 {
-    let mut tmp_wrap = wrap.clone();
-    for (i, line) in text.lines().enumerate() {
-        let mut layout_job = LayoutJob::single_section(line.into(), text_format.clone());
-        layout_job.wrap.max_width = wrap.width;
-        layout_job.justify = false;
-        if let Some(first_section) = layout_job.sections.first_mut() {
-            first_section.leading_space = tmp_wrap.line_offset();
-        }
-
-        let galley = ctx.fonts(|fonts| fonts.layout_job(layout_job));
-        for row in &galley.rows {
-            tmp_wrap.offset += row_span(row, &tmp_wrap);
-        }
-
-        if i < text.lines().count() - 1 {
-            tmp_wrap.offset = tmp_wrap.line_end();
-        }
-    }
-
-    if ends_with_multiple_newlines(text) {
-        tmp_wrap.offset += wrap.width;
-    }
-
-    tmp_wrap.offset - wrap.offset
-}
-
 /// Return the span of the first row, including the remaining space on the previous row if there was one
-pub(crate) fn row_span(row: &Row, wrap: &WrapContext) -> f32 {
+fn row_span(row: &Row, wrap: &WrapContext) -> f32 {
     row.rect.width() + row_wrap_span(row, wrap).unwrap_or_default()
 }
 
 /// If the row wrapped, return the remaining space on the line that was ended
-pub(crate) fn row_wrap_span(row: &Row, wrap: &WrapContext) -> Option<f32> {
+fn row_wrap_span(row: &Row, wrap: &WrapContext) -> Option<f32> {
     if (row.rect.left() - wrap.line_offset()).abs() > 0.5 {
         Some(wrap.line_remaining())
     } else {

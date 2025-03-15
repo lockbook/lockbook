@@ -382,19 +382,19 @@ impl Workspace {
                         } else if ext == "md" || ext == "txt" {
                             if tab_created {
                                 tab.content = ContentState::Open(TabContent::MarkdownPlusPlus(
-                                    MarkdownPlusPlus {
-                                        file_id: id,
-                                        md: String::from_utf8_lossy(&bytes).into(),
-                                        ctx: self.ctx.clone(),
-                                    },
+                                    MarkdownPlusPlus::new(
+                                        String::from_utf8_lossy(&bytes).into(),
+                                        id,
+                                        ctx.clone(),
+                                    ),
                                 ));
                             } else {
                                 tab.content = ContentState::Open(TabContent::MarkdownPlusPlus(
-                                    MarkdownPlusPlus {
-                                        file_id: id,
-                                        md: String::from_utf8_lossy(&bytes).into(),
-                                        ctx: self.ctx.clone(),
-                                    },
+                                    MarkdownPlusPlus::new(
+                                        String::from_utf8_lossy(&bytes).into(),
+                                        id,
+                                        ctx.clone(),
+                                    ),
                                 ));
 
                                 // let md = tab.markdown_mut().unwrap();
