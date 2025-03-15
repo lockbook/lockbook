@@ -11,30 +11,11 @@ use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
     pub fn inline_span_text(&self, node: &AstNode<'_>, wrap: &WrapContext, text: &str) -> f32 {
-        let mut tmp_wrap = wrap.clone();
-        for (i, line) in text.lines().enumerate() {
-            let mut layout_job = LayoutJob::single_section(line.into(), self.text_format(node));
-            layout_job.wrap.max_width = wrap.width;
-            layout_job.justify = false;
-            if let Some(first_section) = layout_job.sections.first_mut() {
-                first_section.leading_space = tmp_wrap.line_offset();
-            }
+        let pre_span = self.text_pre_span(node, wrap);
+        let mid_span = self.text_mid_span(node, wrap, pre_span, text);
+        let post_span = self.text_post_span(node, wrap, pre_span + mid_span);
 
-            let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
-            for row in &galley.rows {
-                tmp_wrap.offset += row_span(row, &tmp_wrap);
-            }
-
-            if i < text.lines().count() - 1 {
-                tmp_wrap.offset = tmp_wrap.line_end();
-            }
-        }
-
-        if ends_with_multiple_newlines(text) {
-            tmp_wrap.offset += wrap.width;
-        }
-
-        tmp_wrap.offset - wrap.offset
+        pre_span + mid_span + post_span
     }
 
     pub(crate) fn show_text(
@@ -73,7 +54,7 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         // most elements will contain only one line, as newline chars are parsed as soft breaks or node boundaries
-        // this affects only a few of elements that contain multi-text instead of inline children e.g. code blocks
+        // this affects only the few elements that contain multi-text instead of inline children e.g. code blocks
         for line in text.lines() {
             if let Some(highlighter) = highlighter.as_mut() {
                 let Ok(regions) = highlighter.highlight_line(line, &self.syntax_set) else {
@@ -94,7 +75,6 @@ impl<'ast> MarkdownPlusPlus {
                     let mut layout_job =
                         LayoutJob::single_section(region.into(), text_format.clone());
                     layout_job.wrap.max_width = wrap.width;
-                    layout_job.justify = false;
                     if let Some(first_section) = layout_job.sections.first_mut() {
                         first_section.leading_space = wrap.line_offset();
                     }
@@ -136,7 +116,6 @@ impl<'ast> MarkdownPlusPlus {
 
                 let mut layout_job = LayoutJob::single_section(line.into(), text_format.clone());
                 layout_job.wrap.max_width = wrap.width;
-                layout_job.justify = false;
                 if let Some(first_section) = layout_job.sections.first_mut() {
                     first_section.leading_space = wrap.line_offset();
                 }
@@ -163,6 +142,11 @@ impl<'ast> MarkdownPlusPlus {
 
                 let mut empty_rows = 0;
                 for (i, row) in galley.rows.iter().enumerate() {
+                    if row.rect.area() < 1. {
+                        empty_rows += 1;
+                        continue;
+                    }
+
                     let rect = row.rect.translate(pos.to_vec2());
                     let rect = rect.translate(Vec2::new(
                         0.,
@@ -178,10 +162,6 @@ impl<'ast> MarkdownPlusPlus {
                             );
                         }
                     } else if background != Default::default() {
-                        if row.rect.area() < 1. {
-                            empty_rows += 1;
-                            continue;
-                        }
                         ui.painter().rect(
                             rect.expand2(Vec2::new(INLINE_PADDING, 1.)),
                             2.,
@@ -208,7 +188,7 @@ impl<'ast> MarkdownPlusPlus {
 
                     // debug
                     // ui.painter()
-                    //     .rect_stroke(rect, 2., egui::Stroke::new(1., self.theme.bg().green));
+                    //     .rect_stroke(rect, 2., egui::Stroke::new(1., self.theme.bg().blue));
                 }
 
                 wrap.offset += line_span;
@@ -220,14 +200,6 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         wrap.offset += post_span;
-    }
-
-    pub(crate) fn text_span(&self, node: &AstNode<'_>, wrap: &WrapContext, text: &str) -> f32 {
-        let pre_span = self.text_pre_span(node, wrap);
-        let mid_span = self.text_mid_span(node, wrap, pre_span, text);
-        let post_span = self.text_post_span(node, wrap, pre_span + mid_span);
-
-        pre_span + mid_span + post_span
     }
 
     fn text_pre_span(&self, node: &AstNode<'_>, wrap: &WrapContext) -> f32 {
@@ -242,17 +214,21 @@ impl<'ast> MarkdownPlusPlus {
     fn text_mid_span(
         &self, node: &AstNode<'_>, wrap: &WrapContext, pre_span: f32, text: &str,
     ) -> f32 {
+        println!("vvv  BEGIN text_mid_span: {:?}", text);
+
         let mut tmp_wrap = WrapContext { offset: wrap.offset + pre_span, ..*wrap };
         for (i, line) in text.lines().enumerate() {
+            println!("line: {:?}", line);
+
             let mut layout_job = LayoutJob::single_section(line.into(), self.text_format(node));
             layout_job.wrap.max_width = wrap.width;
-            layout_job.justify = false;
             if let Some(first_section) = layout_job.sections.first_mut() {
                 first_section.leading_space = tmp_wrap.line_offset();
             }
 
             let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
             for row in &galley.rows {
+                println!("  row: {:?}", row.text());
                 tmp_wrap.offset += row_span(row, &tmp_wrap);
             }
 
@@ -264,6 +240,8 @@ impl<'ast> MarkdownPlusPlus {
         if ends_with_multiple_newlines(text) {
             tmp_wrap.offset += wrap.width;
         }
+
+        println!("^^^  END   text_mid_span: {:?}", tmp_wrap.offset - wrap.offset);
 
         tmp_wrap.offset - wrap.offset
     }

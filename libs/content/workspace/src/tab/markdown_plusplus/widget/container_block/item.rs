@@ -4,7 +4,7 @@ use comrak::nodes::{AstNode, ListType};
 use egui::text::LayoutJob;
 use egui::{FontFamily, Pos2, Rect, Ui, Vec2};
 
-use crate::tab::markdown_plusplus::widget::{BULLET_RADIUS, INDENT};
+use crate::tab::markdown_plusplus::widget::{BULLET_RADIUS, INDENT, ROW_HEIGHT};
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
@@ -16,8 +16,8 @@ impl<'ast> MarkdownPlusPlus {
         &self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, mut width: f32,
         list_type: ListType, start: usize,
     ) {
-        let height = self.height_item(node, width);
-        let annotation_size = Vec2 { x: INDENT, y: height };
+        // todo: better bullet position for headings in list items
+        let annotation_size = Vec2 { x: INDENT, y: ROW_HEIGHT };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
         match list_type {
