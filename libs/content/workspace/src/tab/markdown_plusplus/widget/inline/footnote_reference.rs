@@ -11,16 +11,18 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    pub fn inline_span_footnote_reference(
-        &self, node: &AstNode<'_>, wrap: &WrapContext, ix: u32,
+    pub fn span_footnote_reference(
+        &self, node: &'ast AstNode<'ast>, wrap: &WrapContext, ix: u32,
     ) -> f32 {
-        self.inline_span_link(node, wrap, &format!("{}", ix))
+        let text = format!("{}", ix);
+        self.span_text(node, wrap, &text)
     }
 
     pub fn show_footnote_reference(
         &self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
         ix: u32,
     ) {
-        self.show_text(ui, node, top_left, wrap, &format!("{}", ix));
+        let text = format!("{}", ix);
+        self.show_text(ui, node, top_left, wrap, &text);
     }
 }

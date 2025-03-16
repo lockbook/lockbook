@@ -13,8 +13,8 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    pub fn inline_span_link(&self, node: &AstNode<'_>, wrap: &WrapContext, title: &str) -> f32 {
-        self.inline_span_text(node, wrap, title)
+    pub fn span_link(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext, title: &str) -> f32 {
+        self.span_text(node, wrap, title)
     }
 
     pub fn show_link(

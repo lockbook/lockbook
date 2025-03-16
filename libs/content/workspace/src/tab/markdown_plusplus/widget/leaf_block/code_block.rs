@@ -2,7 +2,7 @@ use comrak::nodes::AstNode;
 use egui::{FontFamily, FontId, Pos2, Rect, Sense, Stroke, TextFormat, Ui, Vec2};
 
 use crate::tab::markdown_plusplus::{
-    widget::{WrapContext, BLOCK_SPACING, INLINE_PADDING, ROW_HEIGHT},
+    widget::{WrapContext, BLOCK_PADDING, ROW_HEIGHT},
     MarkdownPlusPlus,
 };
 
@@ -28,38 +28,53 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    pub(crate) fn show_code_block(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, width: f32, code: &str,
+    pub fn height_code_block(&self, node: &'ast AstNode<'ast>, width: f32, code: &str) -> f32 {
+        let code = trim_one_trailing_newline(code);
+        let text_width = width - 2. * BLOCK_PADDING;
+
+        let info_height = ROW_HEIGHT;
+        let code_height = self.inline_text_height(node, &WrapContext::new(text_width), code);
+        BLOCK_PADDING + info_height + BLOCK_PADDING + BLOCK_PADDING + code_height + BLOCK_PADDING
+    }
+
+    pub fn show_code_block(
+        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32, code: &str,
         info: &str,
     ) {
-        let wrap = WrapContext::new(width);
+        let code = trim_one_trailing_newline(code);
+        let text_width = width - 2. * BLOCK_PADDING;
 
-        let text_width = wrap.width - 2. * INLINE_PADDING;
+        let info_height = ROW_HEIGHT;
+        let code_height =
+            self.inline_text_height(node, &WrapContext::new(width - 2. * BLOCK_PADDING), code);
+        let height = BLOCK_PADDING
+            + info_height
+            + BLOCK_PADDING
+            + BLOCK_PADDING
+            + code_height
+            + BLOCK_PADDING;
 
-        let info_height = self.height_code_block_info(node, wrap.width, info);
-        let height = self.height_code_block(node, wrap.width, code, info);
-        let rect = Rect::from_min_size(top_left, Vec2::new(wrap.width, height));
+        // full border
+        let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
+        ui.painter()
+            .rect_stroke(rect, 2., Stroke::new(1., self.theme.bg().neutral_tertiary));
 
-        ui.painter().rect(
-            rect.expand2(Vec2::new(INLINE_PADDING, 1.)),
-            2.,
-            self.theme.bg().neutral_primary,
-            Stroke::new(1., self.theme.bg().neutral_tertiary),
+        // info rect
+        let info_rect = Rect::from_min_size(
+            top_left,
+            Vec2::new(width, BLOCK_PADDING + info_height + BLOCK_PADDING),
         );
-
-        top_left.y += BLOCK_SPACING;
-
-        let info_rect = Rect::from_min_size(top_left, Vec2::new(wrap.width, info_height));
         ui.painter().rect(
-            info_rect.expand2(Vec2::new(INLINE_PADDING, BLOCK_SPACING + 1.)),
+            info_rect,
             2.,
             self.theme.bg().neutral_secondary,
             Stroke::new(1., self.theme.bg().neutral_tertiary),
         );
 
-        let copy_button_size = self.row_height(node);
+        // copy button
+        let copy_button_size = ROW_HEIGHT;
         let copy_button_rect = Rect::from_min_size(
-            top_left + Vec2::new(text_width - copy_button_size, 0.),
+            top_left + Vec2::new(text_width - copy_button_size, BLOCK_PADDING),
             Vec2::new(copy_button_size, copy_button_size),
         );
         ui.painter().rect_stroke(
@@ -71,39 +86,19 @@ impl<'ast> MarkdownPlusPlus {
             ui.output_mut(|o| o.copied_text = code.into());
         }
 
-        self.show_text(
-            ui,
-            node,
-            top_left + Vec2::new(INLINE_PADDING, 0.),
-            &mut WrapContext::new(text_width),
-            info,
-        );
+        // info text
+        let info_top_left = top_left + Vec2::splat(BLOCK_PADDING);
+        self.show_text(ui, node, info_top_left, &mut WrapContext::new(text_width), info);
 
-        top_left.y += info_height;
-        top_left.y += BLOCK_SPACING;
-        top_left.y += self.row_height(node);
-
-        self.show_text(
-            ui,
-            node,
-            top_left + Vec2::new(INLINE_PADDING, 0.),
-            &mut WrapContext::new(text_width),
-            code,
-        );
+        // code text
+        let code_top_left = top_left
+            + Vec2::new(BLOCK_PADDING, BLOCK_PADDING + info_height + BLOCK_PADDING + BLOCK_PADDING);
+        self.show_text(ui, node, code_top_left, &mut WrapContext::new(text_width), code);
     }
+}
 
-    pub fn height_code_block(&self, node: &AstNode<'_>, width: f32, code: &str, info: &str) -> f32 {
-        let code_height =
-            self.inline_text_height(node, &WrapContext::new(width - 2. * INLINE_PADDING), code);
-        let info_height = self.height_code_block_info(node, width, info);
-        BLOCK_SPACING + info_height + BLOCK_SPACING + ROW_HEIGHT + code_height + ROW_HEIGHT
-    }
-
-    pub fn height_code_block_info(&self, node: &AstNode<'_>, width: f32, info: &str) -> f32 {
-        if info.is_empty() {
-            ROW_HEIGHT
-        } else {
-            self.inline_text_height(node, &WrapContext::new(width - 2. * INLINE_PADDING), info)
-        }
-    }
+fn trim_one_trailing_newline(code: &str) -> &str {
+    code.strip_suffix("\r\n")
+        .or_else(|| code.strip_suffix('\n'))
+        .unwrap_or(code)
 }

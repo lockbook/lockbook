@@ -380,22 +380,19 @@ impl Workspace {
                                 svg.open_file_hmac = maybe_hmac;
                             }
                         } else if ext == "md" || ext == "txt" {
+                            tab.content = ContentState::Open(TabContent::MarkdownPlusPlus(
+                                MarkdownPlusPlus::new(
+                                    self.core.clone(),
+                                    String::from_utf8_lossy(&bytes).into(),
+                                    id,
+                                    ctx.clone(),
+                                ),
+                            ));
+
                             if tab_created {
-                                tab.content = ContentState::Open(TabContent::MarkdownPlusPlus(
-                                    MarkdownPlusPlus::new(
-                                        String::from_utf8_lossy(&bytes).into(),
-                                        id,
-                                        ctx.clone(),
-                                    ),
-                                ));
+                                // ...
                             } else {
-                                tab.content = ContentState::Open(TabContent::MarkdownPlusPlus(
-                                    MarkdownPlusPlus::new(
-                                        String::from_utf8_lossy(&bytes).into(),
-                                        id,
-                                        ctx.clone(),
-                                    ),
-                                ));
+                                // ...
 
                                 // let md = tab.markdown_mut().unwrap();
                                 // md.reload(String::from_utf8_lossy(&bytes).into());

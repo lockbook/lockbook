@@ -2,20 +2,20 @@ use comrak::nodes::{
     AstNode, NodeCode, NodeCodeBlock, NodeFootnoteReference, NodeHeading, NodeHtmlBlock, NodeLink,
     NodeList, NodeMath, NodeValue, NodeWikiLink,
 };
-use egui::{Align, Layout, Pos2, Rect, Sense, TextFormat, Ui, Vec2};
+use egui::{Pos2, TextFormat, Ui};
 
 use super::MarkdownPlusPlus;
 
-mod container_block;
-mod inline;
-mod leaf_block;
+pub(crate) mod container_block;
+pub(crate) mod inline;
+pub(crate) mod leaf_block;
 
 pub const MARGIN: f32 = 20.0; // space between the editor and window border; must be large enough to accomodate bordered elements e.g. code blocks
 pub const MAX_WIDTH: f32 = 800.0; // the maximum width of the editor before it starts adding padding
 
 pub const INLINE_PADDING: f32 = 5.0; // the extra space granted to inline code for a border (both sides)
 pub const ROW_HEIGHT: f32 = 20.0; // ...at default font size
-pub const TABLE_PADDING: f32 = 10.0; // between a table cell and its contents (all sides)
+pub const BLOCK_PADDING: f32 = 10.0; // between a table cell / code block and its contents (all sides)
 pub const INDENT: f32 = 25.0; // enough space for two digits in a numbered list
 pub const BULLET_RADIUS: f32 = 2.0;
 pub const ROW_SPACING: f32 = 5.0; // must be large enough to accomodate bordered elements e.g. inline code
@@ -121,7 +121,7 @@ impl<'ast> MarkdownPlusPlus {
         self.ctx.fonts(|fonts| fonts.row_height(&text_format))
     }
 
-    fn block_height(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
+    fn height(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => 0.,
 
@@ -160,7 +160,7 @@ impl<'ast> MarkdownPlusPlus {
 
             // leaf_block
             NodeValue::CodeBlock(NodeCodeBlock { literal, info, .. }) => {
-                self.height_code_block(node, width, literal, info)
+                self.height_code_block(node, width, literal)
             }
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
@@ -170,7 +170,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::HtmlBlock(NodeHtmlBlock { literal, .. }) => {
                 self.height_html_block(node, width, literal)
             }
-            NodeValue::Paragraph => self.inline_children_height(node, width),
+            NodeValue::Paragraph => self.height_paragraph(node, width),
             NodeValue::TableCell => self.height_table_cell(node, width),
             NodeValue::ThematicBreak => self.height_thematic_break(),
         }
@@ -181,7 +181,7 @@ impl<'ast> MarkdownPlusPlus {
         let mut height_sum = 0.0;
         for child in node.children() {
             height_sum += self.block_spacing(child);
-            height_sum += self.block_height(child, width)
+            height_sum += self.height(child, width)
         }
         height_sum
     }
@@ -296,54 +296,38 @@ impl<'ast> MarkdownPlusPlus {
     fn show_block_children(
         &self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, width: f32,
     ) {
-        let rect = Rect::from_min_size(top_left, Vec2::new(width, 0.));
-        ui.allocate_ui_at_rect(rect, |ui| {
-            ui.with_layout(Layout::top_down(Align::LEFT).with_main_wrap(false), |ui| {
-                for child in node.children() {
-                    // add spacing between blocks based on source lines
-                    let spacing = self.block_spacing(child);
+        for child in node.children() {
+            // add spacing between blocks based on source lines
+            let spacing = self.block_spacing(child);
 
-                    // placement based on ui cursor supported for now...
-                    let spacing_rect = Rect::from_min_size(top_left, Vec2::new(width, spacing));
-                    ui.allocate_rect(spacing_rect, Sense::hover());
+            // debug
+            // let spacing_rect = egui::Rect::from_min_size(top_left, egui::Vec2::new(width, spacing));
+            // ui.painter().rect_stroke(
+            //     spacing_rect,
+            //     2.,
+            //     egui::Stroke::new(spacing.min(1.), self.theme.bg().neutral_quarternary),
+            // );
 
-                    // debug
-                    // ui.painter().rect_stroke(
-                    //     spacing_rect,
-                    //     2.,
-                    //     egui::Stroke::new(spacing.min(1.), self.theme.bg().neutral_quarternary),
-                    // );
+            top_left.y += spacing;
 
-                    // ...soon all nodes will use the provided params
-                    top_left.y += spacing;
+            // add block
+            let child_height = self.height(child, width);
+            self.show_block(ui, child, top_left, width);
 
-                    // add block
-                    let child_height = self.block_height(child, width);
-                    self.show_block(ui, child, top_left, width);
-
-                    // placement based on ui cursor supported for now...
-                    let child_rect = Rect::from_min_size(top_left, Vec2::new(width, child_height));
-                    ui.advance_cursor_after_rect(child_rect);
-
-                    // debug
-                    // ui.painter().rect_stroke(
-                    //     child_rect,
-                    //     2.,
-                    //     egui::Stroke::new(1., self.theme.bg().green),
-                    // );
-
-                    // ...soon all nodes will use the provided params
-                    top_left.y += child_height;
-                }
-            });
-        });
+            // debug
+            // let child_rect =
+            //     egui::Rect::from_min_size(top_left, egui::Vec2::new(width, child_height));
+            // ui.painter()
+            //     .rect_stroke(child_rect, 2., egui::Stroke::new(1., self.theme.bg().green));
+            top_left.y += child_height;
+        }
 
         // debug
         // ui.painter()
         //     .rect_stroke(rect, 2., egui::Stroke::new(1., self.theme.bg().tertiary));
     }
 
-    fn inline_span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
+    fn span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => 0.,
 
@@ -360,26 +344,24 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::TableRow(_) => unimplemented!("not a block"),
 
             // inline
-            NodeValue::Image(NodeLink { title, .. }) => self.inline_span_image(node, wrap, title),
-            NodeValue::Code(NodeCode { literal, .. }) => self.inline_span_text(node, wrap, literal),
+            NodeValue::Image(NodeLink { title, .. }) => self.span_image(node, wrap, title),
+            NodeValue::Code(NodeCode { literal, .. }) => self.span_text(node, wrap, literal),
             NodeValue::Emph => self.inline_children_span(node, wrap),
             NodeValue::Escaped => self.inline_children_span(node, wrap),
             NodeValue::EscapedTag(_) => self.inline_children_span(node, wrap),
             NodeValue::FootnoteReference(_) => self.inline_children_span(node, wrap),
-            NodeValue::HtmlInline(html) => self.inline_span_text(node, wrap, html),
-            NodeValue::LineBreak => self.inline_span_line_break(wrap),
-            NodeValue::Link(NodeLink { title, .. }) => self.inline_span_link(node, wrap, title),
-            NodeValue::Math(NodeMath { literal, .. }) => self.inline_span_text(node, wrap, literal),
-            NodeValue::SoftBreak => self.inline_span_soft_break(wrap),
+            NodeValue::HtmlInline(html) => self.span_text(node, wrap, html),
+            NodeValue::LineBreak => self.span_line_break(wrap),
+            NodeValue::Link(NodeLink { title, .. }) => self.span_link(node, wrap, title),
+            NodeValue::Math(NodeMath { literal, .. }) => self.span_text(node, wrap, literal),
+            NodeValue::SoftBreak => self.span_soft_break(wrap),
             NodeValue::SpoileredText => self.inline_children_span(node, wrap),
             NodeValue::Strikethrough => self.inline_children_span(node, wrap),
             NodeValue::Strong => self.inline_children_span(node, wrap),
             NodeValue::Superscript => self.inline_children_span(node, wrap),
-            NodeValue::Text(text) => self.inline_span_text(node, wrap, text),
+            NodeValue::Text(text) => self.span_text(node, wrap, text),
             NodeValue::Underline => self.inline_children_span(node, wrap),
-            NodeValue::WikiLink(NodeWikiLink { url }) => {
-                self.inline_span_wiki_link(node, wrap, url)
-            }
+            NodeValue::WikiLink(NodeWikiLink { url }) => self.span_wiki_link(node, wrap, url),
 
             // leaf_block
             NodeValue::CodeBlock(_) => unimplemented!("not a block"),
@@ -398,7 +380,7 @@ impl<'ast> MarkdownPlusPlus {
     fn inline_children_span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
         let mut tmp_wrap = wrap.clone();
         for child in node.children() {
-            tmp_wrap.offset += self.inline_span(child, &tmp_wrap);
+            tmp_wrap.offset += self.span(child, &tmp_wrap);
         }
         tmp_wrap.offset - wrap.offset
     }
@@ -412,8 +394,8 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     // the height of inline text; used for code blocks and other situations where text isn't in inlines
-    fn inline_text_height(&self, node: &AstNode<'_>, wrap: &WrapContext, text: &str) -> f32 {
-        let span = self.inline_span_text(node, wrap, text);
+    fn inline_text_height(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext, text: &str) -> f32 {
+        let span = self.span_text(node, wrap, text);
         let rows = (span / wrap.width).ceil();
         rows * self.row_height(node) + (rows - 1.) * ROW_SPACING
     }

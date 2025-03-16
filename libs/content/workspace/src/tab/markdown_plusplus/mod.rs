@@ -3,20 +3,26 @@ use std::sync::Arc;
 
 use comrak::nodes::AstNode;
 use comrak::{Arena, Options};
+use core::time::Duration;
 use egui::{
     Context, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Rect, ScrollArea, Stroke, Ui,
     Vec2,
 };
-use lb_rs::Uuid;
+use lb_rs::{blocking::Lb, Uuid};
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use theme::Theme;
+use widget::inline::image::cache::ImageCache;
 use widget::{MARGIN, MAX_WIDTH, ROW_HEIGHT};
 
 mod theme;
 mod widget;
 
 pub struct MarkdownPlusPlus {
+    // dependencies
+    pub core: Lb,
+    pub client: reqwest::blocking::Client,
+
     pub md: String,
     pub file_id: Uuid,
     pub ctx: Context,
@@ -26,10 +32,21 @@ pub struct MarkdownPlusPlus {
     syntax_set: SyntaxSet,
     syntax_light_theme: syntect::highlighting::Theme,
     syntax_dark_theme: syntect::highlighting::Theme,
+
+    image_cache: ImageCache,
+
+    // populated at frame start
+    image_max_size: Vec2,
+}
+
+impl Drop for MarkdownPlusPlus {
+    fn drop(&mut self) {
+        self.image_cache.free(&self.ctx);
+    }
 }
 
 impl MarkdownPlusPlus {
-    pub fn new(md: String, file_id: Uuid, ctx: Context) -> Self {
+    pub fn new(core: Lb, md: String, file_id: Uuid, ctx: Context) -> Self {
         let theme = Theme::new(ctx.clone());
 
         let syntax_set = SyntaxSet::load_defaults_newlines();
@@ -44,10 +61,27 @@ impl MarkdownPlusPlus {
         let mut buffer = BufReader::new(cursor);
         let syntax_dark_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
 
-        Self { md, file_id, ctx, theme, syntax_set, syntax_light_theme, syntax_dark_theme }
+        let image_cache = Default::default();
+
+        Self {
+            core,
+            client: Default::default(),
+            md,
+            file_id,
+            ctx,
+            theme,
+            syntax_set,
+            syntax_light_theme,
+            syntax_dark_theme,
+            image_cache,
+            image_max_size: Default::default(),
+        }
     }
 
     pub fn show(&mut self, ui: &mut Ui) {
+        // make sure the image can be viewed in full by capping its height and width to the viewport
+        self.image_max_size = ui.available_size() - Vec2::splat(MARGIN);
+
         let start = std::time::Instant::now();
 
         let arena = Arena::new();
@@ -76,11 +110,23 @@ impl MarkdownPlusPlus {
         let ast_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
-        println!("========================================");
-        print_ast(root);
+        // println!("========================================");
+        // print_ast(root);
 
         let print_elapsed = start.elapsed();
         let start = std::time::Instant::now();
+
+        if self.image_cache.any_loading() {
+            ui.ctx().request_repaint_after(Duration::from_millis(8));
+        }
+        self.image_cache = widget::inline::image::cache::calc(
+            root,
+            &self.image_cache,
+            &self.client,
+            &self.core,
+            self.file_id,
+            ui,
+        );
 
         ui.painter()
             .rect_filled(ui.max_rect(), 0., self.theme.bg().neutral_primary);
@@ -101,10 +147,10 @@ impl MarkdownPlusPlus {
 
         let render_elapsed = start.elapsed();
 
-        println!("----------------------------------------");
-        println!("                          ast: {:?}", ast_elapsed);
-        println!("                        print: {:?}", print_elapsed);
-        println!("                       render: {:?}", render_elapsed);
+        // println!("----------------------------------------");
+        // println!("                          ast: {:?}", ast_elapsed);
+        // println!("                        print: {:?}", print_elapsed);
+        // println!("                       render: {:?}", render_elapsed);
     }
 
     fn render<'a>(&mut self, ui: &mut Ui, root: &'a AstNode<'a>) {

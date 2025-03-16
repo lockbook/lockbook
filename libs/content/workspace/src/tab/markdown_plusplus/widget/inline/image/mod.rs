@@ -1,4 +1,4 @@
-mod cache;
+pub(crate) mod cache;
 
 #[allow(clippy::module_inception)]
-mod image;
+pub(crate) mod image;
