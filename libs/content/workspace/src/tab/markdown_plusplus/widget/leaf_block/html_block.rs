@@ -8,8 +8,8 @@ impl<'ast> MarkdownPlusPlus {
         self.text_format_code_block(parent)
     }
 
-    pub fn height_html_block(&self, node: &AstNode<'_>, width: f32, html: &str) -> f32 {
-        self.height_code_block(node, width, html, "html")
+    pub fn height_html_block(&self, node: &'ast AstNode<'ast>, width: f32, html: &str) -> f32 {
+        self.height_code_block(node, width, html)
     }
 
     pub fn show_html_block(

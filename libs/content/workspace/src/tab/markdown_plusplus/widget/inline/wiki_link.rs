@@ -8,10 +8,10 @@ impl<'ast> MarkdownPlusPlus {
         self.text_format_link(parent)
     }
 
-    pub fn inline_span_wiki_link(
-        &self, node: &AstNode<'_>, wrap: &WrapContext, title: &str,
+    pub fn span_wiki_link(
+        &self, node: &'ast AstNode<'ast>, wrap: &WrapContext, title: &str,
     ) -> f32 {
-        self.inline_span_text(node, wrap, title)
+        self.span_text(node, wrap, title)
     }
 
     pub fn show_wiki_link(

@@ -10,7 +10,7 @@ use crate::tab::markdown_plusplus::widget::{WrapContext, INLINE_PADDING, ROW_SPA
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
-    pub fn inline_span_text(&self, node: &AstNode<'_>, wrap: &WrapContext, text: &str) -> f32 {
+    pub fn span_text(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext, text: &str) -> f32 {
         let pre_span = self.text_pre_span(node, wrap);
         let mid_span = self.text_mid_span(node, wrap, pre_span, text);
         let post_span = self.text_post_span(node, wrap, pre_span + mid_span);
@@ -18,7 +18,7 @@ impl<'ast> MarkdownPlusPlus {
         pre_span + mid_span + post_span
     }
 
-    pub(crate) fn show_text(
+    pub fn show_text(
         &self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
         text: &str,
     ) {
@@ -55,7 +55,7 @@ impl<'ast> MarkdownPlusPlus {
 
         // most elements will contain only one line, as newline chars are parsed as soft breaks or node boundaries
         // this affects only the few elements that contain multi-text instead of inline children e.g. code blocks
-        for line in text.lines() {
+        for (i, line) in text.lines().enumerate() {
             if let Some(highlighter) = highlighter.as_mut() {
                 let Ok(regions) = highlighter.highlight_line(line, &self.syntax_set) else {
                     continue;
@@ -70,7 +70,7 @@ impl<'ast> MarkdownPlusPlus {
                         ..text_format.clone()
                     };
 
-                    let region_span = self.text_mid_span(node, wrap, 0., region);
+                    let region_span = self.text_mid_span(node, wrap, Default::default(), region);
 
                     let mut layout_job =
                         LayoutJob::single_section(region.into(), text_format.clone());
@@ -85,16 +85,16 @@ impl<'ast> MarkdownPlusPlus {
 
                     let mut empty_rows = 0;
                     for (i, row) in galley.rows.iter().enumerate() {
+                        if row.rect.area() < 1. {
+                            empty_rows += 1;
+                            continue;
+                        }
+
                         let rect = row.rect.translate(pos.to_vec2());
                         let rect = rect.translate(Vec2::new(
                             0.,
                             i as f32 * ROW_SPACING + empty_rows as f32 * self.row_height(node),
                         ));
-
-                        if row.rect.area() < 1. {
-                            empty_rows += 1;
-                            continue;
-                        }
 
                         // paint galley row-by-row to take control of row spacing
                         let layout_job = LayoutJob::single_section(row.text(), text_format.clone());
@@ -103,14 +103,15 @@ impl<'ast> MarkdownPlusPlus {
                             .galley(rect.left_top(), galley, Default::default());
 
                         // debug
-                        // ui.painter()
-                        //     .rect_stroke(rect, 2., egui::Stroke::new(1., self.theme.bg().green));
+                        // ui.painter().rect_stroke(
+                        //     rect,
+                        //     2.,
+                        //     egui::Stroke::new(1., self.theme.fg().yellow),
+                        // );
                     }
 
                     wrap.offset += region_span;
                 }
-
-                wrap.offset = wrap.line_end();
             } else {
                 let line_span = self.text_mid_span(node, wrap, Default::default(), line);
 
@@ -188,15 +189,21 @@ impl<'ast> MarkdownPlusPlus {
 
                     // debug
                     // ui.painter()
-                    //     .rect_stroke(rect, 2., egui::Stroke::new(1., self.theme.bg().blue));
+                    //     .rect_stroke(rect, 2., egui::Stroke::new(1., self.theme.fg().blue));
                 }
 
                 wrap.offset += line_span;
             }
+
+            // all lines except the last one end in a newline...
+            if i < text.lines().count() - 1 {
+                wrap.offset = wrap.line_end();
+            }
         }
 
-        if ends_with_multiple_newlines(text) {
-            wrap.offset += wrap.width;
+        // ...and sometimes the last one also ends with a newline
+        if ends_with_newline(text) {
+            wrap.offset = wrap.line_end();
         }
 
         wrap.offset += post_span;
@@ -212,24 +219,58 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     fn text_mid_span(
-        &self, node: &AstNode<'_>, wrap: &WrapContext, pre_span: f32, text: &str,
+        &self, node: &'ast AstNode<'ast>, wrap: &WrapContext, pre_span: f32, text: &str,
     ) -> f32 {
-        println!("vvv  BEGIN text_mid_span: {:?}", text);
-
         let mut tmp_wrap = WrapContext { offset: wrap.offset + pre_span, ..*wrap };
-        for (i, line) in text.lines().enumerate() {
-            println!("line: {:?}", line);
 
-            let mut layout_job = LayoutJob::single_section(line.into(), self.text_format(node));
-            layout_job.wrap.max_width = wrap.width;
-            if let Some(first_section) = layout_job.sections.first_mut() {
-                first_section.leading_space = tmp_wrap.line_offset();
+        // syntax highlighting (it breaks the text into regions which affects how it's wrapped)
+        let syntax_theme = &self.syntax_light_theme; // the particular colors don't matter
+        let mut highlighter = None;
+        for ancestor in node.ancestors() {
+            match &ancestor.data.borrow().value {
+                NodeValue::CodeBlock(code_block) => {
+                    if let Some(syntax) = self.syntax_set.find_syntax_by_token(&code_block.info) {
+                        highlighter = Some(HighlightLines::new(syntax, syntax_theme));
+                    }
+                }
+                NodeValue::HtmlBlock(_) => {
+                    if let Some(syntax) = self.syntax_set.find_syntax_by_token("html") {
+                        highlighter = Some(HighlightLines::new(syntax, syntax_theme));
+                    }
+                }
+                _ => {}
             }
+        }
 
-            let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
-            for row in &galley.rows {
-                println!("  row: {:?}", row.text());
-                tmp_wrap.offset += row_span(row, &tmp_wrap);
+        for (i, line) in text.lines().enumerate() {
+            if let Some(highlighter) = highlighter.as_mut() {
+                let Ok(regions) = highlighter.highlight_line(line, &self.syntax_set) else {
+                    continue;
+                };
+                for &(_, region) in &regions {
+                    let mut layout_job =
+                        LayoutJob::single_section(region.into(), self.text_format(node));
+                    layout_job.wrap.max_width = wrap.width;
+                    if let Some(first_section) = layout_job.sections.first_mut() {
+                        first_section.leading_space = tmp_wrap.line_offset();
+                    }
+
+                    let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
+                    for row in &galley.rows {
+                        tmp_wrap.offset += row_span(row, &tmp_wrap);
+                    }
+                }
+            } else {
+                let mut layout_job = LayoutJob::single_section(line.into(), self.text_format(node));
+                layout_job.wrap.max_width = wrap.width;
+                if let Some(first_section) = layout_job.sections.first_mut() {
+                    first_section.leading_space = tmp_wrap.line_offset();
+                }
+
+                let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
+                for row in &galley.rows {
+                    tmp_wrap.offset += row_span(row, &tmp_wrap);
+                }
             }
 
             if i < text.lines().count() - 1 {
@@ -237,11 +278,9 @@ impl<'ast> MarkdownPlusPlus {
             }
         }
 
-        if ends_with_multiple_newlines(text) {
-            tmp_wrap.offset += wrap.width;
+        if ends_with_newline(text) {
+            tmp_wrap.offset = tmp_wrap.line_end();
         }
-
-        println!("^^^  END   text_mid_span: {:?}", tmp_wrap.offset - wrap.offset);
 
         tmp_wrap.offset - wrap.offset
     }
@@ -273,28 +312,6 @@ fn row_wrap_span(row: &Row, wrap: &WrapContext) -> Option<f32> {
     }
 }
 
-fn ends_with_multiple_newlines(s: &str) -> bool {
-    let mut chars = s.chars().rev();
-    let mut newline_count = 0;
-
-    while let Some(c) = chars.next() {
-        match c {
-            '\n' => newline_count += 1,
-            '\r' => {
-                if let Some('\n') = chars.next() {
-                    // Count CRLF as a single newline
-                    newline_count += 1;
-                } else {
-                    break;
-                }
-            }
-            _ => break,
-        }
-
-        if newline_count >= 2 {
-            return true;
-        }
-    }
-
-    false
+fn ends_with_newline(s: &str) -> bool {
+    s.ends_with('\n') || s.ends_with("\r\n")
 }

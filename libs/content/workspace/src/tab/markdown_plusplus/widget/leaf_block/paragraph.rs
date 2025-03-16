@@ -2,7 +2,7 @@ use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{Pos2, Ui};
 
 use crate::tab::markdown_plusplus::{
-    widget::{WrapContext, BLOCK_SPACING, TABLE_PADDING},
+    widget::{WrapContext, BLOCK_PADDING, BLOCK_SPACING},
     MarkdownPlusPlus,
 };
 
@@ -16,7 +16,7 @@ impl<'ast> MarkdownPlusPlus {
             }
         }
 
-        images_height + self.inline_children_height(node, width - 2. * TABLE_PADDING)
+        images_height + self.inline_children_height(node, width - 2. * BLOCK_PADDING)
     }
 
     pub fn show_paragraph(

@@ -26,7 +26,7 @@ impl<'ast> MarkdownPlusPlus {
         let child_width = width / node.children().count() as f32;
         let mut cell_height_max = 0.0f32;
         for table_cell in node.children() {
-            cell_height_max = cell_height_max.max(self.block_height(table_cell, child_width));
+            cell_height_max = cell_height_max.max(self.height(table_cell, child_width));
         }
 
         cell_height_max

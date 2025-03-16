@@ -1,7 +1,6 @@
 use crate::tab;
-use crate::tab::markdown_editor::ast::Ast;
-use crate::tab::markdown_editor::style::{InlineNode, MarkdownNode, Url};
-use egui::{ColorImage, TextureId, Ui};
+use comrak::nodes::{AstNode, NodeLink, NodeValue};
+use egui::{ColorImage, Context, TextureId, Ui};
 use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
 use resvg::tiny_skia::Pixmap;
@@ -14,7 +13,7 @@ use std::thread;
 
 #[derive(Clone, Default)]
 pub struct ImageCache {
-    pub map: HashMap<Url, Arc<Mutex<ImageState>>>,
+    pub map: HashMap<String, Arc<Mutex<ImageState>>>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -25,26 +24,24 @@ pub enum ImageState {
     Failed(String),
 }
 
-pub fn calc(
-    ast: &Ast, prior_cache: &ImageCache, client: &reqwest::blocking::Client, core: &Lb,
-    file_id: Uuid, ui: &Ui,
+pub fn calc<'ast>(
+    root: &'ast AstNode<'ast>, prior_cache: &ImageCache, client: &reqwest::blocking::Client,
+    core: &Lb, file_id: Uuid, ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();
 
     let mut prior_cache = prior_cache.clone();
-    for node in &ast.nodes {
-        if let MarkdownNode::Inline(InlineNode::Image(_, url, title)) = &node.node_type {
-            let (url, title) = (url.clone(), title.clone());
-
-            if result.map.contains_key(&url) {
+    for node in root.descendants() {
+        if let NodeValue::Image(NodeLink { url, .. }) = &node.data.borrow().value {
+            if result.map.contains_key(url) {
                 // the second removal of the same image from the prior cache is always a cache miss and causes performance issues
                 // we need to remove cache hits from the prior cache to avoid freeing them from the texture manager
                 continue;
             }
 
-            if let Some(cached) = prior_cache.map.remove(&url) {
+            if let Some(cached) = prior_cache.map.remove(url) {
                 // re-use image from previous cache (even it if failed to load)
-                result.map.insert(url, cached);
+                result.map.insert(url.clone(), cached);
             } else {
                 let url = url.clone();
                 let image_state: Arc<Mutex<ImageState>> = Default::default();
@@ -117,9 +114,10 @@ pub fn calc(
                             ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8())
                                 .into(),
                         );
+
                         Ok(texture_manager
                             .write()
-                            .alloc(title, egui_image, Default::default()))
+                            .alloc(url, egui_image, Default::default()))
                     })();
 
                     match texture_result {
@@ -160,5 +158,14 @@ impl ImageCache {
         self.map
             .values()
             .any(|state| &ImageState::Loading == state.lock().unwrap().deref())
+    }
+
+    pub fn free(&mut self, ctx: &Context) {
+        let texture_manager = ctx.tex_manager();
+        for (_, eviction) in self.map.drain() {
+            if let ImageState::Loaded(eviction) = eviction.lock().unwrap().deref() {
+                texture_manager.write().free(*eviction);
+            }
+        }
     }
 }
