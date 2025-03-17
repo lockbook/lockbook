@@ -55,6 +55,7 @@ similar = { version = "2.6.0", features = ["unicode"] }
 unicode-segmentation = "1.10.0"
 usvg = "0.41.0"
 glam = "0.22.0"
+tantivy = "0.22.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
 tracing-logcat = "=0.1.0"

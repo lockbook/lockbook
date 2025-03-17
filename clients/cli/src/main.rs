@@ -239,6 +239,8 @@ async fn search(query: &str) -> CliResult<()> {
     lb.build_index().await?;
     let build_time = time.elapsed();
 
+    lb.search.reader.reload().unwrap();
+
     let time = Instant::now();
     let results = lb.search(query, SearchConfig::PathsAndDocuments).await?;
     let search_time = time.elapsed();
