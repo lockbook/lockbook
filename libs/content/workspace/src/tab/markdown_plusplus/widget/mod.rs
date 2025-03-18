@@ -344,7 +344,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::TableRow(_) => unimplemented!("not a block"),
 
             // inline
-            NodeValue::Image(NodeLink { title, .. }) => self.span_image(node, wrap, title),
+            NodeValue::Image(NodeLink { title, .. }) => self.inline_children_span(node, wrap),
             NodeValue::Code(NodeCode { literal, .. }) => self.span_text(node, wrap, literal),
             NodeValue::Emph => self.inline_children_span(node, wrap),
             NodeValue::Escaped => self.inline_children_span(node, wrap),
@@ -352,7 +352,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::FootnoteReference(_) => self.inline_children_span(node, wrap),
             NodeValue::HtmlInline(html) => self.span_text(node, wrap, html),
             NodeValue::LineBreak => self.span_line_break(wrap),
-            NodeValue::Link(NodeLink { title, .. }) => self.span_link(node, wrap, title),
+            NodeValue::Link(NodeLink { title, .. }) => self.inline_children_span(node, wrap),
             NodeValue::Math(NodeMath { literal, .. }) => self.span_text(node, wrap, literal),
             NodeValue::SoftBreak => self.span_soft_break(wrap),
             NodeValue::SpoileredText => self.inline_children_span(node, wrap),
@@ -420,9 +420,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::TaskItem(_) => unimplemented!("not an inline"),
 
             // inline
-            NodeValue::Image(NodeLink { title, .. }) => {
-                self.show_image(ui, node, top_left, wrap, title)
-            }
+            NodeValue::Image(_) => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Code(NodeCode { literal, .. }) => {
                 self.show_text(ui, node, top_left, wrap, literal)
             }
@@ -434,9 +432,7 @@ impl<'ast> MarkdownPlusPlus {
             }
             NodeValue::HtmlInline(html) => self.show_text(ui, node, top_left, wrap, html),
             NodeValue::LineBreak => self.show_line_break(wrap),
-            NodeValue::Link(NodeLink { title, .. }) => {
-                self.show_link(ui, node, top_left, wrap, title)
-            }
+            NodeValue::Link(_) => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Math(NodeMath { literal, .. }) => {
                 self.show_text(ui, node, top_left, wrap, literal)
             }
