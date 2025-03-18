@@ -131,17 +131,6 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    pub fn span_image(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext, title: &str) -> f32 {
-        self.span_link(node, wrap, title)
-    }
-
-    pub fn show_image(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
-        title: &str,
-    ) {
-        self.show_link(ui, node, top_left, wrap, title)
-    }
-
     pub fn image_size(&self, texture_size: Vec2, width: f32) -> Vec2 {
         let width_capped_size = Vec2::new(width, texture_size.y * width / texture_size.x);
         let height_capped_size = Vec2::new(

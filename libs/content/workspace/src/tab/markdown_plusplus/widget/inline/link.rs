@@ -12,15 +12,4 @@ impl<'ast> MarkdownPlusPlus {
             ..parent_text_format
         }
     }
-
-    pub fn span_link(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext, title: &str) -> f32 {
-        self.span_text(node, wrap, title)
-    }
-
-    pub fn show_link(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
-        title: &str,
-    ) {
-        self.show_text(ui, node, top_left, wrap, title);
-    }
 }
