@@ -31,7 +31,7 @@ pub async fn import() -> CliResult<()> {
     io::stdin()
         .read_line(&mut account_string)
         .expect("failed to read from stdin");
-    account_string.retain(|c| !c.is_whitespace());
+    account_string = account_string.trim().to_string();
 
     println!("importing account...");
     lb.import_account(&account_string, None).await?;
