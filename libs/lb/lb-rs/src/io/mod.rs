@@ -19,6 +19,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use uuid::Uuid;
+use web_time::{Duration, Instant};
 
 pub(crate) type LbDb = Arc<RwLock<CoreV3>>;
 // todo: limit visibility
@@ -66,7 +67,7 @@ impl<'a> LbTx<'a> {
 
 impl Lb {
     pub async fn ro_tx(&self) -> LbRO<'_> {
-        let start = std::time::Instant::now();
+        let start = Instant::now();
 
         // let guard = tokio::time::timeout(std::time::Duration::from_secs(1), self.db.read())
         //     .await
@@ -74,7 +75,7 @@ impl Lb {
 
         let guard = self.db.read().await;
 
-        if start.elapsed() > std::time::Duration::from_millis(100) {
+        if start.elapsed() > Duration::from_millis(100) {
             warn!("readonly transaction lock acquisition took {:?}", start.elapsed());
         }
 
@@ -82,7 +83,7 @@ impl Lb {
     }
 
     pub async fn begin_tx(&self) -> LbTx<'_> {
-        let start = std::time::Instant::now();
+        let start = Instant::now();
 
         // let mut guard = tokio::time::timeout(std::time::Duration::from_secs(1), self.db.write())
         //     .await
@@ -90,7 +91,7 @@ impl Lb {
 
         let mut guard = self.db.write().await;
 
-        if start.elapsed() > std::time::Duration::from_millis(100) {
+        if start.elapsed() > Duration::from_millis(100) {
             warn!("readwrite transaction lock acquisition took {:?}", start.elapsed());
         }
 

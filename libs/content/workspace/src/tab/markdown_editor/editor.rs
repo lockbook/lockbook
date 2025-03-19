@@ -31,6 +31,12 @@ use markdown_editor::{ast, bounds, galleys, images};
 use serde::Serialize;
 use web_time::{Duration, Instant};
 
+#[cfg(target_arch = "wasm32")]
+pub type HttpClient = reqwest::Client;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub type HttpClient = reqwest::blocking::Client;
+
 #[derive(Debug, Serialize, Default)]
 pub struct Response {
     // state changes
@@ -45,7 +51,7 @@ pub struct Response {
 pub struct Editor {
     // dependencies
     pub core: Lb,
-    pub client: reqwest::Client,
+    pub client: HttpClient,
 
     // input
     pub file_id: Uuid,

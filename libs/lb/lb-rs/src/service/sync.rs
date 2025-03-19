@@ -29,9 +29,9 @@ use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Instant;
 use time::Duration;
 use uuid::Uuid;
+use web_time::Instant;
 
 pub type SyncFlag = Arc<AtomicBool>;
 

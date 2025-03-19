@@ -1,5 +1,6 @@
 use super::{trial::Trial, trial_cache::TrialCache, worker::Worker};
 use std::time::Instant;
+
 use std::{
     collections::HashMap,
     fs,
