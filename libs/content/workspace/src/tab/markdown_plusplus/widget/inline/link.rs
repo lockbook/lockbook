@@ -1,9 +1,9 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, Stroke, TextFormat, Ui};
+use egui::{Stroke, TextFormat};
 
-use crate::tab::markdown_plusplus::{widget::WrapContext, MarkdownPlusPlus};
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
-impl<'ast> MarkdownPlusPlus {
+impl MarkdownPlusPlus {
     pub fn text_format_link(&self, parent: &AstNode<'_>) -> TextFormat {
         let parent_text_format = self.text_format(parent);
         TextFormat {
