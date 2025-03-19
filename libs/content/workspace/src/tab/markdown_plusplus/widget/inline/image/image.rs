@@ -4,11 +4,11 @@ use comrak::nodes::AstNode;
 use egui::{self, Align2, Color32, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use epaint::RectShape;
 
-use crate::tab::markdown_plusplus::{widget::WrapContext, MarkdownPlusPlus};
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 use super::cache::ImageState;
 
-impl<'ast> MarkdownPlusPlus {
+impl MarkdownPlusPlus {
     pub fn text_format_image(&self, parent: &AstNode<'_>) -> TextFormat {
         self.text_format_link(parent)
     }

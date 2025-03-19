@@ -1,13 +1,15 @@
 use std::io::{BufReader, Cursor};
 use std::sync::Arc;
 
-use comrak::nodes::AstNode;
+use colored::Colorize;
+use comrak::nodes::{AstNode, LineColumn, Sourcepos};
 use comrak::{Arena, Options};
 use core::time::Duration;
 use egui::{
     Context, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Rect, ScrollArea, Stroke, Ui,
     Vec2,
 };
+use lb_rs::model::text::buffer::Buffer;
 use lb_rs::{blocking::Lb, Uuid};
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
@@ -23,7 +25,7 @@ pub struct MarkdownPlusPlus {
     pub core: Lb,
     pub client: reqwest::blocking::Client,
 
-    pub md: String,
+    pub buffer: Buffer,
     pub file_id: Uuid,
     pub ctx: Context,
 
@@ -46,7 +48,7 @@ impl Drop for MarkdownPlusPlus {
 }
 
 impl MarkdownPlusPlus {
-    pub fn new(core: Lb, md: String, file_id: Uuid, ctx: Context) -> Self {
+    pub fn new(core: Lb, md: &str, file_id: Uuid, ctx: Context) -> Self {
         let theme = Theme::new(ctx.clone());
 
         let syntax_set = SyntaxSet::load_defaults_newlines();
@@ -66,7 +68,7 @@ impl MarkdownPlusPlus {
         Self {
             core,
             client: Default::default(),
-            md,
+            buffer: md.into(),
             file_id,
             ctx,
             theme,
@@ -105,13 +107,17 @@ impl MarkdownPlusPlus {
         options.extension.underline = true;
         options.extension.spoiler = true;
         options.extension.greentext = true;
-        let root = comrak::parse_document(&arena, &self.md, &options);
+        let root = comrak::parse_document(&arena, &self.buffer.current.text, &options);
 
         let ast_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
-        // println!("========================================");
-        // print_ast(root);
+        println!(
+            "{}",
+            "================================================================================"
+                .bright_black()
+        );
+        print_ast(root);
 
         let print_elapsed = start.elapsed();
         let start = std::time::Instant::now();
@@ -147,10 +153,23 @@ impl MarkdownPlusPlus {
 
         let render_elapsed = start.elapsed();
 
-        // println!("----------------------------------------");
-        // println!("                          ast: {:?}", ast_elapsed);
-        // println!("                        print: {:?}", print_elapsed);
-        // println!("                       render: {:?}", render_elapsed);
+        println!(
+            "{}",
+            "--------------------------------------------------------------------------------"
+                .bright_black()
+        );
+        println!(
+            "                                                                  ast: {:?}",
+            ast_elapsed
+        );
+        println!(
+            "                                                                print: {:?}",
+            print_elapsed
+        );
+        println!(
+            "                                                               render: {:?}",
+            render_elapsed
+        );
     }
 
     fn render<'a>(&mut self, ui: &mut Ui, root: &'a AstNode<'a>) {
@@ -185,29 +204,43 @@ fn print_ast<'a>(root: &'a AstNode<'a>) {
 
 fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
     let last_child = node.next_sibling().is_none();
+
+    // convert cardinal (inc, inc) pairs to ordinal (inc, exc) pairs
+    let sourcepos = node.data.borrow().sourcepos;
+    let sourcepos = Sourcepos {
+        start: LineColumn { line: sourcepos.start.line - 1, column: sourcepos.start.column - 1 },
+        end: LineColumn { line: sourcepos.end.line - 1, ..sourcepos.end },
+    };
+
     if indent.is_empty() {
         println!("{:?}", node.data.borrow().value);
     } else {
         println!(
-            "{}{}{} {:?} {}{}",
+            "{}{}{} {:?} {}{}{}",
             indent,
-            if last_child { "└>" } else { "├>" },
-            if node.data.borrow().value.block() { "☐" } else { "~" },
+            if last_child { "└>" } else { "├>" }.bright_black(),
+            if node.data.borrow().value.block() { "■" } else { "=" }.cyan(),
             node.data.borrow().value,
-            node.data.borrow().sourcepos,
+            format!("{}", sourcepos).bright_cyan(),
             if node.children().count() > 0 {
-                format!(
-                    " +{}{}",
-                    node.children().count(),
-                    if node.data.borrow().value.contains_inlines() { "~" } else { "☐" },
-                )
+                format!(" +{}", node.children().count())
             } else {
                 "".into()
             }
+            .cyan(),
+            if node.children().count() > 0 {
+                if node.data.borrow().value.contains_inlines() { "=" } else { "■" }.bright_black()
+            } else {
+                "".into()
+            }
+            .bright_black(),
         );
     }
     for child in node.children() {
-        print_recursive(child, &format!("{}{}", indent, if last_child { "  " } else { "│ " }));
+        print_recursive(
+            child,
+            &format!("{}{}", indent, if last_child { "  " } else { "│ " }.bright_black()),
+        );
     }
 }
 

@@ -159,7 +159,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::WikiLink(_) => unimplemented!("not a block"),
 
             // leaf_block
-            NodeValue::CodeBlock(NodeCodeBlock { literal, info, .. }) => {
+            NodeValue::CodeBlock(NodeCodeBlock { literal, .. }) => {
                 self.height_code_block(node, width, literal)
             }
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
@@ -180,45 +180,68 @@ impl<'ast> MarkdownPlusPlus {
     fn block_children_height(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
         let mut height_sum = 0.0;
         for child in node.children() {
-            height_sum += self.block_spacing(child);
-            height_sum += self.height(child, width)
+            height_sum += self.block_pre_spacing(child);
+            height_sum += self.height(child, width);
+            height_sum += self.block_post_spacing(child);
         }
         height_sum
     }
 
-    fn block_spacing(&self, node: &AstNode<'_>) -> f32 {
+    fn block_pre_spacing(&self, node: &AstNode<'_>) -> f32 {
         let sourcepos = node.data.borrow().sourcepos;
         let value = &node.data.borrow().value;
 
-        let mut spacing = 0.;
+        let mut min_spacing = 0.;
+
+        // spacing based on lines between this block and the previous block
+        let line_count = if let Some(prev_sibling) = node.previous_sibling() {
+            // space between two siblings
+            min_spacing = BLOCK_SPACING;
+
+            let prev_sibling_sourcepos = prev_sibling.data.borrow().sourcepos;
+            sourcepos.start.line - prev_sibling_sourcepos.end.line
+        } else if let Some(parent) = node.parent() {
+            // space between the start of the parent and the first sibling
+            let parent_sourcepos = parent.data.borrow().sourcepos;
+            sourcepos.start.line - parent_sourcepos.start.line
+        } else {
+            unreachable!("spacing not evaluated for document node");
+        };
 
         if let NodeValue::TableRow(_) = value {
-            return 0.;
+            0. // no spacing before (or after) table rows
+        } else {
+            let empty_line_count = line_count.saturating_sub(1); // one of these is just the line break
+            let spacing = empty_line_count as f32 * self.row_height(node.parent().unwrap());
+
+            spacing.max(min_spacing) // add at least the default spacing
         }
+    }
 
-        if let Some(prev_sibling) = node.previous_sibling() {
-            let prev_sibling_sourcepos = prev_sibling.data.borrow().sourcepos;
-            let prev_sibling_value = &prev_sibling.data.borrow().value;
+    fn block_post_spacing(&self, node: &AstNode<'_>) -> f32 {
+        let sourcepos = node.data.borrow().sourcepos;
+        let value = &node.data.borrow().value;
 
-            let mut line_count = sourcepos.start.line - prev_sibling_sourcepos.end.line;
+        // spacing based on lines between this block and the next block
+        let mut line_count = if node.next_sibling().is_some() {
+            0 // space between two siblings rendered as pre-spacing of the next sibling
+        } else if let Some(parent) = node.parent() {
+            // space between the last sibling and the end of the parent
+            let parent_sourcepos = parent.data.borrow().sourcepos;
+            parent_sourcepos.end.line - sourcepos.end.line
+        } else {
+            unreachable!("spacing not evaluated for document node");
+        };
 
-            line_count = line_count.saturating_sub(1); // determined empirically
-
-            // special cases
-            match prev_sibling_value {
-                NodeValue::ThematicBreak => {
-                    line_count +=
-                        prev_sibling_sourcepos.end.line - prev_sibling_sourcepos.start.line
-                }
-                NodeValue::Table(_) => line_count = line_count.saturating_sub(1),
-                _ => {}
+        if let NodeValue::TableRow(_) = value {
+            0. // no spacing after (or before) table rows
+        } else {
+            if let NodeValue::ThematicBreak = value {
+                line_count += 1;
             }
 
-            spacing = line_count as f32 * self.row_height(node);
-            spacing = spacing.max(BLOCK_SPACING); // add at least the default spacing
+            line_count as f32 * self.row_height(node.parent().unwrap())
         }
-
-        spacing
     }
 
     pub(crate) fn show_block(
@@ -297,29 +320,42 @@ impl<'ast> MarkdownPlusPlus {
         &self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, width: f32,
     ) {
         for child in node.children() {
-            // add spacing between blocks based on source lines
-            let spacing = self.block_spacing(child);
+            // add pre-spacing
+            let pre_spacing = self.block_pre_spacing(child);
 
             // debug
-            // let spacing_rect = egui::Rect::from_min_size(top_left, egui::Vec2::new(width, spacing));
             // ui.painter().rect_stroke(
-            //     spacing_rect,
+            //     egui::Rect::from_min_size(top_left, egui::Vec2::new(width, pre_spacing)),
             //     2.,
-            //     egui::Stroke::new(spacing.min(1.), self.theme.bg().neutral_quarternary),
+            //     egui::Stroke::new(pre_spacing.min(1.), self.theme.bg().neutral_quarternary),
             // );
 
-            top_left.y += spacing;
+            top_left.y += pre_spacing;
 
             // add block
             let child_height = self.height(child, width);
             self.show_block(ui, child, top_left, width);
 
             // debug
-            // let child_rect =
-            //     egui::Rect::from_min_size(top_left, egui::Vec2::new(width, child_height));
-            // ui.painter()
-            //     .rect_stroke(child_rect, 2., egui::Stroke::new(1., self.theme.bg().green));
+            // ui.painter().rect_stroke(
+            //     egui::Rect::from_min_size(top_left, egui::Vec2::new(width, child_height)),
+            //     2.,
+            //     egui::Stroke::new(1., self.theme.bg().green),
+            // );
+
             top_left.y += child_height;
+
+            // add post-spacing
+            let post_spacing = self.block_post_spacing(child);
+
+            // debug
+            // ui.painter().rect_stroke(
+            //     egui::Rect::from_min_size(top_left, egui::Vec2::new(width, post_spacing)),
+            //     2.,
+            //     egui::Stroke::new(post_spacing.min(1.), self.theme.bg().neutral_quarternary),
+            // );
+
+            top_left.y += post_spacing;
         }
 
         // debug
@@ -344,7 +380,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::TableRow(_) => unimplemented!("not a block"),
 
             // inline
-            NodeValue::Image(NodeLink { title, .. }) => self.inline_children_span(node, wrap),
+            NodeValue::Image(_) => self.inline_children_span(node, wrap),
             NodeValue::Code(NodeCode { literal, .. }) => self.span_text(node, wrap, literal),
             NodeValue::Emph => self.inline_children_span(node, wrap),
             NodeValue::Escaped => self.inline_children_span(node, wrap),
@@ -352,7 +388,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::FootnoteReference(_) => self.inline_children_span(node, wrap),
             NodeValue::HtmlInline(html) => self.span_text(node, wrap, html),
             NodeValue::LineBreak => self.span_line_break(wrap),
-            NodeValue::Link(NodeLink { title, .. }) => self.inline_children_span(node, wrap),
+            NodeValue::Link(_) => self.inline_children_span(node, wrap),
             NodeValue::Math(NodeMath { literal, .. }) => self.span_text(node, wrap, literal),
             NodeValue::SoftBreak => self.span_soft_break(wrap),
             NodeValue::SpoileredText => self.inline_children_span(node, wrap),

@@ -8824,6 +8824,7 @@ dependencies = [
  "basic-human-duration",
  "bezier-rs",
  "chrono",
+ "colored 2.1.0",
  "comrak",
  "egui",
  "egui_animation",

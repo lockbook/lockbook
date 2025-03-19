@@ -277,7 +277,7 @@ impl Workspace {
             {
                 {
                     let CompletedLoad {
-                        request: LoadRequest { id, is_new_file, tab_created },
+                        request: LoadRequest { id, is_new_file: _, tab_created }, // todo: use is_new_file
                         content_result,
                         timing: _,
                     } = load;
@@ -362,7 +362,7 @@ impl Workspace {
                             tab.content = ContentState::Open(TabContent::MarkdownPlusPlus(
                                 MarkdownPlusPlus::new(
                                     self.core.clone(),
-                                    String::from_utf8_lossy(&bytes).into(),
+                                    String::from_utf8_lossy(&bytes).as_ref(),
                                     id,
                                     ctx.clone(),
                                 ),
