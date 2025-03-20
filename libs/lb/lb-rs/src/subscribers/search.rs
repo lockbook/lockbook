@@ -7,6 +7,7 @@ use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
+use std::ops::Range;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -33,37 +34,9 @@ const FUZZY_WEIGHT: f32 = 0.8;
 
 #[derive(Clone)]
 pub struct SearchIndex {
-    pub building_index: Arc<AtomicBool>,
+    pub ready: Arc<AtomicBool>,
     pub index: Index,
     pub reader: IndexReader,
-}
-
-impl Default for SearchIndex {
-    fn default() -> Self {
-        let mut schema_builder = Schema::builder();
-        schema_builder.add_text_field("title", TEXT | STORED);
-        schema_builder.add_text_field("content", TEXT | STORED);
-
-        let schema = schema_builder.build();
-
-        let mut index = Index::create_in_ram(schema.clone());
-        //index.set_multithread_executor(10).unwrap();
-
-        let reader = index
-            .reader_builder()
-            .reload_policy(ReloadPolicy::OnCommitWithDelay)
-            .try_into()
-            .unwrap();
-
-        Self { building_index: Default::default(), index, reader }
-    }
-}
-
-#[derive(Debug)]
-pub struct SearchIndexEntry {
-    pub id: Uuid,
-    pub path: String,
-    pub content: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -71,45 +44,13 @@ pub enum SearchConfig {
     Paths,
     Documents,
     PathsAndDocuments,
+    Advanced,
 }
 
 #[derive(Debug)]
 pub enum SearchResult {
     DocumentMatch { id: Uuid, path: String, content_matches: Vec<ContentMatch> },
     PathMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
-}
-
-impl SearchResult {
-    pub fn id(&self) -> Uuid {
-        match self {
-            SearchResult::DocumentMatch { id, .. } | SearchResult::PathMatch { id, .. } => *id,
-        }
-    }
-
-    pub fn path(&self) -> &str {
-        match self {
-            SearchResult::DocumentMatch { path, .. } | SearchResult::PathMatch { path, .. } => path,
-        }
-    }
-
-    pub fn name(&self) -> &str {
-        match self {
-            SearchResult::DocumentMatch { path, .. } | SearchResult::PathMatch { path, .. } => {
-                path.split('/').last().unwrap_or_default()
-            }
-        }
-    }
-
-    pub fn score(&self) -> i64 {
-        match self {
-            SearchResult::DocumentMatch { content_matches, .. } => content_matches
-                .iter()
-                .map(|m| m.score)
-                .max()
-                .unwrap_or_default(),
-            SearchResult::PathMatch { score, .. } => *score,
-        }
-    }
 }
 
 impl Lb {
@@ -122,23 +63,22 @@ impl Lb {
 
         // show suggested docs if the input string is empty
         if input.is_empty() {
-            match cfg {
-                SearchConfig::Paths | SearchConfig::PathsAndDocuments => {
-                    return stream::iter(self.suggested_docs(RankingWeights::default()).await?)
-                        .then(|id| async move {
-                            Ok(SearchResult::PathMatch {
-                                id,
-                                path: self.get_path_by_id(id).await?,
-                                matched_indices: vec![],
-                                score: 0,
-                            })
-                        })
-                        .try_collect()
-                        .await;
-                }
-                SearchConfig::Documents => return Ok(vec![]),
-            }
+            return stream::iter(self.suggested_docs(RankingWeights::default()).await?)
+                .then(|id| async move {
+                    Ok(SearchResult::PathMatch {
+                        id,
+                        path: self.get_path_by_id(id).await?,
+                        matched_indices: vec![],
+                        score: 0,
+                    })
+                })
+                .try_collect()
+                .await;
         }
+
+        // if !self.search.ready.load(Ordering::Relaxed) {
+        //     return Ok(vec![]);
+        // }
 
         let searcher = self.search.reader.searcher();
         let schema = self.search.index.schema();
@@ -146,7 +86,6 @@ impl Lb {
         let content = schema.get_field("content").unwrap();
 
         let query_parser = QueryParser::for_index(&self.search.index, vec![title, content]);
-        query_parser.set_field_fuzzy(title);
 
         let query = query_parser.parse_query(input).map_unexpected()?;
 
@@ -160,17 +99,47 @@ impl Lb {
             .search(&query, &TopDocs::with_limit(10))
             .map_unexpected()?;
 
+        let mut results = vec![];
         for (_score, doc_address) in top_docs {
             let retrieved_doc: TantivyDocument = searcher.doc(doc_address).map_unexpected()?;
-            let snippet = snippet_generator.snippet_from_doc(&retrieved_doc);
-            let title = title_snip.snippet_from_doc(&retrieved_doc);
+            for (field, _) in retrieved_doc.get_sorted_field_values() {
+                if field == title {
+                    let title = title_snip.snippet_from_doc(&retrieved_doc);
+                    results.push(SearchResult::PathMatch {
+                        id: Uuid::nil(), // todo
+                        path: title.fragment().to_string(),
+                        matched_indices: Self::highlight_to_matches(title.highlighted()),
+                        score: 0,
+                    });
+                }
 
-            println!("---");
-            println!("{}", title.fragment());
-            println!("{}", snippet.fragment());
+                if field == content {
+                    let snippet = snippet_generator.snippet_from_doc(&retrieved_doc);
+                    results.push(SearchResult::DocumentMatch {
+                        id: Uuid::nil(),      // todo
+                        path: "".to_string(), // todo
+                        content_matches: vec![ContentMatch {
+                            paragraph: snippet.fragment().to_string(),
+                            matched_indices: Self::highlight_to_matches(snippet.highlighted()),
+                            score: 0,
+                        }],
+                    });
+                }
+            }
         }
 
-        Ok(vec![])
+        Ok(results)
+    }
+
+    fn highlight_to_matches(ranges: &[Range<usize>]) -> Vec<usize> {
+        let mut matches = vec![];
+        for range in ranges {
+            for i in range.clone() {
+                matches.push(i);
+            }
+        }
+
+        matches
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -475,9 +444,66 @@ impl SearchIndex {
     }
 }
 
+impl Default for SearchIndex {
+    fn default() -> Self {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("title", TEXT | STORED);
+        schema_builder.add_text_field("content", TEXT | STORED);
+
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema.clone());
+        //index.set_multithread_executor(10).unwrap();
+
+        // this probably shouldn't happen here, see the doc for try_into()
+        // but I think that doc is written for a disk reader so let's see
+        // if it actually matters
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::OnCommitWithDelay)
+            .try_into()
+            .unwrap();
+
+        Self { ready: Default::default(), index, reader }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct ContentMatch {
     pub paragraph: String,
     pub matched_indices: Vec<usize>,
     pub score: i64,
+}
+
+impl SearchResult {
+    pub fn id(&self) -> Uuid {
+        match self {
+            SearchResult::DocumentMatch { id, .. } | SearchResult::PathMatch { id, .. } => *id,
+        }
+    }
+
+    pub fn path(&self) -> &str {
+        match self {
+            SearchResult::DocumentMatch { path, .. } | SearchResult::PathMatch { path, .. } => path,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        match self {
+            SearchResult::DocumentMatch { path, .. } | SearchResult::PathMatch { path, .. } => {
+                path.split('/').last().unwrap_or_default()
+            }
+        }
+    }
+
+    pub fn score(&self) -> i64 {
+        match self {
+            SearchResult::DocumentMatch { content_matches, .. } => content_matches
+                .iter()
+                .map(|m| m.score)
+                .max()
+                .unwrap_or_default(),
+            SearchResult::PathMatch { score, .. } => *score,
+        }
+    }
 }
