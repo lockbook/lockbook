@@ -250,12 +250,28 @@ async fn search(query: &str) -> CliResult<()> {
             SearchResult::DocumentMatch { id: _, path, content_matches } => {
                 println!("{}", format!("DOC: {path}").bold().blue());
                 for content in content_matches {
-                    println!("{}", content.paragraph);
+                    let mut result = String::default();
+                    for (i, c) in content.paragraph.char_indices() {
+                        if content.matched_indices.contains(&i) {
+                            result = format!("{result}{}", c.to_string().underline());
+                        } else {
+                            result = format!("{result}{c}");
+                        }
+                    }
+                    println!("{}", result);
                 }
                 println!();
             }
-            SearchResult::PathMatch { id: _, path, matched_indices: _, score: _ } => {
-                println!("{}", format!("PATH: {path}").bold().green());
+            SearchResult::PathMatch { id: _, path, matched_indices, score: _ } => {
+                let mut result = String::default();
+                for (i, c) in path.char_indices() {
+                    if matched_indices.contains(&i) {
+                        result = format!("{result}{}", c.to_string().underline());
+                    } else {
+                        result = format!("{result}{c}");
+                    }
+                }
+                println!("{}", format!("PATH: {result}").bold().green());
                 println!();
             }
         }
