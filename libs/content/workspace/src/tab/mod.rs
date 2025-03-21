@@ -275,6 +275,7 @@ impl TabFailure {
 #[derive(Debug, Clone)]
 pub enum Event {
     Markdown(markdown_editor::Event),
+    MarkdownPlusPlus(markdown_plusplus::Event),
     Drop { content: Vec<ClipContent>, position: egui::Pos2 },
     Paste { content: Vec<ClipContent>, position: egui::Pos2 },
     PredictedTouch { id: egui::TouchId, force: Option<f32>, pos: egui::Pos2 },

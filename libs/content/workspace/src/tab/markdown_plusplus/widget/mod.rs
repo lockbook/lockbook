@@ -1,6 +1,6 @@
 use comrak::nodes::{
     AstNode, NodeCode, NodeCodeBlock, NodeFootnoteReference, NodeHeading, NodeHtmlBlock, NodeLink,
-    NodeList, NodeMath, NodeValue, NodeWikiLink,
+    NodeList, NodeMath, NodeValue,
 };
 use egui::{Pos2, TextFormat, Ui};
 
@@ -397,7 +397,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Superscript => self.inline_children_span(node, wrap),
             NodeValue::Text(text) => self.span_text(node, wrap, text),
             NodeValue::Underline => self.inline_children_span(node, wrap),
-            NodeValue::WikiLink(NodeWikiLink { url }) => self.span_wiki_link(node, wrap, url),
+            NodeValue::WikiLink(_) => self.inline_children_span(node, wrap),
 
             // leaf_block
             NodeValue::CodeBlock(_) => unimplemented!("not a block"),
@@ -479,9 +479,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Superscript => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Text(text) => self.show_text(ui, node, top_left, wrap, text),
             NodeValue::Underline => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::WikiLink(NodeWikiLink { url }) => {
-                self.show_wiki_link(ui, node, top_left, wrap, url)
-            }
+            NodeValue::WikiLink(_) => self.show_inline_children(ui, node, top_left, wrap),
 
             // leaf_block
             NodeValue::CodeBlock(_) => unimplemented!("not an inline"),
