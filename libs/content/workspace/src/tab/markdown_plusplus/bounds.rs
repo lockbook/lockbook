@@ -61,8 +61,8 @@ pub struct Bounds {
 }
 
 impl<'ast> MarkdownPlusPlus {
-    pub fn calc_source_lines(&self) -> SourceLines {
-        let mut result = Vec::new();
+    pub fn calc_source_lines(&mut self) {
+        self.bounds.source_lines.clear();
         let mut start = DocByteOffset(0);
         for line in self.buffer.current.text.split_inclusive('\n') {
             let inclusive_length = RelByteOffset(line.len());
@@ -77,12 +77,10 @@ impl<'ast> MarkdownPlusPlus {
             let end = start + exclusive_length;
 
             let range = self.buffer.current.segs.range_to_char((start, end));
-            result.push(range);
+            self.bounds.source_lines.push(range);
 
             start += inclusive_length;
         }
-
-        result
     }
 
     pub fn line_column_to_offset(&self, line_column: LineColumn) -> DocCharOffset {
