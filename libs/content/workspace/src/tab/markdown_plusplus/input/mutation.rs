@@ -5,6 +5,7 @@ use lb_rs::model::text::buffer;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
+use super::{Offset, Region};
 
 /// tracks editor state necessary to support translating input events to buffer operations
 #[derive(Default)]
@@ -24,6 +25,11 @@ impl MarkdownPlusPlus {
         self.event.prev_event = Some(event.clone());
         match event {
             Event::Select { region } => {
+                operations.push(Operation::Select((
+                    self.buffer.current.selection.start() + 1,
+                    self.buffer.current.selection.end() + 1,
+                )));
+
                 // operations.push(Operation::Select(self.region_to_range(region)));
             }
             Event::Replace { region, text } => {
@@ -875,70 +881,74 @@ impl MarkdownPlusPlus {
     // }
 
     // // todo: self by shared reference
-    // pub fn region_to_range(&mut self, region: Region) -> (DocCharOffset, DocCharOffset) {
-    //     let mut current_selection = self.buffer.current.selection;
-    //     match region {
-    //         Region::Location(location) => self.location_to_char_offset(location).to_range(),
-    //         Region::ToLocation(location) => {
-    //             (current_selection.0, self.location_to_char_offset(location))
-    //         }
-    //         Region::BetweenLocations { start, end } => {
-    //             (self.location_to_char_offset(start), self.location_to_char_offset(end))
-    //         }
-    //         Region::Selection => current_selection,
-    //         Region::SelectionOrOffset { offset, backwards } => {
-    //             if current_selection.is_empty() {
-    //                 current_selection.0 = current_selection.0.advance(
-    //                     &mut self.cursor.x_target,
-    //                     offset,
-    //                     backwards,
-    //                     &self.buffer.current.segs,
-    //                     &self.galleys,
-    //                     &self.bounds,
-    //                 );
-    //             }
-    //             current_selection
-    //         }
-    //         Region::ToOffset { offset, backwards, extend_selection } => {
-    //             if extend_selection
-    //                 || current_selection.is_empty()
-    //                 || matches!(offset, Offset::To(..))
-    //             {
-    //                 let mut selection = current_selection;
-    //                 selection.1 = selection.1.advance(
-    //                     &mut self.cursor.x_target,
-    //                     offset,
-    //                     backwards,
-    //                     &self.buffer.current.segs,
-    //                     &self.galleys,
-    //                     &self.bounds,
-    //                 );
-    //                 if extend_selection {
-    //                     selection.0 = current_selection.0;
-    //                 } else {
-    //                     selection.0 = selection.1;
-    //                 }
-    //                 selection
-    //             } else if backwards {
-    //                 current_selection.start().to_range()
-    //             } else {
-    //                 current_selection.end().to_range()
-    //             }
-    //         }
-    //         Region::Bound { bound, backwards } => {
-    //             let offset = current_selection.1;
-    //             offset
-    //                 .range_bound(bound, backwards, false, &self.bounds)
-    //                 .unwrap_or((offset, offset))
-    //         }
-    //         Region::BoundAt { bound, location, backwards } => {
-    //             let offset = self.location_to_char_offset(location);
-    //             offset
-    //                 .range_bound(bound, backwards, true, &self.bounds)
-    //                 .unwrap_or((offset, offset))
-    //         }
-    //     }
-    // }
+    pub fn region_to_range(&mut self, region: Region) -> (DocCharOffset, DocCharOffset) {
+        let mut current_selection = self.buffer.current.selection;
+        match region {
+            Region::Location(location) => {
+                // self.location_to_char_offset(location).to_range()
+            }
+            Region::ToLocation(location) => {
+                // (current_selection.0, self.location_to_char_offset(location))
+            }
+            Region::BetweenLocations { start, end } => {
+                // (self.location_to_char_offset(start), self.location_to_char_offset(end))
+            }
+            Region::Selection => {
+                // current_selection
+            }
+            Region::SelectionOrOffset { offset, backwards } => {
+                // if current_selection.is_empty() {
+                //     current_selection.0 = current_selection.0.advance(
+                //         &mut self.cursor.x_target,
+                //         offset,
+                //         backwards,
+                //         &self.buffer.current.segs,
+                //         &self.galleys,
+                //         &self.bounds,
+                //     );
+                // }
+                // current_selection
+            }
+            Region::ToOffset { offset, backwards, extend_selection } => {
+                // return if extend_selection
+                //     || current_selection.is_empty()
+                //     || matches!(offset, Offset::To(..))
+                // {
+                //     let mut selection = current_selection;
+                //     selection.1 = selection.1.advance(
+                //         &mut self.cursor.x_target,
+                //         offset,
+                //         backwards,
+                //         &self.buffer.current.segs,
+                //         &self.bounds,
+                //     );
+                //     if extend_selection {
+                //         selection.0 = current_selection.0;
+                //     } else {
+                //         selection.0 = selection.1;
+                //     }
+                //     selection
+                // } else if backwards {
+                //     current_selection.start().to_range()
+                // } else {
+                //     current_selection.end().to_range()
+                // };
+            }
+            Region::Bound { bound, backwards } => {
+                // let offset = current_selection.1;
+                // offset
+                //     .range_bound(bound, backwards, false, &self.bounds)
+                //     .unwrap_or((offset, offset))
+            }
+            Region::BoundAt { bound, location, backwards } => {
+                // let offset = self.location_to_char_offset(location);
+                // offset
+                //     .range_bound(bound, backwards, true, &self.bounds)
+                //     .unwrap_or((offset, offset))
+            }
+        }
+        current_selection
+    }
 
     // pub fn location_to_char_offset(&self, location: Location) -> DocCharOffset {
     //     match location {

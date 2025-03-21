@@ -116,6 +116,9 @@ impl MarkdownPlusPlus {
 
         let start = std::time::Instant::now();
 
+        self.calc_source_lines();
+        self.process_events(ui.ctx());
+
         let arena = Arena::new();
         let mut options = Options::default();
         options.parse.smart = true;
