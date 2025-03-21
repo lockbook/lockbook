@@ -185,7 +185,7 @@ impl StorageViewer {
                         current_color.b().into(),
                     )
                     .to_hsl();
-                    let mut luminance = 0.5;
+                    let luminance: f32;
                     if hsl_color.get_lightness() > 50.0 {
                         luminance = (hsl_color.get_lightness() - 50.0) / 100.0;
                     } else {
@@ -290,16 +290,14 @@ impl StorageViewer {
 
         //Top buttons
 
-        ui.with_layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(1) }, |ui| {
-            menu::bar(ui, |ui| {
-                if ui.button("Reset Root").clicked() {
-                    self.reset_root();
-                    self.paint_order = vec![];
-                }
+        menu::bar(ui, |ui| {
+            if ui.button("Reset Root").clicked() {
+                self.reset_root();
+                self.paint_order = vec![];
+            }
 
-                ui.menu_button("Layer Size", |ui| {
-                    ui.add(egui::Slider::new(&mut self.layer_height, 1.0..=100.0));
-                });
+            ui.menu_button("Layer Size", |ui| {
+                ui.add(egui::Slider::new(&mut self.layer_height, 1.0..=100.0));
             });
         });
 
