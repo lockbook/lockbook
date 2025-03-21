@@ -17,6 +17,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use crate::file_cache::FileCache;
 use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
+use crate::storage_viewer::show::StorageViewer;
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -603,6 +604,17 @@ impl Workspace {
             self.make_current(i);
         } else {
             self.create_tab(ContentState::Open(TabContent::MindMap(MindMap::new(&core))), true);
+        };
+    }
+
+    pub fn start_storage_viewer(&mut self, core: Lb) {
+        if let Some(i) = self.tabs.iter().position(|t| t.storage_viewer().is_some()) {
+            self.make_current(i);
+        } else {
+            self.create_tab(
+                ContentState::Open(TabContent::StorageViewer(StorageViewer::new(&core))),
+                true,
+            );
         };
     }
 

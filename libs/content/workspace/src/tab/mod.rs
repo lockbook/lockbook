@@ -1,5 +1,6 @@
 use crate::file_cache::FilesExt as _;
 use crate::mind_map::show::MindMap;
+use crate::storage_viewer::show::StorageViewer;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -101,6 +102,20 @@ impl Tab {
         }
     }
 
+    pub fn storage_viewer(&self) -> Option<&StorageViewer> {
+        match &self.content {
+            ContentState::Open(TabContent::StorageViewer(sv)) => Some(sv),
+            _ => None,
+        }
+    }
+
+    pub fn storage_viewer_mut(&mut self) -> Option<&mut StorageViewer> {
+        match &mut self.content {
+            ContentState::Open(TabContent::StorageViewer(sv)) => Some(sv),
+            _ => None,
+        }
+    }
+
     /// Clones the content required to save the tab. This is intended for use on the UI thread. Returns `None` if the
     /// tab does not have an editable file type open.
     pub fn clone_content(&self) -> Option<TabSaveContent> {
@@ -153,6 +168,7 @@ pub enum TabContent {
     Pdf(PdfViewer),
     Svg(SVGEditor),
     MindMap(MindMap),
+    StorageViewer(StorageViewer),
 }
 
 impl std::fmt::Debug for TabContent {
@@ -163,6 +179,7 @@ impl std::fmt::Debug for TabContent {
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
+            TabContent::StorageViewer(_) => write!(f, "TabContent::StorageViewer"),
         }
     }
 }
@@ -175,6 +192,7 @@ impl TabContent {
             TabContent::Image(image_viewer) => Some(image_viewer.id),
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
             TabContent::MindMap(_) => None,
+            TabContent::StorageViewer(_) => None,
         }
     }
 

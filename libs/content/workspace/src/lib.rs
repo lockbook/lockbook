@@ -2,6 +2,7 @@ pub mod file_cache;
 pub mod mind_map;
 pub mod output;
 pub mod show;
+pub mod storage_viewer;
 pub mod syncing;
 pub mod tab;
 pub mod task_manager;

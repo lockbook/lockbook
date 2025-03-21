@@ -205,6 +205,21 @@ impl Workspace {
                                     {
                                         self.upsert_mind_map(self.core.clone());
                                     }
+
+                                    ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
+                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
+                                    ui.visuals_mut().widgets.active.fg_stroke.color = blue;
+
+                                    if Button::default()
+                                        .icon(&Icon::LANGUAGE)
+                                        .text("Storage Viewer")
+                                        .frame(false)
+                                        .rounding(3.)
+                                        .show(ui)
+                                        .clicked()
+                                    {
+                                        self.start_storage_viewer(self.core.clone());
+                                    }
                                 }
                             });
                             strip.cell(|_| {});
@@ -461,6 +476,9 @@ impl Workspace {
                                     if let Some(value) = response {
                                         self.open_file(value, false, true);
                                     }
+                                }
+                                TabContent::StorageViewer(sv) => {
+                                    sv.show(ui);
                                 }
                             };
                         }
