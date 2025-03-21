@@ -1,4 +1,3 @@
-use lb_rs::model::core_config::Config;
 use lb_rs::Uuid;
 use lb_rs::{blocking::Lb, model::file::File};
 use serde::Deserialize;

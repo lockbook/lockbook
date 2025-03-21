@@ -2,11 +2,10 @@ use super::data::{self, NodeLayer};
 use color_art;
 use colors_transform::{self, Color};
 use egui::{
-    self, menu, Align2, Color32, Context, FontFamily, FontId, Id, LayerId, Pos2, Rect, Rounding,
-    Sense, Stroke, TextWrapMode, Ui,
+    self, menu, Align2, Color32, FontFamily, FontId, Id, LayerId, Pos2, Rect, Rounding, Sense,
+    Stroke, TextWrapMode, Ui,
 };
 use lb_rs::blocking::Lb;
-use lb_rs::model::core_config::Config;
 use lb_rs::model::usage::bytes_to_human;
 use lb_rs::Uuid;
 
@@ -249,19 +248,15 @@ impl StorageViewer {
                 + "\nSize:\n"
                 + &display_size;
 
-            ui.input(|i| {
-                let cursor_pos = i.pointer.hover_pos().unwrap_or(Pos2 { x: 0.0, y: 0.0 });
-                let in_rect = paint_rect.contains(cursor_pos);
-                if i.pointer.any_click() && in_rect {
-                    if item_filerow.file.is_folder() {
-                        root_status = Some(item.id.clone());
-                    }
+            let response = ui.interact(paint_rect, Id::new(general_counter), Sense::click());
+
+            if response.clicked() {
+                if item_filerow.file.is_folder() {
+                    root_status = Some(item.id.clone());
                 }
-                if in_rect {
-                    //let response = &ui.label("").on_hover_text(hover_text);
-                    println!("{}", hover_text);
-                }
-            });
+            }
+
+            response.on_hover_text(hover_text);
 
             if item_filerow.file.is_folder() {
                 visited_folders.push(DrawHelper {
@@ -289,7 +284,6 @@ impl StorageViewer {
         let window_size = ui.available_rect_before_wrap();
 
         //Top buttons
-
         menu::bar(ui, |ui| {
             if ui.button("Reset Root").clicked() {
                 self.reset_root();
