@@ -27,13 +27,20 @@ pub struct StorageViewer {
     layer_height: f32,
     paint_order: Vec<NodeLayer>,
     colors: Vec<ColorHelper>,
+    current_rect: Rect,
 }
 
 impl StorageViewer {
     pub fn new(core: &Lb) -> Self {
         let data = data::Data::init(core.clone());
 
-        Self { data, paint_order: vec![], layer_height: 50.0, colors: vec![] }
+        Self {
+            data,
+            paint_order: vec![],
+            layer_height: 50.0,
+            colors: vec![],
+            current_rect: Rect::NOTHING,
+        }
     }
 
     pub fn change_root(&mut self, new_root: Uuid) {
@@ -113,7 +120,7 @@ impl StorageViewer {
     pub fn follow_paint_order(&mut self, ui: &mut Ui, root_anchor: Rect) -> Option<Uuid> {
         let mut root_status: Option<Uuid> = None;
         let mut current_layer = 0;
-        let mut current_position = 0.0;
+        let mut current_position = root_anchor.min.x;
         let mut general_counter = 0;
         let mut child_number = 1;
         let mut visited_folders: Vec<DrawHelper> = vec![];
@@ -122,7 +129,7 @@ impl StorageViewer {
             let item_filerow = self.data.all_files.get(&item.id).unwrap();
 
             if current_layer != item.layer {
-                current_position = 0.0;
+                current_position = root_anchor.min.x;
                 current_layer = item.layer;
             }
 
@@ -152,7 +159,7 @@ impl StorageViewer {
                     y: root_anchor.min.y - (current_layer as f32) * self.layer_height,
                 },
                 max: Pos2 {
-                    x: current_position + (item.portion * root_anchor.max.x),
+                    x: current_position + (item.portion * (root_anchor.max.x - root_anchor.min.x)),
                     y: root_anchor.min.y - ((current_layer - 1) as f32) * self.layer_height,
                 },
             };
@@ -267,7 +274,7 @@ impl StorageViewer {
             self.colors
                 .push(ColorHelper { id: item.id, color: current_color });
 
-            current_position += item.portion * root_anchor.max.x;
+            current_position += item.portion * (root_anchor.max.x - root_anchor.min.x);
             child_number += 1;
             general_counter += 1;
         }
@@ -276,12 +283,12 @@ impl StorageViewer {
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
         //Start of pre ui checks
-        if self.paint_order.is_empty() {
+        let window_size = ui.available_rect_before_wrap();
+
+        if self.paint_order.is_empty() || window_size != self.current_rect {
+            self.current_rect = window_size;
             self.paint_order = data::Data::get_paint_order(&self.data);
         }
-
-        //Allows for dynamic window
-        let window_size = ui.available_rect_before_wrap();
 
         //Top buttons
         menu::bar(ui, |ui| {
@@ -296,16 +303,12 @@ impl StorageViewer {
         });
 
         //Root drawing logic
-
         let root_draw_anchor = Rect {
-            min: Pos2 { x: window_size.min.x, y: window_size.max.y - 40.0 },
-            max: window_size.max,
+            min: Pos2 { x: self.current_rect.min.x, y: self.current_rect.max.y - 40.0 },
+            max: self.current_rect.max,
         };
 
-        let bottom_text = Rect {
-            min: Pos2 { x: root_draw_anchor.max.x / 2.0, y: root_draw_anchor.max.y - 15.0 },
-            max: window_size.max,
-        };
+        let bottom_text = Rect { min: root_draw_anchor.center(), max: root_draw_anchor.center() };
 
         let painter = ui.painter();
         painter
