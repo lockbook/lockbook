@@ -60,6 +60,7 @@ impl Editor {
         for event in ctx.pop_events() {
             match event {
                 crate::Event::Markdown(modification) => result.push(modification),
+                crate::Event::MarkdownPlusPlus(_) => {}
                 crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
                     for clip in content {
                         match clip {

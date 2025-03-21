@@ -14,7 +14,7 @@ impl MarkdownPlusPlus {
     }
 
     pub fn height_image(&self, width: f32, url: &str) -> f32 {
-        if let Some(image_state) = self.image_cache.map.get(url) {
+        if let Some(image_state) = self.images.map.get(url) {
             let image_state = image_state.lock().unwrap().deref().clone();
             match image_state {
                 ImageState::Loading => self.image_size(Vec2::splat(200.), width).y,
@@ -34,7 +34,7 @@ impl MarkdownPlusPlus {
     }
 
     pub fn show_image_block(&self, ui: &mut Ui, top_left: Pos2, width: f32, url: &str) {
-        if let Some(image_state) = self.image_cache.map.get(url) {
+        if let Some(image_state) = self.images.map.get(url) {
             let image_state = image_state.lock().unwrap().deref().clone();
             match image_state {
                 ImageState::Loading => {

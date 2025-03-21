@@ -103,11 +103,11 @@ impl<'ast> MarkdownPlusPlus {
                             .galley(rect.left_top(), galley, Default::default());
 
                         // debug
-                        // ui.painter().rect_stroke(
-                        //     rect,
-                        //     2.,
-                        //     egui::Stroke::new(1., self.theme.fg().yellow),
-                        // );
+                        ui.painter().rect_stroke(
+                            rect,
+                            2.,
+                            egui::Stroke::new(1., self.theme.fg().accent_primary),
+                        );
                     }
 
                     wrap.offset += region_span;
@@ -188,8 +188,11 @@ impl<'ast> MarkdownPlusPlus {
                     }
 
                     // debug
-                    // ui.painter()
-                    //     .rect_stroke(rect, 2., egui::Stroke::new(1., self.theme.fg().blue));
+                    ui.painter().rect_stroke(
+                        rect,
+                        2.,
+                        egui::Stroke::new(1., self.theme.fg().accent_primary),
+                    );
                 }
 
                 wrap.offset += line_span;

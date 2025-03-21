@@ -1,6 +1,7 @@
 use std::io::{BufReader, Cursor};
 use std::sync::Arc;
 
+use bounds::Bounds;
 use colored::Colorize;
 use comrak::nodes::{AstNode, LineColumn, Sourcepos};
 use comrak::{Arena, Options};
@@ -9,6 +10,8 @@ use egui::{
     Context, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Rect, ScrollArea, Stroke, Ui,
     Vec2,
 };
+use input::cursor::CursorState;
+use input::mutation::EventState;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::{blocking::Lb, Uuid};
 use syntect::highlighting::ThemeSet;
@@ -17,25 +20,46 @@ use theme::Theme;
 use widget::inline::image::cache::ImageCache;
 use widget::{MARGIN, MAX_WIDTH, ROW_HEIGHT};
 
+mod bounds;
+mod input;
+mod output;
+mod style;
 mod theme;
 mod widget;
+
+pub use input::Event;
 
 pub struct MarkdownPlusPlus {
     // dependencies
     pub core: Lb,
     pub client: reqwest::blocking::Client,
-
-    pub buffer: Buffer,
-    pub file_id: Uuid,
     pub ctx: Context,
 
+    // theme
     theme: Theme,
-
     syntax_set: SyntaxSet,
     syntax_light_theme: syntect::highlighting::Theme,
     syntax_dark_theme: syntect::highlighting::Theme,
 
-    image_cache: ImageCache,
+    // input
+    pub file_id: Uuid,
+    // pub hmac: Option<DocumentHmac>,
+    pub needs_name: bool,
+    pub initialized: bool,
+
+    // internal systems
+    pub buffer: Buffer,
+    pub cursor: CursorState,
+    pub images: ImageCache,
+    pub bounds: Bounds,
+    pub event: EventState,
+
+    // widgets
+    // pub toolbar: Toolbar,
+    // pub find: Find,
+
+    // ?
+    pub virtual_keyboard_shown: bool,
 
     // populated at frame start
     image_max_size: Vec2,
@@ -43,7 +67,7 @@ pub struct MarkdownPlusPlus {
 
 impl Drop for MarkdownPlusPlus {
     fn drop(&mut self) {
-        self.image_cache.free(&self.ctx);
+        self.images.free(&self.ctx);
     }
 }
 
@@ -75,8 +99,14 @@ impl MarkdownPlusPlus {
             syntax_set,
             syntax_light_theme,
             syntax_dark_theme,
-            image_cache,
+            images: image_cache,
             image_max_size: Default::default(),
+            bounds: Default::default(),
+            needs_name: Default::default(),
+            initialized: Default::default(),
+            cursor: Default::default(),
+            event: Default::default(),
+            virtual_keyboard_shown: Default::default(),
         }
     }
 
@@ -122,12 +152,12 @@ impl MarkdownPlusPlus {
         let print_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
-        if self.image_cache.any_loading() {
+        if self.images.any_loading() {
             ui.ctx().request_repaint_after(Duration::from_millis(8));
         }
-        self.image_cache = widget::inline::image::cache::calc(
+        self.images = widget::inline::image::cache::calc(
             root,
-            &self.image_cache,
+            &self.images,
             &self.client,
             &self.core,
             self.file_id,
