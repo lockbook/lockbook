@@ -394,6 +394,7 @@ pub struct Response {
     pub rename_request: Option<(Uuid, String)>,
     pub delete_requests: HashSet<Uuid>,
     pub dropped_on: Option<Uuid>,
+    pub storage_viewer_root: Option<File>,
 }
 
 impl Response {
@@ -409,6 +410,7 @@ impl Response {
         this.rename_request = this.rename_request.or(other.rename_request);
         this.delete_requests.extend(other.delete_requests);
         this.dropped_on = this.dropped_on.or(other.dropped_on);
+        this.storage_viewer_root = this.storage_viewer_root.or(other.storage_viewer_root);
         this
     }
 }
@@ -1449,8 +1451,16 @@ impl FileTree {
                 toasts.success("Copied link!");
                 ui.close_menu();
             }
-        }
 
+            let file = self.files.get_by_id(file).clone();
+            if file.is_folder() {
+                ui.separator();
+                if ui.button("Storage Viewer").clicked() {
+                    resp.storage_viewer_root = Some(file);
+                    ui.close_menu();
+                }
+            }
+        }
         resp
     }
 

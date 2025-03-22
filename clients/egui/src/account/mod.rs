@@ -452,6 +452,11 @@ impl AccountScreen {
             self.workspace.create_file(true);
         }
 
+        if resp.storage_viewer_root.is_some() {
+            self.workspace
+                .start_storage_viewer(self.core.clone(), resp.storage_viewer_root);
+        }
+
         if let Some(file) = resp.new_folder_modal {
             self.update_tx
                 .send(OpenModal::NewFolder(Some(file)).into())

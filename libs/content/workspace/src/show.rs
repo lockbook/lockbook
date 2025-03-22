@@ -218,7 +218,7 @@ impl Workspace {
                                         .show(ui)
                                         .clicked()
                                     {
-                                        self.start_storage_viewer(self.core.clone());
+                                        self.start_storage_viewer(self.core.clone(), None);
                                     }
                                 }
                             });

@@ -53,7 +53,7 @@ impl Data {
         return filerows;
     }
 
-    pub fn init(core: Lb) -> Self {
+    pub fn init(core: Lb, potential_root: Option<File>) -> Self {
         let data = Self::get_filerows(core);
         let mut all_files = HashMap::new();
         let mut root = Uuid::nil();
@@ -89,7 +89,12 @@ impl Data {
             }
         }
 
-        Self { current_root: root, overall_root: root, all_files, folder_sizes }
+        let folder_root = match potential_root {
+            Some(folder_root) => folder_root.id,
+            None => root,
+        };
+
+        Self { current_root: folder_root, overall_root: folder_root, all_files, folder_sizes }
     }
 
     pub fn get_children(&self, id: &Uuid) -> Vec<Node> {

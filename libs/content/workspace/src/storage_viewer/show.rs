@@ -6,6 +6,7 @@ use egui::{
     Stroke, TextWrapMode, Ui,
 };
 use lb_rs::blocking::Lb;
+use lb_rs::model::file::File;
 use lb_rs::model::usage::bytes_to_human;
 use lb_rs::Uuid;
 
@@ -31,8 +32,8 @@ pub struct StorageViewer {
 }
 
 impl StorageViewer {
-    pub fn new(core: &Lb) -> Self {
-        let data = data::Data::init(core.clone());
+    pub fn new(core: &Lb, potential_root: Option<File>) -> Self {
+        let data = data::Data::init(core.clone(), potential_root);
 
         Self {
             data,

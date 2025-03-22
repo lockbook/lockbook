@@ -607,12 +607,12 @@ impl Workspace {
         };
     }
 
-    pub fn start_storage_viewer(&mut self, core: Lb) {
+    pub fn start_storage_viewer(&mut self, core: Lb, root: Option<lb_rs::model::file::File>) {
         if let Some(i) = self.tabs.iter().position(|t| t.storage_viewer().is_some()) {
             self.make_current(i);
         } else {
             self.create_tab(
-                ContentState::Open(TabContent::StorageViewer(StorageViewer::new(&core))),
+                ContentState::Open(TabContent::StorageViewer(StorageViewer::new(&core, root))),
                 true,
             );
         };
