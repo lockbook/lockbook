@@ -87,7 +87,7 @@ where
 
     pub fn list_paths(
         &mut self, filter: Option<Filter>, keychain: &Keychain,
-    ) -> LbResult<Vec<String>> {
+    ) -> LbResult<Vec<(Uuid, String)>> {
         // Deal with filter
         let filtered = match filter {
             Some(Filter::DocumentsOnly) => {
@@ -132,7 +132,7 @@ where
             };
 
             if !self.calculate_deleted(&id)? && !self.in_pending_share(&id)? {
-                paths.push(self.id_to_path(&id, keychain)?);
+                paths.push((id, self.id_to_path(&id, keychain)?));
             }
         }
 
