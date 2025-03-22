@@ -45,7 +45,7 @@ impl Data {
                 size: usage
                     .iter()
                     .find(|item| item.file_id == file.id)
-                    .unwrap()
+                    .unwrap_or(&lb_rs::model::api::FileUsage { file_id: file.id, size_bytes: 0 })
                     .size_bytes,
             });
         }

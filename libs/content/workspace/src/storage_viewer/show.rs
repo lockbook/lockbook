@@ -291,14 +291,19 @@ impl StorageViewer {
         }
 
         //Top buttons
-        menu::bar(ui, |ui| {
-            if ui.button("Reset Root").clicked() {
-                self.reset_root();
-                self.paint_order = vec![];
-            }
+        ui.with_layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(1) }, |ui| {
+            let top_left_rect = Rect { min: window_size.left_top(), max: window_size.center_top() };
+            ui.allocate_ui_at_rect(top_left_rect, |ui| {
+                menu::bar(ui, |ui| {
+                    if ui.button("Reset Root").clicked() {
+                        self.reset_root();
+                        self.paint_order = vec![];
+                    }
 
-            ui.menu_button("Layer Size", |ui| {
-                ui.add(egui::Slider::new(&mut self.layer_height, 1.0..=100.0));
+                    ui.menu_button("Layer Size", |ui| {
+                        ui.add(egui::Slider::new(&mut self.layer_height, 1.0..=100.0));
+                    });
+                });
             });
         });
 
@@ -326,6 +331,7 @@ impl StorageViewer {
                 FontId { size: 15.0, family: FontFamily::Proportional },
                 Color32::BLACK,
             );
+
         ui.allocate_ui_at_rect(
             Rect {
                 min: Pos2 { x: bottom_text.min.x - 30.0, y: bottom_text.min.y - 15.0 },
@@ -336,13 +342,19 @@ impl StorageViewer {
                     *self.data.folder_sizes.get(&self.data.current_root).unwrap(),
                 ))
                 .on_hover_text(
-                    self.data
-                        .all_files
-                        .get(&self.data.current_root)
-                        .unwrap()
-                        .file
-                        .name
-                        .to_string(),
+                    "Name:\n".to_owned()
+                        + &self
+                            .data
+                            .all_files
+                            .get(&self.data.current_root)
+                            .unwrap()
+                            .file
+                            .name
+                            .to_string()
+                        + "\nSize:\n"
+                        + &bytes_to_human(
+                            *self.data.folder_sizes.get(&self.data.current_root).unwrap(),
+                        ),
                 );
             },
         );

@@ -348,7 +348,7 @@ impl Workspace {
                 }
             }
             (Some(_), None) => "Loading".into(),
-            (None, _) => "Mind Map".into(),
+            (None, _) => "Tool".into(),
         }
     }
 }
