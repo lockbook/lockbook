@@ -117,7 +117,9 @@ impl StorageViewer {
         return big_table[parent_type][layer];
     }
 
-    pub fn follow_paint_order(&mut self, ui: &mut Ui, root_anchor: Rect) -> Option<Uuid> {
+    pub fn follow_paint_order(
+        &mut self, ui: &mut Ui, root_anchor: Rect, window: Rect,
+    ) -> Option<Uuid> {
         let mut root_status: Option<Uuid> = None;
         let mut current_layer = 0;
         let mut current_position = root_anchor.min.x;
@@ -182,88 +184,90 @@ impl StorageViewer {
                 ));
 
             //Folder text logic
-            let tab_intel: egui::WidgetText = egui::RichText::new(item.name.clone())
-                .font(egui::FontId::monospace(12.0))
-                .color({
-                    let hsl_color = colors_transform::Rgb::from(
-                        current_color.r().into(),
-                        current_color.g().into(),
-                        current_color.b().into(),
-                    )
-                    .to_hsl();
-                    let luminance: f32;
-                    if hsl_color.get_lightness() > 50.0 {
-                        luminance = (hsl_color.get_lightness() - 50.0) / 100.0;
-                    } else {
-                        luminance = (hsl_color.get_lightness() + 50.0) / 100.0;
-                    }
-                    Color32::from_hex(
-                        &(color_art::color!(
-                            HSL,
-                            hsl_color.get_hue(),
-                            hsl_color.get_saturation() / 100.0,
-                            luminance
-                        ))
-                        .hex(),
-                    )
-                    .unwrap_or(Color32::DEBUG_COLOR)
-                })
-                .into();
-            let tab_intel_galley = tab_intel.into_galley(
-                ui,
-                Some(TextWrapMode::Truncate),
-                paint_rect.width() - 5.0,
-                egui::TextStyle::Body,
-            );
-            let tab_intel_rect = egui::Align2::LEFT_TOP.anchor_size(
-                Pos2 { x: paint_rect.left_center().x + 5.0, y: paint_rect.left_center().y },
-                tab_intel_galley.size(),
-            );
-
-            painter.clone().rect(
-                paint_rect,
-                Rounding::ZERO,
-                current_color,
-                Stroke { width: 0.5, color: Color32::BLACK },
-            );
-
-            if paint_rect.width() >= 50.0 {
-                ui.painter().galley(
-                    tab_intel_rect.left_center() - egui::vec2(0.0, 5.5),
-                    tab_intel_galley,
-                    ui.visuals().text_color(),
+            if window.contains(paint_rect.min) {
+                let tab_intel: egui::WidgetText = egui::RichText::new(item.name.clone())
+                    .font(egui::FontId::monospace(12.0))
+                    .color({
+                        let hsl_color = colors_transform::Rgb::from(
+                            current_color.r().into(),
+                            current_color.g().into(),
+                            current_color.b().into(),
+                        )
+                        .to_hsl();
+                        let luminance: f32;
+                        if hsl_color.get_lightness() > 50.0 {
+                            luminance = (hsl_color.get_lightness() - 50.0) / 100.0;
+                        } else {
+                            luminance = (hsl_color.get_lightness() + 50.0) / 100.0;
+                        }
+                        Color32::from_hex(
+                            &(color_art::color!(
+                                HSL,
+                                hsl_color.get_hue(),
+                                hsl_color.get_saturation() / 100.0,
+                                luminance
+                            ))
+                            .hex(),
+                        )
+                        .unwrap_or(Color32::DEBUG_COLOR)
+                    })
+                    .into();
+                let tab_intel_galley = tab_intel.into_galley(
+                    ui,
+                    Some(TextWrapMode::Truncate),
+                    paint_rect.width() - 5.0,
+                    egui::TextStyle::Body,
                 );
-            }
+                let tab_intel_rect = egui::Align2::LEFT_TOP.anchor_size(
+                    Pos2 { x: paint_rect.left_center().x + 5.0, y: paint_rect.left_center().y },
+                    tab_intel_galley.size(),
+                );
 
-            let display_size = if item_filerow.file.is_folder() {
-                bytes_to_human(self.data.folder_sizes.get(&item.id).unwrap().clone())
-            } else {
-                bytes_to_human(item_filerow.size)
-            };
+                painter.clone().rect(
+                    paint_rect,
+                    Rounding::ZERO,
+                    current_color,
+                    Stroke { width: 0.5, color: Color32::BLACK },
+                );
 
-            //Click and hover logic
-
-            let hover_text = "Name:\n".to_owned()
-                + &self
-                    .data
-                    .all_files
-                    .get(&item.id)
-                    .unwrap()
-                    .file
-                    .name
-                    .to_string()
-                + "\nSize:\n"
-                + &display_size;
-
-            let response = ui.interact(paint_rect, Id::new(general_counter), Sense::click());
-
-            if response.clicked() {
-                if item_filerow.file.is_folder() {
-                    root_status = Some(item.id.clone());
+                if paint_rect.width() >= 50.0 {
+                    ui.painter().galley(
+                        tab_intel_rect.left_center() - egui::vec2(0.0, 5.5),
+                        tab_intel_galley,
+                        ui.visuals().text_color(),
+                    );
                 }
-            }
 
-            response.on_hover_text(hover_text);
+                let display_size = if item_filerow.file.is_folder() {
+                    bytes_to_human(self.data.folder_sizes.get(&item.id).unwrap().clone())
+                } else {
+                    bytes_to_human(item_filerow.size)
+                };
+
+                //Click and hover logic
+
+                let hover_text = "Name:\n".to_owned()
+                    + &self
+                        .data
+                        .all_files
+                        .get(&item.id)
+                        .unwrap()
+                        .file
+                        .name
+                        .to_string()
+                    + "\nSize:\n"
+                    + &display_size;
+
+                let response = ui.interact(paint_rect, Id::new(general_counter), Sense::click());
+
+                if response.clicked() {
+                    if item_filerow.file.is_folder() {
+                        root_status = Some(item.id.clone());
+                    }
+                }
+
+                response.on_hover_text(hover_text);
+            }
 
             if item_filerow.file.is_folder() {
                 visited_folders.push(DrawHelper {
@@ -283,16 +287,16 @@ impl StorageViewer {
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
         //Start of pre ui checks
-        let window_size = ui.available_rect_before_wrap();
+        let window = ui.available_rect_before_wrap();
 
-        if self.paint_order.is_empty() || window_size != self.current_rect {
-            self.current_rect = window_size;
+        if self.paint_order.is_empty() || window != self.current_rect {
+            self.current_rect = window;
             self.paint_order = data::Data::get_paint_order(&self.data);
         }
 
         //Top buttons
         ui.with_layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(1) }, |ui| {
-            let top_left_rect = Rect { min: window_size.left_top(), max: window_size.center_top() };
+            let top_left_rect = Rect { min: window.left_top(), max: window.center_top() };
             ui.allocate_ui_at_rect(top_left_rect, |ui| {
                 menu::bar(ui, |ui| {
                     if ui.button("Reset Root").clicked() {
@@ -360,7 +364,7 @@ impl StorageViewer {
         );
 
         //Starts drawing the rest of the folders and files
-        let potential_new_root = self.follow_paint_order(ui, root_draw_anchor);
+        let potential_new_root = self.follow_paint_order(ui, root_draw_anchor, window);
         //assigning a new root if selected
         match potential_new_root {
             Some(_) => self.change_root(potential_new_root.unwrap()),
