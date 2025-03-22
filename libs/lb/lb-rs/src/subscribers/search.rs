@@ -114,6 +114,8 @@ impl Lb {
             }
         }
 
+        results = self.search.metadata_index.read().await.path_search(input)?;
+
         Ok(results)
     }
 
@@ -284,11 +286,104 @@ impl SearchMetadata {
     }
 
     fn path_search(&self, query: &str) -> LbResult<Vec<SearchResult>> {
+        let mut results = self.path_candidates(query)?;
+
+        self.apply_score(&mut results);
+        results.sort_by_key(|r| -r.score());
+
+        Ok(results)
+    }
+
+    fn path_candidates(&self, query: &str) -> LbResult<Vec<SearchResult>> {
         let mut search_results = vec![];
 
-        for (id, path) in self.paths {
-            
+        for (id, path) in &self.paths {
+            let mut matched_indices = vec![];
+
+            let mut query_iter = query.chars().rev();
+            let mut current_query_char = query_iter.next();
+
+            for (path_ind, path_char) in path.char_indices().rev() {
+                if let Some(qc) = current_query_char {
+                    if qc == path_char {
+                        matched_indices.push(path_ind);
+                        current_query_char = query_iter.next();
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            if current_query_char.is_none() {
+                search_results.push(SearchResult::PathMatch {
+                    id: *id,
+                    path: path.clone(),
+                    matched_indices,
+                    score: 0,
+                });
+            }
         }
         Ok(search_results)
+    }
+
+    fn apply_score(&self, candidates: &mut [SearchResult]) {
+        let size = 10;
+        let suggested = 10;
+        let title = 30;
+        let editable = 3;
+
+        candidates.sort_by_key(|a| a.path().len());
+
+        // the 10 smallest paths start with a mild advantage
+        for i in 0..size {
+            if let Some(cand) = candidates.get_mut(i) {
+                if let SearchResult::PathMatch { id: _, path, matched_indices: _, score } = cand {
+                    *score = (10 - i) as i64;
+                    println!("smallest 10 {path} {score}");
+                }
+            }
+        }
+
+        // items in suggested docs have their score boosted
+        for cand in candidates.iter_mut() {
+            if self.suggested_docs.contains(&cand.id()) {
+                if let SearchResult::PathMatch { id: _, path, matched_indices: _, score } = cand {
+                    *score += suggested;
+                    println!("suggested {path} {score}");
+                }
+            }
+        }
+
+        // to what extent is the match in the name of the file
+        for cand in candidates.iter_mut() {
+            if let SearchResult::PathMatch { id: _, path, matched_indices, score } = cand {
+                let mut name_match = 0;
+                let mut name_size = 0;
+
+                for (i, c) in path.char_indices().rev() {
+                    if c == '/' {
+                        break;
+                    }
+                    name_size += 1;
+                    if matched_indices.contains(&i) {
+                        name_match += 1;
+                    }
+                }
+
+                let match_portion = name_match as f32 / name_size.max(1) as f32;
+                *score += (match_portion * title as f32) as i64;
+                println!("title {path} {score}");
+            }
+        }
+
+        // if this document is editable in platform
+        for cand in candidates.iter_mut() {
+            if let SearchResult::PathMatch { id: _, path, matched_indices: _, score } = cand {
+                if path.ends_with(".md") || path.ends_with(".svg") {
+                    *score += editable;
+                    println!("editable {path} {score}");
+                }
+            }
+        }
     }
 }
