@@ -212,7 +212,7 @@ impl Workspace {
 
                                     if Button::default()
                                         .icon(&Icon::LANGUAGE)
-                                        .text("Storage Viewer")
+                                        .text("Space Analysis")
                                         .frame(false)
                                         .rounding(3.)
                                         .show(ui)
