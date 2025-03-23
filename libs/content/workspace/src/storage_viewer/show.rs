@@ -30,7 +30,7 @@ pub struct StorageViewer {
     colors: Vec<ColorHelper>,
     current_rect: Rect,
 }
-
+//
 impl StorageViewer {
     pub fn new(core: &Lb, potential_root: Option<File>) -> Self {
         let data = data::Data::init(core.clone(), potential_root);
