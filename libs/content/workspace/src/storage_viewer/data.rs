@@ -94,7 +94,7 @@ impl Data {
             None => root,
         };
 
-        Self { current_root: folder_root, overall_root: folder_root, all_files, folder_sizes }
+        Self { current_root: folder_root, overall_root: root, all_files, folder_sizes }
     }
 
     pub fn get_children(&self, id: &Uuid) -> Vec<Node> {
