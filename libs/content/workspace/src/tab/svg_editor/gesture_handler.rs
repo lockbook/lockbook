@@ -4,7 +4,7 @@ use egui::TouchPhase;
 use resvg::usvg::Transform;
 use tracing::trace;
 
-use super::element::BoundedElement;
+use super::{element::BoundedElement, SVGEditor};
 use lb_rs::model::svg::{buffer::u_transform_to_bezier, element::Element};
 
 use super::{toolbar::ToolContext, Buffer};
@@ -173,7 +173,7 @@ impl GestureHandler {
         }
 
         if pan.is_some() || is_zooming {
-            transform_canvas(gesture_ctx.buffer, t);
+            SVGEditor::transform_canvas(gesture_ctx.buffer, t);
         }
     }
 
@@ -248,51 +248,52 @@ impl GestureHandler {
     }
 }
 
-pub fn transform_canvas(buffer: &mut Buffer, t: Transform) {
-    let new_transform = buffer.master_transform.post_concat(t);
-    if new_transform.sx == 0.0 || new_transform.sy == 0.0 {
-        return;
+impl SVGEditor {
+    pub fn get_zoom_fit_transform(buffer: &mut Buffer, ui: &mut egui::Ui) -> Option<Transform> {
+        let elements_bound = match calc_elements_bounds(buffer) {
+            Some(rect) => rect,
+            None => return None,
+        };
+        let inner_rect = ui.painter().clip_rect();
+        let is_width_smaller = elements_bound.width() < elements_bound.height();
+        let padding_coeff = 0.7;
+        let zoom_delta = if is_width_smaller {
+            inner_rect.height() * padding_coeff / elements_bound.height()
+        } else {
+            inner_rect.width() * padding_coeff / elements_bound.width()
+        };
+        let center_x = inner_rect.center().x
+            - zoom_delta * (elements_bound.left() + elements_bound.width() / 2.0);
+        let center_y = inner_rect.center().y
+            - zoom_delta * (elements_bound.top() + elements_bound.height() / 2.0);
+        Some(
+            Transform::identity()
+                .post_scale(zoom_delta, zoom_delta)
+                .post_translate(center_x, center_y),
+        )
     }
-    buffer.master_transform = new_transform;
-    for el in buffer.elements.values_mut() {
-        match el {
-            Element::Path(path) => {
-                path.diff_state.transformed = Some(t);
-                path.data.apply_transform(u_transform_to_bezier(&t));
-            }
-            Element::Image(image) => {
-                if let Some(new_vbox) = image.view_box.transform(t) {
-                    image.view_box = new_vbox;
+    pub fn transform_canvas(buffer: &mut Buffer, t: Transform) {
+        let new_transform = buffer.master_transform.post_concat(t);
+        if new_transform.sx == 0.0 || new_transform.sy == 0.0 {
+            return;
+        }
+        buffer.master_transform = new_transform;
+        for el in buffer.elements.values_mut() {
+            match el {
+                Element::Path(path) => {
+                    path.diff_state.transformed = Some(t);
+                    path.data.apply_transform(u_transform_to_bezier(&t));
                 }
-                image.diff_state.transformed = Some(t);
+                Element::Image(image) => {
+                    if let Some(new_vbox) = image.view_box.transform(t) {
+                        image.view_box = new_vbox;
+                    }
+                    image.diff_state.transformed = Some(t);
+                }
+                Element::Text(_) => todo!(),
             }
-            Element::Text(_) => todo!(),
         }
     }
-}
-
-pub fn get_zoom_fit_transform(buffer: &mut Buffer, ui: &mut egui::Ui) -> Option<Transform> {
-    let elements_bound = match calc_elements_bounds(buffer) {
-        Some(rect) => rect,
-        None => return None,
-    };
-    let inner_rect = ui.painter().clip_rect();
-    let is_width_smaller = elements_bound.width() < elements_bound.height();
-    let padding_coeff = 0.7;
-    let zoom_delta = if is_width_smaller {
-        inner_rect.height() * padding_coeff / elements_bound.height()
-    } else {
-        inner_rect.width() * padding_coeff / elements_bound.width()
-    };
-    let center_x =
-        inner_rect.center().x - zoom_delta * (elements_bound.left() + elements_bound.width() / 2.0);
-    let center_y =
-        inner_rect.center().y - zoom_delta * (elements_bound.top() + elements_bound.height() / 2.0);
-    Some(
-        Transform::identity()
-            .post_scale(zoom_delta, zoom_delta)
-            .post_translate(center_x, center_y),
-    )
 }
 
 fn calc_elements_bounds(buffer: &mut Buffer) -> Option<egui::Rect> {

@@ -31,8 +31,6 @@ impl LbWebApp {
         })
         .unwrap();
 
-        // let martian = include_bytes!("../assets/martian.ttf");
-        // let martian_bold = include_bytes!("../assets/martian-bold.ttf");
         let mut fonts = egui::FontDefinitions::default();
 
         workspace_rs::register_fonts(&mut fonts);
@@ -88,24 +86,15 @@ impl eframe::App for LbWebApp {
                     egui::Frame::default().show(ui, |ui| {
                         md.show(ui);
                     });
-                    // ui.centered_and_justified(|ui| {
-                    //     ui.vertical(|ui| {
-                    //         ui.centered_and_justified(|ui| {
-                    //         });
-                    //     });
-                    // });
                 }
 
                 if let Some(svg) = &mut self.canvas {
                     egui::Frame::default().show(ui, |ui| {
                         svg.show(ui);
+                        if let Some(t) = SVGEditor::get_zoom_fit_transform(&mut svg.buffer, ui) {
+                            SVGEditor::transform_canvas(&mut svg.buffer, t);
+                        }
                     });
-                    // ui.centered_and_justified(|ui| {
-                    //     ui.vertical(|ui| {
-                    //         ui.centered_and_justified(|ui| {
-                    //         });
-                    //     });
-                    // });
                 }
             });
     }
