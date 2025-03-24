@@ -39,7 +39,7 @@ pub struct DebugInfo {
 #[cfg(target_family = "wasm")]
 impl Lb {
     pub async fn debug_info(&self, _os_info: String) -> LbResult<String> {
-        Ok("NO LOGS FOUND".to_string())
+        Ok("Logs are not supported for wasm yet".to_string())
     }
 }
 

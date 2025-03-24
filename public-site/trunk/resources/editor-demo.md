@@ -1,4 +1,3 @@
-
 # Live Demo
 Try our text editor! This is the same experience you'll get in-app.
 

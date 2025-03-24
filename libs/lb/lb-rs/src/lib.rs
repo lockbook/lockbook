@@ -36,6 +36,9 @@ pub struct Lb {
 }
 
 impl Lb {
+    /// this is dumb lb that will make the library compile for wasm but doesn't include
+    /// any of the expected functionality. your files wouldn't be saved, sync wouldn't 
+    /// work, etc. for now this is useful for unblocking workspace on wasm 
     pub fn init_dummy(config: Config) -> LbResult<Self> {
         let db = CoreDb::init(db_rs::Config {
             path: Default::default(),

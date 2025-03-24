@@ -47,12 +47,13 @@
 </head>
 
 <body class="overflow-x-hidden overflow-y-scroll bg-abyss-900">
-    <nav class="sticky top-0 z-40 px-10 py-4 overflow-scroll border-b-2 max-sm:pr-0 text-egshell bg-abyss-900/80 border-abyss-400 backdrop-blur-md">
+    <nav class="sticky top-0 z-40 px-10 py-4 overflow-hidden border-b-2 max-sm:pr-0 text-egshell bg-abyss-900/80 border-abyss-400 backdrop-blur-md">
         <div class="flex justify-between w-full align-middle">
             <div class="flex"><a class="flex" href="/"><img src="/logo.svg" alt="lockbook's logo" class=""/></a></div>
             <div class="flex items-center">
                 <ul class="flex mr-10 max-sm:hidden">
                     <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook/lockbook" target="_blank">GitHub</a>
+                    <a class="block mx-3 text-sm underline font-extralight" href="https://discord.gg/lockbook" target="_blank">Discord</a>
                     <a class="block mx-3 text-sm underline font-extralight" href="/#pricing" >Pricing</a>
                     <a class="block mx-3 text-sm underline font-extralight" href="/blog" >Blog</a>
                 </ul>
@@ -63,6 +64,7 @@
         <div>
             <ul class="flex-col hidden mt-10 mr-16 " id="mobile-nav-links">
                 <a class="block mt-6 text-sm underline font-extralight" href="https://github.com/lockbook/lockbook" target="_blank">GitHub</a>
+                <a class="block mx-3 text-sm underline font-extralight" href="https://discord.gg/lockbook" target="_blank">Discord</a>
                 <a class="block mt-6 text-sm underline font-extralight" href="/#pricing" >Pricing</a>
                 <a class="block mt-6 text-sm underline font-extralight" href="/blog" >Blog</a>
             </ul>
@@ -103,6 +105,8 @@
 
 <style>
     #markdown{
+      padding: 0 1rem;
+      
       h2, h3, h4 {
           font-weight: 400;
       }

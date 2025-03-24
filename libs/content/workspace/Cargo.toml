@@ -35,26 +35,19 @@ tracing = "0.1.5"
 tracing-test = "0.2.5"
 indexmap = { version = "2.5.0", features = ["rayon"] }
 futures = "0.3.30"
-web-time = "=1.1.0"
-
+web-time = "1.1.0"
 regex = "1.10.6"
 url="2.2"
-
 lb-rs = { path = "../../lb/lb-rs" }
 
 
-wasm-bindgen-futures = "0.4.50"
-
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 lb-pdf = { git = "https://github.com/lockbook/lb-pdf" }
-reqwest = { version = "0.11", default-features = false, features = [
-    "rustls-tls","blocking"
-] }
+reqwest = { version = "0.11", features = ["rustls-tls", "blocking"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-reqwest = { version = "0.11", default-features = false, features = [
-    "rustls-tls"
-] }
+reqwest = { version = "0.11", features = ["rustls-tls"] }
+wasm-bindgen-futures = "0.4.50"
 
 
 [target.'cfg(target_os = "android")'.dependencies]

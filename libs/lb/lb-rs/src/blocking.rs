@@ -41,7 +41,7 @@ pub struct Lb {
 impl Lb {
     #[cfg(target_family = "wasm")]
     pub fn init(config: Config) -> LbResult<Self> {
-        let lb = crate::Lb::init_dummy(config)?;
+        let lb = crate::Lb::init_dummy(config).unwrap();
         Ok(Self { lb })
     }
 

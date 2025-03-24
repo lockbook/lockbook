@@ -1,6 +1,6 @@
 {
-  "name": "MyWebSite",
-  "short_name": "MySite",
+  "name": "Lockbook",
+  "short_name": "LB",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
@@ -15,7 +15,7 @@
       "purpose": "maskable"
     }
   ],
-  "theme_color": "#060e15",
-  "background_color": "#060E15",
+  "theme_color": "#000000",
+  "background_color": "#000000",
   "display": "standalone"
 }
