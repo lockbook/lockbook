@@ -335,21 +335,119 @@ impl Workspace {
         TabStatus::Clean // can't get any cleaner than nonexistent!
     }
 
+    // pub fn tab_title(&self, tab: &Tab) -> String {
+    //     match (tab.id(), &self.files) {
+    //         (Some(id), Some(files)) => {
+    //             if let Some(file) = files.files.get_by_id(id) {
+    //                 file.name.clone()
+    //             } else if let Ok(file) = self.core.get_file_by_id(id) {
+    //                 // read-through (can remove when we master cache refreshes)
+    //                 file.name.clone()
+    //             } else {
+    //                 "Unknown".into()
+    //             }
+    //         }
+    //         (Some(_), None) => "Loading".into(),
+    //         (None, _) => "Tool".into(),
+    //     }
+    // }
+
+    //Work in progress
+
     pub fn tab_title(&self, tab: &Tab) -> String {
-        match (tab.id(), &self.files) {
-            (Some(id), Some(files)) => {
-                if let Some(file) = files.files.get_by_id(id) {
-                    file.name.clone()
-                } else if let Ok(file) = self.core.get_file_by_id(id) {
-                    // read-through (can remove when we master cache refreshes)
-                    file.name.clone()
-                } else {
-                    "Unknown".into()
+        return match &(tab.content) {
+            ContentState::Loading(_uuid) => match (tab.id(), &self.files) {
+                (Some(id), Some(files)) => {
+                    if let Some(file) = files.files.get_by_id(id) {
+                        file.name.clone()
+                    } else if let Ok(file) = self.core.get_file_by_id(id) {
+                        // read-through (can remove when we master cache refreshes)
+                        file.name.clone()
+                    } else {
+                        "Unknown".into()
+                    }
                 }
-            }
-            (Some(_), None) => "Loading".into(),
-            (None, _) => "Tool".into(),
-        }
+                (Some(_), None) => "Loading".into(),
+                (None, _) => "Unknown".into(),
+            },
+            ContentState::Open(tab_content) => match tab_content {
+                TabContent::Image(image_viewer) => match (image_viewer, &self.files) {
+                    (image_viewer, Some(files)) => files
+                        .files
+                        .iter()
+                        .find(|file| file.id == image_viewer.id)
+                        .unwrap_or(&File {
+                            id: Uuid::default(),
+                            parent: Uuid::default(),
+                            name: String::default(),
+                            file_type: FileType::Document,
+                            last_modified: u64::default(),
+                            last_modified_by: String::default(),
+                            shares: vec![],
+                        })
+                        .name
+                        .clone(),
+                    (_, None) => "Unknown".to_owned(),
+                },
+                TabContent::Markdown(editor) => match (editor, &self.files) {
+                    (editor, Some(files)) => files
+                        .files
+                        .iter()
+                        .find(|file| file.id == editor.file_id)
+                        .unwrap_or(&File {
+                            id: Uuid::default(),
+                            parent: Uuid::default(),
+                            name: String::default(),
+                            file_type: FileType::Document,
+                            last_modified: u64::default(),
+                            last_modified_by: String::default(),
+                            shares: vec![],
+                        })
+                        .name
+                        .clone(),
+                    (_, None) => "Unknown".to_owned(),
+                },
+                TabContent::Pdf(pdf_viewer) => match (pdf_viewer, &self.files) {
+                    (pdf_viewer, Some(files)) => files
+                        .files
+                        .iter()
+                        .find(|file| file.id == pdf_viewer.id)
+                        .unwrap_or(&File {
+                            id: Uuid::default(),
+                            parent: Uuid::default(),
+                            name: String::default(),
+                            file_type: FileType::Document,
+                            last_modified: u64::default(),
+                            last_modified_by: String::default(),
+                            shares: vec![],
+                        })
+                        .name
+                        .clone(),
+                    (_, None) => "Unknown".to_owned(),
+                },
+                TabContent::Svg(svg_editor) => match (svg_editor, &self.files) {
+                    (svg_editor, Some(files)) => files
+                        .files
+                        .iter()
+                        .find(|file| file.id == svg_editor.open_file)
+                        .unwrap_or(&File {
+                            id: Uuid::default(),
+                            parent: Uuid::default(),
+                            name: String::default(),
+                            file_type: FileType::Document,
+                            last_modified: u64::default(),
+                            last_modified_by: String::default(),
+                            shares: vec![],
+                        })
+                        .name
+                        .clone(),
+                    (_, None) => "Unknown".to_owned(),
+                },
+                TabContent::MindMap(_mind_map) => "Mind Map".to_string(),
+                TabContent::StorageViewer(_storage_viewer) => "Space Analysis".to_string(),
+            },
+            ContentState::Failed(_tab_failure) => "Tab Failed".to_string(),
+        };
     }
 }
 

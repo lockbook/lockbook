@@ -609,13 +609,12 @@ impl Workspace {
 
     pub fn start_storage_viewer(&mut self, core: Lb, root: Option<lb_rs::model::file::File>) {
         if let Some(i) = self.tabs.iter().position(|t| t.storage_viewer().is_some()) {
-            self.make_current(i);
-        } else {
-            self.create_tab(
-                ContentState::Open(TabContent::StorageViewer(StorageViewer::new(&core, root))),
-                true,
-            );
-        };
+            self.close_tab(i);
+        }
+        self.create_tab(
+            ContentState::Open(TabContent::StorageViewer(StorageViewer::new(&core, root))),
+            true,
+        );
     }
 
     pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) {
