@@ -39,7 +39,6 @@ pub enum SearchConfig {
     Paths,
     Documents,
     PathsAndDocuments,
-    Advanced,
 }
 
 #[derive(Debug)]
@@ -53,19 +52,30 @@ impl Lb {
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
         // show suggested docs if the input string is empty
         if input.is_empty() {
-            return stream::iter(self.suggested_docs(RankingWeights::default()).await?)
-                .then(|id| async move {
-                    Ok(SearchResult::PathMatch {
-                        id,
-                        path: self.get_path_by_id(id).await?,
-                        matched_indices: vec![],
-                        score: 0,
-                    })
-                })
-                .try_collect()
-                .await;
+            return self.search.metadata_index.read().await.empty_search();
         }
 
+        match cfg {
+            SearchConfig::Paths => {
+                let mut results = self.search.metadata_index.read().await.path_search(input)?;
+                results.truncate(5);
+                Ok(results)
+            }
+            SearchConfig::Documents => {
+                let mut results = self.search_content(input)?;
+                results.truncate(10);
+                Ok(results)
+            }
+            SearchConfig::PathsAndDocuments => {
+                let mut results = self.search.metadata_index.read().await.path_search(input)?;
+                results.truncate(4);
+                results.append(&mut self.search_content(input)?);
+                Ok(results)
+            }
+        }
+    }
+
+    fn search_content(&self, input: &str) -> LbResult<Vec<SearchResult>> {
         let searcher = self.search.tantivy_reader.searcher();
         let schema = self.search.tantivy_index.schema();
         let title = schema.get_field("title").unwrap();
@@ -113,9 +123,6 @@ impl Lb {
                 }
             }
         }
-
-        results = self.search.metadata_index.read().await.path_search(input)?;
-
         Ok(results)
     }
 
@@ -148,7 +155,7 @@ impl Lb {
 
         let content = schema.get_field("content").unwrap();
 
-        let metadata_index = SearchMetadata::populate(&self).await?;
+        let metadata_index = SearchMetadata::populate(self).await?;
 
         for file in &metadata_index.files {
             if !file.name.ends_with(".md") || file.is_folder() {
@@ -285,6 +292,28 @@ impl SearchMetadata {
         Ok(SearchMetadata { files, paths, suggested_docs })
     }
 
+    fn empty_search(&self) -> LbResult<Vec<SearchResult>> {
+        let mut results = vec![];
+
+        for id in &self.suggested_docs {
+            let path = self
+                .paths
+                .iter()
+                .find(|(path_id, _)| id == path_id)
+                .map(|(_, path)| path.clone())
+                .unwrap_or_default();
+
+            results.push(SearchResult::PathMatch {
+                id: *id,
+                path,
+                matched_indices: vec![],
+                score: 0,
+            });
+        }
+
+        Ok(results)
+    }
+
     fn path_search(&self, query: &str) -> LbResult<Vec<SearchResult>> {
         let mut results = self.path_candidates(query)?;
 
@@ -336,11 +365,10 @@ impl SearchMetadata {
 
         // the 10 smallest paths start with a mild advantage
         for i in 0..size {
-            if let Some(cand) = candidates.get_mut(i) {
-                if let SearchResult::PathMatch { id: _, path, matched_indices: _, score } = cand {
-                    *score = (10 - i) as i64;
-                    println!("smallest 10 {path} {score}");
-                }
+            if let Some(SearchResult::PathMatch { id: _, path, matched_indices: _, score }) =
+                candidates.get_mut(i)
+            {
+                *score = (10 - i) as i64;
             }
         }
 
@@ -349,7 +377,6 @@ impl SearchMetadata {
             if self.suggested_docs.contains(&cand.id()) {
                 if let SearchResult::PathMatch { id: _, path, matched_indices: _, score } = cand {
                     *score += suggested;
-                    println!("suggested {path} {score}");
                 }
             }
         }
@@ -372,7 +399,6 @@ impl SearchMetadata {
 
                 let match_portion = name_match as f32 / name_size.max(1) as f32;
                 *score += (match_portion * title as f32) as i64;
-                println!("title {path} {score}");
             }
         }
 
@@ -381,7 +407,6 @@ impl SearchMetadata {
             if let SearchResult::PathMatch { id: _, path, matched_indices: _, score } = cand {
                 if path.ends_with(".md") || path.ends_with(".svg") {
                     *score += editable;
-                    println!("editable {path} {score}");
                 }
             }
         }
