@@ -37,8 +37,8 @@ pub struct Lb {
 
 impl Lb {
     /// this is dumb lb that will make the library compile for wasm but doesn't include
-    /// any of the expected functionality. your files wouldn't be saved, sync wouldn't 
-    /// work, etc. for now this is useful for unblocking workspace on wasm 
+    /// any of the expected functionality. your files wouldn't be saved, sync wouldn't
+    /// work, etc. for now this is useful for unblocking workspace on wasm
     pub fn init_dummy(config: Config) -> LbResult<Self> {
         let db = CoreDb::init(db_rs::Config {
             path: Default::default(),
@@ -70,8 +70,7 @@ impl Lb {
     pub async fn init(config: Config) -> LbResult<Self> {
         logging::init(&config)?;
 
-        let db = CoreDb::init(db_rs::Config::in_folder(&config.writeable_path))
-            .map_err(|err| LbErrKind::Unexpected(format!("db rs creation failed: {:#?}", err)))?;
+        let db = CoreDb::init(db_rs::Config::in_folder(&config.writeable_path)).map_unexpected()?;
         let keychain = Keychain::from(db.account.get());
         let db = Arc::new(RwLock::new(db));
         let docs = AsyncDocs::from(&config);
@@ -100,7 +99,7 @@ use io::docs::AsyncDocs;
 use io::network::Network;
 use io::LbDb;
 use model::core_config::Config;
-use model::errors::{LbErrKind, LbResult};
+use model::errors::{LbErrKind, LbResult, Unexpected};
 use service::events::EventSubs;
 use service::keychain::Keychain;
 use service::search::SearchIndex;
