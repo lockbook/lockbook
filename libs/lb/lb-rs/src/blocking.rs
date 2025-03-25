@@ -190,8 +190,7 @@ impl Lb {
     }
 
     pub fn get_local_changes(&self) -> LbResult<Vec<Uuid>> {
-        self.rt
-            .block_on(async { Ok(self.rt.block_on(self.lb.local_changes())) })
+        Ok(self.block_on(self.lb.local_changes()))
     }
 
     pub fn calculate_work(&self) -> LbResult<SyncStatus> {
@@ -331,7 +330,7 @@ impl Lb {
     }
 
     pub fn status(&self) -> Status {
-        self.rt.block_on(self.lb.status())
+        self.block_on(self.lb.status())
     }
 
     pub fn debug_info(&self, os_info: String) -> String {

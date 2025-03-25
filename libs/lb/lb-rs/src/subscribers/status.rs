@@ -1,10 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
-use tokio::{
-    sync::{Mutex, RwLock},
-    time::Instant,
-};
+use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
+
+use web_time::Instant;
 
 use crate::{
     model::errors::{LbErrKind, LbResult, Unexpected},
@@ -139,19 +138,11 @@ impl Lb {
         drop(lock);
 
         let bg = self.clone();
-        tokio::spawn(async move {
-            if computed.elapsed() < Duration::from_secs(60) {
-                tokio::time::sleep(Duration::from_secs(60) - computed.elapsed()).await;
-            }
-            let usage = bg.get_usage().await.log_and_ignore();
-            let mut lock = bg.status.space_updated.lock().await;
-            lock.spawned = false;
-            lock.last_computed = Instant::now();
-            drop(lock);
+        #[cfg(target_arch = "wasm32")]
+        wasm_bindgen_futures::spawn_local(throttle_computation(computed, bg));
 
-            bg.status.current_status.write().await.space_used = usage;
-            bg.events.status_updated();
-        });
+        #[cfg(not(target_arch = "wasm32"))]
+        tokio::spawn(throttle_computation(computed, bg));
     }
 
     async fn update_sync(&self, s: SyncIncrement, status: &mut Status) -> LbResult<()> {
@@ -215,6 +206,19 @@ impl Lb {
         status.out_of_space = false;
         status.sync_status = None;
     }
+}
+
+async fn throttle_computation(computed: Instant, bg: Lb) {
+    if computed.elapsed() < Duration::from_secs(60) {
+        tokio::time::sleep(Duration::from_secs(60) - computed.elapsed()).await;
+    }
+    let usage = bg.get_usage().await.log_and_ignore();
+    let mut lock = bg.status.space_updated.lock().await;
+    lock.spawned = false;
+    lock.last_computed = Instant::now();
+    drop(lock);
+    bg.status.current_status.write().await.space_used = usage;
+    bg.events.status_updated();
 }
 
 impl Default for SpaceUpdater {

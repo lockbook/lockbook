@@ -4054,6 +4054,7 @@ dependencies = [
  "usvg",
  "uuid 1.8.0",
  "variant_count",
+ "wasm-bindgen-futures",
  "web-time 1.1.0",
 ]
 

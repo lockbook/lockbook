@@ -64,6 +64,7 @@ tracing-logcat = "=0.1.0"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 tokio = { version = "1", features = ["sync","macros","io-util","rt","time",] }
+wasm-bindgen-futures = "0.4.50"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { version = "1", features = ["full"] }

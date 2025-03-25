@@ -300,7 +300,7 @@ impl Lb {
         }
 
         drop(tx);
-        if start.elapsed() > std::time::Duration::from_millis(100) {
+        if start.elapsed() > web_time::Duration::from_millis(100) {
             warn!("sync fetch_docs held lock for {:?}", start.elapsed());
         }
 
@@ -932,7 +932,7 @@ impl Lb {
         // self.cleanup_local_metadata()?;
         db.base_metadata.stage(&mut db.local_metadata).prune()?;
 
-        if start.elapsed() > std::time::Duration::from_millis(100) {
+        if start.elapsed() > web_time::Duration::from_millis(100) {
             warn!("sync merge held lock for {:?}", start.elapsed());
         }
 
@@ -1022,7 +1022,7 @@ impl Lb {
         }
 
         drop(tx);
-        if start.elapsed() > std::time::Duration::from_millis(100) {
+        if start.elapsed() > web_time::Duration::from_millis(100) {
             warn!("sync push_docs held lock for {:?}", start.elapsed());
         }
 

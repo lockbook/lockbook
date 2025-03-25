@@ -69,7 +69,7 @@ impl Lb {
     pub async fn ro_tx(&self) -> LbRO<'_> {
         let start = Instant::now();
 
-        // let guard = tokio::time::timeout(std::time::Duration::from_secs(1), self.db.read())
+        // let guard = web_timetimeout(std::time::Duration::from_secs(1), self.db.read())
         //     .await
         //     .unwrap();
 
@@ -85,7 +85,7 @@ impl Lb {
     pub async fn begin_tx(&self) -> LbTx<'_> {
         let start = Instant::now();
 
-        // let mut guard = tokio::time::timeout(std::time::Duration::from_secs(1), self.db.write())
+        // let mut guard = web_timetimeout(std::time::Duration::from_secs(1), self.db.write())
         //     .await
         //     .unwrap();
 
