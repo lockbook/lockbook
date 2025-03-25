@@ -4324,7 +4324,7 @@ dependencies = [
  "base64 0.13.1",
  "bincode",
  "constant_time_eq 0.2.6",
- "db-rs 0.3.1",
+ "db-rs 0.3.2",
  "db-rs-derive",
  "futures",
  "google-androidpublisher3",
