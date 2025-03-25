@@ -1,6 +1,9 @@
 +++
 title = "The story of how Lockbook created its own database for speed and productivity"
-date = 2019-11-27
+date = 2023-04-19
+[extra]
+author= "parth"
+author_link = "https://github.com/Parth"
 +++
 
 

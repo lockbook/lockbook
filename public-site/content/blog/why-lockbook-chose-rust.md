@@ -1,6 +1,9 @@
 +++
 title = "Why Lockbook chose Rust"
-date = 2019-11-27
+date = 2023-01-02
+[extra]
+author = "parth"
+author_link = "https://github.com/Parth"
 +++
 
 [Lockbook](https://lockbook.net/) began it’s [journey](https://parth.cafe/p/introducing-lockbook) as a bash script. As it started to evolve into something more serious, one of our earliest challenges was identifying a UI framework we were willing to bet on. As we explored, we were weighing things like UI quality, developer experience, language selections, and so on.

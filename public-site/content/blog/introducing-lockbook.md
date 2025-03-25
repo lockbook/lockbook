@@ -1,6 +1,9 @@
 +++
 title = "Introducing Lockbook"
-date = 2019-11-27
+date = 2022-11-29
+[extra]
+author = "parth"
+author_link = "https://github.com/Parth"
 +++
 
 # A new note-taking app

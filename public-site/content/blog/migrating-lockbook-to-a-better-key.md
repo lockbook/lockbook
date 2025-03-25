@@ -1,6 +1,9 @@
 +++
 title = "Migrating Lockbook to a Better Key Format"
-date = 2019-11-27
+date = 2024-09-09
+[extra]
+author = "smail"
+author_link = "https://barkouch.me/"
 +++
 
 

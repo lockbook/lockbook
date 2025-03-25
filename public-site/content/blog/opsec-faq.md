@@ -1,6 +1,9 @@
 +++
 title = "OpSec FAQ"
-date = 2019-11-27
+date = 2024-10-03
+[extra]
+author = "parth"
+author_link = "https://github.com/Parth"
 +++
 
 # What does secure mean?

@@ -1,6 +1,9 @@
 +++
 title = "Creating a sick CLI"
-date = 2019-11-27
+date = 2023-10-11
+[extra]
+author= "parth"
+author_link = "https://github.com/Parth"
 +++
 
 

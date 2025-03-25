@@ -1,6 +1,9 @@
 +++
 title = "Lockbook 0.9 🚀"
-date = 2019-11-27
+date = 2024-03-02
+[extra]
+author = "parth"
+author_link = "https://github.com/Parth"
 +++
 
 
