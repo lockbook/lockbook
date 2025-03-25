@@ -19,7 +19,7 @@ eframe = { version = "0.28.1", default-features = false, features = [
 ] }
 
 workspace = { path = "../../libs/content/workspace" }
-lb-rs = {path = "../../libs/lb/lb-rs", features=["no-network"]}
+lb-rs = {path = "../../libs/lb/lb-rs"}
 futures = "0.3.30"
 
 wasm-bindgen-futures = "0.4"
