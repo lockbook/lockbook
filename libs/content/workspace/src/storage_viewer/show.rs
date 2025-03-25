@@ -38,7 +38,7 @@ impl StorageViewer {
         Self {
             data,
             paint_order: vec![],
-            layer_height: 50.0,
+            layer_height: 60.0,
             colors: vec![],
             current_rect: Rect::NOTHING,
         }
@@ -55,7 +55,8 @@ impl StorageViewer {
     }
 
     pub fn get_color(&self, curr_id: Uuid, mut layer: usize, mut child_number: usize) -> Color32 {
-        let big_table = [[
+        let big_table = [
+            [
                 Color32::from_rgb(128, 15, 47),
                 Color32::from_rgb(164, 19, 60),
                 Color32::from_rgb(201, 24, 74),
@@ -80,7 +81,8 @@ impl StorageViewer {
                 Color32::from_rgb(0, 180, 216),
                 Color32::from_rgb(72, 202, 228),
                 Color32::from_rgb(144, 224, 239),
-            ]];
+            ],
+        ];
         if layer == 1 {
             if child_number > 2 {
                 child_number %= 3;
@@ -141,13 +143,7 @@ impl StorageViewer {
                     .unwrap()
                     .starting_position;
                 current_parent = DrawHelper {
-                    id: self
-                        .data
-                        .all_files
-                        .get(&item.id)
-                        .unwrap()
-                        .file
-                        .parent,
+                    id: self.data.all_files.get(&item.id).unwrap().file.parent,
                     starting_position: current_position,
                 };
             }
@@ -166,13 +162,7 @@ impl StorageViewer {
             let current_color = self
                 .colors
                 .iter()
-                .find_map(|element| {
-                    if element.id == item.id {
-                        Some(element.color)
-                    } else {
-                        None
-                    }
-                })
+                .find_map(|element| if element.id == item.id { Some(element.color) } else { None })
                 .unwrap_or(StorageViewer::get_color(
                     self,
                     item.id,
@@ -265,10 +255,8 @@ impl StorageViewer {
             }
 
             if item_filerow.file.is_folder() {
-                visited_folders.push(DrawHelper {
-                    id: item.id,
-                    starting_position: current_position,
-                });
+                visited_folders
+                    .push(DrawHelper { id: item.id, starting_position: current_position });
             }
             self.colors
                 .push(ColorHelper { id: item.id, color: current_color });
@@ -337,23 +325,28 @@ impl StorageViewer {
                 max: bottom_text.max,
             },
             |ui| {
-                ui.label(bytes_to_human(
-                    *self.data.folder_sizes.get(&self.data.current_root).unwrap(),
-                ))
-                .on_hover_text(
-                    "Name:\n".to_owned()
-                        + &self
-                            .data
-                            .all_files
-                            .get(&self.data.current_root)
-                            .unwrap()
-                            .file
-                            .name
-                            .to_string()
-                        + "\nSize:\n"
-                        + &bytes_to_human(
+                ui.with_layer_id(
+                    LayerId { order: egui::Order::Background, id: Id::new(1) },
+                    |ui| {
+                        ui.label(bytes_to_human(
                             *self.data.folder_sizes.get(&self.data.current_root).unwrap(),
-                        ),
+                        ))
+                        .on_hover_text(
+                            "Name:\n".to_owned()
+                                + &self
+                                    .data
+                                    .all_files
+                                    .get(&self.data.current_root)
+                                    .unwrap()
+                                    .file
+                                    .name
+                                    .to_string()
+                                + "\nSize:\n"
+                                + &bytes_to_human(
+                                    *self.data.folder_sizes.get(&self.data.current_root).unwrap(),
+                                ),
+                        );
+                    },
                 );
             },
         );
@@ -361,6 +354,8 @@ impl StorageViewer {
         //Starts drawing the rest of the folders and files
         let potential_new_root = self.follow_paint_order(ui, root_draw_anchor, window);
         //assigning a new root if selected
-        if potential_new_root.is_some() { self.change_root(potential_new_root.unwrap()) }
+        if potential_new_root.is_some() {
+            self.change_root(potential_new_root.unwrap())
+        }
     }
 }
