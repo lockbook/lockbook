@@ -1,6 +1,6 @@
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::FileType;
-use lb_rs::service::search::{SearchConfig, SearchResult};
+use lb_rs::subscribers::search::{SearchConfig, SearchResult};
 use std::collections::HashSet;
 use test_utils::*;
 use tokio::time;

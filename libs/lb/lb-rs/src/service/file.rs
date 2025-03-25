@@ -38,7 +38,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed(id);
+        self.events.meta_changed();
         Ok(ui_file)
     }
 
@@ -60,7 +60,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed(*id);
+        self.events.meta_changed();
 
         Ok(())
     }
@@ -79,7 +79,7 @@ impl Lb {
         tree.move_file(id, new_parent, &self.keychain)?;
         tx.end();
 
-        self.events.meta_changed(*id);
+        self.events.meta_changed();
 
         Ok(())
     }
@@ -99,7 +99,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed(*id);
+        self.events.meta_changed();
 
         Ok(())
     }
@@ -177,5 +177,11 @@ impl Lb {
         let file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
         Ok(file)
+    }
+
+    pub async fn local_changes(&self) -> Vec<Uuid> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+        db.local_metadata.get().keys().copied().collect()
     }
 }
