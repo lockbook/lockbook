@@ -50,7 +50,7 @@ impl Data {
             });
         }
 
-        return filerows;
+        filerows
     }
 
     pub fn init(core: Lb, potential_root: Option<File>) -> Self {
@@ -127,7 +127,7 @@ impl Data {
             let b_size = (b.portion * 10000.0) as u32;
             b_size.cmp(&a_size)
         });
-        return gathered_children;
+        gathered_children
     }
 
     fn set_layers(
@@ -150,13 +150,13 @@ impl Data {
                 }
             }
         }
-        return raw_layers;
+        raw_layers
     }
 
     pub fn get_paint_order(&self) -> Vec<NodeLayer> {
         let tree = self.get_children(&self.current_root);
         let mut paint_order_vec = Data::set_layers(&tree, 1, vec![]);
         paint_order_vec.sort_by(|a, b| a.layer.cmp(&b.layer));
-        return paint_order_vec;
+        paint_order_vec
     }
 }

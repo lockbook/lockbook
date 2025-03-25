@@ -55,9 +55,7 @@ impl StorageViewer {
     }
 
     pub fn get_color(&self, curr_id: Uuid, mut layer: usize, mut child_number: usize) -> Color32 {
-        let big_table = vec![
-            //red
-            [
+        let big_table = [[
                 Color32::from_rgb(128, 15, 47),
                 Color32::from_rgb(164, 19, 60),
                 Color32::from_rgb(201, 24, 74),
@@ -82,11 +80,10 @@ impl StorageViewer {
                 Color32::from_rgb(0, 180, 216),
                 Color32::from_rgb(72, 202, 228),
                 Color32::from_rgb(144, 224, 239),
-            ],
-        ];
+            ]];
         if layer == 1 {
             if child_number > 2 {
-                child_number = child_number % 3;
+                child_number %= 3;
             }
             return big_table[child_number][0];
         }
@@ -112,10 +109,10 @@ impl StorageViewer {
         layer -= 1;
 
         if layer > 5 {
-            layer = layer % 6;
+            layer %= 6;
         }
 
-        return big_table[parent_type][layer];
+        big_table[parent_type][layer]
     }
 
     pub fn follow_paint_order(
@@ -150,9 +147,8 @@ impl StorageViewer {
                         .get(&item.id)
                         .unwrap()
                         .file
-                        .parent
-                        .clone(),
-                    starting_position: current_position.clone(),
+                        .parent,
+                    starting_position: current_position,
                 };
             }
             let painter = ui.painter();
@@ -172,13 +168,13 @@ impl StorageViewer {
                 .iter()
                 .find_map(|element| {
                     if element.id == item.id {
-                        return Some(element.color);
+                        Some(element.color)
                     } else {
-                        return None;
+                        None
                     }
                 })
                 .unwrap_or(StorageViewer::get_color(
-                    &self,
+                    self,
                     item.id,
                     current_layer as usize,
                     child_number - 1,
@@ -240,7 +236,7 @@ impl StorageViewer {
                 }
 
                 let display_size = if item_filerow.file.is_folder() {
-                    bytes_to_human(self.data.folder_sizes.get(&item.id).unwrap().clone())
+                    bytes_to_human(*self.data.folder_sizes.get(&item.id).unwrap())
                 } else {
                     bytes_to_human(item_filerow.size)
                 };
@@ -261,10 +257,8 @@ impl StorageViewer {
 
                 let response = ui.interact(paint_rect, Id::new(general_counter), Sense::click());
 
-                if response.clicked() {
-                    if item_filerow.file.is_folder() {
-                        root_status = Some(item.id.clone());
-                    }
+                if response.clicked() && item_filerow.file.is_folder() {
+                    root_status = Some(item.id);
                 }
 
                 response.on_hover_text(hover_text);
@@ -272,8 +266,8 @@ impl StorageViewer {
 
             if item_filerow.file.is_folder() {
                 visited_folders.push(DrawHelper {
-                    id: item.id.clone(),
-                    starting_position: current_position.clone(),
+                    id: item.id,
+                    starting_position: current_position,
                 });
             }
             self.colors
@@ -283,7 +277,7 @@ impl StorageViewer {
             child_number += 1;
             general_counter += 1;
         }
-        return root_status;
+        root_status
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
@@ -367,9 +361,6 @@ impl StorageViewer {
         //Starts drawing the rest of the folders and files
         let potential_new_root = self.follow_paint_order(ui, root_draw_anchor, window);
         //assigning a new root if selected
-        match potential_new_root {
-            Some(_) => self.change_root(potential_new_root.unwrap()),
-            None => (),
-        }
+        if potential_new_root.is_some() { self.change_root(potential_new_root.unwrap()) }
     }
 }
