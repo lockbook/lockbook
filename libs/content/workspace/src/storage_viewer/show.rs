@@ -274,7 +274,7 @@ impl StorageViewer {
 
         if self.paint_order.is_empty() || window != self.current_rect {
             self.current_rect = window;
-            self.paint_order = data::Data::get_paint_order(&self.data);
+            self.paint_order = self.data.get_paint_order();
         }
 
         //Top buttons
