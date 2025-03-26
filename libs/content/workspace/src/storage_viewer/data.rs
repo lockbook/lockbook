@@ -1,3 +1,4 @@
+use lb_rs::model::api::FileUsage;
 use lb_rs::Uuid;
 use lb_rs::{blocking::Lb, model::file::File};
 use serde::Deserialize;
@@ -89,7 +90,7 @@ impl Data {
                 size: usage
                     .iter()
                     .find(|item| item.file_id == file.id)
-                    .unwrap_or(&lb_rs::model::api::FileUsage { file_id: file.id, size_bytes: 0 })
+                    .unwrap_or(&FileUsage { file_id: file.id, size_bytes: 0 })
                     .size_bytes,
             });
         }
