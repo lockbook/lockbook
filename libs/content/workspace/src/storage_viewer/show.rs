@@ -90,7 +90,13 @@ impl StorageViewer {
             .text(
                 bottom_text.min,
                 Align2::CENTER_BOTTOM,
-                bytes_to_human(*self.data.folder_sizes.get(&self.data.current_root).unwrap()),
+                bytes_to_human(
+                    *self
+                        .data
+                        .folder_sizes
+                        .get(&self.data.focused_folder)
+                        .unwrap(),
+                ),
                 FontId { size: 15.0, family: FontFamily::Proportional },
                 Color32::BLACK,
             );
@@ -105,21 +111,29 @@ impl StorageViewer {
                     LayerId { order: egui::Order::Background, id: Id::new(1) },
                     |ui| {
                         ui.label(bytes_to_human(
-                            *self.data.folder_sizes.get(&self.data.current_root).unwrap(),
+                            *self
+                                .data
+                                .folder_sizes
+                                .get(&self.data.focused_folder)
+                                .unwrap(),
                         ))
                         .on_hover_text(
                             "Name:\n".to_owned()
                                 + &self
                                     .data
                                     .all_files
-                                    .get(&self.data.current_root)
+                                    .get(&self.data.focused_folder)
                                     .unwrap()
                                     .file
                                     .name
                                     .to_string()
                                 + "\nSize:\n"
                                 + &bytes_to_human(
-                                    *self.data.folder_sizes.get(&self.data.current_root).unwrap(),
+                                    *self
+                                        .data
+                                        .folder_sizes
+                                        .get(&self.data.focused_folder)
+                                        .unwrap(),
                                 ),
                         );
                     },
@@ -136,12 +150,12 @@ impl StorageViewer {
     }
 
     pub fn change_root(&mut self, new_root: Uuid) {
-        self.data.current_root = new_root;
+        self.data.focused_folder = new_root;
         self.paint_order = vec![];
     }
 
     pub fn reset_root(&mut self) {
-        self.data.current_root = self.data.overall_root;
+        self.data.focused_folder = self.data.overall_root;
         self.paint_order = vec![];
     }
 
@@ -216,7 +230,8 @@ impl StorageViewer {
         let mut current_position = root_anchor.min.x;
         let mut child_number = 1;
         let mut visited_folders: Vec<DrawHelper> = vec![];
-        let mut current_parent = DrawHelper { id: self.data.current_root, starting_position: 0.0 };
+        let mut current_parent =
+            DrawHelper { id: self.data.focused_folder, starting_position: 0.0 };
         for (i, item) in self.paint_order.iter().enumerate() {
             let item_filerow = self.data.all_files.get(&item.id).unwrap();
 

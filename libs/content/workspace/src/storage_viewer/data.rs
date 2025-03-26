@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Data {
-    pub current_root: Uuid,
+    pub focused_folder: Uuid,
     pub all_files: HashMap<Uuid, FileRow>,
     pub folder_sizes: HashMap<Uuid, u64>,
     pub overall_root: Uuid,
@@ -94,14 +94,14 @@ impl Data {
             None => root,
         };
 
-        Self { current_root: folder_root, overall_root: root, all_files, folder_sizes }
+        Self { focused_folder: folder_root, overall_root: root, all_files, folder_sizes }
     }
 
     pub fn get_children(&self, id: &Uuid) -> Vec<Node> {
         if !self.all_files.get(id).unwrap().file.is_folder() {
             return vec![];
         }
-        let total_size = *self.folder_sizes.get(&self.current_root).unwrap() as f32;
+        let total_size = *self.folder_sizes.get(&self.focused_folder).unwrap() as f32;
         let children = self
             .all_files
             .values()
@@ -154,7 +154,7 @@ impl Data {
     }
 
     pub fn get_paint_order(&self) -> Vec<NodeLayer> {
-        let tree = self.get_children(&self.current_root);
+        let tree = self.get_children(&self.focused_folder);
         let mut paint_order_vec = Data::set_layers(&tree, 1, vec![]);
         paint_order_vec.sort_by(|a, b| a.layer.cmp(&b.layer));
         paint_order_vec
