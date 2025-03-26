@@ -1,8 +1,12 @@
 use bezier_rs::Subpath;
 use egui_animation::{animate_bool_eased, easing};
 use glam::DVec2;
+use indexmap::IndexMap;
 use lb_rs::{
-    model::svg::element::{Element, ManipulatorGroupId},
+    model::svg::{
+        buffer::serialize_inner,
+        element::{Element, ManipulatorGroupId},
+    },
     Uuid,
 };
 use resvg::usvg::Transform;
@@ -636,6 +640,31 @@ impl Selection {
         ui.add(egui::Separator::default().vertical().grow(3.0));
 
         ui.add_space(4.0);
+
+        if Button::default()
+            .icon(&Icon::CONTENT_COPY)
+            .show(ui)
+            .clicked()
+        {
+            let id_map = &selection_ctx.buffer.id_map;
+            let elements: &IndexMap<Uuid, Element> = &self
+                .selected_elements
+                .drain(..)
+                .map(|el| {
+                    (Uuid::new_v4(), selection_ctx.buffer.elements.get(&el.id).unwrap().clone())
+                })
+                .collect();
+            let master_transform = selection_ctx.buffer.master_transform;
+            let weak_images = &selection_ctx.buffer.weak_images;
+
+            let serialized_selection =
+                serialize_inner(id_map, elements, master_transform, weak_images);
+
+            ui.output_mut(|w| w.copied_text = serialized_selection);
+        }
+
+        ui.add_space(4.0);
+
         if ui
             .add(
                 egui::Button::new(

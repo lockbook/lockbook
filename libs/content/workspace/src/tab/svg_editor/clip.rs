@@ -1,5 +1,7 @@
 use lb_rs::{
     model::svg::{
+        self,
+        buffer::Buffer,
         diff::DiffState,
         element::{Element, Image},
     },
@@ -54,5 +56,25 @@ impl SVGEditor {
                 _ => {}
             }
         }
+        ui.input(|r| {
+            for event in &r.events {
+                match event {
+                    egui::Event::Paste(payload) => {
+                        let pasted_buffer = Buffer::new(payload);
+                        if !pasted_buffer.elements.is_empty()
+                            || !pasted_buffer.weak_images.is_empty()
+                        {
+                            println!("{:#?}", pasted_buffer.elements.len());
+                            for (id, el) in pasted_buffer.elements.iter() {
+                                self.buffer
+                                    .elements
+                                    .insert_before(0, Uuid::new_v4(), el.clone());
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
     }
 }
