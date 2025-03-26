@@ -13,10 +13,10 @@ pub struct Data {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct StorageTree {
-    pub id: Uuid,
-    pub name: String,
-    pub portion: f32,
-    pub children: Vec<StorageTree>,
+    id: Uuid,
+    name: String,
+    portion: f32,
+    children: Vec<StorageTree>,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -34,25 +34,6 @@ pub struct FileRow {
 }
 
 impl Data {
-    pub fn get_filerows(lb: Lb) -> Vec<FileRow> {
-        let mut filerows = vec![];
-        let usage = lb.get_usage().unwrap().usages;
-        let meta_data = lb.list_metadatas().unwrap();
-
-        for file in meta_data {
-            filerows.push(FileRow {
-                file: file.clone(),
-                size: usage
-                    .iter()
-                    .find(|item| item.file_id == file.id)
-                    .unwrap_or(&lb_rs::model::api::FileUsage { file_id: file.id, size_bytes: 0 })
-                    .size_bytes,
-            });
-        }
-
-        filerows
-    }
-
     pub fn init(lb: Lb, potential_root: Option<File>) -> Self {
         let data = Self::get_filerows(lb);
         let mut all_files = HashMap::new();
@@ -65,7 +46,7 @@ impl Data {
         }
 
         let mut folder_sizes = HashMap::new();
-        //Initial for loop for folders is necessary to give folders starting value as we need to go over folders again to update sizes
+        // Initial for loop for folders is necessary to give folders starting value as we need to go over folders again to update sizes
         for datum in data.clone() {
             if datum.file.is_folder() {
                 folder_sizes.insert(datum.file.id, datum.size);
@@ -97,7 +78,26 @@ impl Data {
         Self { focused_folder: folder_root, root, all_files, folder_sizes }
     }
 
-    pub fn get_children(&self, id: &Uuid) -> Vec<StorageTree> {
+    fn get_filerows(lb: Lb) -> Vec<FileRow> {
+        let mut filerows = vec![];
+        let usage = lb.get_usage().unwrap().usages;
+        let meta_data = lb.list_metadatas().unwrap();
+
+        for file in meta_data {
+            filerows.push(FileRow {
+                file: file.clone(),
+                size: usage
+                    .iter()
+                    .find(|item| item.file_id == file.id)
+                    .unwrap_or(&lb_rs::model::api::FileUsage { file_id: file.id, size_bytes: 0 })
+                    .size_bytes,
+            });
+        }
+
+        filerows
+    }
+
+    fn get_children(&self, id: &Uuid) -> Vec<StorageTree> {
         if !self.all_files.get(id).unwrap().file.is_folder() {
             return vec![];
         }
