@@ -8,7 +8,7 @@ pub struct Data {
     pub focused_folder: Uuid,
     pub all_files: HashMap<Uuid, FileRow>,
     pub folder_sizes: HashMap<Uuid, u64>,
-    pub overall_root: Uuid,
+    pub root: Uuid,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -94,7 +94,7 @@ impl Data {
             None => root,
         };
 
-        Self { focused_folder: folder_root, overall_root: root, all_files, folder_sizes }
+        Self { focused_folder: folder_root, root, all_files, folder_sizes }
     }
 
     pub fn get_children(&self, id: &Uuid) -> Vec<Node> {

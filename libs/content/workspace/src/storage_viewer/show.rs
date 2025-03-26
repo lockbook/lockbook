@@ -155,7 +155,7 @@ impl StorageViewer {
     }
 
     pub fn reset_root(&mut self) {
-        self.data.focused_folder = self.data.overall_root;
+        self.data.focused_folder = self.data.root;
         self.paint_order = vec![];
     }
 
