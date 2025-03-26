@@ -120,14 +120,13 @@ impl StorageViewer {
     pub fn follow_paint_order(
         &mut self, ui: &mut Ui, root_anchor: Rect, window: Rect,
     ) -> Option<Uuid> {
-        let mut root_status: Option<Uuid> = None;
+        let mut changed_focused_folder: Option<Uuid> = None;
         let mut current_layer = 0;
         let mut current_position = root_anchor.min.x;
-        let mut general_counter = 0;
         let mut child_number = 1;
         let mut visited_folders: Vec<DrawHelper> = vec![];
         let mut current_parent = DrawHelper { id: self.data.current_root, starting_position: 0.0 };
-        for item in &self.paint_order {
+        for (i, item) in self.paint_order.iter().enumerate() {
             let item_filerow = self.data.all_files.get(&item.id).unwrap();
 
             if current_layer != item.layer {
@@ -245,10 +244,10 @@ impl StorageViewer {
                     + "\nSize:\n"
                     + &display_size;
 
-                let response = ui.interact(paint_rect, Id::new(general_counter), Sense::click());
+                let response = ui.interact(paint_rect, Id::new(i), Sense::click());
 
                 if response.clicked() && item_filerow.file.is_folder() {
-                    root_status = Some(item.id);
+                    changed_focused_folder = Some(item.id);
                 }
 
                 response.on_hover_text(hover_text);
@@ -263,9 +262,8 @@ impl StorageViewer {
 
             current_position += item.portion * (root_anchor.max.x - root_anchor.min.x);
             child_number += 1;
-            general_counter += 1;
         }
-        root_status
+        changed_focused_folder
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
