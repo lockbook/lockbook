@@ -34,10 +34,10 @@ pub struct FileRow {
 }
 
 impl Data {
-    pub fn get_filerows(core: Lb) -> Vec<FileRow> {
+    pub fn get_filerows(lb: Lb) -> Vec<FileRow> {
         let mut filerows = vec![];
-        let usage = core.get_usage().unwrap().usages;
-        let meta_data = core.list_metadatas().unwrap();
+        let usage = lb.get_usage().unwrap().usages;
+        let meta_data = lb.list_metadatas().unwrap();
 
         for file in meta_data {
             filerows.push(FileRow {
@@ -53,8 +53,8 @@ impl Data {
         filerows
     }
 
-    pub fn init(core: Lb, potential_root: Option<File>) -> Self {
-        let data = Self::get_filerows(core);
+    pub fn init(lb: Lb, potential_root: Option<File>) -> Self {
+        let data = Self::get_filerows(lb);
         let mut all_files = HashMap::new();
         let mut root = Uuid::nil();
         for datum in data.clone() {

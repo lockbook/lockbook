@@ -32,8 +32,8 @@ pub struct StorageViewer {
 }
 
 impl StorageViewer {
-    pub fn new(core: &Lb, potential_root: Option<File>) -> Self {
-        let data = data::Data::init(core.clone(), potential_root);
+    pub fn new(lb: &Lb, potential_root: Option<File>) -> Self {
+        let data = data::Data::init(lb.clone(), potential_root);
 
         Self {
             data,
