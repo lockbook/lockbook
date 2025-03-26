@@ -2,6 +2,7 @@ use egui::{Context, ViewportCommand};
 
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::{LbErr, LbErrKind};
+use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg;
@@ -607,12 +608,12 @@ impl Workspace {
         };
     }
 
-    pub fn start_storage_viewer(&mut self, core: Lb, root: Option<lb_rs::model::file::File>) {
+    pub fn start_storage_viewer(&mut self, core: Lb, folder: Option<File>) {
         if let Some(i) = self.tabs.iter().position(|t| t.storage_viewer().is_some()) {
             self.close_tab(i);
         }
         self.create_tab(
-            ContentState::Open(TabContent::StorageViewer(StorageViewer::new(&core, root))),
+            ContentState::Open(TabContent::StorageViewer(StorageViewer::new(&core, folder))),
             true,
         );
     }
