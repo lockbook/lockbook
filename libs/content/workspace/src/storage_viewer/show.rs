@@ -44,6 +44,97 @@ impl StorageViewer {
         }
     }
 
+    pub fn show(&mut self, ui: &mut egui::Ui) {
+        //Start of pre ui checks
+        let window = ui.available_rect_before_wrap();
+
+        if self.paint_order.is_empty() || window != self.current_rect {
+            self.current_rect = window;
+            self.paint_order = self.data.get_paint_order();
+        }
+
+        //Top buttons
+        ui.with_layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(1) }, |ui| {
+            let top_left_rect = Rect { min: window.left_top(), max: window.center_top() };
+            ui.allocate_ui_at_rect(top_left_rect, |ui| {
+                menu::bar(ui, |ui| {
+                    if ui.button("Reset Root").clicked() {
+                        self.reset_root();
+                        self.paint_order = vec![];
+                    }
+
+                    ui.menu_button("Layer Size", |ui| {
+                        ui.add(egui::Slider::new(&mut self.layer_height, 1.0..=100.0));
+                    });
+                });
+            });
+        });
+
+        //Root drawing logic
+        let root_draw_anchor = Rect {
+            min: Pos2 { x: self.current_rect.min.x, y: self.current_rect.max.y - 40.0 },
+            max: self.current_rect.max,
+        };
+
+        let bottom_text = Rect { min: root_draw_anchor.center(), max: root_draw_anchor.center() };
+
+        let painter = ui.painter();
+        painter
+            .clone()
+            //.with_layer_id(LayerId { order: egui::Order::Middle, id: Id::new(1) })
+            .rect_filled(root_draw_anchor, 0.0, Color32::WHITE);
+
+        painter
+            .clone()
+            .with_layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(2) })
+            .text(
+                bottom_text.min,
+                Align2::CENTER_BOTTOM,
+                bytes_to_human(*self.data.folder_sizes.get(&self.data.current_root).unwrap()),
+                FontId { size: 15.0, family: FontFamily::Proportional },
+                Color32::BLACK,
+            );
+
+        ui.allocate_ui_at_rect(
+            Rect {
+                min: Pos2 { x: bottom_text.min.x - 30.0, y: bottom_text.min.y - 15.0 },
+                max: bottom_text.max,
+            },
+            |ui| {
+                ui.with_layer_id(
+                    LayerId { order: egui::Order::Background, id: Id::new(1) },
+                    |ui| {
+                        ui.label(bytes_to_human(
+                            *self.data.folder_sizes.get(&self.data.current_root).unwrap(),
+                        ))
+                        .on_hover_text(
+                            "Name:\n".to_owned()
+                                + &self
+                                    .data
+                                    .all_files
+                                    .get(&self.data.current_root)
+                                    .unwrap()
+                                    .file
+                                    .name
+                                    .to_string()
+                                + "\nSize:\n"
+                                + &bytes_to_human(
+                                    *self.data.folder_sizes.get(&self.data.current_root).unwrap(),
+                                ),
+                        );
+                    },
+                );
+            },
+        );
+
+        //Starts drawing the rest of the folders and files
+        let potential_new_root = self.follow_paint_order(ui, root_draw_anchor, window);
+        //assigning a new root if selected
+        if potential_new_root.is_some() {
+            self.change_root(potential_new_root.unwrap())
+        }
+    }
+
     pub fn change_root(&mut self, new_root: Uuid) {
         self.data.current_root = new_root;
         self.paint_order = vec![];
@@ -264,96 +355,5 @@ impl StorageViewer {
             child_number += 1;
         }
         changed_focused_folder
-    }
-
-    pub fn show(&mut self, ui: &mut egui::Ui) {
-        //Start of pre ui checks
-        let window = ui.available_rect_before_wrap();
-
-        if self.paint_order.is_empty() || window != self.current_rect {
-            self.current_rect = window;
-            self.paint_order = self.data.get_paint_order();
-        }
-
-        //Top buttons
-        ui.with_layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(1) }, |ui| {
-            let top_left_rect = Rect { min: window.left_top(), max: window.center_top() };
-            ui.allocate_ui_at_rect(top_left_rect, |ui| {
-                menu::bar(ui, |ui| {
-                    if ui.button("Reset Root").clicked() {
-                        self.reset_root();
-                        self.paint_order = vec![];
-                    }
-
-                    ui.menu_button("Layer Size", |ui| {
-                        ui.add(egui::Slider::new(&mut self.layer_height, 1.0..=100.0));
-                    });
-                });
-            });
-        });
-
-        //Root drawing logic
-        let root_draw_anchor = Rect {
-            min: Pos2 { x: self.current_rect.min.x, y: self.current_rect.max.y - 40.0 },
-            max: self.current_rect.max,
-        };
-
-        let bottom_text = Rect { min: root_draw_anchor.center(), max: root_draw_anchor.center() };
-
-        let painter = ui.painter();
-        painter
-            .clone()
-            //.with_layer_id(LayerId { order: egui::Order::Middle, id: Id::new(1) })
-            .rect_filled(root_draw_anchor, 0.0, Color32::WHITE);
-
-        painter
-            .clone()
-            .with_layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(2) })
-            .text(
-                bottom_text.min,
-                Align2::CENTER_BOTTOM,
-                bytes_to_human(*self.data.folder_sizes.get(&self.data.current_root).unwrap()),
-                FontId { size: 15.0, family: FontFamily::Proportional },
-                Color32::BLACK,
-            );
-
-        ui.allocate_ui_at_rect(
-            Rect {
-                min: Pos2 { x: bottom_text.min.x - 30.0, y: bottom_text.min.y - 15.0 },
-                max: bottom_text.max,
-            },
-            |ui| {
-                ui.with_layer_id(
-                    LayerId { order: egui::Order::Background, id: Id::new(1) },
-                    |ui| {
-                        ui.label(bytes_to_human(
-                            *self.data.folder_sizes.get(&self.data.current_root).unwrap(),
-                        ))
-                        .on_hover_text(
-                            "Name:\n".to_owned()
-                                + &self
-                                    .data
-                                    .all_files
-                                    .get(&self.data.current_root)
-                                    .unwrap()
-                                    .file
-                                    .name
-                                    .to_string()
-                                + "\nSize:\n"
-                                + &bytes_to_human(
-                                    *self.data.folder_sizes.get(&self.data.current_root).unwrap(),
-                                ),
-                        );
-                    },
-                );
-            },
-        );
-
-        //Starts drawing the rest of the folders and files
-        let potential_new_root = self.follow_paint_order(ui, root_draw_anchor, window);
-        //assigning a new root if selected
-        if potential_new_root.is_some() {
-            self.change_root(potential_new_root.unwrap())
-        }
     }
 }
