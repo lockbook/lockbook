@@ -1,4 +1,4 @@
-use super::data::{self, NodeLayer};
+use super::data::{self, StorageCell};
 use color_art;
 use colors_transform::{self, Color};
 use egui::{
@@ -26,7 +26,7 @@ struct ColorHelper {
 pub struct StorageViewer {
     data: data::Data,
     layer_height: f32,
-    paint_order: Vec<NodeLayer>,
+    paint_order: Vec<StorageCell>,
     colors: Vec<ColorHelper>,
     current_rect: Rect,
 }

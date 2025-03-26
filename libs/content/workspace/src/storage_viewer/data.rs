@@ -12,15 +12,15 @@ pub struct Data {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct Node {
+pub struct StorageTree {
     pub id: Uuid,
     pub name: String,
     pub portion: f32,
-    pub children: Vec<Node>,
+    pub children: Vec<StorageTree>,
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct NodeLayer {
+pub struct StorageCell {
     pub id: Uuid,
     pub name: String,
     pub portion: f32,
@@ -97,7 +97,7 @@ impl Data {
         Self { focused_folder: folder_root, root, all_files, folder_sizes }
     }
 
-    pub fn get_children(&self, id: &Uuid) -> Vec<Node> {
+    pub fn get_children(&self, id: &Uuid) -> Vec<StorageTree> {
         if !self.all_files.get(id).unwrap().file.is_folder() {
             return vec![];
         }
@@ -111,7 +111,7 @@ impl Data {
                 if f.file.is_folder() {
                     current_size = *self.folder_sizes.get(&f.file.id).unwrap() as f32;
                 }
-                Node {
+                StorageTree {
                     id: f.file.id,
                     name: f.file.name.clone(),
                     portion: current_size / total_size,
@@ -131,10 +131,10 @@ impl Data {
     }
 
     fn set_layers(
-        tree: &Vec<Node>, current_layer: u64, mut raw_layers: Vec<NodeLayer>,
-    ) -> Vec<NodeLayer> {
+        tree: &Vec<StorageTree>, current_layer: u64, mut raw_layers: Vec<StorageCell>,
+    ) -> Vec<StorageCell> {
         for slice in tree {
-            raw_layers.push(NodeLayer {
+            raw_layers.push(StorageCell {
                 id: slice.id,
                 name: slice.name.clone(),
                 portion: slice.portion,
@@ -153,7 +153,7 @@ impl Data {
         raw_layers
     }
 
-    pub fn get_paint_order(&self) -> Vec<NodeLayer> {
+    pub fn get_paint_order(&self) -> Vec<StorageCell> {
         let tree = self.get_children(&self.focused_folder);
         let mut paint_order_vec = Data::set_layers(&tree, 1, vec![]);
         paint_order_vec.sort_by(|a, b| a.layer.cmp(&b.layer));
