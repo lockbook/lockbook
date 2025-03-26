@@ -4,6 +4,7 @@ use lb_rs::{blocking::Lb, model::file::File};
 use serde::Deserialize;
 use std::collections::HashMap;
 
+/// Contains data related to folders and files needed for storage viewer
 #[derive(Debug)]
 pub struct Data {
     pub focused_folder: Uuid,
@@ -12,6 +13,7 @@ pub struct Data {
     pub root: Uuid,
 }
 
+/// Stores information in a tree format returned by get_children()
 #[derive(PartialEq, Debug, Clone)]
 pub struct StorageTree {
     id: Uuid,
@@ -20,6 +22,7 @@ pub struct StorageTree {
     children: Vec<StorageTree>,
 }
 
+/// Responsible for storing relevant folder information for painting
 #[derive(PartialEq, Debug, Clone)]
 pub struct StorageCell {
     pub id: Uuid,

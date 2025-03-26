@@ -10,14 +10,14 @@ use lb_rs::model::file::File;
 use lb_rs::model::usage::bytes_to_human;
 use lb_rs::Uuid;
 
-//Responsible for tracking on screen locations for folders
+/// Responsible for tracking on screen locations for folders
 #[derive(Debug)]
 struct DrawHelper {
     id: Uuid,
     starting_position: f32,
 }
 
-//Responsible for keeping colors consistent
+/// Responsible for keeping colors consistent
 struct ColorHelper {
     id: Uuid,
     color: Color32,
