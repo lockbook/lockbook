@@ -38,12 +38,42 @@ pub struct Lb {
 }
 
 impl Lb {
+    /// this is dumb lb that will make the library compile for wasm but doesn't include
+    /// any of the expected functionality. your files wouldn't be saved, sync wouldn't
+    /// work, etc. for now this is useful for unblocking workspace on wasm
+    pub fn init_dummy(config: Config) -> LbResult<Self> {
+        let db = CoreDb::init(db_rs::Config {
+            path: Default::default(),
+            create_path: false,
+            create_db: false,
+            read_only: false,
+            no_io: true,
+            fs_locks: false,
+            fs_locks_block: false,
+            schema_name: Default::default(),
+        })
+        .map_err(|err| LbErrKind::Unexpected(format!("db rs creation failed: {:#?}", err)))?;
+
+        Ok(Self {
+            config: config.clone(),
+            keychain: Default::default(),
+            db: Arc::new(RwLock::new(db)),
+            docs: AsyncDocs::from(&config),
+            search: Default::default(),
+            client: Default::default(),
+            syncing: Default::default(),
+            events: Default::default(),
+            status: Default::default(),
+        })
+    }
+}
+
+impl Lb {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub async fn init(config: Config) -> LbResult<Self> {
         logging::init(&config)?;
 
-        let db = CoreDb::init(db_rs::Config::in_folder(&config.writeable_path))
-            .map_err(|err| LbErrKind::Unexpected(format!("{:#?}", err)))?;
+        let db = CoreDb::init(db_rs::Config::in_folder(&config.writeable_path)).map_unexpected()?;
         let keychain = Keychain::from(db.account.get());
         let db = Arc::new(RwLock::new(db));
         let docs = AsyncDocs::from(&config);
@@ -76,6 +106,7 @@ use io::docs::AsyncDocs;
 use io::network::Network;
 use io::LbDb;
 use model::core_config::Config;
+use model::errors::Unexpected;
 pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
 use service::keychain::Keychain;

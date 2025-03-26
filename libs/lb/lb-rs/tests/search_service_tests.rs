@@ -2,9 +2,9 @@ use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::subscribers::search::{SearchConfig, SearchResult};
 use std::collections::HashSet;
-use std::time::Duration;
 use test_utils::*;
 use tokio::time;
+use web_time::Duration;
 
 const FILE_PATHS: [&str; 6] =
     ["/abc.md", "/abcd.md", "/abcde.md", "/dir/doc1", "/dir/doc2", "/dir/doc3"];

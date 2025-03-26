@@ -10,7 +10,10 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+#[cfg(not(target_family = "wasm"))]
 use std::thread;
+
+use super::editor::HttpClient;
 
 #[derive(Clone, Default)]
 pub struct ImageCache {
@@ -26,8 +29,7 @@ pub enum ImageState {
 }
 
 pub fn calc(
-    ast: &Ast, prior_cache: &ImageCache, client: &reqwest::blocking::Client, core: &Lb,
-    file_id: Uuid, ui: &Ui,
+    ast: &Ast, prior_cache: &ImageCache, client: &HttpClient, core: &Lb, file_id: Uuid, ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();
 
@@ -54,74 +56,10 @@ pub fn calc(
 
                 result.map.insert(url.clone(), image_state.clone());
 
-                // fetch image
-                thread::spawn(move || {
-                    let texture_manager = ctx.tex_manager();
-
-                    let texture_result = (|| -> Result<TextureId, String> {
-                        // use core for lb:// urls and relative paths
-                        let maybe_lb_id = match url.strip_prefix("lb://") {
-                            Some(id) => Some(Uuid::parse_str(id).map_err(|e| e.to_string())?),
-                            None => {
-                                tab::core_get_by_relative_path(&core, file_id, &PathBuf::from(&url))
-                                    .map(|f| f.id)
-                                    .ok()
-                            }
-                        };
-
-                        let image_bytes = if let Some(id) = maybe_lb_id {
-                            core.read_document(id, false).map_err(|e| e.to_string())?
-                        } else {
-                            download_image(&client, &url).map_err(|e| e.to_string())?
-                        };
-
-                        // convert lockbook drawings to images
-                        let image_bytes = if let Some(id) = maybe_lb_id {
-                            let file = core.get_file_by_id(id).map_err(|e| e.to_string())?;
-                            if file.name.ends_with(".svg") {
-                                // todo: check errors
-                                let tree = usvg::Tree::from_data(
-                                    &image_bytes,
-                                    &Default::default(),
-                                    &Default::default(),
-                                )
-                                .map_err(|e| e.to_string())?;
-
-                                let bounding_box = tree.root().abs_bounding_box();
-
-                                // dimensions & transform chosen so that all svg content appears in the result
-                                let mut pix_map = Pixmap::new(
-                                    bounding_box.width() as _,
-                                    bounding_box.height() as _,
-                                )
-                                .ok_or("failed to create pixmap")
-                                .map_err(|e| e.to_string())?;
-                                let transform = Transform::identity()
-                                    .post_translate(-bounding_box.left(), -bounding_box.top());
-                                resvg::render(&tree, transform, &mut pix_map.as_mut());
-                                pix_map.encode_png().map_err(|e| e.to_string())?
-                            } else {
-                                // leave non-drawings alone
-                                image_bytes
-                            }
-                        } else {
-                            // leave non-lockbook images alone
-                            image_bytes
-                        };
-
-                        let image =
-                            image::load_from_memory(&image_bytes).map_err(|e| e.to_string())?;
-                        let size_pixels = [image.width() as usize, image.height() as usize];
-
-                        let egui_image = egui::ImageData::Color(
-                            ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8())
-                                .into(),
-                        );
-                        Ok(texture_manager
-                            .write()
-                            .alloc(title, egui_image, Default::default()))
-                    })();
-
+                // todo: make this code more DRY
+                #[cfg(target_arch = "wasm32")]
+                wasm_bindgen_futures::spawn_local(async move {
+                    let texture_result = get_texture(file_id, title, url, client, core, ctx).await;
                     match texture_result {
                         Ok(texture_id) => {
                             *image_state.lock().unwrap() = ImageState::Loaded(texture_id);
@@ -130,9 +68,19 @@ pub fn calc(
                             *image_state.lock().unwrap() = ImageState::Failed(err);
                         }
                     }
+                });
 
-                    // request a frame when the image is done loading
-                    ctx.request_repaint();
+                #[cfg(not(target_arch = "wasm32"))]
+                thread::spawn(move || {
+                    let texture_result = get_texture(file_id, title, url, client, core, ctx);
+                    match texture_result {
+                        Ok(texture_id) => {
+                            *image_state.lock().unwrap() = ImageState::Loaded(texture_id);
+                        }
+                        Err(err) => {
+                            *image_state.lock().unwrap() = ImageState::Failed(err);
+                        }
+                    }
                 });
             }
         }
@@ -148,10 +96,113 @@ pub fn calc(
     result
 }
 
-fn download_image(
-    client: &reqwest::blocking::Client, url: &str,
-) -> Result<Vec<u8>, reqwest::Error> {
+#[cfg(not(target_arch = "wasm32"))]
+fn get_texture(
+    file_id: Uuid, title: String, url: String, client: HttpClient, core: Lb, ctx: egui::Context,
+) -> Result<TextureId, String> {
+    let texture_manager = ctx.tex_manager();
+
+    // use core for lb:// urls and relative paths
+    let maybe_lb_id = get_maybe_lb_id(file_id, &url, &core)?;
+
+    let image_bytes = if let Some(id) = maybe_lb_id {
+        core.read_document(id, false).map_err(|e| e.to_string())?
+    } else {
+        download_image(&client, &url).map_err(|e| e.to_string())?
+    };
+
+    image_bytes_to_texture(title, core, ctx, texture_manager, maybe_lb_id, image_bytes)
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn get_texture(
+    file_id: Uuid, title: String, url: String, client: HttpClient, core: Lb, ctx: egui::Context,
+) -> Result<TextureId, String> {
+    let texture_manager = ctx.tex_manager();
+
+    // use core for lb:// urls and relative paths
+    let maybe_lb_id = get_maybe_lb_id(file_id, &url, &core)?;
+
+    let image_bytes = if let Some(id) = maybe_lb_id {
+        core.read_document(id, false).map_err(|e| e.to_string())?
+    } else {
+        download_image(&client, &url)
+            .await
+            .map_err(|e| e.to_string())?
+    };
+
+    image_bytes_to_texture(title, core, ctx, texture_manager, maybe_lb_id, image_bytes)
+}
+
+fn image_bytes_to_texture(
+    title: String, core: Lb, ctx: egui::Context,
+    texture_manager: Arc<egui::mutex::RwLock<epaint::TextureManager>>, maybe_lb_id: Option<Uuid>,
+    image_bytes: Vec<u8>,
+) -> Result<TextureId, String> {
+    // convert lockbook drawings to images
+    let image_bytes = if let Some(id) = maybe_lb_id {
+        let file = core.get_file_by_id(id).map_err(|e| e.to_string())?;
+        if file.name.ends_with(".svg") {
+            // todo: check errors
+            let tree =
+                usvg::Tree::from_data(&image_bytes, &Default::default(), &Default::default())
+                    .map_err(|e| e.to_string())?;
+
+            let bounding_box = tree.root().abs_bounding_box();
+
+            // dimensions & transform chosen so that all svg content appears in the result
+            let mut pix_map = Pixmap::new(bounding_box.width() as _, bounding_box.height() as _)
+                .ok_or("failed to create pixmap")
+                .map_err(|e| e.to_string())?;
+            let transform =
+                Transform::identity().post_translate(-bounding_box.left(), -bounding_box.top());
+            resvg::render(&tree, transform, &mut pix_map.as_mut());
+            pix_map.encode_png().map_err(|e| e.to_string())?
+        } else {
+            // leave non-drawings alone
+            image_bytes
+        }
+    } else {
+        // leave non-lockbook images alone
+        image_bytes
+    };
+
+    let image = image::load_from_memory(&image_bytes).map_err(|e| e.to_string())?;
+    let size_pixels = [image.width() as usize, image.height() as usize];
+
+    let egui_image = egui::ImageData::Color(
+        ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8()).into(),
+    );
+
+    let texture_result = Ok(texture_manager
+        .write()
+        .alloc(title, egui_image, Default::default()));
+
+    // request a frame when the image is done loading
+    ctx.request_repaint();
+
+    texture_result
+}
+
+fn get_maybe_lb_id(file_id: Uuid, url: &String, core: &Lb) -> Result<Option<Uuid>, String> {
+    let maybe_lb_id = match url.strip_prefix("lb://") {
+        Some(id) => Some(Uuid::parse_str(id).map_err(|e| e.to_string())?),
+        None => tab::core_get_by_relative_path(core, file_id, &PathBuf::from(url))
+            .map(|f| f.id)
+            .ok(),
+    };
+    Ok(maybe_lb_id)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, reqwest::Error> {
     let response = client.get(url).send()?.bytes()?.to_vec();
+    Ok(response)
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, reqwest::Error> {
+    let response = client.get(url).send().await?.bytes().await?.to_vec();
     Ok(response)
 }
 

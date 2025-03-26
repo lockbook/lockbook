@@ -14,13 +14,11 @@ use crate::{
 
 use super::{
     eraser::DEFAULT_ERASER_RADIUS,
-    gesture_handler::{
-        get_zoom_fit_transform, transform_canvas, zoom_percentage_to_transform, GestureHandler,
-    },
+    gesture_handler::{zoom_percentage_to_transform, GestureHandler},
     history::History,
     pen::{DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
     selection::Selection,
-    Buffer, CanvasSettings, Eraser, Pen,
+    Buffer, CanvasSettings, Eraser, Pen, SVGEditor,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
@@ -374,7 +372,7 @@ impl Toolbar {
                             };
 
                             if let Some(t) = requested_zoom_change {
-                                transform_canvas(buffer, t);
+                                SVGEditor::transform_canvas(buffer, t);
                             };
 
                             ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
@@ -446,8 +444,10 @@ impl Toolbar {
                                     .show(ui)
                                     .clicked()
                                 {
-                                    if let Some(t) = get_zoom_fit_transform(buffer, ui) {
-                                        transform_canvas(buffer, t);
+                                    if let Some(t) =
+                                        super::SVGEditor::get_zoom_fit_transform(buffer, ui)
+                                    {
+                                        SVGEditor::transform_canvas(buffer, t);
                                     }
                                 };
                             });

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div id="markdown"class="max-w-2xl mx-auto my-24 text-egshell">
+  <h1 class="title">
+    {{ page.title }}
+  </h1>
+  <div>
+    <strong>{{ page.date }}</strong>
+    <p>written by <a href="{{ page.extra.author_link }}" target="_blank">@ {{ page.extra.author }}</a></p>
+  </div>
+  
+  {{ page.content | safe }}  
+</div>
+
+{% endblock content %}
