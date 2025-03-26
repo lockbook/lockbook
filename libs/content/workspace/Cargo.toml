@@ -43,10 +43,10 @@ lb-rs = { path = "../../lb/lb-rs" }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 lb-pdf = { git = "https://github.com/lockbook/lb-pdf" }
-reqwest = { version = "0.11", features = ["rustls-tls", "blocking"] }
+reqwest = { version = "0.11", default_features=false, features = ["rustls-tls", "blocking"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-reqwest = { version = "0.11", features = ["rustls-tls"] }
+reqwest = { version = "0.11", default_features=false, features = ["rustls-tls"] }
 wasm-bindgen-futures = "0.4.50"
 
 
