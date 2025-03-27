@@ -1,13 +1,14 @@
 use std::mem;
 
-use comrak::nodes::{AstNode, NodeValue};
+use comrak::nodes::{AstNode, NodeValue, Sourcepos};
 use egui::epaint::text::Row;
 use egui::text::{CCursor, LayoutJob};
-use egui::{Color32, Pos2, Rangef, Sense, Stroke, TextFormat, Ui, Vec2};
-use lb_rs::model::text::offset_types::RangeExt;
+use egui::{Color32, Id, Pos2, Rangef, Sense, Stroke, TextFormat, Ui, Vec2};
+use lb_rs::model::text::offset_types::RangeExt as _;
 use syntect::easy::HighlightLines;
 
-use crate::tab::markdown_plusplus::widget::{WrapContext, INLINE_PADDING, ROW_SPACING};
+use crate::tab::markdown_plusplus::galleys::GalleyInfo;
+use crate::tab::markdown_plusplus::widget::{WrapContext, INLINE_PADDING, ROW_HEIGHT, ROW_SPACING};
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
@@ -19,55 +20,32 @@ impl<'ast> MarkdownPlusPlus {
         pre_span + mid_span + post_span
     }
 
+    /// Show some text. It must not contain newlines. It doesn't matter if it wraps. It doesn't have to be a whole line.
     pub fn show_text(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
-        text: &str,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+        sourcepos: Sourcepos,
     ) {
-        let sourcepos = node.data.borrow().sourcepos;
         let range = self.sourcepos_to_range(sourcepos);
-        let byte_range = self.buffer.current.segs.range_to_byte(range);
+        let text = &self.buffer[range];
+        let mut galley_start = self.range_to_byte(range).start();
 
         let pre_span = self.text_pre_span(node, wrap);
         let mid_span = self.text_mid_span(node, wrap, pre_span, text);
         let post_span = self.text_post_span(node, wrap, pre_span + mid_span);
 
-        wrap.offset += pre_span;
-
-        // most elements will contain only one line, as newline chars are parsed as soft breaks or node boundaries
-        // this affects only the few elements that contain multi-text instead of inline children e.g. code blocks
-        for (i, line) in text.lines().enumerate() {
-            self.show_text_line(ui, node, top_left, wrap, line);
-
-            // all lines except the last one end in a newline...
-            if i < text.lines().count() - 1 {
-                wrap.offset = wrap.line_end();
-            }
-        }
-
-        // ...and sometimes the last one also ends with a newline
-        if ends_with_newline(text) {
-            wrap.offset = wrap.line_end();
-        }
-
-        wrap.offset += post_span;
-    }
-
-    /// Show a single source line of text. It must not contain newlines. It doesn't matter if it wraps.
-    // Add the pre-span before and the post-span after. This doesn't handle inline padding. This doesn't mutate wrap at all.
-    pub fn show_text_line(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &WrapContext,
-        line: &str,
-    ) {
-        let tmp_wrap = &mut wrap.clone();
-
-        let sourcepos = node.data.borrow().sourcepos;
-        let range = self.sourcepos_to_range(sourcepos);
-        let mut galley_start = self.buffer.current.segs.range_to_byte(range).start();
+        // todo:
+        // * this is a hack to fix line spacing issues with footnote references (mixed font sizes)
+        // * using ROW_HEIGHT on its own would neglect headings
+        // * footnote references in headings currently look bad
+        // * in the target state ROW_HEIGHT is probably not imported at all
+        let row_height = self.row_height(node).max(ROW_HEIGHT);
 
         // we draw the underline & background ourselves
         let mut text_format = self.text_format(node);
         let underline = mem::take(&mut text_format.underline);
         let background = mem::take(&mut text_format.background);
+
+        wrap.offset += pre_span;
 
         // syntax highlighting
         let syntax_theme =
@@ -90,7 +68,7 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         if let Some(highlighter) = highlighter.as_mut() {
-            let Ok(regions) = highlighter.highlight_line(line, &self.syntax_set) else {
+            let Ok(regions) = highlighter.highlight_line(text, &self.syntax_set) else {
                 return;
             };
             for &(ref style, region) in &regions {
@@ -103,17 +81,16 @@ impl<'ast> MarkdownPlusPlus {
                     ..text_format.clone()
                 };
 
-                let region_span = self.text_mid_span(node, tmp_wrap, Default::default(), region);
+                let region_span = self.text_mid_span(node, wrap, Default::default(), region);
 
                 let mut layout_job = LayoutJob::single_section(region.into(), text_format.clone());
-                layout_job.wrap.max_width = tmp_wrap.width;
+                layout_job.wrap.max_width = wrap.width;
                 if let Some(first_section) = layout_job.sections.first_mut() {
-                    first_section.leading_space = tmp_wrap.line_offset();
+                    first_section.leading_space = wrap.line_offset();
                 }
 
                 let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
-                let pos = top_left
-                    + Vec2::new(0., tmp_wrap.line() as f32 * (self.row_height(node) + ROW_SPACING));
+                let pos = top_left + Vec2::new(0., wrap.line() as f32 * (row_height + ROW_SPACING));
 
                 let mut empty_rows = 0;
                 for (i, row) in galley.rows.iter().enumerate() {
@@ -125,19 +102,19 @@ impl<'ast> MarkdownPlusPlus {
                     let rect = row.rect.translate(pos.to_vec2());
                     let rect = rect.translate(Vec2::new(
                         0.,
-                        i as f32 * ROW_SPACING + empty_rows as f32 * self.row_height(node),
+                        i as f32 * ROW_SPACING + empty_rows as f32 * row_height,
                     ));
 
                     // paint galley row-by-row to take control of row spacing
                     let layout_job = LayoutJob::single_section(row.text(), text_format.clone());
                     let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
 
-                    let galley_byte_range = (galley_start, galley_start + region.len());
-                    let galley_range = self.buffer.current.segs.range_to_char(galley_byte_range);
+                    let byte_range = (galley_start, galley_start + region.len());
+                    let range = self.range_to_char(byte_range);
                     let cursor = self.buffer.current.selection.start(); // whatever
-                    if galley_range.contains(cursor, true, true) {
+                    if range.contains(cursor, true, true) {
                         let egui_cursor = galley.from_ccursor(CCursor {
-                            index: (cursor - galley_range.start()).0,
+                            index: (cursor - range.start()).0,
                             prefer_next_row: true,
                         });
 
@@ -146,13 +123,15 @@ impl<'ast> MarkdownPlusPlus {
 
                         ui.painter().vline(
                             max.x,
-                            Rangef { min: max.y - self.row_height(node), max: max.y },
+                            Rangef { min: max.y - row_height, max: max.y },
                             egui::Stroke::new(1., self.theme.fg().accent_primary),
                         );
                     }
 
                     ui.painter()
-                        .galley(rect.left_top(), galley, Default::default());
+                        .galley(rect.left_top(), galley.clone(), Default::default());
+                    let response = ui.interact(rect, Id::new("galley").with(range), Sense::click());
+                    self.galleys.push(GalleyInfo { range, galley, response });
 
                     // debug
                     // ui.painter().rect_stroke(
@@ -162,21 +141,18 @@ impl<'ast> MarkdownPlusPlus {
                     // );
                 }
 
-                tmp_wrap.offset += region_span;
+                wrap.offset += region_span;
                 galley_start += region.len();
             }
         } else {
-            let line_span = self.text_mid_span(node, tmp_wrap, Default::default(), line);
-
-            let mut layout_job = LayoutJob::single_section(line.into(), text_format.clone());
-            layout_job.wrap.max_width = tmp_wrap.width;
+            let mut layout_job = LayoutJob::single_section(text.into(), text_format.clone());
+            layout_job.wrap.max_width = wrap.width;
             if let Some(first_section) = layout_job.sections.first_mut() {
-                first_section.leading_space = tmp_wrap.line_offset();
+                first_section.leading_space = wrap.line_offset();
             }
 
             let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
-            let pos = top_left
-                + Vec2::new(0., tmp_wrap.line() as f32 * (self.row_height(node) + ROW_SPACING));
+            let pos = top_left + Vec2::new(0., wrap.line() as f32 * (row_height + ROW_SPACING));
 
             let spoiler = node
                 .ancestors()
@@ -204,7 +180,7 @@ impl<'ast> MarkdownPlusPlus {
                 let rect = row.rect.translate(pos.to_vec2());
                 let rect = rect.translate(Vec2::new(
                     0.,
-                    i as f32 * ROW_SPACING + empty_rows as f32 * self.row_height(node),
+                    i as f32 * ROW_SPACING + empty_rows as f32 * row_height,
                 ));
 
                 if spoiler {
@@ -236,12 +212,12 @@ impl<'ast> MarkdownPlusPlus {
                     );
                 }
 
-                let galley_byte_range = (galley_start, galley_start + line.len());
-                let galley_range = self.buffer.current.segs.range_to_char(galley_byte_range);
+                let byte_range = (galley_start, galley_start + text.len());
+                let range = self.range_to_char(byte_range);
                 let cursor = self.buffer.current.selection.start(); // whatever
-                if galley_range.contains(cursor, true, true) {
+                if range.contains(cursor, true, true) {
                     let egui_cursor = galley.from_ccursor(CCursor {
-                        index: (cursor - galley_range.start()).0,
+                        index: (cursor - range.start()).0,
                         prefer_next_row: true,
                     });
 
@@ -249,15 +225,21 @@ impl<'ast> MarkdownPlusPlus {
 
                     ui.painter().vline(
                         max.x,
-                        Rangef { min: max.y - self.row_height(node), max: max.y },
+                        Rangef { min: max.y - row_height, max: max.y },
                         egui::Stroke::new(1., self.theme.fg().accent_primary),
                     );
                 }
 
                 ui.painter()
-                    .galley(rect.left_top(), galley, Default::default());
+                    .galley(rect.left_top(), galley.clone(), Default::default());
                 ui.painter()
                     .hline(rect.x_range(), rect.bottom() - 2.0, underline);
+                let response = ui.interact(
+                    rect,
+                    Id::new("galley").with(self.sourcepos_to_range(sourcepos)),
+                    Sense::click(),
+                );
+                self.galleys.push(GalleyInfo { range, galley, response });
 
                 // debug
                 // ui.painter().rect_stroke(
@@ -267,9 +249,12 @@ impl<'ast> MarkdownPlusPlus {
                 // );
             }
 
-            tmp_wrap.offset += line_span;
-            galley_start += line.len();
+            wrap.offset += mid_span;
+            galley_start += text.len();
         }
+
+        // todo: unclear why this isn't needed
+        // wrap.offset += post_span;
     }
 
     fn text_pre_span(&self, node: &AstNode<'_>, wrap: &WrapContext) -> f32 {
@@ -281,7 +266,7 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    fn text_mid_span(
+    pub fn text_mid_span(
         &self, node: &'ast AstNode<'ast>, wrap: &WrapContext, pre_span: f32, text: &str,
     ) -> f32 {
         let mut tmp_wrap = WrapContext { offset: wrap.offset + pre_span, ..*wrap };
@@ -305,26 +290,13 @@ impl<'ast> MarkdownPlusPlus {
             }
         }
 
-        for (i, line) in text.lines().enumerate() {
-            if let Some(highlighter) = highlighter.as_mut() {
-                let Ok(regions) = highlighter.highlight_line(line, &self.syntax_set) else {
-                    continue;
-                };
-                for &(_, region) in &regions {
-                    let mut layout_job =
-                        LayoutJob::single_section(region.into(), self.text_format(node));
-                    layout_job.wrap.max_width = wrap.width;
-                    if let Some(first_section) = layout_job.sections.first_mut() {
-                        first_section.leading_space = tmp_wrap.line_offset();
-                    }
-
-                    let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
-                    for row in &galley.rows {
-                        tmp_wrap.offset += row_span(row, &tmp_wrap);
-                    }
-                }
-            } else {
-                let mut layout_job = LayoutJob::single_section(line.into(), self.text_format(node));
+        if let Some(highlighter) = highlighter.as_mut() {
+            let Ok(regions) = highlighter.highlight_line(text, &self.syntax_set) else {
+                return tmp_wrap.offset - wrap.offset; // intended to be unreachable but not sure
+            };
+            for &(_, region) in &regions {
+                let mut layout_job =
+                    LayoutJob::single_section(region.into(), self.text_format(node));
                 layout_job.wrap.max_width = wrap.width;
                 if let Some(first_section) = layout_job.sections.first_mut() {
                     first_section.leading_space = tmp_wrap.line_offset();
@@ -335,14 +307,17 @@ impl<'ast> MarkdownPlusPlus {
                     tmp_wrap.offset += row_span(row, &tmp_wrap);
                 }
             }
-
-            if i < text.lines().count() - 1 {
-                tmp_wrap.offset = tmp_wrap.line_end();
+        } else {
+            let mut layout_job = LayoutJob::single_section(text.into(), self.text_format(node));
+            layout_job.wrap.max_width = wrap.width;
+            if let Some(first_section) = layout_job.sections.first_mut() {
+                first_section.leading_space = tmp_wrap.line_offset();
             }
-        }
 
-        if ends_with_newline(text) {
-            tmp_wrap.offset = tmp_wrap.line_end();
+            let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
+            for row in &galley.rows {
+                tmp_wrap.offset += row_span(row, &tmp_wrap);
+            }
         }
 
         tmp_wrap.offset - wrap.offset
@@ -375,6 +350,6 @@ fn row_wrap_span(row: &Row, wrap: &WrapContext) -> Option<f32> {
     }
 }
 
-fn ends_with_newline(s: &str) -> bool {
+pub fn ends_with_newline(s: &str) -> bool {
     s.ends_with('\n') || s.ends_with("\r\n")
 }

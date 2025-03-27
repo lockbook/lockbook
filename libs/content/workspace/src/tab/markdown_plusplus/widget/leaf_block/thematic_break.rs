@@ -7,7 +7,7 @@ impl MarkdownPlusPlus {
         ROW_HEIGHT
     }
 
-    pub fn show_thematic_break(&self, ui: &mut Ui, top_left: Pos2, width: f32) {
+    pub fn show_thematic_break(&mut self, ui: &mut Ui, top_left: Pos2, width: f32) {
         let rect = Rect::from_min_size(top_left, Vec2::new(width, ROW_HEIGHT));
 
         ui.painter().hline(

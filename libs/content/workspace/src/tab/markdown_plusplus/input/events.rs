@@ -1,12 +1,15 @@
-use crate::tab::markdown_plusplus::bounds::{BoundCase, BoundExt as _};
-use crate::tab::{self, markdown_plusplus, ClipContent, ExtendedInput as _};
-use egui::{Context, EventFilter};
+use crate::tab::markdown_plusplus::bounds::{BoundCase, BoundExt as _, RangesExt as _};
+use crate::tab::{self, markdown_plusplus, ClipContent, ExtendedInput as _, ExtendedOutput as _};
+use crate::theme::icons::Icon;
+use crate::widgets::IconButton;
+use egui::{Context, EventFilter, Pos2, Stroke, ViewportCommand};
 use lb_rs::model::text::buffer;
-use lb_rs::model::text::offset_types::RangeExt as _;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 use markdown_plusplus::input::{Event, Region};
 use markdown_plusplus::MarkdownPlusPlus;
 
 use super::canonical::translate_egui_keyboard_event;
+use super::{cursor, mutation, Bound, Location};
 
 impl MarkdownPlusPlus {
     pub fn process_events(&mut self, ctx: &Context) -> bool {
@@ -219,7 +222,7 @@ impl MarkdownPlusPlus {
     //             } else if response.clicked() {
     //                 // android native context menu: tapped selection
     //                 if cfg!(target_os = "android") {
-    //                     let offset = pos_to_char_offset(
+    //                     let offset = mutation::pos_to_char_offset(
     //                         pos,
     //                         &self.galleys,
     //                         &self.buffer.current.segs,

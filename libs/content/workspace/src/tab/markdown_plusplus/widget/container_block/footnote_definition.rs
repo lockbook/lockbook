@@ -14,7 +14,7 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_footnote_definition(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
     ) {
         self.show_item(ui, node, top_left, width, ListType::Bullet, Default::default());
     }

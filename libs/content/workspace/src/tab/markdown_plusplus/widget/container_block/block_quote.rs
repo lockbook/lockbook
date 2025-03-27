@@ -14,7 +14,7 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_block_quote(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, mut width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, mut width: f32,
     ) {
         let height = self.height_block_quote(node, width);
         let annotation_size = Vec2 { x: INDENT, y: height };

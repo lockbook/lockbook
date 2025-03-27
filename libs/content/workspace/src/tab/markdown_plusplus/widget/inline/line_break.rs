@@ -5,7 +5,7 @@ impl MarkdownPlusPlus {
         wrap.line_remaining()
     }
 
-    pub fn show_line_break(&self, wrap: &mut WrapContext) {
+    pub fn show_line_break(&mut self, wrap: &mut WrapContext) {
         wrap.offset = wrap.line_end();
     }
 }

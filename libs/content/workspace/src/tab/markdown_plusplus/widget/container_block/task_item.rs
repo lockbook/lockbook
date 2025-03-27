@@ -12,7 +12,7 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_task_item(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, mut width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, mut width: f32,
         maybe_check: Option<char>,
     ) {
         let space = Rect::from_min_size(top_left, Vec2 { x: INDENT, y: ROW_HEIGHT });

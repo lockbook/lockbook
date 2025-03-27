@@ -13,7 +13,7 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_item(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, mut width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, mut width: f32,
         list_type: ListType, start: usize,
     ) {
         // todo: better bullet position for headings in list items

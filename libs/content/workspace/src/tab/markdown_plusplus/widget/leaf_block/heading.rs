@@ -1,7 +1,9 @@
 use comrak::nodes::AstNode;
 use egui::{FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
+use lb_rs::model::text::offset_types::{RangeExt as _, RelByteOffset};
 
 use crate::tab::markdown_plusplus::{
+    bounds::RangesExt as _,
     widget::{WrapContext, ROW_HEIGHT},
     MarkdownPlusPlus,
 };
@@ -30,7 +32,8 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_heading(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, width: f32, level: u8,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, width: f32,
+        level: u8, setext: bool,
     ) {
         let mut wrap = WrapContext::new(width);
 
@@ -46,5 +49,37 @@ impl<'ast> MarkdownPlusPlus {
                 Stroke { width: 1.0, color: self.theme.bg().neutral_tertiary },
             );
         }
+
+        // bounds
+        let sourcepos = node.data.borrow().sourcepos;
+        let range = self.sourcepos_to_range(sourcepos);
+
+        if !setext {
+            // https://github.github.com/gfm/#atx-headings
+
+            // # ATX heading
+            let text_start_byte = self.offset_to_byte(range.start());
+            let prefix_length = RelByteOffset(level as usize + 1);
+            let text_start_byte = text_start_byte + prefix_length;
+            let text_start_char = self.offset_to_char(text_start_byte);
+
+            self.bounds.paragraphs.push((text_start_char, range.end()));
+        } else {
+            // https://github.github.com/gfm/#setext-headings
+
+            // Setext
+            // heading
+            // --------------
+            let heading_end_line = self
+                .bounds
+                .source_lines
+                .find_containing(range.end(), true, true)
+                .end();
+            let text_end_line = heading_end_line - 1;
+            let text_end_char = self.bounds.source_lines[text_end_line].end();
+            self.bounds.paragraphs.push((range.start(), text_end_char))
+        }
+
+        self.bounds.paragraphs.push(range);
     }
 }
