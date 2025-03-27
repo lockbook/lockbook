@@ -7,12 +7,14 @@ use comrak::nodes::{AstNode, LineColumn, Sourcepos};
 use comrak::{Arena, Options};
 use core::time::Duration;
 use egui::{
-    Context, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Rect, ScrollArea, Stroke, Ui,
-    Vec2,
+    Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Rect,
+    ScrollArea, Stroke, Ui, Vec2,
 };
+use galleys::Galleys;
 use input::cursor::CursorState;
 use input::mutation::EventState;
 use lb_rs::model::text::buffer::Buffer;
+use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset};
 use lb_rs::{blocking::Lb, Uuid};
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
@@ -21,6 +23,7 @@ use widget::inline::image::cache::ImageCache;
 use widget::{MARGIN, MAX_WIDTH, ROW_HEIGHT};
 
 mod bounds;
+mod galleys;
 mod input;
 mod output;
 mod style;
@@ -48,11 +51,12 @@ pub struct MarkdownPlusPlus {
     pub initialized: bool,
 
     // internal systems
+    pub bounds: Bounds,
     pub buffer: Buffer,
     pub cursor: CursorState,
-    pub images: ImageCache,
-    pub bounds: Bounds,
     pub event: EventState,
+    pub galleys: Galleys,
+    pub images: ImageCache,
 
     // widgets
     // pub toolbar: Toolbar,
@@ -107,7 +111,42 @@ impl MarkdownPlusPlus {
             cursor: Default::default(),
             event: Default::default(),
             virtual_keyboard_shown: Default::default(),
+            galleys: Default::default(),
         }
+    }
+
+    pub fn id(&self) -> Id {
+        Id::new(self.file_id)
+    }
+
+    pub fn focus(&mut self, ctx: &Context) {
+        ctx.memory_mut(|m| {
+            m.request_focus(self.id());
+        });
+    }
+
+    pub fn focus_lock(&mut self, ctx: &Context) {
+        ctx.memory_mut(|m| {
+            m.set_focus_lock_filter(
+                self.id(),
+                EventFilter {
+                    tab: true,
+                    horizontal_arrows: true,
+                    vertical_arrows: true,
+                    escape: true,
+                },
+            );
+        });
+    }
+
+    pub fn focused(&self, ctx: &Context) -> bool {
+        ctx.memory(|m| m.has_focus(self.id()))
+    }
+
+    pub fn surrender_focus(&self, ctx: &Context) {
+        ctx.memory_mut(|m| {
+            m.surrender_focus(self.id());
+        });
     }
 
     pub fn show(&mut self, ui: &mut Ui) {
@@ -228,6 +267,32 @@ impl MarkdownPlusPlus {
             max_rect.height() / 2.
         };
         ui.allocate_space(max_rect.size() - Vec2::new(0., ROW_HEIGHT));
+    }
+
+    // tired of writing ".buffer.current.segs" all the time
+    // todo: find a better home
+    pub fn offset_to_byte(&self, i: DocCharOffset) -> DocByteOffset {
+        self.buffer.current.segs.offset_to_byte(i)
+    }
+
+    pub fn range_to_byte(
+        &self, i: (DocCharOffset, DocCharOffset),
+    ) -> (DocByteOffset, DocByteOffset) {
+        self.buffer.current.segs.range_to_byte(i)
+    }
+
+    pub fn offset_to_char(&self, i: DocByteOffset) -> DocCharOffset {
+        self.buffer.current.segs.offset_to_char(i)
+    }
+
+    pub fn range_to_char(
+        &self, i: (DocByteOffset, DocByteOffset),
+    ) -> (DocCharOffset, DocCharOffset) {
+        self.buffer.current.segs.range_to_char(i)
+    }
+
+    pub fn last_cursor_position(&self) -> DocCharOffset {
+        self.buffer.current.segs.last_cursor_position()
     }
 }
 

@@ -33,7 +33,7 @@ impl MarkdownPlusPlus {
         }
     }
 
-    pub fn show_image_block(&self, ui: &mut Ui, top_left: Pos2, width: f32, url: &str) {
+    pub fn show_image_block(&mut self, ui: &mut Ui, top_left: Pos2, width: f32, url: &str) {
         if let Some(image_state) = self.images.map.get(url) {
             let image_state = image_state.lock().unwrap().deref().clone();
             match image_state {

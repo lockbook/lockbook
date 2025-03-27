@@ -33,7 +33,7 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_table_row(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
         is_header_row: bool,
     ) {
         let height = self.height_table_row(node, width);

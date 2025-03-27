@@ -19,10 +19,13 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_footnote_reference(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
-        ix: u32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
     ) {
-        let text = format!("{}", ix);
-        self.show_text(ui, node, top_left, wrap, &text);
+        // [^footnotereference]
+        let mut sourcepos = node.data.borrow().sourcepos;
+        sourcepos.start.column += 2;
+        sourcepos.end.column -= 1;
+
+        self.show_text(ui, node, top_left, wrap, sourcepos);
     }
 }

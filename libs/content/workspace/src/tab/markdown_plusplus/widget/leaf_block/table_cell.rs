@@ -24,7 +24,8 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_table_cell(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, wrap: &mut WrapContext,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
+        wrap: &mut WrapContext,
     ) {
         top_left += Vec2::splat(BLOCK_PADDING);
         let width = wrap.width - 2.0 * BLOCK_PADDING;
@@ -38,5 +39,10 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         self.show_inline_children(ui, node, top_left, &mut WrapContext::new(width));
+
+        // bounds
+        let sourcepos = node.data.borrow().sourcepos;
+        let range = self.sourcepos_to_range(sourcepos);
+        self.bounds.paragraphs.push(range);
     }
 }

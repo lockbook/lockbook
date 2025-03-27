@@ -5,7 +5,7 @@ impl MarkdownPlusPlus {
         self.span_line_break(wrap)
     }
 
-    pub fn show_soft_break(&self, wrap: &mut WrapContext) {
+    pub fn show_soft_break(&mut self, wrap: &mut WrapContext) {
         self.show_line_break(wrap);
     }
 }

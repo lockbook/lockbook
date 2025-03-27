@@ -13,7 +13,7 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_multiline_block_quote(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
     ) {
         self.show_block_quote(ui, node, top_left, width);
     }

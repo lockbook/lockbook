@@ -9,12 +9,14 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn height_html_block(&self, node: &'ast AstNode<'ast>, width: f32, html: &str) -> f32 {
-        self.height_code_block(node, width, html)
+        self.height_indented_code_block(node, width, "html", html)
     }
 
     pub fn show_html_block(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32, html: &str,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32, html: &str,
     ) {
-        self.show_code_block(ui, node, top_left, width, html, "html");
+        // servo doesn't ship as a library yet so we render HTML as code instead
+        // we show an indented code block bc we don't have an editable info string
+        self.show_indented_code_block(ui, node, top_left, width, "html", html);
     }
 }

@@ -20,7 +20,8 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_paragraph(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, wrap: &mut WrapContext,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
+        wrap: &mut WrapContext,
     ) {
         for descendant in node.descendants() {
             if let NodeValue::Image(NodeLink { url, .. }) = &descendant.data.borrow().value {
@@ -31,5 +32,10 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         self.show_inline_children(ui, node, top_left, wrap);
+
+        // bounds
+        let sourcepos = node.data.borrow().sourcepos;
+        let range = self.sourcepos_to_range(sourcepos);
+        self.bounds.paragraphs.push(range);
     }
 }

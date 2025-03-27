@@ -46,7 +46,8 @@ pub struct Bounds {
     pub lines: Lines,
 
     /// Paragraphs are separated by newline characters. All inlines are contained within a paragraph. This definition
-    /// includes table cells, code block info strings, and everywhere else that shows editable text.
+    /// includes table cells, code block info strings, and everywhere else that shows editable text. Paragraphs also
+    /// contain hidden characters like captured syntax that should be copied with selected text.
     /// * Documents have at least one paragraph.
     /// * Paragraphs can be empty.
     /// * Paragraphs cannot touch.
@@ -76,13 +77,16 @@ impl<'ast> MarkdownPlusPlus {
             };
             let end = start + exclusive_length;
 
-            let range = self.buffer.current.segs.range_to_char((start, end));
+            let range = self.range_to_char((start, end));
             self.bounds.source_lines.push(range);
 
             start += inclusive_length;
         }
     }
 
+    /// Translates a comrak::LineColumn into an lb_rs::DocCharOffset. Note that comrak's text ranges, represented using
+    /// comrak::Sourcepos, are inclusive/inclusive so just translating the start and end using this function is
+    /// incorrect - use [`sourcepos_to_range`] instead.
     pub fn line_column_to_offset(&self, line_column: LineColumn) -> DocCharOffset {
         // convert cardinal to ordinal
         let line_column = LineColumn { line: line_column.line - 1, column: line_column.column - 1 };
@@ -92,9 +96,23 @@ impl<'ast> MarkdownPlusPlus {
             .source_lines
             .get(line_column.line)
             .expect("source line should be in bounds");
-        let line_start_byte = self.buffer.current.segs.offset_to_byte(line.start());
+        let line_start_byte = self.offset_to_byte(line.start());
         let line_column_byte = line_start_byte + line_column.column;
-        self.buffer.current.segs.offset_to_char(line_column_byte)
+        self.offset_to_char(line_column_byte)
+    }
+
+    pub fn offset_to_line_column(&self, offset: DocCharOffset) -> LineColumn {
+        let line_idx = self
+            .bounds
+            .source_lines
+            .find_containing(offset, true, true)
+            .start();
+        let line = self.bounds.source_lines[line_idx];
+        let line_start_byte = self.offset_to_byte(line.start());
+        let line_column_byte = self.offset_to_byte(offset) - line_start_byte;
+
+        // convert ordinal to cardinal
+        LineColumn { line: line_idx + 1, column: line_column_byte.0 + 1 }
     }
 
     pub fn sourcepos_to_range(&self, sourcepos: Sourcepos) -> (DocCharOffset, DocCharOffset) {
@@ -103,6 +121,16 @@ impl<'ast> MarkdownPlusPlus {
 
         // convert (inc, inc) pair to (inc, exc) pair
         (start, end + 1)
+    }
+
+    pub fn range_to_sourcepos(&self, range: (DocCharOffset, DocCharOffset)) -> Sourcepos {
+        // convert (inc, exc) pair to (inc, inc) pair
+        let range = (range.0, range.1 - 1);
+
+        let start = self.offset_to_line_column(range.0);
+        let end = self.offset_to_line_column(range.1);
+
+        Sourcepos { start, end }
     }
 
     pub fn calc_paragraphs(&self, node: &'ast AstNode<'ast>) -> Paragraphs {
@@ -176,19 +204,12 @@ impl<'ast> MarkdownPlusPlus {
                         let info_line_text = &self.buffer[info_line_range];
                         let info_indent_bytes =
                             RelByteOffset(info_line_text.len() - info_line_text.trim_start().len());
-                        let info_start_byte = self
-                            .buffer
-                            .current
-                            .segs
-                            .offset_to_byte(info_line_range.start())
+                        let info_start_byte = self.offset_to_byte(info_line_range.start())
                             + fence_offset
                             + fence_length
                             + info_indent_bytes;
-                        let info_range = self
-                            .buffer
-                            .current
-                            .segs
-                            .range_to_char((info_start_byte, info_start_byte + info_length));
+                        let info_range =
+                            self.range_to_char((info_start_byte, info_start_byte + info_length));
                         result.push(info_range);
 
                         if sourcepos.end.line - sourcepos.start.line > 0 {
@@ -197,11 +218,9 @@ impl<'ast> MarkdownPlusPlus {
                                 self.bounds.source_lines[first_code_line_idx];
 
                             let code_start_char = first_code_line_range.start();
-                            let code_start_byte =
-                                self.buffer.current.segs.offset_to_byte(code_start_char);
+                            let code_start_byte = self.offset_to_byte(code_start_char);
                             let code_end_byte = code_start_byte + code_length;
-                            let code_end_char =
-                                self.buffer.current.segs.offset_to_char(code_end_byte);
+                            let code_end_char = self.offset_to_char(code_end_byte);
 
                             result.push((code_start_char, code_end_char)); // todo: split lines
                         }
@@ -219,12 +238,10 @@ impl<'ast> MarkdownPlusPlus {
                         // https://github.github.com/gfm/#atx-headings
 
                         // # ATX heading
-                        let text_start_byte =
-                            self.buffer.current.segs.offset_to_byte(range.start());
+                        let text_start_byte = self.offset_to_byte(range.start());
                         let prefix_length = RelByteOffset(*level as usize + 1);
                         let text_start_byte = text_start_byte + prefix_length;
-                        let text_start_char =
-                            self.buffer.current.segs.offset_to_char(text_start_byte);
+                        let text_start_char = self.offset_to_char(text_start_byte);
 
                         result.push((text_start_char, range.end()));
                     } else {
