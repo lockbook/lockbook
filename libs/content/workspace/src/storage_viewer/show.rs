@@ -2,8 +2,7 @@ use super::data::{self, StorageCell};
 use color_art;
 use colors_transform::{self, Color};
 use egui::{
-    self, menu, Align2, Color32, FontFamily, FontId, Id, LayerId, Pos2, Rect, Rounding, Sense,
-    Stroke, TextWrapMode, Ui,
+    self, menu, Color32, Id, LayerId, Pos2, Rect, Rounding, Sense, Stroke, TextWrapMode, Ui,
 };
 use lb_rs::blocking::Lb;
 use lb_rs::model::file::File;
