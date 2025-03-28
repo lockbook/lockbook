@@ -13,6 +13,12 @@ pub struct Data {
     pub root: Uuid,
 }
 
+#[derive(Debug, Deserialize, Clone, Hash, PartialEq, Eq)]
+pub struct FileRow {
+    pub file: File,
+    pub size: u64,
+}
+
 /// Stores information in a tree format returned by get_children()
 #[derive(PartialEq, Debug, Clone)]
 pub struct StorageTree {
@@ -31,19 +37,13 @@ pub struct StorageCell {
     pub layer: u64,
 }
 
-#[derive(Debug, Deserialize, Clone, Hash, PartialEq, Eq)]
-pub struct FileRow {
-    pub file: File,
-    pub size: u64,
-}
-
 impl Data {
     pub fn init(lb: Lb, potential_root: Option<File>) -> Self {
         let data = Self::get_filerows(lb);
         let mut all_files = HashMap::new();
         let mut root = Uuid::nil();
         for datum in data.clone() {
-            if datum.file.id == datum.file.parent {
+            if datum.file.is_root() {
                 root = datum.file.id;
             }
             all_files.insert(datum.file.id, datum);
