@@ -45,7 +45,7 @@ impl StorageViewer {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        //Start of pre ui checks
+        // Start of pre ui checks
         let window = ui.available_rect_before_wrap();
 
         if self.paint_order.is_empty() || window != self.current_rect {
@@ -53,7 +53,7 @@ impl StorageViewer {
             self.paint_order = self.data.get_paint_order();
         }
 
-        //Top buttons
+        // Top buttons
         ui.with_layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(1) }, |ui| {
             let top_left_rect = Rect { min: window.left_top(), max: window.center_top() };
             ui.allocate_ui_at_rect(top_left_rect, |ui| {
@@ -70,7 +70,7 @@ impl StorageViewer {
             });
         });
 
-        //Root drawing logic
+        // Root drawing logic
         let root_draw_anchor = Rect {
             min: Pos2 { x: self.current_rect.min.x, y: self.current_rect.max.y - 40.0 },
             max: self.current_rect.max,
@@ -81,29 +81,42 @@ impl StorageViewer {
         let painter = ui.painter();
         painter
             .clone()
-            //.with_layer_id(LayerId { order: egui::Order::Middle, id: Id::new(1) })
             .rect_filled(root_draw_anchor, 0.0, Color32::WHITE);
 
-        painter
-            .clone()
-            .with_layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(2) })
-            .text(
-                bottom_text.min,
-                Align2::CENTER_BOTTOM,
-                bytes_to_human(
-                    *self
-                        .data
-                        .folder_sizes
-                        .get(&self.data.focused_folder)
-                        .unwrap(),
-                ),
-                FontId { size: 15.0, family: FontFamily::Proportional },
-                Color32::BLACK,
-            );
+        // Root text logic
+
+        let tab_intel: egui::WidgetText = egui::RichText::new(bytes_to_human(
+            *self
+                .data
+                .folder_sizes
+                .get(&self.data.focused_folder)
+                .unwrap(),
+        ))
+        .font(egui::FontId::monospace(15.0))
+        .color(Color32::BLACK)
+        .into();
+
+        let tab_intel_galley = tab_intel.into_galley(
+            ui,
+            Some(TextWrapMode::Extend),
+            bottom_text.width(),
+            egui::TextStyle::Body,
+        );
+
+        let tab_intel_rect = egui::Align2::LEFT_TOP.anchor_size(
+            Pos2 { x: bottom_text.left_center().x - 15.0, y: bottom_text.left_center().y - 15.0 },
+            tab_intel_galley.size(),
+        );
+
+        ui.painter().galley(
+            tab_intel_rect.left_center(),
+            tab_intel_galley,
+            ui.visuals().text_color(),
+        );
 
         ui.allocate_ui_at_rect(
             Rect {
-                min: Pos2 { x: bottom_text.min.x - 30.0, y: bottom_text.min.y - 15.0 },
+                min: Pos2 { x: tab_intel_rect.min.x, y: tab_intel_rect.min.y - 15.0 },
                 max: bottom_text.max,
             },
             |ui| {
@@ -139,9 +152,9 @@ impl StorageViewer {
             },
         );
 
-        //Starts drawing the rest of the folders and files
+        // Starts drawing the rest of the folders and files
         let potential_new_root = self.follow_paint_order(ui, root_draw_anchor, window);
-        //assigning a new root if selected
+        // assigning a new root if selected
         if potential_new_root.is_some() {
             self.change_root(potential_new_root.unwrap())
         }
@@ -159,6 +172,7 @@ impl StorageViewer {
 
     pub fn get_color(&self, curr_id: Uuid, mut layer: usize, mut child_number: usize) -> Color32 {
         let big_table = [
+            // red
             [
                 Color32::from_rgb(128, 15, 47),
                 Color32::from_rgb(164, 19, 60),
@@ -167,7 +181,7 @@ impl StorageViewer {
                 Color32::from_rgb(255, 117, 143),
                 Color32::from_rgb(255, 143, 163),
             ],
-            //green
+            // green
             [
                 Color32::from_rgb(27, 67, 50),
                 Color32::from_rgb(45, 106, 79),
@@ -176,7 +190,7 @@ impl StorageViewer {
                 Color32::from_rgb(116, 198, 157),
                 Color32::from_rgb(116, 198, 157),
             ],
-            //blue
+            // blue
             [
                 Color32::from_rgb(2, 62, 138),
                 Color32::from_rgb(0, 119, 182),
@@ -273,10 +287,10 @@ impl StorageViewer {
                     child_number - 1,
                 ));
 
-            //Folder text logic
+            // Folder text logic
             if window.contains(paint_rect.min) {
                 let tab_intel: egui::WidgetText = egui::RichText::new(item.name.clone())
-                    .font(egui::FontId::monospace(0.24 * self.layer_height))
+                    .font(egui::FontId::monospace(0.2 * self.layer_height))
                     .color({
                         let hsl_color = colors_transform::Rgb::from(
                             current_color.r().into(),
@@ -302,17 +316,20 @@ impl StorageViewer {
                         .unwrap_or(Color32::DEBUG_COLOR)
                     })
                     .into();
+
                 let tab_intel_galley = tab_intel.into_galley(
                     ui,
                     Some(TextWrapMode::Truncate),
                     paint_rect.width() - 5.0,
                     egui::TextStyle::Body,
                 );
+
                 let tab_intel_rect = egui::Align2::LEFT_TOP.anchor_size(
                     Pos2 { x: paint_rect.left_center().x + 5.0, y: paint_rect.left_center().y },
                     tab_intel_galley.size(),
                 );
 
+                // painting info
                 painter.clone().rect(
                     paint_rect,
                     Rounding::ZERO,
@@ -328,13 +345,13 @@ impl StorageViewer {
                     );
                 }
 
+                // Click and hover logic
+
                 let display_size = if item_filerow.file.is_folder() {
                     bytes_to_human(*self.data.folder_sizes.get(&item.id).unwrap())
                 } else {
                     bytes_to_human(item_filerow.size)
                 };
-
-                //Click and hover logic
 
                 let hover_text = "Name:\n".to_owned()
                     + &self
