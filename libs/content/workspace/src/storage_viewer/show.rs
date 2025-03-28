@@ -107,36 +107,34 @@ impl StorageViewer {
                 max: bottom_text.max,
             },
             |ui| {
-                ui.with_layer_id(
-                    LayerId { order: egui::Order::Background, id: Id::new(1) },
-                    |ui| {
-                        ui.label(bytes_to_human(
+                ui.colored_label(
+                    Color32::TRANSPARENT,
+                    bytes_to_human(
+                        *self
+                            .data
+                            .folder_sizes
+                            .get(&self.data.focused_folder)
+                            .unwrap(),
+                    ),
+                )
+                .on_hover_text(
+                    "Name:\n".to_owned()
+                        + &self
+                            .data
+                            .all_files
+                            .get(&self.data.focused_folder)
+                            .unwrap()
+                            .file
+                            .name
+                            .to_string()
+                        + "\nSize:\n"
+                        + &bytes_to_human(
                             *self
                                 .data
                                 .folder_sizes
                                 .get(&self.data.focused_folder)
                                 .unwrap(),
-                        ))
-                        .on_hover_text(
-                            "Name:\n".to_owned()
-                                + &self
-                                    .data
-                                    .all_files
-                                    .get(&self.data.focused_folder)
-                                    .unwrap()
-                                    .file
-                                    .name
-                                    .to_string()
-                                + "\nSize:\n"
-                                + &bytes_to_human(
-                                    *self
-                                        .data
-                                        .folder_sizes
-                                        .get(&self.data.focused_folder)
-                                        .unwrap(),
-                                ),
-                        );
-                    },
+                        ),
                 );
             },
         );
