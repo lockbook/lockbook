@@ -16,9 +16,10 @@ use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use tantivy::collector::TopDocs;
 use tantivy::query::{QueryParser, RegexQuery};
-use tantivy::schema::{Schema, STORED, TEXT};
+use tantivy::schema::{Schema, Value, STORED, TEXT};
 use tantivy::{
-    doc, Document, Index, IndexReader, IndexWriter, ReloadPolicy, SnippetGenerator, TantivyDocument,
+    doc, Document, Index, IndexReader, IndexWriter, ReloadPolicy, SnippetGenerator,
+    TantivyDocument, Term,
 };
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -62,34 +63,32 @@ impl Lb {
                 Ok(results)
             }
             SearchConfig::Documents => {
-                let mut results = self.search_content(input)?;
+                let mut results = self.search_content(input).await?;
                 results.truncate(10);
                 Ok(results)
             }
             SearchConfig::PathsAndDocuments => {
                 let mut results = self.search.metadata_index.read().await.path_search(input)?;
                 results.truncate(4);
-                results.append(&mut self.search_content(input)?);
+                results.append(&mut self.search_content(input).await?);
                 Ok(results)
             }
         }
     }
 
-    fn search_content(&self, input: &str) -> LbResult<Vec<SearchResult>> {
+    async fn search_content(&self, input: &str) -> LbResult<Vec<SearchResult>> {
         let searcher = self.search.tantivy_reader.searcher();
         let schema = self.search.tantivy_index.schema();
-        let title = schema.get_field("title").unwrap();
+        let id_field = schema.get_field("id").unwrap();
         let content = schema.get_field("content").unwrap();
 
-        let query_parser = QueryParser::for_index(&self.search.tantivy_index, vec![title, content]);
+        let query_parser = QueryParser::for_index(&self.search.tantivy_index, vec![content]);
 
         let query = query_parser.parse_query(input).map_unexpected()?;
 
         let mut snippet_generator =
             SnippetGenerator::create(&searcher, &query, content).map_unexpected()?;
         snippet_generator.set_max_num_chars(100);
-
-        let title_snip = SnippetGenerator::create(&searcher, &query, title).map_unexpected()?;
 
         let top_docs = searcher
             .search(&query, &TopDocs::with_limit(10))
@@ -98,30 +97,35 @@ impl Lb {
         let mut results = vec![];
         for (_score, doc_address) in top_docs {
             let retrieved_doc: TantivyDocument = searcher.doc(doc_address).map_unexpected()?;
-            for (field, _) in retrieved_doc.get_sorted_field_values() {
-                if field == title {
-                    let title = title_snip.snippet_from_doc(&retrieved_doc);
-                    results.push(SearchResult::PathMatch {
-                        id: Uuid::nil(), // todo
-                        path: title.fragment().to_string(),
-                        matched_indices: Self::highlight_to_matches(title.highlighted()),
-                        score: 0,
-                    });
-                }
+            let id = Uuid::from_slice(
+                retrieved_doc
+                    .get_first(id_field)
+                    .map(|val| val.as_bytes().unwrap_or_default())
+                    .unwrap_or_default(),
+            )
+            .map_unexpected()?;
 
-                if field == content {
-                    let snippet = snippet_generator.snippet_from_doc(&retrieved_doc);
-                    results.push(SearchResult::DocumentMatch {
-                        id: Uuid::nil(),      // todo
-                        path: "".to_string(), // todo
-                        content_matches: vec![ContentMatch {
-                            paragraph: snippet.fragment().to_string(),
-                            matched_indices: Self::highlight_to_matches(snippet.highlighted()),
-                            score: 0,
-                        }],
-                    });
-                }
-            }
+            let snippet = snippet_generator.snippet_from_doc(&retrieved_doc);
+            let path = self
+                .search
+                .metadata_index
+                .read()
+                .await
+                .paths
+                .iter()
+                .find(|(path_id, _)| *path_id == id)
+                .map(|(_, path)| path.to_string())
+                .unwrap_or_default();
+
+            results.push(SearchResult::DocumentMatch {
+                id,
+                path,
+                content_matches: vec![ContentMatch {
+                    paragraph: snippet.fragment().to_string(),
+                    matched_indices: Self::highlight_to_matches(snippet.highlighted()),
+                    score: 0,
+                }],
+            });
         }
         Ok(results)
     }
@@ -153,6 +157,8 @@ impl Lb {
             .writer(50_000_000)
             .map_unexpected()?;
 
+        let id = schema.get_field("id").unwrap();
+        let id_str = schema.get_field("id_str").unwrap();
         let content = schema.get_field("content").unwrap();
 
         let metadata_index = SearchMetadata::populate(self).await?;
@@ -166,8 +172,14 @@ impl Lb {
             if doc.len() > CONTENT_MAX_LEN_BYTES {
                 continue;
             };
+
+            let id_bytes = file.id.as_bytes().as_slice();
+            let id_string = file.id.to_string();
+
             index_writer
                 .add_document(doc!(
+                    id => id_bytes,
+                    id_str => id_string,
                     content => doc,
                 ))
                 .map_unexpected()?;
@@ -197,8 +209,60 @@ impl Lb {
                     };
 
                     match evt {
-                        Event::MetadataChanged => {}
-                        Event::DocumentWritten(id) => {}
+                        Event::MetadataChanged => {
+                            if let Some(replacement_index) =
+                                SearchMetadata::populate(&lb).await.log_and_ignore()
+                            {
+                                *lb.search.metadata_index.write().await = replacement_index;
+                            }
+                        }
+                        Event::DocumentWritten(id) => {
+                            let Some(file) = lb
+                                .search
+                                .metadata_index
+                                .read()
+                                .await
+                                .files
+                                .iter()
+                                .find(|f| f.id == id)
+                                .cloned()
+                            else {
+                                continue;
+                            };
+
+                            let schema = lb.search.tantivy_index.schema();
+                            let id_field = schema.get_field("id").unwrap();
+                            let id_str = schema.get_field("id_str").unwrap();
+                            let content = schema.get_field("content").unwrap();
+                            let term = Term::from_field_text(id_str, &id.to_string());
+                            let mut index_writer: IndexWriter =
+                                lb.search.tantivy_index.writer(50_000_000).unwrap();
+                            index_writer.delete_term(term);
+
+                            let id_bytes = id.as_bytes().as_slice();
+                            let id_string = id.to_string();
+
+                            if !file.name.ends_with(".md") || file.is_folder() {
+                                continue;
+                            };
+                            let doc =
+                                String::from_utf8(lb.read_document(file.id, false).await.unwrap())
+                                    .unwrap();
+
+                            if doc.len() > CONTENT_MAX_LEN_BYTES {
+                                continue;
+                            };
+
+                            index_writer
+                                .add_document(doc!(
+                                    id_field => id_bytes,
+                                    id_str => id_string,
+                                    content => doc,
+                                ))
+                                .unwrap();
+
+                            index_writer.commit().unwrap();
+                        }
                         _ => {}
                     };
                 }
@@ -210,7 +274,8 @@ impl Lb {
 impl Default for SearchIndex {
     fn default() -> Self {
         let mut schema_builder = Schema::builder();
-        schema_builder.add_text_field("title", TEXT | STORED);
+        schema_builder.add_bytes_field("id", STORED);
+        schema_builder.add_text_field("id_str", TEXT | STORED);
         schema_builder.add_text_field("content", TEXT | STORED);
 
         let schema = schema_builder.build();
