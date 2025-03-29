@@ -11,8 +11,7 @@ use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::{Schema, Value, STORED, TEXT};
 use tantivy::{
-    doc, Index, IndexReader, IndexWriter, ReloadPolicy, SnippetGenerator,
-    TantivyDocument, Term,
+    doc, Index, IndexReader, IndexWriter, ReloadPolicy, SnippetGenerator, TantivyDocument, Term,
 };
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -328,10 +327,7 @@ impl SearchMetadata {
         let mut deleted_ids = vec![];
 
         for old_file in &old.files {
-            if !self
-                .files
-                .iter().any(|new_f| new_f.id == old_file.id)
-            {
+            if !self.files.iter().any(|new_f| new_f.id == old_file.id) {
                 deleted_ids.push(old_file.id);
             }
         }
@@ -422,7 +418,8 @@ impl SearchMetadata {
         // items in suggested docs have their score boosted
         for cand in candidates.iter_mut() {
             if self.suggested_docs.contains(&cand.id()) {
-                if let SearchResult::PathMatch { id: _, path: _, matched_indices: _, score } = cand {
+                if let SearchResult::PathMatch { id: _, path: _, matched_indices: _, score } = cand
+                {
                     *score += suggested;
                 }
             }
