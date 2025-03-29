@@ -1,24 +1,17 @@
-use crate::model::errors::{LbErr, LbErrKind, LbResult, Unexpected, UnexpectedError};
+use crate::model::errors::{LbResult, Unexpected};
 use crate::model::file::File;
-use crate::model::filename::DocumentType;
 use crate::service::activity::RankingWeights;
 use crate::service::events::Event;
 use crate::Lb;
-use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
 use serde::Serialize;
-use std::collections::HashMap;
-use std::num::NonZeroUsize;
 use std::ops::Range;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
-use sublime_fuzzy::{FuzzySearch, Scoring};
 use tantivy::collector::TopDocs;
-use tantivy::query::{QueryParser, RegexQuery};
+use tantivy::query::QueryParser;
 use tantivy::schema::{Schema, Value, STORED, TEXT};
 use tantivy::{
-    doc, Document, Index, IndexReader, IndexWriter, ReloadPolicy, SnippetGenerator,
+    doc, Index, IndexReader, IndexWriter, ReloadPolicy, SnippetGenerator,
     TantivyDocument, Term,
 };
 use tokio::sync::RwLock;
@@ -149,45 +142,10 @@ impl Lb {
             return Ok(());
         }
 
-        let schema = self.search.tantivy_index.schema();
-
-        let mut index_writer: IndexWriter = self
-            .search
-            .tantivy_index
-            .writer(50_000_000)
-            .map_unexpected()?;
-
-        let id = schema.get_field("id").unwrap();
-        let id_str = schema.get_field("id_str").unwrap();
-        let content = schema.get_field("content").unwrap();
-
         let metadata_index = SearchMetadata::populate(self).await?;
-
-        for file in &metadata_index.files {
-            if !file.name.ends_with(".md") || file.is_folder() {
-                continue;
-            };
-            let doc = String::from_utf8(self.read_document(file.id, false).await?).unwrap();
-
-            if doc.len() > CONTENT_MAX_LEN_BYTES {
-                continue;
-            };
-
-            let id_bytes = file.id.as_bytes().as_slice();
-            let id_string = file.id.to_string();
-
-            index_writer
-                .add_document(doc!(
-                    id => id_bytes,
-                    id_str => id_string,
-                    content => doc,
-                ))
-                .map_unexpected()?;
-        }
-
-        index_writer.commit().map_unexpected()?;
-
-        *self.search.metadata_index.write().await = metadata_index;
+        *self.search.metadata_index.write().await = metadata_index.clone();
+        self.update_tantivy(vec![], metadata_index.files.iter().map(|f| f.id).collect())
+            .await;
 
         Ok(())
     }
@@ -215,74 +173,68 @@ impl Lb {
                             {
                                 let current_index = lb.search.metadata_index.read().await.clone();
                                 let deleted_ids = replacement_index.compute_deleted(&current_index);
-
-                                if !deleted_ids.is_empty() {
-                                    let schema = lb.search.tantivy_index.schema();
-                                    let id_str = schema.get_field("id_str").unwrap();
-                                    let mut index_writer: IndexWriter =
-                                        lb.search.tantivy_index.writer(50_000_000).unwrap();
-                                    for id in deleted_ids {
-                                        let term = Term::from_field_text(id_str, &id.to_string());
-                                        index_writer.delete_term(term);
-                                    }
-                                    index_writer.commit().unwrap();
-                                }
-
                                 *lb.search.metadata_index.write().await = replacement_index;
+                                lb.update_tantivy(vec![], deleted_ids).await;
                             }
                         }
                         Event::DocumentWritten(id) => {
-                            let Some(file) = lb
-                                .search
-                                .metadata_index
-                                .read()
-                                .await
-                                .files
-                                .iter()
-                                .find(|f| f.id == id)
-                                .cloned()
-                            else {
-                                continue;
-                            };
-
-                            let schema = lb.search.tantivy_index.schema();
-                            let id_field = schema.get_field("id").unwrap();
-                            let id_str = schema.get_field("id_str").unwrap();
-                            let content = schema.get_field("content").unwrap();
-                            let term = Term::from_field_text(id_str, &id.to_string());
-                            let mut index_writer: IndexWriter =
-                                lb.search.tantivy_index.writer(50_000_000).unwrap();
-                            index_writer.delete_term(term);
-
-                            let id_bytes = id.as_bytes().as_slice();
-                            let id_string = id.to_string();
-
-                            if !file.name.ends_with(".md") || file.is_folder() {
-                                continue;
-                            };
-                            let doc =
-                                String::from_utf8(lb.read_document(file.id, false).await.unwrap())
-                                    .unwrap();
-
-                            if doc.len() > CONTENT_MAX_LEN_BYTES {
-                                continue;
-                            };
-
-                            index_writer
-                                .add_document(doc!(
-                                    id_field => id_bytes,
-                                    id_str => id_string,
-                                    content => doc,
-                                ))
-                                .unwrap();
-
-                            index_writer.commit().unwrap();
+                            lb.update_tantivy(vec![id], vec![id]).await;
                         }
                         _ => {}
                     };
                 }
             });
         }
+    }
+
+    async fn update_tantivy(&self, delete: Vec<Uuid>, add: Vec<Uuid>) {
+        let mut index_writer: IndexWriter = self.search.tantivy_index.writer(50_000_000).unwrap();
+        let schema = self.search.tantivy_index.schema();
+        let id_field = schema.get_field("id").unwrap();
+        let id_str = schema.get_field("id_str").unwrap();
+        let content = schema.get_field("content").unwrap();
+
+        for id in delete {
+            let term = Term::from_field_text(id_str, &id.to_string());
+            index_writer.delete_term(term);
+        }
+
+        for id in add {
+            let id_bytes = id.as_bytes().as_slice();
+            let id_string = id.to_string();
+            let Some(file) = self
+                .search
+                .metadata_index
+                .read()
+                .await
+                .files
+                .iter()
+                .find(|f| f.id == id)
+                .cloned()
+            else {
+                continue;
+            };
+
+            if !file.name.ends_with(".md") || file.is_folder() {
+                continue;
+            };
+
+            let doc = String::from_utf8(self.read_document(file.id, false).await.unwrap()).unwrap();
+
+            if doc.len() > CONTENT_MAX_LEN_BYTES {
+                continue;
+            };
+
+            index_writer
+                .add_document(doc!(
+                    id_field => id_bytes,
+                    id_str => id_string,
+                    content => doc,
+                ))
+                .unwrap();
+        }
+
+        index_writer.commit().unwrap();
     }
 }
 
@@ -376,11 +328,9 @@ impl SearchMetadata {
         let mut deleted_ids = vec![];
 
         for old_file in &old.files {
-            if self
+            if !self
                 .files
-                .iter()
-                .find(|new_f| new_f.id == old_file.id)
-                .is_none()
+                .iter().any(|new_f| new_f.id == old_file.id)
             {
                 deleted_ids.push(old_file.id);
             }
@@ -462,7 +412,7 @@ impl SearchMetadata {
 
         // the 10 smallest paths start with a mild advantage
         for i in 0..size {
-            if let Some(SearchResult::PathMatch { id: _, path, matched_indices: _, score }) =
+            if let Some(SearchResult::PathMatch { id: _, path: _, matched_indices: _, score }) =
                 candidates.get_mut(i)
             {
                 *score = (10 - i) as i64;
@@ -472,7 +422,7 @@ impl SearchMetadata {
         // items in suggested docs have their score boosted
         for cand in candidates.iter_mut() {
             if self.suggested_docs.contains(&cand.id()) {
-                if let SearchResult::PathMatch { id: _, path, matched_indices: _, score } = cand {
+                if let SearchResult::PathMatch { id: _, path: _, matched_indices: _, score } = cand {
                     *score += suggested;
                 }
             }
