@@ -54,6 +54,10 @@ impl Lb {
     /// Path searches are implemented as a subsequence filter with a number of hueristics to sort
     /// the results. Preference is given to shorter paths, filename matches, suggested docs, and
     /// documents that are editable in platform.
+    ///
+    /// Additionally if a path search contains a string, greater than 8 characters long that is
+    /// contained within any of the paths in the search index, that result is returned with the
+    /// highest score. lb:// style ids are also supported.
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
         // show suggested docs if the input string is empty
@@ -88,49 +92,49 @@ impl Lb {
         let content = schema.get_field("content").unwrap();
 
         let query_parser = QueryParser::for_index(&self.search.tantivy_index, vec![content]);
-
-        let query = query_parser.parse_query(input).map_unexpected()?;
-
-        let mut snippet_generator =
-            SnippetGenerator::create(&searcher, &query, content).map_unexpected()?;
-        snippet_generator.set_max_num_chars(100);
-
-        let top_docs = searcher
-            .search(&query, &TopDocs::with_limit(10))
-            .map_unexpected()?;
-
         let mut results = vec![];
-        for (_score, doc_address) in top_docs {
-            let retrieved_doc: TantivyDocument = searcher.doc(doc_address).map_unexpected()?;
-            let id = Uuid::from_slice(
-                retrieved_doc
-                    .get_first(id_field)
-                    .map(|val| val.as_bytes().unwrap_or_default())
-                    .unwrap_or_default(),
-            )
-            .map_unexpected()?;
 
-            let snippet = snippet_generator.snippet_from_doc(&retrieved_doc);
-            let path = self
-                .search
-                .metadata_index
-                .read()
-                .await
-                .paths
-                .iter()
-                .find(|(path_id, _)| *path_id == id)
-                .map(|(_, path)| path.to_string())
-                .unwrap_or_default();
+        if let Ok(query) = query_parser.parse_query(input) {
+            let mut snippet_generator =
+                SnippetGenerator::create(&searcher, &query, content).map_unexpected()?;
+            snippet_generator.set_max_num_chars(100);
 
-            results.push(SearchResult::DocumentMatch {
-                id,
-                path,
-                content_matches: vec![ContentMatch {
-                    paragraph: snippet.fragment().to_string(),
-                    matched_indices: Self::highlight_to_matches(snippet.highlighted()),
-                    score: 0,
-                }],
-            });
+            let top_docs = searcher
+                .search(&query, &TopDocs::with_limit(10))
+                .map_unexpected()?;
+
+            for (_score, doc_address) in top_docs {
+                let retrieved_doc: TantivyDocument = searcher.doc(doc_address).map_unexpected()?;
+                let id = Uuid::from_slice(
+                    retrieved_doc
+                        .get_first(id_field)
+                        .map(|val| val.as_bytes().unwrap_or_default())
+                        .unwrap_or_default(),
+                )
+                .map_unexpected()?;
+
+                let snippet = snippet_generator.snippet_from_doc(&retrieved_doc);
+                let path = self
+                    .search
+                    .metadata_index
+                    .read()
+                    .await
+                    .paths
+                    .iter()
+                    .find(|(path_id, _)| *path_id == id)
+                    .map(|(_, path)| path.to_string())
+                    .unwrap_or_default();
+
+                results.push(SearchResult::DocumentMatch {
+                    id,
+                    path,
+                    content_matches: vec![ContentMatch {
+                        paragraph: snippet.fragment().to_string(),
+                        matched_indices: Self::highlight_to_matches(snippet.highlighted()),
+                        score: 0,
+                    }],
+                });
+            }
         }
         Ok(results)
     }
@@ -369,11 +373,40 @@ impl SearchMetadata {
 
     fn path_search(&self, query: &str) -> LbResult<Vec<SearchResult>> {
         let mut results = self.path_candidates(query)?;
+        self.score_paths(&mut results);
 
-        self.apply_score(&mut results);
         results.sort_by_key(|r| -r.score());
 
+        if let Some(result) = self.id_match(query) {
+            results.insert(0, result);
+        }
+
         Ok(results)
+    }
+
+    fn id_match(&self, query: &str) -> Option<SearchResult> {
+        if query.len() < 8 {
+            return None;
+        }
+
+        let query = if query.starts_with("lb://") {
+            query.replacen("lb://", "", 1)
+        } else {
+            query.to_string()
+        };
+
+        for (id, path) in &self.paths {
+            if id.to_string().contains(&query) {
+                return Some(SearchResult::PathMatch {
+                    id: *id,
+                    path: path.clone(),
+                    matched_indices: vec![],
+                    score: 100,
+                });
+            }
+        }
+
+        None
     }
 
     fn path_candidates(&self, query: &str) -> LbResult<Vec<SearchResult>> {
@@ -408,7 +441,7 @@ impl SearchMetadata {
         Ok(search_results)
     }
 
-    fn apply_score(&self, candidates: &mut [SearchResult]) {
+    fn score_paths(&self, candidates: &mut [SearchResult]) {
         // tunable bonuses for path search
         let smaller_paths = 10;
         let suggested = 10;
