@@ -100,8 +100,7 @@ async fn search_content_successfully() {
         .unwrap();
     assert_eq!(search1.len(), 1);
 
-    time::sleep(Duration::from_millis(1000)).await;
-
+    core.search.tantivy_reader.reload().unwrap();
     let results1 = core
         .search(MATCHED_CONTENT_1.0, SearchConfig::PathsAndDocuments)
         .await

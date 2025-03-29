@@ -41,6 +41,19 @@ pub enum SearchResult {
 }
 
 impl Lb {
+    /// Lockbook's search implementation.
+    ///
+    /// Takes an input and a configuration. The configuration describes whether we are searching
+    /// paths, documents or both.
+    ///
+    /// Document searches are handled by [tantivy](https://github.com/quickwit-oss/tantivy), and as
+    /// such support [tantivy's advanced query
+    /// syntax](https://docs.rs/tantivy/latest/tantivy/query/struct.QueryParser.html).
+    /// In the future we plan to ingest a bunch of metadata and expose a full advanced search mode.
+    ///
+    /// Path searches are implemented as a subsequence filter with a number of hueristics to sort
+    /// the results. Preference is given to shorter paths, filename matches, suggested docs, and
+    /// documents that are editable in platform.
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
         // show suggested docs if the input string is empty
@@ -247,11 +260,8 @@ impl Default for SearchIndex {
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema.clone());
-        //index.set_multithread_executor(10).unwrap();
 
-        // this probably shouldn't happen here, see the doc for try_into()
-        // but I think that doc is written for a disk reader so let's see
-        // if it actually matters
+        // doing this here would be a bad idea if not for in-ram empty index
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::OnCommitWithDelay)
@@ -399,19 +409,20 @@ impl SearchMetadata {
     }
 
     fn apply_score(&self, candidates: &mut [SearchResult]) {
-        let size = 10;
+        // tunable bonuses for path search
+        let smaller_paths = 10;
         let suggested = 10;
-        let title = 30;
+        let filename = 30;
         let editable = 3;
 
         candidates.sort_by_key(|a| a.path().len());
 
         // the 10 smallest paths start with a mild advantage
-        for i in 0..size {
+        for i in 0..smaller_paths {
             if let Some(SearchResult::PathMatch { id: _, path: _, matched_indices: _, score }) =
                 candidates.get_mut(i)
             {
-                *score = (10 - i) as i64;
+                *score = (smaller_paths - i) as i64;
             }
         }
 
@@ -442,7 +453,7 @@ impl SearchMetadata {
                 }
 
                 let match_portion = name_match as f32 / name_size.max(1) as f32;
-                *score += (match_portion * title as f32) as i64;
+                *score += (match_portion * filename as f32) as i64;
             }
         }
 
