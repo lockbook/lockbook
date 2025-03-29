@@ -23,20 +23,13 @@ sagittis augue vel orci eleifend, sed cursus ante porta. Phasellus pellentesque 
 fringilla. Suspendisse eu volutpat augue. Mauris massa nisl, venenatis eget viverra non, ultrices \
 vel enim.";
 
-const MATCHED_CONTENT_1: (&str, &str) = (
-    "consectetur adipiscing elit Vivamus lorem purus malesuada",
-    "consectetur",
-);
+const MATCHED_CONTENT_1: (&str, &str) =
+    ("consectetur adipiscing elit Vivamus lorem purus malesuada", "consectetur");
 
-const MATCHED_CONTENT_2: (&str, &str) = (
-    "Mauris massa nisl, venenatis eget viverra",
-    "Mauris massa nisl, venenatis",
-);
+const MATCHED_CONTENT_2: (&str, &str) =
+    ("Mauris massa nisl, venenatis eget viverra", "Mauris massa nisl, venenatis");
 
-const MATCHED_CONTENT_3: (&str, &str) = (
-    "scelerisque tempus",
-    "scelerisque tempus enim",
-);
+const MATCHED_CONTENT_3: (&str, &str) = ("scelerisque tempus", "scelerisque tempus enim");
 
 #[tokio::test]
 async fn search_paths_successfully() {
