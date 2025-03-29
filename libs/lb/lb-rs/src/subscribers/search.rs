@@ -406,7 +406,7 @@ impl SearchMetadata {
             }
         }
 
-        return None;
+        None
     }
 
     fn path_candidates(&self, query: &str) -> LbResult<Vec<SearchResult>> {
