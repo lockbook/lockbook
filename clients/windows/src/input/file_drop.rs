@@ -93,7 +93,10 @@ pub fn handle(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool {
 
                 // for unknown reasons, if I don't cast the HGLOBAL to an HDROP and query the file count, the next call to object.GetData fails
                 // (this applies even if the format isn't CF_HDROP)
-                let hdrop = HDROP(unsafe { std::mem::transmute(hglobal) });
+                let hdrop = HDROP(unsafe {
+                    std::mem::transmute::<windows::Win32::Foundation::HGLOBAL, isize>(hglobal)
+                });
+
                 let file_count = unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, None) };
                 if format == CF_HDROP {
                     for i in 0..file_count {
