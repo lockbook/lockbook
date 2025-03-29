@@ -213,6 +213,21 @@ impl Lb {
                             if let Some(replacement_index) =
                                 SearchMetadata::populate(&lb).await.log_and_ignore()
                             {
+                                let current_index = lb.search.metadata_index.read().await.clone();
+                                let deleted_ids = replacement_index.compute_deleted(&current_index);
+
+                                if !deleted_ids.is_empty() {
+                                    let schema = lb.search.tantivy_index.schema();
+                                    let id_str = schema.get_field("id_str").unwrap();
+                                    let mut index_writer: IndexWriter =
+                                        lb.search.tantivy_index.writer(50_000_000).unwrap();
+                                    for id in deleted_ids {
+                                        let term = Term::from_field_text(id_str, &id.to_string());
+                                        index_writer.delete_term(term);
+                                    }
+                                    index_writer.commit().unwrap();
+                                }
+
                                 *lb.search.metadata_index.write().await = replacement_index;
                             }
                         }
@@ -341,7 +356,7 @@ impl SearchResult {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct SearchMetadata {
     files: Vec<File>,
     paths: Vec<(Uuid, String)>,
@@ -355,6 +370,23 @@ impl SearchMetadata {
         let suggested_docs = lb.suggested_docs(RankingWeights::default()).await?;
 
         Ok(SearchMetadata { files, paths, suggested_docs })
+    }
+
+    fn compute_deleted(&self, old: &SearchMetadata) -> Vec<Uuid> {
+        let mut deleted_ids = vec![];
+
+        for old_file in &old.files {
+            if self
+                .files
+                .iter()
+                .find(|new_f| new_f.id == old_file.id)
+                .is_none()
+            {
+                deleted_ids.push(old_file.id);
+            }
+        }
+
+        deleted_ids
     }
 
     fn empty_search(&self) -> LbResult<Vec<SearchResult>> {
