@@ -4151,14 +4151,12 @@ dependencies = [
  "egui",
  "egui-notify",
  "egui-winit",
- "egui_editor",
  "egui_extras",
  "egui_wgpu_backend",
  "env_logger",
  "image 0.24.9",
  "lb-fonts",
  "lb-rs",
- "minidom",
  "pdfium-render",
  "rfd",
  "serde",
@@ -4438,14 +4436,6 @@ checksum = "25a3333bb1609500601edc766a39b4c1772874a4ce26022f4d866854dc020c41"
 dependencies = [
  "mime",
  "unicase",
-]
-
-[[package]]
-name = "minidom"
-version = "0.15.3"
-source = "git+https://github.com/lockbook/minidom#101e20650f435f9601ecff7ee70fcdf8c95e6892"
-dependencies = [
- "rxml",
 ]
 
 [[package]]
@@ -6110,23 +6100,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rxml"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a98f186c7a2f3abbffb802984b7f1dfd65dac8be1aafdaabbca4137f53f0dff7"
-dependencies = [
- "bytes",
- "rxml_validation",
- "smartstring",
-]
-
-[[package]]
-name = "rxml_validation"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22a197350ece202f19a166d1ad6d9d6de145e1d2a8ef47db299abe164dbd7530"
-
-[[package]]
 name = "ryu"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6527,17 +6500,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "smartstring"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fb72c633efbaa2dd666986505016c32c3044395ceaf881518399d2f4127ee29"
-dependencies = [
- "autocfg",
- "static_assertions",
- "version_check",
 ]
 
 [[package]]
