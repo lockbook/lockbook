@@ -420,7 +420,7 @@ impl SearchMetadata {
 
             for (path_ind, path_char) in path.char_indices().rev() {
                 if let Some(qc) = current_query_char {
-                    if qc == path_char {
+                    if qc.eq_ignore_ascii_case(&path_char) {
                         matched_indices.push(path_ind);
                         current_query_char = query_iter.next();
                     }
