@@ -52,6 +52,16 @@ impl StorageViewer {
             self.paint_order = self.data.get_paint_order();
         }
 
+        let root_color: Color32;
+        let root_text_color: Color32;
+        if ui.visuals().dark_mode {
+            root_color = Color32::WHITE;
+            root_text_color = Color32::BLACK;
+        } else {
+            root_color = Color32::BLACK;
+            root_text_color = Color32::WHITE;
+        }
+
         // Top buttons
         ui.with_layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(1) }, |ui| {
             let top_left_rect = Rect { min: window.left_top(), max: window.center_top() };
@@ -80,7 +90,7 @@ impl StorageViewer {
         let painter = ui.painter();
         painter
             .clone()
-            .rect_filled(root_draw_anchor, 0.0, Color32::WHITE);
+            .rect_filled(root_draw_anchor, 0.0, root_color);
 
         // Root text logic
 
@@ -92,7 +102,7 @@ impl StorageViewer {
                 .unwrap(),
         ))
         .font(egui::FontId::monospace(15.0))
-        .color(Color32::BLACK)
+        .color(root_text_color)
         .into();
 
         let tab_intel_galley = tab_intel.into_galley(
@@ -333,7 +343,10 @@ impl StorageViewer {
                     paint_rect,
                     Rounding::ZERO,
                     current_color,
-                    Stroke { width: 0.5, color: Color32::BLACK },
+                    Stroke {
+                        width: 0.5,
+                        color: if ui.visuals().dark_mode { Color32::BLACK } else { Color32::WHITE },
+                    },
                 );
 
                 if paint_rect.width() >= 50.0 {
