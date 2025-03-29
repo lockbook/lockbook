@@ -20,6 +20,8 @@ async fn test_create_path() {
     tree.create_at_path("test3", root.id(), &keychain).unwrap();
 
     let paths = tree.list_paths(None, &keychain).unwrap();
+    let paths: Vec<String> = paths.into_iter().map(|(_, path)| path).collect();
+
     assert_eq!(paths.len(), 4);
     assert!(paths.contains(&"/".to_string()));
     assert!(paths.contains(&"/test1".to_string()));
@@ -41,6 +43,7 @@ async fn test_path2() {
         .unwrap();
 
     let paths = tree.list_paths(None, &keychain).unwrap();
+    let paths: Vec<String> = paths.into_iter().map(|(_, path)| path).collect();
 
     assert_eq!(paths.len(), 4);
     assert!(paths.contains(&"/".to_string()));
