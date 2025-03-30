@@ -1,11 +1,14 @@
-use crate::tab::markdown_plusplus::bounds::RangesExt as _;
+use crate::tab::markdown_plusplus::bounds::{BoundExt as _, RangesExt as _, Text};
+use crate::tab::markdown_plusplus::galleys::Galleys;
 use crate::tab::markdown_plusplus::input::Event;
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
-use lb_rs::model::text::buffer;
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use egui::{Pos2, Rangef};
+use lb_rs::model::text::buffer::{self};
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, ToRangeExt as _};
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
-use super::{Offset, Region};
+use super::advance::AdvanceExt as _;
+use super::{Location, Offset, Region};
 
 /// tracks editor state necessary to support translating input events to buffer operations
 #[derive(Default)]
@@ -25,17 +28,12 @@ impl MarkdownPlusPlus {
         self.event.prev_event = Some(event.clone());
         match event {
             Event::Select { region } => {
-                operations.push(Operation::Select((
-                    self.buffer.current.selection.start() + 1,
-                    self.buffer.current.selection.end() + 1,
-                )));
-
-                // operations.push(Operation::Select(self.region_to_range(region)));
+                operations.push(Operation::Select(self.region_to_range(region)));
             }
             Event::Replace { region, text } => {
-                // let range = self.region_to_range(region);
-                // operations.push(Operation::Replace(Replace { range, text }));
-                // operations.push(Operation::Select(range.start().to_range()));
+                let range = self.region_to_range(region);
+                operations.push(Operation::Replace(Replace { range, text }));
+                operations.push(Operation::Select(range.start().to_range()));
             }
             Event::ToggleStyle { region, style } => {
                 // let range = self.region_to_range(region);
@@ -235,9 +233,9 @@ impl MarkdownPlusPlus {
                 // }
             }
             Event::Delete { region } => {
-                // let range = self.region_to_range(region);
-                // operations.push(Operation::Replace(Replace { range, text: "".into() }));
-                // operations.push(Operation::Select(range.start().to_range()));
+                let range = self.region_to_range(region);
+                operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                operations.push(Operation::Select(range.start().to_range()));
 
                 // // check if we deleted a numbered list annotation and renumber subsequent items
                 // let ast_text_ranges = self.bounds.ast.find_contained(range, true, true);
@@ -880,85 +878,79 @@ impl MarkdownPlusPlus {
     //     }
     // }
 
-    // // todo: self by shared reference
+    // todo: self by shared reference
     pub fn region_to_range(&mut self, region: Region) -> (DocCharOffset, DocCharOffset) {
         let mut current_selection = self.buffer.current.selection;
         match region {
-            Region::Location(location) => {
-                // self.location_to_char_offset(location).to_range()
-            }
+            Region::Location(location) => self.location_to_char_offset(location).to_range(),
             Region::ToLocation(location) => {
-                // (current_selection.0, self.location_to_char_offset(location))
+                (current_selection.0, self.location_to_char_offset(location))
             }
             Region::BetweenLocations { start, end } => {
-                // (self.location_to_char_offset(start), self.location_to_char_offset(end))
+                (self.location_to_char_offset(start), self.location_to_char_offset(end))
             }
-            Region::Selection => {
-                // current_selection
-            }
+            Region::Selection => current_selection,
             Region::SelectionOrOffset { offset, backwards } => {
-                // if current_selection.is_empty() {
-                //     current_selection.0 = current_selection.0.advance(
-                //         &mut self.cursor.x_target,
-                //         offset,
-                //         backwards,
-                //         &self.buffer.current.segs,
-                //         &self.galleys,
-                //         &self.bounds,
-                //     );
-                // }
-                // current_selection
+                if current_selection.is_empty() {
+                    current_selection.0 = current_selection.0.advance(
+                        &mut self.cursor.x_target,
+                        offset,
+                        backwards,
+                        &self.buffer.current.segs,
+                        &self.galleys,
+                        &self.bounds,
+                    );
+                }
+                current_selection
             }
             Region::ToOffset { offset, backwards, extend_selection } => {
-                // return if extend_selection
-                //     || current_selection.is_empty()
-                //     || matches!(offset, Offset::To(..))
-                // {
-                //     let mut selection = current_selection;
-                //     selection.1 = selection.1.advance(
-                //         &mut self.cursor.x_target,
-                //         offset,
-                //         backwards,
-                //         &self.buffer.current.segs,
-                //         &self.bounds,
-                //     );
-                //     if extend_selection {
-                //         selection.0 = current_selection.0;
-                //     } else {
-                //         selection.0 = selection.1;
-                //     }
-                //     selection
-                // } else if backwards {
-                //     current_selection.start().to_range()
-                // } else {
-                //     current_selection.end().to_range()
-                // };
+                if extend_selection
+                    || current_selection.is_empty()
+                    || matches!(offset, Offset::To(..))
+                {
+                    let mut selection = current_selection;
+                    selection.1 = selection.1.advance(
+                        &mut self.cursor.x_target,
+                        offset,
+                        backwards,
+                        &self.buffer.current.segs,
+                        &self.galleys,
+                        &self.bounds,
+                    );
+                    if extend_selection {
+                        selection.0 = current_selection.0;
+                    } else {
+                        selection.0 = selection.1;
+                    }
+                    selection
+                } else if backwards {
+                    current_selection.start().to_range()
+                } else {
+                    current_selection.end().to_range()
+                }
             }
             Region::Bound { bound, backwards } => {
-                // let offset = current_selection.1;
-                // offset
-                //     .range_bound(bound, backwards, false, &self.bounds)
-                //     .unwrap_or((offset, offset))
+                let offset = current_selection.1;
+                offset
+                    .range_bound(bound, backwards, false, &self.bounds)
+                    .unwrap_or((offset, offset))
             }
             Region::BoundAt { bound, location, backwards } => {
-                // let offset = self.location_to_char_offset(location);
-                // offset
-                //     .range_bound(bound, backwards, true, &self.bounds)
-                //     .unwrap_or((offset, offset))
+                let offset = self.location_to_char_offset(location);
+                offset
+                    .range_bound(bound, backwards, true, &self.bounds)
+                    .unwrap_or((offset, offset))
             }
         }
-        current_selection
     }
 
-    // pub fn location_to_char_offset(&self, location: Location) -> DocCharOffset {
-    //     match location {
-    //         Location::CurrentCursor => self.buffer.current.selection.1,
-    //         Location::DocCharOffset(o) => o,
-    //         Location::Pos(pos) => {
-    //             pos_to_char_offset(pos, &self.galleys, &self.buffer.current.segs, &self.bounds.text)
-    //         }
-    //     }
-    // }
+    pub fn location_to_char_offset(&self, location: Location) -> DocCharOffset {
+        match location {
+            Location::CurrentCursor => self.buffer.current.selection.1,
+            Location::DocCharOffset(o) => o,
+            Location::Pos(pos) => pos_to_char_offset(pos, &self.galleys, &self.bounds.text),
+        }
+    }
 
     fn clipboard_current_paragraph(&self) -> (DocCharOffset, DocCharOffset) {
         let current_selection = self.buffer.current.selection;
@@ -987,74 +979,50 @@ impl MarkdownPlusPlus {
     }
 }
 
-// // todo: find a better home along with text & link functions
-// pub fn pos_to_char_offset(
-//     pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs, text: &Text,
-// ) -> DocCharOffset {
-//     if !galleys.is_empty() && pos.y < galleys[0].rect.min.y {
-//         // click position is above first galley
-//         0.into()
-//     } else if !galleys.is_empty() && pos.y >= galleys[galleys.len() - 1].rect.max.y {
-//         // click position is below last galley
-//         segs.last_cursor_position()
-//     } else {
-//         let mut result = 0.into();
-//         for galley_idx in (0..galleys.len()).rev() {
-//             let galley = &galleys[galley_idx];
-//             if pos.y >= galley.rect.min.y {
-//                 let relative_pos = pos - galley.text_location;
-//                 let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-//                 result = galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor, text);
-//                 break;
-//             }
-//         }
-//         result
-//     }
-// }
+// todo: find a better home along with text & link functions
+pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, text: &Text) -> DocCharOffset {
+    let galley_idx = pos_to_galley(pos, galleys);
+    let galley = &galleys[galley_idx];
 
-// pub fn pos_to_galley(
-//     pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs, bounds: &Bounds,
-// ) -> Option<usize> {
-//     for (galley_idx, galley) in galleys.galleys.iter().enumerate() {
-//         if galley.rect.contains(pos) {
-//             // galleys stretch across the screen, so we need to check if we're to the right of the text
-//             // use a tolerance of 10.0 for x and a tolerance of one line for y (supports noncapture when pointer is over a code block)
-//             let offset = pos_to_char_offset(pos, galleys, segs, &bounds.text);
+    if pos.y < galley.response.rect.min.y {
+        // click position is above galley
+        galley.range.start()
+    } else if pos.y > galley.response.rect.max.y {
+        // click position is below galley
+        galley.range.end()
+    } else {
+        let relative_pos = pos - galley.response.rect.min;
+        let new_cursor = galley.galley.cursor_from_pos(relative_pos);
+        galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor, text)
+    }
+}
 
-//             let prev_line_end_pos_x = {
-//                 let line_start_offset = offset
-//                     .advance_to_bound(Bound::Line, true, bounds)
-//                     .advance_to_next_bound(Bound::Line, true, bounds);
-//                 let line_end_offset =
-//                     line_start_offset.advance_to_bound(Bound::Line, false, bounds);
-//                 let (_, egui_cursor) =
-//                     galleys.galley_and_cursor_by_char_offset(line_end_offset, &bounds.text);
-//                 galley.galley.pos_from_cursor(&egui_cursor).max.x + galley.text_location.x
-//             };
-//             let curr_line_end_pos_x = {
-//                 let line_end_offset = offset.advance_to_bound(Bound::Line, false, bounds);
-//                 let (_, egui_cursor) =
-//                     galleys.galley_and_cursor_by_char_offset(line_end_offset, &bounds.text);
-//                 galley.galley.pos_from_cursor(&egui_cursor).max.x + galley.text_location.x
-//             };
-//             let next_line_end_pos_x = {
-//                 let line_end_offset = offset
-//                     .advance_to_bound(Bound::Line, false, bounds)
-//                     .advance_to_next_bound(Bound::Line, false, bounds);
-//                 let (_, egui_cursor) =
-//                     galleys.galley_and_cursor_by_char_offset(line_end_offset, &bounds.text);
-//                 galley.galley.pos_from_cursor(&egui_cursor).max.x + galley.text_location.x
-//             };
+pub fn pos_to_galley(pos: Pos2, galleys: &Galleys) -> usize {
+    let mut closest_galley = None;
+    let mut closest_distance = (f32::INFINITY, f32::INFINITY);
+    for (galley_idx, galley) in galleys.galleys.iter().enumerate() {
+        if galley.response.rect.contains(pos) {
+            return galley_idx; // galleys do not overlap
+        }
 
-//             let max_pos_x = prev_line_end_pos_x
-//                 .max(curr_line_end_pos_x)
-//                 .max(next_line_end_pos_x);
-//             let tolerance = 10.0;
-//             return if max_pos_x + tolerance > pos.x { Some(galley_idx) } else { None };
-//         }
-//     }
-//     None
-// }
+        // this ain't yo mama's distance metric
+        let x_distance = distance(pos.x, galley.response.rect.x_range());
+        let y_distance = distance(pos.y, galley.response.rect.y_range());
+        if (y_distance, x_distance) < closest_distance {
+            closest_galley = Some(galley_idx);
+            closest_distance = (y_distance, x_distance);
+        }
+    }
+    closest_galley.expect("there must always be a galley")
+}
+
+pub fn distance(coord: f32, range: Rangef) -> f32 {
+    if range.contains(coord) {
+        0.
+    } else {
+        (coord - range.min).abs().min((coord - range.max).abs())
+    }
+}
 
 // pub fn pos_to_link(
 //     pos: Pos2, galleys: &Galleys, buffer: &Buffer, bounds: &Bounds, ast: &Ast,

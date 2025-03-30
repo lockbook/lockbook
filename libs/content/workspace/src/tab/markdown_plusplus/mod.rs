@@ -155,8 +155,8 @@ impl MarkdownPlusPlus {
 
         let start = std::time::Instant::now();
 
-        self.calc_source_lines();
         self.process_events(ui.ctx());
+        self.calc_source_lines();
 
         let arena = Arena::new();
         let mut options = Options::default();
@@ -211,6 +211,7 @@ impl MarkdownPlusPlus {
         self.theme.apply(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
+        self.bounds.paragraphs.clear();
         ScrollArea::vertical()
             .id_source(format!("markdown{}", self.file_id))
             .show(ui, |ui| {
@@ -222,6 +223,7 @@ impl MarkdownPlusPlus {
                         .show(ui, |ui| self.render(ui, root));
                 });
             });
+        self.bounds.text = self.bounds.paragraphs.clone(); // todo: inline character capture
 
         let render_elapsed = start.elapsed();
 
@@ -231,15 +233,15 @@ impl MarkdownPlusPlus {
                 .bright_black()
         );
         println!(
-            "                                                                  ast: {:?}",
+            "                                                                 ast: {:?}",
             ast_elapsed
         );
         println!(
-            "                                                                print: {:?}",
+            "                                                               print: {:?}",
             print_elapsed
         );
         println!(
-            "                                                               render: {:?}",
+            "                                                              render: {:?}",
             render_elapsed
         );
     }

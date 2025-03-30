@@ -3,7 +3,7 @@ use std::mem;
 use comrak::nodes::{AstNode, NodeValue, Sourcepos};
 use egui::epaint::text::Row;
 use egui::text::{CCursor, LayoutJob};
-use egui::{Color32, Id, Pos2, Rangef, Sense, Stroke, TextFormat, Ui, Vec2};
+use egui::{Color32, Id, LayerId, Order, Pos2, Rangef, Sense, Stroke, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::RangeExt as _;
 use syntect::easy::HighlightLines;
 
@@ -16,6 +16,12 @@ impl<'ast> MarkdownPlusPlus {
         let pre_span = self.text_pre_span(node, wrap);
         let mid_span = self.text_mid_span(node, wrap, pre_span, text);
         let post_span = self.text_post_span(node, wrap, pre_span + mid_span);
+
+        // debug
+        // println!(
+        //     "span_text({:?}); pre_span: {}, mid_span: {}, post_span: {}",
+        //     text, pre_span, mid_span, post_span
+        // );
 
         pre_span + mid_span + post_span
     }
@@ -68,9 +74,7 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         if let Some(highlighter) = highlighter.as_mut() {
-            let Ok(regions) = highlighter.highlight_line(text, &self.syntax_set) else {
-                return;
-            };
+            let regions = highlighter.highlight_line(text, &self.syntax_set).unwrap();
             for &(ref style, region) in &regions {
                 let text_format = TextFormat {
                     color: Color32::from_rgb(
@@ -124,7 +128,7 @@ impl<'ast> MarkdownPlusPlus {
                         ui.painter().vline(
                             max.x,
                             Rangef { min: max.y - row_height, max: max.y },
-                            egui::Stroke::new(1., self.theme.fg().accent_primary),
+                            egui::Stroke::new(1., self.theme.fg().accent_secondary),
                         );
                     }
 
@@ -214,7 +218,7 @@ impl<'ast> MarkdownPlusPlus {
 
                 let byte_range = (galley_start, galley_start + text.len());
                 let range = self.range_to_char(byte_range);
-                let cursor = self.buffer.current.selection.start(); // whatever
+                let cursor = self.buffer.current.selection.end(); // whatever
                 if range.contains(cursor, true, true) {
                     let egui_cursor = galley.from_ccursor(CCursor {
                         index: (cursor - range.start()).0,
@@ -223,11 +227,14 @@ impl<'ast> MarkdownPlusPlus {
 
                     let max = rect.left_top() + galley.pos_from_cursor(&egui_cursor).max.to_vec2();
 
-                    ui.painter().vline(
-                        max.x,
-                        Rangef { min: max.y - row_height, max: max.y },
-                        egui::Stroke::new(1., self.theme.fg().accent_primary),
-                    );
+                    ui.painter()
+                        .clone()
+                        .with_layer_id(LayerId::new(Order::Tooltip, Id::new("cursor")))
+                        .vline(
+                            max.x,
+                            Rangef { min: max.y - row_height, max: max.y },
+                            egui::Stroke::new(1., self.theme.fg().accent_secondary),
+                        );
                 }
 
                 ui.painter()
@@ -253,14 +260,13 @@ impl<'ast> MarkdownPlusPlus {
             galley_start += text.len();
         }
 
-        // todo: unclear why this isn't needed
-        // wrap.offset += post_span;
+        wrap.offset += post_span;
     }
 
     fn text_pre_span(&self, node: &AstNode<'_>, wrap: &WrapContext) -> f32 {
         let padded = self.text_format(node).background != Default::default();
         if padded && wrap.line_offset() > 0.5 {
-            wrap.line_remaining().min(INLINE_PADDING)
+            INLINE_PADDING.min(wrap.line_remaining())
         } else {
             0.
         }
@@ -291,9 +297,7 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         if let Some(highlighter) = highlighter.as_mut() {
-            let Ok(regions) = highlighter.highlight_line(text, &self.syntax_set) else {
-                return tmp_wrap.offset - wrap.offset; // intended to be unreachable but not sure
-            };
+            let regions = highlighter.highlight_line(text, &self.syntax_set).unwrap();
             for &(_, region) in &regions {
                 let mut layout_job =
                     LayoutJob::single_section(region.into(), self.text_format(node));
@@ -320,7 +324,7 @@ impl<'ast> MarkdownPlusPlus {
             }
         }
 
-        tmp_wrap.offset - wrap.offset
+        tmp_wrap.offset - (wrap.offset + pre_span)
     }
 
     fn text_post_span(
@@ -329,7 +333,7 @@ impl<'ast> MarkdownPlusPlus {
         let padded = self.text_format(node).background != Default::default();
         if padded {
             let wrap = WrapContext { offset: wrap.offset + pre_plus_mid_span, ..*wrap };
-            wrap.line_remaining().min(INLINE_PADDING)
+            INLINE_PADDING.min(wrap.line_remaining())
         } else {
             0.
         }
@@ -338,7 +342,7 @@ impl<'ast> MarkdownPlusPlus {
 
 /// Return the span of the first row, including the remaining space on the previous row if there was one
 fn row_span(row: &Row, wrap: &WrapContext) -> f32 {
-    row.rect.width() + row_wrap_span(row, wrap).unwrap_or_default()
+    row_wrap_span(row, wrap).unwrap_or_default() + row.rect.width()
 }
 
 /// If the row wrapped, return the remaining space on the line that was ended

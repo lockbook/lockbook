@@ -196,10 +196,6 @@ impl<'ast> MarkdownPlusPlus {
             let code_block_closed = is_closing_fence(last_line, fence_char, fence_length.0);
             let last_code_line_idx =
                 if code_block_closed { last_line_idx - 1 } else { last_line_idx };
-
-            println!("last_line_idx: {}", last_line_idx);
-            println!("last_code_line_idx: {}", last_code_line_idx);
-
             while code_line_idx <= last_code_line_idx {
                 // "If the leading code fence is indented N spaces, then up to N
                 // spaces of indentation are removed from each line of the
@@ -277,20 +273,22 @@ fn is_closing_fence(line: &str, fence_char: &u8, fence_length: usize) -> bool {
         }
     }
 
-    // Count matching fence characters
+    // Must have at least fence_length fence characters
     let mut count = 0;
-    for c in chars {
+    while let Some(c) = chars.clone().next() {
         if c == ch {
             count += 1;
-            if count >= fence_length {
-                return true;
-            }
+            chars.next();
         } else {
+            if count < fence_length {
+                return false;
+            }
             break;
         }
     }
 
-    false
+    // Any additional characters may be spaces only
+    chars.all(|c| c == ' ')
 }
 
 #[cfg(test)]
