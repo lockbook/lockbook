@@ -260,15 +260,25 @@ impl MarkdownPlusPlus {
         });
 
         let mut desired_size = Vec2::new(ui.max_rect().width(), max_rect.height());
+
         let min_rect = ui.min_rect();
-        desired_size.y = if min_rect.height() < max_rect.height() {
+        let fill_available_space = if min_rect.height() < max_rect.height() {
             // fill available space
             max_rect.height() - min_rect.height()
         } else {
-            // end of text padding
-            max_rect.height() / 2.
+            0.
         };
-        ui.allocate_space(max_rect.size() - Vec2::new(0., ROW_HEIGHT));
+        let end_of_text_padding = max_rect.height() / 2.;
+        desired_size.y = fill_available_space.max(end_of_text_padding);
+
+        // debug
+        // ui.painter().rect_stroke(
+        //     Rect::from_min_size(ui.min_rect().left_bottom(), desired_size),
+        //     1.,
+        //     Stroke::new(1., self.theme.fg().accent_secondary),
+        // );
+
+        ui.allocate_space(desired_size);
     }
 
     // tired of writing ".buffer.current.segs" all the time
