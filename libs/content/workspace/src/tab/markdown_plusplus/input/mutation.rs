@@ -995,7 +995,7 @@ pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, text: &Text) -> DocCharO
     } else {
         let relative_pos = pos - galley.rect.min;
         let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-        galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor, text)
+        galleys.char_offset_by_galley_and_cursor(galley_idx, new_cursor, text)
     }
 }
 

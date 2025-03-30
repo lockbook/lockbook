@@ -46,9 +46,11 @@ impl Tab {
         }
     }
 
+    // todo: markdown++
     pub fn hmac(&self) -> Option<DocumentHmac> {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.hmac,
+            // ContentState::Open(TabContent::MarkdownPlusPlus(md)) => md.hmac,
             ContentState::Open(TabContent::Svg(svg)) => svg.open_file_hmac,
             _ => None,
         }
@@ -57,20 +59,25 @@ impl Tab {
     pub fn seq(&self) -> usize {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.buffer.current.seq,
+            ContentState::Open(TabContent::MarkdownPlusPlus(md)) => md.buffer.current.seq,
             _ => 0,
         }
     }
 
+    // todo: markdown++
     pub fn markdown(&self) -> Option<&Markdown> {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => Some(md),
+            // ContentState::Open(TabContent::MarkdownPlusPlus(md)) => Some(md),
             _ => None,
         }
     }
 
+    // todo: markdown++
     pub fn markdown_mut(&mut self) -> Option<&mut Markdown> {
         match &mut self.content {
             ContentState::Open(TabContent::Markdown(md)) => Some(md),
+            // ContentState::Open(TabContent::MarkdownPlusPlus(md)) => Some(md),
             _ => None,
         }
     }
@@ -185,10 +192,11 @@ impl TabContent {
         }
     }
 
+    // todo: markdown++
     pub fn hmac(&self) -> Option<DocumentHmac> {
         match self {
             TabContent::Markdown(md) => md.hmac,
-            TabContent::MarkdownPlusPlus(_) => None, // todo
+            TabContent::MarkdownPlusPlus(_) => None,
             TabContent::Svg(svg) => svg.open_file_hmac,
             _ => None,
         }
@@ -197,6 +205,7 @@ impl TabContent {
     pub fn seq(&self) -> usize {
         match self {
             TabContent::Markdown(md) => md.buffer.current.seq,
+            TabContent::MarkdownPlusPlus(md) => md.buffer.current.seq,
             _ => 0,
         }
     }
@@ -206,6 +215,9 @@ impl TabContent {
     pub fn clone_content(&self) -> Option<TabSaveContent> {
         match self {
             TabContent::Markdown(md) => {
+                Some(TabSaveContent::String(md.buffer.current.text.clone()))
+            }
+            TabContent::MarkdownPlusPlus(md) => {
                 Some(TabSaveContent::String(md.buffer.current.text.clone()))
             }
             TabContent::Svg(svg) => Some(TabSaveContent::Svg(svg.buffer.clone())),
