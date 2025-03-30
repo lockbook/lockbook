@@ -29,7 +29,7 @@ impl AdvanceExt for DocCharOffset {
         segs: &UnicodeSegs, galleys: &Galleys, bounds: &Bounds,
     ) -> Self {
         let maybe_x_target_value = mem::take(maybe_x_target);
-        let result = match offset {
+        match offset {
             Offset::To(bound) => self.advance_to_bound(bound, backwards, bounds),
             Offset::Next(bound) => self.advance_to_next_bound(bound, backwards, bounds),
             Offset::By(Increment::Line) => {
@@ -38,11 +38,10 @@ impl AdvanceExt for DocCharOffset {
                 if self != 0 && self != segs.last_cursor_position() {
                     *maybe_x_target = Some(x_target);
                 }
+
                 result
             }
-        };
-
-        result
+        }
     }
 
     fn advance_by_line(
@@ -52,53 +51,101 @@ impl AdvanceExt for DocCharOffset {
         let cur_galley = &galleys[cur_galley_idx];
         if backwards {
             let at_top_of_cur_galley = cur_ecursor.rcursor.row == 0;
-            let in_first_galley = cur_galley_idx == 0;
-            let (mut new_ecursor, new_galley_idx) = if at_top_of_cur_galley && !in_first_galley {
-                // move to the last row of the previous galley
-                let new_galley_idx = cur_galley_idx - 1;
-                let new_galley = &galleys[new_galley_idx];
-                let new_cursor = new_galley.galley.cursor_from_pos(Vec2 {
-                    x: 0.0,                          // overwritten below
-                    y: new_galley.galley.rect.max.y, // bottom of new galley
-                });
-                (new_cursor, new_galley_idx)
-            } else {
-                // move up one row in the current galley
+            if !at_top_of_cur_galley {
+                // within a galley: just move up one row
                 let new_cursor = cur_galley.galley.cursor_up_one_row(&cur_ecursor);
-                (new_cursor, cur_galley_idx)
-            };
-
-            if !(at_top_of_cur_galley && in_first_galley) {
-                // move to the x_target in the new row/galley
-                new_ecursor = Self::from_x(x_target, &galleys[new_galley_idx], new_ecursor);
+                return galleys.char_offset_by_galley_and_cursor(cur_galley_idx, new_cursor, text);
             }
 
-            galleys.char_offset_by_galley_and_cursor(new_galley_idx, &new_ecursor, text)
+            // jump to the closest galley above that's not above another galley that's above
+            let mut closest_offset: Option<Self> = None;
+            let mut closest_distance = f32::INFINITY;
+            let mut row_above_top: Option<f32> = None;
+            for new_galley_idx in (0..cur_galley_idx).rev() {
+                let new_galley = &galleys[new_galley_idx];
+                let new_galley_is_above = new_galley.rect.bottom() < cur_galley.rect.top();
+                let new_galley_too_above = if let Some(row_above_top) = row_above_top {
+                    new_galley.rect.bottom() < row_above_top
+                } else {
+                    false
+                };
+
+                if new_galley_too_above {
+                    break;
+                } else if new_galley_is_above {
+                    row_above_top = Some(new_galley.rect.top());
+
+                    let mut new_cursor = new_galley.galley.cursor_from_pos(Vec2 {
+                        x: 0.0, // overwritten next line
+                        y: new_galley.rect.bottom(),
+                    });
+                    new_cursor = Self::from_x(x_target, &galleys[new_galley_idx], new_cursor);
+
+                    let pos = Self::cursor_to_pos_abs(new_galley, new_cursor);
+                    let distance = (pos.x - x_target).abs(); // closest as in closest to target
+                    if distance < closest_distance {
+                        closest_offset = Some(galleys.char_offset_by_galley_and_cursor(
+                            new_galley_idx,
+                            new_cursor,
+                            text,
+                        ));
+                        closest_distance = distance;
+                    }
+                } else {
+                    continue; // keep going until we're on the prev row (if there is one)
+                }
+            }
+
+            closest_offset.unwrap_or(self)
         } else {
             let at_bottom_of_cur_galley =
                 cur_ecursor.rcursor.row == cur_galley.galley.rows.len() - 1;
-            let in_last_galley = cur_galley_idx == galleys.len() - 1;
-            let (mut new_ecursor, new_galley_idx) = if at_bottom_of_cur_galley && !in_last_galley {
-                // move to the first row of the next galley
-                let new_galley_idx = cur_galley_idx + 1;
-                let new_galley = &galleys[new_galley_idx];
-                let new_cursor = new_galley.galley.cursor_from_pos(Vec2 {
-                    x: 0.0, // overwritten below
-                    y: 0.0, // top of new galley
-                });
-                (new_cursor, new_galley_idx)
-            } else {
-                // move down one row in the current galley
+            if !at_bottom_of_cur_galley {
+                // within a galley: just move down one row
                 let new_cursor = cur_galley.galley.cursor_down_one_row(&cur_ecursor);
-                (new_cursor, cur_galley_idx)
-            };
-
-            if !(at_bottom_of_cur_galley && in_last_galley) {
-                // move to the x_target in the new row/galley
-                new_ecursor = Self::from_x(x_target, &galleys[new_galley_idx], new_ecursor);
+                return galleys.char_offset_by_galley_and_cursor(cur_galley_idx, new_cursor, text);
             }
 
-            galleys.char_offset_by_galley_and_cursor(new_galley_idx, &new_ecursor, text)
+            // jump to the closest galley below that's not below another galley that's below
+            let mut closest_offset: Option<Self> = None;
+            let mut closest_distance = f32::INFINITY;
+            let mut row_below_bottom: Option<f32> = None;
+            for new_galley_idx in cur_galley_idx + 1..galleys.len() {
+                let new_galley = &galleys[new_galley_idx];
+                let new_galley_is_below = new_galley.rect.top() > cur_galley.rect.bottom();
+                let new_galley_too_below = if let Some(row_below_bottom) = row_below_bottom {
+                    new_galley.rect.top() > row_below_bottom
+                } else {
+                    false
+                };
+
+                if new_galley_too_below {
+                    break;
+                } else if new_galley_is_below {
+                    row_below_bottom = Some(new_galley.rect.bottom());
+
+                    let mut new_cursor = new_galley.galley.cursor_from_pos(Vec2 {
+                        x: 0.0, // overwritten next line
+                        y: new_galley.rect.top(),
+                    });
+                    new_cursor = Self::from_x(x_target, &galleys[new_galley_idx], new_cursor);
+
+                    let pos = Self::cursor_to_pos_abs(new_galley, new_cursor);
+                    let distance = (pos.x - x_target).abs(); // closest as in closest to target
+                    if distance < closest_distance {
+                        closest_offset = Some(galleys.char_offset_by_galley_and_cursor(
+                            new_galley_idx,
+                            new_cursor,
+                            text,
+                        ));
+                        closest_distance = distance;
+                    }
+                } else {
+                    continue; // keep going until we're on the next row (if there is one)
+                }
+            }
+
+            closest_offset.unwrap_or(self)
         }
     }
 

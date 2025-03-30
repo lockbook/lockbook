@@ -81,7 +81,7 @@ impl Galleys {
     }
 
     pub fn char_offset_by_galley_and_cursor(
-        &self, galley_idx: usize, cursor: &Cursor, text: &Text,
+        &self, galley_idx: usize, cursor: Cursor, text: &Text,
     ) -> DocCharOffset {
         let galley = &self.galleys[galley_idx];
         let galley_text_range = galley.range;
