@@ -56,9 +56,9 @@ impl StorageViewer {
         let root_text_color: Color32;
         if ui.visuals().dark_mode {
             root_color = Color32::WHITE;
-            root_text_color = Color32::BLACK;
+            root_text_color = ui.visuals().extreme_bg_color;
         } else {
-            root_color = Color32::BLACK;
+            root_color = ui.visuals().extreme_bg_color;
             root_text_color = Color32::WHITE;
         }
 
@@ -113,7 +113,7 @@ impl StorageViewer {
         );
 
         let tab_intel_rect = egui::Align2::LEFT_TOP.anchor_size(
-            Pos2 { x: bottom_text.left_center().x - 15.0, y: bottom_text.left_center().y - 15.0 },
+            Pos2 { x: bottom_text.left_center().x - 25.0, y: bottom_text.left_center().y - 20.0 },
             tab_intel_galley.size(),
         );
 
@@ -345,7 +345,11 @@ impl StorageViewer {
                     current_color,
                     Stroke {
                         width: 0.5,
-                        color: if ui.visuals().dark_mode { Color32::BLACK } else { Color32::WHITE },
+                        color: if ui.visuals().dark_mode {
+                            ui.visuals().extreme_bg_color
+                        } else {
+                            Color32::WHITE
+                        },
                     },
                 );
 
