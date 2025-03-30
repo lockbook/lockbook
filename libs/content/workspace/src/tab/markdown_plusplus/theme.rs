@@ -52,7 +52,7 @@ impl Theme {
                 blue: hex_color!("#4DA6FF"),
                 magenta: hex_color!("#9C75D1"),
 
-                accent_primary: hex_color!("#4DA6FF"),
+                accent_primary: hex_color!("#0D7FF2"),
                 accent_secondary: hex_color!("#67E4B6"),
                 accent_tertiary: hex_color!("#FFDB70"),
             },

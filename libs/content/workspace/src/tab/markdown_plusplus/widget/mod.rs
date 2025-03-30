@@ -271,10 +271,6 @@ impl<'ast> MarkdownPlusPlus {
         if let NodeValue::TableRow(_) = value {
             0. // no spacing after (or before) table rows
         } else {
-            if let NodeValue::ThematicBreak = value {
-                line_count += 1;
-            }
-
             line_count as f32 * self.row_height(node.parent().unwrap())
         }
     }
