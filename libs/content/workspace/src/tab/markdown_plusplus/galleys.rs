@@ -1,7 +1,7 @@
 use crate::tab::markdown_plusplus::bounds::Text;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::CCursor;
-use egui::{Galley, Response};
+use egui::{Galley, Rect};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 use std::ops::Index;
 use std::sync::Arc;
@@ -15,7 +15,7 @@ pub struct Galleys {
 pub struct GalleyInfo {
     pub range: (DocCharOffset, DocCharOffset),
     pub galley: Arc<Galley>,
-    pub response: Response,
+    pub rect: Rect,
 }
 
 impl Index<usize> for Galleys {

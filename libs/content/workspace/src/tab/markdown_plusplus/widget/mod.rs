@@ -120,7 +120,7 @@ impl<'ast> MarkdownPlusPlus {
         self.ctx.fonts(|fonts| fonts.row_height(&text_format))
     }
 
-    fn height(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
+    pub fn height(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => 0.,
 

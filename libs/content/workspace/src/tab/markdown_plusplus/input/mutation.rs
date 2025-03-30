@@ -222,14 +222,16 @@ impl MarkdownPlusPlus {
                 //         break 'modification;
                 //     }
 
-                //     // if it's none of the other things, just insert a newline
-                //     operations.push(Operation::Replace(Replace {
-                //         range: current_selection,
-                //         text: "\n".into(),
-                //     }));
-                //     if advance_cursor {
-                //         operations.push(Operation::Select(current_selection.start().to_range()));
-                //     }
+                // if it's none of the other things, just insert a newline
+                println!("// if it's none of the other things, just insert a newline");
+                operations.push(Operation::Replace(Replace {
+                    range: current_selection,
+                    text: "\n".into(),
+                }));
+                if advance_cursor {
+                    operations.push(Operation::Select(current_selection.start().to_range()));
+                }
+
                 // }
             }
             Event::Delete { region } => {
@@ -984,14 +986,14 @@ pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, text: &Text) -> DocCharO
     let galley_idx = pos_to_galley(pos, galleys);
     let galley = &galleys[galley_idx];
 
-    if pos.y < galley.response.rect.min.y {
+    if pos.y < galley.rect.min.y {
         // click position is above galley
         galley.range.start()
-    } else if pos.y > galley.response.rect.max.y {
+    } else if pos.y > galley.rect.max.y {
         // click position is below galley
         galley.range.end()
     } else {
-        let relative_pos = pos - galley.response.rect.min;
+        let relative_pos = pos - galley.rect.min;
         let new_cursor = galley.galley.cursor_from_pos(relative_pos);
         galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor, text)
     }
@@ -1001,13 +1003,13 @@ pub fn pos_to_galley(pos: Pos2, galleys: &Galleys) -> usize {
     let mut closest_galley = None;
     let mut closest_distance = (f32::INFINITY, f32::INFINITY);
     for (galley_idx, galley) in galleys.galleys.iter().enumerate() {
-        if galley.response.rect.contains(pos) {
+        if galley.rect.contains(pos) {
             return galley_idx; // galleys do not overlap
         }
 
         // this ain't yo mama's distance metric
-        let x_distance = distance(pos.x, galley.response.rect.x_range());
-        let y_distance = distance(pos.y, galley.response.rect.y_range());
+        let x_distance = distance(pos.x, galley.rect.x_range());
+        let y_distance = distance(pos.y, galley.rect.y_range());
         if (y_distance, x_distance) < closest_distance {
             closest_galley = Some(galley_idx);
             closest_distance = (y_distance, x_distance);
