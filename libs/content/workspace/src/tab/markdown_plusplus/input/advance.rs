@@ -124,13 +124,11 @@ impl AdvanceExt for DocCharOffset {
     /// returns the absolute position of `cursor` in `galley`
     fn cursor_to_pos_abs(galley: &GalleyInfo, cursor: EguiCursor) -> Pos2 {
         // experimentally, max.y gives us the y that will put us in the correct row
-        galley.response.rect.min + galley.galley.pos_from_cursor(&cursor).max.to_vec2()
+        galley.rect.min + galley.galley.pos_from_cursor(&cursor).max.to_vec2()
     }
 
     /// returns a cursor which has the absolute position `pos_abs` in `galley`
     fn pos_abs_to_cursor(galley: &GalleyInfo, pos_abs: Pos2) -> EguiCursor {
-        galley
-            .galley
-            .cursor_from_pos(pos_abs - galley.response.rect.min)
+        galley.galley.cursor_from_pos(pos_abs - galley.rect.min)
     }
 }

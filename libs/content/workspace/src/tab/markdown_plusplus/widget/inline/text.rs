@@ -134,8 +134,7 @@ impl<'ast> MarkdownPlusPlus {
 
                     ui.painter()
                         .galley(rect.left_top(), galley.clone(), Default::default());
-                    let response = ui.interact(rect, Id::new("galley").with(range), Sense::click());
-                    self.galleys.push(GalleyInfo { range, galley, response });
+                    self.galleys.push(GalleyInfo { range, galley, rect });
 
                     // debug
                     // ui.painter().rect_stroke(
@@ -241,12 +240,7 @@ impl<'ast> MarkdownPlusPlus {
                     .galley(rect.left_top(), galley.clone(), Default::default());
                 ui.painter()
                     .hline(rect.x_range(), rect.bottom() - 2.0, underline);
-                let response = ui.interact(
-                    rect,
-                    Id::new("galley").with(self.sourcepos_to_range(sourcepos)),
-                    Sense::click(),
-                );
-                self.galleys.push(GalleyInfo { range, galley, response });
+                self.galleys.push(GalleyInfo { range, galley, rect });
 
                 // debug
                 // ui.painter().rect_stroke(

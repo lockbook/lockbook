@@ -8,7 +8,7 @@ use comrak::{Arena, Options};
 use core::time::Duration;
 use egui::{
     Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Rect,
-    ScrollArea, Stroke, Ui, Vec2,
+    Response, ScrollArea, Sense, Stroke, Ui, Vec2,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
@@ -212,6 +212,7 @@ impl MarkdownPlusPlus {
         ui.spacing_mut().item_spacing.x = 0.;
 
         self.bounds.paragraphs.clear();
+        self.galleys.galleys.clear();
         ScrollArea::vertical()
             .id_source(format!("markdown{}", self.file_id))
             .show(ui, |ui| {
@@ -254,7 +255,13 @@ impl MarkdownPlusPlus {
         let padding = (ui.available_width() - ui.max_rect().width().min(MAX_WIDTH)) / 2.;
 
         let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
-        let rect = Rect::from_min_size(top_left, Vec2::new(width, 0.));
+        let height = self.height(root, width);
+        let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
+
+        ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
+        ui.interact(rect, self.id(), Sense::click()); // catches pointer input missed by individual widgets e.g. clicking after line end to place cursor
+
+        // shows the actual UI
         ui.allocate_ui_at_rect(rect, |ui| {
             self.show_block(ui, root, top_left, width);
         });
