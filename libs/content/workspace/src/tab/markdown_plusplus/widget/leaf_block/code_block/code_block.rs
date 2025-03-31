@@ -1,6 +1,7 @@
 use comrak::nodes::{AstNode, NodeCodeBlock};
-use egui::{FontFamily, FontId, Pos2, Rect, Sense, Stroke, TextFormat, Ui, Vec2};
+use egui::{Color32, FontFamily, FontId, Pos2, Rect, Sense, Stroke, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{RangeExt as _, RelByteOffset};
+use syntect::easy::HighlightLines;
 
 use crate::tab::markdown_plusplus::{
     bounds::RangesExt as _,
@@ -70,7 +71,7 @@ impl<'ast> MarkdownPlusPlus {
         let text_width = width - 2. * BLOCK_PADDING;
 
         let info_height = ROW_HEIGHT;
-        let code_height = self.inline_text_height(node, &WrapContext::new(text_width), code);
+        let code_height = self.text_height(node, &WrapContext::new(text_width), code);
         BLOCK_PADDING + info_height + BLOCK_PADDING + BLOCK_PADDING + code_height + BLOCK_PADDING
     }
 
@@ -78,23 +79,17 @@ impl<'ast> MarkdownPlusPlus {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
         node_code_block: &NodeCodeBlock,
     ) {
-        let NodeCodeBlock {
-            fenced: _,
-            fence_char,
-            fence_length,
-            fence_offset,
-            info: _,    // we parse this ourselves to include trimmed whitespace
-            literal: _, // we parse this ourselves to exclude trimmed indentation per-line
-        } = node_code_block;
+        let NodeCodeBlock { fenced: _, fence_char, fence_length, fence_offset, info, literal } =
+            node_code_block;
         let fence_length = RelByteOffset(*fence_length);
         let fence_offset = RelByteOffset(*fence_offset);
 
-        let code = trim_one_trailing_newline(&node_code_block.literal);
+        let code = trim_one_trailing_newline(literal);
         let text_width = width - 2. * BLOCK_PADDING;
 
         let info_height = ROW_HEIGHT;
         let code_height =
-            self.inline_text_height(node, &WrapContext::new(width - 2. * BLOCK_PADDING), code);
+            self.text_height(node, &WrapContext::new(width - 2. * BLOCK_PADDING), code);
         let height = BLOCK_PADDING
             + info_height
             + BLOCK_PADDING
@@ -170,7 +165,7 @@ impl<'ast> MarkdownPlusPlus {
             let info_top_left = top_left + Vec2::splat(BLOCK_PADDING);
             let mut wrap = WrapContext::new(text_width);
             let info_sourcepos = self.range_to_sourcepos(info_range);
-            self.show_text(ui, node, info_top_left, &mut wrap, info_sourcepos);
+            self.show_text_line(ui, node, info_top_left, &mut wrap, info_sourcepos, None);
         }
 
         // code text
@@ -205,6 +200,7 @@ impl<'ast> MarkdownPlusPlus {
                 // https://github.github.com/gfm/#fenced-code-blocks
                 let code_line_range = self.bounds.source_lines[code_line_idx];
                 let code_line_text = &self.buffer[code_line_range];
+
                 let code_line_indentation_spaces = code_line_text
                     .chars()
                     .take_while(|&c| c == ' ')
@@ -217,7 +213,60 @@ impl<'ast> MarkdownPlusPlus {
                 // bounds
                 self.bounds.paragraphs.push(code_range);
 
-                self.show_text(ui, node, code_top_left, &mut wrap, code_sourcepos);
+                // syntax highlighting
+                let syntax_theme = if ui.visuals().dark_mode {
+                    &self.syntax_dark_theme
+                } else {
+                    &self.syntax_light_theme
+                };
+                let mut highlighter = self
+                    .syntax_set
+                    .find_syntax_by_token(info)
+                    .map(|syntax| HighlightLines::new(syntax, syntax_theme));
+
+                // show text
+                if let Some(highlighter) = highlighter.as_mut() {
+                    // highlighted text shown as individual regions
+                    let regions = if let Some(regions) = self.syntax.get(code_line_text) {
+                        regions.clone()
+                    } else {
+                        highlighter
+                            .highlight_line(code_line_text, &self.syntax_set)
+                            .unwrap()
+                            .into_iter()
+                            .map(|(style, region)| (style, region.to_string()))
+                            .collect::<Vec<_>>()
+                    };
+
+                    let mut region_info = Vec::new();
+                    let mut region_start = self.offset_to_byte(code_range.start());
+                    for (style, region) in regions {
+                        let region_end = region_start + region.len();
+                        let region_range = self.range_to_char((region_start, region_end));
+                        region_info.push((
+                            self.range_to_sourcepos(region_range),
+                            Color32::from_rgb(
+                                style.foreground.r,
+                                style.foreground.g,
+                                style.foreground.b,
+                            ),
+                        ));
+                        region_start = region_end;
+                    }
+
+                    for (sourcepos, color) in region_info {
+                        self.show_text_line(
+                            ui,
+                            node,
+                            code_top_left,
+                            &mut wrap,
+                            sourcepos,
+                            Some(color),
+                        );
+                    }
+                } else {
+                    self.show_text_line(ui, node, code_top_left, &mut wrap, code_sourcepos, None);
+                }
 
                 // all lines except the last one end in a newline...
                 if code_line_idx < last_code_line_idx {

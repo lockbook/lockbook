@@ -8,7 +8,7 @@ use comrak::{Arena, Options};
 use core::time::Duration;
 use egui::{
     Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Rect,
-    Response, ScrollArea, Sense, Stroke, Ui, Vec2,
+    ScrollArea, Sense, Stroke, Ui, Vec2,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
@@ -20,7 +20,8 @@ use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use theme::Theme;
 use widget::inline::image::cache::ImageCache;
-use widget::{MARGIN, MAX_WIDTH, ROW_HEIGHT};
+use widget::leaf_block::code_block::cache::SyntaxHighlightCache;
+use widget::{MARGIN, MAX_WIDTH};
 
 mod bounds;
 mod galleys;
@@ -57,6 +58,7 @@ pub struct MarkdownPlusPlus {
     pub event: EventState,
     pub galleys: Galleys,
     pub images: ImageCache,
+    pub syntax: SyntaxHighlightCache,
 
     // widgets
     // pub toolbar: Toolbar,
@@ -112,6 +114,7 @@ impl MarkdownPlusPlus {
             event: Default::default(),
             virtual_keyboard_shown: Default::default(),
             galleys: Default::default(),
+            syntax: Default::default(),
         }
     }
 
@@ -225,6 +228,7 @@ impl MarkdownPlusPlus {
                 });
             });
         self.bounds.text = self.bounds.paragraphs.clone(); // todo: inline character capture
+        self.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();
 

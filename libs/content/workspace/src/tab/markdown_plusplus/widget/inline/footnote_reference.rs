@@ -15,7 +15,7 @@ impl<'ast> MarkdownPlusPlus {
         &self, node: &'ast AstNode<'ast>, wrap: &WrapContext, ix: u32,
     ) -> f32 {
         let text = format!("{}", ix);
-        self.span_text(node, wrap, &text)
+        self.span_text_line(node, wrap, &text)
     }
 
     pub fn show_footnote_reference(
@@ -26,6 +26,6 @@ impl<'ast> MarkdownPlusPlus {
         sourcepos.start.column += 2;
         sourcepos.end.column -= 1;
 
-        self.show_text(ui, node, top_left, wrap, sourcepos);
+        self.show_text_line(ui, node, top_left, wrap, sourcepos, None);
     }
 }

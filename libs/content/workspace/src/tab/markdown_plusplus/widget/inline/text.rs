@@ -3,7 +3,7 @@ use std::mem;
 use comrak::nodes::{AstNode, NodeValue, Sourcepos};
 use egui::epaint::text::Row;
 use egui::text::{CCursor, LayoutJob};
-use egui::{Color32, Id, LayerId, Order, Pos2, Rangef, Sense, Stroke, TextFormat, Ui, Vec2};
+use egui::{Color32, Id, LayerId, Order, Pos2, Rangef, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::RangeExt as _;
 use syntect::easy::HighlightLines;
 
@@ -12,7 +12,7 @@ use crate::tab::markdown_plusplus::widget::{WrapContext, INLINE_PADDING, ROW_HEI
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
-    pub fn span_text(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext, text: &str) -> f32 {
+    pub fn span_text_line(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext, text: &str) -> f32 {
         let pre_span = self.text_pre_span(node, wrap);
         let mid_span = self.text_mid_span(node, wrap, pre_span, text);
         let post_span = self.text_post_span(node, wrap, pre_span + mid_span);
@@ -27,9 +27,9 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     /// Show some text. It must not contain newlines. It doesn't matter if it wraps. It doesn't have to be a whole line.
-    pub fn show_text(
+    pub fn show_text_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
-        sourcepos: Sourcepos,
+        sourcepos: Sourcepos, color: Option<Color32>,
     ) {
         let range = self.sourcepos_to_range(sourcepos);
         let text = &self.buffer[range];
@@ -50,212 +50,115 @@ impl<'ast> MarkdownPlusPlus {
         let mut text_format = self.text_format(node);
         let underline = mem::take(&mut text_format.underline);
         let background = mem::take(&mut text_format.background);
+        if let Some(color) = color {
+            text_format.color = color;
+        }
 
         wrap.offset += pre_span;
 
-        // syntax highlighting
-        let syntax_theme =
-            if ui.visuals().dark_mode { &self.syntax_dark_theme } else { &self.syntax_light_theme };
-        let mut highlighter = None;
-        for ancestor in node.ancestors() {
-            match &ancestor.data.borrow().value {
-                NodeValue::CodeBlock(code_block) => {
-                    if let Some(syntax) = self.syntax_set.find_syntax_by_token(&code_block.info) {
-                        highlighter = Some(HighlightLines::new(syntax, syntax_theme));
-                    }
-                }
-                NodeValue::HtmlBlock(_) => {
-                    if let Some(syntax) = self.syntax_set.find_syntax_by_token("html") {
-                        highlighter = Some(HighlightLines::new(syntax, syntax_theme));
-                    }
-                }
-                _ => {}
+        let mut layout_job = LayoutJob::single_section(text.into(), text_format.clone());
+        layout_job.wrap.max_width = wrap.width;
+        if let Some(first_section) = layout_job.sections.first_mut() {
+            first_section.leading_space = wrap.line_offset();
+        }
+
+        let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
+        let pos = top_left + Vec2::new(0., wrap.line() as f32 * (row_height + ROW_SPACING));
+
+        let spoiler = node
+            .ancestors()
+            .any(|node| matches!(node.data.borrow().value, NodeValue::SpoileredText));
+        let mut hovered = false;
+        for (i, row) in galley.rows.iter().enumerate() {
+            let rect = row.rect.translate(pos.to_vec2());
+            let rect = rect.translate(Vec2::new(0., i as f32 * ROW_SPACING));
+
+            if ui
+                .allocate_rect(rect.expand2(Vec2::new(INLINE_PADDING, 1.)), Sense::hover())
+                .hovered()
+            {
+                hovered = true;
             }
         }
 
-        if let Some(highlighter) = highlighter.as_mut() {
-            let regions = highlighter.highlight_line(text, &self.syntax_set).unwrap();
-            for &(ref style, region) in &regions {
-                let text_format = TextFormat {
-                    color: Color32::from_rgb(
-                        style.foreground.r,
-                        style.foreground.g,
-                        style.foreground.b,
-                    ),
-                    ..text_format.clone()
-                };
-
-                let region_span = self.text_mid_span(node, wrap, Default::default(), region);
-
-                let mut layout_job = LayoutJob::single_section(region.into(), text_format.clone());
-                layout_job.wrap.max_width = wrap.width;
-                if let Some(first_section) = layout_job.sections.first_mut() {
-                    first_section.leading_space = wrap.line_offset();
-                }
-
-                let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
-                let pos = top_left + Vec2::new(0., wrap.line() as f32 * (row_height + ROW_SPACING));
-
-                let mut empty_rows = 0;
-                for (i, row) in galley.rows.iter().enumerate() {
-                    if row.rect.area() < 1. {
-                        empty_rows += 1;
-                        continue;
-                    }
-
-                    let rect = row.rect.translate(pos.to_vec2());
-                    let rect = rect.translate(Vec2::new(
-                        0.,
-                        i as f32 * ROW_SPACING + empty_rows as f32 * row_height,
-                    ));
-
-                    // paint galley row-by-row to take control of row spacing
-                    let layout_job = LayoutJob::single_section(row.text(), text_format.clone());
-                    let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
-
-                    let byte_range = (galley_start, galley_start + region.len());
-                    let range = self.range_to_char(byte_range);
-                    let cursor = self.buffer.current.selection.start(); // whatever
-                    if range.contains(cursor, true, true) {
-                        let egui_cursor = galley.from_ccursor(CCursor {
-                            index: (cursor - range.start()).0,
-                            prefer_next_row: true,
-                        });
-
-                        let max =
-                            rect.left_top() + galley.pos_from_cursor(&egui_cursor).max.to_vec2();
-
-                        ui.painter().vline(
-                            max.x,
-                            Rangef { min: max.y - row_height, max: max.y },
-                            egui::Stroke::new(1., self.theme.fg().accent_secondary),
-                        );
-                    }
-
-                    ui.painter()
-                        .galley(rect.left_top(), galley.clone(), Default::default());
-                    self.galleys
-                        .push(GalleyInfo { range, galley, rect });
-
-                    // debug
-                    // ui.painter().rect_stroke(
-                    //     rect,
-                    //     2.,
-                    //     egui::Stroke::new(1., self.theme.fg().accent_primary),
-                    // );
-                }
-
-                wrap.offset += region_span;
-                galley_start += region.len();
-            }
-        } else {
-            let mut layout_job = LayoutJob::single_section(text.into(), text_format.clone());
-            layout_job.wrap.max_width = wrap.width;
-            if let Some(first_section) = layout_job.sections.first_mut() {
-                first_section.leading_space = wrap.line_offset();
+        let mut empty_rows = 0;
+        for (i, row) in galley.rows.iter().enumerate() {
+            if row.rect.area() < 1. {
+                empty_rows += 1;
+                continue;
             }
 
+            let rect = row.rect.translate(pos.to_vec2());
+            let rect = rect
+                .translate(Vec2::new(0., i as f32 * ROW_SPACING + empty_rows as f32 * row_height));
+
+            if spoiler {
+                if hovered {
+                    ui.painter().rect_stroke(
+                        rect.expand2(Vec2::new(INLINE_PADDING, 1.)),
+                        2.,
+                        Stroke::new(1., background),
+                    );
+                }
+            } else if background != Default::default() {
+                ui.painter().rect(
+                    rect.expand2(Vec2::new(INLINE_PADDING, 1.)),
+                    2.,
+                    background,
+                    Stroke::new(1., self.theme.bg().neutral_tertiary),
+                );
+            }
+
+            // paint galley row-by-row to take control of row spacing
+            let layout_job = LayoutJob::single_section(row.text(), text_format.clone());
             let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
-            let pos = top_left + Vec2::new(0., wrap.line() as f32 * (row_height + ROW_SPACING));
 
-            let spoiler = node
-                .ancestors()
-                .any(|node| matches!(node.data.borrow().value, NodeValue::SpoileredText));
-            let mut hovered = false;
-            for (i, row) in galley.rows.iter().enumerate() {
-                let rect = row.rect.translate(pos.to_vec2());
-                let rect = rect.translate(Vec2::new(0., i as f32 * ROW_SPACING));
-
-                if ui
-                    .allocate_rect(rect.expand2(Vec2::new(INLINE_PADDING, 1.)), Sense::hover())
-                    .hovered()
-                {
-                    hovered = true;
-                }
+            if spoiler && !hovered {
+                ui.painter().rect_filled(
+                    rect.expand2(Vec2::new(INLINE_PADDING, 1.)),
+                    2.,
+                    background,
+                );
             }
 
-            let mut empty_rows = 0;
-            for (i, row) in galley.rows.iter().enumerate() {
-                if row.rect.area() < 1. {
-                    empty_rows += 1;
-                    continue;
-                }
+            let byte_range = (galley_start, galley_start + row.text().len());
+            let range = self.range_to_char(byte_range);
+            let cursor = self.buffer.current.selection.end(); // whatever
+            if range.contains(cursor, true, true) {
+                let egui_cursor = galley.from_ccursor(CCursor {
+                    index: (cursor - range.start()).0,
+                    prefer_next_row: true,
+                });
 
-                let rect = row.rect.translate(pos.to_vec2());
-                let rect = rect.translate(Vec2::new(
-                    0.,
-                    i as f32 * ROW_SPACING + empty_rows as f32 * row_height,
-                ));
-
-                if spoiler {
-                    if hovered {
-                        ui.painter().rect_stroke(
-                            rect.expand2(Vec2::new(INLINE_PADDING, 1.)),
-                            2.,
-                            Stroke::new(1., background),
-                        );
-                    }
-                } else if background != Default::default() {
-                    ui.painter().rect(
-                        rect.expand2(Vec2::new(INLINE_PADDING, 1.)),
-                        2.,
-                        background,
-                        Stroke::new(1., self.theme.bg().neutral_tertiary),
-                    );
-                }
-
-                // paint galley row-by-row to take control of row spacing
-                let layout_job = LayoutJob::single_section(row.text(), text_format.clone());
-                let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
-
-                if spoiler && !hovered {
-                    ui.painter().rect_filled(
-                        rect.expand2(Vec2::new(INLINE_PADDING, 1.)),
-                        2.,
-                        background,
-                    );
-                }
-
-                let byte_range = (galley_start, galley_start + text.len());
-                let range = self.range_to_char(byte_range);
-                let cursor = self.buffer.current.selection.end(); // whatever
-                if range.contains(cursor, true, true) {
-                    let egui_cursor = galley.from_ccursor(CCursor {
-                        index: (cursor - range.start()).0,
-                        prefer_next_row: true,
-                    });
-
-                    let max = rect.left_top() + galley.pos_from_cursor(&egui_cursor).max.to_vec2();
-
-                    ui.painter()
-                        .clone()
-                        .with_layer_id(LayerId::new(Order::Tooltip, Id::new("cursor")))
-                        .vline(
-                            max.x,
-                            Rangef { min: max.y - row_height, max: max.y },
-                            egui::Stroke::new(1., self.theme.fg().accent_secondary),
-                        );
-                }
+                let max = rect.left_top() + galley.pos_from_cursor(&egui_cursor).max.to_vec2();
 
                 ui.painter()
-                    .galley(rect.left_top(), galley.clone(), Default::default());
-                ui.painter()
-                    .hline(rect.x_range(), rect.bottom() - 2.0, underline);
-                self.galleys
-                    .push(GalleyInfo { range, galley, rect });
-
-                // debug
-                // ui.painter().rect_stroke(
-                //     rect,
-                //     2.,
-                //     egui::Stroke::new(1., self.theme.fg().accent_primary),
-                // );
+                    .clone()
+                    .with_layer_id(LayerId::new(Order::Tooltip, Id::new("cursor")))
+                    .vline(
+                        max.x,
+                        Rangef { min: max.y - row_height, max: max.y },
+                        egui::Stroke::new(1., self.theme.fg().accent_secondary),
+                    );
             }
 
-            wrap.offset += mid_span;
-            galley_start += text.len();
+            ui.painter()
+                .galley(rect.left_top(), galley.clone(), Default::default());
+            ui.painter()
+                .hline(rect.x_range(), rect.bottom() - 2.0, underline);
+            self.galleys.push(GalleyInfo { range, galley, rect });
+
+            galley_start += row.text().len();
+
+            // debug
+            // ui.painter().rect_stroke(
+            //     rect,
+            //     2.,
+            //     egui::Stroke::new(1., self.theme.fg().accent_primary),
+            // );
         }
 
+        wrap.offset += mid_span;
         wrap.offset += post_span;
     }
 
@@ -273,51 +176,15 @@ impl<'ast> MarkdownPlusPlus {
     ) -> f32 {
         let mut tmp_wrap = WrapContext { offset: wrap.offset + pre_span, ..*wrap };
 
-        // syntax highlighting (it breaks the text into regions which affects how it's wrapped)
-        let syntax_theme = &self.syntax_light_theme; // the particular colors don't matter
-        let mut highlighter = None;
-        for ancestor in node.ancestors() {
-            match &ancestor.data.borrow().value {
-                NodeValue::CodeBlock(code_block) => {
-                    if let Some(syntax) = self.syntax_set.find_syntax_by_token(&code_block.info) {
-                        highlighter = Some(HighlightLines::new(syntax, syntax_theme));
-                    }
-                }
-                NodeValue::HtmlBlock(_) => {
-                    if let Some(syntax) = self.syntax_set.find_syntax_by_token("html") {
-                        highlighter = Some(HighlightLines::new(syntax, syntax_theme));
-                    }
-                }
-                _ => {}
-            }
+        let mut layout_job = LayoutJob::single_section(text.into(), self.text_format(node));
+        layout_job.wrap.max_width = wrap.width;
+        if let Some(first_section) = layout_job.sections.first_mut() {
+            first_section.leading_space = tmp_wrap.line_offset();
         }
 
-        if let Some(highlighter) = highlighter.as_mut() {
-            let regions = highlighter.highlight_line(text, &self.syntax_set).unwrap();
-            for &(_, region) in &regions {
-                let mut layout_job =
-                    LayoutJob::single_section(region.into(), self.text_format(node));
-                layout_job.wrap.max_width = wrap.width;
-                if let Some(first_section) = layout_job.sections.first_mut() {
-                    first_section.leading_space = tmp_wrap.line_offset();
-                }
-
-                let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
-                for row in &galley.rows {
-                    tmp_wrap.offset += row_span(row, &tmp_wrap);
-                }
-            }
-        } else {
-            let mut layout_job = LayoutJob::single_section(text.into(), self.text_format(node));
-            layout_job.wrap.max_width = wrap.width;
-            if let Some(first_section) = layout_job.sections.first_mut() {
-                first_section.leading_space = tmp_wrap.line_offset();
-            }
-
-            let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
-            for row in &galley.rows {
-                tmp_wrap.offset += row_span(row, &tmp_wrap);
-            }
+        let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
+        for row in &galley.rows {
+            tmp_wrap.offset += row_span(row, &tmp_wrap);
         }
 
         tmp_wrap.offset - (wrap.offset + pre_span)

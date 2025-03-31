@@ -1,9 +1,9 @@
-mod block_quote;
-mod document;
-mod footnote_definition;
-mod item;
-mod list;
-mod multiline_block_quote;
-mod table;
-mod table_row;
-mod task_item;
+pub(crate) mod block_quote;
+pub(crate) mod document;
+pub(crate) mod footnote_definition;
+pub(crate) mod item;
+pub(crate) mod list;
+pub(crate) mod multiline_block_quote;
+pub(crate) mod table;
+pub(crate) mod table_row;
+pub(crate) mod task_item;
