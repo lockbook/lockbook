@@ -5,7 +5,6 @@ use egui::epaint::text::Row;
 use egui::text::{CCursor, LayoutJob};
 use egui::{Color32, Id, LayerId, Order, Pos2, Rangef, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::RangeExt as _;
-use syntect::easy::HighlightLines;
 
 use crate::tab::markdown_plusplus::galleys::GalleyInfo;
 use crate::tab::markdown_plusplus::widget::{WrapContext, INLINE_PADDING, ROW_HEIGHT, ROW_SPACING};
@@ -102,7 +101,7 @@ impl<'ast> MarkdownPlusPlus {
                 }
             } else if background != Default::default() {
                 ui.painter().rect(
-                    rect.expand2(Vec2::new(INLINE_PADDING, 1.)),
+                    rect.expand2(Vec2::new(INLINE_PADDING - 2., 1.)),
                     2.,
                     background,
                     Stroke::new(1., self.theme.bg().neutral_tertiary),
