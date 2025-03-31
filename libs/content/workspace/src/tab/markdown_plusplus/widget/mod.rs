@@ -2,6 +2,7 @@ use comrak::nodes::{
     AstNode, NodeCode, NodeHeading, NodeHtmlBlock, NodeLink, NodeList, NodeMath, NodeValue,
 };
 use egui::{Pos2, TextFormat, Ui};
+use inline::text;
 
 use super::MarkdownPlusPlus;
 
@@ -419,21 +420,21 @@ impl<'ast> MarkdownPlusPlus {
 
             // inline
             NodeValue::Image(_) => self.inline_children_span(node, wrap),
-            NodeValue::Code(NodeCode { literal, .. }) => self.span_text(node, wrap, literal),
+            NodeValue::Code(NodeCode { literal, .. }) => self.span_text_line(node, wrap, literal),
             NodeValue::Emph => self.inline_children_span(node, wrap),
             NodeValue::Escaped => self.inline_children_span(node, wrap),
             NodeValue::EscapedTag(_) => self.inline_children_span(node, wrap),
             NodeValue::FootnoteReference(_) => self.inline_children_span(node, wrap),
-            NodeValue::HtmlInline(html) => self.span_text(node, wrap, html),
+            NodeValue::HtmlInline(html) => self.span_text_line(node, wrap, html),
             NodeValue::LineBreak => self.span_line_break(wrap),
             NodeValue::Link(_) => self.inline_children_span(node, wrap),
-            NodeValue::Math(NodeMath { literal, .. }) => self.span_text(node, wrap, literal),
+            NodeValue::Math(NodeMath { literal, .. }) => self.span_text_line(node, wrap, literal),
             NodeValue::SoftBreak => self.span_soft_break(wrap),
             NodeValue::SpoileredText => self.inline_children_span(node, wrap),
             NodeValue::Strikethrough => self.inline_children_span(node, wrap),
             NodeValue::Strong => self.inline_children_span(node, wrap),
             NodeValue::Superscript => self.inline_children_span(node, wrap),
-            NodeValue::Text(text) => self.span_text(node, wrap, text),
+            NodeValue::Text(text) => self.span_text_line(node, wrap, text),
             NodeValue::Underline => self.inline_children_span(node, wrap),
             NodeValue::WikiLink(_) => self.inline_children_span(node, wrap),
 
@@ -450,7 +451,8 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    // the span of an inline that contains inlines is the sum of the spans of the inlines
+    // the span of an inline that contains inlines is the sum of the spans of
+    // the inlines
     fn inline_children_span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
         let mut tmp_wrap = wrap.clone();
         for child in node.children() {
@@ -459,17 +461,34 @@ impl<'ast> MarkdownPlusPlus {
         tmp_wrap.offset - wrap.offset
     }
 
-    // the size of a block that contains inlines is the span of the inlines divided
-    // by the wrap width (rounded up), times the row height (plus spacing)
+    // the size of a block that contains inlines is the span of the inlines
+    // divided by the wrap width (rounded up), times the row height (plus
+    // spacing)
     fn inline_children_height(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
         let children_span = self.inline_children_span(node, &WrapContext::new(width));
         let rows = (children_span / width).ceil();
         rows * self.row_height(node) + (rows - 1.) * ROW_SPACING
     }
 
-    // the height of inline text; used for code blocks and other situations where text isn't in inlines
-    fn inline_text_height(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext, text: &str) -> f32 {
-        let span = self.span_text(node, wrap, text);
+    // the height of possibly multiple lines of wrapped text; used for code
+    // blocks and other situations where text isn't in inlines
+    fn text_height(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext, text: &str) -> f32 {
+        let mut tmp_wrap = wrap.clone();
+        for (i, line) in text.lines().enumerate() {
+            tmp_wrap.offset += self.span_text_line(node, wrap, line);
+
+            // all lines except the last one end in a newline...
+            if i < text.lines().count() - 1 {
+                tmp_wrap.offset = tmp_wrap.line_end();
+            }
+        }
+
+        // ...and sometimes the last one also ends with a newline
+        if text::ends_with_newline(text) {
+            tmp_wrap.offset = tmp_wrap.line_end();
+        }
+
+        let span = tmp_wrap.offset - wrap.offset;
         let rows = (span / wrap.width).ceil();
         rows * self.row_height(node) + (rows - 1.) * ROW_SPACING
     }
@@ -497,23 +516,25 @@ impl<'ast> MarkdownPlusPlus {
 
             // inline
             NodeValue::Image(_) => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Code(_) => self.show_text(ui, node, top_left, wrap, sourcepos),
+            NodeValue::Code(_) => self.show_text_line(ui, node, top_left, wrap, sourcepos, None),
             NodeValue::Emph => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Escaped => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::EscapedTag(_) => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::FootnoteReference(_) => {
                 self.show_footnote_reference(ui, node, top_left, wrap)
             }
-            NodeValue::HtmlInline(_) => self.show_text(ui, node, top_left, wrap, sourcepos),
+            NodeValue::HtmlInline(_) => {
+                self.show_text_line(ui, node, top_left, wrap, sourcepos, None)
+            }
             NodeValue::LineBreak => self.show_line_break(wrap),
             NodeValue::Link(_) => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Math(_) => self.show_text(ui, node, top_left, wrap, sourcepos),
+            NodeValue::Math(_) => self.show_text_line(ui, node, top_left, wrap, sourcepos, None),
             NodeValue::SoftBreak => self.show_soft_break(wrap),
             NodeValue::SpoileredText => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Strikethrough => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Strong => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Superscript => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Text(_) => self.show_text(ui, node, top_left, wrap, sourcepos),
+            NodeValue::Text(_) => self.show_text_line(ui, node, top_left, wrap, sourcepos, None),
             NodeValue::Underline => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::WikiLink(_) => self.show_inline_children(ui, node, top_left, wrap),
 
