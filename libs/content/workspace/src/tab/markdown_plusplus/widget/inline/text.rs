@@ -4,7 +4,7 @@ use comrak::nodes::{AstNode, NodeValue, Sourcepos};
 use egui::epaint::text::Row;
 use egui::text::{CCursor, LayoutJob};
 use egui::{Color32, Id, LayerId, Order, Pos2, Rangef, Sense, Stroke, Ui, Vec2};
-use lb_rs::model::text::offset_types::RangeExt as _;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_plusplus::galleys::GalleyInfo;
 use crate::tab::markdown_plusplus::widget::{WrapContext, INLINE_PADDING, ROW_HEIGHT, ROW_SPACING};
@@ -28,10 +28,15 @@ impl<'ast> MarkdownPlusPlus {
     /// Show some text. It must not contain newlines. It doesn't matter if it wraps. It doesn't have to be a whole line.
     pub fn show_text_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
-        sourcepos: Sourcepos, color: Option<Color32>,
+        range: (DocCharOffset, DocCharOffset), color: Option<Color32>,
     ) {
-        let range = self.sourcepos_to_range(sourcepos);
         let text = &self.buffer[range];
+
+        #[cfg(debug_assertions)]
+        if text.contains('\n') {
+            panic!("show_text_line: text contains newline: {:?}", text);
+        }
+
         let mut galley_start = self.range_to_byte(range).start();
 
         let pre_span = self.text_pre_span(node, wrap);
@@ -82,11 +87,6 @@ impl<'ast> MarkdownPlusPlus {
 
         let mut empty_rows = 0;
         for (i, row) in galley.rows.iter().enumerate() {
-            if row.rect.area() < 1. {
-                empty_rows += 1;
-                continue;
-            }
-
             let rect = row.rect.translate(pos.to_vec2());
             let rect = rect
                 .translate(Vec2::new(0., i as f32 * ROW_SPACING + empty_rows as f32 * row_height));
@@ -120,6 +120,13 @@ impl<'ast> MarkdownPlusPlus {
                 );
             }
 
+            // debug
+            // ui.painter().rect_stroke(
+            //     rect,
+            //     2.,
+            //     egui::Stroke::new(1., self.theme.fg().accent_primary),
+            // );
+
             let byte_range = (galley_start, galley_start + row.text().len());
             let range = self.range_to_char(byte_range);
             let cursor = self.buffer.current.selection.end(); // whatever
@@ -149,12 +156,9 @@ impl<'ast> MarkdownPlusPlus {
 
             galley_start += row.text().len();
 
-            // debug
-            // ui.painter().rect_stroke(
-            //     rect,
-            //     2.,
-            //     egui::Stroke::new(1., self.theme.fg().accent_primary),
-            // );
+            if row.rect.area() < 1. {
+                empty_rows += 1;
+            }
         }
 
         wrap.offset += mid_span;
@@ -218,4 +222,24 @@ fn row_wrap_span(row: &Row, wrap: &WrapContext) -> Option<f32> {
 
 pub fn ends_with_newline(s: &str) -> bool {
     s.ends_with('\n') || s.ends_with("\r\n")
+}
+
+pub fn num_trailing_newlines(s: &str) -> usize {
+    let bytes = s.as_bytes();
+    let mut count = 0;
+    let mut i = bytes.len();
+
+    while i > 0 {
+        if i >= 2 && &bytes[i - 2..i] == b"\r\n" {
+            count += 1;
+            i -= 2;
+        } else if bytes[i - 1] == b'\n' {
+            count += 1;
+            i -= 1;
+        } else {
+            break;
+        }
+    }
+
+    count
 }

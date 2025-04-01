@@ -508,21 +508,21 @@ pub trait RangeIterExt {
     fn iter(self) -> Self::Iter;
 }
 
-impl RangeIterExt for (usize, usize) {
-    type Item = usize;
-    type Iter = RangeIter;
+impl<T: Copy + PartialOrd + AddAssign<usize> + SubAssign<usize>> RangeIterExt for (T, T) {
+    type Item = T;
+    type Iter = RangeIter<T>;
     fn iter(self) -> Self::Iter {
         RangeIter { start_inclusive: self.0, end_exclusive: self.1 }
     }
 }
 
-pub struct RangeIter {
-    start_inclusive: usize,
-    end_exclusive: usize,
+pub struct RangeIter<T> {
+    start_inclusive: T,
+    end_exclusive: T,
 }
 
-impl Iterator for RangeIter {
-    type Item = usize;
+impl<T: Copy + PartialOrd + AddAssign<usize>> Iterator for RangeIter<T> {
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start_inclusive < self.end_exclusive {
@@ -535,7 +535,9 @@ impl Iterator for RangeIter {
     }
 }
 
-impl DoubleEndedIterator for RangeIter {
+impl<T: Copy + PartialOrd + AddAssign<usize> + SubAssign<usize>> DoubleEndedIterator
+    for RangeIter<T>
+{
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.start_inclusive < self.end_exclusive {
             self.end_exclusive -= 1;

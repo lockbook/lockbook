@@ -165,7 +165,14 @@ impl<'ast> MarkdownPlusPlus {
             let info_top_left = top_left + Vec2::splat(BLOCK_PADDING);
             let mut wrap = WrapContext::new(text_width);
             let info_sourcepos = self.range_to_sourcepos(info_range);
-            self.show_text_line(ui, node, info_top_left, &mut wrap, info_sourcepos, None);
+            self.show_text_line(
+                ui,
+                node,
+                info_top_left,
+                &mut wrap,
+                self.sourcepos_to_range(info_sourcepos),
+                None,
+            );
         }
 
         // code text
@@ -260,12 +267,19 @@ impl<'ast> MarkdownPlusPlus {
                             node,
                             code_top_left,
                             &mut wrap,
-                            sourcepos,
+                            self.sourcepos_to_range(sourcepos),
                             Some(color),
                         );
                     }
                 } else {
-                    self.show_text_line(ui, node, code_top_left, &mut wrap, code_sourcepos, None);
+                    self.show_text_line(
+                        ui,
+                        node,
+                        code_top_left,
+                        &mut wrap,
+                        self.sourcepos_to_range(code_sourcepos),
+                        None,
+                    );
                 }
 
                 // all lines except the last one end in a newline...
