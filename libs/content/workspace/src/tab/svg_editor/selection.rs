@@ -45,7 +45,7 @@ enum SelectionOperation {
 #[derive(Clone, Debug)]
 pub struct SelectedElement {
     pub id: Uuid,
-    transform: Transform, // collection of all transforms that happend during a drag
+    pub transform: Transform, // collection of all transforms that happend during a drag
 }
 
 #[derive(Default)]
