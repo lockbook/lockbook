@@ -223,7 +223,6 @@ impl MarkdownPlusPlus {
                 //     }
 
                 // if it's none of the other things, just insert a newline
-                println!("// if it's none of the other things, just insert a newline");
                 operations.push(Operation::Replace(Replace {
                     range: current_selection,
                     text: "\n".into(),

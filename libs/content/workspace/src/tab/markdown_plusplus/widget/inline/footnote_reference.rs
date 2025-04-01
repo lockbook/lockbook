@@ -26,6 +26,6 @@ impl<'ast> MarkdownPlusPlus {
         sourcepos.start.column += 2;
         sourcepos.end.column -= 1;
 
-        self.show_text_line(ui, node, top_left, wrap, sourcepos, None);
+        self.show_text_line(ui, node, top_left, wrap, self.sourcepos_to_range(sourcepos), None);
     }
 }

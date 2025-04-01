@@ -1,8 +1,13 @@
-use egui::{FontId, TextFormat};
+use comrak::nodes::AstNode;
+use egui::{FontId, Pos2, TextFormat};
+use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeIterExt as _};
 
-use crate::tab::markdown_plusplus::{widget::ROW_HEIGHT, MarkdownPlusPlus};
+use crate::tab::markdown_plusplus::{
+    widget::{WrapContext, ROW_HEIGHT, ROW_SPACING},
+    MarkdownPlusPlus,
+};
 
-impl MarkdownPlusPlus {
+impl<'ast> MarkdownPlusPlus {
     pub fn text_format_document(&self) -> TextFormat {
         let parent_text_format = TextFormat::default();
         TextFormat {
@@ -15,6 +20,32 @@ impl MarkdownPlusPlus {
                 ..parent_text_format.font_id
             },
             ..parent_text_format
+        }
+    }
+
+    pub fn show_document(
+        &mut self, ui: &mut egui::Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, width: f32,
+    ) {
+        if node.children().count() == 0 {
+            for offset in
+                (DocCharOffset(0), self.buffer.current.segs.last_cursor_position() + 1).iter()
+            {
+                let range = offset.into_range();
+                self.show_text_line(
+                    ui,
+                    node,
+                    top_left,
+                    &mut WrapContext::new(width),
+                    range,
+                    Some(self.theme.fg().neutral_quarternary),
+                );
+                self.bounds.paragraphs.push(range);
+
+                top_left.y += ROW_HEIGHT;
+                top_left.y += ROW_SPACING;
+            }
+        } else {
+            self.show_block_children(ui, node, top_left, width)
         }
     }
 }

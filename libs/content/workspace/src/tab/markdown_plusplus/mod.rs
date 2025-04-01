@@ -249,6 +249,14 @@ impl MarkdownPlusPlus {
             "                                                              render: {:?}",
             render_elapsed
         );
+
+        // focus editor by default
+        if ui.memory(|m| m.focused().is_none()) {
+            self.focus(ui.ctx());
+        }
+        if self.focused(ui.ctx()) {
+            self.focus_lock(ui.ctx());
+        }
     }
 
     fn render<'a>(&mut self, ui: &mut Ui, root: &'a AstNode<'a>) {
@@ -328,13 +336,30 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 
     // convert cardinal (inc, inc) pairs to ordinal (inc, exc) pairs
     let sourcepos = node.data.borrow().sourcepos;
-    let sourcepos = Sourcepos {
-        start: LineColumn { line: sourcepos.start.line - 1, column: sourcepos.start.column - 1 },
-        end: LineColumn { line: sourcepos.end.line - 1, ..sourcepos.end },
-    };
+    // let sourcepos = Sourcepos {
+    //     start: LineColumn { line: sourcepos.start.line - 1, column: sourcepos.start.column - 1 },
+    //     end: LineColumn { line: sourcepos.end.line - 1, ..sourcepos.end },
+    // };
 
     if indent.is_empty() {
-        println!("{:?}", node.data.borrow().value);
+        println!(
+            "{} {:?} {}{}{}",
+            if node.data.borrow().value.block() { "■" } else { "=" }.cyan(),
+            node.data.borrow().value,
+            format!("{}", sourcepos).bright_cyan(),
+            if node.children().count() > 0 {
+                format!(" +{}", node.children().count())
+            } else {
+                "".into()
+            }
+            .cyan(),
+            if node.children().count() > 0 {
+                if node.data.borrow().value.contains_inlines() { "=" } else { "■" }.bright_black()
+            } else {
+                "".into()
+            }
+            .bright_black(),
+        );
     } else {
         println!(
             "{}{}{} {:?} {}{}{}",

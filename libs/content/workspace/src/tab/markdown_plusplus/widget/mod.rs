@@ -9,6 +9,7 @@ use super::MarkdownPlusPlus;
 pub(crate) mod container_block;
 pub(crate) mod inline;
 pub(crate) mod leaf_block;
+pub(crate) mod spacing;
 
 pub const MARGIN: f32 = 20.0; // space between the editor and window border; must be large enough to accomodate bordered elements e.g. code blocks
 pub const MAX_WIDTH: f32 = 800.0; // the maximum width of the editor before it starts adding padding
@@ -180,100 +181,11 @@ impl<'ast> MarkdownPlusPlus {
     fn block_children_height(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
         let mut height_sum = 0.0;
         for child in node.children() {
-            height_sum += self.block_pre_spacing(child);
+            height_sum += self.block_pre_spacing_height(child);
             height_sum += self.height(child, width);
-            height_sum += self.block_post_spacing(child);
+            height_sum += self.block_post_spacing_height(child);
         }
         height_sum
-    }
-
-    fn block_pre_spacing(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let sourcepos = node.data.borrow().sourcepos;
-        let value = &node.data.borrow().value;
-
-        let mut min_spacing = 0.;
-
-        // spacing based on lines between this block and the previous block
-        let mut siblings = Vec::new();
-        siblings.extend(node.preceding_siblings());
-        siblings.push(node);
-        siblings.extend(node.following_siblings());
-        siblings.sort_by(|a, b| {
-            a.data
-                .borrow()
-                .sourcepos
-                .start
-                .line
-                .cmp(&b.data.borrow().sourcepos.start.line)
-        });
-        let this_sibling_index = siblings
-            .iter()
-            .position(|sibling| sibling.data.borrow().sourcepos == sourcepos)
-            .unwrap();
-
-        let line_count = if this_sibling_index > 0 {
-            let prev_sibling = siblings[this_sibling_index - 1];
-
-            // space between two siblings
-            min_spacing = BLOCK_SPACING;
-
-            let prev_sibling_sourcepos = prev_sibling.data.borrow().sourcepos;
-            sourcepos.start.line - prev_sibling_sourcepos.end.line
-        } else if let Some(parent) = node.parent() {
-            // space between the start of the parent and the first sibling
-            let parent_sourcepos = parent.data.borrow().sourcepos;
-            sourcepos.start.line - parent_sourcepos.start.line
-        } else {
-            unreachable!("spacing not evaluated for document node");
-        };
-
-        if let NodeValue::TableRow(_) = value {
-            0. // no spacing before (or after) table rows
-        } else {
-            let empty_line_count = line_count.saturating_sub(1); // one of these is just the line break
-            let spacing = empty_line_count as f32 * self.row_height(node.parent().unwrap());
-
-            spacing.max(min_spacing) // add at least the min spacing
-        }
-    }
-
-    fn block_post_spacing(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let sourcepos = node.data.borrow().sourcepos;
-        let value = &node.data.borrow().value;
-
-        // spacing based on lines between this block and the next block
-        let mut siblings = Vec::new();
-        siblings.extend(node.preceding_siblings());
-        siblings.push(node);
-        siblings.extend(node.following_siblings());
-        siblings.sort_by(|a, b| {
-            a.data
-                .borrow()
-                .sourcepos
-                .start
-                .line
-                .cmp(&b.data.borrow().sourcepos.start.line)
-        });
-        let this_sibling_index = siblings
-            .iter()
-            .position(|sibling| sibling.data.borrow().sourcepos == sourcepos)
-            .unwrap();
-
-        let mut line_count = if this_sibling_index < siblings.len() - 1 {
-            0 // space between two siblings rendered as pre-spacing of the next sibling
-        } else if let Some(parent) = node.parent() {
-            // space between the last sibling and the end of the parent
-            let parent_sourcepos = parent.data.borrow().sourcepos;
-            parent_sourcepos.end.line - sourcepos.end.line
-        } else {
-            unreachable!("spacing not evaluated for document node");
-        };
-
-        if let NodeValue::TableRow(_) = value {
-            0. // no spacing after (or before) table rows
-        } else {
-            line_count as f32 * self.row_height(node.parent().unwrap())
-        }
     }
 
     pub(crate) fn show_block(
@@ -286,7 +198,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left, width),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => self.show_block_children(ui, node, top_left, width),
+            NodeValue::Document => self.show_document(ui, node, top_left, width),
             NodeValue::FootnoteDefinition(_) => {
                 self.show_footnote_definition(ui, node, top_left, width)
             }
@@ -357,7 +269,8 @@ impl<'ast> MarkdownPlusPlus {
         children.sort_by_key(|child| child.data.borrow().sourcepos);
         for child in children {
             // add pre-spacing
-            let pre_spacing = self.block_pre_spacing(child);
+            let pre_spacing = self.block_pre_spacing_height(child);
+            self.show_block_pre_spacing(ui, child, top_left, width);
 
             // debug
             // ui.painter().rect_stroke(
@@ -384,7 +297,8 @@ impl<'ast> MarkdownPlusPlus {
             top_left.y += child_height;
 
             // add post-spacing
-            let post_spacing = self.block_post_spacing(child);
+            let post_spacing = self.block_post_spacing_height(child);
+            self.show_block_post_spacing(ui, child, top_left, width);
 
             // debug
             // ui.painter().rect_stroke(
@@ -496,7 +410,8 @@ impl<'ast> MarkdownPlusPlus {
     fn show_inline(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
     ) {
-        let sourcepos = node.data.borrow().sourcepos; // todo
+        let sourcepos = node.data.borrow().sourcepos; // todo: character uncapture
+        let range = self.sourcepos_to_range(sourcepos);
 
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => {}
@@ -516,25 +431,23 @@ impl<'ast> MarkdownPlusPlus {
 
             // inline
             NodeValue::Image(_) => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Code(_) => self.show_text_line(ui, node, top_left, wrap, sourcepos, None),
+            NodeValue::Code(_) => self.show_text_line(ui, node, top_left, wrap, range, None),
             NodeValue::Emph => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Escaped => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::EscapedTag(_) => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::FootnoteReference(_) => {
                 self.show_footnote_reference(ui, node, top_left, wrap)
             }
-            NodeValue::HtmlInline(_) => {
-                self.show_text_line(ui, node, top_left, wrap, sourcepos, None)
-            }
+            NodeValue::HtmlInline(_) => self.show_text_line(ui, node, top_left, wrap, range, None),
             NodeValue::LineBreak => self.show_line_break(wrap),
             NodeValue::Link(_) => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Math(_) => self.show_text_line(ui, node, top_left, wrap, sourcepos, None),
+            NodeValue::Math(_) => self.show_text_line(ui, node, top_left, wrap, range, None),
             NodeValue::SoftBreak => self.show_soft_break(wrap),
             NodeValue::SpoileredText => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Strikethrough => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Strong => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Superscript => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Text(_) => self.show_text_line(ui, node, top_left, wrap, sourcepos, None),
+            NodeValue::Text(_) => self.show_text_line(ui, node, top_left, wrap, range, None),
             NodeValue::Underline => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::WikiLink(_) => self.show_inline_children(ui, node, top_left, wrap),
 
