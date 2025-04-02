@@ -1,6 +1,8 @@
 use egui::Image;
 use lb_rs::Uuid;
 
+use super::svg_editor::SVGEditor;
+
 pub struct ImageViewer {
     pub id: Uuid,
     zoom_factor: f32,
@@ -18,15 +20,46 @@ impl ImageViewer {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        let mut painter = ui.painter().clone();
+        // avoid overlapping the tab strip
+        painter.set_clip_rect(ui.available_rect_before_wrap());
+
+        painter.rect_filled(painter.clip_rect(), 0., ui.visuals().extreme_bg_color);
+
+
         let tlr = self.img.load_for_size(ui.ctx(), ui.available_size());
         let original_image_size = tlr.as_ref().ok().and_then(|t| t.size());
         let ui_size = self.img.calc_size(ui.available_size(), original_image_size);
 
+        let touch_positions = SVGEditor::get_touch_positions(ui);
+        let pos_cardinality = touch_positions.len();
+
+        let mut sum_pos = egui::Pos2::default();
+        for pos in touch_positions.values() {
+            sum_pos.x += pos.x;
+            sum_pos.y += pos.y;
+        }
+
+        let maybe_pos = if pos_cardinality != 0 {
+            Some(sum_pos / pos_cardinality as f32)
+        } else {
+            match ui.ctx().pointer_hover_pos() {
+                Some(cp) => {
+                    if painter.clip_rect().contains(cp) {
+                        Some(cp)
+                    } else {
+                        None
+                    }
+                }
+                None => None,
+            }
+        };
+
         // handle input and save pan/zoom levels
         let zoom_delta = ui.input(|r| r.zoom_delta());
         self.zoom_factor *= zoom_delta;
-        if let Some(hover_pos) = ui.input(|r| r.pointer.hover_pos()) {
-            let relative_pos = ui.available_rect_before_wrap().center() - hover_pos;
+        if let Some(pos) = maybe_pos {
+            let relative_pos = ui.available_rect_before_wrap().center() - pos;
 
             let pan_correction = egui::vec2(
                 (1.0 - zoom_delta) * relative_pos.x,
@@ -36,7 +69,15 @@ impl ImageViewer {
             self.pan = self.pan * zoom_delta;
             self.pan = self.pan - pan_correction;
         }
-        self.pan = self.pan + ui.input(|r| r.smooth_scroll_delta);
+        let pan = ui.input(|r| {
+            if let Some(touch_gesture) = r.multi_touch() {
+                touch_gesture.translation_delta
+            } else {
+                r.raw_scroll_delta
+            }
+        });
+
+        self.pan = self.pan + pan;
 
         // draw the image according to pan and zoom levels
         let texture_id = tlr.as_ref().ok().and_then(|t| t.texture_id()).unwrap();
@@ -44,12 +85,6 @@ impl ImageViewer {
             ui.available_rect_before_wrap().center() + self.pan,
             ui_size * self.zoom_factor,
         );
-
-        let mut painter = ui.painter().clone();
-        // avoid overlapping the tab strip
-        painter.set_clip_rect(ui.available_rect_before_wrap());
-
-        painter.rect_filled(painter.clip_rect(), 0., ui.visuals().extreme_bg_color);
 
         painter.image(
             texture_id,
