@@ -577,8 +577,13 @@ impl MindMap {
             if self.in_rect(rect) {
                 self.zoom_factor *= i.zoom_delta();
                 self.debug = (self.zoom_factor).to_string();
-                let scroll = i.raw_scroll_delta.to_pos2();
-                self.pan += (scroll).to_vec2();
+                let scroll = if let Some(multi_touch) = i.multi_touch() {
+                    multi_touch.translation_delta
+                } else {
+                    i.raw_scroll_delta
+                };
+
+                self.pan += scroll;
                 self.debug = (self.zoom_factor).to_string();
             }
             if i.pointer.any_click() && self.inside_found {
