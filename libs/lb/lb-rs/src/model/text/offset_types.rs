@@ -597,4 +597,9 @@ mod test {
         assert!((1, 1).contains(1, true, true));
         assert!(!(1, 1).contains(2, true, true));
     }
+
+    #[test]
+    fn intersects_allow_empty_contained() {
+        assert!((1, 3).intersects(&(2, 2), false));
+    }
 }

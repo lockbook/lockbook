@@ -91,17 +91,20 @@ impl<'ast> MarkdownPlusPlus {
             let rect = rect
                 .translate(Vec2::new(0., i as f32 * ROW_SPACING + empty_rows as f32 * row_height));
 
+            let padded = background != Default::default();
+            let expaned_rect = if rect.area() < 1. {
+                rect
+            } else {
+                rect.expand2(Vec2::new(INLINE_PADDING - 2., 1.))
+            };
             if spoiler {
                 if hovered {
-                    ui.painter().rect_stroke(
-                        rect.expand2(Vec2::new(INLINE_PADDING, 1.)),
-                        2.,
-                        Stroke::new(1., background),
-                    );
+                    ui.painter()
+                        .rect_stroke(expaned_rect, 2., Stroke::new(1., background));
                 }
-            } else if background != Default::default() {
+            } else if padded {
                 ui.painter().rect(
-                    rect.expand2(Vec2::new(INLINE_PADDING - 2., 1.)),
+                    expaned_rect,
                     2.,
                     background,
                     Stroke::new(1., self.theme.bg().neutral_tertiary),
@@ -113,11 +116,7 @@ impl<'ast> MarkdownPlusPlus {
             let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
 
             if spoiler && !hovered {
-                ui.painter().rect_filled(
-                    rect.expand2(Vec2::new(INLINE_PADDING, 1.)),
-                    2.,
-                    background,
-                );
+                ui.painter().rect_filled(expaned_rect, 2., background);
             }
 
             // debug
@@ -127,35 +126,18 @@ impl<'ast> MarkdownPlusPlus {
             //     egui::Stroke::new(1., self.theme.fg().accent_primary),
             // );
 
-            let byte_range = (galley_start, galley_start + row.text().len());
-            let range = self.range_to_char(byte_range);
-            let cursor = self.buffer.current.selection.end(); // whatever
-            if range.contains(cursor, true, true) {
-                let egui_cursor = galley.from_ccursor(CCursor {
-                    index: (cursor - range.start()).0,
-                    prefer_next_row: true,
-                });
-
-                let max = rect.left_top() + galley.pos_from_cursor(&egui_cursor).max.to_vec2();
-
-                ui.painter()
-                    .clone()
-                    .with_layer_id(LayerId::new(Order::Tooltip, Id::new("cursor")))
-                    .vline(
-                        max.x,
-                        Rangef { min: max.y - row_height, max: max.y },
-                        egui::Stroke::new(1., self.theme.fg().accent_secondary),
-                    );
-            }
-
             ui.painter()
                 .galley(rect.left_top(), galley.clone(), Default::default());
             ui.painter()
                 .hline(rect.x_range(), rect.bottom() - 2.0, underline);
-            self.galleys.push(GalleyInfo { range, galley, rect });
+
+            let byte_range = (galley_start, galley_start + row.text().len());
+            let galley_range = self.range_to_char(byte_range);
+            let galley_info = GalleyInfo { range: galley_range, galley, rect, padded };
+
+            self.galleys.push(galley_info);
 
             galley_start += row.text().len();
-
             if row.rect.area() < 1. {
                 empty_rows += 1;
             }
@@ -222,24 +204,4 @@ fn row_wrap_span(row: &Row, wrap: &WrapContext) -> Option<f32> {
 
 pub fn ends_with_newline(s: &str) -> bool {
     s.ends_with('\n') || s.ends_with("\r\n")
-}
-
-pub fn num_trailing_newlines(s: &str) -> usize {
-    let bytes = s.as_bytes();
-    let mut count = 0;
-    let mut i = bytes.len();
-
-    while i > 0 {
-        if i >= 2 && &bytes[i - 2..i] == b"\r\n" {
-            count += 1;
-            i -= 2;
-        } else if bytes[i - 1] == b'\n' {
-            count += 1;
-            i -= 1;
-        } else {
-            break;
-        }
-    }
-
-    count
 }

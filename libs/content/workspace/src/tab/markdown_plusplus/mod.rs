@@ -187,12 +187,12 @@ impl MarkdownPlusPlus {
         let ast_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
-        println!(
-            "{}",
-            "================================================================================"
-                .bright_black()
-        );
-        print_ast(root);
+        // println!(
+        //     "{}",
+        //     "================================================================================"
+        //         .bright_black()
+        // );
+        // print_ast(root);
 
         let print_elapsed = start.elapsed();
         let start = std::time::Instant::now();
@@ -217,6 +217,7 @@ impl MarkdownPlusPlus {
         self.bounds.paragraphs.clear();
         self.galleys.galleys.clear();
         ScrollArea::vertical()
+            .drag_to_scroll(false)
             .id_source(format!("markdown{}", self.file_id))
             .show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
@@ -227,28 +228,29 @@ impl MarkdownPlusPlus {
                         .show(ui, |ui| self.render(ui, root));
                 });
             });
+        self.show_selection(ui);
         self.bounds.text = self.bounds.paragraphs.clone(); // todo: inline character capture
         self.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();
 
-        println!(
-            "{}",
-            "--------------------------------------------------------------------------------"
-                .bright_black()
-        );
-        println!(
-            "                                                                 ast: {:?}",
-            ast_elapsed
-        );
-        println!(
-            "                                                               print: {:?}",
-            print_elapsed
-        );
-        println!(
-            "                                                              render: {:?}",
-            render_elapsed
-        );
+        // println!(
+        //     "{}",
+        //     "--------------------------------------------------------------------------------"
+        //         .bright_black()
+        // );
+        // println!(
+        //     "                                                                 ast: {:?}",
+        //     ast_elapsed
+        // );
+        // println!(
+        //     "                                                               print: {:?}",
+        //     print_elapsed
+        // );
+        // println!(
+        //     "                                                              render: {:?}",
+        //     render_elapsed
+        // );
 
         // focus editor by default
         if ui.memory(|m| m.focused().is_none()) {
@@ -271,7 +273,7 @@ impl MarkdownPlusPlus {
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
 
         ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
-        ui.interact(rect, self.id(), Sense::click()); // catches pointer input missed by individual widgets e.g. clicking after line end to place cursor
+        ui.interact(rect, self.id(), Sense::click_and_drag()); // catches pointer input missed by individual widgets e.g. clicking after line end to place cursor
 
         // shows the actual UI
         ui.allocate_ui_at_rect(rect, |ui| {
