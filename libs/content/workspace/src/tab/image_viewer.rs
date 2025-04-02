@@ -26,7 +26,6 @@ impl ImageViewer {
 
         painter.rect_filled(painter.clip_rect(), 0., ui.visuals().extreme_bg_color);
 
-
         let tlr = self.img.load_for_size(ui.ctx(), ui.available_size());
         let original_image_size = tlr.as_ref().ok().and_then(|t| t.size());
         let ui_size = self.img.calc_size(ui.available_size(), original_image_size);
@@ -43,16 +42,9 @@ impl ImageViewer {
         let maybe_pos = if pos_cardinality != 0 {
             Some(sum_pos / pos_cardinality as f32)
         } else {
-            match ui.ctx().pointer_hover_pos() {
-                Some(cp) => {
-                    if painter.clip_rect().contains(cp) {
-                        Some(cp)
-                    } else {
-                        None
-                    }
-                }
-                None => None,
-            }
+            ui.ctx()
+                .pointer_hover_pos()
+                .filter(|&cp| painter.clip_rect().contains(cp))
         };
 
         // handle input and save pan/zoom levels
@@ -66,8 +58,8 @@ impl ImageViewer {
                 (1.0 - zoom_delta) * relative_pos.y,
             );
 
-            self.pan = self.pan * zoom_delta;
-            self.pan = self.pan - pan_correction;
+            self.pan *= zoom_delta;
+            self.pan -= pan_correction;
         }
         let pan = ui.input(|r| {
             if let Some(touch_gesture) = r.multi_touch() {
@@ -77,7 +69,7 @@ impl ImageViewer {
             }
         });
 
-        self.pan = self.pan + pan;
+        self.pan += pan;
 
         // draw the image according to pan and zoom levels
         let texture_id = tlr.as_ref().ok().and_then(|t| t.texture_id()).unwrap();
