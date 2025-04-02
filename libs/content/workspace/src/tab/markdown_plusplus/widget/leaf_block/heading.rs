@@ -77,9 +77,7 @@ impl<'ast> MarkdownPlusPlus {
                 .end();
             let text_end_line = heading_end_line - 1;
             let text_end_char = self.bounds.source_lines[text_end_line].end();
-            self.bounds.paragraphs.push((range.start(), text_end_char))
+            self.bounds.paragraphs.push((range.start(), text_end_char));
         }
-
-        self.bounds.paragraphs.push(range);
     }
 }

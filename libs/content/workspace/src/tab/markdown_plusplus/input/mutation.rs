@@ -24,7 +24,7 @@ impl MarkdownPlusPlus {
     ) -> buffer::Response {
         let current_selection = self.buffer.current.selection;
         let mut response = buffer::Response::default();
-        let prev_event_eq = self.event.prev_event.as_ref() == Some(&event);
+        // let prev_event_eq = self.event.prev_event.as_ref() == Some(&event);
         self.event.prev_event = Some(event.clone());
         match event {
             Event::Select { region } => {

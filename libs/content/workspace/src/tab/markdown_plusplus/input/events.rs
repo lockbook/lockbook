@@ -35,15 +35,38 @@ impl MarkdownPlusPlus {
     fn get_cursor_fix_events(&self) -> Vec<Event> {
         // if the cursor is in an invalid location, move it to the next valid location
         let mut fixed_selection = self.buffer.current.selection;
-        if let BoundCase::BetweenRanges { range_after, .. } =
-            fixed_selection.0.bound_case(&self.bounds.text)
-        {
-            fixed_selection.0 = range_after.start();
+
+        match fixed_selection.0.bound_case(&self.bounds.text) {
+            BoundCase::AtFirstRangeStart { first_range, .. } => {
+                // not a no-op because this variant also describes when the
+                // cursor is before this range
+                fixed_selection.0 = first_range.start();
+            }
+            BoundCase::AtLastRangeEnd { last_range, .. } => {
+                // not a no-op because this variant also describes when the
+                // cursor is before this range
+                fixed_selection.0 = last_range.end();
+            }
+            BoundCase::BetweenRanges { range_after, .. } => {
+                fixed_selection.0 = range_after.start();
+            }
+            _ => {}
         }
-        if let BoundCase::BetweenRanges { range_after, .. } =
-            fixed_selection.1.bound_case(&self.bounds.text)
-        {
-            fixed_selection.1 = range_after.start();
+        match fixed_selection.1.bound_case(&self.bounds.text) {
+            BoundCase::AtFirstRangeStart { first_range, .. } => {
+                // not a no-op because this variant also describes when the
+                // cursor is before this range
+                fixed_selection.1 = first_range.start();
+            }
+            BoundCase::AtLastRangeEnd { last_range, .. } => {
+                // not a no-op because this variant also describes when the
+                // cursor is before this range
+                fixed_selection.1 = last_range.end();
+            }
+            BoundCase::BetweenRanges { range_after, .. } => {
+                fixed_selection.1 = range_after.start();
+            }
+            _ => {}
         }
 
         if fixed_selection != self.buffer.current.selection {

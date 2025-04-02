@@ -1,12 +1,13 @@
 use std::mem;
 
 use crate::tab::markdown_plusplus::bounds::{BoundExt as _, Bounds, Text};
-use crate::tab::markdown_plusplus::galleys::{GalleyInfo, Galleys};
+use crate::tab::markdown_plusplus::galleys::Galleys;
 use crate::tab::markdown_plusplus::input::{Increment, Offset};
-use egui::epaint::text::cursor::Cursor as EguiCursor;
-use egui::{Pos2, Vec2};
+use egui::Vec2;
 use lb_rs::model::text::offset_types::DocCharOffset;
 use lb_rs::model::text::unicode_segs::UnicodeSegs;
+
+use super::cursor;
 
 pub trait AdvanceExt {
     fn advance(
@@ -17,10 +18,6 @@ pub trait AdvanceExt {
         self, x_target: f32, backwards: bool, galleys: &Galleys, text: &Text,
     ) -> Self;
     fn x(self, galleys: &Galleys, text: &Text) -> f32;
-    fn x_impl(galley: &GalleyInfo, cursor: EguiCursor) -> f32;
-    fn from_x(x: f32, galley: &GalleyInfo, cursor: EguiCursor) -> EguiCursor;
-    fn cursor_to_pos_abs(galley: &GalleyInfo, cursor: EguiCursor) -> Pos2;
-    fn pos_abs_to_cursor(galley: &GalleyInfo, pos_abs: Pos2) -> EguiCursor;
 }
 
 impl AdvanceExt for DocCharOffset {
@@ -79,9 +76,9 @@ impl AdvanceExt for DocCharOffset {
                         x: 0.0, // overwritten next line
                         y: new_galley.rect.bottom(),
                     });
-                    new_cursor = Self::from_x(x_target, &galleys[new_galley_idx], new_cursor);
+                    new_cursor = cursor::from_x(x_target, &galleys[new_galley_idx], new_cursor);
 
-                    let pos = Self::cursor_to_pos_abs(new_galley, new_cursor);
+                    let pos = cursor::cursor_to_pos_abs(new_galley, new_cursor);
                     let distance = (pos.x - x_target).abs(); // closest as in closest to target
                     if distance < closest_distance {
                         closest_offset = Some(galleys.char_offset_by_galley_and_cursor(
@@ -128,9 +125,9 @@ impl AdvanceExt for DocCharOffset {
                         x: 0.0, // overwritten next line
                         y: new_galley.rect.top(),
                     });
-                    new_cursor = Self::from_x(x_target, &galleys[new_galley_idx], new_cursor);
+                    new_cursor = cursor::from_x(x_target, &galleys[new_galley_idx], new_cursor);
 
-                    let pos = Self::cursor_to_pos_abs(new_galley, new_cursor);
+                    let pos = cursor::cursor_to_pos_abs(new_galley, new_cursor);
                     let distance = (pos.x - x_target).abs(); // closest as in closest to target
                     if distance < closest_distance {
                         closest_offset = Some(galleys.char_offset_by_galley_and_cursor(
@@ -153,29 +150,6 @@ impl AdvanceExt for DocCharOffset {
     fn x(self, galleys: &Galleys, text: &Text) -> f32 {
         let (cur_galley_idx, cur_cursor) = galleys.galley_and_cursor_by_char_offset(self, text);
         let cur_galley = &galleys[cur_galley_idx];
-        Self::x_impl(cur_galley, cur_cursor)
-    }
-
-    /// returns the x coordinate of the absolute position of `cursor` in `galley`
-    fn x_impl(galley: &GalleyInfo, cursor: EguiCursor) -> f32 {
-        Self::cursor_to_pos_abs(galley, cursor).x
-    }
-
-    /// adjusts cursor so that its absolute x coordinate matches the target (if there is one)
-    fn from_x(x: f32, galley: &GalleyInfo, cursor: EguiCursor) -> EguiCursor {
-        let mut pos_abs = Self::cursor_to_pos_abs(galley, cursor);
-        pos_abs.x = x;
-        Self::pos_abs_to_cursor(galley, pos_abs)
-    }
-
-    /// returns the absolute position of `cursor` in `galley`
-    fn cursor_to_pos_abs(galley: &GalleyInfo, cursor: EguiCursor) -> Pos2 {
-        // experimentally, max.y gives us the y that will put us in the correct row
-        galley.rect.min + galley.galley.pos_from_cursor(&cursor).max.to_vec2()
-    }
-
-    /// returns a cursor which has the absolute position `pos_abs` in `galley`
-    fn pos_abs_to_cursor(galley: &GalleyInfo, pos_abs: Pos2) -> EguiCursor {
-        galley.galley.cursor_from_pos(pos_abs - galley.rect.min)
+        cursor::x_impl(cur_galley, cur_cursor)
     }
 }

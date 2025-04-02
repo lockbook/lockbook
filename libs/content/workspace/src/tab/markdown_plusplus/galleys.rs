@@ -16,6 +16,7 @@ pub struct GalleyInfo {
     pub range: (DocCharOffset, DocCharOffset),
     pub galley: Arc<Galley>,
     pub rect: Rect,
+    pub padded: bool,
 }
 
 impl Index<usize> for Galleys {
