@@ -82,49 +82,23 @@ impl StorageViewer {
         }
     }
 
-    fn handle_state(&mut self, ui: &mut Ui) {
-        loop {
-            match &*self.state.lock().unwrap() {
-                AppState::Loading => {
-                    ui.label("loading");
-                    //continue;
-                }
-                AppState::Ready(data) => {
-                    self.data = data.clone();
-                    //return;
-                }
-                AppState::Error(lb_err) => {
-                    ui.label("error");
-                    //continue;
-                }
-            }
-        }
-    }
-
     pub fn show(&mut self, ui: &mut egui::Ui) {
         // Start of pre ui checks
         let window = ui.available_rect_before_wrap();
 
-        //self.handle_state(ui);
-
-        //let app_state = &*self.state.lock().unwrap();
-
-        //loop {
         match &*self.state.lock().unwrap() {
             AppState::Loading => {
                 ui.label("loading");
-                //continue;
+                return;
             }
             AppState::Ready(data) => {
                 self.data = data.clone();
-                //break;
             }
             AppState::Error(lb_err) => {
                 ui.label("error");
-                //continue;
+                return;
             }
         }
-        //}
 
         if self.paint_order.is_empty() || window != self.current_rect {
             self.current_rect = window;
