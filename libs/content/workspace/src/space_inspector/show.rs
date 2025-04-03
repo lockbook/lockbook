@@ -2,14 +2,18 @@ use super::data::{Data, StorageCell};
 use color_art;
 use colors_transform::{self, Color};
 
+use crate::theme::icons::Icon;
+use crate::widgets::Button;
+use crate::workspace::{self, Workspace};
 use egui::{
-    self, menu, Color32, Context, Id, LayerId, Pos2, Rect, Rounding, Sense, Stroke, TextWrapMode,
-    Ui,
+    self, menu, Align, Color32, Context, Id, LayerId, Pos2, Rect, Rounding, Sense, Stroke,
+    TextWrapMode, Ui,
 };
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::LbErr;
 use lb_rs::model::file::File;
 use lb_rs::model::usage::bytes_to_human;
+use lb_rs::LbErrKind;
 use lb_rs::Uuid;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -88,14 +92,45 @@ impl SpaceInspector {
 
         match &*self.state.lock().unwrap() {
             AppState::Loading => {
-                ui.label("loading");
+                ui.allocate_ui_at_rect(
+                    Rect {
+                        min: Pos2 { x: window.center().x - 30.0, y: window.center().y - 30.0 },
+                        max: Pos2 { x: window.center().x + 30.0, y: window.center().y + 30.0 },
+                    },
+                    |ui| {
+                        Button::default()
+                            .text("LOADING")
+                            .icon(&Icon::SYNC)
+                            .is_loading(true)
+                            .frame(false)
+                            .text_style(egui::TextStyle::Body)
+                            .show(ui);
+                    },
+                );
+
                 return;
             }
             AppState::Ready(data) => {
                 self.data = data.clone();
             }
             AppState::Error(lb_err) => {
-                ui.label("error");
+                match lb_err.kind {
+                    LbErrKind::ClientUpdateRequired => {
+                        Button::default()
+                            .text("Client Update Required")
+                            .icon(&Icon::SYNC_PROBLEM)
+                            .icon_color(ui.visuals().widgets.active.bg_fill.gamma_multiply(0.9))
+                            .frame(false)
+                            .indent(window.width() / 2.0)
+                            .text_style(egui::TextStyle::Body)
+                            .show(ui);
+                    }
+                    LbErrKind::ServerDisabled => todo!(),
+                    LbErrKind::ServerUnreachable => todo!(),
+                    _ => {
+                        ui.label("Unknown error");
+                    }
+                };
                 return;
             }
         }
@@ -138,7 +173,7 @@ impl SpaceInspector {
             max: self.current_rect.max,
         };
 
-        let bottom_text = Rect { min: root_draw_anchor.center(), max: root_draw_anchor.center() };
+        let root_text = Rect { min: root_draw_anchor.center(), max: root_draw_anchor.center() };
 
         let painter = ui.painter();
         painter
@@ -161,12 +196,12 @@ impl SpaceInspector {
         let tab_intel_galley = tab_intel.into_galley(
             ui,
             Some(TextWrapMode::Extend),
-            bottom_text.width(),
+            root_text.width(),
             egui::TextStyle::Body,
         );
 
         let tab_intel_rect = egui::Align2::LEFT_TOP.anchor_size(
-            Pos2 { x: bottom_text.left_center().x - 25.0, y: bottom_text.left_center().y - 20.0 },
+            Pos2 { x: root_text.left_center().x - 25.0, y: root_text.left_center().y - 20.0 },
             tab_intel_galley.size(),
         );
 
@@ -179,7 +214,7 @@ impl SpaceInspector {
         ui.allocate_ui_at_rect(
             Rect {
                 min: Pos2 { x: tab_intel_rect.min.x, y: tab_intel_rect.min.y - 15.0 },
-                max: bottom_text.max,
+                max: root_text.max,
             },
             |ui| {
                 ui.colored_label(
