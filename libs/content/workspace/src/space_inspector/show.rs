@@ -4,20 +4,14 @@ use colors_transform::{self, Color};
 
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
-use crate::workspace::{self, Workspace};
 use egui::{
-    self, menu, Align, Color32, Context, Id, LayerId, Pos2, Rect, Rounding, Sense, Stroke,
-    TextWrapMode, Ui,
+    self, menu, Color32, Context, Id, LayerId, Pos2, Rect, Rounding, Sense, Stroke, TextWrapMode,
+    Ui,
 };
-use lb_rs::blocking::Lb;
-use lb_rs::model::errors::LbErr;
-use lb_rs::model::file::File;
-use lb_rs::model::usage::bytes_to_human;
-use lb_rs::LbErrKind;
-use lb_rs::Uuid;
+use lb_rs::model::{errors::LbErr, file::File, usage::bytes_to_human};
+use lb_rs::{blocking::Lb, LbErrKind, Uuid};
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time;
+use std::{thread, time};
 
 /// Responsible for tracking on screen locations for folders
 #[derive(Debug)]
@@ -118,17 +112,42 @@ impl SpaceInspector {
                     LbErrKind::ClientUpdateRequired => {
                         Button::default()
                             .text("Client Update Required")
-                            .icon(&Icon::SYNC_PROBLEM)
-                            .icon_color(ui.visuals().widgets.active.bg_fill.gamma_multiply(0.9))
+                            .icon(&Icon::BRING_TO_FRONT)
+                            .icon_color(Color32::RED)
                             .frame(false)
                             .indent(window.width() / 2.0)
                             .text_style(egui::TextStyle::Body)
                             .show(ui);
                     }
-                    LbErrKind::ServerDisabled => todo!(),
-                    LbErrKind::ServerUnreachable => todo!(),
+                    LbErrKind::ServerDisabled => {
+                        Button::default()
+                            .text("Server Disabled")
+                            .icon(&Icon::SYNC_PROBLEM)
+                            .icon_color(Color32::RED)
+                            .frame(false)
+                            .indent(window.width() / 2.0)
+                            .text_style(egui::TextStyle::Body)
+                            .show(ui);
+                    }
+                    LbErrKind::ServerUnreachable => {
+                        Button::default()
+                            .text("Server Unreachable")
+                            .icon(&Icon::SYNC_PROBLEM)
+                            .icon_color(Color32::RED)
+                            .frame(false)
+                            .indent(window.width() / 2.0)
+                            .text_style(egui::TextStyle::Body)
+                            .show(ui);
+                    }
                     _ => {
-                        ui.label("Unknown error");
+                        Button::default()
+                            .text("Unknown Error")
+                            .icon(&Icon::BUG)
+                            .icon_color(Color32::RED)
+                            .frame(false)
+                            .indent(window.width() / 2.0)
+                            .text_style(egui::TextStyle::Body)
+                            .show(ui);
                     }
                 };
                 return;
