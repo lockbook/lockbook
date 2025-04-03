@@ -4,7 +4,7 @@ use lb_rs::Uuid;
 use serde::Deserialize;
 use std::collections::HashMap;
 
-/// Contains data related to folders and files needed for storage viewer
+/// Contains data related to folders and files needed for space inspector
 #[derive(Debug, Clone, Default)]
 pub struct Data {
     pub focused_folder: Uuid,

@@ -452,9 +452,9 @@ impl AccountScreen {
             self.workspace.create_file(true);
         }
 
-        if resp.storage_viewer_root.is_some() {
+        if resp.space_inspector_root.is_some() {
             self.workspace
-                .start_storage_viewer(self.core.clone(), resp.storage_viewer_root);
+                .start_space_inspector(self.core.clone(), resp.space_inspector_root);
         }
 
         if let Some(file) = resp.new_folder_modal {

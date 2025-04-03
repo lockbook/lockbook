@@ -28,7 +28,7 @@ struct ColorHelper {
     color: Color32,
 }
 
-pub struct StorageViewer {
+pub struct SpaceInspector {
     state: Arc<Mutex<AppState>>,
     data: Data,
     layer_height: f32,
@@ -45,7 +45,7 @@ pub enum AppState {
     Error(LbErr),
 }
 
-impl StorageViewer {
+impl SpaceInspector {
     pub fn new(lb: &Lb, potential_root: Option<File>, ctx: Context) -> Self {
         let bg_lb = lb.clone();
         let state: Arc<Mutex<AppState>> = Default::default();
@@ -342,7 +342,7 @@ impl StorageViewer {
                 .colors
                 .iter()
                 .find_map(|element| if element.id == item.id { Some(element.color) } else { None })
-                .unwrap_or(StorageViewer::get_color(
+                .unwrap_or(SpaceInspector::get_color(
                     self,
                     item.id,
                     current_layer as usize,

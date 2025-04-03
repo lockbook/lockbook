@@ -212,13 +212,13 @@ impl Workspace {
 
                                     if Button::default()
                                         .icon(&Icon::LANGUAGE)
-                                        .text("Space Analysis")
+                                        .text("Space Inspector")
                                         .frame(false)
                                         .rounding(3.)
                                         .show(ui)
                                         .clicked()
                                     {
-                                        self.start_storage_viewer(self.core.clone(), None);
+                                        self.start_space_inspector(self.core.clone(), None);
                                     }
                                 }
                             });
@@ -477,7 +477,7 @@ impl Workspace {
                                         self.open_file(value, false, true);
                                     }
                                 }
-                                TabContent::StorageViewer(sv) => {
+                                TabContent::SpaceInspector(sv) => {
                                     sv.show(ui);
                                 }
                             };

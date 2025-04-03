@@ -18,7 +18,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use crate::file_cache::FileCache;
 use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
-use crate::storage_viewer::show::StorageViewer;
+use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -608,12 +608,12 @@ impl Workspace {
         };
     }
 
-    pub fn start_storage_viewer(&mut self, core: Lb, folder: Option<File>) {
-        if let Some(i) = self.tabs.iter().position(|t| t.storage_viewer().is_some()) {
+    pub fn start_space_inspector(&mut self, core: Lb, folder: Option<File>) {
+        if let Some(i) = self.tabs.iter().position(|t| t.space_inspector().is_some()) {
             self.close_tab(i);
         }
         self.create_tab(
-            ContentState::Open(TabContent::StorageViewer(StorageViewer::new(
+            ContentState::Open(TabContent::SpaceInspector(SpaceInspector::new(
                 &core,
                 folder,
                 self.ctx.clone(),

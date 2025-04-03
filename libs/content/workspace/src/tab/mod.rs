@@ -1,6 +1,6 @@
 use crate::file_cache::FilesExt as _;
 use crate::mind_map::show::MindMap;
-use crate::storage_viewer::show::StorageViewer;
+use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -102,16 +102,16 @@ impl Tab {
         }
     }
 
-    pub fn storage_viewer(&self) -> Option<&StorageViewer> {
+    pub fn space_inspector(&self) -> Option<&SpaceInspector> {
         match &self.content {
-            ContentState::Open(TabContent::StorageViewer(sv)) => Some(sv),
+            ContentState::Open(TabContent::SpaceInspector(sv)) => Some(sv),
             _ => None,
         }
     }
 
-    pub fn storage_viewer_mut(&mut self) -> Option<&mut StorageViewer> {
+    pub fn space_inspector_mut(&mut self) -> Option<&mut SpaceInspector> {
         match &mut self.content {
-            ContentState::Open(TabContent::StorageViewer(sv)) => Some(sv),
+            ContentState::Open(TabContent::SpaceInspector(sv)) => Some(sv),
             _ => None,
         }
     }
@@ -168,7 +168,7 @@ pub enum TabContent {
     Pdf(PdfViewer),
     Svg(SVGEditor),
     MindMap(MindMap),
-    StorageViewer(StorageViewer),
+    SpaceInspector(SpaceInspector),
 }
 
 impl std::fmt::Debug for TabContent {
@@ -179,7 +179,7 @@ impl std::fmt::Debug for TabContent {
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
-            TabContent::StorageViewer(_) => write!(f, "TabContent::StorageViewer"),
+            TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
         }
     }
 }
@@ -192,7 +192,7 @@ impl TabContent {
             TabContent::Image(image_viewer) => Some(image_viewer.id),
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
             TabContent::MindMap(_) => None,
-            TabContent::StorageViewer(_) => None,
+            TabContent::SpaceInspector(_) => None,
         }
     }
 
@@ -350,7 +350,7 @@ impl Workspace {
             (Some(_), None) => "Loading".into(),
             (None, _) => match tab.content {
                 ContentState::Open(TabContent::MindMap(_)) => "Mind Map".into(),
-                ContentState::Open(TabContent::StorageViewer(_)) => "Space Analysis".into(),
+                ContentState::Open(TabContent::SpaceInspector(_)) => "Space Inspector".into(),
                 _ => "Unknown".into(),
             },
         }
