@@ -1,13 +1,19 @@
-use super::data::{self, StorageCell};
+use super::data::{Data, StorageCell};
 use color_art;
 use colors_transform::{self, Color};
+
 use egui::{
-    self, menu, Color32, Id, LayerId, Pos2, Rect, Rounding, Sense, Stroke, TextWrapMode, Ui,
+    self, menu, Color32, Context, Id, LayerId, Pos2, Rect, Rounding, Sense, Stroke, TextWrapMode,
+    Ui,
 };
 use lb_rs::blocking::Lb;
+use lb_rs::model::errors::LbErr;
 use lb_rs::model::file::File;
 use lb_rs::model::usage::bytes_to_human;
 use lb_rs::Uuid;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time;
 
 /// Responsible for tracking on screen locations for folders
 #[derive(Debug)]
@@ -23,19 +29,52 @@ struct ColorHelper {
 }
 
 pub struct StorageViewer {
-    data: data::Data,
+    state: Arc<Mutex<AppState>>,
+    data: Data,
     layer_height: f32,
     paint_order: Vec<StorageCell>,
     colors: Vec<ColorHelper>,
     current_rect: Rect,
 }
 
+#[derive(Default, Debug)]
+pub enum AppState {
+    #[default]
+    Loading,
+    Ready(Data),
+    Error(LbErr),
+}
+
 impl StorageViewer {
-    pub fn new(lb: &Lb, potential_root: Option<File>) -> Self {
-        let data = data::Data::init(lb.clone(), potential_root);
+    pub fn new(lb: &Lb, potential_root: Option<File>, ctx: Context) -> Self {
+        let bg_lb = lb.clone();
+        let state: Arc<Mutex<AppState>> = Default::default();
+        let bg_state = state.clone();
+        thread::spawn(move || {
+            thread::sleep(time::Duration::from_millis(500));
+            let usage = bg_lb.get_usage();
+            let meta_data = bg_lb.list_metadatas();
+
+            match (usage, meta_data) {
+                (Ok(usage_result), Ok(metadata_result)) => {
+                    let mut lock = bg_state.lock().unwrap();
+                    *lock = AppState::Ready(Data::init(
+                        potential_root,
+                        usage_result.usages,
+                        metadata_result,
+                    ));
+                }
+                (Err(err), _) | (_, Err(err)) => {
+                    let mut lock = bg_state.lock().unwrap();
+                    *lock = AppState::Error(err);
+                }
+            }
+            ctx.request_repaint();
+        });
 
         Self {
-            data,
+            state,
+            data: Default::default(),
             paint_order: vec![],
             layer_height: 60.0,
             colors: vec![],
@@ -43,9 +82,49 @@ impl StorageViewer {
         }
     }
 
+    fn handle_state(&mut self, ui: &mut Ui) {
+        loop {
+            match &*self.state.lock().unwrap() {
+                AppState::Loading => {
+                    ui.label("loading");
+                    //continue;
+                }
+                AppState::Ready(data) => {
+                    self.data = data.clone();
+                    //return;
+                }
+                AppState::Error(lb_err) => {
+                    ui.label("error");
+                    //continue;
+                }
+            }
+        }
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui) {
         // Start of pre ui checks
         let window = ui.available_rect_before_wrap();
+
+        //self.handle_state(ui);
+
+        //let app_state = &*self.state.lock().unwrap();
+
+        //loop {
+        match &*self.state.lock().unwrap() {
+            AppState::Loading => {
+                ui.label("loading");
+                //continue;
+            }
+            AppState::Ready(data) => {
+                self.data = data.clone();
+                //break;
+            }
+            AppState::Error(lb_err) => {
+                ui.label("error");
+                //continue;
+            }
+        }
+        //}
 
         if self.paint_order.is_empty() || window != self.current_rect {
             self.current_rect = window;
@@ -58,7 +137,7 @@ impl StorageViewer {
             root_color = Color32::WHITE;
             root_text_color = ui.visuals().extreme_bg_color;
         } else {
-            root_color = ui.visuals().extreme_bg_color;
+            root_color = Color32::BLACK;
             root_text_color = Color32::WHITE;
         }
 

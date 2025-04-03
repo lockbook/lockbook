@@ -613,7 +613,11 @@ impl Workspace {
             self.close_tab(i);
         }
         self.create_tab(
-            ContentState::Open(TabContent::StorageViewer(StorageViewer::new(&core, folder))),
+            ContentState::Open(TabContent::StorageViewer(StorageViewer::new(
+                &core,
+                folder,
+                self.ctx.clone(),
+            ))),
             true,
         );
     }
