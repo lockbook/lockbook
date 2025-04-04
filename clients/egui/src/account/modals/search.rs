@@ -5,7 +5,7 @@ use std::thread;
 
 use egui::TextWrapMode;
 use lb::blocking::Lb;
-use lb::service::search::{SearchConfig, SearchResult};
+use lb::subscribers::search::{SearchConfig, SearchResult};
 use lb::Uuid;
 
 use workspace_rs::show::DocType;

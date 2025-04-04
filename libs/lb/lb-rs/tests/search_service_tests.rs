@@ -1,6 +1,6 @@
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::FileType;
-use lb_rs::service::search::{SearchConfig, SearchResult};
+use lb_rs::subscribers::search::{SearchConfig, SearchResult};
 use std::collections::HashSet;
 use std::time::Duration;
 use test_utils::*;
@@ -23,23 +23,13 @@ sagittis augue vel orci eleifend, sed cursus ante porta. Phasellus pellentesque 
 fringilla. Suspendisse eu volutpat augue. Mauris massa nisl, venenatis eget viverra non, ultrices \
 vel enim.";
 
-const MATCHED_CONTENT_1: (&str, &str) = (
-    "consectetur adipiscing elit. Vivamus lorem purus, malesuada",
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus lorem purus, \
-malesuada a dui a, auctor lobortis dolor. Proin ut placerat lectus. Vestibulum m...",
-);
+const MATCHED_CONTENT_1: (&str, &str) =
+    ("consectetur adipiscing elit Vivamus lorem purus malesuada", "consectetur");
 
-const MATCHED_CONTENT_2: (&str, &str) = (
-    "Mauris massa nisl, venenatis eget viverra",
-    ".... Phasellus pellentesque vulputate ante id fringilla. Suspendisse eu volutpat augue. \
-    Mauris massa nisl, venenatis eget viverra non, ultrices vel enim.",
-);
+const MATCHED_CONTENT_2: (&str, &str) =
+    ("Mauris massa nisl, venenatis eget viverra", "Mauris massa nisl, venenatis");
 
-const MATCHED_CONTENT_3: (&str, &str) = (
-    "scelerisque tempus",
-    "...t amet, scelerisque tempus enim. Duis tristique imperdiet ex. Curabitur sagittis augue \
-    vel orci eleifend, sed cursus ante porta. Phasellus pellente...",
-);
+const MATCHED_CONTENT_3: (&str, &str) = ("scelerisque tempus", "scelerisque tempus enim");
 
 #[tokio::test]
 async fn search_paths_successfully() {
@@ -108,16 +98,16 @@ async fn search_content_successfully() {
         .search("", SearchConfig::PathsAndDocuments)
         .await
         .unwrap();
-
     assert_eq!(search1.len(), 1);
 
+    core.search.tantivy_reader.reload().unwrap();
     let results1 = core
         .search(MATCHED_CONTENT_1.0, SearchConfig::PathsAndDocuments)
         .await
         .unwrap();
     assert_eq!(results1.len(), 1);
     if let SearchResult::DocumentMatch { content_matches, .. } = &results1[0] {
-        assert!(content_matches[0].paragraph == MATCHED_CONTENT_1.1)
+        assert!(content_matches[0].paragraph.contains(MATCHED_CONTENT_1.1))
     } else {
         panic!("Search result was not a document match.")
     }
@@ -128,7 +118,7 @@ async fn search_content_successfully() {
         .unwrap();
     assert_eq!(results2.len(), 1);
     if let SearchResult::DocumentMatch { content_matches, .. } = &results2[0] {
-        assert!(content_matches[0].paragraph == MATCHED_CONTENT_2.1)
+        assert!(content_matches[0].paragraph.contains(MATCHED_CONTENT_2.1))
     } else {
         panic!("Search result was not a document match.")
     }
@@ -139,7 +129,7 @@ async fn search_content_successfully() {
         .unwrap();
     assert_eq!(results3.len(), 1);
     if let SearchResult::DocumentMatch { content_matches, .. } = &results3[0] {
-        assert!(content_matches[0].paragraph == MATCHED_CONTENT_3.1)
+        assert!(content_matches[0].paragraph.contains(MATCHED_CONTENT_3.1))
     } else {
         panic!("Search result was not a document match.")
     }

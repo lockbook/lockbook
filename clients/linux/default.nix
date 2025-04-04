@@ -39,6 +39,10 @@ pkgs.mkShell rec {
     vulkan-extension-layer
     vulkan-validation-layers # don't need them *strictly* but immensely helpful
 
+    gtk3
+    glib
+    gobject-introspection
+    gdk-pixbuf
     # necessary for developing (all of) wgpu itself
     # cargo-nextest cargo-fuzz
 
