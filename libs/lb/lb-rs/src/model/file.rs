@@ -57,4 +57,8 @@ impl File {
     pub fn is_folder(&self) -> bool {
         self.file_type == FileType::Folder
     }
+
+    pub fn is_root(&self) -> bool {
+        self.id == self.parent
+    }
 }
