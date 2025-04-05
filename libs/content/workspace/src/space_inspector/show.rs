@@ -83,74 +83,75 @@ impl SpaceInspector {
     pub fn show(&mut self, ui: &mut egui::Ui) {
         // Start of pre ui checks
         let window = ui.available_rect_before_wrap();
+        if self.data == Default::default() {
+            match &*self.state.lock().unwrap() {
+                AppState::Loading => {
+                    ui.allocate_ui_at_rect(
+                        Rect {
+                            min: Pos2 { x: window.center().x - 30.0, y: window.center().y - 30.0 },
+                            max: Pos2 { x: window.center().x + 30.0, y: window.center().y + 30.0 },
+                        },
+                        |ui| {
+                            Button::default()
+                                .text("LOADING")
+                                .icon(&Icon::SYNC)
+                                .is_loading(true)
+                                .frame(false)
+                                .text_style(egui::TextStyle::Body)
+                                .show(ui);
+                        },
+                    );
 
-        match &*self.state.lock().unwrap() {
-            AppState::Loading => {
-                ui.allocate_ui_at_rect(
-                    Rect {
-                        min: Pos2 { x: window.center().x - 30.0, y: window.center().y - 30.0 },
-                        max: Pos2 { x: window.center().x + 30.0, y: window.center().y + 30.0 },
-                    },
-                    |ui| {
-                        Button::default()
-                            .text("LOADING")
-                            .icon(&Icon::SYNC)
-                            .is_loading(true)
-                            .frame(false)
-                            .text_style(egui::TextStyle::Body)
-                            .show(ui);
-                    },
-                );
-
-                return;
-            }
-            AppState::Ready(data) => {
-                self.data = data.clone();
-            }
-            AppState::Error(lb_err) => {
-                match lb_err.kind {
-                    LbErrKind::ClientUpdateRequired => {
-                        Button::default()
-                            .text("Client Update Required")
-                            .icon(&Icon::BRING_TO_FRONT)
-                            .icon_color(Color32::RED)
-                            .frame(false)
-                            .indent(window.width() / 2.0)
-                            .text_style(egui::TextStyle::Body)
-                            .show(ui);
-                    }
-                    LbErrKind::ServerDisabled => {
-                        Button::default()
-                            .text("Server Disabled")
-                            .icon(&Icon::SYNC_PROBLEM)
-                            .icon_color(Color32::RED)
-                            .frame(false)
-                            .indent(window.width() / 2.0)
-                            .text_style(egui::TextStyle::Body)
-                            .show(ui);
-                    }
-                    LbErrKind::ServerUnreachable => {
-                        Button::default()
-                            .text("Server Unreachable")
-                            .icon(&Icon::SYNC_PROBLEM)
-                            .icon_color(Color32::RED)
-                            .frame(false)
-                            .indent(window.width() / 2.0)
-                            .text_style(egui::TextStyle::Body)
-                            .show(ui);
-                    }
-                    _ => {
-                        Button::default()
-                            .text("Unknown Error")
-                            .icon(&Icon::BUG)
-                            .icon_color(Color32::RED)
-                            .frame(false)
-                            .indent(window.width() / 2.0)
-                            .text_style(egui::TextStyle::Body)
-                            .show(ui);
-                    }
-                };
-                return;
+                    return;
+                }
+                AppState::Ready(data) => {
+                    self.data = data.clone();
+                }
+                AppState::Error(lb_err) => {
+                    match lb_err.kind {
+                        LbErrKind::ClientUpdateRequired => {
+                            Button::default()
+                                .text("Client Update Required")
+                                .icon(&Icon::BRING_TO_FRONT)
+                                .icon_color(Color32::RED)
+                                .frame(false)
+                                .indent(window.width() / 2.0)
+                                .text_style(egui::TextStyle::Body)
+                                .show(ui);
+                        }
+                        LbErrKind::ServerDisabled => {
+                            Button::default()
+                                .text("Server Disabled")
+                                .icon(&Icon::SYNC_PROBLEM)
+                                .icon_color(Color32::RED)
+                                .frame(false)
+                                .indent(window.width() / 2.0)
+                                .text_style(egui::TextStyle::Body)
+                                .show(ui);
+                        }
+                        LbErrKind::ServerUnreachable => {
+                            Button::default()
+                                .text("Server Unreachable")
+                                .icon(&Icon::SYNC_PROBLEM)
+                                .icon_color(Color32::RED)
+                                .frame(false)
+                                .indent(window.width() / 2.0)
+                                .text_style(egui::TextStyle::Body)
+                                .show(ui);
+                        }
+                        _ => {
+                            Button::default()
+                                .text("Unknown Error")
+                                .icon(&Icon::BUG)
+                                .icon_color(Color32::RED)
+                                .frame(false)
+                                .indent(window.width() / 2.0)
+                                .text_style(egui::TextStyle::Body)
+                                .show(ui);
+                        }
+                    };
+                    return;
+                }
             }
         }
 
@@ -272,7 +273,7 @@ impl SpaceInspector {
         let potential_new_root = self.follow_paint_order(ui, root_draw_anchor, window);
         // assigning a new root if selected
         if potential_new_root.is_some() {
-            self.change_root(potential_new_root.unwrap())
+            self.change_root(potential_new_root.unwrap());
         }
     }
 

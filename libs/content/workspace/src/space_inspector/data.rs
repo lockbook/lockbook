@@ -5,7 +5,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 /// Contains data related to folders and files needed for space inspector
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Data {
     pub focused_folder: Uuid,
     pub all_files: HashMap<Uuid, FileRow>,
