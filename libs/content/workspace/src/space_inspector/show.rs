@@ -272,8 +272,8 @@ impl SpaceInspector {
         // Starts drawing the rest of the folders and files
         let potential_new_root = self.follow_paint_order(ui, root_draw_anchor, window);
         // assigning a new root if selected
-        if potential_new_root.is_some() {
-            self.change_root(potential_new_root.unwrap());
+        if let Some(new_root) = potential_new_root {
+            self.change_root(new_root);
         }
     }
 
@@ -415,12 +415,11 @@ impl SpaceInspector {
                             current_color.b().into(),
                         )
                         .to_hsl();
-                        let luminance: f32;
-                        if hsl_color.get_lightness() > 50.0 {
-                            luminance = (hsl_color.get_lightness() - 50.0) / 100.0;
+                        let luminance: f32 = if hsl_color.get_lightness() > 50.0 {
+                            (hsl_color.get_lightness() - 50.0) / 100.0
                         } else {
-                            luminance = (hsl_color.get_lightness() + 50.0) / 100.0;
-                        }
+                            (hsl_color.get_lightness() + 50.0) / 100.0
+                        };
                         Color32::from_hex(
                             &(color_art::color!(
                                 HSL,
