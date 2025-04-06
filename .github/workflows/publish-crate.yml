@@ -26,6 +26,11 @@ jobs:
           profile: minimal
           toolchain: stable
 
+      - name: Set package name
+        id: package_name
+        run: |
+          echo "PACKAGE_NAME=${{ github.event.inputs.package || 'lb-rs' }}" >> $GITHUB_ENV
+
       - name: Publish crate
         run: |
-          cargo run -p releaser -- publish-crate ${{github.event.inputs.package}}
+          cargo run -p releaser -- publish-crate ${{ env.PACKAGE_NAME }}
