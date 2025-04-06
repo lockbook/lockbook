@@ -6,11 +6,10 @@ extension EnvironmentValues {
         set {  }
     }
     
-    #if os(iOS)
-    @Entry var isConstrainedLayout: Bool = UIDevice.current.userInterfaceIdiom == .phone
-    #else
-    
-    #endif
+    public var isConstrainedLayout: Bool {
+        get { self[isConstraintLayoutEnvironmentKey.self] }
+        set {  }
+    }
 }
 
 struct isPreviewEnvironmentKey: EnvironmentKey {
@@ -21,3 +20,10 @@ struct isPreviewEnvironmentKey: EnvironmentKey {
     #endif
 }
 
+struct isConstraintLayoutEnvironmentKey: EnvironmentKey {
+    #if os(iOS)
+    static var defaultValue: Bool = UIDevice.current.userInterfaceIdiom == .phone
+    #else
+    static var defaultValue: Bool = false
+    #endif
+}

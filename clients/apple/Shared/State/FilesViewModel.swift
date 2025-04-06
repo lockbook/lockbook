@@ -203,7 +203,7 @@ class FilesViewModel: ObservableObject {
             var created: File? = nil
             
             while created == nil {
-                let name = "unititled\(attempt != 0 ? "-" : "")\(ext)"
+                let name = "unititled\(attempt != 0 ? "-\(attempt)" : "")\(ext)"
 
                 switch AppState.lb.createFile(name: name, parent: parent, fileType: .document) {
                 case .success(let file):

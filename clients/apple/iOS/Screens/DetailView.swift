@@ -23,7 +23,7 @@ struct DetailView: View {
                 HStack(alignment: .bottom, spacing: 5) {
                     if workspaceState.openDoc != nil {
                         Button(action: {
-                            self.runOnOpenDoc { file in
+                            runOnOpenDoc { file in
                                 homeState.sheetInfo = .share(file: file)
                             }
                         }, label: {
@@ -31,7 +31,7 @@ struct DetailView: View {
                         })
                         
                         Button(action: {
-                            self.runOnOpenDoc { file in
+                            runOnOpenDoc { file in
                                 exportFiles(homeState: homeState, files: [file])
                             }
                         }, label: {
@@ -63,7 +63,7 @@ struct DetailView: View {
     }
     
     func showTabsSheet() {
-            homeState.tabsSheetInfo = TabSheetInfo(info: workspaceState.getTabsIds().map({ id in
+        homeState.tabsSheetInfo = TabSheetInfo(info: workspaceState.getTabsIds().map({ id in
             switch AppState.lb.getFile(id: id) {
             case .success(let file):
                 return (name: file.name, id: file.id)
@@ -71,16 +71,6 @@ struct DetailView: View {
                 return nil
             }
         }).compactMap({ $0 }))
-    }
-    
-    func runOnOpenDoc(f: @escaping (File) -> Void) {
-        guard let id = workspaceState.openDoc else {
-            return
-        }
-        
-        if let file =  try? AppState.lb.getFile(id: id).get() {
-            f(file)
-        }
     }
 }
 
@@ -99,7 +89,7 @@ struct ConstrainedTitle: ViewModifier {
     }
     
     func body(content: Content) -> some View {
-        if isConstrainedLayout {
+        if isConstrainedLayout || (!isConstrainedLayout && workspaceState.openTabs == 1) {
             content
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
@@ -110,6 +100,7 @@ struct ConstrainedTitle: ViewModifier {
                                 .foregroundStyle(.foreground)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
+                                .frame(width: 200, alignment: .leading)
                         })
                     }
                 }

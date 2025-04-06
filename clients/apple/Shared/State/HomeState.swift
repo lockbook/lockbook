@@ -49,8 +49,14 @@ class HomeState: ObservableObject {
     @Published var selectSheetInfo: SelectFolderAction? = nil
     @Published var tabsSheetInfo: TabSheetInfo? = nil
     
-    @Published var isConstrainedSidebarOpen: Bool = true
+    @Published var constrainedSidebarState: ConstrainedSidebarState = .openPartial
     @Published var showTabsSheet: Bool = false
+}
+
+public enum ConstrainedSidebarState {
+    case closed
+    case openPartial
+    case openExpanded
 }
 
 public enum FileAction {
