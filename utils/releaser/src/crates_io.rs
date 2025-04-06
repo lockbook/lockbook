@@ -1,7 +1,6 @@
 use crate::secrets::CratesIO;
 use crate::utils::CommandRunner;
 use cli_rs::cli_error::CliResult;
-use std::fs;
 use std::process::Command;
 
 pub fn release_crate(package: String) -> CliResult<()> {
