@@ -53,8 +53,9 @@ class ImportExportHelper {
 
 }
 
-#if os(iOS)
+
 extension View {
+    #if os(iOS)
     func exportFiles(homeState: HomeState, files: [File]) {
         DispatchQueue.global(qos: .userInitiated).async {
             var urls = []
@@ -77,12 +78,14 @@ extension View {
             }
         }
     }
-}
-#endif
-
-#if os(macOS)
-extension NSView {
+    
+    #else
+    
     func exportFiles(homeState: HomeState, files: [File]) {
+        guard let view = NSApp.keyWindow?.toolbar?.items.first?.view else {
+            return
+        }
+        
         DispatchQueue.global(qos: .userInitiated).async {
             var urls = []
             
@@ -93,9 +96,10 @@ extension NSView {
             }
 
             DispatchQueue.main.async {
-                NSSharingServicePicker(items: urls).show(relativeTo: .zero, of: self, preferredEdge: .minX)
+                NSSharingServicePicker(items: urls).show(relativeTo: .zero, of: view, preferredEdge: .minX)
             }
         }
     }
+    
+    #endif
 }
-#endif

@@ -21,7 +21,7 @@ struct SuggestedDocsView: View {
                         ForEach(suggestedDocs) { info in
                             Button(action: {
                                 if isConstrainedLayout {
-                                    homeState.isConstrainedSidebarOpen = false
+                                    homeState.constrainedSidebarState = .closed
                                 }
                                 
                                 AppState.workspaceState.requestOpenDoc(info.id)
@@ -72,10 +72,9 @@ struct SuggestedDocCell: View {
             }
             .padding(.top, 1)
         }
-        .padding(12)
         .contentShape(Rectangle())
         .frame(maxWidth: 200)
-        .background(RoundedRectangle(cornerRadius: 10).fill(colorScheme == .light ? Color.accentColor.opacity(0.08) : Color.accentColor.opacity(0.19)))
+        .modifier(SuggestedDocBackground())
     }
 }
 
@@ -109,6 +108,23 @@ struct SuggestedDocLoadingCell: View {
         }
         .padding(12)
         .contentShape(Rectangle())
-        .background(RoundedRectangle(cornerRadius: 10).fill(colorScheme == .light ? Color.accentColor.opacity(0.08) : Color.accentColor.opacity(0.19)))
+        .modifier(SuggestedDocBackground())
+    }
+}
+
+struct SuggestedDocBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content
+            .padding(12)
+            .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(colorScheme == .light ? Color.accentColor.opacity(0.08) : Color.accentColor.opacity(0.19))
+        )
+        #else
+        content
+            .padding(8)
+
+        #endif
     }
 }

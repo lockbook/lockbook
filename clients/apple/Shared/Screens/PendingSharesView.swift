@@ -45,7 +45,7 @@ struct PendingSharesView: View {
             }
         }
         .navigationTitle("Pending Shares")
-        .navigationBarTitleDisplayMode(.large)
+        .modifier(LargeNavigationTitleBar())
     }
 }
 

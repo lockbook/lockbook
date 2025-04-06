@@ -13,9 +13,7 @@ class PathSearchViewModel: ObservableObject {
         guard selected < results.count else {
             return
         }
-        
-        print("opening doc: \(results[selected])")
-        
+                
         AppState.workspaceState.requestOpenDoc(results[selected].id)
         self.isShown = false
     }

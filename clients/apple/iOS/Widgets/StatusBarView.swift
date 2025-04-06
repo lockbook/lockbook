@@ -121,7 +121,7 @@ struct StatusBarView: View {
     
     func docCreateAction(f: () -> Void) {
         if isConstrainedLayout {
-            homeState.isConstrainedSidebarOpen = false
+            homeState.constrainedSidebarState = .closed
         }
         
         f()

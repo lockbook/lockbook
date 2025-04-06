@@ -17,7 +17,7 @@ extension Array<LbSearchResult> {
     }
 }
 
-public enum SearchResult: Identifiable {
+public enum SearchResult: Identifiable, Comparable {
     public var id: AnyHashable {
         switch self {
         case .path(let result):
@@ -57,6 +57,13 @@ public struct PathSearchResult: Hashable, Comparable {
     public let path: String
     public let score: Int64
     public let matchedIndicies: [UInt]
+    
+    init(_ res: LbPathSearchResult) {
+        self.id = res.id.toUUID()
+        self.path = String(cString: res.path)
+        self.score = res.score
+        self.matchedIndicies = Array(UnsafeBufferPointer(start: res.matched_indicies, count: Int(res.matched_indicies_len)))
+    }
         
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -68,13 +75,6 @@ public struct PathSearchResult: Hashable, Comparable {
         }
         
         return lhs.score < rhs.score
-    }
-    
-    init(_ res: LbPathSearchResult) {
-        self.id = res.id.toUUID()
-        self.path = String(cString: res.path)
-        self.score = res.score
-        self.matchedIndicies = Array(UnsafeBufferPointer(start: res.matched_indicies, count: Int(res.matched_indicies_len)))
     }
 }
 
@@ -90,20 +90,31 @@ extension Array<LbDocumentSearchResult> {
     }
 }
 
-public struct DocumentSearchResult: Hashable {
+public struct DocumentSearchResult: Hashable, Comparable {
     public let id: UUID
     public let path: String
     public let contentMatches: [ContentMatch]
+    
+    init(_ res: LbDocumentSearchResult) {
+        self.id = res.id.toUUID()
+        self.path = String(cString: res.path)
+        self.contentMatches = Array(UnsafeBufferPointer(start: res.content_matches, count: Int(res.content_matches_len))).toContentMatches()
+    }
     
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(contentMatches)
     }
     
-    init(_ res: LbDocumentSearchResult) {
-        self.id = res.id.toUUID()
-        self.path = String(cString: res.path)
-        self.contentMatches = Array(UnsafeBufferPointer(start: res.content_matches, count: Int(res.content_matches_len))).toContentMatches()
+    public static func <(lhs: DocumentSearchResult, rhs: DocumentSearchResult) -> Bool {
+        let lhsScore = Int(lhs.contentMatches.map({ $0.score }).reduce(0, +)) / lhs.contentMatches.count
+        let rhsScore = Int(rhs.contentMatches.map({ $0.score }).reduce(0, +)) / rhs.contentMatches.count
+        
+        if lhsScore == rhsScore {
+            return lhs.path < rhs.path
+        }
+        
+        return lhsScore < rhsScore
     }
 }
 

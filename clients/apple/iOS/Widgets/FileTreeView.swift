@@ -171,7 +171,7 @@ struct FileRowView: View {
             AppState.workspaceState.requestOpenDoc(file.id)
             
             if isConstrainedLayout {
-                homeState.isConstrainedSidebarOpen = false
+                homeState.constrainedSidebarState = .closed
             }
         }
     }
