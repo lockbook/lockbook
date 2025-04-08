@@ -49,6 +49,10 @@ impl Data {
             all_files.insert(datum.file.id, datum);
         }
 
+        if root.is_nil() {
+            panic!("No root exists");
+        }
+
         let mut folder_sizes = HashMap::new();
         // Initial for loop for folders is necessary to give folders starting value as we need to go over folders again to update sizes
         for datum in data.clone() {
