@@ -1,5 +1,6 @@
 mod android;
 mod apple;
+mod crates_io;
 mod github;
 mod linux;
 mod public_site;
@@ -68,6 +69,11 @@ fn main() {
                         .subcommand(Command::name("aur").handler(linux::cli::update_aur)),
                 )
                 .subcommand(Command::name("desktop").handler(linux::desktop::release)),
+        )
+        .subcommand(
+            Command::name("publish-crate")
+                .input(Arg::name("package"))
+                .handler(|package: &Arg<'_, String>| crates_io::release_crate(package.get())),
         )
         .with_completions()
         .parse();

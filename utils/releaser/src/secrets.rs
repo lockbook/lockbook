@@ -1,9 +1,16 @@
 use std::env;
 
+pub struct CratesIO(pub String);
 pub struct Github(pub String);
 pub struct AppStore(pub String);
 pub struct PlayStore {
     pub service_account_key: String,
+}
+
+impl CratesIO {
+    pub fn env() -> Self {
+        Self(env_or_panic("CRATES_IO_API_TOKEN"))
+    }
 }
 
 impl Github {
