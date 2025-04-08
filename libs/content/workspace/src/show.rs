@@ -179,7 +179,6 @@ impl Workspace {
 
                                     ui.label(layout_job);
                                 }
-                                
                                 ui.add_space(50.);
 
                                     ui.label(WidgetText::from(
