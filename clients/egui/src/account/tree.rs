@@ -1452,7 +1452,6 @@ impl FileTree {
                 ui.close_menu();
             }
 
-            // This needs to be made so only beta users can use this (unless its ready to be made public)
             let file = self.files.get_by_id(file).clone();
             if file.is_folder() {
                 ui.separator();
