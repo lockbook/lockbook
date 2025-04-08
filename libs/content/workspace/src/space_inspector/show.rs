@@ -201,16 +201,18 @@ impl SpaceInspector {
 
         // Root text logic
 
-        let tab_intel: egui::WidgetText = egui::RichText::new(bytes_to_human(
+        let display_size = bytes_to_human(
             *self
                 .data
                 .folder_sizes
                 .get(&self.data.focused_folder)
                 .unwrap(),
-        ))
-        .font(egui::FontId::monospace(15.0))
-        .color(root_text_color)
-        .into();
+        );
+
+        let tab_intel: egui::WidgetText = egui::RichText::new(display_size.clone())
+            .font(egui::FontId::monospace(15.0))
+            .color(root_text_color)
+            .into();
 
         let tab_intel_galley = tab_intel.into_galley(
             ui,
@@ -230,42 +232,22 @@ impl SpaceInspector {
             ui.visuals().text_color(),
         );
 
-        ui.allocate_ui_at_rect(
-            Rect {
-                min: Pos2 { x: tab_intel_rect.min.x, y: tab_intel_rect.min.y - 15.0 },
-                max: root_text.max,
-            },
-            |ui| {
-                ui.colored_label(
-                    Color32::TRANSPARENT,
-                    bytes_to_human(
-                        *self
-                            .data
-                            .folder_sizes
-                            .get(&self.data.focused_folder)
-                            .unwrap(),
-                    ),
-                )
-                .on_hover_text(
-                    "Name:\n".to_owned()
-                        + &self
-                            .data
-                            .all_files
-                            .get(&self.data.focused_folder)
-                            .unwrap()
-                            .file
-                            .name
-                            .to_string()
-                        + "\nSize:\n"
-                        + &bytes_to_human(
-                            *self
-                                .data
-                                .folder_sizes
-                                .get(&self.data.focused_folder)
-                                .unwrap(),
-                        ),
-                );
-            },
+        // Hover interaction
+
+        let response = ui.interact(root_draw_anchor, Id::new(-1), Sense::hover());
+
+        response.on_hover_text(
+            "Name:\n".to_owned()
+                + &self
+                    .data
+                    .all_files
+                    .get(&self.data.focused_folder)
+                    .unwrap()
+                    .file
+                    .name
+                    .to_string()
+                + "\nSize:\n"
+                + &display_size,
         );
 
         // Starts drawing the rest of the folders and files
@@ -360,6 +342,7 @@ impl SpaceInspector {
         let mut visited_folders: Vec<DrawHelper> = vec![];
         let mut current_parent =
             DrawHelper { id: self.data.focused_folder, starting_position: 0.0 };
+
         for (i, item) in self.paint_order.iter().enumerate() {
             let item_filerow = self.data.all_files.get(&item.id).unwrap();
 
