@@ -11,7 +11,7 @@ use egui::{
 use lb_rs::model::{errors::LbErr, file::File, usage::bytes_to_human};
 use lb_rs::{blocking::Lb, LbErrKind, Uuid};
 use std::sync::{Arc, Mutex};
-use std::{thread, time};
+use std::thread;
 
 /// Responsible for tracking on screen locations for folders
 #[derive(Debug)]
@@ -49,7 +49,6 @@ impl SpaceInspector {
         let state: Arc<Mutex<AppState>> = Default::default();
         let bg_state = state.clone();
         thread::spawn(move || {
-            thread::sleep(time::Duration::from_millis(500));
             let usage = bg_lb.get_usage();
             let meta_data = bg_lb.list_metadatas();
 
