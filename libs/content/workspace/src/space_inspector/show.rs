@@ -201,13 +201,7 @@ impl SpaceInspector {
 
         // Root text logic
 
-        let display_size = bytes_to_human(
-            *self
-                .data
-                .folder_sizes
-                .get(&self.data.focused_folder)
-                .unwrap(),
-        );
+        let display_size = bytes_to_human(self.data.folder_sizes[&self.data.focused_folder]);
 
         let tab_intel: egui::WidgetText = egui::RichText::new(display_size.clone())
             .font(egui::FontId::monospace(15.0))
@@ -238,11 +232,7 @@ impl SpaceInspector {
 
         response.on_hover_text(
             "Name:\n".to_owned()
-                + &self
-                    .data
-                    .all_files
-                    .get(&self.data.focused_folder)
-                    .unwrap()
+                + &self.data.all_files[&self.data.focused_folder]
                     .file
                     .name
                     .to_string()
@@ -308,7 +298,7 @@ impl SpaceInspector {
         let parent_color = self
             .colors
             .iter()
-            .find(|item| item.id == self.data.all_files.get(&curr_id).unwrap().file.parent)
+            .find(|item| item.id == self.data.all_files[&curr_id].file.parent)
             .unwrap()
             .color;
 
@@ -344,7 +334,7 @@ impl SpaceInspector {
             DrawHelper { id: self.data.focused_folder, starting_position: 0.0 };
 
         for (i, item) in self.paint_order.iter().enumerate() {
-            let item_filerow = self.data.all_files.get(&item.id).unwrap();
+            let item_filerow = &self.data.all_files[&item.id];
 
             if current_layer != item.layer {
                 current_position = root_anchor.min.x;
@@ -359,7 +349,7 @@ impl SpaceInspector {
                     .unwrap()
                     .starting_position;
                 current_parent = DrawHelper {
-                    id: self.data.all_files.get(&item.id).unwrap().file.parent,
+                    id: self.data.all_files[&item.id].file.parent,
                     starting_position: current_position,
                 };
             }
@@ -453,20 +443,13 @@ impl SpaceInspector {
                 // Click and hover logic
 
                 let display_size = if item_filerow.file.is_folder() {
-                    bytes_to_human(*self.data.folder_sizes.get(&item.id).unwrap())
+                    bytes_to_human(self.data.folder_sizes[&item.id])
                 } else {
                     bytes_to_human(item_filerow.size)
                 };
 
                 let hover_text = "Name:\n".to_owned()
-                    + &self
-                        .data
-                        .all_files
-                        .get(&item.id)
-                        .unwrap()
-                        .file
-                        .name
-                        .to_string()
+                    + &self.data.all_files[&item.id].file.name.to_string()
                     + "\nSize:\n"
                     + &display_size;
 

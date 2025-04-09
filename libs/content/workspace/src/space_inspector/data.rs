@@ -54,7 +54,7 @@ impl Data {
         }
 
         let mut folder_sizes = HashMap::new();
-        // Initial for loop for folders is necessary to give folders starting value as we need to go over folders again to update sizes
+        // Initialize folders with default size, then each document's size is added to each of that document's ancestors
         for datum in data.clone() {
             if datum.file.is_folder() {
                 folder_sizes.insert(datum.file.id, datum.size);
@@ -64,7 +64,7 @@ impl Data {
             let datum_size = datum.size;
             let mut current_id = datum.file.id;
             loop {
-                let row = all_files.get(&current_id).unwrap();
+                let row = &all_files[&current_id];
                 let mut current_size = folder_sizes
                     .get(&row.file.parent)
                     .copied()
@@ -104,10 +104,10 @@ impl Data {
     }
 
     fn get_children(&self, id: &Uuid) -> Vec<StorageTree> {
-        if !self.all_files.get(id).unwrap().file.is_folder() {
+        if !self.all_files[id].file.is_folder() {
             return vec![];
         }
-        let total_size = *self.folder_sizes.get(&self.focused_folder).unwrap() as f32;
+        let total_size = self.folder_sizes[&self.focused_folder] as f32;
         let children = self
             .all_files
             .values()
@@ -115,7 +115,7 @@ impl Data {
             .map(|f| {
                 let mut current_size = f.size as f32;
                 if f.file.is_folder() {
-                    current_size = *self.folder_sizes.get(&f.file.id).unwrap() as f32;
+                    current_size = self.folder_sizes[&f.file.id] as f32;
                 }
                 StorageTree {
                     id: f.file.id,
