@@ -78,12 +78,12 @@ impl Data {
             }
         }
 
-        let folder_root = match potential_root {
-            Some(folder_root) => folder_root.id,
+        let focused_folder = match potential_root {
+            Some(focused_folder) => focused_folder.id,
             None => root,
         };
 
-        Self { focused_folder: folder_root, root, all_files, folder_sizes }
+        Self { focused_folder, root, all_files, folder_sizes }
     }
 
     fn get_filerows(usage: Vec<FileUsage>, meta_data: Vec<File>) -> Vec<FileRow> {
