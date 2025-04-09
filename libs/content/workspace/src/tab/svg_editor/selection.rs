@@ -1,5 +1,4 @@
 use bezier_rs::Subpath;
-use egui_animation::{animate_bool_eased, easing};
 use glam::DVec2;
 use indexmap::IndexMap;
 use lb_rs::{
@@ -53,6 +52,7 @@ struct Layout {
     container_tooltip: Option<egui::Rect>,
 }
 
+#[derive(Debug)]
 enum SelectionEvent {
     StartLaso(BuildPayload),
     LasoBuild(BuildPayload),
@@ -133,6 +133,10 @@ impl Selection {
             SelectionOperation::Idle => {
                 match *event {
                     egui::Event::PointerButton { pos, button, pressed, modifiers } => {
+                        if selection_ctx.settings.pencil_only_drawing {
+                            return None;
+                        }
+
                         if button != egui::PointerButton::Primary {
                             return None;
                         }
@@ -143,11 +147,39 @@ impl Selection {
                             {
                                 return Some(SelectionEvent::StartTransform(pos));
                             } else {
+                                // if we're in prefer draw with pencil mode, then we shouldn't start build operation
+                                // if the event is coming from the finger and not the pen
+
                                 return Some(SelectionEvent::StartLaso(BuildPayload {
                                     pos,
                                     modifiers,
                                 }));
                             }
+                        }
+                    }
+                    egui::Event::Touch { device_id: _, id: _, phase, pos, force } => {
+                        if phase != egui::TouchPhase::Start {
+                            return None;
+                        }
+                        // only handle touch when in pencil only mode
+                        if !selection_ctx.settings.pencil_only_drawing {
+                            return None;
+                        }
+                        // ensure that it's pencil touch and not finger touch
+                        force?;
+
+                        if self.decide_transform_type(pos, selection_ctx)
+                            != SelectionOperation::Idle
+                        {
+                            return Some(SelectionEvent::StartTransform(pos));
+                        } else {
+                            // if we're in prefer draw with pencil mode, then we shouldn't start build operation
+                            // if the event is coming from the finger and not the pen
+
+                            return Some(SelectionEvent::StartLaso(BuildPayload {
+                                pos,
+                                modifiers: egui::Modifiers::NONE,
+                            }));
                         }
                     }
                     egui::Event::Key { key, physical_key: _, pressed, repeat, modifiers } => {
@@ -501,13 +533,16 @@ impl Selection {
             return;
         }
 
-        let opacity = animate_bool_eased(
-            ui.ctx(),
-            "selection_tooltip",
-            self.current_op == SelectionOperation::Idle,
-            easing::cubic_out,
-            0.2,
-        );
+        // todo: figure out color space format to get a clean fade in animation
+        // currently it fades into gray before going transparent
+        // let opacity = animate_bool_eased(
+        //     ui.ctx(),
+        //     "selection_tooltip",
+        //     self.current_op == SelectionOperation::Idle,
+        //     easing::cubic_out,
+        //     0.2,
+        // );
+        let opacity = if self.current_op == SelectionOperation::Idle { 1.0 } else { 0.0 };
 
         ui.set_opacity(opacity);
 

@@ -51,6 +51,7 @@ pub struct SVGEditor {
     /// don't allow zooming or panning
     allow_viewport_changes: bool,
     pub settings: CanvasSettings,
+    input_ctx: InputContext,
 }
 
 pub struct Response {
@@ -101,6 +102,7 @@ impl SVGEditor {
                 egui::LayerId::new(egui::Order::Background, "canvas_painter".into()),
                 egui::Rect::NOTHING,
             ),
+            input_ctx: InputContext::default(),
             renderer: Renderer::new(elements_count),
             has_queued_save_request: false,
             allow_viewport_changes: false,
@@ -114,6 +116,7 @@ impl SVGEditor {
         let _ = span.enter();
 
         self.inner_rect = ui.available_rect_before_wrap();
+        self.input_ctx.update(ui);
 
         let non_empty_weak_imaegs = !self.buffer.weak_images.is_empty();
         self.buffer
@@ -267,4 +270,22 @@ impl SVGEditor {
     //         );
     //     }
     // }
+}
+
+// across frame persistent state about egui's input
+#[derive(Default)]
+struct InputContext {
+    pub last_touch: Option<egui::Pos2>,
+}
+
+impl InputContext {
+    fn update(&mut self, ui: &mut egui::Ui) {
+        ui.input(|r| {
+            r.events.iter().for_each(|e| {
+                if let egui::Event::Touch { device_id: _, id: _, phase: _, pos, force: _ } = e {
+                    self.last_touch = Some(*pos);
+                }
+            })
+        })
+    }
 }
