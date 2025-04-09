@@ -91,12 +91,12 @@ impl Data {
 
         for file in meta_data {
             filerows.push(FileRow {
-                file: file.clone(),
                 size: usage
                     .iter()
                     .find(|item| item.file_id == file.id)
                     .unwrap_or(&FileUsage { file_id: file.id, size_bytes: 0 })
                     .size_bytes,
+                file,
             });
         }
 
