@@ -373,7 +373,7 @@ impl SpaceInspector {
 
             // Folder text logic
             if window.contains(paint_rect.min) {
-                let tab_intel: egui::WidgetText = egui::RichText::new(item.name.clone())
+                let tab_intel: egui::WidgetText = egui::RichText::new(&item.name)
                     .font(egui::FontId::monospace(0.2 * self.layer_height))
                     .color({
                         let hsl_color = colors_transform::Rgb::from(
