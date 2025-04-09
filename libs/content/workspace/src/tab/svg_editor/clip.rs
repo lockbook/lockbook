@@ -25,9 +25,11 @@ impl SVGEditor {
 
                                 let img = image::load_from_memory(&data).unwrap();
 
-                                let position = ui.input(|r| {
+                                let paste_pos = ui.input(|r| {
                                     r.pointer.hover_pos().unwrap_or(
-                                        r.pointer.latest_pos().unwrap_or(self.inner_rect.center()),
+                                        self.input_ctx
+                                            .last_touch
+                                            .unwrap_or(ui.available_rect_before_wrap().center()),
                                     )
                                 });
 
@@ -38,8 +40,8 @@ impl SVGEditor {
                                         visibility: resvg::usvg::Visibility::Visible,
                                         transform: Transform::identity(),
                                         view_box: NonZeroRect::from_xywh(
-                                            position.x,
-                                            position.y,
+                                            paste_pos.x,
+                                            paste_pos.y,
                                             img.width() as f32,
                                             img.height() as f32,
                                         )
@@ -82,13 +84,14 @@ impl SVGEditor {
                         for (_, el) in pasted_buffer.elements.iter() {
                             let mut transformed_el = el.clone();
 
-                            let pos = r.pointer.hover_pos().unwrap_or(
+                            let paste_pos = r.pointer.hover_pos().unwrap_or(
                                 self.input_ctx
                                     .last_touch
                                     .unwrap_or(ui.available_rect_before_wrap().center()),
                             );
 
-                            let delta = pos - container.center() * self.buffer.master_transform.sx;
+                            let delta =
+                                paste_pos - container.center() * self.buffer.master_transform.sx;
 
                             let transform = Transform::identity()
                                 .post_scale(
