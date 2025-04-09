@@ -1,3 +1,4 @@
+use crate::file_cache::FilesExt as _;
 use lb_rs::model::api::FileUsage;
 use lb_rs::model::file::File;
 use lb_rs::Uuid;
@@ -39,18 +40,11 @@ pub struct StorageCell {
 
 impl Data {
     pub fn init(potential_root: Option<File>, usage: Vec<FileUsage>, meta_data: Vec<File>) -> Self {
-        let data = Self::get_filerows(usage, meta_data);
+        let root = meta_data.root();
+        let data = Self::get_filerows(usage, meta_data.clone());
         let mut all_files = HashMap::new();
-        let mut root = Uuid::nil();
         for datum in data.clone() {
-            if datum.file.is_root() {
-                root = datum.file.id;
-            }
             all_files.insert(datum.file.id, datum);
-        }
-
-        if root.is_nil() {
-            panic!("No root exists");
         }
 
         let mut folder_sizes = HashMap::new();
