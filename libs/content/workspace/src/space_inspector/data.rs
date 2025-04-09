@@ -124,10 +124,7 @@ impl Data {
                     children: self.get_children(&f.file.id),
                 }
             });
-        let mut gathered_children = vec![];
-        for child in children.into_iter() {
-            gathered_children.push(child);
-        }
+        let mut gathered_children: Vec<_> = children.collect();
         gathered_children.sort_by(|a, b| b.portion.partial_cmp(&a.portion).unwrap());
         gathered_children
     }
