@@ -159,16 +159,8 @@ impl SpaceInspector {
             self.paint_order = self.data.get_paint_order();
         }
 
-        let root_color: Color32;
-        let root_text_color: Color32;
-        if ui.visuals().dark_mode {
-            root_color = Color32::WHITE;
-            root_text_color = ui.visuals().extreme_bg_color;
-        } else {
-            root_color = Color32::BLACK;
-            root_text_color = Color32::WHITE;
-        }
-
+        let root_color = ui.visuals().extreme_bg_color;
+        let root_text_color = ui.visuals().text_color;
         // Top buttons
         ui.with_layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(1) }, |ui| {
             let top_left_rect = Rect { min: window.left_top(), max: window.center_top() };
