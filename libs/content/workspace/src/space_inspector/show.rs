@@ -159,8 +159,11 @@ impl SpaceInspector {
             self.paint_order = self.data.get_paint_order();
         }
 
-        let root_color = ui.visuals().extreme_bg_color;
-        let root_text_color = ui.visuals().text_color;
+        let root_color =
+            if ui.visuals().dark_mode { Color32::from_gray(255) } else { Color32::from_gray(10) };
+        let root_text_color =
+            if ui.visuals().dark_mode { Color32::from_gray(10) } else { Color32::from_gray(255) };
+
         // Top buttons
         ui.with_layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(1) }, |ui| {
             let top_left_rect = Rect { min: window.left_top(), max: window.center_top() };
@@ -414,10 +417,7 @@ impl SpaceInspector {
                     paint_rect,
                     Rounding::ZERO,
                     current_color,
-                    Stroke {
-                        width: 0.5,
-                        color: ui.visuals().extreme_bg_color
-                    },
+                    Stroke { width: 0.5, color: ui.visuals().extreme_bg_color },
                 );
 
                 if paint_rect.width() >= 50.0 {
