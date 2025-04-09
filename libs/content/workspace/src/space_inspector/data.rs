@@ -111,7 +111,7 @@ impl Data {
         let children = self
             .all_files
             .values()
-            .filter(|f| f.file.parent == *id && f.file.id != *id)
+            .filter(|f| f.file.parent == *id && !f.file.is_root())
             .map(|f| {
                 let mut current_size = f.size as f32;
                 if f.file.is_folder() {
