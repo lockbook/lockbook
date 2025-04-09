@@ -416,11 +416,7 @@ impl SpaceInspector {
                     current_color,
                     Stroke {
                         width: 0.5,
-                        color: if ui.visuals().dark_mode {
-                            ui.visuals().extreme_bg_color
-                        } else {
-                            Color32::WHITE
-                        },
+                        color: ui.visuals().extreme_bg_color
                     },
                 );
 
