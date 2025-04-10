@@ -179,6 +179,26 @@ impl Workspace {
 
                                     ui.label(layout_job);
                                 }
+                                ui.add_space(50.);
+
+                                    ui.label(WidgetText::from(
+                                        RichText::from("TOOLS").weak().small(),
+                                    ));
+
+                                ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
+                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
+                                    ui.visuals_mut().widgets.active.fg_stroke.color = blue;
+
+                                    if Button::default()
+                                        .icon(&Icon::LANGUAGE)
+                                        .text("Space Inspector")
+                                        .frame(false)
+                                        .rounding(3.)
+                                        .show(ui)
+                                        .clicked()
+                                    {
+                                        self.start_space_inspector(self.core.clone(), None);
+                                    }
 
                                 let is_beta = self
                                     .core
@@ -186,11 +206,6 @@ impl Workspace {
                                     .map(|a| a.is_beta())
                                     .unwrap_or_default();
                                 if is_beta {
-                                    ui.add_space(50.);
-
-                                    ui.label(WidgetText::from(
-                                        RichText::from("TOOLS").weak().small(),
-                                    ));
                                     ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
                                     ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
                                     ui.visuals_mut().widgets.active.fg_stroke.color = blue;
@@ -461,6 +476,9 @@ impl Workspace {
                                     if let Some(value) = response {
                                         self.open_file(value, false, true);
                                     }
+                                }
+                                TabContent::SpaceInspector(sv) => {
+                                    sv.show(ui);
                                 }
                             };
                         }

@@ -2,6 +2,7 @@ use egui::{Context, ViewportCommand};
 
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::{LbErr, LbErrKind};
+use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg;
@@ -17,6 +18,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use crate::file_cache::FileCache;
 use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
+use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -604,6 +606,20 @@ impl Workspace {
         } else {
             self.create_tab(ContentState::Open(TabContent::MindMap(MindMap::new(&core))), true);
         };
+    }
+
+    pub fn start_space_inspector(&mut self, core: Lb, folder: Option<File>) {
+        if let Some(i) = self.tabs.iter().position(|t| t.space_inspector().is_some()) {
+            self.close_tab(i);
+        }
+        self.create_tab(
+            ContentState::Open(TabContent::SpaceInspector(SpaceInspector::new(
+                &core,
+                folder,
+                self.ctx.clone(),
+            ))),
+            true,
+        );
     }
 
     pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) {
