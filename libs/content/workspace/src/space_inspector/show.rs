@@ -1,9 +1,8 @@
 use super::data::{Data, StorageCell};
-use color_art;
-use colors_transform::{self, Color};
-
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
+use color_art;
+use colors_transform::{self, Color};
 use egui::{
     self, menu, Color32, Context, Id, LayerId, Pos2, Rect, Rounding, Sense, Stroke, TextWrapMode,
     Ui,
