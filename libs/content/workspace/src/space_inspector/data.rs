@@ -29,7 +29,7 @@ pub struct StorageTree {
     children: Vec<StorageTree>,
 }
 
-/// Responsible for storing relevant folder information for painting
+/// Responsible for storing relevant folder information for painting. Portion represents the ratio of size between the file and the root
 #[derive(PartialEq, Debug, Clone)]
 pub struct StorageCell {
     pub id: Uuid,
@@ -123,32 +123,36 @@ impl Data {
         gathered_children
     }
 
+    /// Recursive function that goes through StorageTrees extracted StorageCells from each layer
     fn set_layers(
-        tree: &Vec<StorageTree>, current_layer: u64, mut raw_layers: Vec<StorageCell>,
+        trees: &Vec<StorageTree>, layer: u64, mut cells: Vec<StorageCell>,
     ) -> Vec<StorageCell> {
-        for slice in tree {
-            raw_layers.push(StorageCell {
-                id: slice.id,
-                name: slice.name.clone(),
-                portion: slice.portion,
-                layer: current_layer,
+        for tree in trees {
+            cells.push(StorageCell {
+                id: tree.id,
+                name: tree.name.clone(),
+                portion: tree.portion,
+                layer,
             });
-            if !slice.children.is_empty() {
-                let hold = Data::set_layers(&slice.children, current_layer + 1, raw_layers.clone());
-                for item in hold {
-                    if raw_layers.contains(&item) {
+            if !tree.children.is_empty() {
+                let next_layer_cells = Data::set_layers(&tree.children, layer + 1, cells.clone());
+                for cell in next_layer_cells {
+                    if cells.contains(&cell) {
                         continue;
                     }
-                    raw_layers.push(item.clone());
+                    cells.push(cell.clone());
                 }
             }
         }
-        raw_layers
+        cells
     }
 
+    /// Gets the order of StorageCells and sorts by layers with higher size .
+    /// Example:
+    /// [Layer 1: 10 KB, Layer 1: 3 KB, Layer 2: 2 KB]
     pub fn get_paint_order(&self) -> Vec<StorageCell> {
-        let tree = self.get_children(&self.focused_folder);
-        let mut paint_order_vec = Data::set_layers(&tree, 1, vec![]);
+        let trees = self.get_children(&self.focused_folder); // gets all children of the root in StorageTree format
+        let mut paint_order_vec = Data::set_layers(&trees, 1, vec![]);
         paint_order_vec.sort_by(|a, b| a.layer.cmp(&b.layer));
         paint_order_vec
     }
