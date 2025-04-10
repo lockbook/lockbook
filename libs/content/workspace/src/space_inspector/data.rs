@@ -41,7 +41,7 @@ pub struct StorageCell {
 impl Data {
     pub fn init(potential_root: Option<File>, usage: Vec<FileUsage>, meta_data: Vec<File>) -> Self {
         let root = meta_data.root();
-        let data = Self::get_filerows(usage, meta_data.clone());
+        let data = Self::get_filerows(usage, meta_data);
         let mut all_files = HashMap::new();
         for datum in data.clone() {
             all_files.insert(datum.file.id, datum);
@@ -88,7 +88,7 @@ impl Data {
                 size: usage
                     .iter()
                     .find(|item| item.file_id == file.id)
-                    .unwrap_or(&FileUsage { file_id: file.id, size_bytes: 0 })
+                    .unwrap_or(&FileUsage { file_id: file.id, size_bytes: 0 }) // Files that are shared with you take up 0. In the future, we may implement a way to view it with the flag that its not stored by you
                     .size_bytes,
                 file,
             });
