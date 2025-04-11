@@ -19,6 +19,7 @@ pub fn bump(bump_type: BumpType) -> CliResult<()> {
     generate_lockfile();
 
     push_to_git(&new_version);
+    merge_to_master(&new_version);
 
     Ok(())
 }
@@ -171,4 +172,16 @@ fn push_to_git(version: &str) {
             &format!("git checkout -b bump-{version} && git add -A && git commit -m 'bump-{version}' && git push origin bump-{version}")
         ])
         .assert_success()
+}
+
+fn merge_to_master(version: &str) {
+    Command::new("bash")
+        .args([
+            "-c",
+            &format!(
+                "git checkout master && git pull origin master && git merge bump-{} && git push origin master",
+                version
+            ),
+        ])
+        .assert_success();
 }
