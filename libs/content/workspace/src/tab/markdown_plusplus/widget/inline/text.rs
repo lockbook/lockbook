@@ -23,8 +23,19 @@ impl<'ast> MarkdownPlusPlus {
         pre_span + mid_span + post_span
     }
 
-    pub fn span_text_line(&self, wrap: &WrapContext, text: &str, text_format: TextFormat) -> f32 {
-        self.text_mid_span(wrap, Default::default(), text, text_format)
+    pub fn span_text_line(
+        &self, wrap: &WrapContext, range: (DocCharOffset, DocCharOffset), text_format: TextFormat,
+    ) -> f32 {
+        self.text_mid_span(wrap, Default::default(), &self.buffer[range], text_format)
+    }
+
+    pub fn show_text(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+    ) {
+        let sourcepos = node.data.borrow().sourcepos;
+        let range = self.sourcepos_to_range(sourcepos);
+
+        self.show_node_text_line(ui, node, top_left, wrap, range)
     }
 
     /// Show some text. It must not contain newlines. It doesn't matter if it
