@@ -4,13 +4,23 @@ use comrak::nodes::AstNode;
 use egui::{self, Align2, Color32, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use epaint::RectShape;
 
-use crate::tab::markdown_plusplus::MarkdownPlusPlus;
+use crate::tab::markdown_plusplus::{widget::WrapContext, MarkdownPlusPlus};
 
 use super::cache::ImageState;
 
-impl MarkdownPlusPlus {
+impl<'ast> MarkdownPlusPlus {
     pub fn text_format_image(&self, parent: &AstNode<'_>) -> TextFormat {
         self.text_format_link(parent)
+    }
+
+    pub fn span_image(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
+        self.inline_children_span(node, wrap)
+    }
+
+    pub fn show_image(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+    ) {
+        self.show_inline_children(ui, node, top_left, wrap);
     }
 
     pub fn height_image(&self, width: f32, url: &str) -> f32 {

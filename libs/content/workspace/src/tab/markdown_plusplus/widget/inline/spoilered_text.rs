@@ -1,11 +1,21 @@
 use comrak::nodes::AstNode;
-use egui::TextFormat;
+use egui::{Pos2, TextFormat, Ui};
 
-use crate::tab::markdown_plusplus::MarkdownPlusPlus;
+use crate::tab::markdown_plusplus::{widget::WrapContext, MarkdownPlusPlus};
 
-impl MarkdownPlusPlus {
+impl<'ast> MarkdownPlusPlus {
     pub fn text_format_spoilered_text(&self, parent: &AstNode<'_>) -> TextFormat {
         let parent_text_format = self.text_format(parent);
         TextFormat { background: self.theme.bg().neutral_tertiary, ..parent_text_format }
+    }
+
+    pub fn span_spoilered_text(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
+        self.inline_children_span(node, wrap)
+    }
+
+    pub fn show_spoilered_text(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+    ) {
+        self.show_inline_children(ui, node, top_left, wrap);
     }
 }

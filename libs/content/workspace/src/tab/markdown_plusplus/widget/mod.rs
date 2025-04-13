@@ -1,8 +1,10 @@
 use comrak::nodes::{
-    AstNode, NodeCode, NodeHeading, NodeHtmlBlock, NodeLink, NodeList, NodeMath, NodeValue,
+    AstNode, NodeCode, NodeFootnoteReference, NodeHeading, NodeHtmlBlock, NodeLink, NodeList,
+    NodeMath, NodeValue,
 };
 use egui::{Pos2, TextFormat, Ui};
 use inline::text;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use super::MarkdownPlusPlus;
 
@@ -10,6 +12,7 @@ pub(crate) mod container_block;
 pub(crate) mod inline;
 pub(crate) mod leaf_block;
 pub(crate) mod spacing;
+pub(crate) mod syntax;
 
 pub const MARGIN: f32 = 20.0; // space between the editor and window border; must be large enough to accomodate bordered elements e.g. code blocks
 pub const MAX_WIDTH: f32 = 800.0; // the maximum width of the editor before it starts adding padding
@@ -86,8 +89,8 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Image(_) => self.text_format_image(parent()),
             NodeValue::Code(_) => self.text_format_code(parent()),
             NodeValue::Emph => self.text_format_emph(parent()),
-            NodeValue::Escaped => parent_text_format(),
-            NodeValue::EscapedTag(_) => parent_text_format(),
+            NodeValue::Escaped => self.text_format_escaped(parent()),
+            NodeValue::EscapedTag(_) => self.text_format_escaped_tag(parent()),
             NodeValue::FootnoteReference(_) => self.text_format_footnote_reference(parent()),
             NodeValue::HtmlInline(_) => self.text_format_html_inline(parent()),
             NodeValue::LineBreak => parent_text_format(),
@@ -333,28 +336,26 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::TableRow(_) => unimplemented!("not a block"),
 
             // inline
-            NodeValue::Image(_) => self.inline_children_span(node, wrap),
-            NodeValue::Code(NodeCode { literal, .. }) => {
-                self.span_node_text_line(node, wrap, literal)
+            NodeValue::Image(_) => self.span_image(node, wrap),
+            NodeValue::Code(NodeCode { literal, .. }) => self.span_code(node, wrap, literal),
+            NodeValue::Emph => self.span_emph(node, wrap),
+            NodeValue::Escaped => self.span_escaped(node, wrap),
+            NodeValue::EscapedTag(_) => self.span_escaped_tag(node, wrap),
+            NodeValue::FootnoteReference(NodeFootnoteReference { ix, .. }) => {
+                self.span_footnote_reference(node, wrap, *ix)
             }
-            NodeValue::Emph => self.inline_children_span(node, wrap),
-            NodeValue::Escaped => self.inline_children_span(node, wrap),
-            NodeValue::EscapedTag(_) => self.inline_children_span(node, wrap),
-            NodeValue::FootnoteReference(_) => self.inline_children_span(node, wrap),
-            NodeValue::HtmlInline(html) => self.span_node_text_line(node, wrap, html),
+            NodeValue::HtmlInline(html) => self.span_html_inline(node, wrap, html),
             NodeValue::LineBreak => self.span_line_break(wrap),
-            NodeValue::Link(_) => self.inline_children_span(node, wrap),
-            NodeValue::Math(NodeMath { literal, .. }) => {
-                self.span_node_text_line(node, wrap, literal)
-            }
+            NodeValue::Link(_) => self.span_link(node, wrap),
+            NodeValue::Math(NodeMath { literal, .. }) => self.span_math(node, wrap, literal),
             NodeValue::SoftBreak => self.span_soft_break(wrap),
-            NodeValue::SpoileredText => self.inline_children_span(node, wrap),
-            NodeValue::Strikethrough => self.inline_children_span(node, wrap),
-            NodeValue::Strong => self.inline_children_span(node, wrap),
-            NodeValue::Superscript => self.inline_children_span(node, wrap),
+            NodeValue::SpoileredText => self.span_spoilered_text(node, wrap),
+            NodeValue::Strikethrough => self.span_strikethrough(node, wrap),
+            NodeValue::Strong => self.span_strong(node, wrap),
+            NodeValue::Superscript => self.span_superscript(node, wrap),
             NodeValue::Text(text) => self.span_node_text_line(node, wrap, text),
-            NodeValue::Underline => self.inline_children_span(node, wrap),
-            NodeValue::WikiLink(_) => self.inline_children_span(node, wrap),
+            NodeValue::Underline => self.span_underline(node, wrap),
+            NodeValue::WikiLink(_) => self.span_wikilink(node, wrap),
 
             // leaf_block
             NodeValue::CodeBlock(_) => unimplemented!("not a block"),
@@ -414,9 +415,6 @@ impl<'ast> MarkdownPlusPlus {
     fn show_inline(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
     ) {
-        let sourcepos = node.data.borrow().sourcepos; // todo: character uncapture
-        let range = self.sourcepos_to_range(sourcepos);
-
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => {}
 
@@ -434,26 +432,26 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::TaskItem(_) => unimplemented!("not an inline"),
 
             // inline
-            NodeValue::Image(_) => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Code(_) => self.show_node_text_line(ui, node, top_left, wrap, range),
-            NodeValue::Emph => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Escaped => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::EscapedTag(_) => self.show_inline_children(ui, node, top_left, wrap),
+            NodeValue::Image(_) => self.show_image(ui, node, top_left, wrap),
+            NodeValue::Code(_) => self.show_code(ui, node, top_left, wrap),
+            NodeValue::Emph => self.show_emph(ui, node, top_left, wrap),
+            NodeValue::Escaped => self.show_escaped(ui, node, top_left, wrap),
+            NodeValue::EscapedTag(_) => self.show_escaped_tag(ui, node, top_left, wrap),
             NodeValue::FootnoteReference(_) => {
                 self.show_footnote_reference(ui, node, top_left, wrap)
             }
-            NodeValue::HtmlInline(_) => self.show_node_text_line(ui, node, top_left, wrap, range),
+            NodeValue::HtmlInline(_) => self.show_html_inline(ui, node, top_left, wrap),
             NodeValue::LineBreak => self.show_line_break(wrap),
-            NodeValue::Link(_) => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Math(_) => self.show_node_text_line(ui, node, top_left, wrap, range),
+            NodeValue::Link(_) => self.show_link(ui, node, top_left, wrap),
+            NodeValue::Math(_) => self.show_math(ui, node, top_left, wrap),
             NodeValue::SoftBreak => self.show_soft_break(wrap),
-            NodeValue::SpoileredText => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Strikethrough => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Strong => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Superscript => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Text(_) => self.show_node_text_line(ui, node, top_left, wrap, range),
-            NodeValue::Underline => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::WikiLink(_) => self.show_inline_children(ui, node, top_left, wrap),
+            NodeValue::SpoileredText => self.show_spoilered_text(ui, node, top_left, wrap),
+            NodeValue::Strikethrough => self.show_strikethrough(ui, node, top_left, wrap),
+            NodeValue::Strong => self.show_strong(ui, node, top_left, wrap),
+            NodeValue::Superscript => self.show_superscript(ui, node, top_left, wrap),
+            NodeValue::Text(_) => self.show_text(ui, node, top_left, wrap),
+            NodeValue::Underline => self.show_underline(ui, node, top_left, wrap),
+            NodeValue::WikiLink(_) => self.show_wikilink(ui, node, top_left, wrap),
 
             // leaf_block
             NodeValue::CodeBlock(_) => unimplemented!("not an inline"),
@@ -473,6 +471,80 @@ impl<'ast> MarkdownPlusPlus {
     ) {
         for child in node.children() {
             self.show_inline(ui, child, top_left, wrap);
+        }
+    }
+
+    fn prefix_range(&self, node: &'ast AstNode<'ast>) -> Option<(DocCharOffset, DocCharOffset)> {
+        let range = self.sourcepos_to_range(node.data.borrow().sourcepos);
+        if let Some(first_child) = node.children().next() {
+            let first_child_range = self.sourcepos_to_range(first_child.data.borrow().sourcepos);
+            Some((range.start(), first_child_range.start()))
+        } else {
+            None
+        }
+    }
+
+    fn postfix_range(&self, node: &'ast AstNode<'ast>) -> Option<(DocCharOffset, DocCharOffset)> {
+        let range = self.sourcepos_to_range(node.data.borrow().sourcepos);
+        if let Some(last_child) = node.children().last() {
+            let last_child_range = self.sourcepos_to_range(last_child.data.borrow().sourcepos);
+            Some((last_child_range.end(), range.end()))
+        } else {
+            None
+        }
+    }
+
+    fn prefix_span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
+        if let Some(prefix_range) = self.prefix_range(node) {
+            self.span_text_line(wrap, prefix_range, self.text_format_syntax(node))
+        } else {
+            0.
+        }
+    }
+
+    fn postfix_span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
+        if let Some(postfix_range) = self.postfix_range(node) {
+            self.span_text_line(wrap, postfix_range, self.text_format_syntax(node))
+        } else {
+            0.
+        }
+    }
+
+    fn circumfix_span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
+        let mut tmp_wrap = wrap.clone();
+        tmp_wrap.offset += self.prefix_span(node, &tmp_wrap);
+        tmp_wrap.offset += self.inline_children_span(node, &tmp_wrap);
+        tmp_wrap.offset += self.postfix_span(node, &tmp_wrap);
+        tmp_wrap.offset - wrap.offset
+    }
+
+    fn show_circumfix(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+    ) {
+        if let Some(prefix_range) = self.prefix_range(node) {
+            self.show_text_line(
+                ui,
+                top_left,
+                wrap,
+                prefix_range,
+                self.row_height(node),
+                self.text_format_syntax(node),
+                false,
+            );
+        }
+
+        self.show_inline_children(ui, node, top_left, wrap);
+
+        if let Some(postfix_range) = self.postfix_range(node) {
+            self.show_text_line(
+                ui,
+                top_left,
+                wrap,
+                postfix_range,
+                self.row_height(node),
+                self.text_format_syntax(node),
+                false,
+            );
         }
     }
 }

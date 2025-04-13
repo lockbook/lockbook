@@ -7,6 +7,9 @@ use crate::tab::markdown_plusplus::{
     MarkdownPlusPlus,
 };
 
+// todo:
+// * account for whitespace trimming (try a setext heading with trailing whitespace to see what I mean)
+
 impl<'ast> MarkdownPlusPlus {
     pub fn text_format_heading(&self, parent: &AstNode<'_>, level: u8) -> TextFormat {
         let parent_text_format = self.text_format(parent);
@@ -36,18 +39,15 @@ impl<'ast> MarkdownPlusPlus {
         if !setext {
             // https://github.github.com/gfm/#atx-headings
             let prefix_range = if any_children {
-                let first_child = node.children().next().unwrap(); // todo: empty heading
+                let first_child = node.children().next().unwrap();
                 let first_child_range =
                     self.sourcepos_to_range(first_child.data.borrow().sourcepos);
                 (range.start(), first_child_range.start())
             } else {
                 range
             };
-            let prefix_text = &self.buffer[prefix_range];
 
-            let mut text_format = self.text_format(node);
-            text_format.color = self.theme.fg().accent_tertiary;
-            wrap.offset += self.span_text_line(&wrap, prefix_text, text_format);
+            wrap.offset += self.span_text_line(&wrap, prefix_range, self.text_format_syntax(node));
         }
 
         wrap.offset += self.inline_children_span(node, &wrap);
@@ -61,13 +61,10 @@ impl<'ast> MarkdownPlusPlus {
             } else {
                 range
             };
-            let postfix_text = &self.buffer[postfix_range];
 
             wrap.offset = wrap.line_end();
 
-            let mut text_format = self.text_format(node);
-            text_format.color = self.theme.fg().accent_tertiary;
-            wrap.offset += self.span_text_line(&wrap, postfix_text, text_format);
+            wrap.offset += self.span_text_line(&wrap, postfix_range, self.text_format_syntax(node));
         }
 
         let text_height = {
@@ -89,7 +86,7 @@ impl<'ast> MarkdownPlusPlus {
         if !setext {
             // https://github.github.com/gfm/#atx-headings
             let prefix_range = if any_children {
-                let first_child = node.children().next().unwrap(); // todo: empty heading
+                let first_child = node.children().next().unwrap();
                 let first_child_range =
                     self.sourcepos_to_range(first_child.data.borrow().sourcepos);
                 (range.start(), first_child_range.start())
@@ -97,16 +94,13 @@ impl<'ast> MarkdownPlusPlus {
                 range
             };
 
-            let mut text_format = self.text_format(node);
-            text_format.color = self.theme.fg().accent_tertiary;
-
             self.show_text_line(
                 ui,
                 top_left,
                 &mut wrap,
                 prefix_range,
                 self.row_height(node),
-                text_format,
+                self.text_format_syntax(node),
                 false,
             );
 
@@ -136,15 +130,13 @@ impl<'ast> MarkdownPlusPlus {
 
             wrap.offset = wrap.line_end();
 
-            let mut text_format = self.text_format(node);
-            text_format.color = self.theme.fg().accent_tertiary;
             self.show_text_line(
                 ui,
                 top_left,
                 &mut wrap,
                 postfix_range,
                 self.row_height(node),
-                text_format,
+                self.text_format_syntax(node),
                 false,
             );
             self.bounds.paragraphs.push(postfix_range);
