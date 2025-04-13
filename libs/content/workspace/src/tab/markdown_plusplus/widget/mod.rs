@@ -70,8 +70,10 @@ impl<'ast> MarkdownPlusPlus {
 
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => parent_text_format(),
+            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
+            NodeValue::Alert(node_alert) => self.text_format_alert(parent(), node_alert),
             NodeValue::BlockQuote => self.text_format_block_quote(parent()),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -100,6 +102,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::SpoileredText => self.text_format_spoilered_text(parent()),
             NodeValue::Strikethrough => self.text_format_strikethrough(parent()),
             NodeValue::Strong => self.text_format_strong(parent()),
+            NodeValue::Subscript => self.text_format_subscript(parent()),
             NodeValue::Superscript => self.text_format_superscript(parent()),
             NodeValue::Text(_) => parent_text_format(),
             NodeValue::Underline => self.text_format_underline(parent()),
@@ -128,8 +131,10 @@ impl<'ast> MarkdownPlusPlus {
     pub fn height(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => 0.,
+            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
+            NodeValue::Alert(_) => self.height_alert(node, width),
             NodeValue::BlockQuote => self.height_block_quote(node, width),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -157,6 +162,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::SpoileredText => unimplemented!("not a block"),
             NodeValue::Strikethrough => unimplemented!("not a block"),
             NodeValue::Strong => unimplemented!("not a block"),
+            NodeValue::Subscript => unimplemented!("not a block"),
             NodeValue::Superscript => unimplemented!("not a block"),
             NodeValue::Text(_) => unimplemented!("not a block"),
             NodeValue::Underline => unimplemented!("not a block"),
@@ -196,8 +202,10 @@ impl<'ast> MarkdownPlusPlus {
     ) {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => {}
+            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
+            NodeValue::Alert(node_alert) => self.show_alert(ui, node, top_left, width),
             NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left, width),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -237,6 +245,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::SpoileredText => unimplemented!("not a block"),
             NodeValue::Strikethrough => unimplemented!("not a block"),
             NodeValue::Strong => unimplemented!("not a block"),
+            NodeValue::Subscript => unimplemented!("not a block"),
             NodeValue::Superscript => unimplemented!("not a block"),
             NodeValue::Text(_) => unimplemented!("not a block"),
             NodeValue::Underline => unimplemented!("not a block"),
@@ -322,18 +331,20 @@ impl<'ast> MarkdownPlusPlus {
     fn span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => 0.,
+            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::BlockQuote => unimplemented!("not a block"),
+            NodeValue::Alert(node_alert) => unimplemented!("not an inline"),
+            NodeValue::BlockQuote => unimplemented!("not an inline"),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => unimplemented!("not a block"),
-            NodeValue::FootnoteDefinition(_) => unimplemented!("not a block"),
-            NodeValue::Item(_) => unimplemented!("not a block"),
-            NodeValue::List(_) => unimplemented!("not a block"),
-            NodeValue::MultilineBlockQuote(_) => unimplemented!("not a block"),
-            NodeValue::Table(_) => unimplemented!("not a block"),
-            NodeValue::TableRow(_) => unimplemented!("not a block"),
+            NodeValue::Document => unimplemented!("not an inline"),
+            NodeValue::FootnoteDefinition(_) => unimplemented!("not an inline"),
+            NodeValue::Item(_) => unimplemented!("not an inline"),
+            NodeValue::List(_) => unimplemented!("not an inline"),
+            NodeValue::MultilineBlockQuote(_) => unimplemented!("not an inline"),
+            NodeValue::Table(_) => unimplemented!("not an inline"),
+            NodeValue::TableRow(_) => unimplemented!("not an inline"),
 
             // inline
             NodeValue::Image(_) => self.span_image(node, wrap),
@@ -352,21 +363,22 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::SpoileredText => self.span_spoilered_text(node, wrap),
             NodeValue::Strikethrough => self.span_strikethrough(node, wrap),
             NodeValue::Strong => self.span_strong(node, wrap),
+            NodeValue::Subscript => self.span_subscript(node, wrap),
             NodeValue::Superscript => self.span_superscript(node, wrap),
             NodeValue::Text(text) => self.span_node_text_line(node, wrap, text),
             NodeValue::Underline => self.span_underline(node, wrap),
             NodeValue::WikiLink(_) => self.span_wikilink(node, wrap),
 
             // leaf_block
-            NodeValue::CodeBlock(_) => unimplemented!("not a block"),
+            NodeValue::CodeBlock(_) => unimplemented!("not an inline"),
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
-            NodeValue::Heading(_) => unimplemented!("not a block"),
-            NodeValue::HtmlBlock(_) => unimplemented!("not a block"),
-            NodeValue::Paragraph => unimplemented!("not a block"),
-            NodeValue::TableCell => unimplemented!("not a block"),
-            NodeValue::TaskItem(_) => unimplemented!("not a block"),
-            NodeValue::ThematicBreak => unimplemented!("not a block"),
+            NodeValue::Heading(_) => unimplemented!("not an inline"),
+            NodeValue::HtmlBlock(_) => unimplemented!("not an inline"),
+            NodeValue::Paragraph => unimplemented!("not an inline"),
+            NodeValue::TableCell => unimplemented!("not an inline"),
+            NodeValue::TaskItem(_) => unimplemented!("not an inline"),
+            NodeValue::ThematicBreak => unimplemented!("not an inline"),
         }
     }
 
@@ -417,8 +429,10 @@ impl<'ast> MarkdownPlusPlus {
     ) {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => {}
+            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
+            NodeValue::Alert(node_alert) => unimplemented!("not an inline"),
             NodeValue::BlockQuote => unimplemented!("not an inline"),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -448,6 +462,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::SpoileredText => self.show_spoilered_text(ui, node, top_left, wrap),
             NodeValue::Strikethrough => self.show_strikethrough(ui, node, top_left, wrap),
             NodeValue::Strong => self.show_strong(ui, node, top_left, wrap),
+            NodeValue::Subscript => self.show_subscript(ui, node, top_left, wrap),
             NodeValue::Superscript => self.show_superscript(ui, node, top_left, wrap),
             NodeValue::Text(_) => self.show_text(ui, node, top_left, wrap),
             NodeValue::Underline => self.show_underline(ui, node, top_left, wrap),

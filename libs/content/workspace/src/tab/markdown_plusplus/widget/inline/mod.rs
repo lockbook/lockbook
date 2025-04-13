@@ -12,6 +12,7 @@ pub(crate) mod soft_break;
 pub(crate) mod spoilered_text;
 pub(crate) mod strikethrough;
 pub(crate) mod strong;
+pub(crate) mod subscript;
 pub(crate) mod superscript;
 pub(crate) mod text;
 pub(crate) mod underline;
