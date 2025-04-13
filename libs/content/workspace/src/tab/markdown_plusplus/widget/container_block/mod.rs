@@ -1,3 +1,4 @@
+pub(crate) mod alert;
 pub(crate) mod block_quote;
 pub(crate) mod document;
 pub(crate) mod footnote_definition;
