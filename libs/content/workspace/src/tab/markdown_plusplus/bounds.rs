@@ -261,7 +261,6 @@ impl<'ast> MarkdownPlusPlus {
                     }
                 }
                 NodeValue::HtmlBlock(_) => {
-                    result.push(todo!("info"));
                     result.push(todo!("code"));
                 }
                 NodeValue::Paragraph => result.push(range), // todo: split lines

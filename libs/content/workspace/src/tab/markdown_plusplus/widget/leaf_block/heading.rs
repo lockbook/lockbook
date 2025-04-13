@@ -1,10 +1,9 @@
 use comrak::nodes::AstNode;
 use egui::{FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
-use lb_rs::model::text::offset_types::{RangeExt as _, RelByteOffset};
+use lb_rs::model::text::offset_types::RangeExt as _;
 
 use crate::tab::markdown_plusplus::{
-    bounds::RangesExt as _,
-    widget::{WrapContext, ROW_HEIGHT},
+    widget::{WrapContext, ROW_HEIGHT, ROW_SPACING},
     MarkdownPlusPlus,
 };
 
@@ -27,8 +26,56 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    pub fn height_heading(&self, node: &'ast AstNode<'ast>, width: f32, level: u8) -> f32 {
-        self.inline_children_height(node, width) + if level == 1 { ROW_HEIGHT } else { 0. }
+    pub fn height_heading(
+        &self, node: &'ast AstNode<'ast>, width: f32, level: u8, setext: bool,
+    ) -> f32 {
+        let mut wrap = WrapContext::new(width);
+        let range = self.sourcepos_to_range(node.data.borrow().sourcepos);
+        let any_children = node.children().next().is_some();
+
+        if !setext {
+            // https://github.github.com/gfm/#atx-headings
+            let prefix_range = if any_children {
+                let first_child = node.children().next().unwrap(); // todo: empty heading
+                let first_child_range =
+                    self.sourcepos_to_range(first_child.data.borrow().sourcepos);
+                (range.start(), first_child_range.start())
+            } else {
+                range
+            };
+            let prefix_text = &self.buffer[prefix_range];
+
+            let mut text_format = self.text_format(node);
+            text_format.color = self.theme.fg().accent_tertiary;
+            wrap.offset += self.span_text_line(&wrap, prefix_text, text_format);
+        }
+
+        wrap.offset += self.inline_children_span(node, &wrap);
+
+        if setext {
+            // https://github.github.com/gfm/#setext-headings
+            let postfix_range = if any_children {
+                let last_child = node.children().last().unwrap();
+                let last_child_range = self.sourcepos_to_range(last_child.data.borrow().sourcepos);
+                (last_child_range.end() + 1, range.end()) // skip the newline
+            } else {
+                range
+            };
+            let postfix_text = &self.buffer[postfix_range];
+
+            wrap.offset = wrap.line_end();
+
+            let mut text_format = self.text_format(node);
+            text_format.color = self.theme.fg().accent_tertiary;
+            wrap.offset += self.span_text_line(&wrap, postfix_text, text_format);
+        }
+
+        let text_height = {
+            let rows = (wrap.offset / width).ceil();
+            rows * self.row_height(node) + (rows - 1.) * ROW_SPACING
+        };
+
+        text_height + if level == 1 { ROW_HEIGHT } else { 0. }
     }
 
     pub fn show_heading(
@@ -36,9 +83,77 @@ impl<'ast> MarkdownPlusPlus {
         level: u8, setext: bool,
     ) {
         let mut wrap = WrapContext::new(width);
+        let range = self.sourcepos_to_range(node.data.borrow().sourcepos);
+        let any_children = node.children().next().is_some();
 
-        self.show_inline_children(ui, node, top_left, &mut wrap);
-        top_left.y += self.inline_children_height(node, width);
+        if !setext {
+            // https://github.github.com/gfm/#atx-headings
+            let prefix_range = if any_children {
+                let first_child = node.children().next().unwrap(); // todo: empty heading
+                let first_child_range =
+                    self.sourcepos_to_range(first_child.data.borrow().sourcepos);
+                (range.start(), first_child_range.start())
+            } else {
+                range
+            };
+
+            let mut text_format = self.text_format(node);
+            text_format.color = self.theme.fg().accent_tertiary;
+
+            self.show_text_line(
+                ui,
+                top_left,
+                &mut wrap,
+                prefix_range,
+                self.row_height(node),
+                text_format,
+                false,
+            );
+
+            self.bounds.paragraphs.push(prefix_range);
+        }
+
+        if any_children {
+            self.show_inline_children(ui, node, top_left, &mut wrap);
+
+            let first_child = node.children().next().unwrap();
+            let first_child_range = self.sourcepos_to_range(first_child.data.borrow().sourcepos);
+            let last_child = node.children().last().unwrap();
+            let last_child_range = self.sourcepos_to_range(last_child.data.borrow().sourcepos);
+            let content_range = (first_child_range.start(), last_child_range.end());
+            self.bounds.paragraphs.push(content_range);
+        }
+
+        if setext {
+            // https://github.github.com/gfm/#setext-headings
+            let postfix_range = if any_children {
+                let last_child = node.children().last().unwrap();
+                let last_child_range = self.sourcepos_to_range(last_child.data.borrow().sourcepos);
+                (last_child_range.end() + 1, range.end()) // skip the newline
+            } else {
+                range
+            };
+
+            wrap.offset = wrap.line_end();
+
+            let mut text_format = self.text_format(node);
+            text_format.color = self.theme.fg().accent_tertiary;
+            self.show_text_line(
+                ui,
+                top_left,
+                &mut wrap,
+                postfix_range,
+                self.row_height(node),
+                text_format,
+                false,
+            );
+            self.bounds.paragraphs.push(postfix_range);
+        }
+
+        top_left.y += {
+            let rows = (wrap.offset / width).ceil();
+            rows * self.row_height(node) + (rows - 1.) * ROW_SPACING
+        };
 
         if level == 1 {
             let line_break_rect = Rect::from_min_size(top_left, Vec2::new(width, ROW_HEIGHT));
@@ -48,36 +163,6 @@ impl<'ast> MarkdownPlusPlus {
                 line_break_rect.center().y,
                 Stroke { width: 1.0, color: self.theme.bg().neutral_tertiary },
             );
-        }
-
-        // bounds
-        let sourcepos = node.data.borrow().sourcepos;
-        let range = self.sourcepos_to_range(sourcepos);
-
-        if !setext {
-            // https://github.github.com/gfm/#atx-headings
-
-            // # ATX heading
-            let text_start_byte = self.offset_to_byte(range.start());
-            let prefix_length = RelByteOffset(level as usize + 1);
-            let text_start_byte = text_start_byte + prefix_length;
-            let text_start_char = self.offset_to_char(text_start_byte);
-
-            self.bounds.paragraphs.push((text_start_char, range.end()));
-        } else {
-            // https://github.github.com/gfm/#setext-headings
-
-            // Setext
-            // heading
-            // --------------
-            let heading_end_line = self
-                .bounds
-                .source_lines
-                .find_containing(range.end(), true, true)
-                .end();
-            let text_end_line = heading_end_line - 1;
-            let text_end_char = self.bounds.source_lines[text_end_line].end();
-            self.bounds.paragraphs.push((range.start(), text_end_char));
         }
     }
 }

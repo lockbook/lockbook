@@ -1,6 +1,6 @@
 use egui::epaint::text::cursor::Cursor;
-use egui::{text::CCursor, Pos2, Rect};
-use egui::{Rangef, Stroke, Vec2};
+use egui::{text::CCursor, Pos2};
+use egui::{Stroke, Vec2};
 use lb_rs::model::text::offset_types::RangeExt as _;
 
 use crate::tab::markdown_plusplus::widget::INLINE_PADDING;
