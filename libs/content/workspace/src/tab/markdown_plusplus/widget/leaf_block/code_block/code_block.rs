@@ -132,7 +132,6 @@ impl<'ast> MarkdownPlusPlus {
         let sourcepos = node.data.borrow().sourcepos;
         let range = self.sourcepos_to_range(sourcepos);
         let start = self.offset_to_byte(range.start());
-        let end = self.offset_to_byte(range.end());
 
         // info text
         {
@@ -153,7 +152,6 @@ impl<'ast> MarkdownPlusPlus {
                 .find_containing(range.start(), true, true)
                 .start();
             let info_line_range = self.bounds.source_lines[info_line_idx];
-            let info_line_text = &self.buffer[info_line_range];
 
             // bounds: add paragraph for info
             let info_start = self.offset_to_char(start + fence_offset + fence_length);
@@ -165,13 +163,12 @@ impl<'ast> MarkdownPlusPlus {
             let info_top_left = top_left + Vec2::splat(BLOCK_PADDING);
             let mut wrap = WrapContext::new(text_width);
             let info_sourcepos = self.range_to_sourcepos(info_range);
-            self.show_text_line(
+            self.show_node_text_line(
                 ui,
                 node,
                 info_top_left,
                 &mut wrap,
                 self.sourcepos_to_range(info_sourcepos),
-                None,
             );
         }
 
@@ -262,23 +259,25 @@ impl<'ast> MarkdownPlusPlus {
                     }
 
                     for (sourcepos, color) in region_info {
+                        let mut text_format = self.text_format(node);
+                        text_format.color = color;
                         self.show_text_line(
                             ui,
-                            node,
                             code_top_left,
                             &mut wrap,
                             self.sourcepos_to_range(sourcepos),
-                            Some(color),
+                            self.row_height(node).max(ROW_HEIGHT),
+                            text_format,
+                            false,
                         );
                     }
                 } else {
-                    self.show_text_line(
+                    self.show_node_text_line(
                         ui,
                         node,
                         code_top_left,
                         &mut wrap,
                         self.sourcepos_to_range(code_sourcepos),
-                        None,
                     );
                 }
 
@@ -303,7 +302,9 @@ impl<'ast> MarkdownPlusPlus {
         todo!()
     }
 
-    // indented code blocks don't have an info string; the `info` parameter is just used for syntax highlighting
+    // indented code blocks don't have an info string; the `info` parameter is
+    // just used for syntax highlighting when rendering unsupported node types
+    // like html blocks as code
     pub fn show_indented_code_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32, info: &str,
         code: &str,

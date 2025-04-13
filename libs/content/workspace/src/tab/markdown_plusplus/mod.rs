@@ -2,8 +2,8 @@ use std::io::{BufReader, Cursor};
 use std::sync::Arc;
 
 use bounds::Bounds;
-use colored::Colorize;
-use comrak::nodes::{AstNode, LineColumn, Sourcepos};
+use colored::Colorize as _;
+use comrak::nodes::AstNode;
 use comrak::{Arena, Options};
 use core::time::Duration;
 use egui::{
@@ -187,12 +187,12 @@ impl MarkdownPlusPlus {
         let ast_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
-        // println!(
-        //     "{}",
-        //     "================================================================================"
-        //         .bright_black()
-        // );
-        // print_ast(root);
+        println!(
+            "{}",
+            "================================================================================"
+                .bright_black()
+        );
+        print_ast(root);
 
         let print_elapsed = start.elapsed();
         let start = std::time::Instant::now();
@@ -234,23 +234,23 @@ impl MarkdownPlusPlus {
 
         let render_elapsed = start.elapsed();
 
-        // println!(
-        //     "{}",
-        //     "--------------------------------------------------------------------------------"
-        //         .bright_black()
-        // );
-        // println!(
-        //     "                                                                 ast: {:?}",
-        //     ast_elapsed
-        // );
-        // println!(
-        //     "                                                               print: {:?}",
-        //     print_elapsed
-        // );
-        // println!(
-        //     "                                                              render: {:?}",
-        //     render_elapsed
-        // );
+        println!(
+            "{}",
+            "--------------------------------------------------------------------------------"
+                .bright_black()
+        );
+        println!(
+            "                                                                 ast: {:?}",
+            ast_elapsed
+        );
+        println!(
+            "                                                               print: {:?}",
+            print_elapsed
+        );
+        println!(
+            "                                                              render: {:?}",
+            render_elapsed
+        );
 
         // focus editor by default
         if ui.memory(|m| m.focused().is_none()) {

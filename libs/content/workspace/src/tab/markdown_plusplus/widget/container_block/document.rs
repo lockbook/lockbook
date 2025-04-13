@@ -31,14 +31,7 @@ impl<'ast> MarkdownPlusPlus {
                 (DocCharOffset(0), self.buffer.current.segs.last_cursor_position() + 1).iter()
             {
                 let range = offset.into_range();
-                self.show_text_line(
-                    ui,
-                    node,
-                    top_left,
-                    &mut WrapContext::new(width),
-                    range,
-                    Some(self.theme.fg().neutral_quarternary),
-                );
+                self.show_node_text_line(ui, node, top_left, &mut WrapContext::new(width), range);
                 self.bounds.paragraphs.push(range);
 
                 top_left.y += ROW_HEIGHT;

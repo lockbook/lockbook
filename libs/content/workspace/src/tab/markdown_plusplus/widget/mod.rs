@@ -165,8 +165,8 @@ impl<'ast> MarkdownPlusPlus {
             }
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
-            NodeValue::Heading(NodeHeading { level, .. }) => {
-                self.height_heading(node, width, *level)
+            NodeValue::Heading(NodeHeading { level, setext, .. }) => {
+                self.height_heading(node, width, *level, *setext)
             }
             NodeValue::HtmlBlock(NodeHtmlBlock { literal, .. }) => {
                 self.height_html_block(node, width, literal)
@@ -334,21 +334,25 @@ impl<'ast> MarkdownPlusPlus {
 
             // inline
             NodeValue::Image(_) => self.inline_children_span(node, wrap),
-            NodeValue::Code(NodeCode { literal, .. }) => self.span_text_line(node, wrap, literal),
+            NodeValue::Code(NodeCode { literal, .. }) => {
+                self.span_node_text_line(node, wrap, literal)
+            }
             NodeValue::Emph => self.inline_children_span(node, wrap),
             NodeValue::Escaped => self.inline_children_span(node, wrap),
             NodeValue::EscapedTag(_) => self.inline_children_span(node, wrap),
             NodeValue::FootnoteReference(_) => self.inline_children_span(node, wrap),
-            NodeValue::HtmlInline(html) => self.span_text_line(node, wrap, html),
+            NodeValue::HtmlInline(html) => self.span_node_text_line(node, wrap, html),
             NodeValue::LineBreak => self.span_line_break(wrap),
             NodeValue::Link(_) => self.inline_children_span(node, wrap),
-            NodeValue::Math(NodeMath { literal, .. }) => self.span_text_line(node, wrap, literal),
+            NodeValue::Math(NodeMath { literal, .. }) => {
+                self.span_node_text_line(node, wrap, literal)
+            }
             NodeValue::SoftBreak => self.span_soft_break(wrap),
             NodeValue::SpoileredText => self.inline_children_span(node, wrap),
             NodeValue::Strikethrough => self.inline_children_span(node, wrap),
             NodeValue::Strong => self.inline_children_span(node, wrap),
             NodeValue::Superscript => self.inline_children_span(node, wrap),
-            NodeValue::Text(text) => self.span_text_line(node, wrap, text),
+            NodeValue::Text(text) => self.span_node_text_line(node, wrap, text),
             NodeValue::Underline => self.inline_children_span(node, wrap),
             NodeValue::WikiLink(_) => self.inline_children_span(node, wrap),
 
@@ -389,7 +393,7 @@ impl<'ast> MarkdownPlusPlus {
     fn text_height(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext, text: &str) -> f32 {
         let mut tmp_wrap = wrap.clone();
         for (i, line) in text.lines().enumerate() {
-            tmp_wrap.offset += self.span_text_line(node, wrap, line);
+            tmp_wrap.offset += self.span_node_text_line(node, wrap, line);
 
             // all lines except the last one end in a newline...
             if i < text.lines().count() - 1 {
@@ -431,23 +435,23 @@ impl<'ast> MarkdownPlusPlus {
 
             // inline
             NodeValue::Image(_) => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Code(_) => self.show_text_line(ui, node, top_left, wrap, range, None),
+            NodeValue::Code(_) => self.show_node_text_line(ui, node, top_left, wrap, range),
             NodeValue::Emph => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Escaped => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::EscapedTag(_) => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::FootnoteReference(_) => {
                 self.show_footnote_reference(ui, node, top_left, wrap)
             }
-            NodeValue::HtmlInline(_) => self.show_text_line(ui, node, top_left, wrap, range, None),
+            NodeValue::HtmlInline(_) => self.show_node_text_line(ui, node, top_left, wrap, range),
             NodeValue::LineBreak => self.show_line_break(wrap),
             NodeValue::Link(_) => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Math(_) => self.show_text_line(ui, node, top_left, wrap, range, None),
+            NodeValue::Math(_) => self.show_node_text_line(ui, node, top_left, wrap, range),
             NodeValue::SoftBreak => self.show_soft_break(wrap),
             NodeValue::SpoileredText => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Strikethrough => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Strong => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::Superscript => self.show_inline_children(ui, node, top_left, wrap),
-            NodeValue::Text(_) => self.show_text_line(ui, node, top_left, wrap, range, None),
+            NodeValue::Text(_) => self.show_node_text_line(ui, node, top_left, wrap, range),
             NodeValue::Underline => self.show_inline_children(ui, node, top_left, wrap),
             NodeValue::WikiLink(_) => self.show_inline_children(ui, node, top_left, wrap),
 

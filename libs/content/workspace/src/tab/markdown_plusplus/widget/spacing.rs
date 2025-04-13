@@ -28,11 +28,12 @@ impl<'ast> MarkdownPlusPlus {
             let range = offset.into_range();
             self.show_text_line(
                 ui,
-                node,
                 top_left,
                 &mut WrapContext::new(width),
                 range,
-                Some(self.theme.fg().neutral_quarternary),
+                ROW_HEIGHT,
+                self.text_format_document(),
+                false,
             );
             self.bounds.paragraphs.push(range);
 
@@ -61,11 +62,12 @@ impl<'ast> MarkdownPlusPlus {
             self.bounds.paragraphs.push(range);
             self.show_text_line(
                 ui,
-                node,
                 top_left,
                 &mut WrapContext::new(width),
                 range,
-                Some(self.theme.fg().neutral_quarternary),
+                ROW_HEIGHT,
+                self.text_format_document(),
+                false,
             );
 
             top_left.y += ROW_HEIGHT;
