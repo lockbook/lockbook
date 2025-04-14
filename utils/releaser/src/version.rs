@@ -17,7 +17,7 @@ pub fn bump(bump_type: BumpType) -> CliResult<()> {
     handle_apple(&new_version);
     handle_android(&new_version);
     generate_lockfile();
-
+    perform_checks();
     push_to_git(&new_version);
 
     Ok(())
@@ -168,7 +168,13 @@ fn push_to_git(version: &str) {
     Command::new("bash")
         .args([
             "-c",
-            &format!("git checkout -b bump-{version} && git add -A && git commit -m 'bump-{version}' && git push origin bump-{version}")
+            &format!("git fetch origin && git checkout master && git pull origin master && git add -A && git commit -m 'bump-{version}' && git push origin master")
         ])
         .assert_success()
+}
+
+fn perform_checks() {
+    Command::new("bash")
+        .args(["-c", "cargo fmt --check && cargo check"])
+        .assert_success();
 }
