@@ -6,11 +6,13 @@ use lb_rs::model::svg::{
     buffer::{get_highlighter_colors, get_pen_colors},
     element::DynamicColor,
 };
+use resvg::usvg::Transform;
 
 use crate::{
     theme::{icons::Icon, palette::ThemePalette},
     widgets::{switch, Button},
 };
+const SCREEN_PADDING: f32 = 20.0;
 
 use super::{
     eraser::DEFAULT_ERASER_RADIUS,
@@ -19,6 +21,7 @@ use super::{
     },
     history::History,
     pen::{DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
+    renderer::{RenderOptions, Renderer},
     selection::Selection,
     Buffer, CanvasSettings, Eraser, Pen,
 };
@@ -26,7 +29,6 @@ use super::{
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
 const THICKNESS_BTN_WIDTH: f32 = 25.0;
 
-#[derive(Default)]
 pub struct Toolbar {
     pub active_tool: Tool,
     pub pen: Pen,
@@ -38,15 +40,22 @@ pub struct Toolbar {
 
     hide_overlay: bool,
     pub show_tool_controls: bool,
-    pub show_viewport_popover: bool,
     layout: ToolbarLayout,
+    pub viewport_popover: Option<ViewportPopover>,
+    renderer: Renderer,
 }
 
+#[derive(Copy, Clone)]
+pub enum ViewportPopover {
+    MiniMap,
+    More,
+}
 #[derive(Default)]
 struct ToolbarLayout {
     tools_island: Option<egui::Rect>,
     history_island: Option<egui::Rect>,
     viewport_island: Option<egui::Rect>,
+    viewport_popover: Option<egui::Rect>,
     tool_controls: Option<egui::Rect>,
     overlay_toggle: Option<egui::Rect>,
 }
@@ -105,12 +114,22 @@ impl Toolbar {
         self.set_tool(new_tool);
     }
 
-    pub fn new() -> Self {
+    pub fn new(elements_count: usize) -> Self {
         let mut toolbar = Toolbar {
             pen: Pen::new(get_pen_colors()[0], DEFAULT_PEN_STROKE_WIDTH),
             highlighter: Pen::new(get_highlighter_colors()[0], DEFAULT_HIGHLIGHTER_STROKE_WIDTH),
-            ..Default::default()
+            renderer: Renderer::new(elements_count),
+            active_tool: Default::default(),
+            eraser: Default::default(),
+            selection: Default::default(),
+            previous_tool: Default::default(),
+            gesture_handler: Default::default(),
+            hide_overlay: Default::default(),
+            show_tool_controls: Default::default(),
+            layout: Default::default(),
+            viewport_popover: Default::default(),
         };
+
         toolbar.highlighter.active_opacity = 0.1;
         toolbar.pen.active_opacity = 1.0;
         toolbar
@@ -146,18 +165,18 @@ impl Toolbar {
             ui.visuals_mut().window_fill = ui.visuals().extreme_bg_color;
         }
 
-        let opacity = animate_eased(
-            ui.ctx(),
-            "overlay_opacity",
-            if self.hide_overlay { 0.0 } else { 1.0 },
-            0.3,
-            easing::cubic_in_out,
-        );
+        // let opacity = animate_eased(
+        //     ui.ctx(),
+        //     "overlay_opacity",
+        //     if self.hide_overlay { 0.0 } else { 1.0 },
+        //     0.3,
+        //     easing::cubic_in_out,
+        // );
+        let opacity = if self.hide_overlay { 0.0 } else { 1.0 };
 
         ui.set_opacity(opacity);
 
         let history_island = self.show_history_island(ui, history, buffer);
-        let viewport_island = self.show_viewport_island(ui, buffer);
 
         let overlay_toggle_res = ui
             .scope(|ui| {
@@ -175,6 +194,8 @@ impl Toolbar {
             }
             return;
         }
+
+        let viewport_island = self.show_viewport_island(ui, buffer);
 
         let tools_island = self.show_tools_island(ui);
         let tool_controls_res = self.show_tool_controls(ui, buffer);
@@ -198,14 +219,12 @@ impl Toolbar {
     fn show_tools_island(
         &mut self, ui: &mut egui::Ui,
     ) -> InnerResponse<InnerResponse<InnerResponse<()>>> {
-        let outer_margin = 20.0;
-
         let tools_island_size = self.layout.tools_island.unwrap_or(egui::Rect::ZERO).size();
 
         let tools_island_x_start = ui.available_rect_before_wrap().left()
             + (ui.available_width() - tools_island_size.x) / 2.0;
         let tools_island_y_start =
-            ui.available_rect_before_wrap().bottom() - outer_margin - tools_island_size.y;
+            ui.available_rect_before_wrap().bottom() - SCREEN_PADDING - tools_island_size.y;
 
         let tools_island_rect = egui::Rect {
             min: egui::pos2(tools_island_x_start, tools_island_y_start),
@@ -303,17 +322,24 @@ impl Toolbar {
     }
 
     fn show_viewport_island(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) -> Option<Response> {
-        let history_island = match self.layout.history_island {
-            Some(val) => val,
-            None => return None,
-        };
-        let viewport_island_x_start = history_island.right() + 15.0;
-        let viewport_island_y_start = history_island.top();
+        let viewport_island_size = self
+            .layout
+            .viewport_island
+            .unwrap_or(egui::Rect::ZERO)
+            .size();
+
+        let island_x_start = ui.available_rect_before_wrap().left() + SCREEN_PADDING;
+        let island_y_start =
+            ui.available_rect_before_wrap().bottom() - SCREEN_PADDING - viewport_island_size.y;
 
         let viewport_rect = egui::Rect {
-            min: egui::pos2(viewport_island_x_start, viewport_island_y_start),
-            max: egui::Pos2 { x: viewport_island_x_start, y: history_island.bottom() },
+            min: egui::pos2(island_x_start, island_y_start),
+            max: egui::Pos2 {
+                x: island_x_start + viewport_island_size.x,
+                y: island_y_start + viewport_island_size.y,
+            },
         };
+
         let mut toggle_popver_btn = None;
 
         let mut island_res = ui
@@ -376,10 +402,24 @@ impl Toolbar {
                             if let Some(t) = requested_zoom_change {
                                 transform_canvas(buffer, t);
                             };
-
+                            ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
+                            if Button::default()
+                                .icon(&Icon::EXPLORE.size(13.0))
+                                .show(ui)
+                                .clicked()
+                            {
+                                let new_popover = match &self.viewport_popover {
+                                    Some(current_popover) => match current_popover {
+                                        ViewportPopover::MiniMap => None,
+                                        ViewportPopover::More => Some(ViewportPopover::MiniMap),
+                                    },
+                                    None => Some(ViewportPopover::MiniMap),
+                                };
+                                self.viewport_popover = new_popover;
+                            }
                             ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
 
-                            let icon = if self.show_viewport_popover {
+                            let icon = if let Some(ViewportPopover::More) = self.viewport_popover {
                                 Icon::ARROW_UP
                             } else {
                                 Icon::ARROW_DOWN
@@ -387,9 +427,16 @@ impl Toolbar {
                             let more_btn = Button::default().icon(&icon).show(ui);
 
                             if more_btn.clicked() || more_btn.drag_started() {
-                                self.show_viewport_popover = !self.show_viewport_popover;
+                                let new_popover = match &self.viewport_popover {
+                                    Some(current_popover) => match current_popover {
+                                        ViewportPopover::MiniMap => Some(ViewportPopover::More),
+                                        ViewportPopover::More => None,
+                                    },
+                                    None => Some(ViewportPopover::More),
+                                };
+                                self.viewport_popover = new_popover;
                             }
-                            toggle_popver_btn = Some(more_btn)
+                            toggle_popver_btn = Some(more_btn);
                         })
                     })
             })
@@ -397,111 +444,180 @@ impl Toolbar {
             .response;
 
         self.layout.viewport_island = Some(island_res.rect);
+        let viewport_island_rect = island_res.rect;
 
         let opacity = animate_eased(
             ui.ctx(),
             "vw_popover_opacity",
-            if !self.show_viewport_popover || self.hide_overlay { 0.0 } else { 1.0 },
+            if self.viewport_popover.is_none() || self.hide_overlay { 0.0 } else { 1.0 },
             0.2,
             easing::cubic_in_out,
         );
         ui.scope(|ui| {
             ui.set_opacity(opacity);
-            if self.show_viewport_popover {
-                let origin_rect = if let Some(res) = toggle_popver_btn {
-                    res.rect
-                } else {
-                    self.layout.viewport_island.unwrap_or(egui::Rect::ZERO)
-                };
-
-                let popover_length = 200.0;
+            if let Some(popover) = self.viewport_popover {
+                let popover_length = viewport_island_rect.width();
 
                 let min = egui::pos2(
-                    (origin_rect.center().x - popover_length / 2.0)
-                        .max(ui.painter().clip_rect().left() + 20.0),
-                    self.layout
-                        .viewport_island
-                        .unwrap_or(egui::Rect::ZERO)
-                        .bottom()
-                        + 10.0,
+                    viewport_island_rect.left(),
+                    viewport_island_rect.top()
+                        - 10.0
+                        - self
+                            .layout
+                            .viewport_popover
+                            .unwrap_or(egui::Rect::ZERO)
+                            .height(),
                 );
 
-                let popover_rect =
-                    egui::Rect { min, max: egui::pos2(min.x + popover_length, min.y) };
+                let popover_rect = egui::Rect { min, max: min };
 
                 let popver_res = ui
                     .allocate_ui_at_rect(popover_rect, |ui| {
                         egui::Frame::window(ui.style()).show(ui, |ui| {
-                            ui.set_width(popover_length);
+                            ui.set_min_width(
+                                popover_length
+                                    - ui.style().spacing.window_margin.left
+                                    - ui.style().spacing.window_margin.right,
+                            );
                             ui.spacing_mut().interact_size.y /= 1.5;
 
-                            ui.add_space(10.0);
+                            match popover {
+                                ViewportPopover::MiniMap => {
+                                    let mut screen_viewport = ui.clip_rect();
 
-                            ui.scope(|ui| {
-                                ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
-                                ui.visuals_mut().override_text_color =
-                                    Some(ui.visuals().widgets.active.bg_fill);
-                                if Button::default()
-                                    .text("Zoom to fit content")
-                                    .show(ui)
-                                    .clicked()
-                                {
-                                    if let Some(t) = get_zoom_fit_transform(buffer, ui) {
-                                        transform_canvas(buffer, t);
+                                    let (res, mut painter) = ui.allocate_painter(
+                                        egui::vec2(ui.available_width(), 150.0),
+                                        egui::Sense::click_and_drag(),
+                                    );
+
+                                    let out = self.renderer.render_svg(
+                                        ui,
+                                        buffer,
+                                        &mut painter,
+                                        RenderOptions { tight_fit_mode: true },
+                                    );
+                                    if let Some(t) = out.maybe_tight_fit_transform {
+                                        screen_viewport.min.x = t.sx * screen_viewport.min.x + t.tx;
+                                        screen_viewport.max.x = t.sx * screen_viewport.max.x + t.tx;
+
+                                        screen_viewport.min.y = t.sy * screen_viewport.min.y + t.ty;
+                                        screen_viewport.max.y = t.sy * screen_viewport.max.y + t.ty;
+
+                                        let mut clipped_rect = screen_viewport;
+                                        clipped_rect.min.x =
+                                            clipped_rect.min.x.max(painter.clip_rect().min.x);
+                                        clipped_rect.min.y =
+                                            clipped_rect.min.y.max(painter.clip_rect().min.y);
+
+                                        clipped_rect.max.x =
+                                            clipped_rect.max.x.min(painter.clip_rect().max.x);
+                                        clipped_rect.max.y =
+                                            clipped_rect.max.y.min(painter.clip_rect().max.y);
+
+                                        if let Some(click_pos) =
+                                            ui.input(|r| r.pointer.interact_pos())
+                                        {
+                                            let mut delta = if res.clicked()
+                                                && !clipped_rect.contains(click_pos)
+                                            {
+                                                clipped_rect.center() - click_pos
+                                            } else if res.dragged() {
+                                                -res.drag_delta()
+                                            } else {
+                                                egui::Vec2::ZERO
+                                            };
+
+                                            if delta != egui::Vec2::ZERO {
+                                                delta /= out
+                                                    .maybe_tight_fit_transform
+                                                    .unwrap_or_default()
+                                                    .sx;
+                                                let transform = Transform::default()
+                                                    .post_translate(delta.x, delta.y);
+
+                                                transform_canvas(buffer, transform);
+                                            }
+                                        }
+
+                                        painter.rect_stroke(
+                                            clipped_rect,
+                                            0.0,
+                                            egui::Stroke {
+                                                width: 4.0,
+                                                color: egui::Color32::DEBUG_COLOR,
+                                            },
+                                        );
                                     }
-                                };
-                            });
 
-                            ui.add_space(5.0);
-                            ui.separator();
-                            ui.add_space(15.0);
+                                    // need to detect for a couple of things
 
-                            ui.horizontal(|ui| {
-                                ui.label("Panorama Mode");
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        if switch(ui, &mut self.gesture_handler.is_pan_y_locked)
-                                            .changed()
-                                        {
-                                            if self.gesture_handler.is_pan_x_locked {
-                                                self.gesture_handler.is_pan_x_locked = false;
-                                            }
-                                            self.gesture_handler.is_zoom_locked =
-                                                self.gesture_handler.is_pan_y_locked;
-                                        }
-                                    },
-                                );
-                            });
-                            ui.add_space(10.0);
+                                    // is the user's viewport over an area that's outside the tight_fit
+                                    // strongly suggest a zoom to fit
 
-                            ui.horizontal(|ui| {
-                                ui.label("Page Mode");
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        if switch(ui, &mut self.gesture_handler.is_pan_x_locked)
-                                            .changed()
-                                        {
-                                            if self.gesture_handler.is_pan_y_locked {
-                                                self.gesture_handler.is_pan_y_locked = false;
-                                            }
-                                            self.gesture_handler.is_zoom_locked =
-                                                self.gesture_handler.is_pan_x_locked;
-                                        }
-                                    },
-                                );
-                            });
-                            ui.add_space(10.0)
+                                    // is the user zoomed out a lot, but his viewport contains right fit
+                                    // maybe show a strong border and suggest a zoom fit
+                                }
+                                ViewportPopover::More => self.show_more_popover(buffer, ui),
+                            };
                         })
                     })
                     .inner
                     .response;
+                self.layout.viewport_popover = Some(popver_res.rect);
+
                 island_res = island_res.union(popver_res)
             }
         });
 
         Some(island_res)
+    }
+
+    fn show_more_popover(&mut self, buffer: &mut Buffer, ui: &mut egui::Ui) {
+        ui.add_space(10.0);
+
+        ui.scope(|ui| {
+            ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+            ui.visuals_mut().override_text_color = Some(ui.visuals().widgets.active.bg_fill);
+            if Button::default()
+                .text("Zoom to fit content")
+                .show(ui)
+                .clicked()
+            {
+                if let Some(t) = get_zoom_fit_transform(buffer, ui.clip_rect()) {
+                    transform_canvas(buffer, t);
+                }
+            };
+        });
+
+        ui.add_space(5.0);
+        ui.separator();
+        ui.add_space(15.0);
+
+        ui.horizontal(|ui| {
+            ui.label("Panorama Mode");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if switch(ui, &mut self.gesture_handler.is_pan_y_locked).changed() {
+                    if self.gesture_handler.is_pan_x_locked {
+                        self.gesture_handler.is_pan_x_locked = false;
+                    }
+                    self.gesture_handler.is_zoom_locked = self.gesture_handler.is_pan_y_locked;
+                }
+            });
+        });
+        ui.add_space(10.0);
+
+        ui.horizontal(|ui| {
+            ui.label("Page Mode");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if switch(ui, &mut self.gesture_handler.is_pan_x_locked).changed() {
+                    if self.gesture_handler.is_pan_y_locked {
+                        self.gesture_handler.is_pan_y_locked = false;
+                    }
+                    self.gesture_handler.is_zoom_locked = self.gesture_handler.is_pan_x_locked;
+                }
+            });
+        });
+        ui.add_space(10.0)
     }
     fn show_overlay_toggle(&mut self, ui: &mut egui::Ui, clip_rect: egui::Rect) -> Response {
         let island_size = self
@@ -510,16 +626,14 @@ impl Toolbar {
             .unwrap_or(egui::Rect::from_min_size(egui::Pos2::default(), egui::vec2(10.0, 10.0)))
             .size();
 
-        let outer_margin = 20.0;
-
         let island_rect = egui::Rect {
             min: egui::pos2(
-                clip_rect.right() - outer_margin - island_size.x,
-                clip_rect.top() + outer_margin,
+                clip_rect.right() - SCREEN_PADDING - island_size.x,
+                clip_rect.top() + SCREEN_PADDING,
             ),
             max: egui::pos2(
-                clip_rect.right() - outer_margin,
-                clip_rect.top() + outer_margin + island_size.y,
+                clip_rect.right() - SCREEN_PADDING,
+                clip_rect.top() + SCREEN_PADDING + island_size.y,
             ),
         };
         let overlay_toggle = ui.allocate_ui_at_rect(island_rect, |ui| {
@@ -639,9 +753,8 @@ impl Toolbar {
     fn show_history_island(
         &mut self, ui: &mut egui::Ui, history: &mut History, buffer: &mut Buffer,
     ) -> egui::Response {
-        let outer_margin = 20.0;
-        let history_island_x_start = ui.available_rect_before_wrap().left() + outer_margin;
-        let history_island_y_start = ui.available_rect_before_wrap().top() + outer_margin;
+        let history_island_x_start = ui.available_rect_before_wrap().left() + SCREEN_PADDING;
+        let history_island_y_start = ui.available_rect_before_wrap().top() + SCREEN_PADDING;
 
         let history_rect = egui::Rect {
             min: egui::pos2(history_island_x_start, history_island_y_start),

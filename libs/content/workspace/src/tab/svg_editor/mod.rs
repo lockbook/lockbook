@@ -30,6 +30,7 @@ pub use pen::Pen;
 use renderer::Renderer;
 pub use toolbar::Tool;
 use toolbar::ToolContext;
+use toolbar::ViewportPopover;
 use tracing::span;
 use tracing::Level;
 
@@ -83,9 +84,8 @@ impl SVGEditor {
             }
         }
 
-        let toolbar = Toolbar::new();
-
         let elements_count = buffer.elements.len();
+        let toolbar = Toolbar::new(elements_count);
 
         Self {
             buffer,
@@ -116,6 +116,7 @@ impl SVGEditor {
         let _ = span.enter();
 
         self.inner_rect = ui.available_rect_before_wrap();
+        ui.set_clip_rect(self.inner_rect);
         self.input_ctx.update(ui);
 
         let non_empty_weak_imaegs = !self.buffer.weak_images.is_empty();
@@ -145,6 +146,8 @@ impl SVGEditor {
 
         self.painter = ui.painter_at(self.inner_rect);
 
+        self.process_events(ui);
+
         ui.with_layer_id(
             egui::LayerId { order: egui::Order::Middle, id: egui::Id::from("canvas_ui_overlay") },
             |ui| {
@@ -160,8 +163,6 @@ impl SVGEditor {
             },
         );
 
-        self.process_events(ui);
-
         let global_diff = self.show_canvas(ui);
 
         if non_empty_weak_imaegs {
@@ -171,7 +172,9 @@ impl SVGEditor {
             self.has_queued_save_request = true;
             if global_diff.transformed.is_none() {
                 self.toolbar.show_tool_controls = false;
-                self.toolbar.show_viewport_popover = false;
+                if !matches!(self.toolbar.viewport_popover, Some(ViewportPopover::MiniMap)) {
+                    self.toolbar.viewport_popover = None;
+                }
             }
         }
 
@@ -183,6 +186,14 @@ impl SVGEditor {
                 false
             };
 
+        for (_, el) in &mut self.buffer.elements {
+            match el {
+                Element::Path(p) => p.diff_state = DiffState::default(),
+                Element::Image(i) => i.diff_state = DiffState::default(),
+                Element::Text(_) => todo!(),
+            }
+        }
+        self.buffer.master_transform_changed = false;
         Response { request_save: needs_save_and_frame_is_cheap }
     }
 
@@ -240,9 +251,11 @@ impl SVGEditor {
     fn show_canvas(&mut self, ui: &mut egui::Ui) -> DiffState {
         ui.vertical(|ui| {
             self.renderer
-                .render_svg(ui, &mut self.buffer, &mut self.painter)
+                .render_svg(ui, &mut self.buffer, &mut self.painter, Default::default())
         })
         .inner
+        .diff_state
+        // DiffState { ..Default::default() }
     }
 
     // fn show_debug_info(&mut self, ui: &mut egui::Ui) {
