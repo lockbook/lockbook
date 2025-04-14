@@ -8854,8 +8854,6 @@ dependencies = [
  "egui_wgpu_backend",
  "jni",
  "lb-c",
- "lb-java",
- "libc",
  "ndk-sys 0.4.1+23.1.7779620",
  "pollster 0.2.5",
  "raw-window-handle 0.6.2",

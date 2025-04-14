@@ -12,16 +12,16 @@ path = "src/lib.rs"
 egui = "0.28.1"
 egui_wgpu_backend = "0.30"
 egui_extras = { version = "0.28.1", features = ["image"] }
-libc = "0.2"
 workspace = { path = "../workspace/" }
 lb-c = { path = "../../lb/lb-c" }
-lb-java = { path = "../../lb/lb-java" }
 raw-window-handle = "0.6"
 jni = "0.21.0"
-pollster = "0.2"
 tracing = "0.1.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.4"
+
+[target.'cfg(any(target_os = "android", target_vendor = "apple"))'.dependencies]
+pollster = "0.2"
