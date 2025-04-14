@@ -168,7 +168,7 @@ fn push_to_git(version: &str) {
     Command::new("bash")
         .args([
             "-c",
-            &format!("git checkout master && git pull origin master && git add -A && git commit -m 'bump-{version}' && git push origin master")
+            &format!("git fetch origin && git checkout master && git pull origin master && git add -A && git commit -m 'bump-{version}' && git push origin master")
         ])
         .assert_success()
 }
