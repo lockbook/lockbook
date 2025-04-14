@@ -126,58 +126,81 @@ import SwiftUI
             fatalError("init(coder:) has not been implemented")
         }
 
-        public func updateCurrentTab(newCurrentTab: WorkspaceTab, newTabCount: Int) {
-            mtkView.tabSwitchTask = { [weak self] in
-                if let inputManager = self {
-                    inputManager.currentWrapper?.removeFromSuperview()
+    }
+}
 
-                    inputManager.mtkView.onSelectionChanged = nil
-                    inputManager.mtkView.onTextChanged = nil
+public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
+    public var mtkView: iOSMTK
+    
+    var currentWrapper: UIView? = nil
+    var currentTab: WorkspaceTab = .Welcome
+    var tabCount: Int = 0
+        
+    init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
+        mtkView = iOSMTK()
+        mtkView.workspaceState = workspaceState
+        mtkView.setInitialContent(coreHandle)
+        
+        super.init(frame: .infinite)
+                        
+        mtkView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(mtkView)
+        NSLayoutConstraint.activate([
+            mtkView.topAnchor.constraint(equalTo: topAnchor),
+            mtkView.leftAnchor.constraint(equalTo: leftAnchor),
+            mtkView.rightAnchor.constraint(equalTo: rightAnchor),
+            mtkView.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+    }
+            
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    public func updateCurrentTab(newCurrentTab: WorkspaceTab, newTabCount: Int) {
+        mtkView.tabSwitchTask = { [weak self] in
+            if let inputManager = self {
+                inputManager.currentWrapper?.removeFromSuperview()
+                
+                inputManager.mtkView.onSelectionChanged = nil
+                inputManager.mtkView.onTextChanged = nil
+                
+                inputManager.currentTab = newCurrentTab
+                inputManager.tabCount = newTabCount
+                
+                switch inputManager.currentTab {
+                case .Welcome, .Pdf, .Loading, .Graph:
+                    inputManager.mtkView.currentWrapper = nil
+                case .Svg, .Image:
+                    let drawingWrapper = iOSMTKDrawingWrapper(mtkView: inputManager.mtkView)
+                    inputManager.currentWrapper = drawingWrapper
+                    inputManager.mtkView.currentWrapper = drawingWrapper
+                                    
+                    drawingWrapper.translatesAutoresizingMaskIntoConstraints = false
+                    inputManager.addSubview(drawingWrapper)
+                    NSLayoutConstraint.activate([
+                        drawingWrapper.topAnchor.constraint(equalTo: inputManager.topAnchor, constant: inputManager.mtkView.docHeaderSize),
+                        drawingWrapper.leftAnchor.constraint(equalTo: inputManager.leftAnchor),
+                        drawingWrapper.rightAnchor.constraint(equalTo: inputManager.rightAnchor),
+                        drawingWrapper.bottomAnchor.constraint(equalTo: inputManager.bottomAnchor)
+                    ])
+                case .PlainText, .Markdown:
+                    let textWrapper = iOSMTKTextInputWrapper(mtkView: inputManager.mtkView)
+                    inputManager.currentWrapper = textWrapper
+                    inputManager.mtkView.currentWrapper = textWrapper
+                    
+                    textWrapper.translatesAutoresizingMaskIntoConstraints = false
+                    inputManager.addSubview(textWrapper)
+                    NSLayoutConstraint.activate([
+                        textWrapper.topAnchor.constraint(equalTo: inputManager.topAnchor, constant: inputManager.mtkView.docHeaderSize),
+                        textWrapper.leftAnchor.constraint(equalTo: inputManager.leftAnchor),
+                        textWrapper.rightAnchor.constraint(equalTo: inputManager.rightAnchor),
+                        textWrapper.bottomAnchor.constraint(equalTo: inputManager.bottomAnchor, constant: -iOSMTKTextInputWrapper.TOOL_BAR_HEIGHT)
+                    ])
+                    
+                    if GCKeyboard.coalesced != nil {
+                        textWrapper.becomeFirstResponder()
 
-                    inputManager.currentTab = newCurrentTab
-                    inputManager.tabCount = newTabCount
-
-                    switch inputManager.currentTab {
-                    case .Welcome, .Pdf, .Loading, .Image:
-                        inputManager.mtkView.currentWrapper = nil
-                    case .Svg, .Graph:
-                        let drawingWrapper = iOSMTKDrawingWrapper(mtkView: inputManager.mtkView)
-                        inputManager.currentWrapper = drawingWrapper
-                        inputManager.mtkView.currentWrapper = drawingWrapper
-
-                        drawingWrapper.translatesAutoresizingMaskIntoConstraints = false
-                        inputManager.addSubview(drawingWrapper)
-                        NSLayoutConstraint.activate([
-                            drawingWrapper.topAnchor.constraint(
-                                equalTo: inputManager.topAnchor,
-                                constant: inputManager.mtkView.docHeaderSize),
-                            drawingWrapper.leftAnchor.constraint(equalTo: inputManager.leftAnchor),
-                            drawingWrapper.rightAnchor.constraint(
-                                equalTo: inputManager.rightAnchor),
-                            drawingWrapper.bottomAnchor.constraint(
-                                equalTo: inputManager.bottomAnchor),
-                        ])
-                    case .PlainText, .Markdown:
-                        let textWrapper = iOSMTKTextInputWrapper(mtkView: inputManager.mtkView)
-                        inputManager.currentWrapper = textWrapper
-                        inputManager.mtkView.currentWrapper = textWrapper
-
-                        textWrapper.translatesAutoresizingMaskIntoConstraints = false
-                        inputManager.addSubview(textWrapper)
-                        NSLayoutConstraint.activate([
-                            textWrapper.topAnchor.constraint(
-                                equalTo: inputManager.topAnchor,
-                                constant: inputManager.mtkView.docHeaderSize),
-                            textWrapper.leftAnchor.constraint(equalTo: inputManager.leftAnchor),
-                            textWrapper.rightAnchor.constraint(equalTo: inputManager.rightAnchor),
-                            textWrapper.bottomAnchor.constraint(
-                                equalTo: inputManager.bottomAnchor,
-                                constant: -iOSMTKTextInputWrapper.TOOL_BAR_HEIGHT),
-                        ])
-
-                        if GCKeyboard.coalesced != nil {
-                            textWrapper.becomeFirstResponder()
-                        }
                     }
                 }
             }

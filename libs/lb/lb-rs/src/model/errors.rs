@@ -1,16 +1,18 @@
 use std::backtrace::Backtrace;
-use std::collections::HashSet;
 use std::fmt::Display;
 use std::fmt::{self, Formatter};
 use std::io;
+use std::panic::Location;
 use std::sync::PoisonError;
 
+use hmac::crypto_mac::MacError;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
+use tracing::error;
 use uuid::Uuid;
 
-use crate::model::{SharedError, SharedErrorKind, ValidationFailure};
-use crate::service::network::ApiError;
+use crate::io::network::ApiError;
+use crate::model::ValidationFailure;
 
 use super::api;
 
@@ -31,6 +33,12 @@ impl Display for LbErr {
     }
 }
 
+/// The purpose of this Display implementation is to provide uniformity for the
+/// description of errors that a customer may see. And to provide a productivity
+/// boost for the UI developer processing (and ultimately showing) these errors.
+/// If an error is not expected to be propegated outside of this crate the
+/// the language associated with the error will reflect that (and may use an
+/// uglier debug impl for details).
 impl Display for LbErrKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -70,9 +78,7 @@ impl Display for LbErrKind {
             LbErrKind::FileNameEmpty => write!(f, "A file name cannot be empty"),
             LbErrKind::FileNonexistent => write!(f, "That file does not exist"),
             LbErrKind::FileNotDocument => write!(f, "That file is not a document"),
-            LbErrKind::FileNotFolder => write!(f, "That file is not a folder"),
             LbErrKind::FileParentNonexistent => write!(f, "Could not find that file parent"),
-            LbErrKind::FolderMovedIntoSelf => write!(f, "You cannot move a folder into itself"),
             LbErrKind::InsufficientPermission => {
                 write!(f, "You don't have the permission to do that")
             }
@@ -82,16 +88,6 @@ impl Display for LbErrKind {
             }
             LbErrKind::KeyPhraseInvalid => {
                 write!(f, "Your private key phrase is wrong")
-            }
-            LbErrKind::LinkInSharedFolder => {
-                write!(f, "You cannot move a link into a shared folder")
-            }
-            LbErrKind::LinkTargetIsOwned => {
-                write!(f, "You cannot create a link to a file that you own")
-            }
-            LbErrKind::LinkTargetNonexistent => write!(f, "That link target does not exist"),
-            LbErrKind::MultipleLinksToSameFile => {
-                write!(f, "You cannot have multiple links to the same file")
             }
             LbErrKind::NotPremium => write!(f, "You do not have a premium subscription"),
             LbErrKind::UsageIsOverDataCap => {
@@ -104,7 +100,6 @@ impl Display for LbErrKind {
             LbErrKind::PathContainsEmptyFileName => {
                 write!(f, "That path contains an empty file name")
             }
-            LbErrKind::PathTaken => write!(f, "That path is not available"),
             LbErrKind::RootModificationInvalid => write!(f, "You cannot modify your root"),
             LbErrKind::RootNonexistent => write!(f, "Could not find your root file"),
             LbErrKind::ServerDisabled => write!(
@@ -128,6 +123,39 @@ impl Display for LbErrKind {
             LbErrKind::ReReadRequired => {
                 write!(f, "This document changed since you last read it, please re-read it!")
             }
+            LbErrKind::Validation(validation_failure) => match validation_failure {
+                ValidationFailure::Cycle(_) => write!(f, "Cannot move a folder into itself"),
+                ValidationFailure::NonFolderWithChildren(_) => {
+                    write!(f, "A document or a link was treated as a folder.")
+                }
+                ValidationFailure::PathConflict(_) => {
+                    write!(f, "A file already exists at that path.")
+                }
+                ValidationFailure::DeletedFileUpdated(id) => {
+                    write!(f, "this file has been deleted {id}")
+                }
+                ValidationFailure::FileNameTooLong(_) => write!(f, "this filename is too long!"),
+                ValidationFailure::OwnedLink(_) => {
+                    write!(f, "you cannot have a link to a file you own")
+                }
+                ValidationFailure::BrokenLink(_) => write!(f, "that link target does not exist!"),
+                ValidationFailure::DuplicateLink { .. } => {
+                    write!(f, "you already have a link to that file")
+                }
+                ValidationFailure::SharedLink { .. } => {
+                    write!(f, "you cannot place a link inside a shared folder!")
+                }
+                _ => write!(f, "unexpected validation failure: {validation_failure:?}"),
+            },
+            LbErrKind::Diff(diff_error) => {
+                write!(f, "unexpected diff error: {diff_error:?}")
+            }
+            LbErrKind::Sign(sign_error) => {
+                write!(f, "unexpected signing error: {sign_error:?}")
+            }
+            LbErrKind::Crypto(crypto_error) => {
+                write!(f, "unexpected crypto error: {crypto_error:?}")
+            }
         }
     }
 }
@@ -138,38 +166,33 @@ impl From<LbErrKind> for LbErr {
     }
 }
 
-impl From<SharedError> for LbErr {
-    fn from(err: SharedError) -> Self {
-        let kind = match err.kind {
-            SharedErrorKind::RootNonexistent => LbErrKind::RootNonexistent,
-            SharedErrorKind::FileNonexistent => LbErrKind::FileNonexistent,
-            SharedErrorKind::FileParentNonexistent => LbErrKind::FileParentNonexistent,
-            SharedErrorKind::Unexpected(err) => LbErrKind::Unexpected(err.to_string()),
-            SharedErrorKind::PathContainsEmptyFileName => LbErrKind::PathContainsEmptyFileName,
-            SharedErrorKind::PathTaken => LbErrKind::PathTaken,
-            SharedErrorKind::FileNameContainsSlash => LbErrKind::FileNameContainsSlash,
-            SharedErrorKind::RootModificationInvalid => LbErrKind::RootModificationInvalid,
-            SharedErrorKind::DeletedFileUpdated(_) => LbErrKind::FileNonexistent,
-            SharedErrorKind::FileNameEmpty => LbErrKind::FileNameEmpty,
-            SharedErrorKind::FileNotFolder => LbErrKind::FileNotFolder,
-            SharedErrorKind::FileNotDocument => LbErrKind::FileNotDocument,
-            SharedErrorKind::InsufficientPermission => LbErrKind::InsufficientPermission,
-            SharedErrorKind::ShareNonexistent => LbErrKind::ShareNonexistent,
-            SharedErrorKind::DuplicateShare => LbErrKind::ShareAlreadyExists,
-            SharedErrorKind::KeyPhraseInvalid => LbErrKind::KeyPhraseInvalid,
-            SharedErrorKind::ValidationFailure(failure) => match failure {
-                ValidationFailure::Cycle(_) => LbErrKind::FolderMovedIntoSelf,
-                ValidationFailure::PathConflict(_) => LbErrKind::PathTaken,
-                ValidationFailure::SharedLink { .. } => LbErrKind::LinkInSharedFolder,
-                ValidationFailure::DuplicateLink { .. } => LbErrKind::MultipleLinksToSameFile,
-                ValidationFailure::BrokenLink(_) => LbErrKind::LinkTargetNonexistent,
-                ValidationFailure::OwnedLink(_) => LbErrKind::LinkTargetIsOwned,
-                ValidationFailure::NonFolderWithChildren(_) => LbErrKind::FileNotFolder,
-                vf => LbErrKind::Unexpected(format!("unexpected validation failure {:?}", vf)),
-            },
-            _ => LbErrKind::Unexpected(format!("unexpected shared error {:?}", err)),
-        };
-        Self { kind, backtrace: err.backtrace }
+pub trait Unexpected<T> {
+    fn log_and_ignore(self) -> Option<T>;
+    fn map_unexpected(self) -> LbResult<T>;
+}
+
+impl<T, E: std::fmt::Debug> Unexpected<T> for Result<T, E> {
+    #[track_caller]
+    fn map_unexpected(self) -> LbResult<T> {
+        let location = Location::caller();
+        self.map_err(|err| {
+            LbErrKind::Unexpected(format!(
+                "unexpected error at {}:{} {err:?}",
+                location.file(),
+                location.line(),
+            ))
+            .into()
+        })
+    }
+
+    #[track_caller]
+    fn log_and_ignore(self) -> Option<T> {
+        let location = Location::caller();
+        if let Err(e) = &self {
+            error!("error ignored at {}:{} {e:?}", location.file(), location.line());
+        }
+
+        self.ok()
     }
 }
 
@@ -252,6 +275,7 @@ pub enum LbErrKind {
     AlreadyPremium,
     AppStoreAccountAlreadyLinked,
     AlreadySyncing,
+    // todo: group billing
     CannotCancelSubscriptionForAppStore,
     CardDecline,
     CardExpired,
@@ -267,28 +291,23 @@ pub enum LbErrKind {
     DiskPathTaken,
     DrawingInvalid,
     ExistingRequestPending,
+    // todo: Group
     FileNameContainsSlash,
+    // todo: #[deprecated]
     FileNameTooLong,
     FileNameEmpty,
     FileNonexistent,
     FileNotDocument,
-    FileNotFolder,
     FileParentNonexistent,
-    FolderMovedIntoSelf,
     InsufficientPermission,
     InvalidPurchaseToken,
     InvalidAuthDetails,
     KeyPhraseInvalid,
-    LinkInSharedFolder,
-    LinkTargetIsOwned,
-    LinkTargetNonexistent,
-    MultipleLinksToSameFile,
     NotPremium,
     UsageIsOverDataCap,
     UsageIsOverFreeTierDataCap,
     OldCardDoesNotExist,
     PathContainsEmptyFileName,
-    PathTaken,
     RootModificationInvalid,
     RootNonexistent,
     ServerDisabled,
@@ -296,16 +315,64 @@ pub enum LbErrKind {
     ShareAlreadyExists,
     ShareNonexistent,
     TryAgain,
+    // todo: group username errors
     UsernameInvalid,
     UsernameNotFound,
     UsernamePublicKeyMismatch,
     UsernameTaken,
     ReReadRequired,
+    Diff(DiffError),
+
+    /// Errors that describe invalid modifications to trees. See [ValidationFailure] for more info
+    Validation(ValidationFailure),
+    Sign(SignError),
+    Crypto(CryptoError),
+
+    /// If no programmer in any part of the stack (including tests) expects
+    /// to see a particular error, we debug format the underlying error to
+    /// keep the number of error types in check. Commonly used for errors
+    /// originating in other crates.
     Unexpected(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DiffError {
+    OldVersionIncorrect,
+    OldFileNotFound,
+    OldVersionRequired,
+    DiffMalformed,
+    HmacModificationInvalid,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SignError {
+    SignatureInvalid,
+    // todo: candidate for unexpected
+    SignatureParseError(libsecp256k1::Error),
+    WrongPublicKey,
+    SignatureInTheFuture(u64),
+    SignatureExpired(u64),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CryptoError {
+    Decryption(aead::Error),
+    HmacVerification(MacError),
+}
+
+impl From<bincode::Error> for LbErr {
+    fn from(err: bincode::Error) -> Self {
+        core_err_unexpected(err).into()
+    }
+}
+
 pub fn core_err_unexpected<T: fmt::Debug>(err: T) -> LbErrKind {
-    LbErrKind::Unexpected(format!("{:#?}", err))
+    LbErrKind::Unexpected(format!("{:?}", err))
+}
+
+// todo call location becomes useless here, and we want that
+pub fn unexpected<T: fmt::Debug>(err: T) -> LbErr {
+    LbErrKind::Unexpected(format!("{:?}", err)).into()
 }
 
 impl From<db_rs::DbError> for LbErr {
@@ -450,90 +517,6 @@ impl From<ApiError<api::GetUsageError>> for LbErr {
             e => core_err_unexpected(e),
         }
         .into()
-    }
-}
-
-#[derive(Debug)]
-pub enum TestRepoError {
-    NoAccount,
-    NoRootFolder,
-    DocumentTreatedAsFolder(Uuid),
-    FileOrphaned(Uuid),
-    CycleDetected(HashSet<Uuid>),
-    FileNameEmpty(Uuid),
-    FileNameTooLong(Uuid),
-    FileNameContainsSlash(Uuid),
-    PathConflict(HashSet<Uuid>),
-    NonDecryptableFileName(Uuid),
-    FileWithDifferentOwnerParent(Uuid),
-    SharedLink { link: Uuid, shared_ancestor: Uuid },
-    DuplicateLink { target: Uuid },
-    BrokenLink(Uuid),
-    OwnedLink(Uuid),
-    DocumentReadError(Uuid, LbErrKind),
-    Core(LbErr),
-    Shared(SharedError),
-}
-
-impl From<SharedError> for TestRepoError {
-    fn from(err: SharedError) -> Self {
-        match err.kind {
-            SharedErrorKind::ValidationFailure(validation) => match validation {
-                ValidationFailure::Orphan(id) => Self::FileOrphaned(id),
-                ValidationFailure::Cycle(ids) => Self::CycleDetected(ids),
-                ValidationFailure::PathConflict(ids) => Self::PathConflict(ids),
-                ValidationFailure::NonFolderWithChildren(id) => Self::DocumentTreatedAsFolder(id),
-                ValidationFailure::NonDecryptableFileName(id) => Self::NonDecryptableFileName(id),
-                ValidationFailure::SharedLink { link, shared_ancestor } => {
-                    Self::SharedLink { link, shared_ancestor }
-                }
-                ValidationFailure::DuplicateLink { target } => Self::DuplicateLink { target },
-                ValidationFailure::BrokenLink(id) => Self::BrokenLink(id),
-                ValidationFailure::OwnedLink(id) => Self::OwnedLink(id),
-                ValidationFailure::FileWithDifferentOwnerParent(id) => {
-                    Self::FileWithDifferentOwnerParent(id)
-                }
-                ValidationFailure::FileNameTooLong(id) => Self::FileNameTooLong(id),
-            },
-            _ => Self::Shared(err),
-        }
-    }
-}
-
-impl From<LbErr> for TestRepoError {
-    fn from(value: LbErr) -> Self {
-        if value.kind == LbErrKind::AccountNonexistent {
-            return Self::NoAccount;
-        }
-        Self::Core(value)
-    }
-}
-
-impl fmt::Display for TestRepoError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use TestRepoError::*;
-        match self {
-            NoAccount => write!(f, "no account"),
-            NoRootFolder => write!(f, "no root folder"),
-            DocumentTreatedAsFolder(id) => write!(f, "doc '{}' treated as folder", id),
-            FileOrphaned(id) => write!(f, "orphaned file '{}'", id),
-            CycleDetected(ids) => write!(f, "cycle for files: {:?}", ids),
-            FileNameEmpty(id) => write!(f, "file '{}' name is empty", id),
-            FileNameContainsSlash(id) => write!(f, "file '{}' name contains slash", id),
-            FileNameTooLong(id) => write!(f, "file '{}' name is too long", id),
-            PathConflict(ids) => write!(f, "path conflict between: {:?}", ids),
-            NonDecryptableFileName(id) => write!(f, "can't decrypt file '{}' name", id),
-            FileWithDifferentOwnerParent(id) => write!(f, "file '{}' different owner parent", id),
-            SharedLink { link, shared_ancestor } => {
-                write!(f, "shared link: {}, ancestor: {}", link, shared_ancestor)
-            }
-            DuplicateLink { target } => write!(f, "duplicate link '{}'", target),
-            BrokenLink(id) => write!(f, "broken link '{}'", id),
-            OwnedLink(id) => write!(f, "owned link '{}'", id),
-            DocumentReadError(id, err) => write!(f, "doc '{}' read err: {:#?}", id, err),
-            Core(err) => write!(f, "core err: {:#?}", err),
-            Shared(err) => write!(f, "shared err: {:#?}", err),
-        }
     }
 }
 

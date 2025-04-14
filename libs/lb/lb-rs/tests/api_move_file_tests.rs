@@ -1,8 +1,8 @@
+use lb_rs::io::network::ApiError;
 use lb_rs::model::api::*;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileDiff;
 use lb_rs::model::ValidationFailure;
-use lb_rs::service::network::ApiError;
 use test_utils::*;
 use uuid::Uuid;
 
@@ -79,7 +79,9 @@ async fn move_document_deleted() {
         .await;
     assert_matches!(
         result,
-        Err(ApiError::<UpsertError>::Endpoint(UpsertError::DeletedFileUpdated))
+        Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(
+            ValidationFailure::DeletedFileUpdated(_)
+        )))
     );
 }
 

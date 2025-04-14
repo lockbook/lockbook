@@ -1001,8 +1001,63 @@
                     0
                 }
 
-            mouse_moved(wsHandle, Float(request.location.x), Float(request.location.y + offsetY))
-            return defaultRegion
+
+public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMenuInteractionDelegate {
+
+    public static let TOOL_BAR_HEIGHT: CGFloat = 50
+
+    let pencilInteraction = UIPencilInteraction()
+    lazy var editMenuInteraction = UIEditMenuInteraction(delegate: self)
+    
+    let mtkView: iOSMTK
+
+    var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
+    var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
+    
+    var prefersPencilOnlyDrawing: Bool = UIPencilInteraction.prefersPencilOnlyDrawing
+
+    init(mtkView: iOSMTK) {
+        self.mtkView = mtkView
+
+        super.init(frame: .infinite)
+
+        isMultipleTouchEnabled = true
+
+        // pen support
+        pencilInteraction.delegate = self
+        addInteraction(pencilInteraction)
+        
+        
+        // ipad trackpad support
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
+        pan.allowedScrollTypesMask = .all
+        pan.maximumNumberOfTouches = 0
+        self.addGestureRecognizer(pan)
+        
+        // edit menu support
+        self.addInteraction(editMenuInteraction)
+        
+        let pointerInteraction = UIPointerInteraction(delegate: mtkView)
+        self.addInteraction(pointerInteraction)
+        
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(self.handleLongPress(_:)))
+        longPress.cancelsTouchesInView = false
+        self.addGestureRecognizer(longPress)
+        
+        self.isMultipleTouchEnabled = true
+        set_pencil_only_drawing(wsHandle, prefersPencilOnlyDrawing)
+    }
+    
+    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: gesture.location(in: self))
+        editMenuInteraction.presentEditMenu(with: config)
+    }
+    
+    public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if action == #selector(paste(_:)) {
+            return UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
+
         }
 
         public func pointerInteraction(
@@ -1304,9 +1359,11 @@
         public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
             forwardKeyPress(presses, with: event, pressBegan: false)
 
-            if !overrideDefaultKeyboardBehavior {
-                super.pressesEnded(presses, with: event)
-            }
+            let location = touch.preciseLocation(in: self)
+            let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+            
+            touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+
         }
 
         func forwardKeyPress(_ presses: Set<UIPress>, with event: UIPressesEvent?, pressBegan: Bool)
@@ -1572,6 +1629,7 @@ public enum WorkspaceTab: Int {
         case .Welcome, .Pdf, .Loading, .Image:
             1
         case .Svg, .Graph:
+
             2
         case .PlainText, .Markdown:
             3

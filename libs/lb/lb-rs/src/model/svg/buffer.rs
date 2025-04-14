@@ -26,7 +26,7 @@ pub struct Buffer {
     pub elements: IndexMap<Uuid, Element>,
     pub weak_images: WeakImages,
     pub master_transform: Transform,
-    id_map: HashMap<Uuid, String>,
+    pub id_map: HashMap<Uuid, String>,
 }
 
 impl Buffer {
@@ -160,82 +160,85 @@ impl Buffer {
             }
         }
     }
-
     pub fn serialize(&self) -> String {
-        let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
-        let mut weak_images = WeakImages::default();
-        for (index, el) in self.elements.iter().enumerate() {
-            match el.1 {
-                Element::Path(p) => {
-                    if p.deleted {
-                        continue;
-                    }
-                    let mut curv_attrs = " ".to_string();
-                    // if it's empty then the curve will not be converted to string via bezier_rs
-                    if let Some(stroke) = p.stroke {
-                        curv_attrs = format!(
-                            "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}' transform='{}'",
-                            stroke.width,
-                            stroke.color.light.red,
-                            stroke.color.light.green,
-                            stroke.color.light.blue,
-                            stroke.opacity,
-                            self.id_map.get(el.0).unwrap_or(&el.0.to_string()),
-                            to_svg_transform(p.transform)
-                        );
-                    }
-
-                    let mut data = p.data.clone();
-                    data.apply_transform(u_transform_to_bezier(
-                        &self.master_transform.invert().unwrap_or_default(),
-                    ));
-
-                    if data.len() > 1 {
-                        data.to_svg(&mut root, curv_attrs, "".into(), "".into(), "".into())
-                    }
-                }
-                Element::Image(img) => {
-                    if img.deleted {
-                        continue;
-                    }
-
-                    let mut weak_image: WeakImage = img.into_weak(index);
-
-                    weak_image.transform(self.master_transform.invert().unwrap_or_default());
-
-                    weak_images.insert(*el.0, weak_image);
-                }
-                Element::Text(_) => {}
-            }
-        }
-
-        let zoom_level = format!(
-            r#"<g id="{}" transform="matrix({} {} {} {} {} {})"></g>"#,
-            ZOOM_G_ID,
-            self.master_transform.sx,
-            self.master_transform.kx,
-            self.master_transform.ky,
-            self.master_transform.sy,
-            self.master_transform.tx,
-            self.master_transform.ty
-        );
-
-        weak_images.extend(self.weak_images.iter());
-
-        if !weak_images.is_empty() {
-            let binary_data = bincode::serialize(&weak_images).expect("Failed to serialize");
-            let base64_data = base64::encode(&binary_data);
-
-            let _ = write!(
-                &mut root,
-                "<g id=\"{}\"> <g id=\"{}\"></g></g>",
-                WEAK_IMAGE_G_ID, base64_data
-            );
-        }
-
-        let _ = write!(&mut root, "{} </svg>", zoom_level);
-        root
+        serialize_inner(&self.id_map, &self.elements, self.master_transform, &self.weak_images)
     }
+}
+
+pub fn serialize_inner(
+    id_map: &HashMap<Uuid, String>, elements: &IndexMap<Uuid, Element>,
+    master_transform: Transform, buffer_weak_images: &WeakImages,
+) -> String {
+    let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
+    let mut weak_images = WeakImages::default();
+    for (index, el) in elements.iter().enumerate() {
+        match el.1 {
+            Element::Path(p) => {
+                if p.deleted {
+                    continue;
+                }
+                let mut curv_attrs = " ".to_string();
+                // if it's empty then the curve will not be converted to string via bezier_rs
+                if let Some(stroke) = p.stroke {
+                    curv_attrs = format!(
+                        "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}' transform='{}'",
+                        stroke.width,
+                        stroke.color.light.red,
+                        stroke.color.light.green,
+                        stroke.color.light.blue,
+                        stroke.opacity,
+                        id_map.get(el.0).unwrap_or(&el.0.to_string()),
+                        to_svg_transform(p.transform)
+                    );
+                }
+
+                let mut data = p.data.clone();
+                data.apply_transform(u_transform_to_bezier(
+                    &master_transform.invert().unwrap_or_default(),
+                ));
+
+                if data.len() > 1 {
+                    data.to_svg(&mut root, curv_attrs, "".into(), "".into(), "".into())
+                }
+            }
+            Element::Image(img) => {
+                if img.deleted {
+                    continue;
+                }
+
+                let mut weak_image: WeakImage = img.into_weak(index);
+
+                weak_image.transform(master_transform.invert().unwrap_or_default());
+
+                weak_images.insert(*el.0, weak_image);
+            }
+            Element::Text(_) => {}
+        }
+    }
+
+    let zoom_level = format!(
+        r#"<g id="{}" transform="matrix({} {} {} {} {} {})"></g>"#,
+        ZOOM_G_ID,
+        master_transform.sx,
+        master_transform.kx,
+        master_transform.ky,
+        master_transform.sy,
+        master_transform.tx,
+        master_transform.ty
+    );
+
+    weak_images.extend(buffer_weak_images.iter());
+
+    if !weak_images.is_empty() {
+        let binary_data = bincode::serialize(&weak_images).expect("Failed to serialize");
+        let base64_data = base64::encode(&binary_data);
+
+        let _ =
+            write!(&mut root, "<g id=\"{}\"> <g id=\"{}\"></g></g>", WEAK_IMAGE_G_ID, base64_data);
+    }
+
+    let _ = write!(&mut root, "{} </svg>", zoom_level);
+    root
 }
 
 pub fn parse_child(

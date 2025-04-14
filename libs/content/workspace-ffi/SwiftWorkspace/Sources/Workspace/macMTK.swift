@@ -120,7 +120,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         mouse_moved(wsHandle, Float(local.x), Float(local.y))
         setNeedsDisplay(self.frame)
     }
-    
+
     public override func mouseExited(with event: NSEvent) {
         mouse_gone(wsHandle)
         setNeedsDisplay(self.frame)
@@ -168,7 +168,9 @@ public class MacMTK: MTKView, MTKViewDelegate {
         if event.modifierFlags.contains(.command) && event.keyCode == 9 { // cmd+v
             let _ = importFromPasteboard(NSPasteboard.general, isPaste: true)
         } else {
-            key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
+            let text = event.characters ?? ""
+            
+            key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, text)
         }
 
         setNeedsDisplay(self.frame)
@@ -185,7 +187,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     public override func keyUp(with event: NSEvent) {
-        key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, event.characters)
+        let text = event.characters ?? ""
+        
+        key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, text)
+        
         setNeedsDisplay(self.frame)
     }
 
@@ -248,7 +253,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
             "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "jpg", "png", "pnm", "qoi", "tga",
             "tiff", "webp"
         ]
-        return imgFormats.contains(ext)
+        return imgFormats.contains(ext.lowercased())
     }
 
     func viewCoordinates(_ event: NSEvent) -> NSPoint {
@@ -263,14 +268,14 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let scale = self.window?.backingScaleFactor ?? 1.0
         resize_editor(wsHandle, Float(size.width), Float(size.height), Float(scale))
     }
-    
+
     public func drawImmediately() {
         redrawTask?.cancel()
         redrawTask = nil
-        
+
         self.isPaused = true
         self.enableSetNeedsDisplay = false
-        
+
         self.draw(in: self)
     }
 
@@ -299,7 +304,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
             workspaceState?.syncing = syncing
             workspaceState?.statusMsg = msg
         }
-        
+
         workspaceState?.reloadFiles = output.refresh_files
 
         let selectedFile = UUID(uuid: output.selected_file._0)
@@ -358,12 +363,12 @@ public class MacMTK: MTKView, MTKViewDelegate {
                 cursorHidden = false
             }
         }
-        
+
         if output.request_paste {
             importFromPasteboard(NSPasteboard.general, isPaste: true)
             setNeedsDisplay(self.frame)
         }
-        
+
         redrawTask?.cancel()
         redrawTask = nil
         self.isPaused = output.redraw_in > 50
@@ -377,7 +382,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
             redrawTask = newRedrawTask
         }
-        
+
         self.enableSetNeedsDisplay = self.isPaused
     }
 

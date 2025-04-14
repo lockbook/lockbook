@@ -4,7 +4,7 @@ use egui::TouchPhase;
 use resvg::usvg::Transform;
 use tracing::trace;
 
-use super::element::BoundedElement;
+use super::{element::BoundedElement, SVGEditor};
 use lb_rs::model::svg::{buffer::u_transform_to_bezier, element::Element};
 
 use super::{toolbar::ToolContext, Buffer};
@@ -134,10 +134,10 @@ impl GestureHandler {
         let is_zooming = zoom_delta != 1.0;
         let pan = self.get_pan(ui, gesture_ctx);
 
-        let touch_positions = get_touch_positions(ui);
+        let touch_positions = SVGEditor::get_touch_positions(ui);
         let pos_cardinality = touch_positions.len();
         let mut sum_pos = egui::Pos2::default();
-        for pos in get_touch_positions(ui).values() {
+        for pos in SVGEditor::get_touch_positions(ui).values() {
             sum_pos.x += pos.x;
             sum_pos.y += pos.y;
         }
@@ -332,17 +332,19 @@ pub fn zoom_percentage_to_transform(
         );
 }
 
-fn get_touch_positions(ui: &mut egui::Ui) -> HashMap<u64, egui::Pos2> {
-    ui.input(|r| {
-        let mut touch_positions = HashMap::new();
-        for e in r.events.iter() {
-            if let egui::Event::Touch { device_id: _, id, phase, pos, force: _ } = *e {
-                if phase != egui::TouchPhase::Cancel {
-                    touch_positions.insert(id.0, pos);
+impl SVGEditor {
+    pub fn get_touch_positions(ui: &mut egui::Ui) -> HashMap<u64, egui::Pos2> {
+        ui.input(|r| {
+            let mut touch_positions = HashMap::new();
+            for e in r.events.iter() {
+                if let egui::Event::Touch { device_id: _, id, phase, pos, force: _ } = *e {
+                    if phase != egui::TouchPhase::Cancel {
+                        touch_positions.insert(id.0, pos);
+                    }
                 }
             }
-        }
 
-        touch_positions
-    })
+            touch_positions
+        })
+    }
 }

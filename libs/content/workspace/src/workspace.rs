@@ -2,6 +2,7 @@ use egui::{Context, ViewportCommand};
 
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::{LbErr, LbErrKind};
+use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg;
@@ -17,6 +18,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use crate::file_cache::FileCache;
 use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
+use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -131,15 +133,15 @@ impl Workspace {
         }
     }
 
-    /// Loads a file, creating a tab for it if needed, and returns true if a tab was created
-    pub fn load_file(&mut self, id: Uuid, make_current: bool) -> bool {
-        if make_current && self.make_current_by_id(id) {
-            return false;
+    /// Creates a loading-state tab for a file if needed and returns true if a tab was created
+    pub fn upsert_loading_tab(&mut self, id: Uuid, make_current: bool) -> bool {
+        let tab_exists = self.tabs.iter().any(|t| t.id() == Some(id));
+        if !tab_exists {
+            self.create_tab(ContentState::Loading(id), make_current);
+        } else if make_current {
+            self.make_current_by_id(id);
         }
-
-        self.create_tab(ContentState::Loading(id), make_current);
-
-        true
+        !tab_exists
     }
 
     pub fn create_tab(&mut self, content: ContentState, make_current: bool) {
@@ -170,7 +172,7 @@ impl Workspace {
     }
 
     pub fn current_tab_title(&self) -> Option<String> {
-        self.current_tab().map(|tab| tab.title(&self.files))
+        self.current_tab().map(|tab| self.tab_title(tab))
     }
 
     pub fn current_tab_mut(&mut self) -> Option<&mut Tab> {
@@ -196,7 +198,7 @@ impl Workspace {
             self.tabs[i].is_closing = false;
             self.out.selected_file = self.tabs[i].id();
             self.ctx
-                .send_viewport_cmd(ViewportCommand::Title(self.tabs[i].title(&self.files)));
+                .send_viewport_cmd(ViewportCommand::Title(self.tab_title(&self.tabs[i])));
 
             true
         } else {
@@ -231,15 +233,7 @@ impl Workspace {
     }
 
     pub fn open_file(&mut self, id: Uuid, is_new_file: bool, make_current: bool) {
-        if self.tabs.get_by_id(id).is_some() {
-            if make_current {
-                self.make_current_by_id(id);
-            }
-            return;
-        }
-
-        let tab_created = self.load_file(id, make_current);
-
+        let tab_created = self.upsert_loading_tab(id, make_current);
         self.tasks
             .queue_load(LoadRequest { id, is_new_file, tab_created });
     }
@@ -291,7 +285,7 @@ impl Workspace {
 
                     if let Some(tab) = self.current_tab() {
                         self.ctx
-                            .send_viewport_cmd(ViewportCommand::Title(tab.title(&self.files)));
+                            .send_viewport_cmd(ViewportCommand::Title(self.tab_title(tab)));
                         self.out.selected_file = tab.id();
                     };
 
@@ -330,12 +324,11 @@ impl Workspace {
 
                         if is_supported_image_fmt(&ext) {
                             tab.content = ContentState::Open(TabContent::Image(ImageViewer::new(
-                                &id.to_string(),
-                                &ext,
-                                &bytes,
+                                id, &ext, &bytes,
                             )));
                         } else if ext == "pdf" {
                             tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
+                                id,
                                 &bytes,
                                 &ctx,
                                 writeable_dir,
@@ -571,7 +564,7 @@ impl Workspace {
                 removed_tabs += 1;
 
                 let title = match self.current_tab() {
-                    Some(tab) => tab.title(&self.files),
+                    Some(tab) => self.tab_title(tab),
                     None => "Lockbook".to_owned(),
                 };
                 self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
@@ -602,8 +595,7 @@ impl Workspace {
             .create_file(new_file.to_name().as_str(), &focused_parent, FileType::Document)
             .map_err(|err| format!("{:?}", err));
 
-        self.out.file_created = Some(result);
-        self.tasks.queue_file_cache_refresh();
+        self.out.file_created = Some(result.clone());
         self.ctx.request_repaint();
     }
 
@@ -614,6 +606,20 @@ impl Workspace {
         } else {
             self.create_tab(ContentState::Open(TabContent::MindMap(MindMap::new(&core))), true);
         };
+    }
+
+    pub fn start_space_inspector(&mut self, core: Lb, folder: Option<File>) {
+        if let Some(i) = self.tabs.iter().position(|t| t.space_inspector().is_some()) {
+            self.close_tab(i);
+        }
+        self.create_tab(
+            ContentState::Open(TabContent::SpaceInspector(SpaceInspector::new(
+                &core,
+                folder,
+                self.ctx.clone(),
+            ))),
+            true,
+        );
     }
 
     pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) {
@@ -635,10 +641,10 @@ impl Workspace {
 
     pub fn file_renamed(&mut self, id: Uuid, new_name: String) {
         let mut different_file_type = false;
-        if let Some(tab) = self.tabs.get_mut_by_id(id) {
+        if let Some(tab) = self.tabs.get_by_id(id) {
             different_file_type = !NameComponents::from(&new_name)
                 .extension
-                .eq(&NameComponents::from(&tab.title(&self.files)).extension);
+                .eq(&NameComponents::from(&self.tab_title(tab)).extension);
         }
 
         if Some(id) == self.current_tab_id() {

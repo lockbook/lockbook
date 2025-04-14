@@ -8,8 +8,8 @@ mod list;
 mod share;
 mod stream;
 
-use std::env;
 use std::path::PathBuf;
+use std::{env, time::Instant};
 
 use account::ApiUrl;
 use cli_rs::{
@@ -20,7 +20,9 @@ use cli_rs::{
     parser::Cmd,
 };
 
+use colored::Colorize;
 use input::FileInput;
+use lb_rs::subscribers::search::{SearchConfig, SearchResult};
 use lb_rs::{
     model::path_ops::Filter,
     model::{core_config::Config, errors::LbErrKind},
@@ -204,6 +206,11 @@ fn run() -> CliResult<()> {
                 )
         )
         .subcommand(
+            Command::name("search")
+                .input(Arg::str("query"))
+                .handler(|query| search(&query.get()))
+        )
+        .subcommand(
             Command::name("sync").description("sync your local changes back to lockbook servers") // todo also back
                 .handler(sync)
         )
@@ -221,6 +228,61 @@ pub async fn core() -> CliResult<Lb> {
     Lb::init(Config::cli_config("cli"))
         .await
         .map_err(|err| CliError::from(err.to_string()))
+}
+
+#[tokio::main]
+async fn search(query: &str) -> CliResult<()> {
+    let lb = &core().await?;
+    ensure_account_and_root(lb).await?;
+
+    let time = Instant::now();
+    lb.build_index().await?;
+    let build_time = time.elapsed();
+
+    lb.search.tantivy_reader.reload().unwrap();
+
+    let time = Instant::now();
+    let results = lb.search(query, SearchConfig::PathsAndDocuments).await?;
+    let search_time = time.elapsed();
+
+    for result in results {
+        match result {
+            SearchResult::DocumentMatch { id: _, path, content_matches } => {
+                println!("{}", format!("DOC: {path}").bold().blue());
+                for content in content_matches {
+                    let mut result = String::default();
+                    for (i, c) in content.paragraph.char_indices() {
+                        if content.matched_indices.contains(&i) {
+                            result = format!("{result}{}", c.to_string().underline());
+                        } else {
+                            result = format!("{result}{c}");
+                        }
+                    }
+                    println!("{}", result);
+                }
+                println!();
+            }
+            SearchResult::PathMatch { id: _, path, matched_indices, score: _ } => {
+                let mut result = String::default();
+                for (i, c) in path.char_indices() {
+                    if matched_indices.contains(&i) {
+                        result = format!("{result}{}", c.to_string().underline());
+                    } else {
+                        result = format!("{result}{c}");
+                    }
+                }
+                println!("{}", format!("PATH: {result}").bold().green());
+                println!();
+            }
+        }
+    }
+
+    let build_time = format!("{build_time:?}").bold();
+    let search_time = format!("{search_time:?}").bold();
+    println!("Index built in {build_time}");
+    println!("Search took {search_time}");
+
+    Ok(())
 }
 
 #[tokio::main]

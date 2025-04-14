@@ -1,0 +1,27 @@
+name: Bump Versions
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Bump type (patch, minor, major)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+jobs:
+  bump:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+      - name: run bump script
+        run: |
+          cargo run -p releaser -- bump-versions ${{ github.event.inputs.bump_type }}

@@ -1,6 +1,7 @@
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::path_ops::Filter;
+use lb_rs::model::ValidationFailure;
 use test_utils::*;
 
 #[tokio::test]
@@ -45,7 +46,7 @@ async fn test_create_delete_write() {
             .await
             .unwrap_err()
             .kind,
-        LbErrKind::FileNonexistent
+        LbErrKind::Validation(ValidationFailure::DeletedFileUpdated(_))
     );
 }
 
@@ -99,7 +100,7 @@ async fn test_create_parent_delete_parent_rename_doc() {
             .await
             .unwrap_err()
             .kind,
-        LbErrKind::FileNonexistent
+        LbErrKind::Validation(ValidationFailure::DeletedFileUpdated(_))
     );
 }
 
@@ -113,7 +114,7 @@ async fn test_create_parent_delete_parent_rename_parent() {
             .await
             .unwrap_err()
             .kind,
-        LbErrKind::FileNonexistent
+        LbErrKind::Validation(ValidationFailure::DeletedFileUpdated(_))
     );
 }
 
@@ -125,7 +126,7 @@ async fn test_folder_move_delete_source_doc() {
     core.delete(&doc.parent).await.unwrap();
     assert_matches!(
         core.move_file(&doc.id, &folder2.id).await.unwrap_err().kind,
-        LbErrKind::FileNonexistent
+        LbErrKind::Validation(ValidationFailure::DeletedFileUpdated(_))
     );
 }
 
@@ -140,7 +141,7 @@ async fn test_folder_move_delete_source_parent() {
             .await
             .unwrap_err()
             .kind,
-        LbErrKind::FileNonexistent
+        LbErrKind::Validation(ValidationFailure::DeletedFileUpdated(_))
     );
 }
 

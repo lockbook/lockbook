@@ -1,4 +1,4 @@
-use super::network::ApiError;
+use crate::io::network::ApiError;
 use crate::model::access_info::UserAccessMode;
 use crate::model::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
@@ -17,7 +17,7 @@ use crate::model::text::buffer::Buffer;
 use crate::model::tree_like::TreeLike;
 use crate::model::work_unit::WorkUnit;
 use crate::model::{clock, svg};
-use crate::model::{symkey, SharedErrorKind, ValidationFailure};
+use crate::model::{symkey, ValidationFailure};
 use crate::Lb;
 pub use basic_human_duration::ChronoHumanDuration;
 use futures::stream;
@@ -96,7 +96,8 @@ impl Lb {
 
         let mut got_updates = false;
         let mut pipeline: LbResult<()> = async {
-            ctx.msg("Preparing Sync...");
+            ctx.msg("Preparing Sync..."); // todo remove
+            self.events.sync(SyncIncrement::SyncStarted);
             self.prune().await?;
             got_updates = self.fetch_meta(&mut ctx).await?;
             self.populate_pk_cache(&mut ctx).await?;
@@ -117,13 +118,19 @@ impl Lb {
 
         let cleanup = self.cleanup().await;
 
+        let ekind = pipeline.as_ref().err().map(|err| err.kind.clone());
+        self.events.sync(SyncIncrement::SyncFinished(ekind));
+
         self.syncing.store(false, Ordering::Relaxed);
         pipeline?;
         cleanup?;
+
+        // done not being sent if pipeline is an error is likely the reason we get stuck offline
         ctx.done_msg();
 
         if got_updates {
-            self.events.meta_changed(self.root().await?.id);
+            // did it?
+            self.events.meta_changed();
             for id in &ctx.pulled_docs {
                 self.events.doc_written(*id);
             }
@@ -216,6 +223,7 @@ impl Lb {
 
         let empty = updates.file_metadata.is_empty();
         let (remote, as_of, root) = self.dedup(updates).await?;
+
         ctx.remote_changes = remote;
         ctx.update_as_of = as_of;
         ctx.root = root;
@@ -287,6 +295,7 @@ impl Lb {
 
             if let Some(remote_hmac) = remote_hmac {
                 docs_to_pull.push((id, remote_hmac));
+                self.events.sync(SyncIncrement::PullingDocument(id, true));
             }
         }
 
@@ -312,6 +321,7 @@ impl Lb {
         while let Some(fut) = stream.next().await {
             let id = fut?;
             ctx.pulled_docs.push(id);
+            self.events.sync(SyncIncrement::PullingDocument(id, false));
             ctx.file_msg(id, &format!("Downloaded file {idx} of {num_docs}."));
             idx += 1;
         }
@@ -770,7 +780,7 @@ impl Lb {
                         break merge_changes;
                     }
                     Err(ref err) => match err.kind {
-                        SharedErrorKind::ValidationFailure(ref vf) => match vf {
+                        LbErrKind::Validation(ref vf) => match vf {
                             // merge changeset has resolvable validation errors and needs modification
                             ValidationFailure::Cycle(ids) => {
                                 // revert all local moves in the cycle
@@ -893,6 +903,7 @@ impl Lb {
                             | ValidationFailure::NonFolderWithChildren(_)
                             | ValidationFailure::FileWithDifferentOwnerParent(_)
                             | ValidationFailure::FileNameTooLong(_)
+                            | ValidationFailure::DeletedFileUpdated(_)
                             | ValidationFailure::NonDecryptableFileName(_) => {
                                 validate_result?;
                             }
@@ -1007,6 +1018,7 @@ impl Lb {
 
             updates.push(FileDiff { old: Some(base_file), new: local_change.clone() });
             local_changes_digests_only.push(local_change);
+            self.events.sync(SyncIncrement::PushingDocument(id, true));
         }
 
         drop(tx);
@@ -1027,6 +1039,7 @@ impl Lb {
         let mut idx = 0;
         while let Some(fut) = stream.next().await {
             let id = fut?;
+            self.events.sync(SyncIncrement::PushingDocument(id, false));
             ctx.file_msg(id, &format!("Pushed file {idx} of {docs_count}."));
             idx += 1;
         }
@@ -1233,4 +1246,12 @@ impl Display for SyncProgress {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{} / {}]: {}", self.progress, self.total, self.msg)
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum SyncIncrement {
+    SyncStarted,
+    PullingDocument(Uuid, bool),
+    PushingDocument(Uuid, bool),
+    SyncFinished(Option<LbErrKind>),
 }

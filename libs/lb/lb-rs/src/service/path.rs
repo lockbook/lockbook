@@ -21,7 +21,7 @@ impl Lb {
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
-        self.events.meta_changed(*root);
+        self.events.meta_changed();
 
         Ok(ui_file)
     }
@@ -41,7 +41,7 @@ impl Lb {
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
-        self.events.meta_changed(*root);
+        self.events.meta_changed();
 
         Ok(ui_file)
     }
@@ -75,6 +75,18 @@ impl Lb {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn list_paths(&self, filter: Option<Filter>) -> LbResult<Vec<String>> {
+        Ok(self
+            .list_paths_with_ids(filter)
+            .await?
+            .into_iter()
+            .map(|(_, path)| path)
+            .collect())
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn list_paths_with_ids(
+        &self, filter: Option<Filter>,
+    ) -> LbResult<Vec<(Uuid, String)>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 

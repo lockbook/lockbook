@@ -452,6 +452,11 @@ impl AccountScreen {
             self.workspace.create_file(true);
         }
 
+        if resp.space_inspector_root.is_some() {
+            self.workspace
+                .start_space_inspector(self.core.clone(), resp.space_inspector_root);
+        }
+
         if let Some(file) = resp.new_folder_modal {
             self.update_tx
                 .send(OpenModal::NewFolder(Some(file)).into())
@@ -599,13 +604,11 @@ impl AccountScreen {
 
     fn focused_parent(&mut self) -> Option<Uuid> {
         if let Some(cursor) = self.tree.cursor {
-            if cursor != self.tree.suggested_docs_folder_id {
+            if cursor != self.tree.suggested_docs_folder_id
+                && self.tree.files.iter().any(|f| f.id == cursor)
+            {
                 let cursor = self.tree.files.get_by_id(cursor);
-                if cursor.is_folder() {
-                    return Some(cursor.id);
-                } else {
-                    return Some(cursor.parent);
-                }
+                return if cursor.is_folder() { Some(cursor.id) } else { Some(cursor.parent) };
             }
         }
         None

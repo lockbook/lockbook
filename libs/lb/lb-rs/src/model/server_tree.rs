@@ -2,12 +2,13 @@ use crate::model::file_like::FileLike;
 use crate::model::file_metadata::Owner;
 use crate::model::server_file::ServerFile;
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
-use crate::model::SharedResult;
 use db_rs::{LookupSet, LookupTable};
 use std::collections::HashSet;
 use std::iter::FromIterator;
 use tracing::*;
 use uuid::Uuid;
+
+use super::errors::LbResult;
 
 pub struct ServerTree<'a> {
     pub ids: HashSet<Uuid>,
@@ -22,7 +23,7 @@ impl<'a> ServerTree<'a> {
         owner: Owner, owned_files: &'a mut LookupSet<Owner, Uuid>,
         shared_files: &'a mut LookupSet<Owner, Uuid>, file_children: &'a mut LookupSet<Uuid, Uuid>,
         files: &'a mut LookupTable<Uuid, ServerFile>,
-    ) -> SharedResult<Self> {
+    ) -> LbResult<Self> {
         let (owned_ids, shared_ids) =
             match (owned_files.get().get(&owner), shared_files.get().get(&owner)) {
                 (Some(owned_ids), Some(shared_ids)) => (owned_ids.clone(), shared_ids.clone()),
@@ -64,7 +65,7 @@ impl TreeLike for ServerTree<'_> {
 }
 
 impl TreeLikeMut for ServerTree<'_> {
-    fn insert(&mut self, f: Self::F) -> SharedResult<Option<Self::F>> {
+    fn insert(&mut self, f: Self::F) -> LbResult<Option<Self::F>> {
         let id = *f.id();
         let owner = f.owner();
         let maybe_prior = LookupTable::insert(self.files, id, f.clone())?;
@@ -119,12 +120,12 @@ impl TreeLikeMut for ServerTree<'_> {
         Ok(maybe_prior)
     }
 
-    fn remove(&mut self, _id: Uuid) -> SharedResult<Option<Self::F>> {
+    fn remove(&mut self, _id: Uuid) -> LbResult<Option<Self::F>> {
         error!("remove metadata called in server!");
         Ok(None)
     }
 
-    fn clear(&mut self) -> SharedResult<()> {
+    fn clear(&mut self) -> LbResult<()> {
         error!("clear called in server!");
         Ok(())
     }

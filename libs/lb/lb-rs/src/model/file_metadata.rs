@@ -14,7 +14,7 @@ use crate::model::crypto::AESKey;
 use crate::model::file_like::FileLike;
 use crate::model::secret_filename::SecretFileName;
 use crate::model::signed_file::SignedFile;
-use crate::model::{pubkey, symkey, SharedResult};
+use crate::model::{pubkey, symkey};
 use crate::service::keychain::Keychain;
 
 pub type DocumentHmac = [u8; 32];
@@ -33,7 +33,7 @@ pub struct FileMetadata {
 }
 
 impl FileMetadata {
-    pub fn create_root(account: &Account) -> SharedResult<Self> {
+    pub fn create_root(account: &Account) -> LbResult<Self> {
         let id = Uuid::new_v4();
         let key = symkey::generate_key();
         let pub_key = account.public_key();
@@ -60,7 +60,7 @@ impl FileMetadata {
     pub fn create(
         id: Uuid, key: AESKey, owner: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str,
         file_type: FileType,
-    ) -> SharedResult<Self> {
+    ) -> LbResult<Self> {
         Ok(FileMetadata {
             id,
             file_type,
@@ -75,11 +75,11 @@ impl FileMetadata {
     }
 
     pub fn sign(self, keychain: &Keychain) -> LbResult<SignedFile> {
-        Ok(pubkey::sign(&keychain.get_account()?.private_key, &keychain.get_pk()?, self, get_time)?)
+        pubkey::sign(&keychain.get_account()?.private_key, &keychain.get_pk()?, self, get_time)
     }
 
     pub fn sign_with(self, account: &Account) -> LbResult<SignedFile> {
-        Ok(pubkey::sign(&account.private_key, &account.public_key(), self, get_time)?)
+        pubkey::sign(&account.private_key, &account.public_key(), self, get_time)
     }
 }
 

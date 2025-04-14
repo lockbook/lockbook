@@ -11,19 +11,18 @@
 //!   See the [service] module for evolving this functionality.
 //! - The [model] module contains the specification of our data structures and contracts between
 //!   components.
-//!
-//! - The `"blocking"` feature flag enables the [blocking] module and and the corresponding
-//!   blocking `Lb` variant.
-//! - The `"ffi"` feature flag enables `blocking` as well as an API for C ffi clients
-//! - The `"jni"` feature flag enables `blocking` as well as an API for JVM clients
+//! - The [blocking] module contains blocking variants of all [Lb] functions for consumers without
+//!   async runtimes.
+//! - The [io] module contains interactions with disk and network.
 
 #[macro_use]
 extern crate tracing;
 
 pub mod blocking;
+pub mod io;
 pub mod model;
-pub mod repo;
 pub mod service;
+pub mod subscribers;
 
 #[derive(Clone)]
 pub struct Lb {
@@ -35,6 +34,7 @@ pub struct Lb {
     pub client: Network,
     pub events: EventSubs,
     pub syncing: Arc<AtomicBool>,
+    pub status: StatusUpdater,
 }
 
 impl Lb {
@@ -49,11 +49,15 @@ impl Lb {
         let docs = AsyncDocs::from(&config);
         let client = Network::default();
         let search = SearchIndex::default();
+        let status = StatusUpdater::default();
         let syncing = Arc::default();
         let events = EventSubs::default();
 
-        let result = Self { config, keychain, db, docs, client, search, syncing, events };
+        let result = Self { config, keychain, db, docs, client, search, syncing, events, status };
+
         result.setup_search();
+        result.setup_status().await?;
+
         Ok(result)
     }
 }
@@ -65,18 +69,19 @@ pub fn get_code_version() -> &'static str {
 pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-use crate::repo::CoreDb;
+use crate::io::CoreDb;
 use crate::service::logging;
 use db_rs::Db;
+use io::docs::AsyncDocs;
+use io::network::Network;
+use io::LbDb;
 use model::core_config::Config;
-use model::errors::{LbErrKind, LbResult};
-use repo::docs::AsyncDocs;
-use repo::LbDb;
+pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
 use service::keychain::Keychain;
-use service::network::Network;
-use service::search::SearchIndex;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use subscribers::search::SearchIndex;
+use subscribers::status::StatusUpdater;
 use tokio::sync::RwLock;
 pub use uuid::Uuid;

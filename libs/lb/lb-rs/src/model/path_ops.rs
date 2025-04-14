@@ -11,6 +11,8 @@ use crate::service::keychain::Keychain;
 use std::collections::HashSet;
 use uuid::Uuid;
 
+use super::ValidationFailure;
+
 impl<Base, Local, Staged> LazyTree<Staged>
 where
     Base: TreeLike<F = SignedFile>,
@@ -85,7 +87,7 @@ where
 
     pub fn list_paths(
         &mut self, filter: Option<Filter>, keychain: &Keychain,
-    ) -> LbResult<Vec<String>> {
+    ) -> LbResult<Vec<(Uuid, String)>> {
         // Deal with filter
         let filtered = match filter {
             Some(Filter::DocumentsOnly) => {
@@ -130,7 +132,7 @@ where
             };
 
             if !self.calculate_deleted(&id)? && !self.in_pending_share(&id)? {
-                paths.push(self.id_to_path(&id, keychain)?);
+                paths.push((id, self.id_to_path(&id, keychain)?));
             }
         }
 
@@ -175,12 +177,16 @@ where
 
                 if self.name_using_links(&child, keychain)? == path_components[index] {
                     if index == path_components.len() - 1 {
-                        return Err(LbErrKind::PathTaken.into());
+                        return Err(LbErrKind::Validation(ValidationFailure::PathConflict(
+                            HashSet::from([child]),
+                        )))?;
                     }
 
                     current = match self.find(&child)?.file_type() {
                         FileType::Document => {
-                            return Err(LbErrKind::FileNotFolder.into());
+                            return Err(LbErrKind::Validation(
+                                ValidationFailure::NonFolderWithChildren(child),
+                            ))?;
                         }
                         FileType::Folder => child,
                         FileType::Link { target } => {

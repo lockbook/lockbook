@@ -4,7 +4,6 @@ use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, TouchId, Vec2};
 use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
-
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 use std::thread;

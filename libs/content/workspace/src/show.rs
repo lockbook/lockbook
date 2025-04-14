@@ -1,11 +1,11 @@
 use basic_human_duration::ChronoHumanDuration;
 use core::f32;
-use egui::emath::easing;
 use egui::os::OperatingSystem;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Modifiers,
-    RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2, ViewportCommand, WidgetText,
+    include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Label, Modifiers,
+    Rangef, Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2, ViewportCommand,
+    Widget as _, WidgetText,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
@@ -179,23 +179,47 @@ impl Workspace {
 
                                     ui.label(layout_job);
                                 }
-
                                 ui.add_space(50.);
 
-                                ui.label(WidgetText::from(RichText::from("TOOLS").weak().small()));
-                                ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
-                                ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
-                                ui.visuals_mut().widgets.active.fg_stroke.color = blue;
+                                    ui.label(WidgetText::from(
+                                        RichText::from("TOOLS").weak().small(),
+                                    ));
 
-                                if Button::default()
-                                    .icon(&Icon::LANGUAGE)
-                                    .text("Mind Map")
-                                    .frame(false)
-                                    .rounding(3.)
-                                    .show(ui)
-                                    .clicked()
-                                {
-                                    self.upsert_mind_map(self.core.clone());
+                                ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
+                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
+                                    ui.visuals_mut().widgets.active.fg_stroke.color = blue;
+
+                                    if Button::default()
+                                        .icon(&Icon::LANGUAGE)
+                                        .text("Space Inspector")
+                                        .frame(false)
+                                        .rounding(3.)
+                                        .show(ui)
+                                        .clicked()
+                                    {
+                                        self.start_space_inspector(self.core.clone(), None);
+                                    }
+
+                                let is_beta = self
+                                    .core
+                                    .get_account()
+                                    .map(|a| a.is_beta())
+                                    .unwrap_or_default();
+                                if is_beta {
+                                    ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
+                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
+                                    ui.visuals_mut().widgets.active.fg_stroke.color = blue;
+
+                                    if Button::default()
+                                        .icon(&Icon::LANGUAGE)
+                                        .text("Mind Map")
+                                        .frame(false)
+                                        .rounding(3.)
+                                        .show(ui)
+                                        .clicked()
+                                    {
+                                        self.upsert_mind_map(self.core.clone());
+                                    }
                                 }
                             });
                             strip.cell(|_| {});
@@ -210,6 +234,10 @@ impl Workspace {
                                     // if someplace else we use the same technique but a different sort order, we will end up sorting every frame
                                     if !files.suggested.is_sorted() {
                                         files.suggested.sort();
+                                    }
+
+                                    if files.suggested.is_empty() {
+                                        ui.label("Suggestions are based on your activity on this device. Suggestions will appear after some use.");
                                     }
 
                                     ScrollArea::horizontal().show(ui, |ui| {
@@ -251,10 +279,7 @@ impl Workspace {
                                                     ui.vertical_centered(|ui| {
                                                         ui.add_space(15.);
 
-                                                        ui.label(
-                                                            &DocType::from_name(&file.name)
-                                                                .to_icon(),
-                                                        );
+                                                        Label::new(&DocType::from_name(&file.name).to_icon()).selectable(false).ui(ui);
 
                                                         let truncated_name = WidgetText::from(
                                                             WidgetText::from(&file.name)
@@ -275,7 +300,8 @@ impl Workspace {
                                                                 ),
                                                         );
 
-                                                        ui.label(truncated_name);
+
+                                                        Label::new(truncated_name).selectable(false).ui(ui);
                                                     });
                                                 });
                                             }
@@ -298,7 +324,9 @@ impl Workspace {
                                         files.files.sort_by_key(|f| f.last_modified);
                                     }
 
-                                    for file in files.files.iter().rev().take(5) {
+                                    for file in
+                                        files.files.iter().rev().filter(|&f| !f.is_folder()).take(5)
+                                    {
                                         ui.horizontal(|ui| {
                                             ui.style_mut().spacing.item_spacing.x = 0.0;
                                             ui.spacing_mut().button_padding.x = 0.;
@@ -392,9 +420,7 @@ impl Workspace {
         ui.vertical(|ui| {
             if let Some(current_tab) = self.current_tab() {
                 if self.show_tabs {
-                    if self.tabs.len() > 1 {
-                        self.show_tab_strip(ui);
-                    }
+                    self.show_tab_strip(ui);
                 } else {
                     self.out.tab_title_clicked = self.show_mobile_title(ui, current_tab);
                 }
@@ -451,6 +477,9 @@ impl Workspace {
                                         self.open_file(value, false, true);
                                     }
                                 }
+                                TabContent::SpaceInspector(sv) => {
+                                    sv.show(ui);
+                                }
                             };
                         }
                     }
@@ -466,7 +495,7 @@ impl Workspace {
     fn show_mobile_title(&self, ui: &mut egui::Ui, tab: &Tab) -> bool {
         ui.horizontal(|ui| {
             let selectable_label =
-                egui::widgets::Button::new(egui::RichText::new(tab.title(&self.files)))
+                egui::widgets::Button::new(egui::RichText::new(self.tab_title(tab)))
                     .frame(false)
                     .wrap_mode(TextWrapMode::Truncate)
                     .fill(if ui.visuals().dark_mode {
@@ -486,14 +515,10 @@ impl Workspace {
         .inner
     }
 
-    fn show_tab_strip(&mut self, parent_ui: &mut egui::Ui) {
+    fn show_tab_strip(&mut self, ui: &mut egui::Ui) {
         let active_tab_changed = self.current_tab_changed;
         self.current_tab_changed = false;
 
-        let mut ui =
-            parent_ui.child_ui(parent_ui.painter().clip_rect(), egui::Layout::default(), None);
-
-        let is_tab_strip_visible = self.tabs.len() > 1;
         let cursor = ui
             .horizontal(|ui| {
                 egui::ScrollArea::horizontal()
@@ -501,10 +526,9 @@ impl Workspace {
                     .show(ui, |ui| {
                         let mut responses = HashMap::new();
                         for i in 0..self.tabs.len() {
-                            if let (true, Some(resp)) = (
-                                is_tab_strip_visible,
-                                self.tab_label(ui, i, self.current_tab == i, active_tab_changed),
-                            ) {
+                            if let Some(resp) =
+                                self.tab_label(ui, i, self.current_tab == i, active_tab_changed)
+                            {
                                 responses.insert(i, resp);
                             }
                         }
@@ -517,7 +541,7 @@ impl Workspace {
                                         // we should rename the file.
 
                                         self.out.tab_title_clicked = true;
-                                        let active_name = self.tabs[i].title(&self.files).clone();
+                                        let active_name = self.tab_title(&self.tabs[i]);
 
                                         let mut rename_edit_state =
                                             egui::text_edit::TextEditState::default();
@@ -542,7 +566,7 @@ impl Workspace {
                                         self.current_tab = i;
                                         self.current_tab_changed = true;
                                         self.ctx.send_viewport_cmd(ViewportCommand::Title(
-                                            self.tabs[i].title(&self.files),
+                                            self.tab_title(&self.tabs[i]),
                                         ));
                                         self.out.selected_file = self.tabs[i].id();
                                     }
@@ -569,24 +593,15 @@ impl Workspace {
 
         ui.style_mut().animation_time = 2.0;
 
-        let how_on = ui.ctx().animate_bool_with_easing(
-            "toolbar_height".into(),
-            is_tab_strip_visible,
-            easing::cubic_in_out,
+        let end_of_tabs = cursor.min.x;
+        let available_width = ui.available_width();
+        let remaining_rect = Rect::from_x_y_ranges(
+            Rangef { min: end_of_tabs, max: end_of_tabs + available_width },
+            cursor.y_range(),
         );
-        parent_ui.add_space(cursor.height() * how_on);
-        ui.set_opacity(how_on);
-
-        if is_tab_strip_visible {
-            let end_of_tabs = cursor.min.x;
-            let available_width = ui.available_width();
-            let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
-            ui.painter().hline(
-                egui::Rangef { min: end_of_tabs, max: end_of_tabs + available_width },
-                cursor.max.y,
-                sep_stroke,
-            );
-        }
+        let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+        ui.painter()
+            .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
     }
 
     fn process_keys(&mut self) {
@@ -616,7 +631,12 @@ impl Workspace {
         }
 
         // Ctrl-M to open mind map
-        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::M)) {
+        let is_beta = self
+            .core
+            .get_account()
+            .map(|a| a.is_beta())
+            .unwrap_or_default();
+        if is_beta && self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::M)) {
             self.upsert_mind_map(self.core.clone());
         }
 
@@ -717,6 +737,7 @@ impl Workspace {
                 .allocate_ui_at_rect(tab_label_rect, |ui| {
                     ui.add(
                         egui::TextEdit::singleline(str)
+                            .font(TextStyle::Small)
                             .frame(false)
                             .id(egui::Id::new("rename_tab")),
                     )
@@ -843,7 +864,7 @@ impl Workspace {
             });
 
             // draw text
-            let text: egui::WidgetText = (&self.tabs[t].title(&self.files)).into();
+            let text: egui::WidgetText = self.tab_title(&self.tabs[t]).into();
             let wrap_width = if show_close_button {
                 w - (padding_x + status_icon.size + padding_x + padding_x + x_icon.size + padding_x)
             } else {

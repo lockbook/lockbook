@@ -1,6 +1,6 @@
-use crate::file_cache::FileCache;
 use crate::file_cache::FilesExt as _;
 use crate::mind_map::show::MindMap;
+use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -40,8 +40,7 @@ impl Tab {
     pub fn id(&self) -> Option<Uuid> {
         match &self.content {
             ContentState::Loading(id) => Some(*id),
-            ContentState::Open(TabContent::Markdown(md)) => Some(md.file_id),
-            ContentState::Open(TabContent::Svg(svg)) => Some(svg.open_file),
+            ContentState::Open(content) => content.id(),
             _ => None,
         }
     }
@@ -103,24 +102,26 @@ impl Tab {
         }
     }
 
+    pub fn space_inspector(&self) -> Option<&SpaceInspector> {
+        match &self.content {
+            ContentState::Open(TabContent::SpaceInspector(sv)) => Some(sv),
+            _ => None,
+        }
+    }
+
+    pub fn space_inspector_mut(&mut self) -> Option<&mut SpaceInspector> {
+        match &mut self.content {
+            ContentState::Open(TabContent::SpaceInspector(sv)) => Some(sv),
+            _ => None,
+        }
+    }
+
     /// Clones the content required to save the tab. This is intended for use on the UI thread. Returns `None` if the
     /// tab does not have an editable file type open.
     pub fn clone_content(&self) -> Option<TabSaveContent> {
         match &self.content {
             ContentState::Open(content) => content.clone_content(),
             _ => None,
-        }
-    }
-
-    pub fn title(&self, files: &Option<FileCache>) -> String {
-        match (self.id(), files) {
-            (Some(id), Some(files)) => files
-                .files
-                .get_by_id(id)
-                .map(|f| f.name.clone())
-                .unwrap_or("Unknown".into()),
-            (Some(_), None) => "Loading".into(),
-            (None, _) => "Mind Map".into(),
         }
     }
 
@@ -167,6 +168,7 @@ pub enum TabContent {
     Pdf(PdfViewer),
     Svg(SVGEditor),
     MindMap(MindMap),
+    SpaceInspector(SpaceInspector),
 }
 
 impl std::fmt::Debug for TabContent {
@@ -177,6 +179,7 @@ impl std::fmt::Debug for TabContent {
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
+            TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
         }
     }
 }
@@ -186,7 +189,10 @@ impl TabContent {
         match self {
             TabContent::Markdown(md) => Some(md.file_id),
             TabContent::Svg(svg) => Some(svg.open_file),
-            _ => None,
+            TabContent::Image(image_viewer) => Some(image_viewer.id),
+            TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
+            TabContent::MindMap(_) => None,
+            TabContent::SpaceInspector(_) => None,
         }
     }
 
@@ -327,6 +333,27 @@ impl Workspace {
             }
         }
         TabStatus::Clean // can't get any cleaner than nonexistent!
+    }
+
+    pub fn tab_title(&self, tab: &Tab) -> String {
+        match (tab.id(), &self.files) {
+            (Some(id), Some(files)) => {
+                if let Some(file) = files.files.get_by_id(id) {
+                    file.name.clone()
+                } else if let Ok(file) = self.core.get_file_by_id(id) {
+                    // read-through (can remove when we master cache refreshes)
+                    file.name.clone()
+                } else {
+                    "Unknown".into()
+                }
+            }
+            (Some(_), None) => "Loading".into(),
+            (None, _) => match tab.content {
+                ContentState::Open(TabContent::MindMap(_)) => "Mind Map".into(),
+                ContentState::Open(TabContent::SpaceInspector(_)) => "Space Inspector".into(),
+                _ => "Unknown".into(),
+            },
+        }
     }
 }
 

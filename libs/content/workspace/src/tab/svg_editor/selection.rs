@@ -1,8 +1,11 @@
 use bezier_rs::Subpath;
-use egui_animation::{animate_bool_eased, easing};
 use glam::DVec2;
+use indexmap::IndexMap;
 use lb_rs::{
-    model::svg::element::{Element, ManipulatorGroupId},
+    model::svg::{
+        buffer::serialize_inner,
+        element::{Element, ManipulatorGroupId},
+    },
     Uuid,
 };
 use resvg::usvg::Transform;
@@ -41,7 +44,7 @@ enum SelectionOperation {
 #[derive(Clone, Debug)]
 pub struct SelectedElement {
     pub id: Uuid,
-    transform: Transform, // collection of all transforms that happend during a drag
+    pub transform: Transform, // collection of all transforms that happend during a drag
 }
 
 #[derive(Default)]
@@ -49,6 +52,7 @@ struct Layout {
     container_tooltip: Option<egui::Rect>,
 }
 
+#[derive(Debug)]
 enum SelectionEvent {
     StartLaso(BuildPayload),
     LasoBuild(BuildPayload),
@@ -129,6 +133,10 @@ impl Selection {
             SelectionOperation::Idle => {
                 match *event {
                     egui::Event::PointerButton { pos, button, pressed, modifiers } => {
+                        if selection_ctx.settings.pencil_only_drawing {
+                            return None;
+                        }
+
                         if button != egui::PointerButton::Primary {
                             return None;
                         }
@@ -139,11 +147,39 @@ impl Selection {
                             {
                                 return Some(SelectionEvent::StartTransform(pos));
                             } else {
+                                // if we're in prefer draw with pencil mode, then we shouldn't start build operation
+                                // if the event is coming from the finger and not the pen
+
                                 return Some(SelectionEvent::StartLaso(BuildPayload {
                                     pos,
                                     modifiers,
                                 }));
                             }
+                        }
+                    }
+                    egui::Event::Touch { device_id: _, id: _, phase, pos, force } => {
+                        if phase != egui::TouchPhase::Start {
+                            return None;
+                        }
+                        // only handle touch when in pencil only mode
+                        if !selection_ctx.settings.pencil_only_drawing {
+                            return None;
+                        }
+                        // ensure that it's pencil touch and not finger touch
+                        force?;
+
+                        if self.decide_transform_type(pos, selection_ctx)
+                            != SelectionOperation::Idle
+                        {
+                            return Some(SelectionEvent::StartTransform(pos));
+                        } else {
+                            // if we're in prefer draw with pencil mode, then we shouldn't start build operation
+                            // if the event is coming from the finger and not the pen
+
+                            return Some(SelectionEvent::StartLaso(BuildPayload {
+                                pos,
+                                modifiers: egui::Modifiers::NONE,
+                            }));
                         }
                     }
                     egui::Event::Key { key, physical_key: _, pressed, repeat, modifiers } => {
@@ -250,8 +286,15 @@ impl Selection {
                         if el.transform.is_identity() {
                             return None;
                         }
+
+                        let transform_elapsed = el.transform;
+                        el.transform = Transform::identity();
+
                         if selection_ctx.buffer.elements.get_mut(&el.id).is_some() {
-                            Some(TransformElement { id: el.id.to_owned(), transform: el.transform })
+                            Some(TransformElement {
+                                id: el.id.to_owned(),
+                                transform: transform_elapsed,
+                            })
                         } else {
                             None
                         }
@@ -490,13 +533,16 @@ impl Selection {
             return;
         }
 
-        let opacity = animate_bool_eased(
-            ui.ctx(),
-            "selection_tooltip",
-            self.current_op == SelectionOperation::Idle,
-            easing::cubic_out,
-            0.2,
-        );
+        // todo: figure out color space format to get a clean fade in animation
+        // currently it fades into gray before going transparent
+        // let opacity = animate_bool_eased(
+        //     ui.ctx(),
+        //     "selection_tooltip",
+        //     self.current_op == SelectionOperation::Idle,
+        //     easing::cubic_out,
+        //     0.2,
+        // );
+        let opacity = if self.current_op == SelectionOperation::Idle { 1.0 } else { 0.0 };
 
         ui.set_opacity(opacity);
 
@@ -629,6 +675,31 @@ impl Selection {
         ui.add(egui::Separator::default().vertical().grow(3.0));
 
         ui.add_space(4.0);
+
+        if Button::default()
+            .icon(&Icon::CONTENT_COPY)
+            .show(ui)
+            .clicked()
+        {
+            let id_map = &selection_ctx.buffer.id_map;
+            let elements: &IndexMap<Uuid, Element> = &self
+                .selected_elements
+                .drain(..)
+                .map(|el| {
+                    (Uuid::new_v4(), selection_ctx.buffer.elements.get(&el.id).unwrap().clone())
+                })
+                .collect();
+            let master_transform = selection_ctx.buffer.master_transform;
+            let weak_images = &selection_ctx.buffer.weak_images;
+
+            let serialized_selection =
+                serialize_inner(id_map, elements, master_transform, weak_images);
+
+            ui.output_mut(|w| w.copied_text = serialized_selection);
+        }
+
+        ui.add_space(4.0);
+
         if ui
             .add(
                 egui::Button::new(

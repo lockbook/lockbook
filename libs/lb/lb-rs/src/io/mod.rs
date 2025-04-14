@@ -1,4 +1,12 @@
+//! Members of this model are concerned with the details of IO, generally
+//! disk and network. This is the module any on-disk migrations will live
+//! and ideas around network, disk, and memory caches will be expressed.
+//! Code here should not be platform dependent, and should strive to be
+//! suitable for a range of devices: iPhones with flaky networks to servers
+//! and workstations with excellent networks.
+
 pub mod docs;
+pub mod network;
 
 use crate::model::account::Account;
 use crate::model::file_metadata::Owner;

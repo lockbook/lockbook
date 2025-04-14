@@ -1,6 +1,6 @@
 [package]
 name = "workspace"
-version = "0.9.18"
+version = "0.9.22"
 edition = "2021"
 
 [lib]
@@ -9,6 +9,8 @@ name = "workspace_rs"
 [dependencies]
 basic-human-duration = "0.2.0"
 bezier-rs = "0.2.0"
+color-art = "0.3.9"
+colors-transform = "0.2.11"
 egui = "0.28.1"
 egui_animation = "0.5.0"
 egui_extras = { version = "0.28.1" }
@@ -25,9 +27,7 @@ rayon = "1.10.0"
 resvg = "0.41.0"
 serde = { version = "1.0.171", features = ["derive"] }
 serde_json = "1.0.82"
-svgtypes = "0.13.0"
 unicode-segmentation = "1.10.0"
-usvg-parser = "0.36.0"
 chrono = "0.4"
 time = "0.3.20"
 tld = "2.35.0"

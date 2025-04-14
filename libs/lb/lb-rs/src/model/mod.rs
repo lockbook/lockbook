@@ -1,3 +1,10 @@
+//! Members of this module specialize in "pure" representation of ideas
+//! these could be just where our data model lives or could be expressions
+//! of complicated algorithmic or abstract ideas. If you're writing code
+//! in this module it's expected that you optimize for portability by not
+//! using IO, not using async, and generally staying away from locks. It's
+//! expected that code in this module is reasonably easy to test as well.
+
 pub mod access_info;
 pub mod account;
 pub mod api;
@@ -31,102 +38,3 @@ pub mod validate;
 pub mod work_unit;
 
 pub use lazy::ValidationFailure;
-
-use std::backtrace::Backtrace;
-use std::io;
-
-use db_rs::DbError;
-use hmac::crypto_mac::{InvalidKeyLength, MacError};
-use uuid::Uuid;
-
-pub type SharedResult<T> = Result<T, SharedError>;
-
-#[derive(Debug)]
-pub struct SharedError {
-    pub kind: SharedErrorKind,
-    pub backtrace: Option<Backtrace>,
-}
-
-impl From<SharedErrorKind> for SharedError {
-    fn from(kind: SharedErrorKind) -> Self {
-        Self { kind, backtrace: Some(Backtrace::force_capture()) }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum SharedErrorKind {
-    PathContainsEmptyFileName,
-    PathTaken,
-    RootNonexistent,
-    FileNonexistent,
-    FileNameContainsSlash,
-    RootModificationInvalid,
-    FileNameEmpty,
-    FileParentNonexistent,
-    FileNotFolder,
-    FileNotDocument,
-    SignatureInvalid,
-    WrongPublicKey,
-    KeyPhraseInvalid,
-    SignatureInTheFuture(u64),
-    SignatureExpired(u64),
-    BincodeError(String),
-    Encryption(aead::Error),
-    HmacCreationError(InvalidKeyLength),
-    Decryption(aead::Error),
-    HmacValidationError(MacError),
-    ParseError(libsecp256k1::Error),
-    ShareNonexistent,
-    DuplicateShare,
-    SharedSecretUnexpectedSize,
-    SharedSecretError(libsecp256k1::Error),
-    ValidationFailure(ValidationFailure),
-
-    /// Arises during a call to upsert, when the caller does not have the correct old version of the
-    /// File they're trying to modify
-    OldVersionIncorrect,
-
-    /// Arises during a call to upsert, when the old file is not known to the server
-    OldFileNotFound,
-
-    /// Arises during a call to upsert, when the caller suggests that a file is new, but the id already
-    /// exists
-    OldVersionRequired,
-
-    /// Arises during a call to upsert, when the person making the request is not an owner of the file
-    /// or has not signed the update
-    InsufficientPermission,
-
-    /// Arises during a call to upsert, when a diff's new.id != old.id
-    DiffMalformed,
-
-    /// Metas in upsert cannot contain changes to digest
-    HmacModificationInvalid,
-
-    /// Found update to a deleted file
-    DeletedFileUpdated(Uuid),
-
-    Io(String),
-
-    Db(String),
-
-    Unexpected(&'static str),
-}
-
-impl From<DbError> for SharedError {
-    fn from(value: DbError) -> Self {
-        SharedErrorKind::Db(format!("db error: {:?}", value)).into()
-    }
-}
-
-impl From<bincode::Error> for SharedError {
-    fn from(err: bincode::Error) -> Self {
-        SharedErrorKind::BincodeError(err.to_string()).into()
-    }
-}
-
-impl From<io::Error> for SharedError {
-    fn from(err: io::Error) -> Self {
-        SharedErrorKind::Io(err.to_string()).into()
-    }
-}
