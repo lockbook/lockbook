@@ -145,6 +145,7 @@ impl<'ast> MarkdownPlusPlus {
             // we include the leading and trailing whitespace in the editable
             // info string; the trimmed version is still used to determine the
             // language
+            // todo: probably want to render it to spec except in some uncapture situation
 
             let info_line_idx = self
                 .bounds

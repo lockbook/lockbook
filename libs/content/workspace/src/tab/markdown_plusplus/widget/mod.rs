@@ -13,6 +13,7 @@ pub(crate) mod inline;
 pub(crate) mod leaf_block;
 pub(crate) mod spacing;
 pub(crate) mod syntax;
+pub(crate) mod utils;
 
 pub const MARGIN: f32 = 20.0; // space between the editor and window border; must be large enough to accomodate bordered elements e.g. code blocks
 pub const MAX_WIDTH: f32 = 800.0; // the maximum width of the editor before it starts adding padding
@@ -489,24 +490,46 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
+    /// Returns the range between the start of the node and the start of its
+    /// first child, if there is one.
     fn prefix_range(&self, node: &'ast AstNode<'ast>) -> Option<(DocCharOffset, DocCharOffset)> {
         let range = self.sourcepos_to_range(node.data.borrow().sourcepos);
-        if let Some(first_child) = node.children().next() {
-            let first_child_range = self.sourcepos_to_range(first_child.data.borrow().sourcepos);
-            Some((range.start(), first_child_range.start()))
-        } else {
-            None
-        }
+        let first_child = node.children().next()?;
+        let first_child_range = self.sourcepos_to_range(first_child.data.borrow().sourcepos);
+        Some((range.start(), first_child_range.start()))
     }
 
+    /// Returns the range between the end of the node's last child if there is
+    /// one, and the end of the node.
     fn postfix_range(&self, node: &'ast AstNode<'ast>) -> Option<(DocCharOffset, DocCharOffset)> {
         let range = self.sourcepos_to_range(node.data.borrow().sourcepos);
-        if let Some(last_child) = node.children().last() {
-            let last_child_range = self.sourcepos_to_range(last_child.data.borrow().sourcepos);
-            Some((last_child_range.end(), range.end()))
-        } else {
-            None
-        }
+        let last_child = node.children().last()?;
+        let last_child_range = self.sourcepos_to_range(last_child.data.borrow().sourcepos);
+        Some((last_child_range.end(), range.end()))
+    }
+
+    /// Returns the range between the start of the node's first child and the
+    /// end of it's last child, if there are any children. For many nodes, this
+    /// is the content in the node.
+    fn infix_range(&self, node: &'ast AstNode<'ast>) -> Option<(DocCharOffset, DocCharOffset)> {
+        let first_child = node.children().next()?;
+        let first_child_range = self.sourcepos_to_range(first_child.data.borrow().sourcepos);
+        let last_child = node.children().last()?;
+        let last_child_range = self.sourcepos_to_range(last_child.data.borrow().sourcepos);
+        Some((first_child_range.start(), last_child_range.end()))
+    }
+
+    /// Convenience fn for getting multiple ranges since they are either all
+    /// [`Some`] or all [`None`].
+    #[allow(clippy::type_complexity)]
+    fn prefix_infix_postfix_ranges(
+        &self, node: &'ast AstNode<'ast>,
+    ) -> Option<(
+        (DocCharOffset, DocCharOffset),
+        (DocCharOffset, DocCharOffset),
+        (DocCharOffset, DocCharOffset),
+    )> {
+        Some((self.prefix_range(node)?, self.infix_range(node)?, self.postfix_range(node)?))
     }
 
     fn prefix_span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
@@ -561,5 +584,11 @@ impl<'ast> MarkdownPlusPlus {
                 false,
             );
         }
+    }
+
+    // additional helpers
+    pub fn node_intersects_selection(&self, node: &AstNode<'_>) -> bool {
+        self.sourcepos_to_range(node.data.borrow().sourcepos)
+            .intersects(&self.buffer.current.selection, true)
     }
 }
