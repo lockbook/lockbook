@@ -14,7 +14,6 @@ use galleys::Galleys;
 use input::cursor::CursorState;
 use input::mutation::EventState;
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset};
 use lb_rs::{blocking::Lb, Uuid};
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
@@ -241,6 +240,12 @@ impl MarkdownPlusPlus {
             "--------------------------------------------------------------------------------"
                 .bright_black()
         );
+        self.print_paragraphs_bounds();
+        println!(
+            "{}",
+            "--------------------------------------------------------------------------------"
+                .bright_black()
+        );
         println!(
             "                                                                 ast: {:?}",
             ast_elapsed
@@ -302,32 +307,6 @@ impl MarkdownPlusPlus {
         // );
 
         ui.allocate_space(desired_size);
-    }
-
-    // tired of writing ".buffer.current.segs" all the time
-    // todo: find a better home
-    pub fn offset_to_byte(&self, i: DocCharOffset) -> DocByteOffset {
-        self.buffer.current.segs.offset_to_byte(i)
-    }
-
-    pub fn range_to_byte(
-        &self, i: (DocCharOffset, DocCharOffset),
-    ) -> (DocByteOffset, DocByteOffset) {
-        self.buffer.current.segs.range_to_byte(i)
-    }
-
-    pub fn offset_to_char(&self, i: DocByteOffset) -> DocCharOffset {
-        self.buffer.current.segs.offset_to_char(i)
-    }
-
-    pub fn range_to_char(
-        &self, i: (DocByteOffset, DocByteOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
-        self.buffer.current.segs.range_to_char(i)
-    }
-
-    pub fn last_cursor_position(&self) -> DocCharOffset {
-        self.buffer.current.segs.last_cursor_position()
     }
 }
 
