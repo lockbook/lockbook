@@ -1,6 +1,5 @@
 use comrak::nodes::{
-    AstNode, NodeCode, NodeFootnoteReference, NodeHeading, NodeHtmlBlock, NodeLink, NodeList,
-    NodeMath, NodeValue,
+    AstNode, NodeFootnoteReference, NodeHeading, NodeHtmlBlock, NodeLink, NodeList, NodeValue,
 };
 use egui::{Pos2, TextFormat, Ui};
 use inline::text;
@@ -30,11 +29,12 @@ pub const BLOCK_SPACING: f32 = 10.0;
 pub struct WrapContext {
     pub offset: f32,
     pub width: f32,
+    pub row_height: f32, // overridden by headings
 }
 
 impl WrapContext {
     pub fn new(width: f32) -> Self {
-        Self { offset: 0.0, width }
+        Self { offset: 0.0, width, row_height: ROW_HEIGHT }
     }
 
     /// The index of the current line
@@ -335,7 +335,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(node_alert) => unimplemented!("not an inline"),
+            NodeValue::Alert(_) => unimplemented!("not an inline"),
             NodeValue::BlockQuote => unimplemented!("not an inline"),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -349,7 +349,7 @@ impl<'ast> MarkdownPlusPlus {
 
             // inline
             NodeValue::Image(_) => self.span_image(node, wrap),
-            NodeValue::Code(NodeCode { literal, .. }) => self.span_code(node, wrap, literal),
+            NodeValue::Code(_) => self.span_code(node, wrap),
             NodeValue::Emph => self.span_emph(node, wrap),
             NodeValue::Escaped => self.span_escaped(node, wrap),
             NodeValue::EscapedTag(_) => self.span_escaped_tag(node, wrap),
@@ -359,7 +359,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::HtmlInline(html) => self.span_html_inline(node, wrap, html),
             NodeValue::LineBreak => self.span_line_break(wrap),
             NodeValue::Link(_) => self.span_link(node, wrap),
-            NodeValue::Math(NodeMath { literal, .. }) => self.span_math(node, wrap, literal),
+            NodeValue::Math(_) => self.span_math(node, wrap),
             NodeValue::SoftBreak => self.span_soft_break(wrap),
             NodeValue::SpoileredText => self.span_spoilered_text(node, wrap),
             NodeValue::Strikethrough => self.span_strikethrough(node, wrap),
@@ -422,7 +422,7 @@ impl<'ast> MarkdownPlusPlus {
 
         let span = tmp_wrap.offset - wrap.offset;
         let rows = (span / wrap.width).ceil();
-        rows * self.row_height(node) + (rows - 1.) * ROW_SPACING
+        rows * wrap.row_height + (rows - 1.) * ROW_SPACING
     }
 
     fn show_inline(
@@ -433,7 +433,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(node_alert) => unimplemented!("not an inline"),
+            NodeValue::Alert(_) => unimplemented!("not an inline"),
             NodeValue::BlockQuote => unimplemented!("not an inline"),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -550,39 +550,45 @@ impl<'ast> MarkdownPlusPlus {
 
     fn circumfix_span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
         let mut tmp_wrap = wrap.clone();
-        tmp_wrap.offset += self.prefix_span(node, &tmp_wrap);
+        if self.node_intersects_selection(node) {
+            tmp_wrap.offset += self.prefix_span(node, &tmp_wrap);
+        }
         tmp_wrap.offset += self.inline_children_span(node, &tmp_wrap);
-        tmp_wrap.offset += self.postfix_span(node, &tmp_wrap);
+        if self.node_intersects_selection(node) {
+            tmp_wrap.offset += self.postfix_span(node, &tmp_wrap);
+        }
         tmp_wrap.offset - wrap.offset
     }
 
     fn show_circumfix(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
     ) {
-        if let Some(prefix_range) = self.prefix_range(node) {
-            self.show_text_line(
-                ui,
-                top_left,
-                wrap,
-                prefix_range,
-                self.row_height(node),
-                self.text_format_syntax(node),
-                false,
-            );
+        if self.node_intersects_selection(node) {
+            if let Some(prefix_range) = self.prefix_range(node) {
+                self.show_text_line(
+                    ui,
+                    top_left,
+                    wrap,
+                    prefix_range,
+                    self.text_format_syntax(node),
+                    false,
+                );
+            }
         }
 
         self.show_inline_children(ui, node, top_left, wrap);
 
-        if let Some(postfix_range) = self.postfix_range(node) {
-            self.show_text_line(
-                ui,
-                top_left,
-                wrap,
-                postfix_range,
-                self.row_height(node),
-                self.text_format_syntax(node),
-                false,
-            );
+        if self.node_intersects_selection(node) {
+            if let Some(postfix_range) = self.postfix_range(node) {
+                self.show_text_line(
+                    ui,
+                    top_left,
+                    wrap,
+                    postfix_range,
+                    self.text_format_syntax(node),
+                    false,
+                );
+            }
         }
     }
 

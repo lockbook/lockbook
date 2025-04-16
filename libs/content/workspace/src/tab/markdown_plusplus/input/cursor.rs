@@ -56,6 +56,7 @@ impl MarkdownPlusPlus {
 
             // draw cursor (todo: move to cursor.rs)
             // we need to only draw the cursor for the later galley (prefer next row)
+            // todo: improve cursor rendering at the end of inline code segments and similar constructs
             if !cursor_drawn && range.contains(cursor, true, true) {
                 let cursor = galley.from_ccursor(CCursor {
                     index: (selection.1 - range.start()).0,

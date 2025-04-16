@@ -39,6 +39,7 @@ impl<'ast> MarkdownPlusPlus {
     // https://github.github.com/gfm/#setext-headings
     fn height_setext_heading(&self, node: &'ast AstNode<'ast>, width: f32, level: u8) -> f32 {
         let mut wrap = WrapContext::new(width);
+        wrap.row_height = self.row_height(node);
 
         {
             let postfix_range = self
@@ -69,6 +70,7 @@ impl<'ast> MarkdownPlusPlus {
     // https://github.github.com/gfm/#atx-headings
     fn height_atx_heading(&self, node: &'ast AstNode<'ast>, width: f32, level: u8) -> f32 {
         let mut wrap = WrapContext::new(width);
+        wrap.row_height = self.row_height(node);
 
         if let Some((prefix_range, _, postfix_range)) = self.prefix_infix_postfix_ranges(node) {
             if self.node_intersects_selection(node) {
@@ -116,6 +118,7 @@ impl<'ast> MarkdownPlusPlus {
         level: u8,
     ) {
         let mut wrap = WrapContext::new(width);
+        wrap.row_height = self.row_height(node);
 
         {
             let (_, infix_range, postfix_range) = self
@@ -131,7 +134,6 @@ impl<'ast> MarkdownPlusPlus {
                         top_left,
                         &mut wrap,
                         postfix_line_range,
-                        self.row_height(node),
                         self.text_format_syntax(node),
                         false,
                     );
@@ -145,7 +147,7 @@ impl<'ast> MarkdownPlusPlus {
 
         top_left.y += {
             let rows = (wrap.offset / width).ceil();
-            rows * self.row_height(node) + (rows - 1.) * ROW_SPACING
+            rows * wrap.row_height + (rows - 1.) * ROW_SPACING
         };
         if level == 1 {
             self.show_heading_rule(ui, top_left, width);
@@ -158,6 +160,7 @@ impl<'ast> MarkdownPlusPlus {
         level: u8,
     ) {
         let mut wrap = WrapContext::new(width);
+        wrap.row_height = self.row_height(node);
 
         if let Some((prefix_range, _, postfix_range)) = self.prefix_infix_postfix_ranges(node) {
             if self.node_intersects_selection(node) {
@@ -166,7 +169,6 @@ impl<'ast> MarkdownPlusPlus {
                     top_left,
                     &mut wrap,
                     prefix_range,
-                    self.row_height(node),
                     self.text_format_syntax(node),
                     false,
                 );
@@ -178,16 +180,17 @@ impl<'ast> MarkdownPlusPlus {
                 self.bounds.paragraphs.push(infix_range);
             }
 
-            if self.node_intersects_selection(node) && !postfix_range.is_empty() {
+            if self.node_intersects_selection(node) {
                 self.show_text_line(
                     ui,
                     top_left,
                     &mut wrap,
                     postfix_range,
-                    self.row_height(node),
                     self.text_format_syntax(node),
                     false,
                 );
+            }
+            if !postfix_range.is_empty() {
                 self.bounds.paragraphs.push(postfix_range);
             }
         } else {
@@ -198,7 +201,6 @@ impl<'ast> MarkdownPlusPlus {
                 top_left,
                 &mut wrap,
                 range,
-                self.row_height(node),
                 self.text_format_syntax(node),
                 false,
             );
@@ -207,7 +209,7 @@ impl<'ast> MarkdownPlusPlus {
 
         top_left.y += {
             let rows = (wrap.offset / width).ceil();
-            rows * self.row_height(node) + (rows - 1.) * ROW_SPACING
+            rows * wrap.row_height + (rows - 1.) * ROW_SPACING
         };
         if level == 1 {
             self.show_heading_rule(ui, top_left, width);

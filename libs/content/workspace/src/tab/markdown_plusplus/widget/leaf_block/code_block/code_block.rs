@@ -267,7 +267,6 @@ impl<'ast> MarkdownPlusPlus {
                             code_top_left,
                             &mut wrap,
                             self.sourcepos_to_range(sourcepos),
-                            self.row_height(node).max(ROW_HEIGHT),
                             text_format,
                             false,
                         );

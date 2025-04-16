@@ -165,7 +165,7 @@ impl MarkdownPlusPlus {
         options.parse.smart = true;
         options.extension.alerts = true;
         options.extension.autolink = true;
-        options.extension.description_lists = false; // not GFM https://github.com/github/cmark-gfm/issues/135
+        options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
         options.extension.footnotes = true;
         options.extension.front_matter_delimiter = None; // todo: is this a good place for metadata?
         options.extension.greentext = true;
@@ -183,6 +183,7 @@ impl MarkdownPlusPlus {
         options.extension.underline = true;
         options.extension.wikilinks_title_after_pipe = true; // matches obsidian
         options.extension.wikilinks_title_before_pipe = false; // would not match obsidian
+        options.render.escaped_char_spans = true;
         let root = comrak::parse_document(&arena, &self.buffer.current.text, &options);
 
         let ast_elapsed = start.elapsed();
@@ -384,7 +385,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
     fonts
         .font_data
         .insert("sans".to_string(), FontData::from_static(sans));
-    fonts.font_data.insert("mono".to_owned(), {
+    fonts.font_data.insert("mono".into(), {
         FontData {
             tweak: FontTweak {
                 y_offset_factor: 0.1,
@@ -398,7 +399,19 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
     fonts
         .font_data
         .insert("bold".to_string(), FontData::from_static(bold));
-    fonts.font_data.insert("material_icons".to_owned(), {
+    fonts.font_data.insert("super".into(), {
+        FontData {
+            tweak: FontTweak { y_offset_factor: -1. / 3., scale: 2. / 3., ..Default::default() },
+            ..FontData::from_static(sans)
+        }
+    });
+    fonts.font_data.insert("sub".into(), {
+        FontData {
+            tweak: FontTweak { y_offset_factor: 1. / 3., scale: 2. / 3., ..Default::default() },
+            ..FontData::from_static(sans)
+        }
+    });
+    fonts.font_data.insert("material_icons".into(), {
         let mut font = FontData::from_static(icons);
         font.tweak.y_offset_factor = -0.1;
         font
@@ -406,7 +419,13 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
 
     fonts
         .families
-        .insert(FontFamily::Name(Arc::from("Bold")), vec!["bold".to_string()]);
+        .insert(FontFamily::Name(Arc::from("Bold")), vec!["bold".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("Super")), vec!["super".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("Sub")), vec!["sub".into()]);
 
     fonts
         .families

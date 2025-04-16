@@ -31,7 +31,6 @@ impl<'ast> MarkdownPlusPlus {
                 top_left,
                 &mut WrapContext::new(width),
                 range,
-                ROW_HEIGHT,
                 self.text_format_document(),
                 false,
             );
@@ -65,7 +64,6 @@ impl<'ast> MarkdownPlusPlus {
                 top_left,
                 &mut WrapContext::new(width),
                 range,
-                ROW_HEIGHT,
                 self.text_format_document(),
                 false,
             );
