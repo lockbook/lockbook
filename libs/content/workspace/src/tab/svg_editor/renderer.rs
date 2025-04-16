@@ -16,8 +16,10 @@ use rayon::prelude::*;
 use resvg::usvg::{ImageKind, Transform};
 use tracing::{span, Level};
 
+use crate::tab::svg_editor::gesture_handler::get_zoom_fit_transform;
 use crate::theme::palette::ThemePalette;
 
+use super::util::transform_rect;
 use super::Buffer;
 
 const STROKE_WIDTH: AttributeIndex = 0;
@@ -50,11 +52,21 @@ pub struct Renderer {
     mesh_cache: HashMap<Uuid, MeshShape>,
     tex_cache: HashMap<Uuid, TextureHandle>,
     dark_mode: bool,
+    fit_content_transform: Option<Transform>,
+    request_rerender: bool,
 }
 
+pub struct RendererOutput {
+    pub diff_state: DiffState,
+    pub maybe_tight_fit_transform: Option<Transform>,
+}
 struct MeshShape {
     shape: Mesh,
     scale: f32,
+}
+#[derive(Clone, Copy, Default)]
+pub struct RenderOptions {
+    pub tight_fit_mode: bool,
 }
 
 impl Renderer {
@@ -63,12 +75,15 @@ impl Renderer {
             mesh_cache: HashMap::with_capacity(elements_count),
             tex_cache: HashMap::new(),
             dark_mode: false,
+            fit_content_transform: None,
+            request_rerender: true,
         }
     }
 
     pub fn render_svg(
         &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, painter: &mut egui::Painter,
-    ) -> DiffState {
+        render_options: RenderOptions,
+    ) -> RendererOutput {
         let frame = ui.ctx().frame_nr();
         let span = span!(Level::TRACE, "rendering svg", frame);
         let _ = span.enter();
@@ -77,11 +92,24 @@ impl Renderer {
         let dark_mode_changed = ui.visuals().dark_mode != self.dark_mode;
         self.dark_mode = ui.visuals().dark_mode;
 
+        let new_fit_transform = if render_options.tight_fit_mode {
+            get_zoom_fit_transform(buffer, painter.clip_rect())
+        } else {
+            None
+        };
+        let mut fit_content_transform_changed = false;
+
+        // todo: don't re-tess on viewport user pan or zoom.
+        if new_fit_transform != self.fit_content_transform {
+            self.fit_content_transform = new_fit_transform;
+            fit_content_transform_changed = true;
+        }
+
         let paint_ops: Vec<(Uuid, RenderOp)> = buffer
             .elements
             .par_iter_mut()
             .filter_map(|(id, el)| -> Option<(Uuid, RenderOp<'_>)> {
-                if el.deleted() && el.delete_changed() {
+                if el.deleted() {
                     return Some((*id, RenderOp::Delete));
                 };
 
@@ -92,7 +120,7 @@ impl Renderer {
                         {
                             let current_el_scale = path.transform.sx * buffer.master_transform.sx;
                             let diff = current_el_scale.max(*scale) / current_el_scale.min(*scale);
-                            diff > 5.0
+                            diff > 5.0 && !render_options.tight_fit_mode
                         } else {
                             false
                         };
@@ -103,7 +131,9 @@ impl Renderer {
                                 && !path.diff_state.delete_changed
                                 && path.diff_state.transformed.is_none()
                                 && !dark_mode_changed
-                                && !stale_mesh)
+                                && !stale_mesh
+                                && !self.request_rerender
+                                && !fit_content_transform_changed)
                         {
                             return None;
                         }
@@ -113,12 +143,14 @@ impl Renderer {
                                 return Some((*id, RenderOp::Transform(transform)));
                             }
                         }
+
                         tesselate_path(
                             path,
                             id,
                             ui.visuals().dark_mode,
                             frame,
                             buffer.master_transform,
+                            self.fit_content_transform,
                         )
                     }
                     Element::Image(image) => {
@@ -128,7 +160,9 @@ impl Renderer {
                             || (!image.diff_state.opacity_changed
                                 && !image.diff_state.data_changed
                                 && !image.diff_state.delete_changed
-                                && image.diff_state.transformed.is_none())
+                                && image.diff_state.transformed.is_none()
+                                && !self.request_rerender
+                                && !fit_content_transform_changed)
                         {
                             return None;
                         }
@@ -158,6 +192,9 @@ impl Renderer {
                     self.mesh_cache.insert(id.to_owned(), m);
                 }
                 RenderOp::Transform(t) => {
+                    if render_options.tight_fit_mode && buffer.master_transform_changed {
+                        continue;
+                    }
                     diff_state.transformed = Some(t);
                     if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(&id) {
                         for v in &mut shape.vertices {
@@ -168,19 +205,20 @@ impl Renderer {
                 }
                 RenderOp::ForwordImage(img) => {
                     diff_state.data_changed = true;
-                    self.alloc_image_mesh(id, img, ui);
+                    self.alloc_image_mesh(id, img, ui, self.fit_content_transform);
                 }
             }
         }
-
         if !self.mesh_cache.is_empty() {
-            painter.extend(buffer.elements.iter_mut().rev().filter_map(|(id, el)| {
-                match el {
-                    Element::Path(p) => p.diff_state = DiffState::default(),
-                    Element::Image(i) => i.diff_state = DiffState::default(),
-                    Element::Text(_) => todo!(),
-                }
+            painter.extend(buffer.elements.iter_mut().rev().filter_map(|(id, _)| {
                 if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(id) {
+                    let shape_rect = shape.calc_bounds();
+                    if !painter.clip_rect().contains_rect(shape_rect)
+                        && !painter.clip_rect().intersects(shape_rect)
+                    {
+                        return None;
+                    }
+
                     if !shape.vertices.is_empty() && !shape.indices.is_empty() {
                         Some(egui::Shape::mesh(shape.to_owned()))
                     } else {
@@ -192,10 +230,14 @@ impl Renderer {
             }));
         };
 
-        diff_state
+        self.request_rerender = false;
+
+        RendererOutput { diff_state, maybe_tight_fit_transform: self.fit_content_transform }
     }
 
-    fn alloc_image_mesh(&mut self, id: Uuid, img: &mut Image, ui: &mut egui::Ui) {
+    fn alloc_image_mesh(
+        &mut self, id: Uuid, img: &mut Image, ui: &mut egui::Ui, fit_transform: Option<Transform>,
+    ) {
         match &img.data {
             ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
                 let image = image::load_from_memory(bytes).unwrap();
@@ -216,10 +258,14 @@ impl Renderer {
 
                 let texture = self.tex_cache.get(&id).unwrap();
 
-                let rect = egui::Rect {
+                let mut rect = egui::Rect {
                     min: egui::pos2(img.view_box.left(), img.view_box.top()),
                     max: egui::pos2(img.view_box.right(), img.view_box.bottom()),
                 };
+                if let Some(t) = fit_transform {
+                    rect = transform_rect(rect, t)
+                }
+
                 let uv = egui::Rect {
                     min: egui::Pos2 { x: 0.0, y: 0.0 },
                     max: egui::Pos2 { x: 1.0, y: 1.0 },
@@ -241,6 +287,7 @@ impl Renderer {
 // todo: maybe impl this on element struct
 fn tesselate_path<'a>(
     p: &'a mut Path, id: &'a Uuid, dark_mode: bool, frame: u64, master_transform: Transform,
+    fit_transform: Option<Transform>,
 ) -> Option<(Uuid, RenderOp<'a>)> {
     let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
     let mut stroke_tess = StrokeTessellator::new();
@@ -262,7 +309,18 @@ fn tesselate_path<'a>(
         let mut i = 0;
 
         while let Some(seg) = p.data.get_segment(i) {
-            let thickness = stroke.width * p.transform.sx * master_transform.sx;
+            let mut thickness = stroke.width * p.transform.sx;
+            if fit_transform.is_some() {
+                thickness *= 0.5;
+                thickness = thickness.max(0.5);
+            } else {
+                thickness *= master_transform.sx
+            }
+            let t = fit_transform.unwrap_or_default();
+            let seg = seg.apply_transformation(|p| DVec2 {
+                x: t.sx as f64 * p.x + t.tx as f64,
+                y: t.sy as f64 * p.y + t.ty as f64,
+            });
 
             let start = devc_to_point(seg.start());
             let end = devc_to_point(seg.end());

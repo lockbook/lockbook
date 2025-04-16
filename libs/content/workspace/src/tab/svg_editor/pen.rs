@@ -507,7 +507,7 @@ fn correct_start_of_path() {
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_touch_frame: true,
-        settings: crate::tab::svg_editor::CanvasSettings::default(),
+        settings: &mut crate::tab::svg_editor::CanvasSettings::default(),
         is_locked_vw_pen_only: false,
     };
 
@@ -561,7 +561,7 @@ fn cancel_touch_ui_event() {
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_touch_frame: true,
-        settings: crate::tab::svg_editor::CanvasSettings::default(),
+        settings: &mut crate::tab::svg_editor::CanvasSettings::default(),
         is_locked_vw_pen_only: false,
     };
 
