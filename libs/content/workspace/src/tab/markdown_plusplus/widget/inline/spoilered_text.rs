@@ -10,12 +10,12 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn span_spoilered_text(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
-        self.inline_children_span(node, wrap)
+        self.circumfix_span(node, wrap)
     }
 
     pub fn show_spoilered_text(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
     ) {
-        self.show_inline_children(ui, node, top_left, wrap);
+        self.show_circumfix(ui, node, top_left, wrap);
     }
 }

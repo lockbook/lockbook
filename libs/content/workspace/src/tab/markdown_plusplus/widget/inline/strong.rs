@@ -9,7 +9,6 @@ impl<'ast> MarkdownPlusPlus {
     pub fn text_format_strong(&self, parent: &AstNode<'_>) -> TextFormat {
         let parent_text_format = self.text_format(parent);
         TextFormat {
-            color: self.theme.fg().neutral_primary,
             font_id: FontId {
                 family: FontFamily::Name(Arc::from("Bold")),
                 ..parent_text_format.font_id
