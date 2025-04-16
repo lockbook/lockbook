@@ -26,6 +26,7 @@ pub struct Buffer {
     pub elements: IndexMap<Uuid, Element>,
     pub weak_images: WeakImages,
     pub master_transform: Transform,
+    pub master_transform_changed: bool,
     pub id_map: HashMap<Uuid, String>,
 }
 
@@ -54,7 +55,7 @@ impl Buffer {
             });
         }
 
-        Self { elements, master_transform, id_map, weak_images }
+        Self { elements, master_transform, id_map, weak_images, master_transform_changed: false }
     }
 
     pub fn reload(

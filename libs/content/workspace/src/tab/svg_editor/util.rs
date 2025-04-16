@@ -5,6 +5,7 @@ use super::element::BoundedElement;
 use bezier_rs::{Bezier, Subpath};
 use egui::TouchPhase;
 use lb_rs::model::svg::element::{Element, ManipulatorGroupId};
+use resvg::usvg::Transform;
 
 pub fn pointer_intersects_element(
     el: &Element, pos: egui::Pos2, last_pos: Option<egui::Pos2>, error_radius: f64,
@@ -74,6 +75,18 @@ pub fn pointer_intersects_outline(
         .is_empty();
 
     intersects_delete_brush || is_inside_delete_brush
+}
+
+pub fn transform_rect(rect: egui::Rect, t: Transform) -> egui::Rect {
+    let mut t_rect = rect;
+
+    t_rect.min.x = t.sx * t_rect.min.x + t.tx;
+    t_rect.max.x = t.sx * t_rect.max.x + t.tx;
+
+    t_rect.min.y = t.sy * t_rect.min.y + t.ty;
+    t_rect.max.y = t.sy * t_rect.max.y + t.ty;
+
+    t_rect
 }
 
 pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {

@@ -6,11 +6,13 @@ use lb_rs::model::svg::{
     buffer::{get_highlighter_colors, get_pen_colors},
     element::DynamicColor,
 };
+use resvg::usvg::Transform;
 
 use crate::{
     theme::{icons::Icon, palette::ThemePalette},
     widgets::{switch, Button},
 };
+const SCREEN_PADDING: f32 = 20.0;
 
 use super::{
     eraser::DEFAULT_ERASER_RADIUS,
@@ -19,14 +21,15 @@ use super::{
     },
     history::History,
     pen::{DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
+    renderer::{RenderOptions, Renderer},
     selection::Selection,
+    util::transform_rect,
     Buffer, CanvasSettings, Eraser, Pen,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
 const THICKNESS_BTN_WIDTH: f32 = 25.0;
 
-#[derive(Default)]
 pub struct Toolbar {
     pub active_tool: Tool,
     pub pen: Pen,
@@ -38,15 +41,22 @@ pub struct Toolbar {
 
     hide_overlay: bool,
     pub show_tool_controls: bool,
-    pub show_viewport_popover: bool,
     layout: ToolbarLayout,
+    pub viewport_popover: Option<ViewportPopover>,
+    renderer: Renderer,
 }
 
+#[derive(Copy, Clone)]
+pub enum ViewportPopover {
+    MiniMap,
+    More,
+}
 #[derive(Default)]
 struct ToolbarLayout {
     tools_island: Option<egui::Rect>,
     history_island: Option<egui::Rect>,
     viewport_island: Option<egui::Rect>,
+    viewport_popover: Option<egui::Rect>,
     tool_controls: Option<egui::Rect>,
     overlay_toggle: Option<egui::Rect>,
 }
@@ -65,8 +75,15 @@ pub struct ToolContext<'a> {
     pub history: &'a mut History,
     pub allow_viewport_changes: &'a mut bool,
     pub is_touch_frame: bool,
-    pub settings: CanvasSettings,
+    pub settings: &'a mut CanvasSettings,
     pub is_locked_vw_pen_only: bool,
+}
+
+pub struct ToolbarContext<'a> {
+    pub painter: &'a mut egui::Painter,
+    pub buffer: &'a mut Buffer,
+    pub history: &'a mut History,
+    pub settings: &'a mut CanvasSettings,
 }
 
 macro_rules! set_tool {
@@ -105,22 +122,31 @@ impl Toolbar {
         self.set_tool(new_tool);
     }
 
-    pub fn new() -> Self {
+    pub fn new(elements_count: usize) -> Self {
         let mut toolbar = Toolbar {
             pen: Pen::new(get_pen_colors()[0], DEFAULT_PEN_STROKE_WIDTH),
             highlighter: Pen::new(get_highlighter_colors()[0], DEFAULT_HIGHLIGHTER_STROKE_WIDTH),
-            ..Default::default()
+            renderer: Renderer::new(elements_count),
+            active_tool: Default::default(),
+            eraser: Default::default(),
+            selection: Default::default(),
+            previous_tool: Default::default(),
+            gesture_handler: Default::default(),
+            hide_overlay: Default::default(),
+            show_tool_controls: Default::default(),
+            layout: Default::default(),
+            viewport_popover: Default::default(),
         };
+
         toolbar.highlighter.active_opacity = 0.1;
         toolbar.pen.active_opacity = 1.0;
         toolbar
     }
 
     pub fn show(
-        &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, history: &mut History,
-        skip_frame: &mut bool, inner_rect: egui::Rect,
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext, skip_frame: &mut bool,
     ) {
-        self.handle_keyboard_shortcuts(ui, history, buffer);
+        self.handle_keyboard_shortcuts(ui, tlbr_ctx.history, tlbr_ctx.buffer);
 
         let toolbar_margin = egui::Margin::symmetric(15.0, 7.0);
         ui.visuals_mut().window_rounding = egui::Rounding::same(30.0);
@@ -146,23 +172,23 @@ impl Toolbar {
             ui.visuals_mut().window_fill = ui.visuals().extreme_bg_color;
         }
 
-        let opacity = animate_eased(
-            ui.ctx(),
-            "overlay_opacity",
-            if self.hide_overlay { 0.0 } else { 1.0 },
-            0.3,
-            easing::cubic_in_out,
-        );
+        // let opacity = animate_eased(
+        //     ui.ctx(),
+        //     "overlay_opacity",
+        //     if self.hide_overlay { 0.0 } else { 1.0 },
+        //     0.3,
+        //     easing::cubic_in_out,
+        // );
+        let opacity = if self.hide_overlay { 0.0 } else { 1.0 };
 
         ui.set_opacity(opacity);
 
-        let history_island = self.show_history_island(ui, history, buffer);
-        let viewport_island = self.show_viewport_island(ui, buffer);
+        let history_island = self.show_history_island(ui, tlbr_ctx);
 
         let overlay_toggle_res = ui
             .scope(|ui| {
                 ui.set_opacity(1.0);
-                self.show_overlay_toggle(ui, inner_rect)
+                self.show_overlay_toggle(ui)
             })
             .inner;
 
@@ -176,8 +202,10 @@ impl Toolbar {
             return;
         }
 
+        let viewport_island = self.show_viewport_island(ui, tlbr_ctx);
+
         let tools_island = self.show_tools_island(ui);
-        let tool_controls_res = self.show_tool_controls(ui, buffer);
+        let tool_controls_res = self.show_tool_controls(ui, tlbr_ctx);
 
         let mut overlay_res = history_island;
         if let Some(res) = tool_controls_res {
@@ -198,14 +226,12 @@ impl Toolbar {
     fn show_tools_island(
         &mut self, ui: &mut egui::Ui,
     ) -> InnerResponse<InnerResponse<InnerResponse<()>>> {
-        let outer_margin = 20.0;
-
         let tools_island_size = self.layout.tools_island.unwrap_or(egui::Rect::ZERO).size();
 
         let tools_island_x_start = ui.available_rect_before_wrap().left()
             + (ui.available_width() - tools_island_size.x) / 2.0;
         let tools_island_y_start =
-            ui.available_rect_before_wrap().bottom() - outer_margin - tools_island_size.y;
+            ui.available_rect_before_wrap().bottom() - SCREEN_PADDING - tools_island_size.y;
 
         let tools_island_rect = egui::Rect {
             min: egui::pos2(tools_island_x_start, tools_island_y_start),
@@ -302,7 +328,9 @@ impl Toolbar {
         res
     }
 
-    fn show_viewport_island(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) -> Option<Response> {
+    fn show_viewport_island(
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
+    ) -> Option<Response> {
         let history_island = match self.layout.history_island {
             Some(val) => val,
             None => return None,
@@ -322,10 +350,11 @@ impl Toolbar {
                     .inner_margin(egui::Margin::symmetric(7.5, 3.5))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            let zoom_percentage =
-                                ((buffer.master_transform.sx + buffer.master_transform.sy) / 2.0
-                                    * 100.0)
-                                    .round();
+                            let zoom_percentage = ((tlbr_ctx.buffer.master_transform.sx
+                                + tlbr_ctx.buffer.master_transform.sy)
+                                / 2.0
+                                * 100.0)
+                                .round();
 
                             let mut requested_zoom_change = None;
 
@@ -345,7 +374,7 @@ impl Toolbar {
                                 };
                                 requested_zoom_change = Some(zoom_percentage_to_transform(
                                     target_zoom_percentage,
-                                    buffer,
+                                    tlbr_ctx.buffer,
                                     ui,
                                 ));
                             }
@@ -356,7 +385,7 @@ impl Toolbar {
                                 .clicked()
                             {
                                 requested_zoom_change =
-                                    Some(zoom_percentage_to_transform(100.0, buffer, ui));
+                                    Some(zoom_percentage_to_transform(100.0, tlbr_ctx.buffer, ui));
                             }
 
                             if Button::default().icon(&Icon::ZOOM_IN).show(ui).clicked() {
@@ -368,18 +397,32 @@ impl Toolbar {
                                 };
                                 requested_zoom_change = Some(zoom_percentage_to_transform(
                                     target_zoom_percentage,
-                                    buffer,
+                                    tlbr_ctx.buffer,
                                     ui,
                                 ));
                             };
 
                             if let Some(t) = requested_zoom_change {
-                                transform_canvas(buffer, t);
+                                transform_canvas(tlbr_ctx.buffer, t);
                             };
-
+                            ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
+                            if Button::default()
+                                .icon(&Icon::EXPLORE.size(13.0))
+                                .show(ui)
+                                .clicked()
+                            {
+                                let new_popover = match &self.viewport_popover {
+                                    Some(current_popover) => match current_popover {
+                                        ViewportPopover::MiniMap => None,
+                                        ViewportPopover::More => Some(ViewportPopover::MiniMap),
+                                    },
+                                    None => Some(ViewportPopover::MiniMap),
+                                };
+                                self.viewport_popover = new_popover;
+                            }
                             ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
 
-                            let icon = if self.show_viewport_popover {
+                            let icon = if let Some(ViewportPopover::More) = self.viewport_popover {
                                 Icon::ARROW_UP
                             } else {
                                 Icon::ARROW_DOWN
@@ -387,9 +430,16 @@ impl Toolbar {
                             let more_btn = Button::default().icon(&icon).show(ui);
 
                             if more_btn.clicked() || more_btn.drag_started() {
-                                self.show_viewport_popover = !self.show_viewport_popover;
+                                let new_popover = match &self.viewport_popover {
+                                    Some(current_popover) => match current_popover {
+                                        ViewportPopover::MiniMap => Some(ViewportPopover::More),
+                                        ViewportPopover::More => None,
+                                    },
+                                    None => Some(ViewportPopover::More),
+                                };
+                                self.viewport_popover = new_popover;
                             }
-                            toggle_popver_btn = Some(more_btn)
+                            toggle_popver_btn = Some(more_btn);
                         })
                     })
             })
@@ -397,129 +447,185 @@ impl Toolbar {
             .response;
 
         self.layout.viewport_island = Some(island_res.rect);
+        let viewport_island_rect = island_res.rect;
 
         let opacity = animate_eased(
             ui.ctx(),
             "vw_popover_opacity",
-            if !self.show_viewport_popover || self.hide_overlay { 0.0 } else { 1.0 },
+            if self.viewport_popover.is_none() || self.hide_overlay { 0.0 } else { 1.0 },
             0.2,
             easing::cubic_in_out,
         );
         ui.scope(|ui| {
             ui.set_opacity(opacity);
-            if self.show_viewport_popover {
-                let origin_rect = if let Some(res) = toggle_popver_btn {
-                    res.rect
-                } else {
-                    self.layout.viewport_island.unwrap_or(egui::Rect::ZERO)
-                };
+            if let Some(popover) = self.viewport_popover {
+                let popover_length = viewport_island_rect.width();
 
-                let popover_length = 200.0;
+                let min =
+                    egui::pos2(viewport_island_rect.left(), viewport_island_rect.bottom() + 10.0);
 
-                let min = egui::pos2(
-                    (origin_rect.center().x - popover_length / 2.0)
-                        .max(ui.painter().clip_rect().left() + 20.0),
-                    self.layout
-                        .viewport_island
-                        .unwrap_or(egui::Rect::ZERO)
-                        .bottom()
-                        + 10.0,
-                );
-
-                let popover_rect =
-                    egui::Rect { min, max: egui::pos2(min.x + popover_length, min.y) };
+                let popover_rect = egui::Rect { min, max: min };
 
                 let popver_res = ui
                     .allocate_ui_at_rect(popover_rect, |ui| {
                         egui::Frame::window(ui.style()).show(ui, |ui| {
-                            ui.set_width(popover_length);
+                            ui.set_min_width(
+                                popover_length
+                                    - ui.style().spacing.window_margin.left
+                                    - ui.style().spacing.window_margin.right,
+                            );
                             ui.spacing_mut().interact_size.y /= 1.5;
 
-                            ui.add_space(10.0);
-
-                            ui.scope(|ui| {
-                                ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
-                                ui.visuals_mut().override_text_color =
-                                    Some(ui.visuals().widgets.active.bg_fill);
-                                if Button::default()
-                                    .text("Zoom to fit content")
-                                    .show(ui)
-                                    .clicked()
-                                {
-                                    if let Some(t) = get_zoom_fit_transform(buffer, ui) {
-                                        transform_canvas(buffer, t);
-                                    }
-                                };
-                            });
-
-                            ui.add_space(5.0);
-                            ui.separator();
-                            ui.add_space(15.0);
-
-                            ui.horizontal(|ui| {
-                                ui.label("Panorama Mode");
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        if switch(ui, &mut self.gesture_handler.is_pan_y_locked)
-                                            .changed()
-                                        {
-                                            if self.gesture_handler.is_pan_x_locked {
-                                                self.gesture_handler.is_pan_x_locked = false;
-                                            }
-                                            self.gesture_handler.is_zoom_locked =
-                                                self.gesture_handler.is_pan_y_locked;
-                                        }
-                                    },
-                                );
-                            });
-                            ui.add_space(10.0);
-
-                            ui.horizontal(|ui| {
-                                ui.label("Page Mode");
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        if switch(ui, &mut self.gesture_handler.is_pan_x_locked)
-                                            .changed()
-                                        {
-                                            if self.gesture_handler.is_pan_y_locked {
-                                                self.gesture_handler.is_pan_y_locked = false;
-                                            }
-                                            self.gesture_handler.is_zoom_locked =
-                                                self.gesture_handler.is_pan_x_locked;
-                                        }
-                                    },
-                                );
-                            });
-                            ui.add_space(10.0)
+                            match popover {
+                                ViewportPopover::MiniMap => {
+                                    self.show_minimap(tlbr_ctx, ui);
+                                }
+                                ViewportPopover::More => self.show_more_popover(ui, tlbr_ctx),
+                            };
                         })
                     })
                     .inner
                     .response;
+                self.layout.viewport_popover = Some(popver_res.rect);
+
                 island_res = island_res.union(popver_res)
             }
         });
 
         Some(island_res)
     }
-    fn show_overlay_toggle(&mut self, ui: &mut egui::Ui, clip_rect: egui::Rect) -> Response {
+
+    fn show_minimap(&mut self, tlbr_ctx: &mut ToolbarContext<'_>, ui: &mut egui::Ui) {
+        let screen_viewport = ui.clip_rect();
+
+        let (res, mut painter) = ui.allocate_painter(
+            egui::vec2(ui.available_width(), 150.0),
+            egui::Sense::click_and_drag(),
+        );
+
+        let out = self.renderer.render_svg(
+            ui,
+            tlbr_ctx.buffer,
+            &mut painter,
+            RenderOptions { tight_fit_mode: true },
+        );
+        if let Some(t) = out.maybe_tight_fit_transform {
+            let mut clipped_rect = transform_rect(screen_viewport, t);
+            clipped_rect.min.x = clipped_rect.min.x.max(painter.clip_rect().min.x);
+            clipped_rect.min.y = clipped_rect.min.y.max(painter.clip_rect().min.y);
+
+            clipped_rect.max.x = clipped_rect.max.x.min(painter.clip_rect().max.x);
+            clipped_rect.max.y = clipped_rect.max.y.min(painter.clip_rect().max.y);
+
+            if let Some(click_pos) = ui.input(|r| r.pointer.interact_pos()) {
+                let mut delta = if res.clicked() && !clipped_rect.contains(click_pos) {
+                    clipped_rect.center() - click_pos
+                } else if res.dragged() && clipped_rect.contains(click_pos) {
+                    -res.drag_delta()
+                } else {
+                    egui::Vec2::ZERO
+                };
+
+                if delta != egui::Vec2::ZERO {
+                    delta /= out.maybe_tight_fit_transform.unwrap_or_default().sx;
+
+                    let mut transform = Transform::default().post_translate(delta.x, delta.y);
+
+                    if !ui.painter().clip_rect().intersects(clipped_rect)
+                        && !ui.painter().clip_rect().contains_rect(clipped_rect)
+                    {
+                        transform =
+                            get_zoom_fit_transform(tlbr_ctx.buffer, tlbr_ctx.painter.clip_rect())
+                                .unwrap_or_default();
+                    }
+                    transform_canvas(tlbr_ctx.buffer, transform);
+                }
+            }
+
+            painter.rect_stroke(
+                clipped_rect,
+                0.0,
+                egui::Stroke { width: 4.0, color: egui::Color32::DEBUG_COLOR },
+            );
+        }
+    }
+
+    fn show_more_popover(&mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) {
+        ui.add_space(10.0);
+
+        ui.scope(|ui| {
+            ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+            ui.visuals_mut().override_text_color = Some(ui.visuals().widgets.active.bg_fill);
+            if Button::default()
+                .text("Zoom to fit content")
+                .show(ui)
+                .clicked()
+            {
+                if let Some(t) = get_zoom_fit_transform(tlbr_ctx.buffer, ui.clip_rect()) {
+                    transform_canvas(tlbr_ctx.buffer, t);
+                }
+            };
+        });
+
+        ui.add_space(5.0);
+        ui.separator();
+        ui.add_space(15.0);
+
+        ui.horizontal(|ui| {
+            ui.label("Panorama Mode");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if switch(ui, &mut self.gesture_handler.is_pan_y_locked).changed() {
+                    if self.gesture_handler.is_pan_x_locked {
+                        self.gesture_handler.is_pan_x_locked = false;
+                    }
+                    self.gesture_handler.is_zoom_locked = self.gesture_handler.is_pan_y_locked;
+                }
+            });
+        });
+        ui.add_space(10.0);
+
+        ui.horizontal(|ui| {
+            ui.label("Page Mode");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if switch(ui, &mut self.gesture_handler.is_pan_x_locked).changed() {
+                    if self.gesture_handler.is_pan_y_locked {
+                        self.gesture_handler.is_pan_y_locked = false;
+                    }
+                    self.gesture_handler.is_zoom_locked = self.gesture_handler.is_pan_x_locked;
+                }
+            });
+        });
+
+        ui.add_space(5.0);
+        ui.separator();
+        ui.add_space(15.0);
+
+        ui.horizontal(|ui| {
+            ui.label("Show dot grid");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                switch(ui, &mut tlbr_ctx.settings.show_dot_grid)
+            });
+        });
+
+        ui.add_space(10.0)
+    }
+    fn show_overlay_toggle(&mut self, ui: &mut egui::Ui) -> Response {
+        let clip_rect = ui.clip_rect();
+
         let island_size = self
             .layout
             .overlay_toggle
             .unwrap_or(egui::Rect::from_min_size(egui::Pos2::default(), egui::vec2(10.0, 10.0)))
             .size();
 
-        let outer_margin = 20.0;
-
         let island_rect = egui::Rect {
             min: egui::pos2(
-                clip_rect.right() - outer_margin - island_size.x,
-                clip_rect.top() + outer_margin,
+                clip_rect.right() - SCREEN_PADDING - island_size.x,
+                clip_rect.top() + SCREEN_PADDING,
             ),
             max: egui::pos2(
-                clip_rect.right() - outer_margin,
-                clip_rect.top() + outer_margin + island_size.y,
+                clip_rect.right() - SCREEN_PADDING,
+                clip_rect.top() + SCREEN_PADDING + island_size.y,
             ),
         };
         let overlay_toggle = ui.allocate_ui_at_rect(island_rect, |ui| {
@@ -539,7 +645,9 @@ impl Toolbar {
         overlay_toggle.response
     }
 
-    fn show_tool_controls(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) -> Option<Response> {
+    fn show_tool_controls(
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
+    ) -> Option<Response> {
         if self.active_tool == Tool::Selection {
             return None;
         }
@@ -572,10 +680,10 @@ impl Toolbar {
             let tool_controls = ui.allocate_ui_at_rect(tool_controls_rect, |ui| {
                 egui::Frame::window(ui.style()).show(ui, |ui| {
                     match self.active_tool {
-                        Tool::Pen => show_pen_controls(ui, &mut self.pen, buffer),
+                        Tool::Pen => show_pen_controls(ui, &mut self.pen, tlbr_ctx),
                         Tool::Eraser => self.show_eraser_controls(ui),
                         Tool::Highlighter => {
-                            show_highlighter_controls(ui, &mut self.highlighter, buffer)
+                            show_highlighter_controls(ui, &mut self.highlighter, tlbr_ctx)
                         }
                         Tool::Selection => {}
                     };
@@ -637,11 +745,10 @@ impl Toolbar {
     }
 
     fn show_history_island(
-        &mut self, ui: &mut egui::Ui, history: &mut History, buffer: &mut Buffer,
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
     ) -> egui::Response {
-        let outer_margin = 20.0;
-        let history_island_x_start = ui.available_rect_before_wrap().left() + outer_margin;
-        let history_island_y_start = ui.available_rect_before_wrap().top() + outer_margin;
+        let history_island_x_start = ui.available_rect_before_wrap().left() + SCREEN_PADDING;
+        let history_island_y_start = ui.available_rect_before_wrap().top() + SCREEN_PADDING;
 
         let history_rect = egui::Rect {
             min: egui::pos2(history_island_x_start, history_island_y_start),
@@ -654,22 +761,22 @@ impl Toolbar {
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         let undo_btn = ui
-                            .add_enabled_ui(history.has_undo(), |ui| {
+                            .add_enabled_ui(tlbr_ctx.history.has_undo(), |ui| {
                                 Button::default().icon(&Icon::UNDO).show(ui)
                             })
                             .inner;
                         if undo_btn.clicked() || undo_btn.drag_started() {
-                            history.undo(buffer);
+                            tlbr_ctx.history.undo(tlbr_ctx.buffer);
                         }
 
                         let redo_btn = ui
-                            .add_enabled_ui(history.has_redo(), |ui| {
+                            .add_enabled_ui(tlbr_ctx.history.has_redo(), |ui| {
                                 Button::default().icon(&Icon::REDO).show(ui)
                             })
                             .inner;
 
                         if redo_btn.clicked() || redo_btn.drag_started() {
-                            history.redo(buffer);
+                            tlbr_ctx.history.redo(tlbr_ctx.buffer);
                         }
                     })
                 })
@@ -679,12 +786,12 @@ impl Toolbar {
     }
 }
 
-fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
+fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {
     let width = 220.0;
     ui.style_mut().spacing.slider_width = width;
     ui.set_width(width);
 
-    show_stroke_preview(ui, pen, buffer);
+    show_stroke_preview(ui, pen, tlbr_ctx.buffer);
     // a bit hacky but without this there will be collision with
     // thickness hints.
     ui.add_space(20.0);
@@ -736,12 +843,12 @@ fn show_opacity_slider(ui: &mut egui::Ui, pen: &mut Pen) {
     });
 }
 
-fn show_highlighter_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
+fn show_highlighter_controls(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {
     let width = 200.0;
     ui.style_mut().spacing.slider_width = width;
     ui.set_width(width);
 
-    show_stroke_preview(ui, pen, buffer);
+    show_stroke_preview(ui, pen, tlbr_ctx.buffer);
 
     // a bit hacky but without this there will be collision with
     // thickness hints.
