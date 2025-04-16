@@ -19,6 +19,7 @@ use tracing::{span, Level};
 use crate::tab::svg_editor::gesture_handler::get_zoom_fit_transform;
 use crate::theme::palette::ThemePalette;
 
+use super::util::transform_rect;
 use super::Buffer;
 
 const STROKE_WIDTH: AttributeIndex = 0;
@@ -97,6 +98,8 @@ impl Renderer {
             None
         };
         let mut fit_content_transform_changed = false;
+
+        // todo: don't re-tess on viewport user pan or zoom.
         if new_fit_transform != self.fit_content_transform {
             self.fit_content_transform = new_fit_transform;
             fit_content_transform_changed = true;
@@ -117,7 +120,7 @@ impl Renderer {
                         {
                             let current_el_scale = path.transform.sx * buffer.master_transform.sx;
                             let diff = current_el_scale.max(*scale) / current_el_scale.min(*scale);
-                            diff > 5.0
+                            diff > 5.0 && !render_options.tight_fit_mode
                         } else {
                             false
                         };
@@ -193,7 +196,6 @@ impl Renderer {
                         continue;
                     }
                     diff_state.transformed = Some(t);
-                    println!("there was a transformation changed");
                     if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(&id) {
                         for v in &mut shape.vertices {
                             v.pos.x = t.sx * v.pos.x + t.tx;
@@ -203,13 +205,20 @@ impl Renderer {
                 }
                 RenderOp::ForwordImage(img) => {
                     diff_state.data_changed = true;
-                    self.alloc_image_mesh(id, img, ui);
+                    self.alloc_image_mesh(id, img, ui, self.fit_content_transform);
                 }
             }
         }
         if !self.mesh_cache.is_empty() {
-            painter.extend(buffer.elements.iter_mut().rev().filter_map(|(id, el)| {
+            painter.extend(buffer.elements.iter_mut().rev().filter_map(|(id, _)| {
                 if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(id) {
+                    let shape_rect = shape.calc_bounds();
+                    if !painter.clip_rect().contains_rect(shape_rect)
+                        && !painter.clip_rect().intersects(shape_rect)
+                    {
+                        return None;
+                    }
+
                     if !shape.vertices.is_empty() && !shape.indices.is_empty() {
                         Some(egui::Shape::mesh(shape.to_owned()))
                     } else {
@@ -220,16 +229,15 @@ impl Renderer {
                 }
             }));
         };
-        // println!("painting meshes took: {:#?}", (end_time - start_time));
-        // if (diff_state.data_changed || diff_state.transformed.is_some()) {
-        //     self.fit_content_transform = None;
-        // }
+
         self.request_rerender = false;
 
         RendererOutput { diff_state, maybe_tight_fit_transform: self.fit_content_transform }
     }
 
-    fn alloc_image_mesh(&mut self, id: Uuid, img: &mut Image, ui: &mut egui::Ui) {
+    fn alloc_image_mesh(
+        &mut self, id: Uuid, img: &mut Image, ui: &mut egui::Ui, fit_transform: Option<Transform>,
+    ) {
         match &img.data {
             ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
                 let image = image::load_from_memory(bytes).unwrap();
@@ -250,10 +258,14 @@ impl Renderer {
 
                 let texture = self.tex_cache.get(&id).unwrap();
 
-                let rect = egui::Rect {
+                let mut rect = egui::Rect {
                     min: egui::pos2(img.view_box.left(), img.view_box.top()),
                     max: egui::pos2(img.view_box.right(), img.view_box.bottom()),
                 };
+                if let Some(t) = fit_transform {
+                    rect = transform_rect(rect, t)
+                }
+
                 let uv = egui::Rect {
                     min: egui::Pos2 { x: 0.0, y: 0.0 },
                     max: egui::Pos2 { x: 1.0, y: 1.0 },
@@ -298,8 +310,9 @@ fn tesselate_path<'a>(
 
         while let Some(seg) = p.data.get_segment(i) {
             let mut thickness = stroke.width * p.transform.sx;
-            if let Some(t) = fit_transform {
-                thickness *= 1.0;
+            if fit_transform.is_some() {
+                thickness *= 0.5;
+                thickness = thickness.max(0.5);
             } else {
                 thickness *= master_transform.sx
             }

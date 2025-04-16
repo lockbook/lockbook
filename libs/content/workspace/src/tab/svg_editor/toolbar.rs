@@ -23,6 +23,7 @@ use super::{
     pen::{DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
     renderer::{RenderOptions, Renderer},
     selection::Selection,
+    util::transform_rect,
     Buffer, CanvasSettings, Eraser, Pen,
 };
 
@@ -74,8 +75,15 @@ pub struct ToolContext<'a> {
     pub history: &'a mut History,
     pub allow_viewport_changes: &'a mut bool,
     pub is_touch_frame: bool,
-    pub settings: CanvasSettings,
+    pub settings: &'a mut CanvasSettings,
     pub is_locked_vw_pen_only: bool,
+}
+
+pub struct ToolbarContext<'a> {
+    pub painter: &'a mut egui::Painter,
+    pub buffer: &'a mut Buffer,
+    pub history: &'a mut History,
+    pub settings: &'a mut CanvasSettings,
 }
 
 macro_rules! set_tool {
@@ -136,10 +144,9 @@ impl Toolbar {
     }
 
     pub fn show(
-        &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, history: &mut History,
-        skip_frame: &mut bool, inner_rect: egui::Rect,
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext, skip_frame: &mut bool,
     ) {
-        self.handle_keyboard_shortcuts(ui, history, buffer);
+        self.handle_keyboard_shortcuts(ui, tlbr_ctx.history, tlbr_ctx.buffer);
 
         let toolbar_margin = egui::Margin::symmetric(15.0, 7.0);
         ui.visuals_mut().window_rounding = egui::Rounding::same(30.0);
@@ -176,12 +183,12 @@ impl Toolbar {
 
         ui.set_opacity(opacity);
 
-        let history_island = self.show_history_island(ui, history, buffer);
+        let history_island = self.show_history_island(ui, tlbr_ctx);
 
         let overlay_toggle_res = ui
             .scope(|ui| {
                 ui.set_opacity(1.0);
-                self.show_overlay_toggle(ui, inner_rect)
+                self.show_overlay_toggle(ui)
             })
             .inner;
 
@@ -195,10 +202,10 @@ impl Toolbar {
             return;
         }
 
-        let viewport_island = self.show_viewport_island(ui, buffer);
+        let viewport_island = self.show_viewport_island(ui, tlbr_ctx);
 
         let tools_island = self.show_tools_island(ui);
-        let tool_controls_res = self.show_tool_controls(ui, buffer);
+        let tool_controls_res = self.show_tool_controls(ui, tlbr_ctx);
 
         let mut overlay_res = history_island;
         if let Some(res) = tool_controls_res {
@@ -321,25 +328,20 @@ impl Toolbar {
         res
     }
 
-    fn show_viewport_island(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) -> Option<Response> {
-        let viewport_island_size = self
-            .layout
-            .viewport_island
-            .unwrap_or(egui::Rect::ZERO)
-            .size();
-
-        let island_x_start = ui.available_rect_before_wrap().left() + SCREEN_PADDING;
-        let island_y_start =
-            ui.available_rect_before_wrap().bottom() - SCREEN_PADDING - viewport_island_size.y;
+    fn show_viewport_island(
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
+    ) -> Option<Response> {
+        let history_island = match self.layout.history_island {
+            Some(val) => val,
+            None => return None,
+        };
+        let viewport_island_x_start = history_island.right() + 15.0;
+        let viewport_island_y_start = history_island.top();
 
         let viewport_rect = egui::Rect {
-            min: egui::pos2(island_x_start, island_y_start),
-            max: egui::Pos2 {
-                x: island_x_start + viewport_island_size.x,
-                y: island_y_start + viewport_island_size.y,
-            },
+            min: egui::pos2(viewport_island_x_start, viewport_island_y_start),
+            max: egui::Pos2 { x: viewport_island_x_start, y: history_island.bottom() },
         };
-
         let mut toggle_popver_btn = None;
 
         let mut island_res = ui
@@ -348,10 +350,11 @@ impl Toolbar {
                     .inner_margin(egui::Margin::symmetric(7.5, 3.5))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            let zoom_percentage =
-                                ((buffer.master_transform.sx + buffer.master_transform.sy) / 2.0
-                                    * 100.0)
-                                    .round();
+                            let zoom_percentage = ((tlbr_ctx.buffer.master_transform.sx
+                                + tlbr_ctx.buffer.master_transform.sy)
+                                / 2.0
+                                * 100.0)
+                                .round();
 
                             let mut requested_zoom_change = None;
 
@@ -371,7 +374,7 @@ impl Toolbar {
                                 };
                                 requested_zoom_change = Some(zoom_percentage_to_transform(
                                     target_zoom_percentage,
-                                    buffer,
+                                    tlbr_ctx.buffer,
                                     ui,
                                 ));
                             }
@@ -382,7 +385,7 @@ impl Toolbar {
                                 .clicked()
                             {
                                 requested_zoom_change =
-                                    Some(zoom_percentage_to_transform(100.0, buffer, ui));
+                                    Some(zoom_percentage_to_transform(100.0, tlbr_ctx.buffer, ui));
                             }
 
                             if Button::default().icon(&Icon::ZOOM_IN).show(ui).clicked() {
@@ -394,13 +397,13 @@ impl Toolbar {
                                 };
                                 requested_zoom_change = Some(zoom_percentage_to_transform(
                                     target_zoom_percentage,
-                                    buffer,
+                                    tlbr_ctx.buffer,
                                     ui,
                                 ));
                             };
 
                             if let Some(t) = requested_zoom_change {
-                                transform_canvas(buffer, t);
+                                transform_canvas(tlbr_ctx.buffer, t);
                             };
                             ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
                             if Button::default()
@@ -458,16 +461,8 @@ impl Toolbar {
             if let Some(popover) = self.viewport_popover {
                 let popover_length = viewport_island_rect.width();
 
-                let min = egui::pos2(
-                    viewport_island_rect.left(),
-                    viewport_island_rect.top()
-                        - 10.0
-                        - self
-                            .layout
-                            .viewport_popover
-                            .unwrap_or(egui::Rect::ZERO)
-                            .height(),
-                );
+                let min =
+                    egui::pos2(viewport_island_rect.left(), viewport_island_rect.bottom() + 10.0);
 
                 let popover_rect = egui::Rect { min, max: min };
 
@@ -483,81 +478,9 @@ impl Toolbar {
 
                             match popover {
                                 ViewportPopover::MiniMap => {
-                                    let mut screen_viewport = ui.clip_rect();
-
-                                    let (res, mut painter) = ui.allocate_painter(
-                                        egui::vec2(ui.available_width(), 150.0),
-                                        egui::Sense::click_and_drag(),
-                                    );
-
-                                    let out = self.renderer.render_svg(
-                                        ui,
-                                        buffer,
-                                        &mut painter,
-                                        RenderOptions { tight_fit_mode: true },
-                                    );
-                                    if let Some(t) = out.maybe_tight_fit_transform {
-                                        screen_viewport.min.x = t.sx * screen_viewport.min.x + t.tx;
-                                        screen_viewport.max.x = t.sx * screen_viewport.max.x + t.tx;
-
-                                        screen_viewport.min.y = t.sy * screen_viewport.min.y + t.ty;
-                                        screen_viewport.max.y = t.sy * screen_viewport.max.y + t.ty;
-
-                                        let mut clipped_rect = screen_viewport;
-                                        clipped_rect.min.x =
-                                            clipped_rect.min.x.max(painter.clip_rect().min.x);
-                                        clipped_rect.min.y =
-                                            clipped_rect.min.y.max(painter.clip_rect().min.y);
-
-                                        clipped_rect.max.x =
-                                            clipped_rect.max.x.min(painter.clip_rect().max.x);
-                                        clipped_rect.max.y =
-                                            clipped_rect.max.y.min(painter.clip_rect().max.y);
-
-                                        if let Some(click_pos) =
-                                            ui.input(|r| r.pointer.interact_pos())
-                                        {
-                                            let mut delta = if res.clicked()
-                                                && !clipped_rect.contains(click_pos)
-                                            {
-                                                clipped_rect.center() - click_pos
-                                            } else if res.dragged() {
-                                                -res.drag_delta()
-                                            } else {
-                                                egui::Vec2::ZERO
-                                            };
-
-                                            if delta != egui::Vec2::ZERO {
-                                                delta /= out
-                                                    .maybe_tight_fit_transform
-                                                    .unwrap_or_default()
-                                                    .sx;
-                                                let transform = Transform::default()
-                                                    .post_translate(delta.x, delta.y);
-
-                                                transform_canvas(buffer, transform);
-                                            }
-                                        }
-
-                                        painter.rect_stroke(
-                                            clipped_rect,
-                                            0.0,
-                                            egui::Stroke {
-                                                width: 4.0,
-                                                color: egui::Color32::DEBUG_COLOR,
-                                            },
-                                        );
-                                    }
-
-                                    // need to detect for a couple of things
-
-                                    // is the user's viewport over an area that's outside the tight_fit
-                                    // strongly suggest a zoom to fit
-
-                                    // is the user zoomed out a lot, but his viewport contains right fit
-                                    // maybe show a strong border and suggest a zoom fit
+                                    self.show_minimap(tlbr_ctx, ui);
                                 }
-                                ViewportPopover::More => self.show_more_popover(buffer, ui),
+                                ViewportPopover::More => self.show_more_popover(ui, tlbr_ctx),
                             };
                         })
                     })
@@ -572,7 +495,62 @@ impl Toolbar {
         Some(island_res)
     }
 
-    fn show_more_popover(&mut self, buffer: &mut Buffer, ui: &mut egui::Ui) {
+    fn show_minimap(&mut self, tlbr_ctx: &mut ToolbarContext<'_>, ui: &mut egui::Ui) {
+        let screen_viewport = ui.clip_rect();
+
+        let (res, mut painter) = ui.allocate_painter(
+            egui::vec2(ui.available_width(), 150.0),
+            egui::Sense::click_and_drag(),
+        );
+
+        let out = self.renderer.render_svg(
+            ui,
+            tlbr_ctx.buffer,
+            &mut painter,
+            RenderOptions { tight_fit_mode: true },
+        );
+        if let Some(t) = out.maybe_tight_fit_transform {
+            let mut clipped_rect = transform_rect(screen_viewport, t);
+            clipped_rect.min.x = clipped_rect.min.x.max(painter.clip_rect().min.x);
+            clipped_rect.min.y = clipped_rect.min.y.max(painter.clip_rect().min.y);
+
+            clipped_rect.max.x = clipped_rect.max.x.min(painter.clip_rect().max.x);
+            clipped_rect.max.y = clipped_rect.max.y.min(painter.clip_rect().max.y);
+
+            if let Some(click_pos) = ui.input(|r| r.pointer.interact_pos()) {
+                let mut delta = if res.clicked() && !clipped_rect.contains(click_pos) {
+                    clipped_rect.center() - click_pos
+                } else if res.dragged() && clipped_rect.contains(click_pos) {
+                    -res.drag_delta()
+                } else {
+                    egui::Vec2::ZERO
+                };
+
+                if delta != egui::Vec2::ZERO {
+                    delta /= out.maybe_tight_fit_transform.unwrap_or_default().sx;
+
+                    let mut transform = Transform::default().post_translate(delta.x, delta.y);
+
+                    if !ui.painter().clip_rect().intersects(clipped_rect)
+                        && !ui.painter().clip_rect().contains_rect(clipped_rect)
+                    {
+                        transform =
+                            get_zoom_fit_transform(tlbr_ctx.buffer, tlbr_ctx.painter.clip_rect())
+                                .unwrap_or_default();
+                    }
+                    transform_canvas(tlbr_ctx.buffer, transform);
+                }
+            }
+
+            painter.rect_stroke(
+                clipped_rect,
+                0.0,
+                egui::Stroke { width: 4.0, color: egui::Color32::DEBUG_COLOR },
+            );
+        }
+    }
+
+    fn show_more_popover(&mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) {
         ui.add_space(10.0);
 
         ui.scope(|ui| {
@@ -583,8 +561,8 @@ impl Toolbar {
                 .show(ui)
                 .clicked()
             {
-                if let Some(t) = get_zoom_fit_transform(buffer, ui.clip_rect()) {
-                    transform_canvas(buffer, t);
+                if let Some(t) = get_zoom_fit_transform(tlbr_ctx.buffer, ui.clip_rect()) {
+                    transform_canvas(tlbr_ctx.buffer, t);
                 }
             };
         });
@@ -617,9 +595,23 @@ impl Toolbar {
                 }
             });
         });
+
+        ui.add_space(5.0);
+        ui.separator();
+        ui.add_space(15.0);
+
+        ui.horizontal(|ui| {
+            ui.label("Show dot grid");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                switch(ui, &mut tlbr_ctx.settings.show_dot_grid)
+            });
+        });
+
         ui.add_space(10.0)
     }
-    fn show_overlay_toggle(&mut self, ui: &mut egui::Ui, clip_rect: egui::Rect) -> Response {
+    fn show_overlay_toggle(&mut self, ui: &mut egui::Ui) -> Response {
+        let clip_rect = ui.clip_rect();
+
         let island_size = self
             .layout
             .overlay_toggle
@@ -653,7 +645,9 @@ impl Toolbar {
         overlay_toggle.response
     }
 
-    fn show_tool_controls(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) -> Option<Response> {
+    fn show_tool_controls(
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
+    ) -> Option<Response> {
         if self.active_tool == Tool::Selection {
             return None;
         }
@@ -686,10 +680,10 @@ impl Toolbar {
             let tool_controls = ui.allocate_ui_at_rect(tool_controls_rect, |ui| {
                 egui::Frame::window(ui.style()).show(ui, |ui| {
                     match self.active_tool {
-                        Tool::Pen => show_pen_controls(ui, &mut self.pen, buffer),
+                        Tool::Pen => show_pen_controls(ui, &mut self.pen, tlbr_ctx),
                         Tool::Eraser => self.show_eraser_controls(ui),
                         Tool::Highlighter => {
-                            show_highlighter_controls(ui, &mut self.highlighter, buffer)
+                            show_highlighter_controls(ui, &mut self.highlighter, tlbr_ctx)
                         }
                         Tool::Selection => {}
                     };
@@ -751,7 +745,7 @@ impl Toolbar {
     }
 
     fn show_history_island(
-        &mut self, ui: &mut egui::Ui, history: &mut History, buffer: &mut Buffer,
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
     ) -> egui::Response {
         let history_island_x_start = ui.available_rect_before_wrap().left() + SCREEN_PADDING;
         let history_island_y_start = ui.available_rect_before_wrap().top() + SCREEN_PADDING;
@@ -767,22 +761,22 @@ impl Toolbar {
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         let undo_btn = ui
-                            .add_enabled_ui(history.has_undo(), |ui| {
+                            .add_enabled_ui(tlbr_ctx.history.has_undo(), |ui| {
                                 Button::default().icon(&Icon::UNDO).show(ui)
                             })
                             .inner;
                         if undo_btn.clicked() || undo_btn.drag_started() {
-                            history.undo(buffer);
+                            tlbr_ctx.history.undo(tlbr_ctx.buffer);
                         }
 
                         let redo_btn = ui
-                            .add_enabled_ui(history.has_redo(), |ui| {
+                            .add_enabled_ui(tlbr_ctx.history.has_redo(), |ui| {
                                 Button::default().icon(&Icon::REDO).show(ui)
                             })
                             .inner;
 
                         if redo_btn.clicked() || redo_btn.drag_started() {
-                            history.redo(buffer);
+                            tlbr_ctx.history.redo(tlbr_ctx.buffer);
                         }
                     })
                 })
@@ -792,12 +786,12 @@ impl Toolbar {
     }
 }
 
-fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
+fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {
     let width = 220.0;
     ui.style_mut().spacing.slider_width = width;
     ui.set_width(width);
 
-    show_stroke_preview(ui, pen, buffer);
+    show_stroke_preview(ui, pen, tlbr_ctx.buffer);
     // a bit hacky but without this there will be collision with
     // thickness hints.
     ui.add_space(20.0);
@@ -849,12 +843,12 @@ fn show_opacity_slider(ui: &mut egui::Ui, pen: &mut Pen) {
     });
 }
 
-fn show_highlighter_controls(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
+fn show_highlighter_controls(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {
     let width = 200.0;
     ui.style_mut().spacing.slider_width = width;
     ui.set_width(width);
 
-    show_stroke_preview(ui, pen, buffer);
+    show_stroke_preview(ui, pen, tlbr_ctx.buffer);
 
     // a bit hacky but without this there will be collision with
     // thickness hints.
