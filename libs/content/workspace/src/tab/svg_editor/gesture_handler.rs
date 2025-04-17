@@ -254,6 +254,8 @@ pub fn transform_canvas(buffer: &mut Buffer, t: Transform) {
         return;
     }
     buffer.master_transform = new_transform;
+    buffer.master_transform_changed = true;
+
     for el in buffer.elements.values_mut() {
         match el {
             Element::Path(path) => {
@@ -271,23 +273,19 @@ pub fn transform_canvas(buffer: &mut Buffer, t: Transform) {
     }
 }
 
-pub fn get_zoom_fit_transform(buffer: &mut Buffer, ui: &mut egui::Ui) -> Option<Transform> {
-    let elements_bound = match calc_elements_bounds(buffer) {
-        Some(rect) => rect,
-        None => return None,
-    };
-    let inner_rect = ui.painter().clip_rect();
+pub fn get_zoom_fit_transform(buffer: &Buffer, container_rect: egui::Rect) -> Option<Transform> {
+    let elements_bound = calc_elements_bounds(buffer)?;
     let is_width_smaller = elements_bound.width() < elements_bound.height();
     let padding_coeff = 0.7;
     let zoom_delta = if is_width_smaller {
-        inner_rect.height() * padding_coeff / elements_bound.height()
+        container_rect.height() * padding_coeff / elements_bound.height()
     } else {
-        inner_rect.width() * padding_coeff / elements_bound.width()
+        container_rect.width() * padding_coeff / elements_bound.width()
     };
-    let center_x =
-        inner_rect.center().x - zoom_delta * (elements_bound.left() + elements_bound.width() / 2.0);
-    let center_y =
-        inner_rect.center().y - zoom_delta * (elements_bound.top() + elements_bound.height() / 2.0);
+    let center_x = container_rect.center().x
+        - zoom_delta * (elements_bound.left() + elements_bound.width() / 2.0);
+    let center_y = container_rect.center().y
+        - zoom_delta * (elements_bound.top() + elements_bound.height() / 2.0);
     Some(
         Transform::identity()
             .post_scale(zoom_delta, zoom_delta)
@@ -295,7 +293,7 @@ pub fn get_zoom_fit_transform(buffer: &mut Buffer, ui: &mut egui::Ui) -> Option<
     )
 }
 
-fn calc_elements_bounds(buffer: &mut Buffer) -> Option<egui::Rect> {
+fn calc_elements_bounds(buffer: &Buffer) -> Option<egui::Rect> {
     let mut elements_bound =
         egui::Rect { min: egui::pos2(f32::MAX, f32::MAX), max: egui::pos2(f32::MIN, f32::MIN) };
     let mut dirty_bound = false;
@@ -324,12 +322,12 @@ pub fn zoom_percentage_to_transform(
     zoom_percentage: f32, buffer: &mut Buffer, ui: &mut egui::Ui,
 ) -> Transform {
     let zoom_delta = (zoom_percentage) / (buffer.master_transform.sx * 100.0);
-    return Transform::identity()
+    Transform::identity()
         .post_scale(zoom_delta, zoom_delta)
         .post_translate(
             (1.0 - zoom_delta) * ui.ctx().screen_rect().center().x,
             (1.0 - zoom_delta) * ui.ctx().screen_rect().center().y,
-        );
+        )
 }
 
 impl SVGEditor {

@@ -5,7 +5,6 @@ use test_utils::*;
 
 /// Tests that setup two synced devices, operate on both devices, then sync both twice (work
 /// should be none, devices dbs should be equal, deleted files should be pruned).
-
 async fn sync_and_assert(c1: &Lb, c2: &Lb) {
     c1.sync(None).await.unwrap();
     c2.sync(None).await.unwrap();

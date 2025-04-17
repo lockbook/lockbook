@@ -496,7 +496,11 @@ impl Ast {
         &self, offset: DocCharOffset, bounds: &AstTextRanges,
     ) -> Vec<MarkdownNode> {
         let mut result = Vec::default();
-        if let Some(text_range) = bounds.find_containing(offset, true, true).iter().last() {
+        if let Some(text_range) = bounds
+            .find_containing(offset, true, true)
+            .iter()
+            .next_back()
+        {
             let text_range = &bounds[text_range];
             for &ancestor_node_idx in &text_range.ancestors {
                 let ancestor_node = &self.nodes[ancestor_node_idx];
@@ -659,7 +663,7 @@ pub struct AstTextRangeIter<'ast> {
     maybe_current_range: Option<AstTextRange>,
 }
 
-impl<'ast> Iterator for AstTextRangeIter<'ast> {
+impl Iterator for AstTextRangeIter<'_> {
     type Item = AstTextRange;
 
     fn next(&mut self) -> Option<Self::Item> {
