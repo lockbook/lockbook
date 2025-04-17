@@ -313,7 +313,12 @@ impl Workspace {
                         };
 
                         let ext = match self.core.get_file_by_id(id) {
-                            Ok(file) => file.name.split('.').last().unwrap_or_default().to_owned(),
+                            Ok(file) => file
+                                .name
+                                .split('.')
+                                .next_back()
+                                .unwrap_or_default()
+                                .to_owned(),
                             Err(e) => {
                                 self.out
                                     .failure_messages

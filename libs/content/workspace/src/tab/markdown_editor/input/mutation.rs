@@ -104,7 +104,7 @@ impl Editor {
                             .ast
                             .find_containing(current_selection.1, true, true)
                             .iter()
-                            .last()
+                            .next_back()
                         {
                             let text_range = &self.bounds.ast[text_range];
                             if text_range.node(&self.ast).node_type() == style.node_type()
@@ -125,7 +125,7 @@ impl Editor {
                     .ast
                     .find_containing(current_selection.1, true, true)
                     .iter()
-                    .last();
+                    .next_back();
                 let after_galley_head = current_selection.1 >= galley.text_range().start();
 
                 'modification: {

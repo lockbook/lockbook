@@ -331,10 +331,7 @@ impl Toolbar {
     fn show_viewport_island(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
     ) -> Option<Response> {
-        let history_island = match self.layout.history_island {
-            Some(val) => val,
-            None => return None,
-        };
+        let history_island = self.layout.history_island?;
         let viewport_island_x_start = history_island.right() + 15.0;
         let viewport_island_y_start = history_island.top();
 
@@ -652,10 +649,7 @@ impl Toolbar {
             return None;
         }
 
-        let tools_island_rect = match self.layout.tools_island {
-            Some(val) => val,
-            None => return None,
-        };
+        let tools_island_rect = self.layout.tools_island?;
 
         let opacity = animate_eased(
             ui.ctx(),

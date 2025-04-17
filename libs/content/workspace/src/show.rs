@@ -1044,7 +1044,7 @@ pub enum DocType {
 
 impl DocType {
     pub fn from_name(name: &str) -> Self {
-        let ext = name.split('.').last().unwrap_or_default();
+        let ext = name.split('.').next_back().unwrap_or_default();
         match ext {
             "draw" | "svg" => Self::Drawing,
             "md" => Self::Markdown,

@@ -35,7 +35,7 @@ impl Lb {
             let mut file = File::open(path).await?;
             let size = file.metadata().await?.len();
             let read_amount = 5 * 1024;
-            let pos = if read_amount > size { 0 } else { size - read_amount };
+            let pos = size.saturating_sub(read_amount);
 
             let mut buffer = Vec::with_capacity(read_amount as usize);
             file.seek(SeekFrom::Start(pos)).await?;

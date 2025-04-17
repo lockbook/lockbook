@@ -20,7 +20,6 @@ impl From<LPARAM> for Point<u16> {
 /// in winapi) for clarity and exhaustive matching.
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
-
 pub enum Message<'a> {
     Unknown { msg: u32 },
     Unhandled { const_name: &'static str },
@@ -61,7 +60,7 @@ pub enum MessageAppDep {
     SetCursor,
 }
 
-impl<'a> Message<'a> {
+impl Message<'_> {
     pub fn new(msg: u32, wparam: WPARAM, lparam: LPARAM) -> Self {
         let lparam_loword = loword_l(lparam);
         let lparam_hiword = hiword_l(lparam);

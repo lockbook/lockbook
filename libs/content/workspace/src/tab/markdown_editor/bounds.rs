@@ -792,7 +792,7 @@ pub struct RangeJoinIter<'r, const N: usize> {
     current_end: Option<DocCharOffset>,
 }
 
-impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
+impl<const N: usize> Iterator for RangeJoinIter<'_, N> {
     type Item = ([Option<usize>; N], (DocCharOffset, DocCharOffset));
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -78,7 +78,7 @@ pub fn commit_hash() -> String {
         .unwrap()
         .stdout;
 
-    return String::from_utf8_lossy(hash_bytes.as_slice())
+    String::from_utf8_lossy(hash_bytes.as_slice())
         .trim()
-        .to_string();
+        .to_string()
 }
