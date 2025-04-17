@@ -274,10 +274,7 @@ pub fn transform_canvas(buffer: &mut Buffer, t: Transform) {
 }
 
 pub fn get_zoom_fit_transform(buffer: &Buffer, container_rect: egui::Rect) -> Option<Transform> {
-    let elements_bound = match calc_elements_bounds(buffer) {
-        Some(rect) => rect,
-        None => return None,
-    };
+    let elements_bound = calc_elements_bounds(buffer)?;
     let is_width_smaller = elements_bound.width() < elements_bound.height();
     let padding_coeff = 0.7;
     let zoom_delta = if is_width_smaller {
@@ -325,12 +322,12 @@ pub fn zoom_percentage_to_transform(
     zoom_percentage: f32, buffer: &mut Buffer, ui: &mut egui::Ui,
 ) -> Transform {
     let zoom_delta = (zoom_percentage) / (buffer.master_transform.sx * 100.0);
-    return Transform::identity()
+    Transform::identity()
         .post_scale(zoom_delta, zoom_delta)
         .post_translate(
             (1.0 - zoom_delta) * ui.ctx().screen_rect().center().x,
             (1.0 - zoom_delta) * ui.ctx().screen_rect().center().y,
-        );
+        )
 }
 
 impl SVGEditor {

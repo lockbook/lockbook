@@ -3,7 +3,6 @@ use test_utils::*;
 
 /// Tests that operate on one client, sync it, then create a new client without syncing (new client
 /// should have no files, local work should be empty, server work should include root).
-
 async fn assert_stuff(c: &Lb) {
     c.test_repo_integrity().await.unwrap();
     assert::all_paths(c, &[]).await;

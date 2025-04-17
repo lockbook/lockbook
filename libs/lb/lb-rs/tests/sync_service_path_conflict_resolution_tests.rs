@@ -4,7 +4,6 @@ use test_utils::*;
 /// Tests which are constructed to test path conflict resolution Like those above, these are tests
 /// that setup two synced clients, operate on both clients, then sync both twice (work should be
 /// none, client dbs should be equal, deleted files should be pruned).
-
 async fn sync_and_assert_stuff(c1: &Lb, c2: &Lb) {
     c1.sync(None).await.unwrap();
     c2.sync(None).await.unwrap();

@@ -95,7 +95,7 @@ impl Editor {
             .or(env::var("EDITOR"))
             .map_err(|_| "no EDITOR or VISUAL")?;
 
-        let editor = editor.split('/').last().unwrap();
+        let editor = editor.split('/').next_back().unwrap();
 
         Ok(editor.parse().map_err(|_| "no EDITOR or VISUAL")?)
     }

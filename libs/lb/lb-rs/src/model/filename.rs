@@ -13,7 +13,7 @@ pub enum DocumentType {
 // todo: be more exhaustive
 impl DocumentType {
     pub fn from_file_name_using_extension(name: &str) -> DocumentType {
-        match name.split('.').last() {
+        match name.split('.').next_back() {
             Some("md") | Some("txt") => DocumentType::Text,
             Some("svg") => DocumentType::Drawing,
             _ => DocumentType::Other,

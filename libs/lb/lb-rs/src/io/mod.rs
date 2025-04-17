@@ -43,7 +43,7 @@ pub struct LbRO<'a> {
     guard: RwLockReadGuard<'a, CoreDb>,
 }
 
-impl<'a> LbRO<'a> {
+impl LbRO<'_> {
     pub fn db(&self) -> &CoreDb {
         self.guard.deref()
     }
@@ -54,7 +54,7 @@ pub struct LbTx<'a> {
     tx: TxHandle,
 }
 
-impl<'a> LbTx<'a> {
+impl LbTx<'_> {
     pub fn db(&mut self) -> &mut CoreDb {
         self.guard.deref_mut()
     }
