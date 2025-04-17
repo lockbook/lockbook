@@ -1,5 +1,6 @@
 use comrak::nodes::{
-    AstNode, NodeFootnoteReference, NodeHeading, NodeHtmlBlock, NodeLink, NodeList, NodeValue,
+    AstNode, NodeFootnoteDefinition, NodeFootnoteReference, NodeHeading, NodeHtmlBlock, NodeLink,
+    NodeList, NodeValue,
 };
 use egui::{Pos2, TextFormat, Ui};
 use inline::text;
@@ -206,7 +207,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(node_alert) => self.show_alert(ui, node, top_left, width),
+            NodeValue::Alert(_) => self.show_alert(ui, node, top_left, width),
             NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left, width),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -452,8 +453,8 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Emph => self.show_emph(ui, node, top_left, wrap),
             NodeValue::Escaped => self.show_escaped(ui, node, top_left, wrap),
             NodeValue::EscapedTag(_) => self.show_escaped_tag(ui, node, top_left, wrap),
-            NodeValue::FootnoteReference(_) => {
-                self.show_footnote_reference(ui, node, top_left, wrap)
+            NodeValue::FootnoteReference(NodeFootnoteReference { ix, .. }) => {
+                self.show_footnote_reference(ui, node, top_left, wrap, *ix)
             }
             NodeValue::HtmlInline(_) => self.show_html_inline(ui, node, top_left, wrap),
             NodeValue::LineBreak => self.show_line_break(wrap),

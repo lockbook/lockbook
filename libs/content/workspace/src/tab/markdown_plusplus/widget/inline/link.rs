@@ -14,12 +14,24 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn span_link(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
-        self.inline_children_span(node, wrap)
+        self.circumfix_span(node, wrap)
     }
 
     pub fn show_link(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
     ) {
-        self.show_inline_children(ui, node, top_left, wrap);
+        // An inline link consists of a link text followed immediately by a left
+        // parenthesis `(`, optional whitespace, an optional link destination,
+        // an optional link title separated from the link destination by
+        // whitespace, optional whitespace, and a right parenthesis `)`
+        // https://github.github.com/gfm/#inline-link
+
+        // Although link titles may span multiple lines, they may not contain a
+        // blank line.
+        // https://github.github.com/gfm/#link-title
+
+        // self.show_inline_children(ui, node, top_left, wrap);
+
+        self.show_circumfix(ui, node, top_left, wrap);
     }
 }

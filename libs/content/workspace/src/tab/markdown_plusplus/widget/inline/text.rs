@@ -38,11 +38,14 @@ impl<'ast> MarkdownPlusPlus {
         self.show_node_text_line(ui, node, top_left, wrap, range)
     }
 
-    /// Show some text. It must not contain newlines. It doesn't matter if it
-    /// wraps. It doesn't have to be a whole line. This variant infers the style
-    /// based on the AST node. It's intended for the content of the node only,
-    /// not it's syntax or spacing. For more control, use the `show_text_line`
-    /// method.
+    /// Show the source text specified by the given range.
+    ///
+    /// The text must not contain newlines. It doesn't matter if it wraps. It
+    /// doesn't have to be a whole line.
+    ///
+    /// This variant infers the style based on the AST node. It's intended for
+    /// the content of the node only, not it's syntax or spacing. For more
+    /// control, use the `show_text_line` method.
     pub fn show_node_text_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
         range: (DocCharOffset, DocCharOffset),
@@ -55,16 +58,34 @@ impl<'ast> MarkdownPlusPlus {
         self.show_text_line(ui, top_left, wrap, range, text_format, spoiler);
     }
 
-    /// Show some text. It must not contain newlines. It doesn't matter if it
-    /// wraps. It doesn't have to be a whole line. This is the lower-level
-    /// variant that offers more control. To infer the style based on the AST
-    /// node, use the `show_node_text_line` method.
+    /// Show the source text specified by the given range.
+    ///
+    /// The text must not contain newlines. It doesn't matter if it wraps. It
+    /// doesn't have to be a whole line.
+    ///
+    /// This is the lower-level variant that offers more style control. To infer
+    /// the style based on the AST node, use the `show_node_text_line` method.
     #[allow(clippy::too_many_arguments)]
     pub fn show_text_line(
         &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut WrapContext,
-        range: (DocCharOffset, DocCharOffset), mut text_format: TextFormat, spoiler: bool,
+        range: (DocCharOffset, DocCharOffset), text_format: TextFormat, spoiler: bool,
     ) {
-        let text = &self.buffer[range];
+        self.show_override_text_line(ui, top_left, wrap, range, text_format, spoiler, None);
+    }
+
+    /// Show the source text specified by the given range, optionally overriding
+    /// the shown text. In the case of an override, the given range must be
+    /// empty, and clicking the text will place the cursor at the given range.
+    ///
+    /// The text must not contain newlines. It doesn't matter if it wraps. It
+    /// doesn't have to be a whole line.
+    #[allow(clippy::too_many_arguments)]
+    pub fn show_override_text_line(
+        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut WrapContext,
+        range: (DocCharOffset, DocCharOffset), mut text_format: TextFormat, spoiler: bool,
+        override_text: Option<&str>,
+    ) {
+        let text = override_text.unwrap_or(&self.buffer[range]);
         let pre_span = self.text_pre_span(wrap, text_format.clone());
         let mid_span = self.text_mid_span(wrap, pre_span, text, text_format.clone());
         let post_span = self.text_post_span(wrap, pre_span + mid_span, text_format.clone());
@@ -148,9 +169,13 @@ impl<'ast> MarkdownPlusPlus {
                 ui.painter().rect_filled(expaned_rect, 2., background);
             }
 
-            let byte_range = (galley_start, galley_start + row.text().len());
-            let galley_range = self.range_to_char(byte_range);
-            let galley_info = GalleyInfo { range: galley_range, galley, rect, padded };
+            let galley_info = if override_text.is_some() {
+                GalleyInfo { range, galley, rect, padded }
+            } else {
+                let byte_range = (galley_start, galley_start + row.text().len());
+                let galley_range = self.range_to_char(byte_range);
+                GalleyInfo { range: galley_range, galley, rect, padded }
+            };
 
             self.galleys.push(galley_info);
 
@@ -173,7 +198,7 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    fn text_mid_span(
+    pub fn text_mid_span(
         &self, wrap: &WrapContext, pre_span: f32, text: &str, text_format: TextFormat,
     ) -> f32 {
         let mut tmp_wrap = WrapContext { offset: wrap.offset + pre_span, ..*wrap };
