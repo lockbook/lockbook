@@ -32,7 +32,7 @@ pub struct WgpuWorkspace<'window> {
     pub workspace: Workspace,
 }
 
-impl<'window> WgpuWorkspace<'window> {
+impl WgpuWorkspace<'_> {
     pub fn frame(&mut self) -> Response {
         self.configure_surface();
         let output_frame = match self.surface.get_current_texture() {

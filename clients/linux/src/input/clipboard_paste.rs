@@ -158,7 +158,7 @@ impl<'a> Context<'a> {
     }
 }
 
-impl<'a> Ctx<'a> {
+impl Ctx<'_> {
     fn get_targets(&self) -> Result<Vec<Atom>, Box<dyn std::error::Error>> {
         let Ctx { conn, atoms, window } = *self;
         let formats = conn

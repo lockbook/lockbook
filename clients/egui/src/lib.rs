@@ -152,7 +152,7 @@ mod lb_wgpu {
         pub app: Response,
     }
 
-    impl<'window> WgpuLockbook<'window> {
+    impl WgpuLockbook<'_> {
         pub fn frame(&mut self) -> Output {
             self.configure_surface();
             let output_frame = match self.surface.get_current_texture() {
