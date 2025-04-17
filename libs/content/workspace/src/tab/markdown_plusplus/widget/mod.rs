@@ -1,6 +1,5 @@
 use comrak::nodes::{
-    AstNode, NodeFootnoteDefinition, NodeFootnoteReference, NodeHeading, NodeHtmlBlock, NodeLink,
-    NodeList, NodeValue,
+    AstNode, NodeFootnoteReference, NodeHeading, NodeHtmlBlock, NodeLink, NodeList, NodeValue,
 };
 use egui::{Pos2, TextFormat, Ui};
 use inline::text;
