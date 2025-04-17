@@ -401,13 +401,13 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         .insert("bold".to_string(), FontData::from_static(bold));
     fonts.font_data.insert("super".into(), {
         FontData {
-            tweak: FontTweak { y_offset_factor: -1. / 3., scale: 2. / 3., ..Default::default() },
+            tweak: FontTweak { y_offset_factor: -1. / 4., scale: 3. / 4., ..Default::default() },
             ..FontData::from_static(sans)
         }
     });
     fonts.font_data.insert("sub".into(), {
         FontData {
-            tweak: FontTweak { y_offset_factor: 1. / 3., scale: 2. / 3., ..Default::default() },
+            tweak: FontTweak { y_offset_factor: 1. / 4., scale: 3. / 4., ..Default::default() },
             ..FontData::from_static(sans)
         }
     });

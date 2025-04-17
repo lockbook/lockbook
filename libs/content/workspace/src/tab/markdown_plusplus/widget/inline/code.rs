@@ -22,9 +22,11 @@ impl<'ast> MarkdownPlusPlus {
 
         if self.node_intersects_selection(node) {
             let prefix_range = (range.start(), range.start() + 1);
-            let prefix_span = self.span_text_line(wrap, prefix_range, self.text_format(node));
-            let postfix_range = (range.start(), range.start() + 1);
-            let postfix_span = self.span_text_line(wrap, postfix_range, self.text_format(node));
+            let prefix_span =
+                self.span_text_line(wrap, prefix_range, self.text_format_syntax(node));
+            let postfix_range = (range.end() - 1, range.end());
+            let postfix_span =
+                self.span_text_line(wrap, postfix_range, self.text_format_syntax(node));
             prefix_span + infix_span + postfix_span
         } else {
             infix_span

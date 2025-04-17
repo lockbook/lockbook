@@ -14,13 +14,13 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn span_image(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
-        self.inline_children_span(node, wrap)
+        self.circumfix_span(node, wrap)
     }
 
     pub fn show_image(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
     ) {
-        self.show_inline_children(ui, node, top_left, wrap);
+        self.show_circumfix(ui, node, top_left, wrap);
     }
 
     pub fn height_image(&self, width: f32, url: &str) -> f32 {

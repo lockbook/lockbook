@@ -1,8 +1,9 @@
 use crate::tab::markdown_plusplus::bounds::{BoundExt as _, RangesExt as _, Text};
 use crate::tab::markdown_plusplus::galleys::Galleys;
 use crate::tab::markdown_plusplus::input::Event;
+use crate::tab::markdown_plusplus::widget::ROW_SPACING;
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
-use egui::{Pos2, Rangef};
+use egui::{Pos2, Rangef, Vec2};
 use lb_rs::model::text::buffer::{self};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, ToRangeExt as _};
 use lb_rs::model::text::operation_types::{Operation, Replace};
@@ -985,16 +986,29 @@ pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, text: &Text) -> DocCharO
     let galley_idx = pos_to_galley(pos, galleys);
     let galley = &galleys[galley_idx];
 
-    if pos.y < galley.rect.min.y {
+    let expanded_rect = galley.rect.expand(ROW_SPACING / 2.);
+
+    if pos.y < expanded_rect.min.y {
         // click position is above galley
         galley.range.start()
-    } else if pos.y > galley.rect.max.y {
+    } else if pos.y > expanded_rect.max.y {
         // click position is below galley
         galley.range.end()
     } else {
-        let relative_pos = pos - galley.rect.min;
-        let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-        galleys.char_offset_by_galley_and_cursor(galley_idx, new_cursor, text)
+        let relative_pos = pos - expanded_rect.min;
+
+        // clamp y coordinate for forgiving cursor placement clicks
+        let relative_pos =
+            Vec2::new(relative_pos.x, relative_pos.y.clamp(0.0, galley.rect.height()));
+
+        if galley.range.is_empty() {
+            // hack: empty galley range means every position in the galley maps to
+            // that location
+            galley.range.start()
+        } else {
+            let new_cursor = galley.galley.cursor_from_pos(relative_pos);
+            galleys.char_offset_by_galley_and_cursor(galley_idx, new_cursor, text)
+        }
     }
 }
 

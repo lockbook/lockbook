@@ -1,5 +1,6 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, TextFormat, Ui};
+use lb_rs::model::text::offset_types::{IntoRangeExt as _, RangeExt as _};
 
 use crate::tab::markdown_plusplus::{widget::WrapContext, MarkdownPlusPlus};
 
@@ -14,18 +15,68 @@ impl<'ast> MarkdownPlusPlus {
     pub fn span_footnote_reference(
         &self, node: &'ast AstNode<'ast>, wrap: &WrapContext, ix: u32,
     ) -> f32 {
-        let text = format!("{}", ix);
-        self.span_node_text_line(node, wrap, &text)
+        let sourcepos = node.data.borrow().sourcepos;
+        let range = self.sourcepos_to_range(sourcepos);
+
+        if self.node_intersects_selection(node) {
+            let prefix_range = (range.start(), range.start() + 2);
+            let prefix_span =
+                self.span_text_line(wrap, prefix_range, self.text_format_syntax(node));
+            let infix_range = (range.start() + 2, range.end() - 1);
+            let infix_span = self.span_text_line(wrap, infix_range, self.text_format(node));
+            let postfix_range = (range.end() - 1, range.end());
+            let postfix_span =
+                self.span_text_line(wrap, postfix_range, self.text_format_syntax(node));
+            prefix_span + infix_span + postfix_span
+        } else {
+            let text = format!("{}", ix);
+            self.text_mid_span(wrap, Default::default(), &text, self.text_format(node))
+        }
     }
 
+    // [^footnotereference]
     pub fn show_footnote_reference(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+        ix: u32,
     ) {
-        // [^footnotereference]
-        let mut sourcepos = node.data.borrow().sourcepos;
-        sourcepos.start.column += 2;
-        sourcepos.end.column -= 1;
+        let sourcepos = node.data.borrow().sourcepos;
+        let range = self.sourcepos_to_range(sourcepos);
 
-        self.show_node_text_line(ui, node, top_left, wrap, self.sourcepos_to_range(sourcepos));
+        let prefix_range = (range.start(), range.start() + 2);
+        let infix_range = (range.start() + 2, range.end() - 1);
+        let postfix_range = (range.end() - 1, range.end());
+
+        if self.node_intersects_selection(node) {
+            self.show_text_line(
+                ui,
+                top_left,
+                wrap,
+                prefix_range,
+                self.text_format_syntax(node),
+                false,
+            );
+
+            self.show_text_line(ui, top_left, wrap, infix_range, self.text_format(node), false);
+
+            self.show_text_line(
+                ui,
+                top_left,
+                wrap,
+                postfix_range,
+                self.text_format_syntax(node),
+                false,
+            );
+        } else {
+            let text = format!("{}", ix);
+            self.show_override_text_line(
+                ui,
+                top_left,
+                wrap,
+                (range.end() - 1).into_range(),
+                self.text_format(node),
+                false,
+                Some(&text),
+            );
+        }
     }
 }
