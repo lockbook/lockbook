@@ -91,9 +91,6 @@ impl eframe::App for LbWebApp {
                 if let Some(svg) = &mut self.canvas {
                     egui::Frame::default().show(ui, |ui| {
                         svg.show(ui);
-                        if let Some(t) = SVGEditor::get_zoom_fit_transform(&mut svg.buffer, ui) {
-                            SVGEditor::transform_canvas(&mut svg.buffer, t);
-                        }
                     });
                 }
             });
