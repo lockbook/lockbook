@@ -721,7 +721,7 @@ impl MindMap {
             });
         }
         if !self.urls_complete {
-            thread::spawn(move || start_extraction_names());
+            thread::spawn(start_extraction_names);
             self.urls_complete = true;
         }
 
@@ -859,7 +859,7 @@ fn truncate_after_second_punct(text: &str) -> String {
     let mut number_count = 0;
     let mut number_space = 0;
     let mut return_meet = false;
-    let text = rearrange_last_word(&text);
+    let text = rearrange_last_word(text);
     let text = remove_words_with_backslash(&text);
     for (i, c) in text.char_indices() {
         if c.is_numeric() {

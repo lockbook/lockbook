@@ -186,7 +186,7 @@ fn extract_website_name(url: &str) -> String {
     domain.to_string()
 }
 
-fn in_classify(name: &String, classify: &Vec<NameId>) -> Option<usize> {
+fn in_classify(name: &String, classify: &[NameId]) -> Option<usize> {
     classify.iter().find_map(
         |linkinfo| {
             if &linkinfo.name == name {
