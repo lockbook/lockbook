@@ -382,11 +382,13 @@ impl Pen {
         }
 
         if pen_ctx.is_touch_frame {
+            *pen_ctx.allow_viewport_changes = true;
             // shouldn't handle non touch events on touch devices to avoid breaking ipad hover.
             if let IntegrationEvent::Native(&egui::Event::PointerMoved(pos)) = e {
                 if is_current_path_empty {
-                    *pen_ctx.allow_viewport_changes = true;
                     return Some(PathEvent::Hover(DrawPayload { pos, force: None, id: None }));
+                } else {
+                    *pen_ctx.allow_viewport_changes = false;
                 }
             }
             return None;
