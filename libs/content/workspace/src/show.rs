@@ -214,7 +214,6 @@ impl Workspace {
                                     {
                                         self.upsert_mind_map(self.core.clone());
                                     }
-                                
                             });
                             strip.cell(|_| {});
                             strip.cell(|ui| {
