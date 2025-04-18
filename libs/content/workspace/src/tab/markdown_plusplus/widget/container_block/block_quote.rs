@@ -1,5 +1,6 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 
 use crate::tab::markdown_plusplus::{widget::INDENT, MarkdownPlusPlus};
 
@@ -29,9 +30,51 @@ impl<'ast> MarkdownPlusPlus {
         // debug
         // ui.painter()
         //     .rect_stroke(annotation_space, 2., egui::Stroke::new(1., self.theme.fg().blue));
+        // }
 
         top_left.x += annotation_space.width();
         width -= annotation_space.width();
         self.show_block_children(ui, node, top_left, width);
+    }
+
+    // This routine is standard-/reference-complexity, as the prefix len is
+    // line-by-line (unlike list items) and block quotes contain multiline text,
+    // so they are their own client. Most of the fundamental behavior with line
+    // prefix lengths can be observed with block quotes alone.
+    //
+    // This implementation does benefit from the simplicity of the node - there
+    // are only 8 cases.
+    pub fn line_prefix_len_block_quote(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> RelCharOffset {
+        let parent = node.parent().unwrap();
+        let mut result = self.line_prefix_len(parent, line);
+
+        // "A block quote marker consists of 0-3 spaces of initial indent, plus
+        // (a) the character > together with a following space, or (b) a single
+        // character > not followed by a space."
+        //
+        // "If a string of lines Ls constitute a sequence of blocks Bs, then the
+        // result of prepending a block quote marker to the beginning of each
+        // line in Ls is a block quote containing Bs."
+        let text = &self.buffer[(line.start() + self.line_prefix_len(parent, line), line.end())];
+        if text.starts_with("   > ") {
+            result += 5;
+        } else if text.starts_with("   >") || text.starts_with("  > ") {
+            result += 4;
+        } else if text.starts_with("  >") || text.starts_with(" > ") {
+            result += 3;
+        } else if text.starts_with(" >") || text.starts_with("> ") {
+            result += 2;
+        } else if text.starts_with(">") {
+            result += 1;
+        }
+
+        // "If a string of lines Ls constitute a block quote with contents Bs,
+        // then the result of deleting the initial block quote marker from one
+        // or more lines in which the next non-whitespace character after the
+        // block quote marker is paragraph continuation text is a block quote
+        // with Bs as its content."
+        result.min(line.len())
     }
 }

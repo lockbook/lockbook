@@ -1,5 +1,6 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Ui, Vec2};
+use lb_rs::model::text::offset_types::{DocCharOffset, RelCharOffset};
 
 use crate::tab::markdown_plusplus::{
     widget::{INDENT, ROW_HEIGHT},
@@ -24,5 +25,11 @@ impl<'ast> MarkdownPlusPlus {
         self.show_block_children(ui, node, top_left, width);
 
         // todo: add space for captured lines
+    }
+
+    pub fn line_prefix_len_task_item(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> RelCharOffset {
+        todo!()
     }
 }

@@ -1,5 +1,6 @@
 use comrak::nodes::{AlertType, AstNode, NodeAlert};
 use egui::{Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
+use lb_rs::model::text::offset_types::{DocCharOffset, RelCharOffset};
 
 use crate::tab::markdown_plusplus::{widget::INDENT, MarkdownPlusPlus};
 
@@ -42,5 +43,19 @@ impl<'ast> MarkdownPlusPlus {
         top_left.x += annotation_space.width();
         width -= annotation_space.width();
         self.show_block_children(ui, node, top_left, width);
+    }
+
+    // doesn't support, but also will never be invoked, for the line containing
+    // the [!NOTE] etc
+    pub fn line_prefix_len_alert(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+        node_alert: &NodeAlert,
+    ) -> RelCharOffset {
+        let NodeAlert { multiline, .. } = node_alert;
+        if *multiline {
+            self.line_prefix_len_multiline_block_quote(node, line)
+        } else {
+            self.line_prefix_len_block_quote(node, line)
+        }
     }
 }

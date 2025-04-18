@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use comrak::nodes::AstNode;
 use egui::{FontFamily, FontId, Pos2, Rangef, Rect, Stroke, TextFormat, Ui, Vec2};
+use lb_rs::model::text::offset_types::{DocCharOffset, RelCharOffset};
 
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
@@ -67,5 +68,11 @@ impl<'ast> MarkdownPlusPlus {
                 stroke,
             );
         }
+    }
+
+    pub fn line_prefix_len_table_row(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> RelCharOffset {
+        todo!()
     }
 }

@@ -1,5 +1,6 @@
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{Pos2, Ui, Vec2};
+use lb_rs::model::text::offset_types::{DocCharOffset, RelCharOffset};
 
 use crate::tab::markdown_plusplus::{
     widget::{WrapContext, BLOCK_PADDING, BLOCK_SPACING},

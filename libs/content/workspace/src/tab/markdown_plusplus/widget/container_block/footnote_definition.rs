@@ -1,7 +1,13 @@
-use comrak::nodes::{AstNode, ListType, NodeValue};
-use egui::{Pos2, TextFormat, Ui};
+use std::sync::Arc;
 
-use crate::tab::markdown_plusplus::MarkdownPlusPlus;
+use comrak::nodes::{AstNode, NodeValue};
+use egui::{text::LayoutJob, FontFamily, Pos2, Rect, TextFormat, Ui, Vec2};
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
+
+use crate::tab::markdown_plusplus::{
+    widget::{INDENT, ROW_HEIGHT},
+    MarkdownPlusPlus,
+};
 
 impl<'ast> MarkdownPlusPlus {
     pub fn text_format_footnote_definition(&self, parent: &AstNode<'_>) -> TextFormat {
@@ -14,9 +20,60 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_footnote_definition(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, mut width: f32,
     ) {
-        self.show_item(ui, node, top_left, width, ListType::Ordered, self.definition_number(node));
+        let annotation_size = Vec2 { x: INDENT, y: ROW_HEIGHT };
+        let annotation_space = Rect::from_min_size(top_left, annotation_size);
+
+        let mut text_format = self.text_format_syntax(node);
+        text_format.font_id.family = FontFamily::Name(Arc::from("Super"));
+
+        let text = format!("{}.", self.definition_number(node));
+        let layout_job = LayoutJob::single_section(text, text_format);
+        let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
+        ui.painter()
+            .galley(annotation_space.left_top(), galley, Default::default());
+
+        // debug
+        // ui.painter()
+        //     .rect_stroke(annotation_space, 2., egui::Stroke::new(1., self.theme.fg().blue));
+
+        // debug
+        // println!("-- line prefix lens --");
+        // let range = self.node_range(node);
+        // for line in self.range_lines(range) {
+        //     let source_line_idx =
+        //         crate::tab::markdown_plusplus::bounds::RangesExt::find_containing(
+        //             &self.bounds.source_lines,
+        //             line.start(),
+        //             true,
+        //             true,
+        //         )
+        //         .start();
+        //     println!("line {} prefix len: {:?}", source_line_idx, self.line_prefix_len(node, line));
+        // }
+
+        top_left.x += annotation_space.width();
+        width -= annotation_space.width();
+        self.show_block_children(ui, node, top_left, width);
+    }
+
+    // A clean spec is not available because these are a GFM extension, so
+    // assumptions are made with experimental verification:
+    // * 0-3 spaces indentation
+    // * space between the syntax and first child are part of this
+    // node (e.g. they don't affect indentation requirements for nested list
+    // items)
+    pub fn line_prefix_len_footnote_definition(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> RelCharOffset {
+        // todo: change paramater type of `line` to `usize` (index instead of
+        // value) here and elsewhere
+        if line == self.node_first_line(node) {
+            self.prefix_range(node).unwrap().len()
+        } else {
+            RelCharOffset(2).min(line.len())
+        }
     }
 
     /// Footnote definitions are usually rendered in the order in which they're
