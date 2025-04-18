@@ -1,9 +1,9 @@
 use comrak::nodes::{
-    AstNode, NodeFootnoteReference, NodeHeading, NodeHtmlBlock, NodeLink, NodeList, NodeValue,
+    AstNode, NodeFootnoteReference, NodeHeading, NodeHtmlBlock, NodeLink, NodeValue,
 };
 use egui::{Pos2, TextFormat, Ui};
 use inline::text;
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 
 use super::MarkdownPlusPlus;
 
@@ -214,9 +214,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::FootnoteDefinition(_) => {
                 self.show_footnote_definition(ui, node, top_left, width)
             }
-            NodeValue::Item(NodeList { list_type, start, .. }) => {
-                self.show_item(ui, node, top_left, width, *list_type, *start)
-            }
+            NodeValue::Item(node_list) => self.show_item(ui, node, top_left, width, node_list),
             NodeValue::List(_) => self.show_block_children(ui, node, top_left, width),
             NodeValue::MultilineBlockQuote(_) => {
                 self.show_multiline_block_quote(ui, node, top_left, width)
@@ -493,7 +491,7 @@ impl<'ast> MarkdownPlusPlus {
     /// Returns the range between the start of the node and the start of its
     /// first child, if there is one.
     fn prefix_range(&self, node: &'ast AstNode<'ast>) -> Option<(DocCharOffset, DocCharOffset)> {
-        let range = self.sourcepos_to_range(node.data.borrow().sourcepos);
+        let range = self.node_range(node);
         let first_child = node.children().next()?;
         let first_child_range = self.sourcepos_to_range(first_child.data.borrow().sourcepos);
         Some((range.start(), first_child_range.start()))
@@ -502,7 +500,7 @@ impl<'ast> MarkdownPlusPlus {
     /// Returns the range between the end of the node's last child if there is
     /// one, and the end of the node.
     fn postfix_range(&self, node: &'ast AstNode<'ast>) -> Option<(DocCharOffset, DocCharOffset)> {
-        let range = self.sourcepos_to_range(node.data.borrow().sourcepos);
+        let range = self.node_range(node);
         let last_child = node.children().last()?;
         let last_child_range = self.sourcepos_to_range(last_child.data.borrow().sourcepos);
         Some((last_child_range.end(), range.end()))
@@ -592,9 +590,90 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
+    /// How many leading characters on this line belong to the given node and
+    /// its ancestors?
+    // "It is tempting to think of this in terms of columns: the continuation
+    // blocks must be indented at least to the column of the first
+    // non-whitespace character after the list marker. However, that is not
+    // quite right. The spaces after the list marker determine how much relative
+    // indentation is needed. Which column this indentation reaches will depend
+    // on how the list item is embedded in other constructions, as shown by this
+    // example:
+    //
+    //    > > 1.  one
+    // >>
+    // >>     two
+    //
+    // Here two occurs in the same column as the list marker 1., but is actually
+    // contained in the list item, because there is sufficient indentation after
+    // the last containing blockquote marker."
+    //
+    // https://github.github.com/gfm/#list-items
+    fn line_prefix_len(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> RelCharOffset {
+        // lazy fields that are not invoked for document node which has no parent
+        let parent = || node.parent().unwrap();
+        let parent_line_prefix_len = || self.line_prefix_len(parent(), line);
+
+        match &node.data.borrow().value {
+            NodeValue::FrontMatter(_) => unimplemented!("not a block"),
+            NodeValue::Raw(_) => unimplemented!("can only be created programmatically"),
+
+            // container_block
+            NodeValue::Alert(node_alert) => self.line_prefix_len_alert(node, line, node_alert),
+            NodeValue::BlockQuote => self.line_prefix_len_block_quote(node, line),
+            NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
+            NodeValue::DescriptionList => unimplemented!("extension disabled"),
+            NodeValue::Document => 0.into(),
+            NodeValue::FootnoteDefinition(_) => {
+                self.line_prefix_len_footnote_definition(node, line)
+            }
+            NodeValue::Item(node_list) => self.line_prefix_len_item(node, line, node_list),
+            NodeValue::List(_) => parent_line_prefix_len(),
+            NodeValue::MultilineBlockQuote(_) => {
+                self.line_prefix_len_multiline_block_quote(node, line)
+            }
+            NodeValue::Table(_) => parent_line_prefix_len(),
+            NodeValue::TableRow(_) => self.line_prefix_len_table_row(node, line),
+            NodeValue::TaskItem(_) => self.line_prefix_len_task_item(node, line),
+
+            // inline
+            NodeValue::Image(NodeLink { .. }) => unimplemented!("not a block"),
+            NodeValue::Code(_) => unimplemented!("not a block"),
+            NodeValue::Emph => unimplemented!("not a block"),
+            NodeValue::Escaped => unimplemented!("not a block"),
+            NodeValue::EscapedTag(_) => unimplemented!("not a block"),
+            NodeValue::FootnoteReference(_) => unimplemented!("not a block"),
+            NodeValue::HtmlInline(_) => unimplemented!("not a block"),
+            NodeValue::LineBreak => unimplemented!("not a block"),
+            NodeValue::Link(_) => unimplemented!("not a block"),
+            NodeValue::Math(_) => unimplemented!("not a block"),
+            NodeValue::SoftBreak => unimplemented!("not a block"),
+            NodeValue::SpoileredText => unimplemented!("not a block"),
+            NodeValue::Strikethrough => unimplemented!("not a block"),
+            NodeValue::Strong => unimplemented!("not a block"),
+            NodeValue::Subscript => unimplemented!("not a block"),
+            NodeValue::Superscript => unimplemented!("not a block"),
+            NodeValue::Text(_) => unimplemented!("not a block"),
+            NodeValue::Underline => unimplemented!("not a block"),
+            NodeValue::WikiLink(_) => unimplemented!("not a block"),
+
+            // leaf_block
+            NodeValue::CodeBlock(_) => unimplemented!("not a container block"),
+            NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
+            NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
+            NodeValue::Heading(_) => unimplemented!("not a container block"),
+            NodeValue::HtmlBlock(_) => unimplemented!("not a container block"),
+            NodeValue::Paragraph => unimplemented!("not a container block"),
+            NodeValue::TableCell => unimplemented!("not a container block"),
+            NodeValue::ThematicBreak => unimplemented!("not a container block"),
+        }
+    }
+
     // additional helpers
-    pub fn node_intersects_selection(&self, node: &AstNode<'_>) -> bool {
-        self.sourcepos_to_range(node.data.borrow().sourcepos)
+    pub fn node_intersects_selection(&self, node: &'ast AstNode<'ast>) -> bool {
+        self.node_range(node)
             .intersects(&self.buffer.current.selection, true)
     }
 }

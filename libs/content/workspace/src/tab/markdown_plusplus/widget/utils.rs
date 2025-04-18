@@ -1,8 +1,10 @@
-use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset};
+use comrak::nodes::AstNode;
+use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _};
 
+use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
-impl MarkdownPlusPlus {
+impl<'ast> MarkdownPlusPlus {
     // wrappers because I'm tired of writing ".buffer.current.segs" all the time
     pub fn offset_to_byte(&self, i: DocCharOffset) -> DocByteOffset {
         self.buffer.current.segs.offset_to_byte(i)
@@ -127,5 +129,77 @@ impl MarkdownPlusPlus {
         }
 
         result
+    }
+
+    /// Returns a Vec of ranges that represent the given range, split on
+    /// newlines, and expanded to include the whole first and last line.
+    pub fn range_full_lines(
+        &self, range: (DocCharOffset, DocCharOffset),
+    ) -> Vec<(DocCharOffset, DocCharOffset)> {
+        let mut range_lines = self.range_lines(range);
+
+        if range_lines.is_empty() {
+            return range_lines;
+        }
+        let first_line = *range_lines.first().unwrap();
+        let last_line = *range_lines.last().unwrap();
+
+        let start_line_idx = self
+            .bounds
+            .source_lines
+            .find_containing(first_line.start(), true, true)
+            .start();
+        let start_line = self.bounds.source_lines[start_line_idx];
+
+        let end_line_idx = self
+            .bounds
+            .source_lines
+            .find_containing(last_line.end(), true, true)
+            .start();
+        let end_line = self.bounds.source_lines[end_line_idx];
+
+        range_lines.first_mut().unwrap().0 = start_line.start();
+        range_lines.last_mut().unwrap().1 = end_line.end();
+
+        range_lines
+    }
+
+    /// Returns the range for the node - easy enough to do yourself but comes up
+    /// so often.
+    pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+        self.sourcepos_to_range(node.data.borrow().sourcepos)
+    }
+
+    /// Returns the (inclusive, exclusive) range of lines that this node is sourced from.
+    pub fn node_lines(&self, node: &'ast AstNode<'ast>) -> (usize, usize) {
+        let range_lines = self.range_lines(self.node_range(node));
+
+        let first_line = *range_lines.first().unwrap();
+        let start_line_idx = self
+            .bounds
+            .source_lines
+            .find_containing(first_line.start(), true, true)
+            .start();
+
+        let last_line = *range_lines.last().unwrap();
+        let end_line_idx = self
+            .bounds
+            .source_lines
+            .find_containing(last_line.end(), true, true)
+            .end(); // note: preserves (inclusive, exclusive) behavior
+
+        (start_line_idx, end_line_idx)
+    }
+
+    pub fn node_first_line(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+        let range_lines = self.range_lines(self.node_range(node));
+
+        let first_line = *range_lines.first().unwrap();
+        let start_line_idx = self
+            .bounds
+            .source_lines
+            .find_containing(first_line.start(), true, true)
+            .start();
+        self.bounds.source_lines[start_line_idx]
     }
 }

@@ -1,6 +1,6 @@
 use comrak::nodes::AstNode;
 use egui::{FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
-use lb_rs::model::text::offset_types::RangeExt as _;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 
 use crate::tab::markdown_plusplus::{
     widget::{WrapContext, ROW_HEIGHT, ROW_SPACING},
@@ -86,7 +86,7 @@ impl<'ast> MarkdownPlusPlus {
             }
         } else {
             // heading is empty
-            let range = self.sourcepos_to_range(node.data.borrow().sourcepos);
+            let range = self.node_range(node);
             if self.node_intersects_selection(node) {
                 wrap.offset += self.span_text_line(&wrap, range, self.text_format_syntax(node));
             }
@@ -195,7 +195,7 @@ impl<'ast> MarkdownPlusPlus {
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
-            let range = self.sourcepos_to_range(node.data.borrow().sourcepos);
+            let range = self.node_range(node);
             self.show_text_line(
                 ui,
                 top_left,
