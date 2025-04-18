@@ -1,7 +1,7 @@
 use super::data::{lockbook_data, start_extraction_names, Graph, LinkNode, DONE, URL_NAME_STORE};
 use egui::ahash::{HashMap, HashMapExt};
 use egui::epaint::Shape;
-use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, TouchId, Vec2};
+use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
 use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
 use std::sync::atomic::Ordering;
@@ -38,7 +38,7 @@ pub struct MindMap {
     names_uploaded: bool,
     url_titles: Vec<String>,
     touch_positions: HashMap<u64, Pos2>,
-    last_tap_time: Option<f64>,
+    _last_tap_time: Option<f64>,
 }
 
 impl Grid {
@@ -103,7 +103,7 @@ impl MindMap {
             names_uploaded: false,
             url_titles: vec!["".to_string(); graph.len()],
             touch_positions: HashMap::new(),
-            last_tap_time: None,
+            _last_tap_time: None,
         }
     }
 
@@ -650,7 +650,7 @@ impl MindMap {
                 // You could update debug with pan if you wish.
             });
         }
-        const DOUBLE_TAP_THRESHOLD: f64 = 0.3;
+        const _DOUBLE_TAP_THRESHOLD: f64 = 0.3;
 
         ui.input(|i| {
             // Touch platforms: require a double tap.
@@ -659,20 +659,20 @@ impl MindMap {
                 if i.pointer.any_click() && self.inside_found {
                     // Use the current time from egui’s input state.
                     let now = i.time;
-                    if let Some(last_tap) = self.last_tap_time {
+                    if let Some(_last_tap) = self._last_tap_time {
                         // Check if the new tap is within the double-tap time window.
-                        if now - last_tap < DOUBLE_TAP_THRESHOLD {
+                        if now - _last_tap < _DOUBLE_TAP_THRESHOLD {
                             // Double tap detected! Trigger the action.
                             conditions = true;
                             self.inside_found = false;
-                            self.last_tap_time = None; // Reset for future detections.
+                            self._last_tap_time = None; // Reset for future detections.
                         } else {
                             // Too much time passed; treat this tap as the first tap.
-                            self.last_tap_time = Some(now);
+                            self._last_tap_time = Some(now);
                         }
                     } else {
                         // First tap recorded; wait for the second tap.
-                        self.last_tap_time = Some(now);
+                        self._last_tap_time = Some(now);
                     }
                 }
             }
