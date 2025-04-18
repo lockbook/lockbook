@@ -197,10 +197,9 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getStatus(
         msg: obj.workspace.status.message.clone(),
     };
 
-    return env
-        .new_string(serde_json::to_string(&status).unwrap())
+    env.new_string(serde_json::to_string(&status).unwrap())
         .expect("Couldn't create JString from rust string!")
-        .into_raw();
+        .into_raw()
 }
 
 #[no_mangle]

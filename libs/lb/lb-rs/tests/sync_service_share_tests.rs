@@ -4,7 +4,6 @@ use lb_rs::Lb;
 use test_utils::*;
 
 /// Tests that setup one device each on two accounts, share a file from one to the other, sync both, then accept
-
 async fn assert_stuff(c1: &Lb, c2: &Lb) {
     for c in [c1, c2] {
         c.test_repo_integrity().await.unwrap();

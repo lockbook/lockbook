@@ -318,8 +318,5 @@ fn env_or_panic(var_name: &str) -> String {
 }
 
 fn env_or_empty(var_name: &str) -> Option<String> {
-    match env::var(var_name) {
-        Ok(var) => Some(var),
-        Err(_err) => None,
-    }
+    env::var(var_name).ok()
 }

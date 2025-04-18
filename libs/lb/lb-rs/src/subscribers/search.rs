@@ -304,7 +304,7 @@ impl SearchResult {
     pub fn name(&self) -> &str {
         match self {
             SearchResult::DocumentMatch { path, .. } | SearchResult::PathMatch { path, .. } => {
-                path.split('/').last().unwrap_or_default()
+                path.split('/').next_back().unwrap_or_default()
             }
         }
     }
