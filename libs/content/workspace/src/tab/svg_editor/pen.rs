@@ -317,14 +317,14 @@ impl Pen {
         if input_state.is_multi_touch {
             if let Some(first_point_frame) = self.path_builder.first_point_frame {
                 if Instant::now() - first_point_frame < Duration::from_millis(500) {
-                    trace!("drew stroke for a bit but then shifted to a vw change");
+                    trace!("drew stroke for a bit but then shifted to a vw change, allow viewport changes");
                     *pen_ctx.allow_viewport_changes = true;
                     return Some(PathEvent::CancelStroke);
                 }
             }
 
             if is_current_path_empty {
-                trace!("path is empty on a multi touch allow zoom");
+                trace!("path is empty on a multi touch allow zoom, allow viewport changes");
                 *pen_ctx.allow_viewport_changes = true;
                 return None;
             }
@@ -382,10 +382,11 @@ impl Pen {
         }
 
         if pen_ctx.is_touch_frame {
-            *pen_ctx.allow_viewport_changes = true;
+            trace!("is touch frame, allow viewport changes, allow viewport changes");
             // shouldn't handle non touch events on touch devices to avoid breaking ipad hover.
             if let IntegrationEvent::Native(&egui::Event::PointerMoved(pos)) = e {
                 if is_current_path_empty {
+                    *pen_ctx.allow_viewport_changes = true;
                     return Some(PathEvent::Hover(DrawPayload { pos, force: None, id: None }));
                 }
             }
@@ -406,6 +407,7 @@ impl Pen {
         {
             if is_current_path_empty {
                 *pen_ctx.allow_viewport_changes = true;
+                trace!("there's likely a zoom, allow viewport changes");
                 return None;
             } else {
                 *pen_ctx.allow_viewport_changes = false;
@@ -444,7 +446,7 @@ impl Pen {
                 return Some(PathEvent::Draw(DrawPayload { pos, force: None, id: None }));
             }
         }
-
+        trace!("no pen events detected, allow viewport changes");
         *pen_ctx.allow_viewport_changes = true;
         None
     }

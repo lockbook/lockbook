@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use egui::TouchPhase;
 use resvg::usvg::Transform;
-use tracing::trace;
+use tracing::{error, trace};
 
 use super::{element::BoundedElement, SVGEditor};
 use lb_rs::model::svg::{buffer::u_transform_to_bezier, element::Element};

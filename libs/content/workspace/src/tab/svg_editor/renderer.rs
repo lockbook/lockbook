@@ -14,7 +14,7 @@ use lyon::tessellation::{
 
 use rayon::prelude::*;
 use resvg::usvg::{ImageKind, Transform};
-use tracing::{span, Level};
+use tracing::{span, trace, Level};
 
 use crate::tab::svg_editor::gesture_handler::get_zoom_fit_transform;
 use crate::theme::palette::ThemePalette;

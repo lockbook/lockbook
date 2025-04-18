@@ -14,7 +14,7 @@ pub fn init(config: &Config) -> LbResult<()> {
         let lockbook_log_level = env::var("LOG_LEVEL")
             .ok()
             .and_then(|s| s.as_str().parse().ok())
-            .unwrap_or(LevelFilter::DEBUG);
+            .unwrap_or(LevelFilter::TRACE);
 
         let mut layers = Vec::with_capacity(2);
 
@@ -44,10 +44,11 @@ pub fn init(config: &Config) -> LbResult<()> {
                     .with_target(false)
                     .with_filter(lockbook_log_level)
                     .with_filter(filter::filter_fn(|metadata| {
-                        metadata.target().starts_with("lb_rs")
-                            || metadata.target().starts_with("dbrs")
-                            || metadata.target().starts_with("workspace")
-                            || metadata.target().starts_with("lb_fs")
+                        // metadata.target().starts_with("lb_rs")
+                        //     || metadata.target().starts_with("dbrs")
+                        //     || metadata.target().starts_with("workspace")
+                        //     || metadata.target().starts_with("lb_fs")
+                        metadata.target().contains("svg_editor")
                     }))
                     .boxed(),
             );
