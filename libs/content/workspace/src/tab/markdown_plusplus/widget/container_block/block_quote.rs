@@ -1,6 +1,8 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
+use lb_rs::model::text::offset_types::{
+    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
+};
 
 use crate::tab::markdown_plusplus::{widget::INDENT, MarkdownPlusPlus};
 
@@ -10,31 +12,74 @@ impl<'ast> MarkdownPlusPlus {
         TextFormat { color: self.theme.fg().neutral_tertiary, ..parent_text_format }
     }
 
-    pub fn height_block_quote(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
-        self.height_item(node, width)
+    pub fn height_block_quote(&self, node: &'ast AstNode<'ast>) -> f32 {
+        self.height_item(node)
     }
 
-    pub fn show_block_quote(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, mut width: f32,
-    ) {
-        let height = self.height_block_quote(node, width);
+    pub fn show_block_quote(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
+        let range = self.node_range(node);
+
+        let height = self.height_block_quote(node);
         let annotation_size = Vec2 { x: INDENT, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        ui.painter().vline(
-            annotation_space.center().x,
-            annotation_space.y_range(),
-            Stroke::new(3., self.theme.bg().neutral_tertiary),
-        );
+        let mut annotation_top_left = top_left;
+        for line_idx in self.node_lines(node).iter() {
+            let mut line = self.bounds.source_lines[line_idx];
+            line.0 += self.line_prefix_len(node.parent().unwrap(), line);
+
+            // When the cursor is inside the syntax for a particular line,
+            // reveal that line's syntax. This is a more subtle design than
+            // revealing the syntax for the line when the cursor is anywhere
+            // in the line, which itself is a more subtle design than
+            // revealing the syntax for all lines when the cursor is
+            // anywhere in the block quote. All designs seem viable.
+            //
+            // Revealing block quote syntax without revealing all syntax in the
+            // block quote introduces an interesting question: where do we show
+            // the `>` for the line? It depends on the heights of the
+            // descendant's lines. Consider the following example:
+            //
+            // > Block-Quoted Setext Heading 1
+            // > ===
+            // > ...and a paragraph to follow!
+            //
+            // In any design where we want to allow a user to edit a block quote
+            // without revealing the syntax for the whole block quote and
+            // everything inside (which itself would present interesting
+            // questions so it's not like there's a shortcut-workaround), we
+            // have to account for the cumulative heights of the preceding
+            // lines, which themselves could be affected by syntax reveal. In
+            // the example, the setext heading's underline is only revealed when
+            // the heading's range intersects the selection. Even the syntax
+            // reveal state of descendant nodes must be accounted for.
+            //
+            // Fortunately, we have written god-tier abstractions allowing us to
+            // make short work of the problem.
+            if self.line_prefix_intersects_selection(node, line) {}
+        }
+
+        if self.node_intersects_selection(node) {
+            for line_idx in self.node_lines(node).iter() {
+                let mut line = self.bounds.source_lines[line_idx];
+                line.0 += self.line_prefix_len(node.parent().unwrap(), line);
+            }
+        } else {
+            ui.painter().vline(
+                annotation_space.center().x,
+                annotation_space.y_range(),
+                Stroke::new(3., self.theme.bg().neutral_tertiary),
+            );
+        }
 
         // debug
         // ui.painter()
         //     .rect_stroke(annotation_space, 2., egui::Stroke::new(1., self.theme.fg().blue));
         // }
 
-        top_left.x += annotation_space.width();
-        width -= annotation_space.width();
-        self.show_block_children(ui, node, top_left, width);
+        let mut children_top_left = top_left;
+        children_top_left.x += annotation_space.width();
+        self.show_block_children(ui, node, children_top_left);
     }
 
     // This routine is standard-/reference-complexity, as the prefix len is

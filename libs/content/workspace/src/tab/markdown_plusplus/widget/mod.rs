@@ -65,7 +65,6 @@ impl WrapContext {
 
 impl<'ast> MarkdownPlusPlus {
     pub fn text_format(&self, node: &AstNode<'_>) -> TextFormat {
-        // lazy fields that are not invoked for document node which has no parent
         let parent = || node.parent().unwrap();
         let parent_text_format = || self.text_format(parent());
 
@@ -129,27 +128,27 @@ impl<'ast> MarkdownPlusPlus {
         self.ctx.fonts(|fonts| fonts.row_height(&text_format))
     }
 
-    pub fn height(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
+    pub fn height(&self, node: &'ast AstNode<'ast>) -> f32 {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => 0.,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(_) => self.height_alert(node, width),
-            NodeValue::BlockQuote => self.height_block_quote(node, width),
+            NodeValue::Alert(_) => self.height_alert(node),
+            NodeValue::BlockQuote => self.height_block_quote(node),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => self.block_children_height(node, width),
-            NodeValue::FootnoteDefinition(_) => self.height_footnote_definition(node, width),
-            NodeValue::Item(_) => self.height_item(node, width),
-            NodeValue::List(_) => self.block_children_height(node, width),
-            NodeValue::MultilineBlockQuote(_) => self.height_multiline_block_quote(node, width),
-            NodeValue::Table(_) => self.block_children_height(node, width),
-            NodeValue::TableRow(_) => self.height_table_row(node, width),
-            NodeValue::TaskItem(_) => self.block_children_height(node, width),
+            NodeValue::Document => self.block_children_height(node),
+            NodeValue::FootnoteDefinition(_) => self.height_footnote_definition(node),
+            NodeValue::Item(_) => self.height_item(node),
+            NodeValue::List(_) => self.block_children_height(node),
+            NodeValue::MultilineBlockQuote(_) => self.height_multiline_block_quote(node),
+            NodeValue::Table(_) => self.block_children_height(node),
+            NodeValue::TableRow(_) => self.height_table_row(node),
+            NodeValue::TaskItem(_) => self.block_children_height(node),
 
             // inline
-            NodeValue::Image(NodeLink { url, .. }) => self.height_image(width, url), // used when rendering the image itself
+            NodeValue::Image(NodeLink { url, .. }) => self.height_image(node, url), // used when rendering the image itself
             NodeValue::Code(_) => unimplemented!("not a block"),
             NodeValue::Emph => unimplemented!("not a block"),
             NodeValue::Escaped => unimplemented!("not a block"),
@@ -170,66 +169,117 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::WikiLink(_) => unimplemented!("not a block"),
 
             // leaf_block
-            NodeValue::CodeBlock(node_code_block) => {
-                self.height_code_block(node, width, node_code_block)
-            }
+            NodeValue::CodeBlock(node_code_block) => self.height_code_block(node, node_code_block),
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
             NodeValue::Heading(NodeHeading { level, setext, .. }) => {
-                self.height_heading(node, width, *level, *setext)
+                self.height_heading(node, *level, *setext)
             }
             NodeValue::HtmlBlock(NodeHtmlBlock { literal, .. }) => {
-                self.height_html_block(node, width, literal)
+                self.height_html_block(node, literal)
             }
-            NodeValue::Paragraph => self.height_paragraph(node, width),
-            NodeValue::TableCell => self.height_table_cell(node, width),
+            NodeValue::Paragraph => self.height_paragraph(node),
+            NodeValue::TableCell => self.height_table_cell(node),
             NodeValue::ThematicBreak => self.height_thematic_break(),
         }
     }
 
     // the height of a block that contains blocks is the sum of the heights of the blocks it contains
-    fn block_children_height(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
+    fn block_children_height(&self, node: &'ast AstNode<'ast>) -> f32 {
         let mut height_sum = 0.0;
         for child in node.children() {
             height_sum += self.block_pre_spacing_height(child);
-            height_sum += self.height(child, width);
+            height_sum += self.height(child);
             height_sum += self.block_post_spacing_height(child);
         }
         height_sum
     }
 
-    pub(crate) fn show_block(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
-    ) {
+    pub fn width(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let parent = || node.parent().unwrap();
+        let parent_width = || self.width(parent());
+
+        match &node.data.borrow().value {
+            NodeValue::FrontMatter(_) => 0.,
+            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
+
+            // container_block
+            NodeValue::Alert(_) => parent_width() + INDENT,
+            NodeValue::BlockQuote => parent_width() + INDENT,
+            NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
+            NodeValue::DescriptionList => unimplemented!("extension disabled"),
+            NodeValue::Document => self.width,
+            NodeValue::FootnoteDefinition(_) => parent_width() + INDENT,
+            NodeValue::Item(_) => parent_width() + INDENT,
+            NodeValue::List(_) => parent_width(), // indentation handled by items
+            NodeValue::MultilineBlockQuote(_) => parent_width() + INDENT,
+            NodeValue::Table(_) => parent_width(),
+            NodeValue::TableRow(_) => parent_width(),
+            NodeValue::TaskItem(_) => parent_width() + INDENT,
+
+            // inline
+            NodeValue::Image(_) => unimplemented!("not a block"),
+            NodeValue::Code(_) => unimplemented!("not a block"),
+            NodeValue::Emph => unimplemented!("not a block"),
+            NodeValue::Escaped => unimplemented!("not a block"),
+            NodeValue::EscapedTag(_) => unimplemented!("not a block"),
+            NodeValue::FootnoteReference(_) => unimplemented!("not a block"),
+            NodeValue::HtmlInline(_) => unimplemented!("not a block"),
+            NodeValue::LineBreak => unimplemented!("not a block"),
+            NodeValue::Link(_) => unimplemented!("not a block"),
+            NodeValue::Math(_) => unimplemented!("not a block"),
+            NodeValue::SoftBreak => unimplemented!("not a block"),
+            NodeValue::SpoileredText => unimplemented!("not a block"),
+            NodeValue::Strikethrough => unimplemented!("not a block"),
+            NodeValue::Strong => unimplemented!("not a block"),
+            NodeValue::Subscript => unimplemented!("not a block"),
+            NodeValue::Superscript => unimplemented!("not a block"),
+            NodeValue::Text(_) => unimplemented!("not a block"),
+            NodeValue::Underline => unimplemented!("not a block"),
+            NodeValue::WikiLink(_) => unimplemented!("not a block"),
+
+            // leaf_block
+            NodeValue::CodeBlock(_) => parent_width(),
+            NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
+            NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
+            NodeValue::Heading(_) => parent_width(),
+            NodeValue::HtmlBlock(_) => parent_width(),
+            NodeValue::Paragraph => parent_width(),
+            NodeValue::TableCell => {
+                parent_width() / node.parent().unwrap().children().count() as f32
+            }
+            NodeValue::ThematicBreak => parent_width(),
+        }
+    }
+
+    pub(crate) fn show_block(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => {}
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(_) => self.show_alert(ui, node, top_left, width),
-            NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left, width),
+            NodeValue::Alert(_) => self.show_alert(ui, node, top_left),
+            NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => self.show_document(ui, node, top_left, width),
-            NodeValue::FootnoteDefinition(_) => {
-                self.show_footnote_definition(ui, node, top_left, width)
-            }
-            NodeValue::Item(node_list) => self.show_item(ui, node, top_left, width, node_list),
-            NodeValue::List(_) => self.show_block_children(ui, node, top_left, width),
+            NodeValue::Document => self.show_document(ui, node, top_left),
+            NodeValue::FootnoteDefinition(_) => self.show_footnote_definition(ui, node, top_left),
+            NodeValue::Item(node_list) => self.show_item(ui, node, top_left, node_list),
+            NodeValue::List(_) => self.show_block_children(ui, node, top_left),
             NodeValue::MultilineBlockQuote(_) => {
-                self.show_multiline_block_quote(ui, node, top_left, width)
+                self.show_multiline_block_quote(ui, node, top_left)
             }
-            NodeValue::Table(_) => self.show_table(ui, node, top_left, width),
+            NodeValue::Table(_) => self.show_table(ui, node, top_left),
             NodeValue::TableRow(is_header_row) => {
-                self.show_table_row(ui, node, top_left, width, *is_header_row)
+                self.show_table_row(ui, node, top_left, *is_header_row)
             }
             NodeValue::TaskItem(maybe_check) => {
-                self.show_task_item(ui, node, top_left, width, *maybe_check)
+                self.show_task_item(ui, node, top_left, *maybe_check)
             }
 
             // inline
             NodeValue::Image(NodeLink { url, .. }) => {
-                self.show_image_block(ui, top_left, width, url)
+                self.show_image_block(ui, node, top_left, url)
             }
             NodeValue::Code(_) => unimplemented!("not a block"),
             NodeValue::Emph => unimplemented!("not a block"),
@@ -252,36 +302,30 @@ impl<'ast> MarkdownPlusPlus {
 
             // leaf_block
             NodeValue::CodeBlock(node_code_block) => {
-                self.show_code_block(ui, node, top_left, width, node_code_block)
+                self.show_code_block(ui, node, top_left, node_code_block)
             }
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
             NodeValue::Heading(NodeHeading { level, setext }) => {
-                self.show_heading(ui, node, top_left, width, *level, *setext)
+                self.show_heading(ui, node, top_left, *level, *setext)
             }
             NodeValue::HtmlBlock(NodeHtmlBlock { literal, .. }) => {
-                self.show_html_block(ui, node, top_left, width, literal)
+                self.show_html_block(ui, node, top_left, literal)
             }
-            NodeValue::Paragraph => {
-                self.show_paragraph(ui, node, top_left, &mut WrapContext::new(width))
-            }
-            NodeValue::TableCell => {
-                self.show_table_cell(ui, node, top_left, &mut WrapContext::new(width))
-            }
-            NodeValue::ThematicBreak => self.show_thematic_break(ui, node, top_left, width),
+            NodeValue::Paragraph => self.show_paragraph(ui, node, top_left),
+            NodeValue::TableCell => self.show_table_cell(ui, node, top_left),
+            NodeValue::ThematicBreak => self.show_thematic_break(ui, node, top_left),
         }
     }
 
     // blocks are stacked vertically
-    fn show_block_children(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, width: f32,
-    ) {
+    fn show_block_children(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
         let mut children: Vec<_> = node.children().collect();
         children.sort_by_key(|child| child.data.borrow().sourcepos);
         for child in children {
             // add pre-spacing
             let pre_spacing = self.block_pre_spacing_height(child);
-            self.show_block_pre_spacing(ui, child, top_left, width);
+            self.show_block_pre_spacing(ui, child, top_left);
 
             // debug
             // ui.painter().rect_stroke(
@@ -294,8 +338,8 @@ impl<'ast> MarkdownPlusPlus {
             top_left.y += pre_spacing;
 
             // add block
-            let child_height = self.height(child, width);
-            self.show_block(ui, child, top_left, width);
+            let child_height = self.height(child);
+            self.show_block(ui, child, top_left);
 
             // debug
             // ui.painter().rect_stroke(
@@ -309,7 +353,7 @@ impl<'ast> MarkdownPlusPlus {
 
             // add post-spacing
             let post_spacing = self.block_post_spacing_height(child);
-            self.show_block_post_spacing(ui, child, top_left, width);
+            self.show_block_post_spacing(ui, child, top_left);
 
             // debug
             // ui.painter().rect_stroke(
@@ -612,7 +656,6 @@ impl<'ast> MarkdownPlusPlus {
     fn line_prefix_len(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> RelCharOffset {
-        // lazy fields that are not invoked for document node which has no parent
         let parent = || node.parent().unwrap();
         let parent_line_prefix_len = || self.line_prefix_len(parent(), line);
 
@@ -669,11 +712,5 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::TableCell => unimplemented!("not a container block"),
             NodeValue::ThematicBreak => unimplemented!("not a container block"),
         }
-    }
-
-    // additional helpers
-    pub fn node_intersects_selection(&self, node: &'ast AstNode<'ast>) -> bool {
-        self.node_range(node)
-            .intersects(&self.buffer.current.selection, true)
     }
 }

@@ -32,26 +32,23 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn height_code_block(
-        &self, node: &'ast AstNode<'ast>, width: f32, node_code_block: &NodeCodeBlock,
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> f32 {
         if node_code_block.fenced {
-            self.height_fenced_code_block(node, width, node_code_block)
+            self.height_fenced_code_block(node, node_code_block)
         } else {
-            self.height_indented_code_block(
-                node,
-                width,
-                &node_code_block.info,
-                &node_code_block.literal,
-            )
+            self.height_indented_code_block(node, &node_code_block.info, &node_code_block.literal)
         }
     }
 
     pub fn show_code_block(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_code_block: &NodeCodeBlock,
     ) {
+        let mut width = self.width(node);
+
         if node_code_block.fenced {
-            self.show_fenced_code_block(ui, node, top_left, width, node_code_block);
+            self.show_fenced_code_block(ui, node, top_left, node_code_block);
         } else {
             self.show_indented_code_block(
                 ui,
@@ -65,8 +62,10 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn height_fenced_code_block(
-        &self, node: &'ast AstNode<'ast>, width: f32, node_code_block: &NodeCodeBlock,
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> f32 {
+        let width = self.width(node);
+
         let code = trim_one_trailing_newline(&node_code_block.literal);
         let text_width = width - 2. * BLOCK_PADDING;
 
@@ -76,9 +75,11 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_fenced_code_block(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_code_block: &NodeCodeBlock,
     ) {
+        let mut width = self.width(node);
+
         let NodeCodeBlock { fenced: _, fence_char, fence_length, fence_offset, info, literal } =
             node_code_block;
         let fence_length = RelByteOffset(*fence_length);
@@ -297,7 +298,7 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn height_indented_code_block(
-        &self, node: &'ast AstNode<'ast>, width: f32, info: &str, code: &str,
+        &self, node: &'ast AstNode<'ast>, info: &str, code: &str,
     ) -> f32 {
         todo!()
     }
@@ -309,6 +310,7 @@ impl<'ast> MarkdownPlusPlus {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32, info: &str,
         code: &str,
     ) {
+        let mut width = self.width(node);
         todo!()
     }
 }

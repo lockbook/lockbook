@@ -4,16 +4,14 @@ use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
-    pub fn show_table(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
-    ) {
-        self.show_block_children(ui, node, top_left, width);
+    pub fn show_table(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
+        let width = self.width(node);
+
+        self.show_block_children(ui, node, top_left);
 
         // draw exterior decoration
-        let table = Rect::from_min_size(
-            top_left,
-            Vec2::new(width, self.block_children_height(node, width)),
-        );
+        let table =
+            Rect::from_min_size(top_left, Vec2::new(width, self.block_children_height(node)));
         ui.painter().rect_stroke(
             table,
             2.,

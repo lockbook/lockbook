@@ -19,14 +19,12 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    pub fn height_alert(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
-        self.height_item(node, width)
+    pub fn height_alert(&self, node: &'ast AstNode<'ast>) -> f32 {
+        self.height_item(node)
     }
 
-    pub fn show_alert(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, mut width: f32,
-    ) {
-        let height = self.height_alert(node, width);
+    pub fn show_alert(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
+        let height = self.height_alert(node);
         let annotation_size = Vec2 { x: INDENT, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
@@ -41,8 +39,7 @@ impl<'ast> MarkdownPlusPlus {
         //     .rect_stroke(annotation_space, 2., egui::Stroke::new(1., self.theme.fg().blue));
 
         top_left.x += annotation_space.width();
-        width -= annotation_space.width();
-        self.show_block_children(ui, node, top_left, width);
+        self.show_block_children(ui, node, top_left);
     }
 
     // doesn't support, but also will never be invoked, for the line containing

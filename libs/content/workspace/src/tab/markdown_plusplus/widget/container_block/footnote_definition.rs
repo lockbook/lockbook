@@ -15,13 +15,15 @@ impl<'ast> MarkdownPlusPlus {
         TextFormat { color: self.theme.fg().neutral_tertiary, ..parent_text_format }
     }
 
-    pub fn height_footnote_definition(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
-        self.height_item(node, width)
+    pub fn height_footnote_definition(&self, node: &'ast AstNode<'ast>) -> f32 {
+        self.height_item(node)
     }
 
     pub fn show_footnote_definition(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, mut width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
+        let mut width = self.width(node);
+
         let annotation_size = Vec2 { x: INDENT, y: ROW_HEIGHT };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
@@ -55,7 +57,7 @@ impl<'ast> MarkdownPlusPlus {
 
         top_left.x += annotation_space.width();
         width -= annotation_space.width();
-        self.show_block_children(ui, node, top_left, width);
+        self.show_block_children(ui, node, top_left);
     }
 
     // A clean spec is not available because these are a GFM extension, so

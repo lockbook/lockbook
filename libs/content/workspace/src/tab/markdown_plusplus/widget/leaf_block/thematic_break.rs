@@ -12,9 +12,9 @@ impl<'ast> MarkdownPlusPlus {
         ROW_HEIGHT
     }
 
-    pub fn show_thematic_break(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
-    ) {
+    pub fn show_thematic_break(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
+        let width = self.width(node);
+
         // for some reason, thematic break ranges contain the trailing newline,
         // so we trim the range to the first line
         let mut range = self.bounds.source_lines[self.node_lines(node).start()];

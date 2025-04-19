@@ -191,6 +191,8 @@ impl<'ast> MarkdownPlusPlus {
         (start_line_idx, end_line_idx)
     }
 
+    /// Returns the first line, the whole first line, and nothing but the first
+    /// line of the given node.
     pub fn node_first_line(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
         let range_lines = self.range_lines(self.node_range(node));
 
@@ -201,5 +203,82 @@ impl<'ast> MarkdownPlusPlus {
             .find_containing(first_line.start(), true, true)
             .start();
         self.bounds.source_lines[start_line_idx]
+    }
+
+    /// Returns true if the node intersects the current selection. Useful for
+    /// checking if syntax should be revealed for a whole node.
+    pub fn node_intersects_selection(&self, node: &'ast AstNode<'ast>) -> bool {
+        self.node_range(node)
+            .intersects(&self.buffer.current.selection, true)
+    }
+
+    /// Returns true if the line prefix intersects the current selection. Useful
+    /// for checking if syntax should be revealed for one line of a multiline
+    /// container block with per-line syntax, like block quotes.
+    pub fn line_prefix_intersects_selection(
+        &self, node: &'ast AstNode<'ast>, mut line: (DocCharOffset, DocCharOffset),
+    ) -> bool {
+        line.0 += self.line_prefix_len(node, line);
+        line.intersects(&self.buffer.current.selection, true)
+    }
+
+    /// Returns the top y-coordinate of the given node.
+    pub fn node_top_left(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let mut top_left = if let Some(parent) = node.parent() {
+            self.node_top_left(parent)
+        } else {
+            0.0 // document / base case for all invocations
+        };
+
+        for sibling in self.sorted_siblings(node) {
+            top_left += self.height(node)
+        }
+
+        top_left
+    }
+
+    /// Returns the top y-coordinate of the given source line. Useful for
+    /// positioning container block syntax or annotations with attention to
+    /// content height, so that, for instance, a bulleted list with a nested
+    /// heading can vertically center the bullet on the larger-than-normal
+    /// heading text like in GitHub.
+    pub fn line_top_left() -> f32 {
+        // find the node that determines the text format
+        todo!()
+    }
+
+    /// Returns the preceding siblings of the given node in sourcepos order
+    /// (unlike `node.preceding_siblings()`).
+    pub fn preceding_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
+        let sorted_siblings = self.sorted_siblings(node);
+        let node_idx = sorted_siblings
+            .iter()
+            .position(|n| n.data.borrow().sourcepos == node.data.borrow().sourcepos)
+            .unwrap();
+        sorted_siblings[..node_idx].to_vec()
+    }
+
+    /// Returns the siblings of the given node in sourcepos order (unlike
+    /// `node.siblings()`).
+    pub fn sorted_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
+        let mut preceding_siblings = node.preceding_siblings();
+        preceding_siblings.next().unwrap(); // "Call .next().unwrap() once on the iterator to skip the node itself."
+
+        let mut following_siblings = node.following_siblings();
+        following_siblings.next().unwrap(); // "Call .next().unwrap() once on the iterator to skip the node itself."
+
+        let mut siblings = Vec::new();
+        siblings.extend(preceding_siblings);
+        siblings.push(node);
+        siblings.extend(following_siblings);
+        siblings.sort_by(|a, b| {
+            a.data
+                .borrow()
+                .sourcepos
+                .start
+                .line
+                .cmp(&b.data.borrow().sourcepos.start.line)
+        });
+        siblings
     }
 }

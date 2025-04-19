@@ -66,8 +66,11 @@ pub struct MarkdownPlusPlus {
     // ?
     pub virtual_keyboard_shown: bool,
 
-    // populated at frame start
-    image_max_size: Vec2,
+    /// width used to render the root node, populated at frame start
+    width: f32,
+    /// height of the viewport, useful for image size constraints, populated at
+    /// frame start
+    height: f32,
 }
 
 impl Drop for MarkdownPlusPlus {
@@ -105,7 +108,6 @@ impl MarkdownPlusPlus {
             syntax_light_theme,
             syntax_dark_theme,
             images: image_cache,
-            image_max_size: Default::default(),
             bounds: Default::default(),
             needs_name: Default::default(),
             initialized: Default::default(),
@@ -114,6 +116,8 @@ impl MarkdownPlusPlus {
             virtual_keyboard_shown: Default::default(),
             galleys: Default::default(),
             syntax: Default::default(),
+            width: Default::default(),
+            height: Default::default(),
         }
     }
 
@@ -152,8 +156,8 @@ impl MarkdownPlusPlus {
     }
 
     pub fn show(&mut self, ui: &mut Ui) {
-        // make sure the image can be viewed in full by capping its height and width to the viewport
-        self.image_max_size = ui.available_size() - Vec2::splat(MARGIN);
+        self.height = ui.available_size().y;
+        self.width = ui.max_rect().width().min(MAX_WIDTH);
 
         let start = std::time::Instant::now();
 
@@ -273,19 +277,18 @@ impl MarkdownPlusPlus {
         let max_rect = ui.max_rect();
         ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
 
-        let width = ui.max_rect().width().min(MAX_WIDTH);
         let padding = (ui.available_width() - ui.max_rect().width().min(MAX_WIDTH)) / 2.;
 
         let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
-        let height = self.height(root, width);
-        let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
+        let height = self.height(root);
+        let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
 
         ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
         ui.interact(rect, self.id(), Sense::click_and_drag()); // catches pointer input missed by individual widgets e.g. clicking after line end to place cursor
 
         // shows the actual UI
         ui.allocate_ui_at_rect(rect, |ui| {
-            self.show_block(ui, root, top_left, width);
+            self.show_block(ui, root, top_left);
         });
 
         let mut desired_size = Vec2::new(ui.max_rect().width(), max_rect.height());

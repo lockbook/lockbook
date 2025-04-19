@@ -8,21 +8,22 @@ use crate::tab::markdown_plusplus::{
 };
 
 impl<'ast> MarkdownPlusPlus {
-    pub fn height_task_item(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
-        self.height_item(node, width)
+    pub fn height_task_item(&self, node: &'ast AstNode<'ast>) -> f32 {
+        self.height_item(node)
     }
 
     pub fn show_task_item(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, mut width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
         maybe_check: Option<char>,
     ) {
+        let mut width = self.width(node);
         let space = Rect::from_min_size(top_left, Vec2 { x: INDENT, y: ROW_HEIGHT });
 
         ui.allocate_ui_at_rect(space, |ui| ui.checkbox(&mut maybe_check.is_some(), ""));
 
         top_left.x += space.width();
         width -= space.width();
-        self.show_block_children(ui, node, top_left, width);
+        self.show_block_children(ui, node, top_left);
 
         // todo: add space for captured lines
     }

@@ -24,8 +24,10 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_document(
-        &mut self, ui: &mut egui::Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, width: f32,
+        &mut self, ui: &mut egui::Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
+        let width = self.width(node);
+
         if node.children().count() == 0 {
             for offset in
                 (DocCharOffset(0), self.buffer.current.segs.last_cursor_position() + 1).iter()
@@ -38,7 +40,7 @@ impl<'ast> MarkdownPlusPlus {
                 top_left.y += ROW_SPACING;
             }
         } else {
-            self.show_block_children(ui, node, top_left, width)
+            self.show_block_children(ui, node, top_left)
         }
     }
 }
