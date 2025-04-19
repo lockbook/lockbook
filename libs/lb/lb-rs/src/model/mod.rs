@@ -36,5 +36,8 @@ pub mod tree_like;
 pub mod usage;
 pub mod validate;
 pub mod work_unit;
+pub mod meta;
+pub mod signed_meta;
+pub mod server_meta;
 
 pub use lazy::ValidationFailure;
