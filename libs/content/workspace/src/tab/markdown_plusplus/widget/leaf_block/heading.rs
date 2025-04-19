@@ -127,21 +127,44 @@ impl<'ast> MarkdownPlusPlus {
             self.show_inline_children(ui, node, top_left, &mut wrap);
             self.bounds.paragraphs.push(infix_range);
 
-            for postfix_line_range in self.range_lines(postfix_range) {
-                if self.node_intersects_selection(node) {
-                    self.show_text_line(
-                        ui,
-                        top_left,
-                        &mut wrap,
-                        postfix_line_range,
-                        self.text_format_syntax(node),
-                        false,
-                    );
-                    wrap.offset = wrap.line_end();
+            // the postfix has exactly two lines - one for the heading text's
+            // (possibly empty) trailing whitespace, and one for the
+            // setext-style underline
+            match &self.range_lines(postfix_range)[..] {
+                [whitespace, underline] => {
+                    let (whitespace, mut underline) = (*whitespace, *underline);
+
+                    // when the heading is nested in a container block with
+                    // per-line syntax, like a block quote, the underline line
+                    // needs to be stripped of that syntax
+                    underline.0 += self.line_prefix_len(node.parent().unwrap(), underline);
+
+                    if self.node_intersects_selection(node) {
+                        self.show_text_line(
+                            ui,
+                            top_left,
+                            &mut wrap,
+                            whitespace,
+                            self.text_format_syntax(node),
+                            false,
+                        );
+                        wrap.offset = wrap.line_end();
+                        self.show_text_line(
+                            ui,
+                            top_left,
+                            &mut wrap,
+                            underline,
+                            self.text_format_syntax(node),
+                            false,
+                        );
+                    }
+
+                    if !whitespace.is_empty() {
+                        self.bounds.paragraphs.push(whitespace);
+                    }
+                    self.bounds.paragraphs.push(underline);
                 }
-                if !postfix_line_range.is_empty() {
-                    self.bounds.paragraphs.push(postfix_line_range);
-                }
+                _ => unreachable!("a setext heading postfix always has two lines"),
             }
         }
 
