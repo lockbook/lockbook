@@ -268,7 +268,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::TableCell => {
                 self.show_table_cell(ui, node, top_left, &mut WrapContext::new(width))
             }
-            NodeValue::ThematicBreak => self.show_thematic_break(ui, top_left, width),
+            NodeValue::ThematicBreak => self.show_thematic_break(ui, node, top_left, width),
         }
     }
 
