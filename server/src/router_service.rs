@@ -3,6 +3,7 @@ use crate::billing::billing_service::*;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::config::Config;
+use crate::core_req;
 use crate::document_service::DocumentService;
 use crate::utils::get_build_info;
 use crate::{handle_version_header, router_service, verify_auth, ServerError, ServerState};
@@ -21,173 +22,6 @@ use tracing::*;
 use warp::http::{HeaderValue, Method, StatusCode};
 use warp::hyper::body::Bytes;
 use warp::{reject, Filter, Rejection};
-
-lazy_static! {
-    pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
-        "lockbook_server_request_duration_seconds",
-        "Lockbook server's HTTP request duration in seconds",
-        &["request"]
-    )
-    .unwrap();
-    pub static ref CORE_VERSION_COUNTER: CounterVec = register_counter_vec!(
-        "lockbook_server_core_version",
-        "Core version request attempts",
-        &["request"]
-    )
-    .unwrap();
-}
-
-#[macro_export]
-macro_rules! core_req {
-    ($Req: ty, $handler: path, $state: ident) => {{
-        use lb_rs::model::api::{ErrorWrapper, Request};
-        use lb_rs::model::file_metadata::Owner;
-        use std::net::SocketAddr;
-        use tracing::*;
-        use $crate::router_service::{self, deserialize_and_check, method};
-        use $crate::{RequestContext, ServerError};
-
-        let cloned_state = $state.clone();
-
-        method(<$Req>::METHOD)
-            .and(warp::path(&<$Req>::ROUTE[1..]))
-            .and(warp::any().map(move || cloned_state.clone()))
-            .and(warp::body::bytes())
-            .and(warp::header::optional::<String>("Accept-Version"))
-            .and(warp::filters::addr::remote())
-            .then(
-                |state: Arc<ServerState<S, A, G, D>>,
-                 request: Bytes,
-                 version: Option<String>,
-                 ip: Option<SocketAddr>| {
-                    let span1 = span!(
-                        Level::INFO,
-                        "matched_request",
-                        http.method = &<$Req>::METHOD.as_str(),
-                        http.url = &<$Req>::ROUTE,
-                        http.remote_ip = ip
-                            .map(|ip| ip.to_string())
-                            .unwrap_or_else(|| String::from("unsupported")),
-                        core_version = version
-                            .clone()
-                            .unwrap_or_else(|| String::from("not-present")),
-                    );
-
-                    async move {
-                        let state = state.as_ref();
-                        let timer = router_service::HTTP_REQUEST_DURATION_HISTOGRAM
-                            .with_label_values(&[<$Req>::ROUTE])
-                            .start_timer();
-
-                        let request: RequestWrapper<$Req> =
-                            match deserialize_and_check(&state.config, request, version) {
-                                Ok(req) => req,
-                                Err(err) => {
-                                    warn!("request failed to parse: {:?}", err);
-                                    return warp::reply::with_status(
-                                        warp::reply::json::<Result<RequestWrapper<$Req>, _>>(&Err(
-                                            err,
-                                        )),
-                                        warp::http::StatusCode::BAD_REQUEST,
-                                    );
-                                }
-                            };
-
-                        debug!("request verified successfully");
-                        let req_pk = request.signed_request.public_key;
-                        let username = {
-                            let db = state.index_db.lock().await;
-                            match db
-                                .accounts
-                                .get()
-                                .get(&Owner(req_pk))
-                                .map(|account| account.username.clone())
-                            {
-                                Some(username) => username,
-                                None => "~unknown~".to_string(),
-                            }
-                        };
-                        let req_pk = base64::encode(req_pk.serialize_compressed());
-
-                        let span2 = span!(
-                            Level::INFO,
-                            "verified_request_signature",
-                            username = username.as_str(),
-                            public_key = req_pk.as_str()
-                        );
-                        let rc: RequestContext<$Req> = RequestContext {
-                            request: request.signed_request.timestamped_value.value,
-                            public_key: request.signed_request.public_key,
-                        };
-
-                        async move {
-                            let status;
-                            let log;
-                            let mut level = tracing::Level::INFO;
-                            let to_serialize = match $handler(state, rc).await {
-                                Ok(response) => {
-                                    status = warp::http::StatusCode::OK;
-                                    log = "request processed successfully".to_string();
-                                    Ok(response)
-                                }
-                                Err(ServerError::ClientError(e)) => {
-                                    status = warp::http::StatusCode::BAD_REQUEST;
-                                    level = tracing::Level::WARN;
-                                    log =
-                                        format!("request rejected due to a client error: {:?}", e);
-                                    Err(ErrorWrapper::Endpoint(e))
-                                }
-                                Err(ServerError::InternalError(e)) => {
-                                    status = warp::http::StatusCode::INTERNAL_SERVER_ERROR;
-                                    level = tracing::Level::ERROR;
-                                    log = format!("Internal error {}: {}", <$Req>::ROUTE, e);
-                                    Err(ErrorWrapper::InternalError)
-                                }
-                            };
-                            let response =
-                                warp::reply::with_status(warp::reply::json(&to_serialize), status);
-                            let latency = timer.stop_and_record();
-                            match level {
-                                tracing::Level::INFO => {
-                                    tracing::info!(
-                                        http.latency = latency,
-                                        http.status = status.as_u16(),
-                                        "{log}"
-                                    );
-                                }
-                                tracing::Level::WARN => {
-                                    tracing::warn!(
-                                        http.latency = latency,
-                                        http.status = status.as_u16(),
-                                        "{log}"
-                                    );
-                                }
-                                tracing::Level::ERROR => {
-                                    tracing::error!(
-                                        http.latency = latency,
-                                        http.status = status.as_u16(),
-                                        "{log}"
-                                    );
-                                }
-                                _ => {
-                                    tracing::debug!(
-                                        http.latency = latency,
-                                        http.status = status.as_u16(),
-                                        "{log}"
-                                    );
-                                }
-                            }
-
-                            response
-                        }
-                        .instrument(span2)
-                        .await
-                    }
-                    .instrument(span1)
-                },
-            )
-    }};
-}
 
 pub fn core_routes<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
@@ -491,4 +325,178 @@ where
     })?;
 
     Ok(request)
+}
+
+lazy_static! {
+    pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
+        "lockbook_server_request_duration_seconds",
+        "Lockbook server's HTTP request duration in seconds",
+        &["request"]
+    )
+    .unwrap();
+    pub static ref CORE_VERSION_COUNTER: CounterVec = register_counter_vec!(
+        "lockbook_server_core_version",
+        "Core version request attempts",
+        &["request"]
+    )
+    .unwrap();
+}
+
+// This is an ugly macro that reduces a lot of boilerplate for each core request
+// there are a lot of core requests so there's a fair amount of token reduction going on
+// every once in a while I try to break it up in a more functional manner rather than 
+// using this macro.
+//
+// The key thing the macro does that's annoying to do elsewhere is express the idea of a
+// function pointer (which is a future) without specifying the type of the future.
+#[macro_export]
+macro_rules! core_req {
+    ($Req: ty, $handler: path, $state: ident) => {{
+        use lb_rs::model::api::{ErrorWrapper, Request};
+        use lb_rs::model::file_metadata::Owner;
+        use std::net::SocketAddr;
+        use tracing::*;
+        use $crate::router_service::{self, deserialize_and_check, method};
+        use $crate::{RequestContext, ServerError};
+
+        let cloned_state = $state.clone();
+
+        method(<$Req>::METHOD)
+            .and(warp::path(&<$Req>::ROUTE[1..]))
+            .and(warp::any().map(move || cloned_state.clone()))
+            .and(warp::body::bytes())
+            .and(warp::header::optional::<String>("Accept-Version"))
+            .and(warp::filters::addr::remote())
+            .then(
+                |state: Arc<ServerState<S, A, G, D>>,
+                 request: Bytes,
+                 version: Option<String>,
+                 ip: Option<SocketAddr>| {
+                    let span1 = span!(
+                        Level::INFO,
+                        "matched_request",
+                        http.method = &<$Req>::METHOD.as_str(),
+                        http.url = &<$Req>::ROUTE,
+                        http.remote_ip = ip
+                            .map(|ip| ip.to_string())
+                            .unwrap_or_else(|| String::from("unsupported")),
+                        core_version = version
+                            .clone()
+                            .unwrap_or_else(|| String::from("not-present")),
+                    );
+
+                    async move {
+                        let state = state.as_ref();
+                        let timer = router_service::HTTP_REQUEST_DURATION_HISTOGRAM
+                            .with_label_values(&[<$Req>::ROUTE])
+                            .start_timer();
+
+                        let request: RequestWrapper<$Req> =
+                            match deserialize_and_check(&state.config, request, version) {
+                                Ok(req) => req,
+                                Err(err) => {
+                                    warn!("request failed to parse: {:?}", err);
+                                    return warp::reply::with_status(
+                                        warp::reply::json::<Result<RequestWrapper<$Req>, _>>(&Err(
+                                            err,
+                                        )),
+                                        warp::http::StatusCode::BAD_REQUEST,
+                                    );
+                                }
+                            };
+
+                        debug!("request verified successfully");
+                        let req_pk = request.signed_request.public_key;
+                        let username = {
+                            let db = state.db_v4.lock().await;
+                            match db
+                                .accounts
+                                .get()
+                                .get(&Owner(req_pk))
+                                .map(|account| account.username.clone())
+                            {
+                                Some(username) => username,
+                                None => "~unknown~".to_string(),
+                            }
+                        };
+                        let req_pk = base64::encode(req_pk.serialize_compressed());
+
+                        let span2 = span!(
+                            Level::INFO,
+                            "verified_request_signature",
+                            username = username.as_str(),
+                            public_key = req_pk.as_str()
+                        );
+                        let rc: RequestContext<$Req> = RequestContext {
+                            request: request.signed_request.timestamped_value.value,
+                            public_key: request.signed_request.public_key,
+                        };
+
+                        async move {
+                            let status;
+                            let log;
+                            let mut level = tracing::Level::INFO;
+                            let to_serialize = match $handler(state, rc).await {
+                                Ok(response) => {
+                                    status = warp::http::StatusCode::OK;
+                                    log = "request processed successfully".to_string();
+                                    Ok(response)
+                                }
+                                Err(ServerError::ClientError(e)) => {
+                                    status = warp::http::StatusCode::BAD_REQUEST;
+                                    level = tracing::Level::WARN;
+                                    log =
+                                        format!("request rejected due to a client error: {:?}", e);
+                                    Err(ErrorWrapper::Endpoint(e))
+                                }
+                                Err(ServerError::InternalError(e)) => {
+                                    status = warp::http::StatusCode::INTERNAL_SERVER_ERROR;
+                                    level = tracing::Level::ERROR;
+                                    log = format!("Internal error {}: {}", <$Req>::ROUTE, e);
+                                    Err(ErrorWrapper::InternalError)
+                                }
+                            };
+                            let response =
+                                warp::reply::with_status(warp::reply::json(&to_serialize), status);
+                            let latency = timer.stop_and_record();
+                            match level {
+                                tracing::Level::INFO => {
+                                    tracing::info!(
+                                        http.latency = latency,
+                                        http.status = status.as_u16(),
+                                        "{log}"
+                                    );
+                                }
+                                tracing::Level::WARN => {
+                                    tracing::warn!(
+                                        http.latency = latency,
+                                        http.status = status.as_u16(),
+                                        "{log}"
+                                    );
+                                }
+                                tracing::Level::ERROR => {
+                                    tracing::error!(
+                                        http.latency = latency,
+                                        http.status = status.as_u16(),
+                                        "{log}"
+                                    );
+                                }
+                                _ => {
+                                    tracing::debug!(
+                                        http.latency = latency,
+                                        http.status = status.as_u16(),
+                                        "{log}"
+                                    );
+                                }
+                            }
+
+                            response
+                        }
+                        .instrument(span2)
+                        .await
+                    }
+                    .instrument(span1)
+                },
+            )
+    }};
 }

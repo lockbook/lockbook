@@ -93,7 +93,7 @@ where
         loop {
             info!("Metrics refresh started");
 
-            let public_keys_and_usernames = self.index_db.lock().await.usernames.get().clone();
+            let public_keys_and_usernames = self.db_v4.lock().await.usernames.get().clone();
 
             let total_users_ever = public_keys_and_usernames.len() as i64;
             let mut total_documents = 0;
@@ -109,7 +109,7 @@ where
 
             for (username, owner) in public_keys_and_usernames {
                 {
-                    let mut db = self.index_db.lock().await;
+                    let mut db = self.db_v4.lock().await;
                     let maybe_user_info = Self::get_user_info(&mut db, owner)?;
 
                     let user_info = match maybe_user_info {
