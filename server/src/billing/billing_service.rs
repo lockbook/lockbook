@@ -49,7 +49,7 @@ where
         &self, public_key: &PublicKey,
     ) -> Result<Account, ServerError<LockBillingWorkflowError>> {
         let owner = Owner(*public_key);
-        let mut db = self.index_db.lock().await;
+        let mut db = self.db_v4.lock().await;
         let tx = db.begin_transaction()?;
         let mut account = db
             .accounts
@@ -81,7 +81,7 @@ where
         &self, public_key: PublicKey, mut account: Account,
     ) -> Result<(), ServerError<T>> {
         account.billing_info.last_in_payment_flow = 0;
-        self.index_db
+        self.db_v4
             .lock()
             .await
             .accounts
@@ -99,7 +99,7 @@ where
         debug!("Upgrading the account of a user through app store billing");
 
         {
-            let db = self.index_db.lock().await;
+            let db = self.db_v4.lock().await;
             if let Some(owner) = db.app_store_ids.get().get(&request.app_account_token) {
                 if let Some(other_account) = db.accounts.get().get(owner) {
                     if let Some(BillingPlatform::AppStore(ref info)) =
@@ -139,7 +139,7 @@ where
             account_state,
         }));
 
-        self.index_db
+        self.db_v4
             .lock()
             .await
             .app_store_ids
@@ -184,7 +184,7 @@ where
             expiry_info,
         )?);
 
-        self.index_db
+        self.db_v4
             .lock()
             .await
             .google_play_ids
@@ -239,7 +239,7 @@ where
         &self, context: RequestContext<GetSubscriptionInfoRequest>,
     ) -> Result<GetSubscriptionInfoResponse, ServerError<GetSubscriptionInfoError>> {
         let platform = self
-            .index_db
+            .db_v4
             .lock()
             .await
             .accounts
@@ -278,7 +278,7 @@ where
         }
 
         {
-            let mut lock = self.index_db.lock().await;
+            let mut lock = self.db_v4.lock().await;
             let db = lock.deref_mut();
 
             let mut tree = ServerTree::new(
@@ -348,7 +348,7 @@ where
         let request = &context.request;
 
         {
-            let db = self.index_db.lock().await;
+            let db = self.db_v4.lock().await;
 
             if !Self::is_admin::<AdminSetUserTierError>(
                 &db,
@@ -360,7 +360,7 @@ where
         }
 
         let public_key = self
-            .index_db
+            .db_v4
             .lock()
             .await
             .usernames
@@ -698,7 +698,7 @@ where
 
         let owner = Owner(public_key);
         let maybe_username = &self
-            .index_db
+            .db_v4
             .lock()
             .await
             .accounts

@@ -36,7 +36,7 @@ where
         &self, trans: &TransactionInfo,
     ) -> Result<PublicKey, ServerError<AppStoreNotificationError>> {
         let public_key: PublicKey = self
-            .index_db
+            .db_v4
             .lock()
             .await
             .app_store_ids
