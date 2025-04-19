@@ -4,7 +4,10 @@ use comrak::nodes::AstNode;
 use egui::{self, Align2, Color32, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use epaint::RectShape;
 
-use crate::tab::markdown_plusplus::{widget::WrapContext, MarkdownPlusPlus};
+use crate::tab::markdown_plusplus::{
+    widget::{WrapContext, MARGIN},
+    MarkdownPlusPlus,
+};
 
 use super::cache::ImageState;
 
@@ -23,7 +26,8 @@ impl<'ast> MarkdownPlusPlus {
         self.show_circumfix(ui, node, top_left, wrap);
     }
 
-    pub fn height_image(&self, width: f32, url: &str) -> f32 {
+    pub fn height_image(&self, node: &'ast AstNode<'ast>, url: &str) -> f32 {
+        let width = self.width(node);
         if let Some(image_state) = self.images.map.get(url) {
             let image_state = image_state.lock().unwrap().deref().clone();
             match image_state {
@@ -43,7 +47,10 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    pub fn show_image_block(&mut self, ui: &mut Ui, top_left: Pos2, width: f32, url: &str) {
+    pub fn show_image_block(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, url: &str,
+    ) {
+        let width = self.width(node);
         if let Some(image_state) = self.images.map.get(url) {
             let image_state = image_state.lock().unwrap().deref().clone();
             match image_state {
@@ -142,11 +149,13 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn image_size(&self, texture_size: Vec2, width: f32) -> Vec2 {
+        // make sure images can be viewed in full by capping their height and width to the viewport
+        // todo: though great on mobile, images look too big on desktop
+        let image_max_size = { Vec2::new(self.width, self.height) - Vec2::splat(MARGIN) };
+
         let width_capped_size = Vec2::new(width, texture_size.y * width / texture_size.x);
-        let height_capped_size = Vec2::new(
-            texture_size.x * self.image_max_size.y / texture_size.y,
-            self.image_max_size.y,
-        );
+        let height_capped_size =
+            Vec2::new(texture_size.x * image_max_size.y / texture_size.y, image_max_size.y);
 
         if width_capped_size.length() < height_capped_size.length() {
             width_capped_size

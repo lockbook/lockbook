@@ -15,8 +15,9 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub(crate) fn show_block_pre_spacing(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
+        let width = self.width(node);
         let (lines, spacing) = self.pre_spacing(node);
 
         top_left.y += spacing;
@@ -48,8 +49,9 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub(crate) fn show_block_post_spacing(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
+        let width = self.width(node);
         let lines = self.post_spacing(node);
 
         let line_column = node.data.borrow().sourcepos.end;
@@ -134,27 +136,5 @@ impl<'ast> MarkdownPlusPlus {
         } else {
             unreachable!("spacing not evaluated for document")
         }
-    }
-
-    fn sorted_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        let mut preceding_siblings = node.preceding_siblings();
-        preceding_siblings.next().unwrap(); // "Call .next().unwrap() once on the iterator to skip the node itself."
-
-        let mut following_siblings = node.following_siblings();
-        following_siblings.next().unwrap(); // "Call .next().unwrap() once on the iterator to skip the node itself."
-
-        let mut siblings = Vec::new();
-        siblings.extend(preceding_siblings);
-        siblings.push(node);
-        siblings.extend(following_siblings);
-        siblings.sort_by(|a, b| {
-            a.data
-                .borrow()
-                .sourcepos
-                .start
-                .line
-                .cmp(&b.data.borrow().sourcepos.start.line)
-        });
-        siblings
     }
 }

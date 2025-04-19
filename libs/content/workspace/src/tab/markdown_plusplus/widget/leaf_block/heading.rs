@@ -26,18 +26,18 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    pub fn height_heading(
-        &self, node: &'ast AstNode<'ast>, width: f32, level: u8, setext: bool,
-    ) -> f32 {
+    pub fn height_heading(&self, node: &'ast AstNode<'ast>, level: u8, setext: bool) -> f32 {
         if setext {
-            self.height_setext_heading(node, width, level)
+            self.height_setext_heading(node, level)
         } else {
-            self.height_atx_heading(node, width, level)
+            self.height_atx_heading(node, level)
         }
     }
 
     // https://github.github.com/gfm/#setext-headings
-    fn height_setext_heading(&self, node: &'ast AstNode<'ast>, width: f32, level: u8) -> f32 {
+    fn height_setext_heading(&self, node: &'ast AstNode<'ast>, level: u8) -> f32 {
+        let width = self.width(node);
+
         let mut wrap = WrapContext::new(width);
         wrap.row_height = self.row_height(node);
 
@@ -68,7 +68,9 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     // https://github.github.com/gfm/#atx-headings
-    fn height_atx_heading(&self, node: &'ast AstNode<'ast>, width: f32, level: u8) -> f32 {
+    fn height_atx_heading(&self, node: &'ast AstNode<'ast>, level: u8) -> f32 {
+        let width = self.width(node);
+
         let mut wrap = WrapContext::new(width);
         wrap.row_height = self.row_height(node);
 
@@ -102,9 +104,10 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_heading(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32, level: u8,
-        setext: bool,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, level: u8, setext: bool,
     ) {
+        let mut width = self.width(node);
+
         if setext {
             self.show_setext_heading(ui, node, top_left, width, level);
         } else {

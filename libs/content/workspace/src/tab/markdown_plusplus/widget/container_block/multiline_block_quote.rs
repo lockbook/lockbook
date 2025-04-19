@@ -9,14 +9,14 @@ impl<'ast> MarkdownPlusPlus {
         self.text_format_block_quote(parent)
     }
 
-    pub fn height_multiline_block_quote(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
-        self.height_block_quote(node, width)
+    pub fn height_multiline_block_quote(&self, node: &'ast AstNode<'ast>) -> f32 {
+        self.height_block_quote(node)
     }
 
     pub fn show_multiline_block_quote(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
     ) {
-        self.show_block_quote(ui, node, top_left, width);
+        self.show_block_quote(ui, node, top_left);
     }
 
     // This routine only slightly more complex than regular block quotes beacuse

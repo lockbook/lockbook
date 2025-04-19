@@ -1,8 +1,6 @@
-use std::sync::Arc;
-
 use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
 use egui::text::LayoutJob;
-use egui::{FontFamily, Pos2, Rect, Ui, Vec2};
+use egui::{Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 
 use crate::tab::markdown_plusplus::widget::{BULLET_RADIUS, INDENT, ROW_HEIGHT};
@@ -10,15 +8,16 @@ use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 // https://github.github.com/gfm/#list-items
 impl<'ast> MarkdownPlusPlus {
-    pub fn height_item(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
-        self.block_children_height(node, width - INDENT)
+    pub fn height_item(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let width = self.width(node);
+        self.block_children_height(node)
     }
 
     pub fn show_item(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, mut width: f32,
-        node_list: &NodeList,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, node_list: &NodeList,
     ) {
         let NodeList { list_type, start, .. } = *node_list;
+        let mut width = self.width(node);
 
         // todo: better bullet position for nested blocks -
         let annotation_size = Vec2 { x: INDENT, y: ROW_HEIGHT };
@@ -49,7 +48,7 @@ impl<'ast> MarkdownPlusPlus {
 
         top_left.x += annotation_space.width();
         width -= annotation_space.width();
-        self.show_block_children(ui, node, top_left, width);
+        self.show_block_children(ui, node, top_left);
     }
 
     // This routine is simple because indentation for list items must be
