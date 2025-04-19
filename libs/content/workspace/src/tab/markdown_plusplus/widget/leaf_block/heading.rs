@@ -1,6 +1,6 @@
 use comrak::nodes::AstNode;
 use egui::{FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
+use lb_rs::model::text::offset_types::RangeExt as _;
 
 use crate::tab::markdown_plusplus::{
     widget::{WrapContext, ROW_HEIGHT, ROW_SPACING},
@@ -106,7 +106,7 @@ impl<'ast> MarkdownPlusPlus {
     pub fn show_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, level: u8, setext: bool,
     ) {
-        let mut width = self.width(node);
+        let width = self.width(node);
 
         if setext {
             self.show_setext_heading(ui, node, top_left, width, level);

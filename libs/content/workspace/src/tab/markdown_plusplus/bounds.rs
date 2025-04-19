@@ -5,7 +5,7 @@
 // use crate::tab::markdown_plusplus::input::Bound;
 // use crate::tab::markdown_plusplus::style::{BlockNodeType, InlineNodeType, MarkdownNodeType};
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
-use comrak::nodes::{AstNode, LineColumn, NodeCodeBlock, NodeHeading, NodeValue, Sourcepos};
+use comrak::nodes::{LineColumn, Sourcepos};
 use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
 use std::cmp::Ordering;
 use std::ops::Sub;
@@ -61,7 +61,7 @@ pub struct Bounds {
     pub text: Text,
 }
 
-impl<'ast> MarkdownPlusPlus {
+impl MarkdownPlusPlus {
     pub fn calc_source_lines(&mut self) {
         self.bounds.source_lines.clear();
         let mut start = DocByteOffset(0);

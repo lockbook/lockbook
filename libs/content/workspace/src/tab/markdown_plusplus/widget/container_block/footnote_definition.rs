@@ -22,8 +22,6 @@ impl<'ast> MarkdownPlusPlus {
     pub fn show_footnote_definition(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
-        let mut width = self.width(node);
-
         let annotation_size = Vec2 { x: INDENT, y: ROW_HEIGHT };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
@@ -56,7 +54,6 @@ impl<'ast> MarkdownPlusPlus {
         // }
 
         top_left.x += annotation_space.width();
-        width -= annotation_space.width();
         self.show_block_children(ui, node, top_left);
     }
 

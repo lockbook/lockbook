@@ -9,7 +9,6 @@ use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 // https://github.github.com/gfm/#list-items
 impl<'ast> MarkdownPlusPlus {
     pub fn height_item(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let width = self.width(node);
         self.block_children_height(node)
     }
 
@@ -17,7 +16,6 @@ impl<'ast> MarkdownPlusPlus {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, node_list: &NodeList,
     ) {
         let NodeList { list_type, start, .. } = *node_list;
-        let mut width = self.width(node);
 
         // todo: better bullet position for nested blocks -
         let annotation_size = Vec2 { x: INDENT, y: ROW_HEIGHT };
@@ -47,7 +45,6 @@ impl<'ast> MarkdownPlusPlus {
         //     .rect_stroke(annotation_space, 2., egui::Stroke::new(1., self.theme.fg().blue));
 
         top_left.x += annotation_space.width();
-        width -= annotation_space.width();
         self.show_block_children(ui, node, top_left);
     }
 

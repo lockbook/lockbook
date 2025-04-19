@@ -15,7 +15,7 @@ impl<'ast> MarkdownPlusPlus {
     pub fn show_html_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, html: &str,
     ) {
-        let mut width = self.width(node);
+        let width = self.width(node);
 
         // servo doesn't ship as a (stable) library yet so we render HTML as
         // code instead
