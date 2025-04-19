@@ -310,7 +310,6 @@ impl<'ast> MarkdownPlusPlus {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32, info: &str,
         code: &str,
     ) {
-        let mut width = self.width(node);
         todo!()
     }
 }

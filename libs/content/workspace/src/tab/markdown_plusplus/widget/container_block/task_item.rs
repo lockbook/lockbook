@@ -16,13 +16,11 @@ impl<'ast> MarkdownPlusPlus {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
         maybe_check: Option<char>,
     ) {
-        let mut width = self.width(node);
         let space = Rect::from_min_size(top_left, Vec2 { x: INDENT, y: ROW_HEIGHT });
 
         ui.allocate_ui_at_rect(space, |ui| ui.checkbox(&mut maybe_check.is_some(), ""));
 
         top_left.x += space.width();
-        width -= space.width();
         self.show_block_children(ui, node, top_left);
 
         // todo: add space for captured lines
