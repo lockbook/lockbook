@@ -32,7 +32,8 @@ where
     G: GooglePlayClient,
     D: DocumentService,
 {
-    core_req!(NewAccountRequest, ServerState::new_account, server_state)
+    core_req!(NewAccountRequest, ServerState::new_account_v1, server_state)
+        .or(core_req!(NewAccountReqV2, ServerState::new_account_v2, server_state))
         .or(core_req!(ChangeDocRequest, ServerState::change_doc, server_state))
         .or(core_req!(UpsertRequest, ServerState::upsert_file_metadata, server_state))
         .or(core_req!(GetDocRequest, ServerState::get_document, server_state))
@@ -349,6 +350,15 @@ lazy_static! {
 //
 // The key thing the macro does that's annoying to do elsewhere is express the idea of a
 // function pointer (which is a future) without specifying the type of the future.
+//
+// it's possible that specifying more of our ideas in a warp-centric manner may make the
+// problem go away. Instead of being async functions if all of our endpoints were
+// implemented as filters maybe we would have a better time.
+//
+// I wonder if long term we're just going to do some streamed connection instead, so
+// I'm hesitant to invest deeper in warp. If we determine that http will serve all of
+// our needs indefinately, then I'll invest deeper in warp and make this server an
+// idiomatic warp server.
 #[macro_export]
 macro_rules! core_req {
     ($Req: ty, $handler: path, $state: ident) => {{
