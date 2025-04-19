@@ -15,8 +15,11 @@ impl<'ast> MarkdownPlusPlus {
     pub fn show_html_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32, html: &str,
     ) {
-        // servo doesn't ship as a library yet so we render HTML as code instead
-        // we show an indented code block bc we don't have an editable info string
+        // servo doesn't ship as a (stable) library yet so we render HTML as
+        // code instead
+        //
+        // we show as an indented code block bc we don't have an editable info
+        // string
         self.show_indented_code_block(ui, node, top_left, width, "html", html);
     }
 }
