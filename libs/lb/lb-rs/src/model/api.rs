@@ -14,6 +14,9 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use uuid::Uuid;
 
+use super::meta::Meta;
+use super::signed_meta::SignedMeta;
+
 pub const FREE_TIER_USAGE_SIZE: u64 = 1000000;
 pub const PREMIUM_TIER_USAGE_SIZE: u64 = 30000000000;
 /// a fee of 1000 bytes allows 1000 file creations under the free tier.
@@ -295,6 +298,31 @@ impl Request for NewAccountRequest {
     type Error = NewAccountError;
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/new-account";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct NewAccountReqV2 {
+    pub username: Username,
+    pub public_key: PublicKey,
+    pub root_folder: SignedMeta,
+}
+
+impl NewAccountReqV2 {
+    pub fn new(account: &Account, root_folder: &ECSigned<Meta>) -> Self {
+        let root_folder = root_folder.clone();
+        NewAccountReqV2 {
+            username: account.username.clone(),
+            public_key: account.public_key(),
+            root_folder,
+        }
+    }
+}
+
+impl Request for NewAccountReqV2 {
+    type Response = NewAccountResponse;
+    type Error = NewAccountError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/new-account-v2";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
