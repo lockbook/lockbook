@@ -10,8 +10,9 @@ use lockbook_server_lib::router_service::{
 };
 use lockbook_server_lib::schema::ServerV4;
 use lockbook_server_lib::*;
+use schema::ServerV5;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use tracing::*;
 use warp::Filter;
 
@@ -21,24 +22,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loggers::init(&cfg);
 
     let config = cfg.clone();
+
     let stripe_client = stripe::Client::new(&cfg.billing.stripe.stripe_secret);
     let google_play_client = get_google_play_client(&cfg.billing.google.service_account_key).await;
-    let index_db = ServerV4::init(db_rs::Config::in_folder(&cfg.index_db.db_location))
-        .expect("Failed to load index_db");
     let app_store_client = reqwest::Client::new();
 
-    if index_db.incomplete_write().unwrap() {
+    let db_v4 = ServerV4::init(db_rs::Config::in_folder(&cfg.index_db.db_location))
+        .expect("Failed to load index_db");
+    if db_v4.incomplete_write().unwrap() {
         error!("dbrs indicated that the last write to the log was unsuccessful")
     }
+    let db_v4 = Arc::new(Mutex::new(db_v4));
+    spawn_compacter(&cfg, &db_v4);
 
-    let index_db = Arc::new(Mutex::new(index_db));
-    spawn_compacter(&cfg, &index_db);
-
+    let db_v5 = ServerV5::init(db_rs::Config::in_folder(&cfg.index_db.db_location))
+        .expect("Failed to load index_db");
+    if db_v5.incomplete_write().unwrap() {
+        error!("dbrs indicated that the last write to the log was unsuccessful")
+    }
+    let db_v5 = Arc::new(RwLock::new(db_v5));
+    // todo: compaction
     let document_service = OnDiskDocuments::from(&config);
+
+    let account_dbs = Default::default();
 
     let server_state = Arc::new(ServerState {
         config,
-        index_db,
+        db_v4,
+        db_v5,
+        account_dbs,
         stripe_client,
         google_play_client,
         app_store_client,
