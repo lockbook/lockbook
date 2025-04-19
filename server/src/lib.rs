@@ -4,10 +4,12 @@ use billing::stripe_client::StripeClient;
 use document_service::DocumentService;
 use lb_rs::model::clock;
 use lb_rs::model::errors::LbResult;
+use schema::{AccountV1, ServerV5};
+use std::collections::HashMap;
 use std::env;
 use std::fmt::Debug;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
 use lb_rs::model::pubkey;
@@ -34,7 +36,9 @@ where
     D: DocumentService,
 {
     pub config: config::Config,
-    pub index_db: Arc<Mutex<ServerV4>>,
+    pub db_v4: Arc<Mutex<ServerV4>>,
+    pub db_v5: Arc<RwLock<ServerV5>>,
+    pub account_dbs: Arc<RwLock<HashMap<PublicKey, Arc<RwLock<AccountV1>>>>>,
     pub stripe_client: S,
     pub google_play_client: G,
     pub app_store_client: A,

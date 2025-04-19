@@ -63,7 +63,7 @@ where
         let now = get_time().0 as u64;
         let root = root.add_time(now);
 
-        let mut db = self.index_db.lock().await;
+        let mut db = self.db_v4.lock().await;
         let handle = db.begin_transaction()?;
 
         if db.accounts.get().contains_key(&Owner(request.public_key)) {
@@ -108,7 +108,7 @@ where
     pub async fn public_key_from_username(
         &self, username: &str,
     ) -> Result<GetPublicKeyResponse, ServerError<GetPublicKeyError>> {
-        self.index_db
+        self.db_v4
             .lock()
             .await
             .usernames
@@ -127,7 +127,7 @@ where
     pub async fn username_from_public_key(
         &self, key: PublicKey,
     ) -> Result<GetUsernameResponse, ServerError<GetUsernameError>> {
-        self.index_db
+        self.db_v4
             .lock()
             .await
             .accounts
@@ -140,7 +140,7 @@ where
     pub async fn get_usage(
         &self, context: RequestContext<GetUsageRequest>,
     ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
-        let mut lock = self.index_db.lock().await;
+        let mut lock = self.db_v4.lock().await;
         let db = lock.deref_mut();
 
         let cap = Self::get_cap(db, &context.public_key)?;
@@ -224,7 +224,7 @@ where
         &self, context: RequestContext<AdminDisappearAccountRequest>,
     ) -> Result<(), ServerError<AdminDisappearAccountError>> {
         let owner = {
-            let db = &self.index_db.lock().await;
+            let db = &self.db_v4.lock().await;
 
             if !Self::is_admin::<AdminDisappearAccountError>(
                 db,
@@ -258,7 +258,7 @@ where
     pub async fn admin_list_users(
         &self, context: RequestContext<AdminListUsersRequest>,
     ) -> Result<AdminListUsersResponse, ServerError<AdminListUsersError>> {
-        let (db, request) = (&self.index_db.lock().await, &context.request);
+        let (db, request) = (&self.db_v4.lock().await, &context.request);
 
         if !Self::is_admin::<AdminListUsersError>(
             db,
@@ -310,7 +310,7 @@ where
     pub async fn admin_get_account_info(
         &self, context: RequestContext<AdminGetAccountInfoRequest>,
     ) -> Result<AdminGetAccountInfoResponse, ServerError<AdminGetAccountInfoError>> {
-        let (mut lock, request) = (self.index_db.lock().await, &context.request);
+        let (mut lock, request) = (self.db_v4.lock().await, &context.request);
         let db = lock.deref_mut();
 
         if !Self::is_admin::<AdminGetAccountInfoError>(
@@ -411,7 +411,7 @@ where
         let mut docs_to_delete = Vec::new();
 
         {
-            let mut lock = self.index_db.lock().await;
+            let mut lock = self.db_v4.lock().await;
             let db = lock.deref_mut();
             let tx = db.begin_transaction()?;
 

@@ -74,7 +74,7 @@ where
 
                         info!(?owner, ?customer_id, "Created customer_id");
 
-                        self.index_db
+                        self.db_v4
                             .lock()
                             .await
                             .stripe_ids
@@ -166,7 +166,7 @@ where
         };
 
         let public_key = self
-            .index_db
+            .db_v4
             .lock()
             .await
             .stripe_ids
