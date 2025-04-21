@@ -15,6 +15,7 @@ use tokio::runtime::Runtime;
 lazy_static::lazy_static! {
     pub static ref URL_NAME_STORE: Mutex<Vec<LinkInfo>> = Mutex::new(Vec::new());
     pub static ref DONE: AtomicBool = AtomicBool::new(false);
+    pub static ref STOP: AtomicBool = AtomicBool::new(false);
 }
 
 pub type Graph = Vec<LinkNode>;
@@ -198,13 +199,19 @@ fn in_classify(name: &String, classify: &[NameId]) -> Option<usize> {
     )
 }
 
+pub fn stop_extraction(val: bool) {
+    STOP.store(val, Ordering::SeqCst);
+}
+
 pub fn start_extraction_names() {
+    stop_extraction(false);
     let link_infos: Vec<LinkInfo> = URL_NAME_STORE.lock().unwrap().clone();
     let rt = Runtime::new().unwrap();
 
     // Workers take one work unit at a time from the queue and send the results back over the channel
     // Work units are represented as indexes into the link_infos array, so the queue is represented as simply the next
     // index to be processed.
+
     let queue = Arc::new(AtomicIsize::new((link_infos.len() - 1) as isize));
     let max_workers = std::cmp::max(1, num_cpus::get() / 2);
     let active_tasks = Arc::new(AtomicUsize::new(0));
@@ -215,7 +222,10 @@ pub fn start_extraction_names() {
         while active == max_workers {
             active = active_tasks.load(Ordering::SeqCst);
         }
-
+        if STOP.load(Ordering::SeqCst) {
+            println!("stoppped in data.rs");
+            break;
+        }
         let queue = queue.clone();
         active_tasks.fetch_add(1, Ordering::SeqCst);
         let async_clone_task = active_tasks.clone();
@@ -237,10 +247,10 @@ pub fn start_extraction_names() {
                     let mut store = URL_NAME_STORE.lock().unwrap();
                     store[index].found = true;
                     store[index].name = name.clone();
-                    println!("{}", name.clone());
+                    // println!("{}", name.clone());
                 }
-                Err(name) => {
-                    println!("{:?}", name)
+                Err(_name) => {
+                    // println!("{:?}", name)
                 }
             }
         }));

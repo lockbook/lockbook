@@ -465,7 +465,7 @@ impl Workspace {
                                     }
                                 }
                                 TabContent::MindMap(mm) => {
-                                    let response = mm.show(ui, false);
+                                    let response = mm.show(ui);
                                     if let Some(value) = response {
                                         self.open_file(value, false, true);
                                     }

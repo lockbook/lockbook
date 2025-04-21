@@ -1,4 +1,6 @@
-use super::data::{lockbook_data, start_extraction_names, Graph, LinkNode, DONE, URL_NAME_STORE};
+use super::data::{
+    lockbook_data, start_extraction_names, stop_extraction, Graph, LinkNode, DONE, URL_NAME_STORE,
+};
 use egui::ahash::{HashMap, HashMapExt};
 use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
@@ -323,6 +325,8 @@ impl MindMap {
                 *stop2
             };
             if stop {
+                stop_extraction(true);
+                println!("stoped and close");
                 break;
             }
 
@@ -331,7 +335,7 @@ impl MindMap {
     }
 
     fn draw_graph(&mut self, ui: &mut egui::Ui, screen_size: egui::Vec2) {
-        println!("running");
+        // println!("running");
         let screen = ui.available_rect_before_wrap();
         ui.painter()
             .rect_filled(screen, 0., ui.visuals().extreme_bg_color);
@@ -587,6 +591,7 @@ impl MindMap {
     }
 
     pub fn stop(&mut self) {
+        println!("in stop in mindmap");
         self.graph_complete = true;
         {
             let mut stop_lock = self.stop.write().unwrap();
@@ -594,9 +599,9 @@ impl MindMap {
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, stop: bool) -> Option<Uuid> {
+    pub fn show(&mut self, ui: &mut egui::Ui) -> Option<Uuid> {
         let mut conditions = false;
-        println!("new version");
+        // println!("new version");
 
         // Do your graph-related building if necessary.
         if !self.graph_complete {
@@ -613,7 +618,7 @@ impl MindMap {
             // Clone the current input events so we can iterate over them.
             let events = ui.input(|i| i.events.clone());
             for event in events {
-                println!("touch event");
+                // println!("touch event");
                 if let egui::Event::Touch { id, pos, phase, .. } = event {
                     // Process the touch event only if the touch is inside our rect.
                     let key = id.0;
@@ -627,7 +632,7 @@ impl MindMap {
                                 if let Some(prev_pos) = self.touch_positions.get(&key) {
                                     self.pan += pos - *prev_pos;
 
-                                    println!("Touch {:?} moved by {:?}", id, self.pan);
+                                    // println!("Touch {:?} moved by {:?}", id, self.pan);
                                     // Update the stored position.
                                     self.touch_positions.insert(key, pos);
                                 }
@@ -700,10 +705,10 @@ impl MindMap {
             }
         }
 
-        {
-            let mut stop_write = self.stop.write().unwrap();
-            *stop_write = stop;
-        }
+        // {
+        //     let mut stop_write = self.stop.write().unwrap();
+        //     *stop_write = stop;
+        // }
 
         let screen = ui.available_rect_before_wrap();
         ui.set_clip_rect(screen);
