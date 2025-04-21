@@ -223,7 +223,7 @@ pub fn start_extraction_names() {
             active = active_tasks.load(Ordering::SeqCst);
         }
         if STOP.load(Ordering::SeqCst) {
-            println!("stoppped in data.rs");
+            // println!("stoppped in data.rs");
             break;
         }
         let queue = queue.clone();

@@ -326,7 +326,7 @@ impl MindMap {
             };
             if stop {
                 stop_extraction(true);
-                println!("stoped and close");
+                // println!("stoped and close");
                 break;
             }
 
@@ -591,7 +591,7 @@ impl MindMap {
     }
 
     pub fn stop(&mut self) {
-        println!("in stop in mindmap");
+        // println!("in stop in mindmap");
         self.graph_complete = true;
         {
             let mut stop_lock = self.stop.write().unwrap();
