@@ -6,6 +6,9 @@ import SwiftWorkspace
         WindowGroup {
             ContentView()
         }
+        .commands {
+            CommandGroup(replacing: .saveItem) {}
+        }
         
         #if os(macOS)
         Settings {

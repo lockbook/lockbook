@@ -11,24 +11,16 @@ struct TabsSheet: View {
     
     var body: some View {
         VStack {
-            Button(action: {
+            Button(role: .destructive) {
                 self.closeAllTabs()
-            }, label: {
-                HStack {
-                    Image(systemName: "xmark.circle")
-                        .foregroundColor(.red)
-                        .imageScale(.medium)
-                        .padding(.trailing)
-                    
-                    Text("Close all tabs")
-                        .foregroundColor(.primary)
-                        .font(.body)
-                    
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.top, 5)
-            })
+            } label: {
+                Text("Close all")
+                    .font(.body)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .padding(.horizontal)
             
             Divider()
                 .padding(.horizontal)

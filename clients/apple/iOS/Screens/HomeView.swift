@@ -5,6 +5,7 @@ struct HomeView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     @StateObject var homeState = HomeState()
+    @StateObject var filesModel = FilesViewModel()
             
     var body: some View {
         Group {
@@ -24,13 +25,16 @@ struct HomeView: View {
                     NavigationSplitView(sidebar: {
                         sidebar
                     }, detail: {
-                        detail
+                        NavigationStack {
+                            detail
+                        }
                     })
                     .environment(\.isConstrainedLayout, false)
                 }
             }
         }
         .environmentObject(homeState)
+        .environmentObject(filesModel)
     }
     
     @ViewBuilder
@@ -57,13 +61,19 @@ struct HomeView: View {
     
     var detail: some View {
         DetailView()
+            .navigationDestination(isPresented: $homeState.showSettings) {
+                SettingsView()
+            }
+            .navigationDestination(isPresented: $homeState.showPendingShares) {
+                PendingSharesView()
+            }
     }
 }
 
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
+    @EnvironmentObject var filesModel: FilesViewModel
     
-    @StateObject var filesModel = FilesViewModel()
     @State var sheetHeight: CGFloat = 0
     
     var body: some View {
@@ -116,13 +126,6 @@ struct SidebarView: View {
                 }
                 .environmentObject(filesModel)
                 .navigationTitle(root.name)
-                .navigationDestination(isPresented: $homeState.showSettings) {
-                    SettingsView()
-                }
-                .navigationDestination(isPresented: $homeState.showPendingShares) {
-                    PendingSharesView()
-                        .environmentObject(filesModel)
-                }
             }
         } else {
             ProgressView()

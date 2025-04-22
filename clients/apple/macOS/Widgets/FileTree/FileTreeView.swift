@@ -64,7 +64,6 @@ struct FileTreeView: NSViewRepresentable {
             
             AppState.workspaceState.$selectedFolder.sink { [weak self, weak treeView] selectedFolder in
                 if self?.delegate.supressnextOpenFolder == true {
-                    self?.delegate.supressNextOpenDoc = false
                     self?.delegate.supressnextOpenFolder = false
                     return
                 }
@@ -80,6 +79,8 @@ struct FileTreeView: NSViewRepresentable {
                 guard let treeView else {
                     return
                 }
+                print("expanding folder")
+
                 
                 self?.expandToFile(treeView: treeView, file: file)
                 let row = treeView.row(forItem: file)
@@ -90,7 +91,6 @@ struct FileTreeView: NSViewRepresentable {
             AppState.workspaceState.$openDoc.sink { [weak self, weak treeView] openDoc in
                 if self?.delegate.supressNextOpenDoc == true {
                     self?.delegate.supressNextOpenDoc = false
-                    self?.delegate.supressnextOpenFolder = false
                     return
                 }
                 
@@ -283,8 +283,15 @@ class FileTreeOutlineView: NSOutlineView {
     }
 
     @objc private func outlineViewClicked(_ outlineView: NSOutlineView) {
+        
         guard let file = item(atRow: clickedRow) as? File else {
             return
+        }
+        
+        if(file.type == .document) {
+            (delegate as! FileTreeDelegate).supressNextOpenDoc = true
+        } else {
+            (delegate as! FileTreeDelegate).supressnextOpenFolder = true
         }
         
         guard let event = outlineView.window?.currentEvent else {

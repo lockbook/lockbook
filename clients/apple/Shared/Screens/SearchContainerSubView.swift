@@ -16,7 +16,7 @@ struct SearchContainerSubView<Content: View>: View {
                 if !model.isSearchInProgress && !model.input.isEmpty && model.results.isEmpty {
                     noResults
                 } else {
-                    ScrollView {
+                    List {
                         if model.isSearchInProgress {
                             ProgressView()
                                 .frame(width: 20, height: 20)
@@ -50,7 +50,6 @@ struct SearchContainerSubView<Content: View>: View {
                 }) {
                     SearchPathResultView(name: pathResult.path.nameAndPath().0, path: pathResult.path.nameAndPath().1, matchedIndices: pathResult.matchedIndicies)
                 }
-                .padding(.horizontal)
                 .buttonStyle(.plain)
             case .document(let docResult):
                 Button(action: {
@@ -60,14 +59,10 @@ struct SearchContainerSubView<Content: View>: View {
                 }) {
                     SearchContentResultView(name: docResult.path.nameAndPath().0, path: docResult.path.nameAndPath().1, contentMatches: docResult.contentMatches)
                 }
-                .padding(.horizontal)
                 .buttonStyle(.plain)
             }
-            
-            Divider()
-                .padding(.leading, 20)
-                .padding(.vertical, 5)
         }
+        .modifier(SearchContainerListStyleViewModifier())
     }
     
     var noResults: some View {
@@ -80,6 +75,16 @@ struct SearchContainerSubView<Content: View>: View {
             
             Spacer()
         }
+    }
+}
+
+struct SearchContainerListStyleViewModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content.listStyle(.bordered)
+        #else
+        content.listStyle(.sidebar)
+        #endif
     }
 }
 
@@ -107,24 +112,6 @@ class SearchContainerViewModel: ObservableObject {
                 }
             }
         }
-    }
-}
-
-struct SearchableMarker: ViewModifier {
-    @ObservedObject var model = SearchContainerViewModel()
-    
-    #if(iOS)
-    let placement: SearchFieldPlacement =  .navigationBarDrawer(displayMode: .automatic)
-    #else
-    let placement: SearchFieldPlacement =  .sidebar
-    #endif
-    
-    func body(content: Content) -> some View {
-        #if(iOS)
-        content.searchable(text: $model.input, placement: placement, prompt: "Search")
-        #else
-        content.searchable(text: $model.input, placement: placement, prompt: "Search")
-        #endif
     }
 }
 

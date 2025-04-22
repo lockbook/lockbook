@@ -162,6 +162,7 @@ struct FileRowView: View {
         }
         
         if file.isFolder {
+            fileTreeModel.supressNextOpenFolder = true
             AppState.workspaceState.selectedFolder = file.id
             
             withAnimation {

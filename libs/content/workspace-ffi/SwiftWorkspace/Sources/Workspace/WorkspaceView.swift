@@ -245,6 +245,10 @@ public struct NSWS: NSViewRepresentable {
             nsView.fileOpCompleted(fileOp: workspaceState.fileOpCompleted!)
             workspaceState.fileOpCompleted = nil
         }
+        
+        if let id = workspaceState.closeDocRequested {
+            nsView.closeDoc(id: id)
+        }
     }
 }
 #endif
