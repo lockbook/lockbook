@@ -2,7 +2,7 @@ use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{Pos2, Ui, Vec2};
 
 use crate::tab::markdown_plusplus::{
-    widget::{WrapContext, BLOCK_PADDING, BLOCK_SPACING},
+    widget::{Wrap, BLOCK_PADDING, BLOCK_SPACING},
     MarkdownPlusPlus,
 };
 
@@ -26,7 +26,7 @@ impl<'ast> MarkdownPlusPlus {
 
     pub fn show_table_cell(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
         let width = self.width(node);
-        let wrap = WrapContext::new(width);
+        let wrap = Wrap::new(width);
 
         top_left += Vec2::splat(BLOCK_PADDING);
         let width = wrap.width - 2.0 * BLOCK_PADDING;
@@ -39,7 +39,7 @@ impl<'ast> MarkdownPlusPlus {
             }
         }
 
-        self.show_inline_children(ui, node, top_left, &mut WrapContext::new(width));
+        self.show_inline_children(ui, node, top_left, &mut Wrap::new(width));
 
         // bounds
         let sourcepos = node.data.borrow().sourcepos;

@@ -5,7 +5,7 @@ use egui::{text::LayoutJob, FontFamily, Pos2, Rect, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 
 use crate::tab::markdown_plusplus::{
-    widget::{INDENT, ROW_HEIGHT},
+    widget::{Wrap, INDENT, ROW_HEIGHT},
     MarkdownPlusPlus,
 };
 
@@ -109,5 +109,12 @@ impl<'ast> MarkdownPlusPlus {
             }
         }
         unreachable!("All nodes are somewhere in the document");
+    }
+
+    pub fn show_line_prefix_footnote_definition(
+        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+        top_left: Pos2, height: f32, row_height: f32,
+    ) {
+        todo!()
     }
 }

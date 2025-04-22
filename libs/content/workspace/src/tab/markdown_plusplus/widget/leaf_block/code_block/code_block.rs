@@ -5,7 +5,7 @@ use syntect::easy::HighlightLines;
 
 use crate::tab::markdown_plusplus::{
     bounds::RangesExt as _,
-    widget::{inline::text, WrapContext, BLOCK_PADDING, ROW_HEIGHT},
+    widget::{inline::text, Wrap, BLOCK_PADDING, ROW_HEIGHT},
     MarkdownPlusPlus,
 };
 
@@ -70,7 +70,7 @@ impl<'ast> MarkdownPlusPlus {
         let text_width = width - 2. * BLOCK_PADDING;
 
         let info_height = ROW_HEIGHT;
-        let code_height = self.text_height(node, &WrapContext::new(text_width), code);
+        let code_height = self.text_height(node, &Wrap::new(text_width), code);
         BLOCK_PADDING + info_height + BLOCK_PADDING + BLOCK_PADDING + code_height + BLOCK_PADDING
     }
 
@@ -89,8 +89,7 @@ impl<'ast> MarkdownPlusPlus {
         let text_width = width - 2. * BLOCK_PADDING;
 
         let info_height = ROW_HEIGHT;
-        let code_height =
-            self.text_height(node, &WrapContext::new(width - 2. * BLOCK_PADDING), code);
+        let code_height = self.text_height(node, &Wrap::new(width - 2. * BLOCK_PADDING), code);
         let height = BLOCK_PADDING
             + info_height
             + BLOCK_PADDING
@@ -163,7 +162,7 @@ impl<'ast> MarkdownPlusPlus {
 
             // draw info
             let info_top_left = top_left + Vec2::splat(BLOCK_PADDING);
-            let mut wrap = WrapContext::new(text_width);
+            let mut wrap = Wrap::new(text_width);
             let info_sourcepos = self.range_to_sourcepos(info_range);
             self.show_node_text_line(
                 ui,
@@ -181,7 +180,7 @@ impl<'ast> MarkdownPlusPlus {
                     BLOCK_PADDING,
                     BLOCK_PADDING + info_height + BLOCK_PADDING + BLOCK_PADDING,
                 );
-            let mut wrap = WrapContext::new(text_width);
+            let mut wrap = Wrap::new(text_width);
 
             let info_line_idx = sourcepos.start.line - 1; // convert cardinal to ordinal
             let mut code_line_idx = info_line_idx + 1;
@@ -284,7 +283,7 @@ impl<'ast> MarkdownPlusPlus {
 
                 // all lines except the last one end in a newline...
                 if code_line_idx < last_code_line_idx {
-                    wrap.offset = wrap.line_end();
+                    wrap.offset = wrap.row_end();
                 }
 
                 code_line_idx += 1;
@@ -292,7 +291,7 @@ impl<'ast> MarkdownPlusPlus {
 
             // ...and sometimes the last one also ends with a newline
             if text::ends_with_newline(code) {
-                wrap.offset = wrap.line_end();
+                wrap.offset = wrap.row_end();
             }
         }
     }

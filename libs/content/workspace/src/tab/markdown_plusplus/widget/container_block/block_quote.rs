@@ -4,7 +4,10 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
-use crate::tab::markdown_plusplus::{widget::INDENT, MarkdownPlusPlus};
+use crate::tab::markdown_plusplus::{
+    widget::{Wrap, BLOCK_SPACING, INDENT, ROW_SPACING},
+    MarkdownPlusPlus,
+};
 
 impl<'ast> MarkdownPlusPlus {
     pub fn text_format_block_quote(&self, parent: &AstNode<'_>) -> TextFormat {
@@ -53,24 +56,20 @@ impl<'ast> MarkdownPlusPlus {
             // the example, the setext heading's underline is only revealed when
             // the heading's range intersects the selection. Even the syntax
             // reveal state of descendant nodes must be accounted for.
-            //
-            // Fortunately, we have written god-tier abstractions allowing us to
-            // make short work of the problem.
-            if self.line_prefix_intersects_selection(node, line) {}
         }
 
-        if self.node_intersects_selection(node) {
-            for line_idx in self.node_lines(node).iter() {
-                let mut line = self.bounds.source_lines[line_idx];
-                line.0 += self.line_prefix_len(node.parent().unwrap(), line);
-            }
-        } else {
-            ui.painter().vline(
-                annotation_space.center().x,
-                annotation_space.y_range(),
-                Stroke::new(3., self.theme.bg().neutral_tertiary),
-            );
-        }
+        // if self.node_intersects_selection(node) {
+        //     for line_idx in self.node_lines(node).iter() {
+        //         let mut line = self.bounds.source_lines[line_idx];
+        //         line.0 += self.line_prefix_len(node.parent().unwrap(), line);
+        //     }
+        // } else {
+        // ui.painter().vline(
+        //     annotation_space.center().x,
+        //     annotation_space.y_range(),
+        //     Stroke::new(3., self.theme.bg().neutral_tertiary),
+        // );
+        // }
 
         // debug
         // ui.painter()
@@ -93,7 +92,8 @@ impl<'ast> MarkdownPlusPlus {
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> RelCharOffset {
         let parent = node.parent().unwrap();
-        let mut result = self.line_prefix_len(parent, line);
+        let parent_prefix_len = self.line_prefix_len(parent, line);
+        let mut result = parent_prefix_len;
 
         // "A block quote marker consists of 0-3 spaces of initial indent, plus
         // (a) the character > together with a following space, or (b) a single
@@ -102,7 +102,7 @@ impl<'ast> MarkdownPlusPlus {
         // "If a string of lines Ls constitute a sequence of blocks Bs, then the
         // result of prepending a block quote marker to the beginning of each
         // line in Ls is a block quote containing Bs."
-        let text = &self.buffer[(line.start() + self.line_prefix_len(parent, line), line.end())];
+        let text = &self.buffer[(line.start() + parent_prefix_len, line.end())];
         if text.starts_with("   > ") {
             result += 5;
         } else if text.starts_with("   >") || text.starts_with("  > ") {
@@ -121,5 +121,41 @@ impl<'ast> MarkdownPlusPlus {
         // block quote marker is paragraph continuation text is a block quote
         // with Bs as its content."
         result.min(line.len())
+    }
+
+    pub fn show_line_prefix_block_quote(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+        top_left: Pos2, height: f32, _row_height: f32,
+    ) {
+        let annotation_size = Vec2 { x: INDENT, y: height };
+        let annotation_space = Rect::from_min_size(top_left, annotation_size);
+        let text_format = self.text_format_syntax(node);
+
+        let line_prefix_len = self.line_prefix_len(node, line);
+        let parent_line_prefix_len = self.line_prefix_len(node.parent().unwrap(), line);
+        let prefix_range = (line.start() + parent_line_prefix_len, line.start() + line_prefix_len);
+
+        if prefix_range.intersects(&self.buffer.current.selection, false)
+            || self
+                .buffer
+                .current
+                .selection
+                .contains(prefix_range.start(), true, true)
+        {
+            let mut wrap = Wrap::new(INDENT);
+            self.show_text_line(ui, top_left, &mut wrap, prefix_range, text_format, false);
+        } else {
+            ui.painter().vline(
+                annotation_space.center().x,
+                annotation_space
+                    .y_range()
+                    .expand(ROW_SPACING.max(BLOCK_SPACING) / 2.), // lazy af hack
+                Stroke::new(3., self.theme.bg().neutral_tertiary),
+            );
+        }
+
+        if !prefix_range.is_empty() {
+            self.bounds.paragraphs.push(prefix_range);
+        }
     }
 }

@@ -3,7 +3,7 @@ use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::RangeExt;
 
 use crate::tab::markdown_plusplus::{
-    widget::{WrapContext, ROW_HEIGHT},
+    widget::{Wrap, ROW_HEIGHT},
     MarkdownPlusPlus,
 };
 
@@ -18,14 +18,22 @@ impl<'ast> MarkdownPlusPlus {
         // for some reason, thematic break ranges contain the trailing newline,
         // so we trim the range to the first line
         let mut range = self.bounds.source_lines[self.node_lines(node).start()];
+        let mut wrap = Wrap::new(width);
 
         // when the thematic break is nested in a container block with per-line
         // syntax, like a block quote, the range needs to be stripped of that
         // syntax
+        self.show_line_prefix(
+            ui,
+            node.parent().unwrap(),
+            self.node_first_line(node),
+            top_left,
+            wrap.height(), // todo: always 0
+            wrap.row_height,
+        );
         range.0 += self.line_prefix_len(node.parent().unwrap(), range);
 
         if self.node_intersects_selection(node) {
-            let mut wrap = WrapContext::new(width);
             self.show_text_line(
                 ui,
                 top_left,

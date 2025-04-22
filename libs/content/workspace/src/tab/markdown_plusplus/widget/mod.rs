@@ -7,14 +7,15 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffs
 
 use super::MarkdownPlusPlus;
 
-pub(crate) mod container_block;
-pub(crate) mod inline;
-pub(crate) mod leaf_block;
-pub(crate) mod spacing;
-pub(crate) mod syntax;
-pub(crate) mod utils;
+pub mod container_block;
+pub mod inline;
+pub mod layout;
+pub mod leaf_block;
+pub mod spacing;
+pub mod syntax;
+pub mod utils;
 
-pub const MARGIN: f32 = 20.0; // space between the editor and window border; must be large enough to accomodate bordered elements e.g. code blocks
+pub const MARGIN: f32 = 20.0; // space between the editor and window border; must be large enough to accommodate bordered elements e.g. code blocks
 pub const MAX_WIDTH: f32 = 800.0; // the maximum width of the editor before it starts adding padding
 
 pub const INLINE_PADDING: f32 = 5.0; // the extra space granted to inline code for a border (both sides)
@@ -22,44 +23,49 @@ pub const ROW_HEIGHT: f32 = 20.0; // ...at default font size
 pub const BLOCK_PADDING: f32 = 10.0; // between a table cell / code block and its contents (all sides)
 pub const INDENT: f32 = 25.0; // enough space for two digits in a numbered list
 pub const BULLET_RADIUS: f32 = 2.0;
-pub const ROW_SPACING: f32 = 5.0; // must be large enough to accomodate bordered elements e.g. inline code
+pub const ROW_SPACING: f32 = 5.0; // must be large enough to accommodate bordered elements e.g. inline code
 pub const BLOCK_SPACING: f32 = 10.0;
 
 #[derive(Clone, Debug)]
-pub struct WrapContext {
+pub struct Wrap {
     pub offset: f32,
     pub width: f32,
     pub row_height: f32, // overridden by headings
 }
 
-impl WrapContext {
+impl Wrap {
     pub fn new(width: f32) -> Self {
         Self { offset: 0.0, width, row_height: ROW_HEIGHT }
     }
 
-    /// The index of the current line
-    pub fn line(&self) -> usize {
+    /// The index of the current row
+    pub fn row(&self) -> usize {
         (self.offset / self.width) as _
     }
 
-    /// The start of the current line
-    pub fn line_start(&self) -> f32 {
-        self.line() as f32 * self.width
+    /// The start of the current row
+    pub fn row_start(&self) -> f32 {
+        self.row() as f32 * self.width
     }
 
-    /// The end of the current line
-    pub fn line_end(&self) -> f32 {
-        self.line_start() + self.width
+    /// The end of the current row
+    pub fn row_end(&self) -> f32 {
+        self.row_start() + self.width
     }
 
-    /// The offset from the start of the line
-    pub fn line_offset(&self) -> f32 {
-        self.offset - self.line_start()
+    /// The offset from the start of the row
+    pub fn row_offset(&self) -> f32 {
+        self.offset - self.row_start()
     }
 
-    /// The remaining space on the line
-    pub fn line_remaining(&self) -> f32 {
-        self.line_end() - self.offset
+    /// The remaining space on the row
+    pub fn row_remaining(&self) -> f32 {
+        self.row_end() - self.offset
+    }
+
+    /// The height of the wrapped text; always at least [`Self::row_height`]
+    pub fn height(&self) -> f32 {
+        ((self.offset / self.width).ceil() * self.row_height).max(self.row_height)
     }
 }
 
@@ -129,7 +135,11 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn height(&self, node: &'ast AstNode<'ast>) -> f32 {
-        match &node.data.borrow().value {
+        if let Some(cached) = self.get_cached_node_height(node) {
+            return cached;
+        }
+
+        let height = match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => 0.,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
@@ -181,7 +191,11 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Paragraph => self.height_paragraph(node),
             NodeValue::TableCell => self.height_table_cell(node),
             NodeValue::ThematicBreak => self.height_thematic_break(),
-        }
+        };
+
+        self.set_cached_node_height(node, height);
+
+        height
     }
 
     // the height of a block that contains blocks is the sum of the heights of the blocks it contains
@@ -195,27 +209,24 @@ impl<'ast> MarkdownPlusPlus {
         height_sum
     }
 
-    pub fn width(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let parent = || node.parent().unwrap();
-        let parent_width = || self.width(parent());
-
+    pub fn indent(&self, node: &'ast AstNode<'ast>) -> f32 {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => 0.,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(_) => parent_width() + INDENT,
-            NodeValue::BlockQuote => parent_width() + INDENT,
+            NodeValue::Alert(_) => INDENT,
+            NodeValue::BlockQuote => INDENT,
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => self.width,
-            NodeValue::FootnoteDefinition(_) => parent_width() + INDENT,
-            NodeValue::Item(_) => parent_width() + INDENT,
-            NodeValue::List(_) => parent_width(), // indentation handled by items
-            NodeValue::MultilineBlockQuote(_) => parent_width() + INDENT,
-            NodeValue::Table(_) => parent_width(),
-            NodeValue::TableRow(_) => parent_width(),
-            NodeValue::TaskItem(_) => parent_width() + INDENT,
+            NodeValue::Document => 0.,
+            NodeValue::FootnoteDefinition(_) => INDENT,
+            NodeValue::Item(_) => INDENT,
+            NodeValue::List(_) => 0., // indentation handled by items
+            NodeValue::MultilineBlockQuote(_) => INDENT,
+            NodeValue::Table(_) => 0.,
+            NodeValue::TableRow(_) => 0.,
+            NodeValue::TaskItem(_) => INDENT,
 
             // inline
             NodeValue::Image(_) => unimplemented!("not a block"),
@@ -239,16 +250,71 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::WikiLink(_) => unimplemented!("not a block"),
 
             // leaf_block
-            NodeValue::CodeBlock(_) => parent_width(),
+            NodeValue::CodeBlock(_) => unimplemented!("not a container block"),
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
-            NodeValue::Heading(_) => parent_width(),
-            NodeValue::HtmlBlock(_) => parent_width(),
-            NodeValue::Paragraph => parent_width(),
-            NodeValue::TableCell => {
-                parent_width() / node.parent().unwrap().children().count() as f32
-            }
-            NodeValue::ThematicBreak => parent_width(),
+            NodeValue::Heading(_) => unimplemented!("not a container block"),
+            NodeValue::HtmlBlock(_) => unimplemented!("not a container block"),
+            NodeValue::Paragraph => unimplemented!("not a container block"),
+            NodeValue::TableCell => unimplemented!("not a container block"),
+            NodeValue::ThematicBreak => unimplemented!("not a container block"),
+        }
+    }
+
+    pub fn width(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let parent = || node.parent().unwrap();
+        let parent_width = || self.width(parent());
+        let parent_indent = || self.indent(parent());
+        let indented_width = || parent_width() - parent_indent();
+
+        match &node.data.borrow().value {
+            NodeValue::FrontMatter(_) => 0.,
+            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
+
+            // container_block
+            NodeValue::Alert(_) => indented_width(),
+            NodeValue::BlockQuote => indented_width(),
+            NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
+            NodeValue::DescriptionList => unimplemented!("extension disabled"),
+            NodeValue::Document => self.width,
+            NodeValue::FootnoteDefinition(_) => indented_width(),
+            NodeValue::Item(_) => indented_width(),
+            NodeValue::List(_) => indented_width(), // indentation handled by items
+            NodeValue::MultilineBlockQuote(_) => indented_width(),
+            NodeValue::Table(_) => indented_width(),
+            NodeValue::TableRow(_) => indented_width(),
+            NodeValue::TaskItem(_) => indented_width(),
+
+            // inline
+            NodeValue::Image(_) => unimplemented!("not a block"),
+            NodeValue::Code(_) => unimplemented!("not a block"),
+            NodeValue::Emph => unimplemented!("not a block"),
+            NodeValue::Escaped => unimplemented!("not a block"),
+            NodeValue::EscapedTag(_) => unimplemented!("not a block"),
+            NodeValue::FootnoteReference(_) => unimplemented!("not a block"),
+            NodeValue::HtmlInline(_) => unimplemented!("not a block"),
+            NodeValue::LineBreak => unimplemented!("not a block"),
+            NodeValue::Link(_) => unimplemented!("not a block"),
+            NodeValue::Math(_) => unimplemented!("not a block"),
+            NodeValue::SoftBreak => unimplemented!("not a block"),
+            NodeValue::SpoileredText => unimplemented!("not a block"),
+            NodeValue::Strikethrough => unimplemented!("not a block"),
+            NodeValue::Strong => unimplemented!("not a block"),
+            NodeValue::Subscript => unimplemented!("not a block"),
+            NodeValue::Superscript => unimplemented!("not a block"),
+            NodeValue::Text(_) => unimplemented!("not a block"),
+            NodeValue::Underline => unimplemented!("not a block"),
+            NodeValue::WikiLink(_) => unimplemented!("not a block"),
+
+            // leaf_block
+            NodeValue::CodeBlock(_) => indented_width(),
+            NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
+            NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
+            NodeValue::Heading(_) => indented_width(),
+            NodeValue::HtmlBlock(_) => indented_width(),
+            NodeValue::Paragraph => indented_width(),
+            NodeValue::TableCell => 1.0 / node.parent().unwrap().children().count() as f32,
+            NodeValue::ThematicBreak => indented_width(),
         }
     }
 
@@ -371,7 +437,7 @@ impl<'ast> MarkdownPlusPlus {
         //     .rect_stroke(rect, 2., egui::Stroke::new(1., self.theme.bg().tertiary));
     }
 
-    fn span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
+    fn span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => 0.,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
@@ -427,7 +493,7 @@ impl<'ast> MarkdownPlusPlus {
 
     // the span of an inline that contains inlines is the sum of the spans of
     // the inlines
-    fn inline_children_span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
+    fn inline_children_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         let mut tmp_wrap = wrap.clone();
         for child in node.children() {
             tmp_wrap.offset += self.span(child, &tmp_wrap);
@@ -439,27 +505,27 @@ impl<'ast> MarkdownPlusPlus {
     // divided by the wrap width (rounded up), times the row height (plus
     // spacing)
     fn inline_children_height(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
-        let children_span = self.inline_children_span(node, &WrapContext::new(width));
+        let children_span = self.inline_children_span(node, &Wrap::new(width));
         let rows = (children_span / width).ceil();
         rows * self.row_height(node) + (rows - 1.) * ROW_SPACING
     }
 
     // the height of possibly multiple lines of wrapped text; used for code
     // blocks and other situations where text isn't in inlines
-    fn text_height(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext, text: &str) -> f32 {
+    fn text_height(&self, node: &'ast AstNode<'ast>, wrap: &Wrap, text: &str) -> f32 {
         let mut tmp_wrap = wrap.clone();
         for (i, line) in text.lines().enumerate() {
             tmp_wrap.offset += self.span_node_text_line(node, wrap, line);
 
             // all lines except the last one end in a newline...
             if i < text.lines().count() - 1 {
-                tmp_wrap.offset = tmp_wrap.line_end();
+                tmp_wrap.offset = tmp_wrap.row_end();
             }
         }
 
         // ...and sometimes the last one also ends with a newline
         if text::ends_with_newline(text) {
-            tmp_wrap.offset = tmp_wrap.line_end();
+            tmp_wrap.offset = tmp_wrap.row_end();
         }
 
         let span = tmp_wrap.offset - wrap.offset;
@@ -468,7 +534,7 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     fn show_inline(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
     ) {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => {}
@@ -525,7 +591,7 @@ impl<'ast> MarkdownPlusPlus {
 
     // inlines are stacked horizontally and wrapped
     fn show_inline_children(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
     ) {
         for child in node.children() {
             self.show_inline(ui, child, top_left, wrap);
@@ -574,7 +640,47 @@ impl<'ast> MarkdownPlusPlus {
         Some((self.prefix_range(node)?, self.infix_range(node)?, self.postfix_range(node)?))
     }
 
-    fn prefix_span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
+    /// Returns 5 ranges representing the pre-node line, pre-first-child section,
+    /// inter-children section, post-last-child section, and post-node line.
+    /// Returns None if there are no children on this line.
+    #[allow(clippy::type_complexity)]
+    fn line_ranges(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> Option<(
+        (DocCharOffset, DocCharOffset),
+        (DocCharOffset, DocCharOffset),
+        (DocCharOffset, DocCharOffset),
+        (DocCharOffset, DocCharOffset),
+        (DocCharOffset, DocCharOffset),
+    )> {
+        let children = self.children_in_line(node, line);
+        if children.is_empty() {
+            return None;
+        }
+
+        let parent = node.parent().unwrap();
+        let parent_prefix_len = self.line_prefix_len(parent, line);
+        let node_line = (line.start() + parent_prefix_len, line.end());
+
+        let node_range = self.node_range(node);
+        let node_range =
+            (node_range.start().max(node_line.start()), node_range.end().min(node_line.end()));
+
+        let first_child = children.first().unwrap();
+        let first_child_range = self.node_range(first_child);
+        let last_child = children.last().unwrap();
+        let last_child_range = self.node_range(last_child);
+
+        let pre_node_line = (node_line.start(), node_range.start());
+        let pre_first_child = (node_range.start(), first_child_range.start());
+        let inter_children = (first_child_range.start(), last_child_range.end());
+        let post_last_child = (last_child_range.end(), node_range.end());
+        let post_node_line = (node_range.end(), node_line.end());
+
+        Some((pre_node_line, pre_first_child, inter_children, post_last_child, post_node_line))
+    }
+
+    fn prefix_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         if let Some(prefix_range) = self.prefix_range(node) {
             self.span_text_line(wrap, prefix_range, self.text_format_syntax(node))
         } else {
@@ -582,7 +688,7 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    fn postfix_span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
+    fn postfix_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         if let Some(postfix_range) = self.postfix_range(node) {
             self.span_text_line(wrap, postfix_range, self.text_format_syntax(node))
         } else {
@@ -590,7 +696,7 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    fn circumfix_span(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
+    fn circumfix_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         let mut tmp_wrap = wrap.clone();
         if self.node_intersects_selection(node) {
             tmp_wrap.offset += self.prefix_span(node, &tmp_wrap);
@@ -603,7 +709,7 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     fn show_circumfix(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
     ) {
         if self.node_intersects_selection(node) {
             if let Some(prefix_range) = self.prefix_range(node) {
@@ -680,6 +786,82 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Table(_) => parent_line_prefix_len(),
             NodeValue::TableRow(_) => self.line_prefix_len_table_row(node, line),
             NodeValue::TaskItem(_) => self.line_prefix_len_task_item(node, line),
+
+            // inline
+            NodeValue::Image(NodeLink { .. }) => unimplemented!("not a block"),
+            NodeValue::Code(_) => unimplemented!("not a block"),
+            NodeValue::Emph => unimplemented!("not a block"),
+            NodeValue::Escaped => unimplemented!("not a block"),
+            NodeValue::EscapedTag(_) => unimplemented!("not a block"),
+            NodeValue::FootnoteReference(_) => unimplemented!("not a block"),
+            NodeValue::HtmlInline(_) => unimplemented!("not a block"),
+            NodeValue::LineBreak => unimplemented!("not a block"),
+            NodeValue::Link(_) => unimplemented!("not a block"),
+            NodeValue::Math(_) => unimplemented!("not a block"),
+            NodeValue::SoftBreak => unimplemented!("not a block"),
+            NodeValue::SpoileredText => unimplemented!("not a block"),
+            NodeValue::Strikethrough => unimplemented!("not a block"),
+            NodeValue::Strong => unimplemented!("not a block"),
+            NodeValue::Subscript => unimplemented!("not a block"),
+            NodeValue::Superscript => unimplemented!("not a block"),
+            NodeValue::Text(_) => unimplemented!("not a block"),
+            NodeValue::Underline => unimplemented!("not a block"),
+            NodeValue::WikiLink(_) => unimplemented!("not a block"),
+
+            // leaf_block
+            NodeValue::CodeBlock(_) => unimplemented!("not a container block"),
+            NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
+            NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
+            NodeValue::Heading(_) => unimplemented!("not a container block"),
+            NodeValue::HtmlBlock(_) => unimplemented!("not a container block"),
+            NodeValue::Paragraph => unimplemented!("not a container block"),
+            NodeValue::TableCell => unimplemented!("not a container block"),
+            NodeValue::ThematicBreak => unimplemented!("not a container block"),
+        }
+    }
+
+    /// Shows the line prefix, such as '* ' for a list item, '> ' for a block
+    /// quote, or the indentation for either of those, or for indented code
+    /// blocks.
+    fn show_line_prefix(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+        mut top_left: Pos2, height: f32, row_height: f32,
+    ) {
+        top_left.x -= self.indent(node);
+
+        if let Some(parent) = node.parent() {
+            self.show_line_prefix(ui, parent, line, top_left, height, row_height);
+        }
+
+        match &node.data.borrow().value {
+            NodeValue::FrontMatter(_) => unimplemented!("not a block"),
+            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
+
+            // container_block
+            NodeValue::Alert(node_alert) => self
+                .show_line_prefix_alert(ui, node, line, top_left, height, row_height, node_alert),
+            NodeValue::BlockQuote => {
+                self.show_line_prefix_block_quote(ui, node, line, top_left, height, row_height)
+            }
+            NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
+            NodeValue::DescriptionList => unimplemented!("extension disabled"),
+            NodeValue::Document => {}
+            NodeValue::FootnoteDefinition(_) => self
+                .show_line_prefix_footnote_definition(ui, node, line, top_left, height, row_height),
+            NodeValue::Item(node_list) => {
+                self.show_line_prefix_item(ui, node, line, top_left, height, row_height, node_list)
+            }
+            NodeValue::List(_) => {}
+            NodeValue::MultilineBlockQuote(_) => self.show_line_prefix_multiline_block_quote(
+                ui, node, line, top_left, height, row_height,
+            ),
+            NodeValue::Table(_) => {}
+            NodeValue::TableRow(_) => {
+                self.show_line_prefix_table_row(ui, node, line, top_left, height, row_height)
+            }
+            NodeValue::TaskItem(_) => {
+                self.show_line_prefix_task_item(ui, node, line, top_left, height, row_height)
+            }
 
             // inline
             NodeValue::Image(NodeLink { .. }) => unimplemented!("not a block"),
