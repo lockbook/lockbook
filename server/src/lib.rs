@@ -6,7 +6,7 @@ use document_service::DocumentService;
 use lb_rs::model::clock;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::Owner;
-use schema::{AccountV1, ServerV5};
+use schema::ServerV5;
 use std::collections::HashMap;
 use std::env;
 use std::fmt::Debug;
@@ -100,6 +100,7 @@ where
     )
 }
 
+pub mod account_dbs;
 pub mod account_service;
 pub mod billing;
 pub mod config;
@@ -111,4 +112,3 @@ pub mod metrics;
 pub mod router_service;
 pub mod schema;
 pub mod utils;
-pub mod account_dbs;
