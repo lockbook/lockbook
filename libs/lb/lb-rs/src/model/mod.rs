@@ -39,5 +39,7 @@ pub mod work_unit;
 pub mod meta;
 pub mod signed_meta;
 pub mod server_meta;
+pub mod server_tree_v2;
+pub mod schema;
 
 pub use lazy::ValidationFailure;

@@ -1,5 +1,5 @@
 use db_rs::Db;
-use lb_rs::model::file_metadata::Owner;
+use lb_rs::model::{file_metadata::Owner, schema::AccountV1, server_tree_v2::ServerTreeV2};
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -9,7 +9,6 @@ use crate::{
         stripe_client::StripeClient,
     },
     document_service::DocumentService,
-    schema::AccountV1,
     ServerError, ServerState,
 };
 
@@ -32,5 +31,39 @@ where
         account_dbs.insert(owner, account_db.clone());
 
         Ok(account_db)
+    }
+
+    pub async fn get_owners<T: Debug>(&self, owner: Owner) -> Result<Vec<AccountDb>, ServerError<T>> {
+        let owner_dbs = self.account_dbs.read().await;
+        let mut owners: Vec<Owner> = owner_dbs
+            .get(&owner)
+            .unwrap()
+            .read()
+            .await
+            .shared_files
+            .get()
+            .iter()
+            .map(|(_id, owner)| *owner)
+            .collect();
+        owners.push(owner);
+        owners.sort_unstable_by_key(|owner| owner.0.serialize());
+
+        let mut dbs = vec![];
+        for owner in owners {
+            let db = owner_dbs.get(&owner).unwrap().clone();
+            dbs.push(db);
+        }
+        Ok(dbs)
+    }
+
+    pub async fn get_tree<'a, T: Debug>(
+        &self, owner: Owner, dbs: &'a Vec<AccountDb>,
+    ) -> Result<ServerTreeV2<'a>, ServerError<T>> {
+        let mut trees = vec![];
+        for tree in dbs {
+            trees.push(tree.write().await);
+        }
+
+        Ok(ServerTreeV2 { owner, trees })
     }
 }
