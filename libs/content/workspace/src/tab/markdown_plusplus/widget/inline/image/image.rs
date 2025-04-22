@@ -5,7 +5,7 @@ use egui::{self, Align2, Color32, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Ve
 use epaint::RectShape;
 
 use crate::tab::markdown_plusplus::{
-    widget::{WrapContext, MARGIN},
+    widget::{Wrap, MARGIN},
     MarkdownPlusPlus,
 };
 
@@ -16,12 +16,12 @@ impl<'ast> MarkdownPlusPlus {
         self.text_format_link(parent)
     }
 
-    pub fn span_image(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
+    pub fn span_image(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         self.circumfix_span(node, wrap)
     }
 
     pub fn show_image(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
     ) {
         self.show_circumfix(ui, node, top_left, wrap);
     }

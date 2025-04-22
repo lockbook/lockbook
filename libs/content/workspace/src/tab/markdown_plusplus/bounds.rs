@@ -64,6 +64,14 @@ pub struct Bounds {
 impl MarkdownPlusPlus {
     pub fn calc_source_lines(&mut self) {
         self.bounds.source_lines.clear();
+
+        if self.buffer.current.text.is_empty() {
+            self.bounds
+                .source_lines
+                .push((DocCharOffset(0), DocCharOffset(0)));
+            return;
+        }
+
         let mut start = DocByteOffset(0);
         for line in self.buffer.current.text.split_inclusive('\n') {
             let inclusive_length = RelByteOffset(line.len());
@@ -89,7 +97,11 @@ impl MarkdownPlusPlus {
     /// incorrect - use [`sourcepos_to_range`] instead.
     pub fn line_column_to_offset(&self, line_column: LineColumn) -> DocCharOffset {
         // convert cardinal to ordinal
-        let line_column = LineColumn { line: line_column.line - 1, column: line_column.column - 1 };
+        let line_column = if line_column.column == 0 {
+            LineColumn { line: line_column.line.saturating_sub(2), column: line_column.column }
+        } else {
+            LineColumn { line: line_column.line.saturating_sub(1), column: line_column.column - 1 }
+        };
 
         let line: (DocCharOffset, DocCharOffset) = *self
             .bounds
@@ -165,6 +177,7 @@ impl Bounds {
     // }
 }
 
+#[derive(Debug)]
 pub enum BoundCase {
     /// There are no ranges to contextualize the position.
     ///
@@ -375,9 +388,22 @@ impl BoundExt for DocCharOffset {
             }
             BoundCase::AtEmptyRange { range: _, range_before, range_after } => {
                 if backwards ^ !jump {
-                    Some((range_before.end(), self))
+                    if self == range_before.end() {
+                        // assumes we don't have multiple empty ranges on top of
+                        // each other, which falls under the broader assumption
+                        // that we have no duplicate ranges...
+                        Some((range_before.end() - 1, range_before.end()))
+                    } else {
+                        Some((range_before.end(), self))
+                    }
                 } else {
-                    Some((self, range_after.start()))
+                    #[allow(clippy::collapsible_else_if)]
+                    if self == range_after.start() {
+                        // ...same assumption here
+                        Some((range_after.start(), range_after.start() + 1))
+                    } else {
+                        Some((self, range_after.start()))
+                    }
                 }
             }
             BoundCase::AtSharedBoundOfTouchingNonemptyRanges { .. } => {

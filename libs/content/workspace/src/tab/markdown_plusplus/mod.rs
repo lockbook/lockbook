@@ -19,6 +19,7 @@ use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use theme::Theme;
 use widget::inline::image::cache::ImageCache;
+use widget::layout::cache::LayoutCache;
 use widget::leaf_block::code_block::cache::SyntaxHighlightCache;
 use widget::{MARGIN, MAX_WIDTH};
 
@@ -57,6 +58,7 @@ pub struct MarkdownPlusPlus {
     pub event: EventState,
     pub galleys: Galleys,
     pub images: ImageCache,
+    pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
 
     // widgets
@@ -95,8 +97,6 @@ impl MarkdownPlusPlus {
         let mut buffer = BufReader::new(cursor);
         let syntax_dark_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
 
-        let image_cache = Default::default();
-
         Self {
             core,
             client: Default::default(),
@@ -107,7 +107,8 @@ impl MarkdownPlusPlus {
             syntax_set,
             syntax_light_theme,
             syntax_dark_theme,
-            images: image_cache,
+            images: Default::default(),
+            layout_cache: Default::default(),
             bounds: Default::default(),
             needs_name: Default::default(),
             initialized: Default::default(),
@@ -159,6 +160,9 @@ impl MarkdownPlusPlus {
         self.height = ui.available_size().y;
         self.width = ui.max_rect().width().min(MAX_WIDTH);
 
+        // todo: more thoughtful cache invalidation
+        self.layout_cache.clear();
+
         let start = std::time::Instant::now();
 
         self.process_events(ui.ctx());
@@ -172,7 +176,7 @@ impl MarkdownPlusPlus {
         options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
         options.extension.footnotes = true;
         options.extension.front_matter_delimiter = None; // todo: is this a good place for metadata?
-        options.extension.greentext = true;
+        options.extension.greentext = false;
         options.extension.header_ids = None; // intended for HTML renderers
         options.extension.math_code = true; // rendered as code for now
         options.extension.math_dollars = true; // rendered as code for now

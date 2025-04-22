@@ -3,7 +3,7 @@ use std::sync::Arc;
 use comrak::nodes::AstNode;
 use egui::{FontFamily, FontId, Pos2, TextFormat, Ui};
 
-use crate::tab::markdown_plusplus::widget::WrapContext;
+use crate::tab::markdown_plusplus::widget::Wrap;
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
@@ -20,12 +20,12 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    pub fn span_subscript(&self, node: &'ast AstNode<'ast>, wrap: &WrapContext) -> f32 {
+    pub fn span_subscript(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         self.span_superscript(node, wrap)
     }
 
     pub fn show_subscript(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
     ) {
         let mut text_format_syntax = self.text_format_syntax(node);
         text_format_syntax.font_id.size = self.text_format(node.parent().unwrap()).font_id.size;

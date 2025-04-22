@@ -7,13 +7,11 @@ use egui::{Pos2, Sense, Stroke, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_plusplus::galleys::GalleyInfo;
-use crate::tab::markdown_plusplus::widget::{WrapContext, INLINE_PADDING, ROW_SPACING};
+use crate::tab::markdown_plusplus::widget::{Wrap, INLINE_PADDING, ROW_SPACING};
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
-    pub fn span_node_text_line(
-        &self, node: &'ast AstNode<'ast>, wrap: &WrapContext, text: &str,
-    ) -> f32 {
+    pub fn span_node_text_line(&self, node: &'ast AstNode<'ast>, wrap: &Wrap, text: &str) -> f32 {
         let text_format = self.text_format(node);
 
         let pre_span = self.text_pre_span(wrap, text_format.clone());
@@ -24,13 +22,13 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn span_text_line(
-        &self, wrap: &WrapContext, range: (DocCharOffset, DocCharOffset), text_format: TextFormat,
+        &self, wrap: &Wrap, range: (DocCharOffset, DocCharOffset), text_format: TextFormat,
     ) -> f32 {
         self.text_mid_span(wrap, Default::default(), &self.buffer[range], text_format)
     }
 
     pub fn show_text(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
     ) {
         let sourcepos = node.data.borrow().sourcepos;
         let range = self.sourcepos_to_range(sourcepos);
@@ -47,7 +45,7 @@ impl<'ast> MarkdownPlusPlus {
     /// the content of the node only, not it's syntax or spacing. For more
     /// control, use the `show_text_line` method.
     pub fn show_node_text_line(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut WrapContext,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset),
     ) {
         let text_format = self.text_format(node);
@@ -67,7 +65,7 @@ impl<'ast> MarkdownPlusPlus {
     /// the style based on the AST node, use the `show_node_text_line` method.
     #[allow(clippy::too_many_arguments)]
     pub fn show_text_line(
-        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut WrapContext,
+        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset), text_format: TextFormat, spoiler: bool,
     ) {
         self.show_override_text_line(ui, top_left, wrap, range, text_format, spoiler, None);
@@ -81,7 +79,7 @@ impl<'ast> MarkdownPlusPlus {
     /// doesn't have to be a whole line.
     #[allow(clippy::too_many_arguments)]
     pub fn show_override_text_line(
-        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut WrapContext,
+        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset), mut text_format: TextFormat, spoiler: bool,
         override_text: Option<&str>,
     ) {
@@ -105,11 +103,11 @@ impl<'ast> MarkdownPlusPlus {
         let mut layout_job = LayoutJob::single_section(text.into(), text_format.clone());
         layout_job.wrap.max_width = wrap.width;
         if let Some(first_section) = layout_job.sections.first_mut() {
-            first_section.leading_space = wrap.line_offset();
+            first_section.leading_space = wrap.row_offset();
         }
 
         let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
-        let pos = top_left + Vec2::new(0., wrap.line() as f32 * (wrap.row_height + ROW_SPACING));
+        let pos = top_left + Vec2::new(0., wrap.row() as f32 * (wrap.row_height + ROW_SPACING));
 
         let mut hovered = false;
         for (i, row) in galley.rows.iter().enumerate() {
@@ -153,12 +151,21 @@ impl<'ast> MarkdownPlusPlus {
             }
 
             // paint galley row-by-row to take control of row spacing
-            let layout_job = LayoutJob::single_section(row.text(), text_format.clone());
+            let text = if text_format.color == self.theme.fg().neutral_quarternary {
+                // Replace spaces with dots for whitespace visualization
+                row.text().replace(' ', "·")
+            } else {
+                row.text().to_string()
+            };
+            let layout_job = LayoutJob::single_section(text, text_format.clone());
             let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
 
             // debug
-            // ui.painter()
-            //     .rect_stroke(rect, 2., egui::Stroke::new(1., text_format.color));
+            // ui.painter().rect_stroke(
+            //     rect,
+            //     2.,
+            //     egui::Stroke::new(1., text_format.color.gamma_multiply(0.15)),
+            // );
 
             ui.painter()
                 .galley(rect.left_top(), galley.clone(), Default::default());
@@ -189,24 +196,29 @@ impl<'ast> MarkdownPlusPlus {
         wrap.offset += post_span;
     }
 
-    fn text_pre_span(&self, wrap: &WrapContext, text_format: TextFormat) -> f32 {
+    fn text_pre_span(&self, wrap: &Wrap, text_format: TextFormat) -> f32 {
         let padded = text_format.background != Default::default();
-        if padded && wrap.line_offset() > 0.5 {
-            INLINE_PADDING.min(wrap.line_remaining())
+        if padded && wrap.row_offset() > 0.5 {
+            INLINE_PADDING.min(wrap.row_remaining())
         } else {
             0.
         }
     }
 
     pub fn text_mid_span(
-        &self, wrap: &WrapContext, pre_span: f32, text: &str, text_format: TextFormat,
+        &self, wrap: &Wrap, pre_span: f32, text: &str, text_format: TextFormat,
     ) -> f32 {
-        let mut tmp_wrap = WrapContext { offset: wrap.offset + pre_span, ..*wrap };
+        let mut tmp_wrap = Wrap { offset: wrap.offset + pre_span, ..*wrap };
 
-        let mut layout_job = LayoutJob::single_section(text.into(), text_format);
+        let text = if text_format.color == self.theme.fg().neutral_quarternary {
+            text.replace(' ', "·")
+        } else {
+            text.to_string()
+        };
+        let mut layout_job = LayoutJob::single_section(text, text_format);
         layout_job.wrap.max_width = wrap.width;
         if let Some(first_section) = layout_job.sections.first_mut() {
-            first_section.leading_space = tmp_wrap.line_offset();
+            first_section.leading_space = tmp_wrap.row_offset();
         }
 
         let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
@@ -217,13 +229,11 @@ impl<'ast> MarkdownPlusPlus {
         tmp_wrap.offset - (wrap.offset + pre_span)
     }
 
-    fn text_post_span(
-        &self, wrap: &WrapContext, pre_plus_mid_span: f32, text_format: TextFormat,
-    ) -> f32 {
+    fn text_post_span(&self, wrap: &Wrap, pre_plus_mid_span: f32, text_format: TextFormat) -> f32 {
         let padded = text_format.background != Default::default();
         if padded {
-            let wrap = WrapContext { offset: wrap.offset + pre_plus_mid_span, ..*wrap };
-            INLINE_PADDING.min(wrap.line_remaining())
+            let wrap = Wrap { offset: wrap.offset + pre_plus_mid_span, ..*wrap };
+            INLINE_PADDING.min(wrap.row_remaining())
         } else {
             0.
         }
@@ -231,14 +241,14 @@ impl<'ast> MarkdownPlusPlus {
 }
 
 /// Return the span of the first row, including the remaining space on the previous row if there was one
-fn row_span(row: &Row, wrap: &WrapContext) -> f32 {
+fn row_span(row: &Row, wrap: &Wrap) -> f32 {
     row_wrap_span(row, wrap).unwrap_or_default() + row.rect.width()
 }
 
 /// If the row wrapped, return the remaining space on the line that was ended
-fn row_wrap_span(row: &Row, wrap: &WrapContext) -> Option<f32> {
-    if (row.rect.left() - wrap.line_offset()).abs() > 0.5 {
-        Some(wrap.line_remaining())
+fn row_wrap_span(row: &Row, wrap: &Wrap) -> Option<f32> {
+    if (row.rect.left() - wrap.row_offset()).abs() > 0.5 {
+        Some(wrap.row_remaining())
     } else {
         None
     }

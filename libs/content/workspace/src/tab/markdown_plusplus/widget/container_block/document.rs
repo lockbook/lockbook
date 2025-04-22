@@ -3,7 +3,7 @@ use egui::{FontId, Pos2, TextFormat};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_plusplus::{
-    widget::{WrapContext, ROW_HEIGHT, ROW_SPACING},
+    widget::{Wrap, ROW_HEIGHT, ROW_SPACING},
     MarkdownPlusPlus,
 };
 
@@ -33,7 +33,7 @@ impl<'ast> MarkdownPlusPlus {
                 (DocCharOffset(0), self.buffer.current.segs.last_cursor_position() + 1).iter()
             {
                 let range = offset.into_range();
-                self.show_node_text_line(ui, node, top_left, &mut WrapContext::new(width), range);
+                self.show_node_text_line(ui, node, top_left, &mut Wrap::new(width), range);
                 self.bounds.paragraphs.push(range);
 
                 top_left.y += ROW_HEIGHT;
