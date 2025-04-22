@@ -1,5 +1,5 @@
 use crate::billing::billing_model::SubscriptionProfile;
-use db_rs::{LookupSet, LookupTable, Single};
+use db_rs::{List, LookupSet, LookupTable, Single};
 use db_rs_derive::Schema;
 use lb_rs::model::server_file::ServerFile;
 use lb_rs::model::server_meta::ServerMeta;
@@ -32,7 +32,7 @@ pub struct ServerV4 {
     pub accounts: LookupTable<Owner, Account>,
     pub owned_files: LookupSet<Owner, Uuid>,
     pub shared_files: LookupSet<Owner, Uuid>,
-    pub file_children: LookupSet<Uuid, Uuid>, 
+    pub file_children: LookupSet<Uuid, Uuid>,
 }
 
 // todo: populate this with the full set of users and their billing stuff
@@ -45,11 +45,3 @@ pub struct ServerV5 {
     pub stripe_ids: LookupTable<String, Owner>,
     pub app_store_ids: LookupTable<String, Owner>,
 }
-
-#[derive(Schema)]
-pub struct AccountV1 {
-    pub metas: LookupTable<Uuid, ServerMeta>,
-    pub sizes: LookupTable<Uuid, u64>,
-    pub last_seen: Single<u64>,
-}
-
