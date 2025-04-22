@@ -3,7 +3,7 @@ use crate::billing::billing_model::BillingPlatform;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
-use crate::schema::{Account, ServerDb};
+use crate::schema::{Account, AccountV1, ServerDb};
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
@@ -11,13 +11,20 @@ use db_rs::Db;
 use lb_rs::model::account::Username;
 use lb_rs::model::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lb_rs::model::api::{
-    AccountFilter, AccountIdentifier, AccountInfo, AdminDisappearAccountError, AdminDisappearAccountRequest, AdminGetAccountInfoError, AdminGetAccountInfoRequest, AdminGetAccountInfoResponse, AdminListUsersError, AdminListUsersRequest, AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountReqV2, NewAccountRequest, NewAccountResponse, PaymentPlatform, METADATA_FEE
+    AccountFilter, AccountIdentifier, AccountInfo, AdminDisappearAccountError,
+    AdminDisappearAccountRequest, AdminGetAccountInfoError, AdminGetAccountInfoRequest,
+    AdminGetAccountInfoResponse, AdminListUsersError, AdminListUsersRequest,
+    AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
+    GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
+    GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountReqV2,
+    NewAccountRequest, NewAccountResponse, PaymentPlatform, METADATA_FEE,
 };
 use lb_rs::model::clock::get_time;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::lazy::LazyTree;
 use lb_rs::model::server_file::IntoServerFile;
+use lb_rs::model::server_meta::IntoServerMeta;
 use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
 use lb_rs::model::usage::bytes_to_human;
@@ -73,7 +80,11 @@ where
         }
 
         let username = request.username;
-        let account = Account { username: username.clone(), billing_info: Default::default() };
+        let account = Account {
+            username: username.clone(),
+            billing_info: Default::default(),
+            migrated: false,
+        };
 
         let owner = Owner(request.public_key);
 
@@ -98,6 +109,8 @@ where
     pub async fn new_account_v2(
         &self, context: RequestContext<NewAccountReqV2>,
     ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
+        return todo!();
+
         let request = &context.request;
         let request =
             NewAccountReqV2 { username: request.username.to_lowercase(), ..request.clone() };
@@ -114,7 +127,7 @@ where
         let now = get_time().0 as u64;
         let root = root.add_time(now);
 
-        let mut db = self.db_v4.lock().await;
+        let mut db = self.db_v5.write().await;
         let handle = db.begin_transaction()?;
 
         if db.accounts.get().contains_key(&Owner(request.public_key)) {
@@ -125,24 +138,29 @@ where
             return Err(ClientError(UsernameTaken));
         }
 
-        if db.metas.get().contains_key(root.id()) {
-            return Err(ClientError(FileIdTaken));
-        }
+        // this check doesn't need to / can't happen anymore
+        // if db.metas.get().contains_key(root.id()) {
+        //     return Err(ClientError(FileIdTaken));
+        // }
 
         let username = request.username;
-        let account = Account { username: username.clone(), billing_info: Default::default() };
+        let account = Account { username: username.clone(), billing_info: Default::default(), migrated: true };
 
         let owner = Owner(request.public_key);
 
-        let mut owned_files = HashSet::new();
-        owned_files.insert(*root.id());
+        // this no longer needs to happen
+        // let mut owned_files = HashSet::new();
+        // owned_files.insert(*root.id());
 
         db.accounts.insert(owner, account)?;
         db.usernames.insert(username, owner)?;
-        db.owned_files.insert(owner, *root.id())?;
-        db.shared_files.create_key(owner)?;
-        db.file_children.create_key(*root.id())?;
-        db.metas.insert(*root.id(), root.clone())?;
+
+        // db.owned_files.insert(owner, *root.id())?;
+        // db.shared_files.create_key(owner)?;
+        // db.file_children.create_key(*root.id())?;
+        // db.metas.insert(*root.id(), root.clone())?;
+        let account_db = self.new_db(owner).await?;
+        account_db.write().await.metas.insert(*root.id(), root.clone())?;
 
         handle.drop_safely()?;
 

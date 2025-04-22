@@ -19,8 +19,8 @@ impl IntoServerMeta for SignedMeta {
     }
 }
 
-impl Display for ServerMeta {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.display())
-    }
-}
+// impl Display for ServerMeta {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{}", self.display())
+//     }
+// }
