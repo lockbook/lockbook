@@ -125,6 +125,13 @@ pub enum FileType {
     Link { target: Uuid },
 }
 
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Deserialize, Serialize, Copy)]
+pub enum FileTypeV2 {
+    Document,
+    Folder,
+    Link { target: Uuid },
+}
+
 impl FromStr for FileType {
     type Err = ();
     fn from_str(input: &str) -> Result<FileType, Self::Err> {

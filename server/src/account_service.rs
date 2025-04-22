@@ -3,7 +3,7 @@ use crate::billing::billing_model::BillingPlatform;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
-use crate::schema::{Account, AccountV1, ServerDb};
+use crate::schema::{Account, ServerDb};
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
@@ -144,7 +144,11 @@ where
         // }
 
         let username = request.username;
-        let account = Account { username: username.clone(), billing_info: Default::default(), migrated: true };
+        let account = Account {
+            username: username.clone(),
+            billing_info: Default::default(),
+            migrated: true,
+        };
 
         let owner = Owner(request.public_key);
 
@@ -155,12 +159,17 @@ where
         db.accounts.insert(owner, account)?;
         db.usernames.insert(username, owner)?;
 
+        // also no longer needed
         // db.owned_files.insert(owner, *root.id())?;
         // db.shared_files.create_key(owner)?;
         // db.file_children.create_key(*root.id())?;
-        // db.metas.insert(*root.id(), root.clone())?;
+
         let account_db = self.new_db(owner).await?;
-        account_db.write().await.metas.insert(*root.id(), root.clone())?;
+        account_db
+            .write()
+            .await
+            .metas
+            .insert(*root.id(), root.clone())?;
 
         handle.drop_safely()?;
 
@@ -177,8 +186,8 @@ where
     pub async fn public_key_from_username(
         &self, username: &str,
     ) -> Result<GetPublicKeyResponse, ServerError<GetPublicKeyError>> {
-        self.db_v4
-            .lock()
+        self.db_v5
+            .read()
             .await
             .usernames
             .get()
@@ -196,8 +205,8 @@ where
     pub async fn username_from_public_key(
         &self, key: PublicKey,
     ) -> Result<GetUsernameResponse, ServerError<GetUsernameError>> {
-        self.db_v4
-            .lock()
+        self.db_v5
+            .read()
             .await
             .accounts
             .get()
@@ -213,6 +222,10 @@ where
         let db = lock.deref_mut();
 
         let cap = Self::get_cap(db, &context.public_key)?;
+
+        // let owner = Owner(context.public_key);
+        // let owner_dbs = self.get_owners(owner).await?;
+        // let tree = self.get_tree(owner, &owner_dbs).await?;
 
         let mut tree = ServerTree::new(
             Owner(context.public_key),
