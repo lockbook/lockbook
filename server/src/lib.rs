@@ -1,9 +1,11 @@
+use account_dbs::AccountDbs;
 use billing::app_store_client::AppStoreClient;
 use billing::google_play_client::GooglePlayClient;
 use billing::stripe_client::StripeClient;
 use document_service::DocumentService;
 use lb_rs::model::clock;
 use lb_rs::model::errors::LbResult;
+use lb_rs::model::file_metadata::Owner;
 use schema::{AccountV1, ServerV5};
 use std::collections::HashMap;
 use std::env;
@@ -38,7 +40,7 @@ where
     pub config: config::Config,
     pub db_v4: Arc<Mutex<ServerV4>>,
     pub db_v5: Arc<RwLock<ServerV5>>,
-    pub account_dbs: Arc<RwLock<HashMap<PublicKey, Arc<RwLock<AccountV1>>>>>,
+    pub account_dbs: AccountDbs,
     pub stripe_client: S,
     pub google_play_client: G,
     pub app_store_client: A,
@@ -109,3 +111,4 @@ pub mod metrics;
 pub mod router_service;
 pub mod schema;
 pub mod utils;
+pub mod account_dbs;

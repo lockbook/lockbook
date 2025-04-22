@@ -34,7 +34,7 @@ async fn upsert_id_takeover() {
     // If this succeeded account2 would be able to control file1
     let result = core2
         .client
-        .request(acc2, UpsertRequest { updates: vec![FileDiff::new(&file1)] })
+        .request(acc2, UpsertRequest { updates: vec![FileDiff::new(file1)] })
         .await;
     assert_matches!(
         result,
