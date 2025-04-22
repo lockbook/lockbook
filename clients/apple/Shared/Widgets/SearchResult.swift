@@ -35,7 +35,7 @@ struct SearchPathResultView: View {
                     .font(.caption)
                 
                 pathModified
-                    .foregroundColor(.blue)
+                    .foregroundColor(Color.accentColor)
                     .font(.caption)
                 
                 Spacer()
@@ -199,6 +199,7 @@ struct PathSearchResultView: View {
         HStack {
             Image(systemName: FileIconHelper.docNameToSystemImageName(name: name))
                 .resizable()
+                .aspectRatio(contentMode: .fit)
                 .frame(width: 20, height: 25)
                 .padding(.horizontal, 10)
                 .foregroundColor(isSelected ? .white : .primary)
@@ -232,7 +233,7 @@ struct PathSearchResultView: View {
         .onAppear {
             underlineMatchedSegments()
         }
-        .background(isSelected ? RoundedRectangle(cornerSize: CGSize(width: 5, height: 5)).foregroundColor(.blue.opacity(0.8)) : RoundedRectangle(cornerSize: CGSize(width: 5, height: 5)).foregroundColor(.clear))
+        .background(isSelected ? RoundedRectangle(cornerSize: CGSize(width: 5, height: 5)).foregroundColor(Color.accentColor.opacity(0.8)) : RoundedRectangle(cornerSize: CGSize(width: 5, height: 5)).foregroundColor(.clear))
     }
     
     func underlineMatchedSegments() {

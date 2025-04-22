@@ -93,16 +93,6 @@
 		EAD401DB25E32CD50083A236 /* Notepad */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Notepad; path = "/Users/raayanpillai/Library/Developer/Xcode/DerivedData/Lockbook-asqnugeyohispqhixjzcyqkvmhjn/SourcePackages/checkouts/Notepad"; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		473BD5182D7CCC8A007AE3F3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Untitled.swift,
-			);
-			target = EA5C7D6E2516606000F7F358 /* Lockbook (iOS) */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		47024C512D31F07900E7C2DB /* Screens */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Screens; sourceTree = "<group>"; };
 		471CD9242D249E9600D9320B /* Screens */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Screens; sourceTree = "<group>"; };
@@ -111,10 +101,9 @@
 		4731980C2D29A1CD00FBCD5F /* State */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = State; sourceTree = "<group>"; };
 		4731981A2D2AE88E00FBCD5F /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Widgets; sourceTree = "<group>"; };
 		4742CE862D273263002F3BE4 /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Widgets; sourceTree = "<group>"; };
-		4742CE992D273B35002F3BE4 /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (473BD5182D7CCC8A007AE3F3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Widgets; sourceTree = "<group>"; };
+		4742CE992D273B35002F3BE4 /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Widgets; sourceTree = "<group>"; };
 		4742CE9D2D273B8B002F3BE4 /* Utils */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Utils; sourceTree = "<group>"; };
 		478B1BC42CCEB67300FDCB73 /* LbSwiftTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = LbSwiftTests; sourceTree = "<group>"; };
-		47B1533E2DA1A6A500D917DF /* Widget */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Widget; sourceTree = "<group>"; };
 		47BC31D42D249E3A0020F0E4 /* Utils */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Utils; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
@@ -245,7 +234,6 @@
 		EA5C7D782516606100F7F358 /* macOS */ = {
 			isa = PBXGroup;
 			children = (
-				47B1533E2DA1A6A500D917DF /* Widget */,
 				47024C512D31F07900E7C2DB /* Screens */,
 				4742CE862D273263002F3BE4 /* Widgets */,
 				EA5C7D792516606100F7F358 /* Info.plist */,
@@ -356,7 +344,6 @@
 				471CD92B2D249FA200D9320B /* State */,
 				4731981A2D2AE88E00FBCD5F /* Widgets */,
 				4742CE862D273263002F3BE4 /* Widgets */,
-				47B1533E2DA1A6A500D917DF /* Widget */,
 				47BC31D42D249E3A0020F0E4 /* Utils */,
 			);
 			name = "Lockbook (macOS)";

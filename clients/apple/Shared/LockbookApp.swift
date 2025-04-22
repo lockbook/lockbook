@@ -9,8 +9,7 @@ import SwiftWorkspace
         
         #if os(macOS)
         Settings {
-//            TODO: checkout `.scenePadding()`
-//            SettingsView()
+            SettingsView()
         }
         #endif
     }

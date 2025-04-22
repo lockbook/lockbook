@@ -96,7 +96,7 @@ struct FileRowView: View {
                 ZStack {
                     if isSelected {
                         Image(systemName: "circle.fill")
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.accentColor)
                             .font(.system(size: 17))
                     }
                     

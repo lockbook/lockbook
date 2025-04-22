@@ -67,6 +67,7 @@ public struct PathSearchResult: Hashable, Comparable {
         
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+        hasher.combine(matchedIndicies)
     }
     
     public static func <(lhs: PathSearchResult, rhs: PathSearchResult) -> Bool {
@@ -74,7 +75,7 @@ public struct PathSearchResult: Hashable, Comparable {
             return lhs.path < rhs.path
         }
         
-        return lhs.score < rhs.score
+        return lhs.score > rhs.score
     }
 }
 

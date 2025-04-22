@@ -166,7 +166,6 @@ class FilesViewModel: ObservableObject {
     
     func loadFiles() {
         DispatchQueue.global(qos: .userInitiated).async {
-            print("RELOADING THE FILES")
             let res = AppState.lb.listMetadatas()
             DispatchQueue.main.async {
                 switch res {
@@ -182,7 +181,14 @@ class FilesViewModel: ObservableObject {
                         }
                         
                         if !file.isRoot {
-                            self.childrens[file.parent]!.append(file)
+                            self.childrens[file.parent]!.append(file) // Maybe just do binary insert
+                            self.childrens[file.parent]!.sort {
+                                if $0.type == $1.type {
+                                    return $0.name < $1.name
+                                } else {
+                                    return $0.type == .folder
+                                }
+                            }
                         } else if self.root == nil {
                             self.root = file
                         }

@@ -7,7 +7,7 @@ public class PathSearchTextField: NSTextField {
     init(pathSearchModel: PathSearchViewModel) {
         self.pathSearchModel = pathSearchModel
         
-        super.init()
+        super.init(frame: .zero)
     }
     
     required init(coder: NSCoder) {
@@ -81,12 +81,14 @@ public struct PathSearchTextFieldWrapper: NSViewRepresentable {
         textField.delegate = context.coordinator
         textField.font = .systemFont(ofSize: 15)
         textField.backgroundColor = nil
+        textField
+            .becomeFirstResponder()
         
         return textField
     }
     
     public func updateNSView(_ nsView: PathSearchTextField, context: NSViewRepresentableContext<PathSearchTextFieldWrapper>) {
-        nsView.becomeFirstResponder()
+        
     }
     
     public func makeCoordinator() -> PathSearchTextFieldDelegate {

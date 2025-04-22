@@ -24,6 +24,7 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
         }
+        .frame(width: 500, height: 400)
     }
 }
 
@@ -138,7 +139,7 @@ struct AccountKeysView: View {
                             ClipboardHelper.copyToClipboard(accountKey)
                         }) {
                             Image(systemName: "doc.on.doc")
-                                .foregroundColor(.blue)
+                                .foregroundColor(Color.accentColor)
                                 .padding(4)
                         }
                     }
@@ -214,6 +215,7 @@ struct SettingsDebugView: View {
                     HStack {
                         Text("Server:")
                             .padding(.trailing, 10)
+                        
                         Text(account.apiUrl)
                             .lineLimit(1)
                             .truncationMode(.head)

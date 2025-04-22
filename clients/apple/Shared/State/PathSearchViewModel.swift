@@ -13,8 +13,17 @@ class PathSearchViewModel: ObservableObject {
         guard selected < results.count else {
             return
         }
-                
-        AppState.workspaceState.requestOpenDoc(results[selected].id)
+        
+        guard let file = try? AppState.lb.getFile(id: results[selected].id).get() else {
+            return
+        }
+        
+        if(file.type == .folder) {
+            AppState.workspaceState.selectedFolder = file.id
+        } else {
+            AppState.workspaceState.requestOpenDoc(file.id)
+        }
+        
         self.isShown = false
     }
     
@@ -32,7 +41,7 @@ class PathSearchViewModel: ObservableObject {
                         case .path(let pathSearchResult):
                             return pathSearchResult
                         }
-                    }).compactMap({ $0 }).sorted()
+                    }).compactMap({ $0 }).prefix(20).sorted()
                                         
                     self.selected = min(self.selected, results.count - 1)
                 case .failure(let err):

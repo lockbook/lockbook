@@ -3,23 +3,40 @@ import SwiftWorkspace
 
 struct HomeView: View {
     @StateObject var homeState = HomeState()
+    @StateObject var filesModel = FilesViewModel()
 
     var body: some View {
         PathSearchContainerView {
             NavigationSplitView(sidebar: {
-                SidebarView()
+                SearchContainerView {
+                    SidebarView()
+                }
             }, detail: {
                 DetailView()
             })
+            .confirmationDialog(
+                "Are you sure? This action cannot be undone.",
+                isPresented: Binding(
+                    get: { filesModel.deleteFileConfirmation != nil },
+                    set: { _ in filesModel.deleteFileConfirmation = nil }
+                ),
+                titleVisibility: .visible,
+                actions: {
+                    if let files = filesModel.deleteFileConfirmation {
+                        DeleteConfirmationButtons(files: files)
+                    }
+                }
+            )
         }
         .environmentObject(homeState)
+        .environmentObject(filesModel)
     }
 }
 
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
-    
-    @StateObject var filesModel = FilesViewModel()
+    @EnvironmentObject var filesModel: FilesViewModel
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         if let error = filesModel.error {
@@ -27,15 +44,28 @@ struct SidebarView: View {
                 .foregroundStyle(.red)
         } else if filesModel.loaded {
             Form {
-                Section(header: Label("Suggested Documents", systemImage: "sparkle").bold().padding(.horizontal).font(.callout)) {
+                Section(header:
+                    Label("Suggested Documents", systemImage: "sparkle")
+                    .bold()
+                    .padding(.horizontal)
+                    .font(.callout)
+                    .padding(.top, 8)) {
                     SuggestedDocsView(filesModel: filesModel)
                 }
                 
-                Section(header: Label("Files", systemImage: "folder").bold().padding(.horizontal).font(.callout)) {
-                    
+                Section(header:
+                    Label("Files", systemImage: "folder")
+                    .bold()
+                    .padding(.horizontal)
+                    .font(.callout)
+                    .padding(.top, 8)) {
+                    FileTreeView()
+                        .padding(.horizontal, 8)
                 }
                 
                 Spacer()
+                
+                StatusBar()
             }
             .formStyle(.columns)
         }
@@ -62,6 +92,7 @@ struct DetailView: View {
                                 }
                             }, label: {
                                 Image(systemName: "person.wave.2.fill")
+                                    .foregroundStyle(Color.accentColor)
                             })
                             
                             Button(action: {
@@ -70,6 +101,7 @@ struct DetailView: View {
                                 }
                             }, label: {
                                 Image(systemName: "square.and.arrow.up.fill")
+                                    .foregroundStyle(Color.accentColor)
                             })
                         }
                     }
@@ -82,6 +114,5 @@ struct DetailView: View {
     let workspaceState = WorkspaceState()
     
     return HomeView()
-        .environmentObject(BillingState())
-        .environmentObject(workspaceState)
+        .environmentObject(AppState.workspaceState)
 }

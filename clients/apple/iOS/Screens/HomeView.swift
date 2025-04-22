@@ -139,7 +139,7 @@ struct SidebarView: View {
                     }
                 }, label: {
                     Text("Done")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.accentColor)
                 })
             }
         case .unselected:
@@ -150,7 +150,7 @@ struct SidebarView: View {
                     }
                 }, label: {
                     Text("Edit")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.accentColor)
                 })
             }
         }

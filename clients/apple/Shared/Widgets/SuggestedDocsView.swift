@@ -28,6 +28,7 @@ struct SuggestedDocsView: View {
                             }) {
                                 SuggestedDocCell(info: info)
                             }
+                            .buttonStyle(.plain)
                         }
                     } else {
                         ForEach(0...2, id: \.self) { index in
@@ -113,18 +114,14 @@ struct SuggestedDocLoadingCell: View {
 }
 
 struct SuggestedDocBackground: ViewModifier {
+    @Environment(\.colorScheme) var colorScheme
+    
     func body(content: Content) -> some View {
-        #if os(iOS)
         content
             .padding(12)
             .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(colorScheme == .light ? Color.accentColor.opacity(0.08) : Color.accentColor.opacity(0.19))
         )
-        #else
-        content
-            .padding(8)
-
-        #endif
     }
 }

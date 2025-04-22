@@ -196,7 +196,7 @@ struct SelectFolderSheet: View {
                                         .foregroundStyle(.foreground)
                                 } icon: {
                                     Image(systemName: FileIconHelper.fileToSystemImageName(file: dest))
-                                        .foregroundStyle(Color.blue)
+                                        .foregroundStyle(Color.accentColor)
                                 }
 
                             })

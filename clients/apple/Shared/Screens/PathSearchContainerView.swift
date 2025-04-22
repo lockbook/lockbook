@@ -86,13 +86,14 @@ struct PathSearchContainerView<Content: View>: View {
     var searchResults: some View {
         ScrollViewReader { scrollHelper in
             ScrollView {
-                ForEach(Array(model.results.enumerated()), id: \.element.id) {index, result in
+                ForEach(Array(model.results.enumerated()), id: \.element) {index, result in
                     Button(action: {
                         model.selected = index
                         model.openSelected()
                     }, label: {
                         PathSearchResultView(name: result.path.nameAndPath().0, path: result.path.nameAndPath().1, matchedIndices: result.matchedIndicies, index: index, isSelected: model.selected == index)
                     })
+                    .buttonStyle(PlainButtonStyle())
                 }
                 .scrollIndicators(.visible)
                 .padding(.horizontal)
@@ -100,7 +101,7 @@ struct PathSearchContainerView<Content: View>: View {
             .onChange(of: model.selected) { newValue in
                 withAnimation {
                     if newValue < model.results.count {
-                        scrollHelper.scrollTo(model.results[newValue].id, anchor: .center)
+                        scrollHelper.scrollTo(model.results[newValue], anchor: .center)
                     }
                 }
             }

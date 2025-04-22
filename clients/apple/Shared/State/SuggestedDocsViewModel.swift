@@ -19,6 +19,7 @@ class SuggestedDocsViewModel: ObservableObject {
     }
     
     func loadSuggestedDocs() {
+        print("going to load suggested docs")
         DispatchQueue.global(qos: .userInitiated).async {
             let res = AppState.lb.suggestedDocs()
             
@@ -27,7 +28,7 @@ class SuggestedDocsViewModel: ObservableObject {
                 case .success(let ids):
                     let files = ids.compactMap({ self.filesModel.idsToFiles[$0] })
                     
-                    self.suggestedDocs = files.compactMap({ file in
+                    self.suggestedDocs = files.prefix(20).compactMap({ file in
                         guard let parent = self.filesModel.idsToFiles[file.parent] else {
                             return .none
                         }

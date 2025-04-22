@@ -135,7 +135,7 @@ public struct DrawerView<Menu: View, Content: View>: View {
 
 #Preview("Drawer") {
     DrawerView(homeState: HomeState(), menu: {
-        Color.blue
+        Color.accentColor
     }, content: {
         Color.red
     })

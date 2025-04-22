@@ -76,10 +76,10 @@ struct SettingsView: View {
             
             Section(header: Text("Privacy")) {
                 Text("[Privacy Policy](https://lockbook.net/privacy-policy)")
-                    .foregroundColor(.blue)
+                    .foregroundColor(Color.accentColor)
 
                 Text("[Terms of Service](https://lockbook.net/tos)")
-                    .foregroundColor(.blue)
+                    .foregroundColor(Color.accentColor)
 
                 Button("Delete Account", role: .destructive) {
                     deleteAccountConfirmation = true
@@ -142,7 +142,7 @@ struct AccountKeysView: View {
                             ClipboardHelper.copyToClipboard(accountKey)
                         }) {
                             Image(systemName: "doc.on.doc")
-                                .foregroundColor(.blue)
+                                .foregroundColor(Color.accentColor)
                                 .padding(8)
                         }
                     }

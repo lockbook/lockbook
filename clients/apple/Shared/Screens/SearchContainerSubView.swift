@@ -1,27 +1,13 @@
 import SwiftUI
 import SwiftWorkspace
 
-
-struct SearchContainerView<Content: View>: View {
-    @StateObject var model = SearchContainerViewModel()
-    @ViewBuilder let content: Content
-    
-    var body: some View {
-        SearchContainerSubView(model: model, content: content)
-            .modifier(SearchableMarker(model: model))
-            .onChange(of: model.input) { _ in
-                model.search()
-            }
-    }
-}
-
 struct SearchContainerSubView<Content: View>: View {
-    @Environment(\.isSearching) var isSearching
-    @Environment(\.dismissSearch) private var dismissSearch
-    
     @EnvironmentObject var homeState: HomeState
     
+    @Binding var isSearching: Bool
     @ObservedObject var model: SearchContainerViewModel
+    let dismissSearch: () -> Void
+
     let content: Content
     
     var body: some View {
@@ -65,6 +51,7 @@ struct SearchContainerSubView<Content: View>: View {
                     SearchPathResultView(name: pathResult.path.nameAndPath().0, path: pathResult.path.nameAndPath().1, matchedIndices: pathResult.matchedIndicies)
                 }
                 .padding(.horizontal)
+                .buttonStyle(.plain)
             case .document(let docResult):
                 Button(action: {
                     model.open(id: docResult.id)
@@ -74,6 +61,7 @@ struct SearchContainerSubView<Content: View>: View {
                     SearchContentResultView(name: docResult.path.nameAndPath().0, path: docResult.path.nameAndPath().1, contentMatches: docResult.contentMatches)
                 }
                 .padding(.horizontal)
+                .buttonStyle(.plain)
             }
             
             Divider()
@@ -113,7 +101,7 @@ class SearchContainerViewModel: ObservableObject {
             DispatchQueue.main.async {
                 switch res {
                 case .success(let results):
-                    self.results = results
+                    self.results = Array(results.prefix(20))
                 case .failure(let err):
                     print("got error: \(err.msg)")
                 }

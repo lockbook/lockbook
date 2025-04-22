@@ -56,7 +56,7 @@ struct StatusBarView: View {
             
             Spacer()
         }
-        .foregroundStyle(filesModel.selectedFilesState.count == 0 ? .gray : .blue)
+        .foregroundStyle(filesModel.selectedFilesState.count == 0 ? .gray : Color.accentColor)
         .padding(.horizontal)
     }
     

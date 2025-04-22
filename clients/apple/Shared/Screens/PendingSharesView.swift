@@ -68,7 +68,7 @@ struct PendingShareFileCell: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: FileIconHelper.fileToSystemImageName(file: file))
-                .foregroundColor(file.type == .folder ? .blue : .secondary)
+                .foregroundColor(file.type == .folder ? Color.accentColor : .secondary)
                 .imageScale(.large)
                 
             Text(file.name)
@@ -81,7 +81,7 @@ struct PendingShareFileCell: View {
             } label: {
                 Image(systemName: "plus.circle")
                     .imageScale(.large)
-                    .foregroundColor(.blue)
+                    .foregroundColor(Color.accentColor)
             }
             
             Button {
