@@ -78,7 +78,8 @@ impl Workspace {
         let padding = if ui.available_height() > 800. { 100. } else { 50. };
         let spacing = 50.;
         let total_content_height = ui.available_height() - 2. * padding - 1. * spacing;
-        StripBuilder::new(ui)
+        ScrollArea::vertical().show(ui, |ui| {
+            StripBuilder::new(ui)
             .size(Size::exact(padding)) // padding
             .size(Size::exact(total_content_height * 1. / 3.)) // logo
             .size(Size::exact(spacing)) // spacing
@@ -412,6 +413,7 @@ impl Workspace {
                 });
                 strip.cell(|_| {});
             });
+        });
     }
 
     fn show_tabs(&mut self, ui: &mut egui::Ui) {
