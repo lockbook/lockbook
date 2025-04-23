@@ -1467,10 +1467,11 @@ public enum WorkspaceTab: Int {
     case Pdf = 5
     case Svg = 6
     case Graph = 7
+    case SpaceInspector = 8
 
     func viewWrapperId() -> Int {
         switch self {
-        case .Welcome, .Pdf, .Loading:
+        case .Welcome, .Pdf, .Loading, .SpaceInspector:
             1
         case .Svg, .Image, .Graph:
             2
