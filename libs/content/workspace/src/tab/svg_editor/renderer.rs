@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use egui::{Mesh, TextureHandle};
 use glam::f64::DVec2;
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::{Element, Image, Path};
+use lb_rs::model::svg::element::{Element, Image, Path, WeakPathPressures};
 use lb_rs::Uuid;
 use lyon::math::Point;
 use lyon::path::{AttributeIndex, LineCap, LineJoin};
@@ -150,6 +150,7 @@ impl Renderer {
                             ui.visuals().dark_mode,
                             frame,
                             buffer.master_transform,
+                            &buffer.weak_path_pressures,
                             self.fit_content_transform,
                         )
                     }
@@ -287,7 +288,7 @@ impl Renderer {
 // todo: maybe impl this on element struct
 fn tesselate_path<'a>(
     p: &'a mut Path, id: &'a Uuid, dark_mode: bool, frame: u64, master_transform: Transform,
-    fit_transform: Option<Transform>,
+    weak_path_pressures: &WeakPathPressures, fit_transform: Option<Transform>,
 ) -> Option<(Uuid, RenderOp<'a>)> {
     let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
     let mut stroke_tess = StrokeTessellator::new();
@@ -310,12 +311,21 @@ fn tesselate_path<'a>(
 
         while let Some(seg) = p.data.get_segment(i) {
             let mut thickness = stroke.width * p.transform.sx;
-            if fit_transform.is_some() {
-                thickness *= 0.5;
+            if let Some(t) = fit_transform {
+                thickness *= t.sx;
                 thickness = thickness.max(0.5);
             } else {
                 thickness *= master_transform.sx
             }
+
+            if let Some(forces) = weak_path_pressures.get(id) {
+                let pressure_at_segment = forces
+                    .get(i)
+                    .map(|pressure| pressure * 2.0 + 0.5)
+                    .unwrap_or(1.0);
+                thickness *= pressure_at_segment;
+            }
+
             let t = fit_transform.unwrap_or_default();
             let seg = seg.apply_transformation(|p| DVec2 {
                 x: t.sx as f64 * p.x + t.tx as f64,
@@ -348,7 +358,6 @@ fn tesselate_path<'a>(
             &StrokeOptions::default()
                 .with_line_cap(LineCap::Round)
                 .with_line_join(LineJoin::Round)
-                .with_tolerance(0.1)
                 .with_variable_line_width(STROKE_WIDTH),
             &mut BuffersBuilder::new(&mut mesh, VertexConstructor { color: stroke_color }),
         );
