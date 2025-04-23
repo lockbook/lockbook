@@ -805,7 +805,7 @@ fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCon
     ui.add_space(20.0);
 
     ui.horizontal(|ui| {
-        ui.label("Fixed zoom thickness: ");
+        ui.label("Fixed zoom thicknes: ");
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             switch(ui, &mut pen.has_inf_thick);
