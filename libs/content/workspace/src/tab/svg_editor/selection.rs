@@ -692,13 +692,8 @@ impl Selection {
             let master_transform = selection_ctx.buffer.master_transform;
             let weak_images = &selection_ctx.buffer.weak_images;
 
-            let serialized_selection = serialize_inner(
-                id_map,
-                elements,
-                master_transform,
-                weak_images,
-                &selection_ctx.buffer.weak_path_pressures,
-            );
+            let serialized_selection =
+                serialize_inner(id_map, elements, master_transform, weak_images);
 
             ui.output_mut(|w| w.copied_text = serialized_selection);
         }

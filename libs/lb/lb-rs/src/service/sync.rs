@@ -629,6 +629,7 @@ impl Lb {
                                         self.docs.insert(id, hmac, &encrypted_document).await?;
                                     }
                                     DocumentType::Drawing => {
+                                        println!("sync merge");
                                         let base_document =
                                             String::from_utf8_lossy(&base_document).to_string();
                                         let remote_document =
@@ -652,7 +653,6 @@ impl Lb {
                                         svg::buffer::Buffer::reload(
                                             &mut local_buffer.elements,
                                             &mut local_buffer.weak_images,
-                                            &mut local_buffer.weak_path_pressures,
                                             local_buffer.master_transform,
                                             &base_buffer,
                                             &remote_buffer,
