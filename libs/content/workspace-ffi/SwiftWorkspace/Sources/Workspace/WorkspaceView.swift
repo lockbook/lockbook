@@ -135,7 +135,7 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
                 inputManager.tabCount = newTabCount
                 
                 switch inputManager.currentTab {
-                case .Welcome, .Pdf, .Loading:
+                case .Welcome, .Pdf, .Loading, .SpaceInspector:
                     inputManager.mtkView.currentWrapper = nil
                 case .Svg, .Image, .Graph:
                     let drawingWrapper = iOSMTKDrawingWrapper(mtkView: inputManager.mtkView)
