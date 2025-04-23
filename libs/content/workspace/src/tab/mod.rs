@@ -218,7 +218,7 @@ impl TabContent {
             TabContent::Markdown(md) => {
                 Some(TabSaveContent::String(md.buffer.current.text.clone()))
             }
-            TabContent::Svg(svg) => Some(TabSaveContent::Svg(Box::new(svg.buffer.clone()))),
+            TabContent::Svg(svg) => Some(TabSaveContent::Svg(svg.buffer.clone())),
             _ => None,
         }
     }
@@ -230,7 +230,7 @@ impl TabContent {
 pub enum TabSaveContent {
     Bytes(Vec<u8>),
     String(String),
-    Svg(Box<svg::buffer::Buffer>),
+    Svg(svg::buffer::Buffer),
 }
 
 impl TabSaveContent {
