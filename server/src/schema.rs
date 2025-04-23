@@ -22,13 +22,19 @@ pub type ServerDb = ServerV4;
 #[derive(Schema)]
 #[cfg_attr(feature = "no-network", derive(Clone))]
 pub struct ServerV4 {
+    #[deprecated]
     pub usernames: LookupTable<String, Owner>,
     pub metas: LookupTable<Uuid, ServerFile>,
     pub sizes: LookupTable<Uuid, u64>,
+    #[deprecated]
     pub google_play_ids: LookupTable<String, Owner>,
+    #[deprecated]
     pub stripe_ids: LookupTable<String, Owner>,
+    #[deprecated]
     pub app_store_ids: LookupTable<String, Owner>,
+    #[deprecated]
     pub last_seen: LookupTable<Owner, u64>,
+    #[deprecated]
     pub accounts: LookupTable<Owner, Account>,
     pub owned_files: LookupSet<Owner, Uuid>,
     pub shared_files: LookupSet<Owner, Uuid>,
