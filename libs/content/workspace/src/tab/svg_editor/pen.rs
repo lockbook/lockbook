@@ -387,6 +387,8 @@ impl Pen {
             if let IntegrationEvent::Native(&egui::Event::PointerMoved(pos)) = e {
                 if is_current_path_empty {
                     return Some(PathEvent::Hover(DrawPayload { pos, force: None, id: None }));
+                } else {
+                    *pen_ctx.allow_viewport_changes = false;
                 }
             }
             return None;
