@@ -355,6 +355,7 @@ impl Workspace {
                                 Buffer::reload(
                                     &mut svg.buffer.elements,
                                     &mut svg.buffer.weak_images,
+                                    &mut svg.buffer.weak_path_pressures,
                                     svg.buffer.master_transform,
                                     &svg.opened_content,
                                     &svg::buffer::Buffer::new(

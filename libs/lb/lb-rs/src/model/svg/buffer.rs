@@ -12,7 +12,7 @@ use usvg::{
 use usvg::{Color, Paint};
 use uuid::Uuid;
 
-use super::element::{DynamicColor, Stroke, WeakImage, WeakImages};
+use super::element::{DynamicColor, Stroke, WeakImage, WeakImages, WeakPathPressures};
 use super::{
     diff::DiffState,
     element::{Element, ManipulatorGroupId, Path},
@@ -20,11 +20,13 @@ use super::{
 
 const ZOOM_G_ID: &str = "lb_master_transform";
 const WEAK_IMAGE_G_ID: &str = "lb_images";
+const WEAK_PATH_PRESSURES_G_ID: &str = "lb_path_pressures";
 
 #[derive(Default, Clone)]
 pub struct Buffer {
     pub elements: IndexMap<Uuid, Element>,
     pub weak_images: WeakImages,
+    pub weak_path_pressures: WeakPathPressures,
     pub master_transform: Transform,
     pub master_transform_changed: bool,
     pub id_map: HashMap<Uuid, String>,
@@ -36,6 +38,7 @@ impl Buffer {
         let mut master_transform = Transform::identity();
         let mut id_map = HashMap::default();
         let mut weak_images = WeakImages::default();
+        let mut weak_path_pressures = WeakPathPressures::default();
 
         let maybe_tree = usvg::Tree::from_str(content, &Options::default(), &Database::default());
 
@@ -51,16 +54,25 @@ impl Buffer {
                     &mut master_transform,
                     &mut id_map,
                     &mut weak_images,
+                    &mut weak_path_pressures,
                 )
             });
         }
 
-        Self { elements, master_transform, id_map, weak_images, master_transform_changed: false }
+        Self {
+            elements,
+            master_transform,
+            id_map,
+            weak_images,
+            weak_path_pressures,
+            master_transform_changed: false,
+        }
     }
 
     pub fn reload(
         local_elements: &mut IndexMap<Uuid, Element>, local_weak_images: &mut WeakImages,
-        local_master_transform: Transform, base_buffer: &Self, remote_buffer: &Self,
+        local_weak_pressures: &mut WeakPathPressures, local_master_transform: Transform,
+        base_buffer: &Self, remote_buffer: &Self,
     ) {
         // todo: convert weak images
         for (id, base_img) in base_buffer.weak_images.iter() {
@@ -98,10 +110,15 @@ impl Buffer {
                         transformed_path.diff_state.data_changed = true;
 
                         local_elements.insert(*id, Element::Path(transformed_path.clone()));
+
+                        if let Some(remote_pressure) = remote_buffer.weak_path_pressures.get(id) {
+                            local_weak_pressures.insert(*id, remote_pressure.clone());
+                        }
                     }
                 } else {
                     // this was deletd remotly
                     local_elements.shift_remove(id);
+                    local_weak_pressures.remove(id);
                 }
             });
 
@@ -122,6 +139,9 @@ impl Buffer {
                     transformed_path.diff_state.transformed = None;
 
                     local_elements.insert_before(i, *id, Element::Path(transformed_path));
+                    if let Some(base_pressure) = base_buffer.weak_path_pressures.get(id) {
+                        local_weak_pressures.insert(*id, base_pressure.clone());
+                    }
                 }
             });
     }
@@ -162,13 +182,20 @@ impl Buffer {
         }
     }
     pub fn serialize(&self) -> String {
-        serialize_inner(&self.id_map, &self.elements, self.master_transform, &self.weak_images)
+        serialize_inner(
+            &self.id_map,
+            &self.elements,
+            self.master_transform,
+            &self.weak_images,
+            &self.weak_path_pressures,
+        )
     }
 }
 
 pub fn serialize_inner(
     id_map: &HashMap<Uuid, String>, elements: &IndexMap<Uuid, Element>,
     master_transform: Transform, buffer_weak_images: &WeakImages,
+    weak_pressures: &WeakPathPressures,
 ) -> String {
     let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
     let mut weak_images = WeakImages::default();
@@ -238,6 +265,17 @@ pub fn serialize_inner(
             write!(&mut root, "<g id=\"{}\"> <g id=\"{}\"></g></g>", WEAK_IMAGE_G_ID, base64_data);
     }
 
+    if !weak_pressures.is_empty() {
+        let binary_data = bincode::serialize(&weak_pressures).expect("Failed to serialize");
+        let base64_data = base64::encode(&binary_data);
+
+        let _ = write!(
+            &mut root,
+            "<g id=\"{}\"> <g id=\"{}\"></g></g>",
+            WEAK_PATH_PRESSURES_G_ID, base64_data
+        );
+    }
+
     let _ = write!(&mut root, "{} </svg>", zoom_level);
     root
 }
@@ -245,6 +283,7 @@ pub fn serialize_inner(
 pub fn parse_child(
     u_el: &usvg::Node, elements: &mut IndexMap<Uuid, Element>, master_transform: &mut Transform,
     id_map: &mut HashMap<Uuid, String>, weak_images: &mut WeakImages,
+    weak_path_pressures: &mut WeakPathPressures,
 ) {
     match &u_el {
         usvg::Node::Group(group) => {
@@ -258,9 +297,24 @@ pub fn parse_child(
                     let decoded: WeakImages = bincode::deserialize(&base64).unwrap();
                     *weak_images = decoded;
                 }
+            } else if group.id().eq(WEAK_PATH_PRESSURES_G_ID) {
+                if let Some(usvg::Node::Group(weak_pressures_g)) = group.children().first() {
+                    let base64 = base64::decode(weak_pressures_g.id().as_bytes())
+                        .expect("Failed to decode base64");
+
+                    let decoded: WeakPathPressures = bincode::deserialize(&base64).unwrap();
+                    *weak_path_pressures = decoded;
+                }
             } else {
                 group.children().iter().for_each(|u_el| {
-                    parse_child(u_el, elements, master_transform, id_map, weak_images)
+                    parse_child(
+                        u_el,
+                        elements,
+                        master_transform,
+                        id_map,
+                        weak_images,
+                        weak_path_pressures,
+                    )
                 });
             }
         }

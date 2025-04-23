@@ -1,10 +1,10 @@
-use std::ops::RangeInclusive;
+use std::{collections::HashMap, ops::RangeInclusive};
 
 use egui::{emath::RectTransform, InnerResponse, Response, RichText};
 use egui_animation::{animate_eased, easing};
 use lb_rs::model::svg::{
     buffer::{get_highlighter_colors, get_pen_colors},
-    element::DynamicColor,
+    element::{DynamicColor, Element, Stroke, WeakPathPressures},
 };
 use resvg::usvg::Transform;
 
@@ -20,7 +20,7 @@ use super::{
         get_zoom_fit_transform, transform_canvas, zoom_percentage_to_transform, GestureHandler,
     },
     history::History,
-    pen::{DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
+    pen::{DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH, PREVIEW_STROKE},
     renderer::{RenderOptions, Renderer},
     selection::Selection,
     util::transform_rect,
@@ -44,6 +44,7 @@ pub struct Toolbar {
     layout: ToolbarLayout,
     pub viewport_popover: Option<ViewportPopover>,
     renderer: Renderer,
+    stroke_preview_renderer: Renderer,
 }
 
 #[derive(Copy, Clone)]
@@ -127,6 +128,7 @@ impl Toolbar {
             pen: Pen::new(get_pen_colors()[0], DEFAULT_PEN_STROKE_WIDTH),
             highlighter: Pen::new(get_highlighter_colors()[0], DEFAULT_HIGHLIGHTER_STROKE_WIDTH),
             renderer: Renderer::new(elements_count),
+            stroke_preview_renderer: Renderer::new(1),
             active_tool: Default::default(),
             eraser: Default::default(),
             selection: Default::default(),
@@ -805,7 +807,7 @@ fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCon
     ui.add_space(20.0);
 
     ui.horizontal(|ui| {
-        ui.label("Fixed zoom thicknes: ");
+        ui.label("Fixed zoom thickness: ");
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             switch(ui, &mut pen.has_inf_thick);
@@ -897,15 +899,43 @@ fn show_color_btn(
 }
 
 fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
+    // if pen.preview.is_none() {
+    //     let preview_buffer = Buffer::new(PREVIEW_STROKE);
+    //     pen.preview = Some((preview_buffer, Renderer::new(1)))
+    // }
+    // let (_, mut painter) =
+    //     ui.allocate_painter(egui::vec2(ui.available_width(), 100.0), egui::Sense::hover());
+
+    // if let Some((preview_buffer, renderer)) = &mut pen.preview {
+    //     if let Some((id, Element::Path(preview_stroke))) = preview_buffer.elements.first_mut() {
+    //         let mut stroke_width = pen.active_stroke_width;
+    //         if !pen.has_inf_thick {
+    //             stroke_width *= buffer.master_transform.sx;
+    //         }
+    //         preview_stroke.stroke = Some(Stroke {
+    //             color: pen.active_color,
+    //             opacity: pen.active_opacity,
+    //             width: stroke_width,
+    //         });
+
+    //         preview_stroke.diff_state.data_changed = true;
+    //         preview_buffer
+    //             .weak_path_pressures
+    //             .insert(*id, vec![0.1, 1.0, 1.0, 0.1]);
+    //     }
+    //     renderer.render_svg(
+    //         ui,
+    //         preview_buffer,
+    //         &mut painter,
+    //         RenderOptions { tight_fit_mode: true },
+    //     );
+    // }
+
     let mut preview_stroke = egui::Stroke {
         width: pen.active_stroke_width,
         color: ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode)
             .linear_multiply(pen.active_opacity),
     };
-
-    if !pen.has_inf_thick {
-        preview_stroke.width *= buffer.master_transform.sx;
-    }
 
     let bez1 = epaint::CubicBezierShape::from_points_stroke(
         [
