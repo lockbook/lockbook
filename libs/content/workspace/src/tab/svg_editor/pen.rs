@@ -22,7 +22,6 @@ use super::{
 
 pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 1.0;
 pub const DEFAULT_HIGHLIGHTER_STROKE_WIDTH: f32 = 15.0;
-pub const PREVIEW_STROKE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg"><path d="M 146.814 162.413 L 208.207 156 L 269.6 150 L 331 144 L 394.388 137.297"/></svg>"#;
 
 #[derive(Default)]
 pub struct Pen {
