@@ -1,12 +1,21 @@
 import SwiftUI
 import SwiftWorkspace
+import Combine
 
 class PendingSharesViewModel: ObservableObject {
     @Published var pendingShares: [File]? = nil
     @Published var error: String? = nil
+    
+    private var cancellables: Set<AnyCancellable> = []
+
         
     init() {
         self.loadPendingShares()
+        
+        AppState.workspaceState.$reloadFiles.sink { [weak self] reload in
+            self?.loadPendingShares()
+        }
+        .store(in: &cancellables)
     }
     
     func loadPendingShares() {

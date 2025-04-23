@@ -38,14 +38,14 @@ struct DetailView: View {
                             Image(systemName: "square.and.arrow.up.fill")
                         })
                         
-                        if isConstrainedLayout && workspaceState.openTabs > 1 {
+                        if isConstrainedLayout && workspaceState.tabCount > 1 {
                             Button(action: {
                                 self.showTabsSheet()
                             }, label: {
                                 ZStack {
                                     Image(systemName: "rectangle.fill")
                                     
-                                    Text(workspaceState.openTabs < 100 ? String(workspaceState.openTabs) : ":D")
+                                    Text(workspaceState.tabCount < 100 ? String(workspaceState.tabCount) : ":D")
                                         .font(.callout)
                                         .foregroundColor(.white)
                                 }
@@ -89,7 +89,7 @@ struct ConstrainedTitle: ViewModifier {
     }
     
     func body(content: Content) -> some View {
-        if isConstrainedLayout || (!isConstrainedLayout && workspaceState.openTabs == 1) {
+        if isConstrainedLayout || (!isConstrainedLayout && workspaceState.tabCount == 1) {
             content
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
@@ -112,7 +112,7 @@ struct ConstrainedTitle: ViewModifier {
 
 #Preview {
     let workspaceState = WorkspaceState()
-    workspaceState.openTabs = 5
+    workspaceState.tabCount = 5
     
     return NavigationStack {
         DetailView()

@@ -96,7 +96,15 @@ class SearchContainerViewModel: ObservableObject {
     @Published var results: [SearchResult] = []
     
     func open(id: UUID) {
-        AppState.workspaceState.requestOpenDoc(id)
+        guard let file = try? AppState.lb.getFile(id: id).get() else {
+            return
+        }
+        
+        if(file.type == .folder) {
+            AppState.workspaceState.selectedFolder = id
+        } else {
+            AppState.workspaceState.requestOpenDoc(id)
+        }
     }
     
     func search() {

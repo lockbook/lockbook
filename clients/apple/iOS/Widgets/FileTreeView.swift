@@ -15,22 +15,30 @@ struct FileTreeView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
-                FileRowView(file: root, level: -1)
-                    .environmentObject(fileTreeModel)
-                
-                Spacer()
+        ScrollViewReader { scrollHelper in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    FileRowView(file: root, level: -1)
+                        .environmentObject(fileTreeModel)
+                    
+                    Spacer()
+                }
+                .listStyle(.sidebar)
+                .frame(minWidth: 10, maxWidth: .infinity, maxHeight: .infinity)
+            }.contextMenu {
+                FileRowContextMenu(file: root)
             }
-            .listStyle(.sidebar)
-            .frame(minWidth: 10, maxWidth: .infinity, maxHeight: .infinity)
-        }.contextMenu {
-            FileRowContextMenu(file: root)
+            .refreshable {
+                AppState.workspaceState.requestSync()
+            }
+            .padding(.leading)
+            .onChange(of: fileTreeModel.openDoc) { newValue in
+                scrollHelper.scrollTo(newValue)
+            }
+            .onAppear {
+                scrollHelper.scrollTo(fileTreeModel.openDoc)
+            }
         }
-        .refreshable {
-            AppState.workspaceState.requestSync()
-        }
-        .padding(.leading)
     }
 }
 
@@ -88,6 +96,7 @@ struct FileRowView: View {
         .contextMenu {
             FileRowContextMenu(file: file)
         }
+        .id(file.id)
     }
     
     var fileRow: some View {

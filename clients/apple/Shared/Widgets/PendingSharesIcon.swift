@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftWorkspace
+import Combine
 
 struct PendingSharesIcon: View {
     @StateObject var model: PendingSharesIconViewModel
@@ -48,7 +49,20 @@ struct PendingSharesIcon: View {
 class PendingSharesIconViewModel: ObservableObject {
     @Published var pendingSharesCount: Int? = nil
     
+    private var cancellables: Set<AnyCancellable> = []
+
+        
     init(homeState: HomeState) {
+        self.loadPendingSharesCount(homeState: homeState)
+        
+        AppState.workspaceState.$reloadFiles.sink { [weak self] reload in
+            self?.loadPendingSharesCount(homeState: homeState)
+        }
+        .store(in: &cancellables)
+
+    }
+    
+    func loadPendingSharesCount(homeState: HomeState) {
         DispatchQueue.global(qos: .userInteractive).async {
             let res = AppState.lb.getPendingShares()
             

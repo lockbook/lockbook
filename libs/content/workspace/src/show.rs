@@ -421,7 +421,7 @@ impl Workspace {
             if let Some(current_tab) = self.current_tab() {
                 if self.show_tabs {
                     self.show_tab_strip(ui);
-                } else {
+                } else if !matches!(ui.ctx().os(), OperatingSystem::IOS) {
                     self.out.tab_title_clicked = self.show_mobile_title(ui, current_tab);
                 }
             }

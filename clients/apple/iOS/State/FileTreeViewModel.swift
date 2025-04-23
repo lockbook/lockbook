@@ -11,7 +11,7 @@ class FileTreeViewModel: ObservableObject {
     var supressNextOpenFolder: Bool = false
     
     let filesModel: FilesViewModel
-    
+        
     init(filesModel: FilesViewModel) {
         self.filesModel = filesModel
         

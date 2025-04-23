@@ -27,14 +27,13 @@ pub unsafe extern "C" fn key_event(
 
     let Some(key) = NSKeys::from(key_code) else { return };
 
-    // Event::Text
-    let text_modifiers = modifiers.shift_only() || modifiers.is_none();
+    let alt_without_ctrl_cmd = modifiers.alt && !modifiers.ctrl && !modifiers.command;
+    let text_modifiers = modifiers.shift_only() || alt_without_ctrl_cmd || modifiers.is_none();
+    let text = CStr::from_ptr(characters).to_str().unwrap();
+
     if pressed && text_modifiers && key.valid_text() {
-        let text = CStr::from_ptr(characters).to_str().unwrap().to_string();
-        obj.raw_input.events.push(Event::Text(text));
+        obj.raw_input.events.push(Event::Text(text.to_string()));
     }
-  
-    // Event::Key
     if let Some(key) = key.egui_key() {
         obj.raw_input.events.push(Event::Key {
             key,
