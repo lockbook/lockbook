@@ -3,7 +3,6 @@ use egui::{PointerButton, TouchId, TouchPhase};
 use egui_animation::{animate_bool_eased, easing};
 use lb_rs::{
     model::svg::{
-        buffer::Buffer,
         diff::DiffState,
         element::{DynamicColor, Element, Path, Stroke},
     },
@@ -16,9 +15,7 @@ use tracing_test::traced_test;
 
 use crate::{tab::ExtendedInput, theme::palette::ThemePalette};
 
-use super::{
-    renderer::Renderer, toolbar::ToolContext, util::is_multi_touch, InsertElement, PathBuilder,
-};
+use super::{toolbar::ToolContext, util::is_multi_touch, InsertElement, PathBuilder};
 
 pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 1.0;
 pub const DEFAULT_HIGHLIGHTER_STROKE_WIDTH: f32 = 15.0;
@@ -30,7 +27,6 @@ pub struct Pen {
     pub active_opacity: f32,
     pub has_inf_thick: bool,
     path_builder: PathBuilder,
-    pub preview: Option<(Buffer, Renderer)>,
     pub current_id: Uuid, // todo: this should be at a higher component state, maybe in buffer
     maybe_snap_started: Option<Instant>,
     hover_pos: Option<(egui::Pos2, Instant)>,
@@ -49,7 +45,6 @@ impl Pen {
             current_id: Uuid::new_v4(),
             path_builder: PathBuilder::new(),
             maybe_snap_started: None,
-            preview: None,
             active_opacity: 1.0,
             hover_pos: None,
             has_inf_thick: false,
@@ -215,25 +210,10 @@ impl Pen {
                     p.diff_state.data_changed = true;
                     p.stroke = Some(path_stroke);
 
-                    let new_seg_i = self.path_builder.line_to(payload.pos, &mut p.data);
-
-                    if new_seg_i.is_some() {
-                        if let Some(force) = payload.force {
-                            if let Some(forces) =
-                                pen_ctx.buffer.weak_path_pressures.get_mut(&self.current_id)
-                            {
-                                forces.push(force);
-                            }
-                        }
-                    }
+                    self.path_builder.line_to(payload.pos, &mut p.data);
+                    event!(Level::TRACE, "drawing");
                 } else {
                     event!(Level::TRACE, "starting a new path");
-                    if let Some(force) = payload.force {
-                        pen_ctx
-                            .buffer
-                            .weak_path_pressures
-                            .insert(self.current_id, vec![force]);
-                    }
 
                     let el = Element::Path(Path {
                         data: Subpath::new(vec![], false),
