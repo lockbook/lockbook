@@ -20,13 +20,10 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_block_quote(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
-        let range = self.node_range(node); // wip
-
         let height = self.height_block_quote(node);
         let annotation_size = Vec2 { x: INDENT, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        let mut annotation_top_left = top_left;
         for line_idx in self.node_lines(node).iter() {
             let mut line = self.bounds.source_lines[line_idx];
             line.0 += self.line_prefix_len(node.parent().unwrap(), line);
@@ -57,19 +54,6 @@ impl<'ast> MarkdownPlusPlus {
             // the heading's range intersects the selection. Even the syntax
             // reveal state of descendant nodes must be accounted for.
         }
-
-        // if self.node_intersects_selection(node) {
-        //     for line_idx in self.node_lines(node).iter() {
-        //         let mut line = self.bounds.source_lines[line_idx];
-        //         line.0 += self.line_prefix_len(node.parent().unwrap(), line);
-        //     }
-        // } else {
-        // ui.painter().vline(
-        //     annotation_space.center().x,
-        //     annotation_space.y_range(),
-        //     Stroke::new(3., self.theme.bg().neutral_tertiary),
-        // );
-        // }
 
         // debug
         // ui.painter()
@@ -149,7 +133,7 @@ impl<'ast> MarkdownPlusPlus {
                 annotation_space.center().x,
                 annotation_space
                     .y_range()
-                    .expand(ROW_SPACING.max(BLOCK_SPACING) / 2.), // lazy af hack
+                    .expand(ROW_SPACING.max(BLOCK_SPACING)), // lazy af hack
                 Stroke::new(3., self.theme.bg().neutral_tertiary),
             );
         }
