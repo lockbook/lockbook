@@ -3,7 +3,9 @@ use comrak::nodes::{
 };
 use egui::{Pos2, TextFormat, Ui};
 use inline::text;
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
+use lb_rs::model::text::offset_types::{
+    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
+};
 
 use super::MarkdownPlusPlus;
 
@@ -330,7 +332,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
             NodeValue::Document => self.show_document(ui, node, top_left),
             NodeValue::FootnoteDefinition(_) => self.show_footnote_definition(ui, node, top_left),
-            NodeValue::Item(node_list) => self.show_item(ui, node, top_left, node_list),
+            NodeValue::Item(node_list) => self.show_item(ui, node, top_left),
             NodeValue::List(_) => self.show_block_children(ui, node, top_left),
             NodeValue::MultilineBlockQuote(_) => {
                 self.show_multiline_block_quote(ui, node, top_left)
@@ -627,19 +629,6 @@ impl<'ast> MarkdownPlusPlus {
         Some((first_child_range.start(), last_child_range.end()))
     }
 
-    /// Convenience fn for getting multiple ranges since they are either all
-    /// [`Some`] or all [`None`].
-    #[allow(clippy::type_complexity)]
-    fn prefix_infix_postfix_ranges(
-        &self, node: &'ast AstNode<'ast>,
-    ) -> Option<(
-        (DocCharOffset, DocCharOffset),
-        (DocCharOffset, DocCharOffset),
-        (DocCharOffset, DocCharOffset),
-    )> {
-        Some((self.prefix_range(node)?, self.infix_range(node)?, self.postfix_range(node)?))
-    }
-
     /// Returns 5 ranges representing the pre-node line, pre-first-child section,
     /// inter-children section, post-last-child section, and post-node line.
     /// Returns None if there are no children on this line.
@@ -818,6 +807,40 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::TableCell => unimplemented!("not a container block"),
             NodeValue::ThematicBreak => unimplemented!("not a container block"),
         }
+    }
+
+    fn line_prefix_intersects_selection(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> bool {
+        let line_prefix = (line.start(), line.start() + self.line_prefix_len(node, line));
+        let selection = self.buffer.current.selection;
+
+        line_prefix.intersects(&selection, false) || selection.end() == line_prefix.start()
+    }
+
+    /// returns true if the syntax for a container block should be revealed
+    fn reveal(&self, node: &'ast AstNode<'ast>) -> bool {
+        for line in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line];
+            if self.line_prefix_intersects_selection(node, line) {
+                return true;
+            }
+        }
+        false
+    }
+
+    // todo: remove (and fix line wrap)
+    fn height_line_postfix(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset), row_height: f32,
+    ) -> f32 {
+        let width = self.width(node);
+        let mut wrap = Wrap::new(width);
+        wrap.row_height = row_height;
+
+        let line_postfix = (line.start() + self.line_prefix_len(node, line), line.end());
+        wrap.offset += self.span_text_line(&wrap, line_postfix, self.text_format_syntax(node));
+
+        wrap.height()
     }
 
     /// Shows the line prefix, such as '* ' for a list item, '> ' for a block

@@ -50,7 +50,7 @@ impl MarkdownPlusPlus {
 
             ui.painter().rect_filled(
                 rect,
-                0.0,
+                2.,
                 self.theme.fg().accent_secondary.gamma_multiply(0.15),
             );
 

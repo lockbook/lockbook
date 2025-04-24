@@ -153,7 +153,7 @@ impl<'ast> MarkdownPlusPlus {
             // paint galley row-by-row to take control of row spacing
             let text = if text_format.color == self.theme.fg().neutral_quarternary {
                 // Replace spaces with dots for whitespace visualization
-                row.text().replace(' ', "·")
+                row.text().replace(' ', "·") // hack, replicated for span
             } else {
                 row.text().to_string()
             };
@@ -211,7 +211,7 @@ impl<'ast> MarkdownPlusPlus {
         let mut tmp_wrap = Wrap { offset: wrap.offset + pre_span, ..*wrap };
 
         let text = if text_format.color == self.theme.fg().neutral_quarternary {
-            text.replace(' ', "·")
+            text.replace(' ', "·") // hack, replicated for show
         } else {
             text.to_string()
         };
