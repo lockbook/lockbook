@@ -37,20 +37,20 @@ struct DetailView: View {
                         }, label: {
                             Image(systemName: "square.and.arrow.up.fill")
                         })
+                    }
                         
-                        if isConstrainedLayout && workspaceState.tabCount > 1 {
-                            Button(action: {
-                                self.showTabsSheet()
-                            }, label: {
-                                ZStack {
-                                    Image(systemName: "rectangle.fill")
-                                    
-                                    Text(workspaceState.tabCount < 100 ? String(workspaceState.tabCount) : ":D")
-                                        .font(.callout)
-                                        .foregroundColor(.white)
-                                }
-                            })
-                        }
+                    if isConstrainedLayout && workspaceState.tabCount > 1 {
+                        Button(action: {
+                            self.showTabsSheet()
+                        }, label: {
+                            ZStack {
+                                Image(systemName: "rectangle.fill")
+                                
+                                Text(workspaceState.tabCount < 100 ? String(workspaceState.tabCount) : ":D")
+                                    .font(.callout)
+                                    .foregroundColor(.white)
+                            }
+                        })
                     }
                 }
             }

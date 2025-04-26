@@ -59,9 +59,11 @@ struct PendingSharesView: View {
 
 struct PendingShareFileCell: View {
     @EnvironmentObject var homeState: HomeState
+    @Environment(\.dismiss) private var dismiss
     
     @ObservedObject var pendingSharesModel: PendingSharesViewModel
     @State var confirmRejection = false
+    
     
     let file: File
     
@@ -78,6 +80,8 @@ struct PendingShareFileCell: View {
             
             Button {
                 homeState.selectSheetInfo = .acceptShare(name: file.name, id: file.id)
+                
+                dismiss()
             } label: {
                 Image(systemName: "plus.circle")
                     .imageScale(.large)
@@ -97,6 +101,7 @@ struct PendingShareFileCell: View {
         .confirmationDialog("Are you sure?", isPresented: $confirmRejection, titleVisibility: .visible) {
             Button("Reject \"\(file.name)\"", role: .destructive) {
                 pendingSharesModel.rejectShare(id: file.id)
+                dismiss()
             }
         }
     }

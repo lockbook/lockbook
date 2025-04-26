@@ -83,7 +83,7 @@ struct SidebarView: View {
         } else if filesModel.loaded {
             if let root = filesModel.root {
                 VStack(alignment: .leading) {
-                    Section(header: Text("Suggested Docs")
+                    Section(header: Text("Suggested")
                         .bold()
                         .foregroundColor(.primary)
                         .textCase(.none)
