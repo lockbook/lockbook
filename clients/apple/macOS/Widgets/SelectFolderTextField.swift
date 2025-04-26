@@ -15,7 +15,11 @@ struct SelectFolderTextFieldWrapper: NSViewRepresentable {
         textField.placeholderString = placeholder
         textField.onSubmit = onSubmit
         textField.model = model
+        textField.drawsBackground = true
         
+        textField.wantsLayer = true
+        textField.layer?.cornerRadius = 4
+
         textField.becomeFirstResponder()
         
         return textField

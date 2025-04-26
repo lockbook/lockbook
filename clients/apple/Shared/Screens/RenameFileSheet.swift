@@ -3,9 +3,14 @@ import SwiftWorkspace
 
 struct RenameFileSheet: View {
     // MARK: Have to be updated manually whenever the view contents change. Vital for iPadOS and macOS
+    #if os(iOS)
     static let FORM_WIDTH: CGFloat = 420
     static let FORM_HEIGHT: CGFloat = 190
-
+    #else
+    static let FORM_WIDTH: CGFloat = 420
+    static let FORM_HEIGHT: CGFloat = 150
+    #endif
+    
     @StateObject var model: RenameFileViewModel
     @Environment(\.dismiss) private var dismiss
     
@@ -141,6 +146,12 @@ class RenameFileViewModel: ObservableObject {
                     name: item.name
                 )
             }
+        )
+}
+#else
+#Preview {
+    RenameFileSheet(homeState: HomeState(), id: (AppState.lb as! MockLb).file1.id, name: (AppState.lb as! MockLb).file1.name)
+        .frame(width: RenameFileSheet.FORM_WIDTH, height: RenameFileSheet.FORM_HEIGHT
         )
 }
 #endif

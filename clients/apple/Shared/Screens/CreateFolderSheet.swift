@@ -3,9 +3,15 @@ import SwiftWorkspace
 
 struct CreateFolderSheet: View {
     // MARK: Have to be updated manually whenever the view contents change. Vital for iPadOS and macOS
+    #if os(iOS)
     static let FORM_WIDTH: CGFloat = 420
     static let FORM_HEIGHT: CGFloat = 190
-
+    #else
+    static let FORM_WIDTH: CGFloat = 420
+    static let FORM_HEIGHT: CGFloat = 150
+    #endif
+    
+    
     @Environment(\.dismiss) private var dismiss
     
     @StateObject var model: CreateFolderViewModel
@@ -140,5 +146,13 @@ class CreateFolderViewModel: ObservableObject {
             }
         )
 }
+#else
+#Preview {
+    CreateFolderSheet(homeState: HomeState(), parentId: (AppState.lb as! MockLb).file1.id)
+        .frame(width: CreateFolderSheet.FORM_WIDTH, height: CreateFolderSheet.FORM_HEIGHT
+        )
+}
 #endif
+
+
 

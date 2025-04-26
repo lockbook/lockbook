@@ -17,6 +17,8 @@ struct FileOpSheets: ViewModifier {
     @Binding var constrainedSheetHeight: CGFloat
     
     func body(content: Content) -> some View {
+        // A little bit odd but not too bad
+        #if os(iOS)
         if isConstrainedLayout {
             content
                 .sheet(item: $homeState.sheetInfo) { info in
@@ -48,6 +50,22 @@ struct FileOpSheets: ViewModifier {
                     }
                 }
         }
+        #else
+        content
+            .sheet(item: $homeState.sheetInfo) { info in
+                switch info {
+                case .createFolder(parent: let parent):
+                    CreateFolderSheet(homeState: homeState, parentId: parent.id)
+                        .frame(width: CreateFolderSheet.FORM_WIDTH, height: CreateFolderSheet.FORM_HEIGHT)
+                case .rename(file: let file):
+                    RenameFileSheet(homeState: homeState, id: file.id, name: file.name)
+                        .frame(width: RenameFileSheet.FORM_WIDTH, height: RenameFileSheet.FORM_HEIGHT)
+                case .share(file: let file):
+                    ShareFileSheet(id: file.id, name: file.name, shares: file.shares)
+                        .frame(width: ShareFileSheet.FORM_WIDTH, height: ShareFileSheet.FORM_HEIGHT)
+                }
+            }
+        #endif
     }
 }
 
@@ -65,6 +83,7 @@ struct SelectFolderSheets: ViewModifier {
     @EnvironmentObject var homeState: HomeState
 
     func body(content: Content) -> some View {
+        #if os(iOS)
         if isConstrainedLayout {
             content
                 .sheet(item: $homeState.selectSheetInfo) { action in
@@ -78,5 +97,12 @@ struct SelectFolderSheets: ViewModifier {
                     SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)
                 }
         }
+        #else
+        content
+            .sheet(item: $homeState.selectSheetInfo) { action in
+                SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)
+                    .frame(width: SelectFolderSheet.FORM_WIDTH, height: SelectFolderSheet.FORM_HEIGHT)
+            }
+        #endif
     }
 }

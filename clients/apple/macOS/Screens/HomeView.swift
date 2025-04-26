@@ -12,7 +12,12 @@ struct HomeView: View {
                     SidebarView()
                 }
             }, detail: {
-                DetailView()
+                NavigationStack {
+                    DetailView()
+                        .navigationDestination(isPresented: $homeState.showPendingShares) {
+                            PendingSharesView()
+                        }
+                }
             })
             .confirmationDialog(
                 "Are you sure? This action cannot be undone.",
@@ -68,6 +73,18 @@ struct SidebarView: View {
                 StatusBar()
             }
             .formStyle(.columns)
+            .selectFolderSheets()
+            .fileOpSheets(constrainedSheetHeight: .constant(0))
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(action: {
+                        homeState.showPendingShares = true
+                    }, label: {
+                        PendingSharesIcon(homeState: homeState)
+                    })
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 }

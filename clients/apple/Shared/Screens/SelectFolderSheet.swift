@@ -3,6 +3,12 @@ import SwiftUI
 import SwiftWorkspace
 
 struct SelectFolderSheet: View {
+    // MARK: Have to be updated manually whenever the view contents change. Vital for macOS
+    #if os(macOS)
+    static let FORM_WIDTH: CGFloat = 420
+    static let FORM_HEIGHT: CGFloat = 300
+    #endif
+
     @Environment(\.dismiss) private var dismiss
     
     @StateObject var model: SelectFolderViewModel

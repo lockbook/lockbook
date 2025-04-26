@@ -73,9 +73,7 @@ struct HomeView: View {
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
-    
-    @State var sheetHeight: CGFloat = 0
-    
+        
     var body: some View {
         if let error = filesModel.error {
             Text(error)

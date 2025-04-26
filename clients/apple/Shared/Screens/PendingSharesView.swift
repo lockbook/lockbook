@@ -87,6 +87,7 @@ struct PendingShareFileCell: View {
                     .imageScale(.large)
                     .foregroundColor(Color.accentColor)
             }
+            .buttonStyle(.plain)
             
             Button {
                 confirmRejection = true
@@ -95,6 +96,7 @@ struct PendingShareFileCell: View {
                     .imageScale(.large)
                     .foregroundColor(.red)
             }
+            .buttonStyle(.plain)
         }
         .padding(.vertical, 7)
         .contentShape(Rectangle())

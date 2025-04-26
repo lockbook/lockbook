@@ -23,6 +23,10 @@ struct AutoFocusTextField: NSViewRepresentable {
         textField.focusRingType = focusRingType
         textField.delegate = context.coordinator
         textField.placeholderString = placeholder
+        textField.drawsBackground = false
+        textField.isBezeled = isBordered
+        textField.wantsLayer = true
+        textField.layer?.cornerRadius = 4
         
         textField.becomeFirstResponder()
         

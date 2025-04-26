@@ -5,8 +5,13 @@ import SwiftWorkspace
 struct ShareFileSheet: View {
     
     // MARK: Have to be updated manually whenever the view contents change. Vital for iPadOS and macOS
+    #if os(iOS)
     static let FORM_WIDTH: CGFloat = 500
     static let FORM_HEIGHT: CGFloat = 355
+    #else
+    static let FORM_WIDTH: CGFloat = 500
+    static let FORM_HEIGHT: CGFloat = 300
+    #endif
     
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) private var dismiss
@@ -211,6 +216,12 @@ struct ShareFileTextField: ViewModifier {
                     shares: item.shares
                 )
             }
+        )
+}
+#else
+#Preview {
+    ShareFileSheet(id: (AppState.lb as! MockLb).file1.id, name: (AppState.lb as! MockLb).file1.name, shares: (AppState.lb as! MockLb).file1.shares)
+        .frame(width: ShareFileSheet.FORM_WIDTH, height: ShareFileSheet.FORM_HEIGHT
         )
 }
 #endif
