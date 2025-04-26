@@ -251,12 +251,6 @@ impl Workspace {
                                         self.start_space_inspector(self.core.clone(), None);
                                     }
 
-                                let is_beta = self
-                                    .core
-                                    .get_account()
-                                    .map(|a| a.is_beta())
-                                    .unwrap_or_default();
-                                if is_beta {
                                     ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
                                     ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
                                     ui.visuals_mut().widgets.active.fg_stroke.color = blue;
@@ -271,7 +265,6 @@ impl Workspace {
                                     {
                                         self.upsert_mind_map(self.core.clone());
                                     }
-                                }
                             });
                             strip.cell(|_| {});
                             strip.cell(|ui| {
@@ -523,7 +516,7 @@ impl Workspace {
                                     }
                                 }
                                 TabContent::MindMap(mm) => {
-                                    let response = mm.show(ui, false);
+                                    let response = mm.show(ui);
                                     if let Some(value) = response {
                                         self.open_file(value, false, true);
                                     }
@@ -682,12 +675,7 @@ impl Workspace {
         }
 
         // Ctrl-M to open mind map
-        let is_beta = self
-            .core
-            .get_account()
-            .map(|a| a.is_beta())
-            .unwrap_or_default();
-        if is_beta && self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::M)) {
+        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::M)) {
             self.upsert_mind_map(self.core.clone());
         }
 
