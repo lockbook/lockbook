@@ -9,7 +9,14 @@ on:
         description: 'Name of the crate to publish'
         required: false
         default: 'lb-rs'
-
+  workflow_call:
+    inputs:
+      package:
+        description: 'Name of the crate to publish'
+        required: false
+        type: string
+        default: 'lb-rs'
+        
 jobs:
   publish:
     runs-on: ubuntu-latest

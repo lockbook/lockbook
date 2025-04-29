@@ -19,3 +19,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cargo run -p releaser -- github-release
+  call_publish:
+    needs: release
+    uses: ./.github/workflows/publish-crate.yml
