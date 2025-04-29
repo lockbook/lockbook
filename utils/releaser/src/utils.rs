@@ -29,7 +29,7 @@ impl CommandRunner for Command {
 }
 
 pub fn lb_repo() -> RepoInfo<'static> {
-    RepoInfo { owner: "lockbook", repo_name: "lockbook" }
+    RepoInfo { owner: "Kousay-Jebir", repo_name: "lockbook" }
 }
 
 pub fn lb_version() -> String {
