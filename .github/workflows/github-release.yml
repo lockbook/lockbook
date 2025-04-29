@@ -19,6 +19,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cargo run -p releaser -- github-release
+  
   call_publish:
     needs: release
     uses: ./.github/workflows/publish-crate.yml
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}

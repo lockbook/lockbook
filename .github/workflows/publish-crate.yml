@@ -16,7 +16,10 @@ on:
         required: false
         type: string
         default: 'lb-rs'
-        
+    secrets:
+      CRATES_IO_API_TOKEN:
+        required: true
+
 jobs:
   publish:
     runs-on: ubuntu-latest
