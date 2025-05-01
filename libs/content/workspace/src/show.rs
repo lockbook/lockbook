@@ -97,16 +97,13 @@ impl Workspace {
                     .get_account()
                     .map(|a| a.is_beta())
                     .unwrap_or_default();
-                if is_beta {
-                    if ui
+                if is_beta && ui
                         .add_sized(
                             [200.0, 44.0],
                             egui::Button::new(RichText::new("Mind Map").size(18.0)),
                         )
-                        .clicked()
-                    {
-                        self.upsert_mind_map(self.core.clone());
-                    }
+                        .clicked() {
+                    self.upsert_mind_map(self.core.clone());
                 }
                 ui.add_space(12.0);
 
