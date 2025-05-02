@@ -9,7 +9,7 @@ use crate::settings::{Settings, ThemeMode};
 
 pub fn init(s: &Arc<RwLock<Settings>>, ctx: &egui::Context) {
     let initial_mode = match s.read().unwrap().theme_mode {
-        ThemeMode::System => dark_light::detect(),
+        ThemeMode::System => dark_light::detect().unwrap(),
         ThemeMode::Dark => dark_light::Mode::Dark,
         ThemeMode::Light => dark_light::Mode::Light,
     };
@@ -25,7 +25,7 @@ pub fn init(s: &Arc<RwLock<Settings>>, ctx: &egui::Context) {
 
 pub fn apply_settings(s: &Settings, ctx: &egui::Context) {
     let mode = match s.theme_mode {
-        ThemeMode::System => dark_light::detect(),
+        ThemeMode::System => dark_light::detect().unwrap(),
         ThemeMode::Dark => dark_light::Mode::Dark,
         ThemeMode::Light => dark_light::Mode::Light,
     };
@@ -43,7 +43,7 @@ fn poll_system_theme(
 
     thread::spawn(move || loop {
         if s.read().unwrap().theme_mode == ThemeMode::System {
-            let m = dark_light::detect();
+            let m = dark_light::detect().unwrap();
             if mode != m {
                 mode = m;
                 ctx.set_visuals(egui_visuals(m, s.read().unwrap().theme_color));
@@ -56,7 +56,7 @@ fn poll_system_theme(
 
 pub fn egui_visuals(m: dark_light::Mode, primary: ColorAlias) -> egui::Visuals {
     match m {
-        dark_light::Mode::Default | dark_light::Mode::Dark => visuals::dark(primary),
+        dark_light::Mode::Unspecified | dark_light::Mode::Dark => visuals::dark(primary),
         dark_light::Mode::Light => visuals::light(primary),
     }
 }
