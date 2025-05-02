@@ -56,8 +56,8 @@ fn poll_system_theme(
 
 pub fn egui_visuals(m: dark_light::Mode, primary: ColorAlias) -> egui::Visuals {
     match m {
-        dark_light::Mode::Unspecified | dark_light::Mode::Dark => visuals::dark(primary),
-        dark_light::Mode::Light => visuals::light(primary),
+        dark_light::Mode::Dark => visuals::dark(primary),
+        dark_light::Mode::Unspecified | dark_light::Mode::Light => visuals::light(primary),
     }
 }
 
