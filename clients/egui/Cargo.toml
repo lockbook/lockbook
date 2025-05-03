@@ -4,7 +4,7 @@ version = "0.9.22"
 edition = "2021"
 
 [dependencies]
-dark-light = "1.0.0"
+dark-light = "2.0.0"
 egui = "0.28.1"
 eframe = { version = "0.28.1", default-features = false, features = [
     "wgpu",
