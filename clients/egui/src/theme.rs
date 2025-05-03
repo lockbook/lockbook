@@ -9,7 +9,7 @@ use crate::settings::{Settings, ThemeMode};
 
 pub fn init(s: &Arc<RwLock<Settings>>, ctx: &egui::Context) {
     let initial_mode = match s.read().unwrap().theme_mode {
-        ThemeMode::System => dark_light::detect().unwrap(),
+        ThemeMode::System => detect_theme_wrapper(),
         ThemeMode::Dark => dark_light::Mode::Dark,
         ThemeMode::Light => dark_light::Mode::Light,
     };
@@ -25,7 +25,7 @@ pub fn init(s: &Arc<RwLock<Settings>>, ctx: &egui::Context) {
 
 pub fn apply_settings(s: &Settings, ctx: &egui::Context) {
     let mode = match s.theme_mode {
-        ThemeMode::System => dark_light::detect().unwrap(),
+        ThemeMode::System => detect_theme_wrapper(),
         ThemeMode::Dark => dark_light::Mode::Dark,
         ThemeMode::Light => dark_light::Mode::Light,
     };
@@ -60,10 +60,20 @@ fn poll_system_theme(
     });
 }
 
+fn detect_theme_wrapper() -> dark_light::Mode {
+    dark_light::detect().unwrap_or_else(|err| {
+        eprintln!("Failed to detect current dark/light mode: {err:?} (2)");
+        dark_light::Mode::Unspecified
+    })
+}
+
 pub fn egui_visuals(m: dark_light::Mode, primary: ColorAlias) -> egui::Visuals {
     match m {
-        dark_light::Mode::Dark => visuals::dark(primary),
+        // the default mode of operation is light because on gnome, by default, there is no
+        // light mode, it is either "Default" (which is presented to us as Unspecified) or
+        // dark. This "Default" mode is also illustrated as a mix of light and dark windows
         dark_light::Mode::Unspecified | dark_light::Mode::Light => visuals::light(primary),
+        dark_light::Mode::Dark => visuals::dark(primary),
     }
 }
 
