@@ -101,6 +101,23 @@ impl Image {
 #[derive(Serialize, Deserialize, PartialEq, Debug, Default, Clone)]
 pub struct WeakImages(HashMap<Uuid, WeakImage>);
 
+#[derive(Serialize, Deserialize, PartialEq, Debug, Default, Clone)]
+pub struct WeakPathPressures(HashMap<Uuid, Vec<f32>>);
+
+impl Deref for WeakPathPressures {
+    type Target = HashMap<Uuid, Vec<f32>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for WeakPathPressures {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl Deref for WeakImages {
     type Target = HashMap<Uuid, WeakImage>;
 

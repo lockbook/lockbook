@@ -25,6 +25,7 @@ pub struct Pen {
     pub active_color: DynamicColor,
     pub active_stroke_width: f32,
     pub active_opacity: f32,
+    pub pressure_alpha: f32,
     pub has_inf_thick: bool,
     path_builder: PathBuilder,
     pub current_id: Uuid, // todo: this should be at a higher component state, maybe in buffer
@@ -48,6 +49,7 @@ impl Pen {
             active_opacity: 1.0,
             hover_pos: None,
             has_inf_thick: false,
+            pressure_alpha: 0.0,
         }
     }
 
@@ -126,6 +128,9 @@ impl Pen {
                 if !self.has_inf_thick {
                     radius *= pen_ctx.buffer.master_transform.sx;
                 }
+
+                let pressure_adj = self.pressure_alpha * -0.5 + 1.;
+                radius *= pressure_adj;
 
                 pen_ctx.painter.circle_filled(
                     pos,
@@ -210,10 +215,25 @@ impl Pen {
                     p.diff_state.data_changed = true;
                     p.stroke = Some(path_stroke);
 
-                    self.path_builder.line_to(payload.pos, &mut p.data);
-                    event!(Level::TRACE, "drawing");
+                    let new_seg_i = self.path_builder.line_to(payload.pos, &mut p.data);
+
+                    if new_seg_i.is_some() {
+                        if let Some(force) = payload.force {
+                            if let Some(forces) =
+                                pen_ctx.buffer.weak_path_pressures.get_mut(&self.current_id)
+                            {
+                                forces.push((force * 2. - 1.) * self.pressure_alpha);
+                            }
+                        }
+                    }
                 } else {
                     event!(Level::TRACE, "starting a new path");
+                    if let Some(force) = payload.force {
+                        pen_ctx
+                            .buffer
+                            .weak_path_pressures
+                            .insert(self.current_id, vec![(force * 2. - 1.) * self.pressure_alpha]);
+                    }
 
                     let el = Element::Path(Path {
                         data: Subpath::new(vec![], false),

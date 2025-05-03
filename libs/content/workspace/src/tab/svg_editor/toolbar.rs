@@ -1,11 +1,14 @@
 use std::ops::RangeInclusive;
 
-use egui::{emath::RectTransform, InnerResponse, Response, RichText};
+use bezier_rs::{Cap, Subpath};
+use egui::{InnerResponse, Response, RichText};
 use egui_animation::{animate_eased, easing};
+use glam::DVec2;
 use lb_rs::model::svg::{
     buffer::{get_highlighter_colors, get_pen_colors},
-    element::DynamicColor,
+    element::{DynamicColor, ManipulatorGroupId},
 };
+use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, VertexBuffers};
 use resvg::usvg::Transform;
 
 use crate::{
@@ -17,13 +20,14 @@ const SCREEN_PADDING: f32 = 20.0;
 use super::{
     eraser::DEFAULT_ERASER_RADIUS,
     gesture_handler::{
-        get_zoom_fit_transform, transform_canvas, zoom_percentage_to_transform, GestureHandler,
+        get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
+        zoom_percentage_to_transform, GestureHandler,
     },
     history::History,
     pen::{DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
-    renderer::{RenderOptions, Renderer},
+    renderer::{RenderOptions, Renderer, VertexConstructor},
     selection::Selection,
-    util::transform_rect,
+    util::{bb_to_rect, devc_to_point, transform_rect},
     Buffer, CanvasSettings, Eraser, Pen,
 };
 
@@ -792,7 +796,23 @@ fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCon
 
     show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=30.0);
 
-    ui.add_space(40.0);
+    if cfg!(target_os = "ios") {
+        ui.add_space(10.0);
+
+        show_pressure_alpha_slider(ui, pen);
+    }
+
+    ui.add_space(10.0);
+
+    ui.horizontal(|ui| {
+        ui.label("Fixed zoom thickness: ");
+
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            switch(ui, &mut pen.has_inf_thick);
+        });
+    });
+
+    ui.add_space(30.0);
 
     ui.horizontal_wrapped(|ui| {
         show_color_swatches(ui, get_pen_colors(), pen);
@@ -801,16 +821,6 @@ fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCon
     ui.add_space(10.0);
 
     show_opacity_slider(ui, pen);
-
-    ui.add_space(20.0);
-
-    ui.horizontal(|ui| {
-        ui.label("Fixed zoom thicknes: ");
-
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            switch(ui, &mut pen.has_inf_thick);
-        });
-    });
 
     ui.add_space(10.0);
 }
@@ -834,6 +844,13 @@ fn show_opacity_slider(ui: &mut egui::Ui, pen: &mut Pen) {
         ui.spacing_mut().slider_width = ui.available_width();
         ui.spacing_mut().slider_rail_height = 2.0;
         ui.add(egui::Slider::new(&mut pen.active_opacity, 0.05..=1.0).show_value(false));
+    });
+}
+
+fn show_pressure_alpha_slider(ui: &mut egui::Ui, pen: &mut Pen) {
+    ui.label(RichText::new("Pressure Sensitivity").size(13.0));
+    ui.horizontal(|ui| {
+        ui.add(egui::Slider::new(&mut pen.pressure_alpha, 0.0..=1.0).show_value(false));
     });
 }
 
@@ -897,68 +914,80 @@ fn show_color_btn(
 }
 
 fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
-    let mut preview_stroke = egui::Stroke {
-        width: pen.active_stroke_width,
-        color: ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode)
-            .linear_multiply(pen.active_opacity),
+    let (res, painter) = ui.allocate_painter(
+        egui::vec2(ui.available_width(), 100.0),
+        egui::Sense::focusable_noninteractive(),
+    );
+    let preview_rect = res.rect;
+
+    let mut bez =
+        bezier_rs::Bezier::from_cubic_coordinates(146., 162., 272.0, 239., 215., 68., 329., 148.);
+    let path_rect = bb_to_rect(bez.bounding_box());
+    if let Some(t) = get_rect_identity_transform(preview_rect, path_rect, 0.7) {
+        bez = bez.apply_transformation(|p| DVec2 {
+            x: t.sx as f64 * p.x + t.tx as f64,
+            y: t.sy as f64 * p.y + t.ty as f64,
+        });
+    }
+
+    let mut fill_tess = FillTessellator::new();
+
+    let mut builder = lyon::path::Builder::new();
+    let stroke_color =
+        ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode)
+            .linear_multiply(pen.active_opacity);
+
+    let mut thickness = pen.active_stroke_width;
+    if !pen.has_inf_thick {
+        thickness *= buffer.master_transform.sx;
+    }
+
+    let subapth: Subpath<ManipulatorGroupId> = bez.graduated_outline(
+        (thickness + thickness * pen.pressure_alpha) as f64,
+        (thickness - thickness * pen.pressure_alpha) as f64,
+        Cap::Round,
+    );
+
+    let mut i = 0;
+    let mut first = None;
+    while let Some(seg) = subapth.get_segment(i) {
+        let start = devc_to_point(seg.start());
+        let end = devc_to_point(seg.end());
+        if first.is_none() {
+            first = Some(start);
+            builder.begin(start);
+        }
+        if seg.handle_end().is_some() && seg.handle_start().is_some() {
+            let handle_start = devc_to_point(seg.handle_start().unwrap());
+            let handle_end = devc_to_point(seg.handle_end().unwrap());
+
+            builder.cubic_bezier_to(handle_start, handle_end, end);
+        } else if seg.handle_end().is_none() && seg.handle_start().is_none() {
+            builder.line_to(end);
+        }
+        i += 1;
+    }
+    if first.is_some() {
+        builder.end(true);
+    }
+
+    let path = builder.build();
+
+    let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
+
+    let _ = fill_tess.tessellate_path(
+        &path,
+        &FillOptions::DEFAULT,
+        &mut BuffersBuilder::new(&mut mesh, VertexConstructor { color: stroke_color }),
+    );
+
+    let mesh = egui::epaint::Mesh {
+        indices: mesh.indices.clone(),
+        vertices: mesh.vertices.clone(),
+        texture_id: Default::default(),
     };
 
-    if !pen.has_inf_thick {
-        preview_stroke.width *= buffer.master_transform.sx;
-    }
-
-    let bez1 = epaint::CubicBezierShape::from_points_stroke(
-        [
-            egui::pos2(146.814, 162.413),
-            egui::pos2(146.814, 162.413),
-            egui::pos2(167.879, 128.734),
-            egui::pos2(214.253, 129.08),
-        ],
-        false,
-        egui::Color32::TRANSPARENT,
-        preview_stroke,
-    );
-    let bez2 = epaint::CubicBezierShape::from_points_stroke(
-        [
-            egui::pos2(214.253, 129.08),
-            egui::pos2(260.627, 129.426),
-            egui::pos2(302.899, 190.097),
-            egui::pos2(337.759, 189.239),
-        ],
-        false,
-        egui::Color32::TRANSPARENT,
-        preview_stroke,
-    );
-    let bez3 = epaint::CubicBezierShape::from_points_stroke(
-        [
-            egui::pos2(337.759, 189.239),
-            egui::pos2(372.619, 188.381),
-            egui::pos2(394.388, 137.297),
-            egui::pos2(394.388, 137.297),
-        ],
-        false,
-        egui::Color32::TRANSPARENT,
-        preview_stroke,
-    );
-
-    let (_, preview_rect) = ui.allocate_space(egui::vec2(ui.available_width(), 100.0));
-
-    let mut path_rect = egui::Rect::NOTHING;
-    for bez in [&bez1, &bez2, &bez3] {
-        path_rect = path_rect.union(bez.visual_bounding_rect());
-    }
-
-    let bezs = [bez1, bez2, bez3].map(|bez| {
-        bez.transform(&RectTransform::from_to(
-            path_rect,
-            preview_rect.shrink2(egui::vec2(30.0, 40.0)),
-        ))
-        .into()
-    });
-
-    let mut painter = ui.painter().to_owned();
-    painter.set_clip_rect(preview_rect);
-    painter.extend(bezs);
+    painter.add(egui::Shape::Mesh(mesh));
 }
 
 fn show_thickness_slider(ui: &mut egui::Ui, value: &mut f32, value_range: RangeInclusive<f32>) {
