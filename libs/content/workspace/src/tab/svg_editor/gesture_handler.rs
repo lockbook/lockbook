@@ -275,17 +275,21 @@ pub fn transform_canvas(buffer: &mut Buffer, t: Transform) {
 
 pub fn get_zoom_fit_transform(buffer: &Buffer, container_rect: egui::Rect) -> Option<Transform> {
     let elements_bound = calc_elements_bounds(buffer)?;
-    let is_width_smaller = elements_bound.width() < elements_bound.height();
-    let padding_coeff = 0.7;
+    get_rect_identity_transform(container_rect, elements_bound, 0.7)
+}
+
+/// given two rects how to transform them such that they're both equal
+pub fn get_rect_identity_transform(
+    origin: egui::Rect, source: egui::Rect, padding_coeff: f32,
+) -> Option<Transform> {
+    let is_width_smaller = source.width() < source.height();
     let zoom_delta = if is_width_smaller {
-        container_rect.height() * padding_coeff / elements_bound.height()
+        origin.height() * padding_coeff / source.height()
     } else {
-        container_rect.width() * padding_coeff / elements_bound.width()
+        origin.width() * padding_coeff / source.width()
     };
-    let center_x = container_rect.center().x
-        - zoom_delta * (elements_bound.left() + elements_bound.width() / 2.0);
-    let center_y = container_rect.center().y
-        - zoom_delta * (elements_bound.top() + elements_bound.height() / 2.0);
+    let center_x = origin.center().x - zoom_delta * (source.left() + source.width() / 2.0);
+    let center_y = origin.center().y - zoom_delta * (source.top() + source.height() / 2.0);
     Some(
         Transform::identity()
             .post_scale(zoom_delta, zoom_delta)

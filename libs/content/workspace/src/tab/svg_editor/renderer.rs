@@ -5,7 +5,6 @@ use glam::f64::DVec2;
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::{Element, Image, Path, WeakPathPressures};
 use lb_rs::Uuid;
-use lyon::math::Point;
 use lyon::path::{AttributeIndex, LineCap, LineJoin};
 use lyon::tessellation::{
     self, BuffersBuilder, FillVertexConstructor, StrokeOptions, StrokeTessellator,
@@ -19,13 +18,13 @@ use tracing::{span, Level};
 use crate::tab::svg_editor::gesture_handler::get_zoom_fit_transform;
 use crate::theme::palette::ThemePalette;
 
-use super::util::transform_rect;
+use super::util::{devc_to_point, transform_rect};
 use super::Buffer;
 
 const STROKE_WIDTH: AttributeIndex = 0;
 
-struct VertexConstructor {
-    color: epaint::Color32,
+pub struct VertexConstructor {
+    pub(crate) color: epaint::Color32,
 }
 impl FillVertexConstructor<epaint::Vertex> for VertexConstructor {
     fn new_vertex(&mut self, vertex: tessellation::FillVertex) -> epaint::Vertex {
@@ -319,11 +318,12 @@ fn tesselate_path<'a>(
             }
 
             if let Some(forces) = weak_path_pressures.get(id) {
-                let pressure_at_segment = forces
-                    .get(i)
-                    .map(|pressure| pressure * 2.0 + 0.5)
-                    .unwrap_or(1.0);
-                thickness *= pressure_at_segment;
+                // (thickness + thickness * pen.pressure_alpha) as f64,
+
+                let pressure_at_segment =
+                    if let Some(p) = forces.get(i) { p } else { forces.get(i - 1).unwrap_or(&0.0) };
+
+                thickness += thickness * pressure_at_segment;
             }
 
             let t = fit_transform.unwrap_or_default();
@@ -381,8 +381,4 @@ fn tesselate_path<'a>(
     } else {
         None
     }
-}
-
-fn devc_to_point(dvec: DVec2) -> Point {
-    Point::new(dvec.x as f32, dvec.y as f32)
 }

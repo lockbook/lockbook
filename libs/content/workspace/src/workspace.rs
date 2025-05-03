@@ -423,7 +423,7 @@ impl Workspace {
                                 } else if let Some(svg) = tab.svg_mut() {
                                     if let TabSaveContent::Svg(content) = content {
                                         svg.open_file_hmac = Some(hmac);
-                                        svg.opened_content = content;
+                                        svg.opened_content = *content;
                                     }
                                 }
                                 sync = true;

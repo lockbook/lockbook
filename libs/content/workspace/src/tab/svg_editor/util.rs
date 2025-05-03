@@ -4,7 +4,9 @@ use super::element::BoundedElement;
 
 use bezier_rs::{Bezier, Subpath};
 use egui::TouchPhase;
+use glam::DVec2;
 use lb_rs::model::svg::element::{Element, ManipulatorGroupId};
+use lyon::math::Point;
 use resvg::usvg::Transform;
 
 pub fn pointer_intersects_element(
@@ -110,4 +112,15 @@ pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
         }
     });
     custom_multi_touch
+}
+
+pub fn devc_to_point(dvec: DVec2) -> Point {
+    Point::new(dvec.x as f32, dvec.y as f32)
+}
+
+pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
+    egui::Rect {
+        min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
+        max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
+    }
 }
