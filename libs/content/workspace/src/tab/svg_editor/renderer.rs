@@ -318,8 +318,6 @@ fn tesselate_path<'a>(
             }
 
             if let Some(forces) = weak_path_pressures.get(id) {
-                // (thickness + thickness * pen.pressure_alpha) as f64,
-
                 let pressure_at_segment =
                     if let Some(p) = forces.get(i) { p } else { forces.get(i - 1).unwrap_or(&0.0) };
 

@@ -796,10 +796,11 @@ fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCon
 
     show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=30.0);
 
-    // show pressure sensitivity controls
-    ui.add_space(10.0);
+    if cfg!(target_os = "ios") {
+        ui.add_space(10.0);
 
-    show_pressure_alpha_slider(ui, pen);
+        show_pressure_alpha_slider(ui, pen);
+    }
 
     ui.add_space(10.0);
 
