@@ -324,53 +324,57 @@ fn print_ast<'a>(root: &'a AstNode<'a>) {
 
 fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
     let last_child = node.next_sibling().is_none();
-
-    // convert cardinal (inc, inc) pairs to ordinal (inc, exc) pairs
     let sourcepos = node.data.borrow().sourcepos;
-    // let sourcepos = Sourcepos {
-    //     start: LineColumn { line: sourcepos.start.line - 1, column: sourcepos.start.column - 1 },
-    //     end: LineColumn { line: sourcepos.end.line - 1, ..sourcepos.end },
-    // };
 
     if indent.is_empty() {
         println!(
             "{} {:?} {}{}{}",
-            if node.data.borrow().value.block() { "■" } else { "=" }.cyan(),
+            if node.data.borrow().value.block() { "□" } else { "☰" }.blue(),
             node.data.borrow().value,
-            format!("{}", sourcepos).bright_cyan(),
+            format!("{}", sourcepos).yellow(),
             if node.children().count() > 0 {
-                format!(" +{}", node.children().count())
+                format!(" +{} ", node.children().count())
             } else {
                 "".into()
             }
-            .cyan(),
+            .blue(),
             if node.children().count() > 0 {
-                if node.data.borrow().value.contains_inlines() { "=" } else { "■" }.bright_black()
+                if !node.data.borrow().value.block() || node.data.borrow().value.contains_inlines()
+                {
+                    "☰"
+                } else {
+                    "□"
+                }
             } else {
-                "".into()
+                ""
             }
-            .bright_black(),
+            .bright_magenta(),
         );
     } else {
         println!(
             "{}{}{} {:?} {}{}{}",
             indent,
             if last_child { "└>" } else { "├>" }.bright_black(),
-            if node.data.borrow().value.block() { "■" } else { "=" }.cyan(),
+            if node.data.borrow().value.block() { "□" } else { "☰" }.blue(),
             node.data.borrow().value,
-            format!("{}", sourcepos).bright_cyan(),
+            format!("{}", sourcepos).yellow(),
             if node.children().count() > 0 {
-                format!(" +{}", node.children().count())
+                format!(" +{} ", node.children().count())
             } else {
                 "".into()
             }
-            .cyan(),
+            .blue(),
             if node.children().count() > 0 {
-                if node.data.borrow().value.contains_inlines() { "=" } else { "■" }.bright_black()
+                if !node.data.borrow().value.block() || node.data.borrow().value.contains_inlines()
+                {
+                    "☰"
+                } else {
+                    "□"
+                }
             } else {
-                "".into()
+                ""
             }
-            .bright_black(),
+            .bright_magenta(),
         );
     }
     for child in node.children() {
