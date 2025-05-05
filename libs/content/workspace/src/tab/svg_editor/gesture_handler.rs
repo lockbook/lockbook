@@ -8,6 +8,7 @@ use super::{element::BoundedElement, SVGEditor};
 use lb_rs::model::svg::{buffer::u_transform_to_bezier, element::Element};
 
 use super::{toolbar::ToolContext, Buffer};
+pub const MIN_ZOOM_LEVEL: f32 = 0.1;
 
 #[derive(Default)]
 pub struct GestureHandler {
@@ -250,6 +251,12 @@ impl GestureHandler {
 
 pub fn transform_canvas(buffer: &mut Buffer, t: Transform) {
     let new_transform = buffer.master_transform.post_concat(t);
+
+    // max allowed zoom level is 10%
+    if buffer.master_transform.sx < MIN_ZOOM_LEVEL && new_transform.sx < buffer.master_transform.sx
+    {
+        return;
+    }
     if new_transform.sx == 0.0 || new_transform.sy == 0.0 {
         return;
     }
