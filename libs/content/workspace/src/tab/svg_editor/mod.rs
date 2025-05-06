@@ -224,8 +224,15 @@ impl SVGEditor {
             return;
         }
 
-        let distance_between_dots = (30.0 * self.buffer.master_transform.sx).max(16.0);
-        let dot_radius = (1. * self.buffer.master_transform.sx).max(0.6);
+        let mut distance_between_dots = 30.0 * self.buffer.master_transform.sx;
+        let mut dot_radius = (1. * self.buffer.master_transform.sx).max(0.6);
+        if distance_between_dots < 5.0 {
+            distance_between_dots *= 5.0;
+            dot_radius *= 3.0;
+        } else if distance_between_dots < 10.0 {
+            distance_between_dots *= 2.0;
+            dot_radius *= 2.0;
+        }
 
         let offset = egui::vec2(
             self.buffer
