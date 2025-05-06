@@ -21,7 +21,7 @@ use super::{
     eraser::DEFAULT_ERASER_RADIUS,
     gesture_handler::{
         get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
-        zoom_percentage_to_transform, GestureHandler,
+        zoom_percentage_to_transform, GestureHandler, MIN_ZOOM_LEVEL,
     },
     history::History,
     pen::{DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
@@ -351,11 +351,8 @@ impl Toolbar {
                     .inner_margin(egui::Margin::symmetric(7.5, 3.5))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            let zoom_percentage = ((tlbr_ctx.buffer.master_transform.sx
-                                + tlbr_ctx.buffer.master_transform.sy)
-                                / 2.0
-                                * 100.0)
-                                .round();
+                            let zoom_percentage =
+                                (tlbr_ctx.buffer.master_transform.sx * 100.0).round();
 
                             let mut requested_zoom_change = None;
 
@@ -380,8 +377,15 @@ impl Toolbar {
                                 ));
                             }
 
+                            let zoom_percentage_label =
+                                if tlbr_ctx.buffer.master_transform.sx <= MIN_ZOOM_LEVEL {
+                                    "MAX"
+                                } else {
+                                    &format!("{}%", zoom_percentage as i32)
+                                };
+
                             if Button::default()
-                                .text(format!("{}%", zoom_percentage as i32).as_str())
+                                .text(zoom_percentage_label)
                                 .show(ui)
                                 .clicked()
                             {
