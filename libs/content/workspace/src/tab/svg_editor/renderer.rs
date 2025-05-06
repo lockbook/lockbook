@@ -311,8 +311,8 @@ fn tesselate_path<'a>(
         while let Some(seg) = p.data.get_segment(i) {
             let mut thickness = stroke.width * p.transform.sx;
             if let Some(t) = fit_transform {
-                thickness *= t.sx;
-                thickness = thickness.max(0.5);
+                thickness *= t.sx * master_transform.sx;
+                thickness = thickness.max(0.3);
             } else {
                 thickness *= master_transform.sx
             }
