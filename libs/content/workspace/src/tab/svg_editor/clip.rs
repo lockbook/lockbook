@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use lb_rs::{
     model::svg::{
         buffer::{u_transform_to_bezier, Buffer},
