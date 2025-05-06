@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use lb_rs::{
     model::svg::{
         buffer::{u_transform_to_bezier, Buffer},
@@ -10,7 +12,10 @@ use resvg::usvg::{NonZeroRect, Transform};
 
 use crate::tab::{svg_editor::element::BoundedElement, ClipContent, ExtendedInput as _};
 
-use super::{selection::SelectedElement, InsertElement, SVGEditor, Tool};
+use super::{
+    gesture_handler::get_rect_identity_transform, selection::SelectedElement, util::transform_rect,
+    InsertElement, SVGEditor, Tool,
+};
 
 impl SVGEditor {
     pub fn handle_clip_input(&mut self, ui: &mut egui::Ui) {
@@ -33,17 +38,44 @@ impl SVGEditor {
                                     )
                                 });
 
+                                let img_rect = egui::Rect::from_min_size(
+                                    paste_pos,
+                                    egui::vec2(img.width() as f32, img.height() as f32),
+                                );
+
+                                let transform = if ui.available_rect_before_wrap().width()
+                                    < img_rect.width() * 2.0
+                                    || ui.available_rect_before_wrap().height()
+                                        < img_rect.height() * 2.0
+                                {
+                                    get_rect_identity_transform(
+                                        ui.available_rect_before_wrap(),
+                                        img_rect,
+                                        0.5,
+                                        paste_pos,
+                                    )
+                                } else {
+                                    Some(Transform::identity().post_translate(
+                                        paste_pos.x - img_rect.center().x,
+                                        paste_pos.y - img_rect.center().y,
+                                    ))
+                                }
+                                .unwrap_or_default();
+
+                                let fitted_img_rect = transform_rect(img_rect, transform);
+
+                                let id = Uuid::new_v4();
                                 self.buffer.elements.insert(
-                                    Uuid::new_v4(),
+                                    id,
                                     Element::Image(Image {
                                         data: resvg::usvg::ImageKind::PNG(data.into()),
                                         visibility: resvg::usvg::Visibility::Visible,
-                                        transform: Transform::identity(),
+                                        transform,
                                         view_box: NonZeroRect::from_xywh(
-                                            paste_pos.x,
-                                            paste_pos.y,
-                                            img.width() as f32,
-                                            img.height() as f32,
+                                            fitted_img_rect.min.x,
+                                            fitted_img_rect.min.y,
+                                            fitted_img_rect.width(),
+                                            fitted_img_rect.height(),
                                         )
                                         .unwrap(),
                                         href: file.id,
@@ -52,6 +84,11 @@ impl SVGEditor {
                                         deleted: false,
                                     }),
                                 );
+
+                                self.toolbar.active_tool = Tool::Selection;
+
+                                self.toolbar.selection.selected_elements =
+                                    vec![SelectedElement { id, transform: Transform::identity() }];
                             }
                             ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
                         }
@@ -118,6 +155,8 @@ impl SVGEditor {
                                 .insert_before(0, new_id, transformed_el);
                             new_ids.push(new_id);
                         }
+
+                        //todo: support images
 
                         self.history.save(super::Event::Insert(
                             pasted_buffer

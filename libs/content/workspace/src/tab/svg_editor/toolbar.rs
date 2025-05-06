@@ -923,7 +923,9 @@ fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
     let mut bez =
         bezier_rs::Bezier::from_cubic_coordinates(146., 162., 272.0, 239., 215., 68., 329., 148.);
     let path_rect = bb_to_rect(bez.bounding_box());
-    if let Some(t) = get_rect_identity_transform(preview_rect, path_rect, 0.7) {
+    if let Some(t) =
+        get_rect_identity_transform(preview_rect, path_rect, 0.7, preview_rect.center())
+    {
         bez = bez.apply_transformation(|p| DVec2 {
             x: t.sx as f64 * p.x + t.tx as f64,
             y: t.sy as f64 * p.y + t.ty as f64,
