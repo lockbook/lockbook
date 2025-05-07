@@ -1,6 +1,9 @@
 #![recursion_limit = "256"]
 
+use account_dbs::AccountDbs;
 use db_rs::Db;
+use lb_rs::model::file_like::FileLike;
+use lb_rs::model::server_meta::ServerMeta;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::document_service::OnDiskDocuments;
@@ -10,7 +13,7 @@ use lockbook_server_lib::router_service::{
 };
 use lockbook_server_lib::schema::ServerV4;
 use lockbook_server_lib::*;
-use schema::{Account, ServerV5};
+use schema::{Account, AccountV1, ServerV5};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tracing::*;
@@ -95,9 +98,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-async fn migrate(v4: Arc<Mutex<ServerV4>>, v5: Arc<RwLock<ServerV5>>) {
+async fn migrate(
+    cfg: Config, v4: Arc<Mutex<ServerV4>>, v5: Arc<RwLock<ServerV5>>, a_dbs: AccountDbs,
+) {
     let v4 = v4.lock().await;
     let mut v5 = v5.write().await;
+    let mut adbs = a_dbs.write().await;
 
     for (owner, old_account) in v4.accounts.get() {
         v5.accounts
@@ -109,6 +115,30 @@ async fn migrate(v4: Arc<Mutex<ServerV4>>, v5: Arc<RwLock<ServerV5>>) {
                 },
             )
             .unwrap();
+
+        let db = AccountV1::init(db_rs::Config::in_folder(&cfg.index_db.db_location)).unwrap();
+        let db = Arc::new(RwLock::new(db));
+        adbs.insert(*owner, db);
+    }
+
+    for (owner, ids) in v4.owned_files.get() {
+        for id in ids {
+            let meta = v4.metas.get().get(id).unwrap();
+            let db = adbs.get_mut(&owner).unwrap();
+            let mut db = db.write().await;
+            db.metas
+                .insert(*meta.id(), ServerMeta::from(meta.clone()))
+                .unwrap();
+        }
+    }
+
+    for (owner, ids) in v4.shared_files.get() {
+        for id in ids {
+            let meta = v4.metas.get().get(id).unwrap();
+            let db = adbs.get_mut(&owner).unwrap();
+            let mut db = db.write().await;
+            db.shared_files.push((*meta.id(), meta.owner())).unwrap();
+        }
     }
 
     for (username, owner) in v4.usernames.get() {
