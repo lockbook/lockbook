@@ -135,11 +135,11 @@ class FilesViewModel: ObservableObject {
     
     func getConsolidatedSelection() -> [File] {
         var selected: [File] = []
-        let (explicitly, implicitly): (Set<File>, Set<File>) = switch selectedFilesState {
+        let explicitly: Set<File> = switch selectedFilesState {
         case .unselected:
-            ([], [])
-        case .selected(explicitly: let explicitly, implicitly: let implicitly):
-            (explicitly, implicitly)
+            []
+        case .selected(explicitly: let explicitly, implicitly: _):
+            explicitly
         }
         
         

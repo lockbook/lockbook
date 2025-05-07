@@ -18,6 +18,9 @@ struct DetailView: View {
                 WorkspaceView(AppState.workspaceState, AppState.lb.lbUnsafeRawPtr)
             }
         }
+        .onAppear {
+            toggleTabVisibility()
+        }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 HStack(alignment: .bottom, spacing: 5) {
@@ -72,6 +75,13 @@ struct DetailView: View {
             }
         }).compactMap({ $0 }))
     }
+    
+    
+    func toggleTabVisibility() {
+        DispatchQueue.main.async {
+            AppState.workspaceState.showTabs = isConstrainedLayout
+        }
+    }
 }
 
 struct ConstrainedTitle: ViewModifier {
@@ -89,7 +99,7 @@ struct ConstrainedTitle: ViewModifier {
     }
     
     func body(content: Content) -> some View {
-        if isConstrainedLayout || (!isConstrainedLayout && workspaceState.tabCount == 1) {
+        if isConstrainedLayout {
             content
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {

@@ -8,6 +8,20 @@ struct DebugView: View {
     
     var body: some View {
         VStack {
+            #if os(macOS)
+            if let debugInfo {
+                HStack {
+                    Text("Debug Info")
+                    
+                    Spacer()
+                    
+                    Button("Copy To Clipboard", action: {
+                        ClipboardHelper.copyToClipboard(debugInfo)
+                    })
+                }
+            }
+            #endif
+            
             if let debugInfo {
                 ScrollView {
                     Spacer()
@@ -15,6 +29,7 @@ struct DebugView: View {
                     Text(debugInfo)
                         .monospaced()
                         .padding()
+                        .textSelection(.enabled)
                 
                     Spacer()
                 }
@@ -42,6 +57,7 @@ struct DebugView: View {
 #Preview {
     NavigationStack {
         DebugView()
+            .frame(width: 500, height: 500)
     }
 }
 

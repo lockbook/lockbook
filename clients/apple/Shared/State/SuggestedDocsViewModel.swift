@@ -19,7 +19,6 @@ class SuggestedDocsViewModel: ObservableObject {
     }
     
     func loadSuggestedDocs() {
-        print("going to load suggested docs")
         DispatchQueue.global(qos: .userInitiated).async {
             let res = AppState.lb.suggestedDocs()
             
@@ -40,7 +39,7 @@ class SuggestedDocsViewModel: ObservableObject {
                             lastModified: AppState.lb.getTimestampHumanString(timestamp: Int64(file.lastModified))
                         ))
                     })
-                case .failure(let error):
+                case .failure(_):
                     print("ignored for now")
                 }
             }

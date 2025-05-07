@@ -79,12 +79,11 @@ struct FileTreeView: NSViewRepresentable {
                 guard let treeView else {
                     return
                 }
-                print("expanding folder")
-
                 
                 self?.expandToFile(treeView: treeView, file: file)
                 let row = treeView.row(forItem: file)
                 treeView.selectRowIndexes([row], byExtendingSelection: false)
+                treeView.animator().scrollRowToVisible(row)
             }
             .store(in: &cancellables)
             
@@ -109,6 +108,7 @@ struct FileTreeView: NSViewRepresentable {
                 self?.expandToFile(treeView: treeView, file: file)
                 let row = treeView.row(forItem: file)
                 treeView.selectRowIndexes([row], byExtendingSelection: false)
+                treeView.animator().scrollRowToVisible(row)
             }
             .store(in: &cancellables)
             
@@ -401,11 +401,6 @@ class FileTreeDelegate: NSObject, MenuOutlineViewDelegate {
 
             filesModel.addFileToSelection(file: file)
         }
-        
-        guard let file = outlineView.item(atRow: outlineView.selectedRow) as? File else {
-            return
-        }
-        
     }
     
     func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {

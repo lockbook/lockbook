@@ -28,6 +28,8 @@ class PathSearchViewModel: ObservableObject {
     }
     
     func search() {
+        selected = 0
+        
         DispatchQueue.global(qos: .userInitiated).async {
             let res = AppState.lb.search(input: self.input, searchPaths: true, searchDocs: false)
             

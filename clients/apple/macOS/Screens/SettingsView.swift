@@ -93,7 +93,7 @@ struct SettingsAccountView: View {
                 }
                 
                 HStack {
-                    Text("Delete account")
+                    Text("Delete Account")
                     Spacer()
                     Button("Delete Account", role: .destructive) {
                         deleteAccountConfirmation = true
@@ -111,6 +111,11 @@ struct SettingsAccountView: View {
         .formStyle(.grouped)
         .navigationDestination(isPresented: $showAccountKeys, destination: {
             AccountKeysView()
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        Text("Account Keys").font(.headline)
+                    }
+                }
         })
     }
 }
@@ -172,9 +177,9 @@ struct SettingsUsageView: View {
                     }
                     
                     if !isPremium {
-                        NavigationLink("Upgrade now") {
+                        NavigationLink("Upgrade Now") {
                             VStack {
-                                Text("Upgrade your account")
+                                Text("Upgrade Your Account")
                                     .font(.title)
                                     .fontWeight(.bold)
                                 
@@ -210,7 +215,7 @@ struct SettingsDebugView: View {
 
     var body: some View {
         Form {
-            Section {
+            Section("Debug") {
                 if let account = model.account {
                     HStack {
                         Text("Server:")

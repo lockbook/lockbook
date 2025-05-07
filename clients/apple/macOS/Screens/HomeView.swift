@@ -49,14 +49,13 @@ struct SidebarView: View {
                 .foregroundStyle(.red)
         } else if filesModel.loaded {
             Form {
-                Section(header:
-                    Label("Suggested Documents", systemImage: "sparkle")
+                CollapsableSection(id: "Suggested_Docs", label: {
+                    Label("Suggested Documents", systemImage: "books.vertical.fill")
                     .bold()
-                    .padding(.horizontal)
                     .font(.callout)
-                    .padding(.top, 8)) {
+                }, content: {
                     SuggestedDocsView(filesModel: filesModel)
-                }
+                })
                 
                 Section(header:
                     Label("Files", systemImage: "folder")
@@ -70,7 +69,7 @@ struct SidebarView: View {
                 
                 Spacer()
                 
-                StatusBar()
+                StatusBarView()
             }
             .formStyle(.columns)
             .selectFolderSheets()
@@ -128,8 +127,6 @@ struct DetailView: View {
 }
 
 #Preview("Home View") {
-    let workspaceState = WorkspaceState()
-    
     return HomeView()
         .environmentObject(AppState.workspaceState)
 }

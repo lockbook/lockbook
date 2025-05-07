@@ -23,13 +23,16 @@ struct HomeView: View {
             } else {
                 PathSearchContainerView {
                     NavigationSplitView(sidebar: {
-                        sidebar
+                        SearchContainerView {
+                            sidebar
+                        }
                     }, detail: {
                         NavigationStack {
                             detail
                         }
                     })
                     .environment(\.isConstrainedLayout, false)
+                    
                 }
             }
         }
@@ -80,17 +83,18 @@ struct SidebarView: View {
                 .foregroundStyle(.red)
         } else if filesModel.loaded {
             if let root = filesModel.root {
-                VStack(alignment: .leading) {
-                    Section(header: Text("Suggested")
-                        .bold()
-                        .foregroundColor(.primary)
-                        .textCase(.none)
-                        .font(.headline)
-                        .padding(.bottom, 3)
-                        .padding(.top, 8)) {
-                            SuggestedDocsView(filesModel: filesModel)
-                        }
-                        .padding(.horizontal, 20)
+                Form {
+                    CollapsableSection(id: "Suggested_Docs", label: {
+                        Text("Suggested")
+                            .bold()
+                            .foregroundColor(.primary)
+                            .textCase(.none)
+                            .font(.headline)
+                            .padding(.bottom, 10)
+                            .padding(.top, 8)
+                    }, content: {
+                        SuggestedDocsView(filesModel: filesModel)
+                    })
                     
                     Section(header: Text("Files")
                         .bold()
@@ -106,22 +110,25 @@ struct SidebarView: View {
                         }
                         .padding(.horizontal, 20)
                     
+                    Spacer()
+                    
                     StatusBarView()
-                    .confirmationDialog(
-                        "Are you sure? This action cannot be undone.",
-                        isPresented: Binding(
-                            get: { filesModel.isMoreThanOneFileInDeletion() },
-                            set: { _ in filesModel.deleteFileConfirmation = nil }
-                        ),
-                        titleVisibility: .visible,
-                        actions: {
-                            if let files = filesModel.deleteFileConfirmation {
-                                DeleteConfirmationButtons(files: files)
+                        .confirmationDialog(
+                            "Are you sure? This action cannot be undone.",
+                            isPresented: Binding(
+                                get: { filesModel.isMoreThanOneFileInDeletion() },
+                                set: { _ in filesModel.deleteFileConfirmation = nil }
+                            ),
+                            titleVisibility: .visible,
+                            actions: {
+                                if let files = filesModel.deleteFileConfirmation {
+                                    DeleteConfirmationButtons(files: files)
+                                }
                             }
-                        }
-                    )
-                    .selectFolderSheets()
+                        )
+                        .selectFolderSheets()
                 }
+                .formStyle(.columns)
                 .environmentObject(filesModel)
                 .navigationTitle(root.name)
             }

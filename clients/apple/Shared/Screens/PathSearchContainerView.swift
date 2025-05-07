@@ -25,6 +25,9 @@ struct PathSearchContainerView<Content: View>: View {
             .keyboardShortcut("o", modifiers: [.command])
             .hidden()
         )
+        .onChange(of: model.isShown) { _ in
+            model.selected = 0
+        }
     }
     
     var searchWrapper: some View {

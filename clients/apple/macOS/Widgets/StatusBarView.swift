@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftWorkspace
 
-struct StatusBar: View {
+struct StatusBarView: View {
     @EnvironmentObject var workspaceState: WorkspaceState
     
     var body: some View {
@@ -32,6 +32,6 @@ struct StatusBar: View {
     let workspaceState = WorkspaceState()
     workspaceState.statusMsg = "Just synced!"
     
-    return StatusBar()
+    return StatusBarView()
         .environmentObject(workspaceState)
 }
