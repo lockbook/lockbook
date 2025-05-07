@@ -40,19 +40,6 @@ pub struct CoreV3 {
     pub doc_events: List<DocEvent>,
 }
 
-pub struct CoreV4 {
-    pub account: Single<Account>,
-    pub last_synced: Single<i64>,
-    pub root: Single<Uuid>,
-    pub local_metadata: LookupTable<Uuid, SignedMeta>,
-    pub base_metadata: LookupTable<Uuid, SignedMeta>,
-
-    /// map from pub key to username
-    pub pub_key_lookup: LookupTable<Owner, String>,
-
-    pub doc_events: List<DocEvent>,
-}
-
 pub struct LbRO<'a> {
     guard: RwLockReadGuard<'a, CoreDb>,
 }

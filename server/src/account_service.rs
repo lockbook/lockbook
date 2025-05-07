@@ -80,11 +80,7 @@ where
         }
 
         let username = request.username;
-        let account = Account {
-            username: username.clone(),
-            billing_info: Default::default(),
-            migrated: false,
-        };
+        let account = Account { username: username.clone(), billing_info: Default::default() };
 
         let owner = Owner(request.public_key);
 
@@ -109,8 +105,6 @@ where
     pub async fn new_account_v2(
         &self, context: RequestContext<NewAccountReqV2>,
     ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
-        return todo!();
-
         let request = &context.request;
         let request =
             NewAccountReqV2 { username: request.username.to_lowercase(), ..request.clone() };
@@ -144,11 +138,7 @@ where
         // }
 
         let username = request.username;
-        let account = Account {
-            username: username.clone(),
-            billing_info: Default::default(),
-            migrated: true,
-        };
+        let account = Account { username: username.clone(), billing_info: Default::default() };
 
         let owner = Owner(request.public_key);
 
@@ -211,7 +201,7 @@ where
             .accounts
             .get()
             .get(&Owner(key))
-            .map(|account| Ok(GetUsernameResponse { username: account.username.clone() }))
+            .map(|account| Ok(GetUsernameResponse { username: account.username.to_string() }))
             .unwrap_or(Err(ClientError(GetUsernameError::UserNotFound)))
     }
 

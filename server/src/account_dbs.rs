@@ -1,5 +1,5 @@
 use db_rs::Db;
-use lb_rs::model::{file_metadata::Owner, schema::AccountV1, server_tree_v2::ServerTreeV2};
+use lb_rs::model::file_metadata::Owner;
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -9,6 +9,8 @@ use crate::{
         stripe_client::StripeClient,
     },
     document_service::DocumentService,
+    schema::AccountV1,
+    server_tree::ServerTreeV2,
     ServerError, ServerState,
 };
 
@@ -33,7 +35,9 @@ where
         Ok(account_db)
     }
 
-    pub async fn get_owners<T: Debug>(&self, owner: Owner) -> Result<Vec<AccountDb>, ServerError<T>> {
+    pub async fn get_owners<T: Debug>(
+        &self, owner: Owner,
+    ) -> Result<Vec<AccountDb>, ServerError<T>> {
         let owner_dbs = self.account_dbs.read().await;
         let mut owners: Vec<Owner> = owner_dbs
             .get(&owner)
