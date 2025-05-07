@@ -10,7 +10,7 @@ use lockbook_server_lib::router_service::{
 };
 use lockbook_server_lib::schema::ServerV4;
 use lockbook_server_lib::*;
-use schema::ServerV5;
+use schema::{Account, ServerV5};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tracing::*;
@@ -93,6 +93,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     };
 
     Ok(())
+}
+
+async fn migrate(v4: Arc<Mutex<ServerV4>>, v5: Arc<RwLock<ServerV5>>) {
+    let v4 = v4.lock().await;
+    let mut v5 = v5.write().await;
+
+    for (owner, old_account) in v4.accounts.get() {
+        v5.accounts
+            .insert(
+                *owner,
+                Account {
+                    username: old_account.username.clone(),
+                    billing_info: old_account.billing_info.clone(),
+                },
+            )
+            .unwrap();
+    }
+
+    for (username, owner) in v4.usernames.get() {
+        v5.usernames.insert(username.clone(), *owner).unwrap();
+    }
+
+    for (play_id, owner) in v4.google_play_ids.get() {
+        v5.google_play_ids.insert(play_id.clone(), *owner).unwrap();
+    }
+
+    for (stripe_id, owner) in v4.stripe_ids.get() {
+        v5.stripe_ids.insert(stripe_id.clone(), *owner).unwrap();
+    }
+
+    for (appstore_id, owner) in v4.app_store_ids.get() {
+        v5.app_store_ids
+            .insert(appstore_id.clone(), *owner)
+            .unwrap();
+    }
 }
 
 fn spawn_compacter(cfg: &Config, db: &Arc<Mutex<ServerV4>>) {

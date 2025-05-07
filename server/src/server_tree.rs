@@ -1,8 +1,13 @@
-use db_rs::LookupTable;
 use tokio::sync::RwLockWriteGuard;
 use uuid::Uuid;
 
-use super::{file_metadata::Owner, schema::AccountV1, server_meta::ServerMeta, tree_like::{TreeLike, TreeLikeMut}};
+use lb_rs::model::{
+    file_metadata::Owner,
+    server_meta::ServerMeta,
+    tree_like::{TreeLike, TreeLikeMut},
+};
+
+use crate::schema::AccountV1;
 
 pub struct ServerTreeV2<'a> {
     pub owner: Owner,
