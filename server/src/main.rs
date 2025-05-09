@@ -124,11 +124,14 @@ async fn migrate(
     for (owner, ids) in v4.owned_files.get() {
         for id in ids {
             let meta = v4.metas.get().get(id).unwrap();
+            let size = *v4.sizes.get().get(id).unwrap();
             let db = adbs.get_mut(&owner).unwrap();
             let mut db = db.write().await;
+
             db.metas
                 .insert(*meta.id(), ServerMeta::from(meta.clone()))
                 .unwrap();
+            db.sizes.insert(*meta.id(), size).unwrap();
         }
     }
 

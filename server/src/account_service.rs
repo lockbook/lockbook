@@ -3,7 +3,7 @@ use crate::billing::billing_model::BillingPlatform;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
-use crate::schema::{Account, ServerDb};
+use crate::schema::{Account, ServerDb, ServerV5};
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
@@ -16,8 +16,8 @@ use lb_rs::model::api::{
     AdminGetAccountInfoResponse, AdminListUsersError, AdminListUsersRequest,
     AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
     GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
-    GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountReqV2,
-    NewAccountRequest, NewAccountResponse, PaymentPlatform, METADATA_FEE,
+    GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountRequest,
+    NewAccountResponse, PaymentPlatform, METADATA_FEE,
 };
 use lb_rs::model::clock::get_time;
 use lb_rs::model::file_like::FileLike;
@@ -45,69 +45,12 @@ where
     /// Create a new account given a username, public_key, and root folder.
     /// Checks that username is valid, and that username, public_key and root_folder are new.
     /// Inserts all of these values into their respective keys along with the default free account tier size
-    pub async fn new_account_v1(
+    pub async fn new_account(
         &self, context: RequestContext<NewAccountRequest>,
     ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
         let request = &context.request;
         let request =
             NewAccountRequest { username: request.username.to_lowercase(), ..request.clone() };
-
-        if !username_is_valid(&request.username) {
-            return Err(ClientError(NewAccountError::InvalidUsername));
-        }
-
-        if !&self.config.features.new_accounts {
-            return Err(ClientError(NewAccountError::Disabled));
-        }
-
-        let root = request.root_folder.clone();
-        let now = get_time().0 as u64;
-        let root = root.add_time(now);
-
-        let mut db = self.db_v4.lock().await;
-        let handle = db.begin_transaction()?;
-
-        if db.accounts.get().contains_key(&Owner(request.public_key)) {
-            return Err(ClientError(PublicKeyTaken));
-        }
-
-        if db.usernames.get().contains_key(&request.username) {
-            return Err(ClientError(UsernameTaken));
-        }
-
-        if db.metas.get().contains_key(root.id()) {
-            return Err(ClientError(FileIdTaken));
-        }
-
-        let username = request.username;
-        let account = Account { username: username.clone(), billing_info: Default::default() };
-
-        let owner = Owner(request.public_key);
-
-        let mut owned_files = HashSet::new();
-        owned_files.insert(*root.id());
-
-        db.accounts.insert(owner, account)?;
-        db.usernames.insert(username, owner)?;
-        db.owned_files.insert(owner, *root.id())?;
-        db.shared_files.create_key(owner)?;
-        db.file_children.create_key(*root.id())?;
-        db.metas.insert(*root.id(), root.clone())?;
-
-        handle.drop_safely()?;
-
-        Ok(NewAccountResponse { last_synced: root.version })
-    }
-
-    /// Create a new account given a username, public_key, and root folder.
-    /// Checks that username is valid, and that username, public_key and root_folder are new.
-    /// Inserts all of these values into their respective keys along with the default free account tier size
-    pub async fn new_account_v2(
-        &self, context: RequestContext<NewAccountReqV2>,
-    ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
-        let request = &context.request;
-        let request =
-            NewAccountReqV2 { username: request.username.to_lowercase(), ..request.clone() };
 
         if !username_is_valid(&request.username) {
             return Err(ClientError(NewAccountError::InvalidUsername));
@@ -132,34 +75,23 @@ where
             return Err(ClientError(UsernameTaken));
         }
 
-        // this check doesn't need to / can't happen anymore
-        // if db.metas.get().contains_key(root.id()) {
-        //     return Err(ClientError(FileIdTaken));
-        // }
-
         let username = request.username;
         let account = Account { username: username.clone(), billing_info: Default::default() };
 
         let owner = Owner(request.public_key);
 
-        // this no longer needs to happen
-        // let mut owned_files = HashSet::new();
-        // owned_files.insert(*root.id());
+        let mut owned_files = HashSet::new();
+        owned_files.insert(*root.id());
 
         db.accounts.insert(owner, account)?;
         db.usernames.insert(username, owner)?;
-
-        // also no longer needed
-        // db.owned_files.insert(owner, *root.id())?;
-        // db.shared_files.create_key(owner)?;
-        // db.file_children.create_key(*root.id())?;
 
         let account_db = self.new_db(owner).await?;
         account_db
             .write()
             .await
             .metas
-            .insert(*root.id(), root.clone())?;
+            .insert(*root.id(), root.clone().into())?;
 
         handle.drop_safely()?;
 
@@ -208,23 +140,23 @@ where
     pub async fn get_usage(
         &self, context: RequestContext<GetUsageRequest>,
     ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
-        let mut lock = self.db_v4.lock().await;
-        let db = lock.deref_mut();
+        let mut db = self.db_v5.read().await;
 
-        let cap = Self::get_cap(db, &context.public_key)?;
+        let cap = Self::get_cap(&db, &context.public_key)?;
 
-        // let owner = Owner(context.public_key);
-        // let owner_dbs = self.get_owners(owner).await?;
-        // let tree = self.get_tree(owner, &owner_dbs).await?;
+        let owner = Owner(context.public_key);
+        let owner_dbs = self.get_owners(owner).await?;
+        let tree = self.get_tree(owner, &owner_dbs).await?;
+        let tree = tree.to_lazy();
 
-        let mut tree = ServerTree::new(
-            Owner(context.public_key),
-            &mut db.owned_files,
-            &mut db.shared_files,
-            &mut db.file_children,
-            &mut db.metas,
-        )?
-        .to_lazy();
+        // let mut tree = ServerTree::new(
+        //     Owner(context.public_key),
+        //     &mut db.owned_files,
+        //     &mut db.shared_files,
+        //     &mut db.file_children,
+        //     &mut db.metas,
+        // )?
+        // .to_lazy();
         let usages = Self::get_usage_helper(&mut tree, db.sizes.get())?;
         Ok(GetUsageResponse { usages, cap })
     }
@@ -272,7 +204,7 @@ where
     }
 
     pub fn get_cap(
-        db: &ServerDb, public_key: &PublicKey,
+        db: &ServerV5, public_key: &PublicKey,
     ) -> Result<u64, ServerError<GetUsageHelperError>> {
         Ok(db
             .accounts
