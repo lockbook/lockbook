@@ -3,7 +3,7 @@ use crate::billing::billing_model::BillingPlatform;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
-use crate::schema::{Account, ServerDb};
+use crate::schema::{Account, ServerDb, ServerV5};
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
@@ -24,6 +24,7 @@ use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::lazy::LazyTree;
 use lb_rs::model::server_file::IntoServerFile;
+use lb_rs::model::server_meta::IntoServerMeta;
 use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
 use lb_rs::model::usage::bytes_to_human;
@@ -63,7 +64,7 @@ where
         let now = get_time().0 as u64;
         let root = root.add_time(now);
 
-        let mut db = self.index_db.lock().await;
+        let mut db = self.db_v5.write().await;
         let handle = db.begin_transaction()?;
 
         if db.accounts.get().contains_key(&Owner(request.public_key)) {
@@ -72,10 +73,6 @@ where
 
         if db.usernames.get().contains_key(&request.username) {
             return Err(ClientError(UsernameTaken));
-        }
-
-        if db.metas.get().contains_key(root.id()) {
-            return Err(ClientError(FileIdTaken));
         }
 
         let username = request.username;
@@ -88,10 +85,13 @@ where
 
         db.accounts.insert(owner, account)?;
         db.usernames.insert(username, owner)?;
-        db.owned_files.insert(owner, *root.id())?;
-        db.shared_files.create_key(owner)?;
-        db.file_children.create_key(*root.id())?;
-        db.metas.insert(*root.id(), root.clone())?;
+
+        let account_db = self.new_db(owner).await?;
+        account_db
+            .write()
+            .await
+            .metas
+            .insert(*root.id(), root.clone().into())?;
 
         handle.drop_safely()?;
 
@@ -108,8 +108,8 @@ where
     pub async fn public_key_from_username(
         &self, username: &str,
     ) -> Result<GetPublicKeyResponse, ServerError<GetPublicKeyError>> {
-        self.index_db
-            .lock()
+        self.db_v5
+            .read()
             .await
             .usernames
             .get()
@@ -127,32 +127,27 @@ where
     pub async fn username_from_public_key(
         &self, key: PublicKey,
     ) -> Result<GetUsernameResponse, ServerError<GetUsernameError>> {
-        self.index_db
-            .lock()
+        self.db_v5
+            .read()
             .await
             .accounts
             .get()
             .get(&Owner(key))
-            .map(|account| Ok(GetUsernameResponse { username: account.username.clone() }))
+            .map(|account| Ok(GetUsernameResponse { username: account.username.to_string() }))
             .unwrap_or(Err(ClientError(GetUsernameError::UserNotFound)))
     }
 
     pub async fn get_usage(
         &self, context: RequestContext<GetUsageRequest>,
     ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
-        let mut lock = self.index_db.lock().await;
-        let db = lock.deref_mut();
+        let mut db = self.db_v5.read().await;
 
-        let cap = Self::get_cap(db, &context.public_key)?;
+        let cap = Self::get_cap(&db, &context.public_key)?;
 
-        let mut tree = ServerTree::new(
-            Owner(context.public_key),
-            &mut db.owned_files,
-            &mut db.shared_files,
-            &mut db.file_children,
-            &mut db.metas,
-        )?
-        .to_lazy();
+        let owner = Owner(context.public_key);
+        let tree = self.get_tree(owner).await?;
+        let tree = tree.to_lazy();
+
         let usages = Self::get_usage_helper(&mut tree, db.sizes.get())?;
         Ok(GetUsageResponse { usages, cap })
     }
@@ -200,7 +195,7 @@ where
     }
 
     pub fn get_cap(
-        db: &ServerDb, public_key: &PublicKey,
+        db: &ServerV5, public_key: &PublicKey,
     ) -> Result<u64, ServerError<GetUsageHelperError>> {
         Ok(db
             .accounts
@@ -224,7 +219,7 @@ where
         &self, context: RequestContext<AdminDisappearAccountRequest>,
     ) -> Result<(), ServerError<AdminDisappearAccountError>> {
         let owner = {
-            let db = &self.index_db.lock().await;
+            let db = &self.db_v4.lock().await;
 
             if !Self::is_admin::<AdminDisappearAccountError>(
                 db,
@@ -258,7 +253,7 @@ where
     pub async fn admin_list_users(
         &self, context: RequestContext<AdminListUsersRequest>,
     ) -> Result<AdminListUsersResponse, ServerError<AdminListUsersError>> {
-        let (db, request) = (&self.index_db.lock().await, &context.request);
+        let (db, request) = (&self.db_v4.lock().await, &context.request);
 
         if !Self::is_admin::<AdminListUsersError>(
             db,
@@ -310,7 +305,7 @@ where
     pub async fn admin_get_account_info(
         &self, context: RequestContext<AdminGetAccountInfoRequest>,
     ) -> Result<AdminGetAccountInfoResponse, ServerError<AdminGetAccountInfoError>> {
-        let (mut lock, request) = (self.index_db.lock().await, &context.request);
+        let (mut lock, request) = (self.db_v4.lock().await, &context.request);
         let db = lock.deref_mut();
 
         if !Self::is_admin::<AdminGetAccountInfoError>(
@@ -411,7 +406,7 @@ where
         let mut docs_to_delete = Vec::new();
 
         {
-            let mut lock = self.index_db.lock().await;
+            let mut lock = self.db_v4.lock().await;
             let db = lock.deref_mut();
             let tx = db.begin_transaction()?;
 
