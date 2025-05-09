@@ -79,7 +79,7 @@ struct DetailView: View {
     
     func toggleTabVisibility() {
         DispatchQueue.main.async {
-            AppState.workspaceState.showTabs = isConstrainedLayout
+            AppState.workspaceState.showTabs = !isConstrainedLayout
         }
     }
 }

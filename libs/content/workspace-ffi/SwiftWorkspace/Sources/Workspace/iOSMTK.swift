@@ -834,7 +834,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     
     var docHeaderSize: Double {
         get {
-            showTabs ? ((workspaceState?.tabCount ?? 1) == 1 ? 0 : iOSMTK.TAB_BAR_HEIGHT) : 0
+            showTabs ? iOSMTK.TAB_BAR_HEIGHT : 0
         }
     }
     

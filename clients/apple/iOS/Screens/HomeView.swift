@@ -11,14 +11,22 @@ struct HomeView: View {
         Group {
             if horizontalSizeClass == .compact {
                 NavigationStack {
-                    DrawerView(homeState: homeState, menu: {
+//                    DrawerView(homeState: homeState, menu: {
+//                        SearchContainerView {
+//                            sidebar
+//                        }
+//                    }, content: {
+//                        detail
+//                    })
+                    NewDrawerView(homeState: homeState, mainView: {
+                        detail
+                    }, sideView: {
                         SearchContainerView {
                             sidebar
                         }
-                    }, content: {
-                        detail
                     })
-                    .environment(\.isConstrainedLayout, true)
+
+                    
                 }
             } else {
                 PathSearchContainerView {

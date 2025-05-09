@@ -34,7 +34,7 @@ pub fn init(config: &Config) -> LbResult<()> {
                 .boxed(),
         );
 
-        if config.stdout_logs {
+        if false {
             // stdout target for non-android platforms
             #[cfg(not(target_os = "android"))]
             layers.push(

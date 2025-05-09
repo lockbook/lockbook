@@ -39,7 +39,7 @@ public struct DrawerView<Menu: View, Content: View>: View {
                     menu
                 }
                     .transition(.move(edge: .leading))
-                    .frame(width: homeState.constrainedSidebarState == .openExpanded ? .infinity : 300)
+//                    .frame(width: homeState.constrainedSidebarState == .openExpanded ? .infinity : 300)
                     .zIndex(1)
             }
         }
