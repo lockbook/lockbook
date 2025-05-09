@@ -16,12 +16,9 @@ public class WorkspaceState: ObservableObject {
             #if os(macOS)
             shouldFocus = true
             #endif
-            pendingSharesOpen = false
         }
     }
-    
-    @Published public var pendingSharesOpen: Bool = false
-    
+        
     @Published public var selectedFolder: UUID? = nil
     
     @Published public var syncing: Bool = false
@@ -35,6 +32,7 @@ public class WorkspaceState: ObservableObject {
     @Published public var syncRequested: Bool = false
     @Published public var openDocRequested: UUID? = nil
     @Published public var closeAllTabsRequested: Bool = false
+    @Published public var closeDocRequested: UUID? = nil
     
     @Published public var newFolderButtonPressed: Bool = false
     
@@ -42,7 +40,6 @@ public class WorkspaceState: ObservableObject {
     
     @Published public var renameOpenDoc: Bool = false
     @Published public var fileOpCompleted: WSFileOpCompleted? = nil
-    @Published public var closeActiveTab: Bool = false
     
     @Published public var tabCount: Int = 0
         
@@ -71,6 +68,10 @@ public class WorkspaceState: ObservableObject {
         free_tab_ids(result)
         
         return newBuffer
+    }
+    
+    public func requestCloseDoc(id: UUID) {
+        self.closeDocRequested = id
     }
 }
 
