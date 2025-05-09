@@ -35,7 +35,9 @@ where
         Ok(account_db)
     }
 
-    pub async fn get_tree<T: Debug>(&self, owner: Owner) -> Result<ServerTreeV2, ServerError<T>> {
+    pub async fn get_tree_old<T: Debug>(
+        &self, owner: Owner,
+    ) -> Result<ServerTreeV2, ServerError<T>> {
         let owner_dbs = self.account_dbs.read().await;
         let mut owners: Vec<Owner> = owner_dbs
             .get(&owner)
@@ -47,8 +49,10 @@ where
             .iter()
             .map(|(_id, owner)| *owner)
             .collect();
+
         owners.push(owner);
         owners.sort_unstable_by_key(|owner| owner.0.serialize());
+        owners.dedup();
 
         // there is a gap in consistency here and there doesn't need to be
         let mut trees = vec![];
