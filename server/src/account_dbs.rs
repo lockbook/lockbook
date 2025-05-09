@@ -35,9 +35,7 @@ where
         Ok(account_db)
     }
 
-    pub async fn get_owners<T: Debug>(
-        &self, owner: Owner,
-    ) -> Result<Vec<AccountDb>, ServerError<T>> {
+    pub async fn get_tree<T: Debug>(&self, owner: Owner) -> Result<ServerTreeV2, ServerError<T>> {
         let owner_dbs = self.account_dbs.read().await;
         let mut owners: Vec<Owner> = owner_dbs
             .get(&owner)
@@ -52,20 +50,12 @@ where
         owners.push(owner);
         owners.sort_unstable_by_key(|owner| owner.0.serialize());
 
-        let mut dbs = vec![];
+        // there is a gap in consistency here and there doesn't need to be
+        let mut trees = vec![];
         for owner in owners {
             let db = owner_dbs.get(&owner).unwrap().clone();
-            dbs.push(db);
-        }
-        Ok(dbs)
-    }
-
-    pub async fn get_tree<'a, T: Debug>(
-        &self, owner: Owner, dbs: &'a Vec<AccountDb>,
-    ) -> Result<ServerTreeV2<'a>, ServerError<T>> {
-        let mut trees = vec![];
-        for tree in dbs {
-            trees.push(tree.write().await);
+            let db = db.write_owned().await;
+            trees.push((owner, db));
         }
 
         Ok(ServerTreeV2 { owner, trees })

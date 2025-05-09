@@ -145,18 +145,9 @@ where
         let cap = Self::get_cap(&db, &context.public_key)?;
 
         let owner = Owner(context.public_key);
-        let owner_dbs = self.get_owners(owner).await?;
-        let tree = self.get_tree(owner, &owner_dbs).await?;
+        let tree = self.get_tree(owner).await?;
         let tree = tree.to_lazy();
 
-        // let mut tree = ServerTree::new(
-        //     Owner(context.public_key),
-        //     &mut db.owned_files,
-        //     &mut db.shared_files,
-        //     &mut db.file_children,
-        //     &mut db.metas,
-        // )?
-        // .to_lazy();
         let usages = Self::get_usage_helper(&mut tree, db.sizes.get())?;
         Ok(GetUsageResponse { usages, cap })
     }
