@@ -32,8 +32,7 @@ where
     G: GooglePlayClient,
     D: DocumentService,
 {
-    core_req!(NewAccountRequest, ServerState::new_account_v1, server_state)
-        .or(core_req!(NewAccountReqV2, ServerState::new_account_v2, server_state))
+    core_req!(NewAccountRequest, ServerState::new_account, server_state)
         .or(core_req!(ChangeDocRequest, ServerState::change_doc, server_state))
         .or(core_req!(UpsertRequest, ServerState::upsert_file_metadata, server_state))
         .or(core_req!(GetDocRequest, ServerState::get_document, server_state))
@@ -345,7 +344,7 @@ lazy_static! {
 
 // This is an ugly macro that reduces a lot of boilerplate for each core request
 // there are a lot of core requests so there's a fair amount of token reduction going on
-// every once in a while I try to break it up in a more functional manner rather than 
+// every once in a while I try to break it up in a more functional manner rather than
 // using this macro.
 //
 // The key thing the macro does that's annoying to do elsewhere is express the idea of a
