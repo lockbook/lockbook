@@ -1,8 +1,9 @@
 use crate::billing::billing_model::SubscriptionProfile;
-use db_rs::{List, LookupSet, LookupTable, Single};
+use db_rs::{List, LookupList, LookupSet, LookupTable, Single};
 use db_rs_derive::Schema;
 use lb_rs::model::server_file::ServerFile;
 use lb_rs::model::server_meta::ServerMeta;
+use lb_rs::model::tree_like::TreeLike;
 use lb_rs::model::{file_metadata::Owner, signed_meta::SignedMeta};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -48,7 +49,7 @@ pub struct ServerV5 {
 #[derive(Schema)]
 pub struct AccountV1 {
     pub metas: LookupTable<Uuid, ServerMeta>,
-    pub shared_files: List<(Uuid, Owner)>,
+    pub shared_files: LookupList<Owner, Uuid>,
     pub sizes: LookupTable<Uuid, u64>,
     pub last_seen: Single<u64>,
 }
