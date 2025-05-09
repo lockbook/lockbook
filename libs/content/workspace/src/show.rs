@@ -66,6 +66,58 @@ impl Workspace {
         }
     }
 
+    fn show_mobile_landing_page(&mut self, ui: &mut egui::Ui) {
+        let punchout = if ui.visuals().dark_mode {
+            include_image!("../punchout-dark.png")
+        } else {
+            include_image!("../punchout-light.png")
+        };
+
+        ui.centered_and_justified(|ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(30.0);
+                let image_size = egui::vec2(200.0, 200.0);
+                ui.add(Image::new(punchout).fit_to_exact_size(image_size));
+                ui.add_space(120.0);
+
+                ui.label(
+                    RichText::new("TOOLS")
+                        .small()
+                        .weak()
+                        .text_style(egui::TextStyle::Button),
+                );
+                ui.add_space(24.0);
+
+                let is_beta = self
+                    .core
+                    .get_account()
+                    .map(|a| a.is_beta())
+                    .unwrap_or_default();
+                if is_beta
+                    && ui
+                        .add_sized(
+                            [200.0, 44.0],
+                            egui::Button::new(RichText::new("Mind Map").size(18.0)),
+                        )
+                        .clicked()
+                {
+                    self.upsert_mind_map(self.core.clone());
+                }
+                ui.add_space(12.0);
+
+                if ui
+                    .add_sized(
+                        [200.0, 44.0],
+                        egui::Button::new(RichText::new("Space Inspector").size(18.0)),
+                    )
+                    .clicked()
+                {
+                    self.start_space_inspector(self.core.clone(), None);
+                }
+            });
+        });
+    }
+
     fn show_landing_page(&mut self, ui: &mut egui::Ui) {
         let blue = ui.visuals().widgets.active.bg_fill;
         let weak_blue = blue.gamma_multiply(0.9);
