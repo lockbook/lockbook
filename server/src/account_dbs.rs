@@ -34,34 +34,4 @@ where
 
         Ok(account_db)
     }
-
-    pub async fn get_tree_old<T: Debug>(
-        &self, owner: Owner,
-    ) -> Result<ServerTreeV2, ServerError<T>> {
-        let owner_dbs = self.account_dbs.read().await;
-        let mut owners: Vec<Owner> = owner_dbs
-            .get(&owner)
-            .unwrap()
-            .read()
-            .await
-            .shared_files
-            .get()
-            .iter()
-            .map(|(_id, owner)| *owner)
-            .collect();
-
-        owners.push(owner);
-        owners.sort_unstable_by_key(|owner| owner.0.serialize());
-        owners.dedup();
-
-        // there is a gap in consistency here and there doesn't need to be
-        let mut trees = vec![];
-        for owner in owners {
-            let db = owner_dbs.get(&owner).unwrap().clone();
-            let db = db.write_owned().await;
-            trees.push((owner, db));
-        }
-
-        Ok(ServerTreeV2 { owner, trees })
-    }
 }
