@@ -445,6 +445,20 @@ impl SpaceInspector {
                 if response.clicked() && item_filerow.file.is_folder() {
                     changed_focused_folder = Some(item.id);
                 }
+                // Context menu
+                response.context_menu(|ui| {
+                    ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+
+                    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
+                        ui.close_menu();
+                    }
+
+                    if ui.button("Make Root").clicked() {
+                        changed_focused_folder = Some(item.id);
+                        ui.close_menu();
+                    }
+                    if ui.button("Delete").clicked() {}
+                });
 
                 response.on_hover_text(hover_text);
             }
