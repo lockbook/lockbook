@@ -300,31 +300,6 @@ impl Request for NewAccountRequest {
     const ROUTE: &'static str = "/new-account";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct NewAccountReqV2 {
-    pub username: Username,
-    pub public_key: PublicKey,
-    pub root_folder: SignedMeta,
-}
-
-impl NewAccountReqV2 {
-    pub fn new(account: &Account, root_folder: &ECSigned<Meta>) -> Self {
-        let root_folder = root_folder.clone();
-        NewAccountReqV2 {
-            username: account.username.clone(),
-            public_key: account.public_key(),
-            root_folder,
-        }
-    }
-}
-
-impl Request for NewAccountReqV2 {
-    type Response = NewAccountResponse;
-    type Error = NewAccountError;
-    const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/new-account-v2";
-}
-
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetBuildInfoRequest {}
 
