@@ -1,4 +1,4 @@
-use tokio::sync::RwLockWriteGuard;
+use tokio::sync::OwnedRwLockWriteGuard;
 use uuid::Uuid;
 
 use lb_rs::model::{
@@ -9,24 +9,25 @@ use lb_rs::model::{
 
 use crate::schema::AccountV1;
 
-pub struct ServerTreeV2<'a> {
+// todo: is it worthwhile to have a Mut variant and make this read only?
+pub struct ServerTreeV2 {
     pub owner: Owner,
-    pub trees: Vec<RwLockWriteGuard<'a, AccountV1>>,
+    pub trees: Vec<(Owner, OwnedRwLockWriteGuard<AccountV1>)>,
 }
 
-impl TreeLike for ServerTreeV2<'_> {
+impl TreeLike for ServerTreeV2 {
     type F = ServerMeta;
 
     fn ids(&self) -> Vec<Uuid> {
         let mut ids = vec![];
-        for tree in &self.trees {
+        for (_owner, tree) in &self.trees {
             ids.extend_from_slice(&tree.metas.ids());
         }
         ids
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
-        for tree in &self.trees {
+        for (_owner, tree) in &self.trees {
             if let Some(meta) = tree.metas.get().get(id) {
                 return Some(meta);
             }
@@ -36,7 +37,7 @@ impl TreeLike for ServerTreeV2<'_> {
     }
 }
 
-impl TreeLikeMut for ServerTreeV2<'_> {
+impl TreeLikeMut for ServerTreeV2 {
     fn insert(&mut self, f: Self::F) -> crate::LbResult<Option<Self::F>> {
         todo!()
     }
