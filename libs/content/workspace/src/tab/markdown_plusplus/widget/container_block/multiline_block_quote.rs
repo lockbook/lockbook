@@ -2,7 +2,7 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, TextFormat, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 
-use crate::tab::markdown_plusplus::{widget::Wrap, MarkdownPlusPlus};
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
     pub fn text_format_multiline_block_quote(&self, parent: &AstNode<'_>) -> TextFormat {
@@ -44,12 +44,5 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         result.min(line.len())
-    }
-
-    pub fn show_line_prefix_multiline_block_quote(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-        top_left: Pos2, height: f32, row_height: f32,
-    ) {
-        todo!()
     }
 }

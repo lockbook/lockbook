@@ -23,14 +23,6 @@ impl<'ast> MarkdownPlusPlus {
         // when the thematic break is nested in a container block with per-line
         // syntax, like a block quote, the range needs to be stripped of that
         // syntax
-        self.show_line_prefix(
-            ui,
-            node.parent().unwrap(),
-            self.node_first_line(node),
-            top_left,
-            wrap.height(), // todo: always 0
-            wrap.row_height,
-        );
         range.0 += self.line_prefix_len(node.parent().unwrap(), range);
 
         if self.node_intersects_selection(node) {

@@ -12,9 +12,7 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    pub fn span_footnote_reference(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, ix: u32,
-    ) -> f32 {
+    pub fn span_footnote_reference(&self, node: &'ast AstNode<'ast>, wrap: &Wrap, ix: u32) -> f32 {
         let sourcepos = node.data.borrow().sourcepos;
         let range = self.sourcepos_to_range(sourcepos);
 
@@ -36,8 +34,7 @@ impl<'ast> MarkdownPlusPlus {
 
     // [^footnotereference]
     pub fn show_footnote_reference(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        ix: u32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap, ix: u32,
     ) {
         let sourcepos = node.data.borrow().sourcepos;
         let range = self.sourcepos_to_range(sourcepos);

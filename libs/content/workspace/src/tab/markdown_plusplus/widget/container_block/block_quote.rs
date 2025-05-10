@@ -1,11 +1,11 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
 use crate::tab::markdown_plusplus::{
-    widget::{Wrap, BLOCK_SPACING, INDENT, ROW_SPACING},
+    widget::{Wrap, INDENT, ROW_HEIGHT},
     MarkdownPlusPlus,
 };
 
@@ -16,53 +16,57 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn height_block_quote(&self, node: &'ast AstNode<'ast>) -> f32 {
-        self.height_item(node)
+        let any_children = node.children().next().is_some();
+        if any_children {
+            self.block_children_height(node)
+        } else {
+            ROW_HEIGHT
+        }
     }
 
-    pub fn show_block_quote(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
+    pub fn show_block_quote(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
         let height = self.height_block_quote(node);
         let annotation_size = Vec2 { x: INDENT, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        for line_idx in self.node_lines(node).iter() {
-            let mut line = self.bounds.source_lines[line_idx];
-            line.0 += self.line_prefix_len(node.parent().unwrap(), line);
-
-            // When the cursor is inside the syntax for a particular line,
-            // reveal that line's syntax. This is a more subtle design than
-            // revealing the syntax for the line when the cursor is anywhere
-            // in the line, which itself is a more subtle design than
-            // revealing the syntax for all lines when the cursor is
-            // anywhere in the block quote. All designs seem viable.
-            //
-            // Revealing block quote syntax without revealing all syntax in the
-            // block quote introduces an interesting question: where do we show
-            // the `>` for the line? It depends on the heights of the
-            // descendant's lines. Consider the following example:
-            //
-            // > Block-Quoted Setext Heading 1
-            // > ===
-            // > ...and a paragraph to follow!
-            //
-            // In any design where we want to allow a user to edit a block quote
-            // without revealing the syntax for the whole block quote and
-            // everything inside (which itself would present interesting
-            // questions so it's not like there's a shortcut-workaround), we
-            // have to account for the cumulative heights of the preceding
-            // lines, which themselves could be affected by syntax reveal. In
-            // the example, the setext heading's underline is only revealed when
-            // the heading's range intersects the selection. Even the syntax
-            // reveal state of descendant nodes must be accounted for.
-        }
-
         // debug
         // ui.painter()
         //     .rect_stroke(annotation_space, 2., egui::Stroke::new(1., self.theme.fg().blue));
-        // }
 
-        let mut children_top_left = top_left;
-        children_top_left.x += annotation_space.width();
-        self.show_block_children(ui, node, children_top_left);
+        ui.painter().vline(
+            annotation_space.center().x,
+            annotation_space.y_range(),
+            Stroke::new(3., self.theme.bg().neutral_tertiary),
+        );
+        for line_idx in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line_idx];
+
+            let prefix_len = self.line_prefix_len(node, line);
+            let parent_prefix_len = self.line_prefix_len(node.parent().unwrap(), line);
+            let prefix = (line.start() + parent_prefix_len, line.start() + prefix_len);
+
+            self.bounds.paragraphs.push(prefix);
+        }
+
+        top_left.x += annotation_space.width();
+
+        let any_children = node.children().next().is_some();
+        if any_children {
+            self.show_block_children(ui, node, top_left);
+        } else {
+            let line = self.node_first_line(node);
+            let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
+            let node_line_start = node_line.start().into_range();
+
+            self.show_text_line(
+                ui,
+                top_left,
+                &mut Wrap::new(self.width(node)),
+                node_line_start,
+                self.text_format_document(),
+                false,
+            );
+        }
     }
 
     // This routine is standard-/reference-complexity, as the prefix len is
@@ -105,41 +109,5 @@ impl<'ast> MarkdownPlusPlus {
         // block quote marker is paragraph continuation text is a block quote
         // with Bs as its content."
         result.min(line.len())
-    }
-
-    pub fn show_line_prefix_block_quote(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-        top_left: Pos2, height: f32, _row_height: f32,
-    ) {
-        let annotation_size = Vec2 { x: INDENT, y: height };
-        let annotation_space = Rect::from_min_size(top_left, annotation_size);
-        let text_format = self.text_format_syntax(node);
-
-        let line_prefix_len = self.line_prefix_len(node, line);
-        let parent_line_prefix_len = self.line_prefix_len(node.parent().unwrap(), line);
-        let prefix_range = (line.start() + parent_line_prefix_len, line.start() + line_prefix_len);
-
-        if prefix_range.intersects(&self.buffer.current.selection, false)
-            || self
-                .buffer
-                .current
-                .selection
-                .contains(prefix_range.start(), true, true)
-        {
-            let mut wrap = Wrap::new(INDENT);
-            self.show_text_line(ui, top_left, &mut wrap, prefix_range, text_format, false);
-        } else {
-            ui.painter().vline(
-                annotation_space.center().x,
-                annotation_space
-                    .y_range()
-                    .expand(ROW_SPACING.max(BLOCK_SPACING)), // lazy af hack
-                Stroke::new(3., self.theme.bg().neutral_tertiary),
-            );
-        }
-
-        if !prefix_range.is_empty() {
-            self.bounds.paragraphs.push(prefix_range);
-        }
     }
 }

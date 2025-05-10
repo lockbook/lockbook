@@ -3,7 +3,7 @@ use egui::{FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_plusplus::{
-    widget::{Wrap, BLOCK_SPACING, ROW_HEIGHT, ROW_SPACING},
+    widget::{Wrap, BLOCK_SPACING, ROW_SPACING},
     MarkdownPlusPlus,
 };
 
@@ -60,7 +60,7 @@ impl<'ast> MarkdownPlusPlus {
                     wrap.offset =
                         self.span_text_line(&wrap, node_line, self.text_format_syntax(node));
 
-                    result += self.height_setext_underline(node, line);
+                    result += wrap.height();
                     result += ROW_SPACING;
                 }
             }
@@ -93,22 +93,6 @@ impl<'ast> MarkdownPlusPlus {
         } else {
             unreachable!("setext headings never have empty lines");
         }
-
-        wrap.height()
-    }
-
-    pub fn height_setext_underline(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> f32 {
-        let width = self.width(node);
-        let mut wrap = Wrap::new(width);
-        wrap.row_height = self.row_height(node);
-
-        let parent = node.parent().unwrap();
-        let parent_prefix_len = self.line_prefix_len(parent, line);
-        let node_line = (line.start() + parent_prefix_len, line.end());
-
-        wrap.offset += self.span_text_line(&wrap, node_line, self.text_format_syntax(node));
 
         wrap.height()
     }
@@ -194,16 +178,7 @@ impl<'ast> MarkdownPlusPlus {
 
             if line_idx < last_line_idx {
                 // non-underline content
-                let last_shown_line = if reveal { false } else { line_idx == last_line_idx - 1 };
-                self.show_setext_heading_line(
-                    ui,
-                    node,
-                    top_left,
-                    line,
-                    level,
-                    reveal,
-                    last_shown_line,
-                );
+                self.show_setext_heading_line(ui, node, top_left, line, reveal);
 
                 top_left.y += self.height_setext_heading_line(node, line, reveal);
                 top_left.y += ROW_SPACING;
@@ -212,16 +187,6 @@ impl<'ast> MarkdownPlusPlus {
                 if reveal {
                     let mut wrap = Wrap::new(width);
                     wrap.row_height = self.row_height(node);
-
-                    let line_height = self.height_setext_underline(node, line);
-                    self.show_line_prefix(
-                        ui,
-                        parent,
-                        line,
-                        top_left,
-                        line_height + if level == 1 { BLOCK_SPACING } else { 0. },
-                        wrap.row_height,
-                    );
 
                     self.show_text_line(
                         ui,
@@ -232,7 +197,7 @@ impl<'ast> MarkdownPlusPlus {
                         false,
                     );
 
-                    top_left.y += line_height;
+                    top_left.y += wrap.height();
                     top_left.y += ROW_SPACING;
                 }
 
@@ -249,22 +214,11 @@ impl<'ast> MarkdownPlusPlus {
     #[allow(clippy::too_many_arguments)]
     fn show_setext_heading_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        line: (DocCharOffset, DocCharOffset), level: u8, reveal: bool, last_shown_line: bool,
+        line: (DocCharOffset, DocCharOffset), reveal: bool,
     ) {
         let width = self.width(node);
         let mut wrap = Wrap::new(width);
         wrap.row_height = self.row_height(node);
-
-        let parent = node.parent().unwrap();
-        let line_height = self.height_setext_heading_line(node, line, reveal);
-        self.show_line_prefix(
-            ui,
-            parent,
-            line,
-            top_left,
-            line_height + if level == 1 && last_shown_line { BLOCK_SPACING } else { 0. },
-            wrap.row_height,
-        );
 
         if let Some((indentation, prefix, children, postfix_whitespace, _)) =
             self.line_ranges(node, line)
@@ -333,16 +287,7 @@ impl<'ast> MarkdownPlusPlus {
         let parent_prefix_len = self.line_prefix_len(parent, line);
         let node_line = (line.start() + parent_prefix_len, line.end());
 
-        let line_height = self.height_atx_heading(node);
-        self.show_line_prefix(
-            ui,
-            parent,
-            line,
-            top_left,
-            line_height + if level == 1 { BLOCK_SPACING } else { 0. },
-            wrap.row_height,
-        );
-
+        let height = self.height_atx_heading(node);
         let reveal = line.intersects(&self.buffer.current.selection, true);
 
         if let Some((indentation, prefix_range, _, postfix_range, _)) = self.line_ranges(node, line)
@@ -403,7 +348,7 @@ impl<'ast> MarkdownPlusPlus {
             self.bounds.paragraphs.push(node_line);
         }
 
-        top_left.y += line_height;
+        top_left.y += height;
         if level == 1 {
             self.show_heading_rule(ui, top_left, width);
         }

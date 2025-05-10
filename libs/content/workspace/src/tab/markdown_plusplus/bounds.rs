@@ -65,31 +65,8 @@ impl MarkdownPlusPlus {
     pub fn calc_source_lines(&mut self) {
         self.bounds.source_lines.clear();
 
-        if self.buffer.current.text.is_empty() {
-            self.bounds
-                .source_lines
-                .push((DocCharOffset(0), DocCharOffset(0)));
-            return;
-        }
-
-        let mut start = DocByteOffset(0);
-        for line in self.buffer.current.text.split_inclusive('\n') {
-            let inclusive_length = RelByteOffset(line.len());
-
-            let exclusive_length = if let Some(line) = line.strip_suffix("\r\n") {
-                RelByteOffset(line.len())
-            } else if let Some(line) = line.strip_suffix('\n') {
-                RelByteOffset(line.len())
-            } else {
-                RelByteOffset(line.len())
-            };
-            let end = start + exclusive_length;
-
-            let range = self.range_to_char((start, end));
-            self.bounds.source_lines.push(range);
-
-            start += inclusive_length;
-        }
+        let doc = (0.into(), self.last_cursor_position());
+        self.bounds.source_lines = self.range_lines(doc);
     }
 
     /// Translates a comrak::LineColumn into an lb_rs::DocCharOffset. Note that comrak's text ranges, represented using

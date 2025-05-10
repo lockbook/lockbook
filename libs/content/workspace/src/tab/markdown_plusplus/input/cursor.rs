@@ -15,7 +15,7 @@ pub struct CursorState {
 }
 
 impl MarkdownPlusPlus {
-    pub(crate) fn show_selection(&mut self, ui: &mut egui::Ui) {
+    pub fn show_selection(&mut self, ui: &mut egui::Ui) {
         let selection = self.buffer.current.selection;
         let cursor = selection.1;
         let mut cursor_drawn = false;
@@ -75,24 +75,24 @@ impl MarkdownPlusPlus {
 }
 
 /// returns the x coordinate of the absolute position of `cursor` in `galley`
-pub(crate) fn x_impl(galley: &GalleyInfo, cursor: Cursor) -> f32 {
+pub fn x_impl(galley: &GalleyInfo, cursor: Cursor) -> f32 {
     cursor_to_pos_abs(galley, cursor).x
 }
 
 /// adjusts cursor so that its absolute x coordinate matches the target (if there is one)
-pub(crate) fn from_x(x: f32, galley: &GalleyInfo, cursor: Cursor) -> Cursor {
+pub fn from_x(x: f32, galley: &GalleyInfo, cursor: Cursor) -> Cursor {
     let mut pos_abs = cursor_to_pos_abs(galley, cursor);
     pos_abs.x = x;
     pos_abs_to_cursor(galley, pos_abs)
 }
 
 /// returns the absolute position of `cursor` in `galley`
-pub(crate) fn cursor_to_pos_abs(galley: &GalleyInfo, cursor: Cursor) -> Pos2 {
+pub fn cursor_to_pos_abs(galley: &GalleyInfo, cursor: Cursor) -> Pos2 {
     // experimentally, max.y gives us the y that will put us in the correct row
     galley.rect.min + galley.galley.pos_from_cursor(&cursor).max.to_vec2()
 }
 
 /// returns a cursor which has the absolute position `pos_abs` in `galley`
-pub(crate) fn pos_abs_to_cursor(galley: &GalleyInfo, pos_abs: Pos2) -> Cursor {
+pub fn pos_abs_to_cursor(galley: &GalleyInfo, pos_abs: Pos2) -> Cursor {
     galley.galley.cursor_from_pos(pos_abs - galley.rect.min)
 }
