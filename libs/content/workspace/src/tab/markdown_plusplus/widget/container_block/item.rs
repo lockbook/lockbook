@@ -1,7 +1,9 @@
 use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
 use egui::text::LayoutJob;
 use egui::{Pos2, Rect, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
+use lb_rs::model::text::offset_types::{
+    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
+};
 
 use crate::tab::markdown_plusplus::widget::{Wrap, BULLET_RADIUS, INDENT, ROW_HEIGHT};
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
@@ -9,20 +11,73 @@ use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 // https://github.github.com/gfm/#list-items
 impl<'ast> MarkdownPlusPlus {
     pub fn height_item(&self, node: &'ast AstNode<'ast>) -> f32 {
-        self.block_children_height(node)
+        let any_children = node.children().next().is_some();
+        if any_children {
+            self.block_children_height(node)
+        } else {
+            ROW_HEIGHT
+        }
     }
 
     pub fn show_item(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
-        // todo: better bullet position for nested blocks -
-        let annotation_size = Vec2 { x: INDENT, y: ROW_HEIGHT };
+        let first_line = self.node_first_line(node);
+        let row_height = self.node_line_row_height(node, first_line);
+
+        let parent = node.parent().unwrap();
+        let NodeValue::List(node_list) = parent.data.borrow().value else {
+            unreachable!("items always have list parents")
+        };
+        let NodeList { list_type, start, .. } = node_list;
+
+        let annotation_size = Vec2 { x: INDENT, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
+        let text_format = self.text_format_syntax(node);
 
-        // debug
-        // ui.painter()
-        //     .rect_stroke(annotation_space, 2., egui::Stroke::new(1., self.theme.fg().blue));
+        match list_type {
+            ListType::Bullet => {
+                ui.painter().circle_filled(
+                    annotation_space.center(),
+                    BULLET_RADIUS * row_height / ROW_HEIGHT,
+                    text_format.color,
+                );
+            }
+            ListType::Ordered => {
+                let text = format!("{}.", start);
+                let layout_job = LayoutJob::single_section(text, text_format);
+                let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
+                ui.painter()
+                    .galley(annotation_space.left_top(), galley, Default::default());
+            }
+        }
+        for line_idx in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line_idx];
 
-        top_left.x += annotation_space.width();
-        self.show_block_children(ui, node, top_left);
+            let prefix_len = self.line_prefix_len(node, line);
+            let parent_prefix_len = self.line_prefix_len(node.parent().unwrap(), line);
+            let prefix = (line.start() + parent_prefix_len, line.start() + prefix_len);
+
+            self.bounds.paragraphs.push(prefix);
+        }
+
+        top_left.x += INDENT;
+
+        let any_children = node.children().next().is_some();
+        if any_children {
+            self.show_block_children(ui, node, top_left);
+        } else {
+            let line = self.node_first_line(node);
+            let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
+            let node_line_start = node_line.start().into_range();
+
+            self.show_text_line(
+                ui,
+                top_left,
+                &mut Wrap::new(self.width(node)),
+                node_line_start,
+                self.text_format_document(),
+                false,
+            );
+        }
     }
 
     pub fn line_prefix_len_item(
@@ -78,52 +133,5 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         result.min(line.len())
-    }
-
-    pub fn show_line_prefix_item(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-        top_left: Pos2, _height: f32, row_height: f32, node_list: &NodeList,
-    ) {
-        let NodeList { list_type, start, .. } = *node_list;
-
-        let annotation_size = Vec2 { x: INDENT, y: row_height };
-        let annotation_space = Rect::from_min_size(top_left, annotation_size);
-        let text_format = self.text_format_syntax(node);
-
-        let line_prefix_len = self.line_prefix_len(node, line);
-        let parent_line_prefix_len = self.line_prefix_len(node.parent().unwrap(), line);
-        let prefix_range = (line.start() + parent_line_prefix_len, line.start() + line_prefix_len);
-
-        if prefix_range.intersects(&self.buffer.current.selection, false)
-            || self
-                .buffer
-                .current
-                .selection
-                .contains(prefix_range.start(), true, true)
-        {
-            let mut wrap = Wrap::new(INDENT);
-            self.show_text_line(ui, top_left, &mut wrap, prefix_range, text_format, false);
-        } else if line == self.node_first_line(node) {
-            match list_type {
-                ListType::Bullet => {
-                    ui.painter().circle_filled(
-                        annotation_space.center(),
-                        BULLET_RADIUS,
-                        text_format.color,
-                    );
-                }
-                ListType::Ordered => {
-                    let text = format!("{}.", start);
-                    let layout_job = LayoutJob::single_section(text, text_format);
-                    let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
-                    ui.painter()
-                        .galley(annotation_space.left_top(), galley, Default::default());
-                }
-            }
-        }
-
-        if !prefix_range.is_empty() {
-            self.bounds.paragraphs.push(prefix_range);
-        }
     }
 }

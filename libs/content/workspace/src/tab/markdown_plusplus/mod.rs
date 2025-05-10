@@ -168,6 +168,8 @@ impl MarkdownPlusPlus {
         self.process_events(ui.ctx());
         self.calc_source_lines();
 
+        self.print_source_lines_bounds();
+
         let arena = Arena::new();
         let mut options = Options::default();
         options.parse.smart = true;
@@ -238,8 +240,13 @@ impl MarkdownPlusPlus {
                         .show(ui, |ui| self.render(ui, root));
                 });
             });
+        self.bounds.paragraphs.sort();
+        self.galleys.galleys.sort_by_key(|g| g.range);
         self.show_selection(ui);
+
         self.bounds.text = self.bounds.paragraphs.clone(); // todo: inline character capture
+        self.bounds.words = self.bounds.paragraphs.clone(); // todo: real words
+        self.bounds.lines = self.bounds.paragraphs.clone(); // todo: real lines
         self.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();
@@ -249,6 +256,7 @@ impl MarkdownPlusPlus {
             "--------------------------------------------------------------------------------"
                 .bright_black()
         );
+        println!("document: {:?}", self.buffer.current.text);
         self.print_paragraphs_bounds();
         println!(
             "{}",

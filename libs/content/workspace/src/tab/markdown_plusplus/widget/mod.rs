@@ -141,6 +141,31 @@ impl<'ast> MarkdownPlusPlus {
             return cached;
         }
 
+        // container blocks: if revealed, show source lines instead
+        if node.parent().is_some()
+            && !node.data.borrow().value.contains_inlines()
+            && self.reveal(node)
+        {
+            let mut height = 0.;
+
+            for line in self.node_lines(node).iter() {
+                let line = self.bounds.source_lines[line];
+                let prefix_len = self.line_prefix_len(node.parent().unwrap(), line);
+                let postfix = (line.start() + prefix_len, line.end());
+
+                let mut wrap = Wrap::new(self.width(node));
+                wrap.offset += self.span_text_line(&wrap, postfix, self.text_format_syntax(node)); // todo: match row height?
+
+                height += wrap.height();
+                height += BLOCK_SPACING;
+            }
+            if height > 0. {
+                height -= BLOCK_SPACING;
+            }
+
+            return height;
+        }
+
         let height = match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => 0.,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
@@ -320,7 +345,40 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    pub(crate) fn show_block(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
+    pub(crate) fn show_block(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
+    ) {
+        // container blocks: if revealed, show source lines instead
+        if node.parent().is_some()
+            && !node.data.borrow().value.contains_inlines()
+            && self.reveal(node)
+        {
+            for line in self.node_lines(node).iter() {
+                let parent = node.parent().unwrap();
+
+                let line = self.bounds.source_lines[line];
+                let prefix_len = self.line_prefix_len(parent, line);
+                let postfix = (line.start() + prefix_len, line.end());
+
+                let mut wrap = Wrap::new(self.width(node));
+                self.show_text_line(
+                    ui,
+                    top_left,
+                    &mut wrap,
+                    postfix,
+                    self.text_format_syntax(node),
+                    false,
+                );
+
+                self.bounds.paragraphs.push(postfix);
+
+                top_left.y += wrap.height();
+                top_left.y += BLOCK_SPACING;
+            }
+
+            return;
+        }
+
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => {}
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
@@ -332,7 +390,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
             NodeValue::Document => self.show_document(ui, node, top_left),
             NodeValue::FootnoteDefinition(_) => self.show_footnote_definition(ui, node, top_left),
-            NodeValue::Item(node_list) => self.show_item(ui, node, top_left),
+            NodeValue::Item(_) => self.show_item(ui, node, top_left),
             NodeValue::List(_) => self.show_block_children(ui, node, top_left),
             NodeValue::MultilineBlockQuote(_) => {
                 self.show_multiline_block_quote(ui, node, top_left)
@@ -397,7 +455,10 @@ impl<'ast> MarkdownPlusPlus {
 
             // debug
             // ui.painter().rect_stroke(
-            //     egui::Rect::from_min_size(top_left, egui::Vec2::new(width, pre_spacing)),
+            //     egui::Rect::from_min_size(
+            //         top_left,
+            //         egui::Vec2::new(self.width(child), pre_spacing),
+            //     ),
             //     2.,
             //     egui::Stroke::new(pre_spacing.min(1.), self.theme.bg().neutral_quarternary),
             // );
@@ -411,7 +472,10 @@ impl<'ast> MarkdownPlusPlus {
 
             // debug
             // ui.painter().rect_stroke(
-            //     egui::Rect::from_min_size(top_left, egui::Vec2::new(width, child_height)),
+            //     egui::Rect::from_min_size(
+            //         top_left,
+            //         egui::Vec2::new(self.width(child), child_height),
+            //     ),
             //     2.,
             //     egui::Stroke::new(1., self.theme.bg().green),
             // );
@@ -425,7 +489,10 @@ impl<'ast> MarkdownPlusPlus {
 
             // debug
             // ui.painter().rect_stroke(
-            //     egui::Rect::from_min_size(top_left, egui::Vec2::new(width, post_spacing)),
+            //     egui::Rect::from_min_size(
+            //         top_left,
+            //         egui::Vec2::new(self.width(child), post_spacing),
+            //     ),
             //     2.,
             //     egui::Stroke::new(post_spacing.min(1.), self.theme.bg().neutral_quarternary),
             // );
@@ -813,6 +880,10 @@ impl<'ast> MarkdownPlusPlus {
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> bool {
         let line_prefix = (line.start(), line.start() + self.line_prefix_len(node, line));
+        if line_prefix.is_empty() {
+            return false;
+        }
+
         let selection = self.buffer.current.selection;
 
         line_prefix.intersects(&selection, false) || selection.end() == line_prefix.start()
@@ -827,95 +898,5 @@ impl<'ast> MarkdownPlusPlus {
             }
         }
         false
-    }
-
-    // todo: remove (and fix line wrap)
-    fn height_line_postfix(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset), row_height: f32,
-    ) -> f32 {
-        let width = self.width(node);
-        let mut wrap = Wrap::new(width);
-        wrap.row_height = row_height;
-
-        let line_postfix = (line.start() + self.line_prefix_len(node, line), line.end());
-        wrap.offset += self.span_text_line(&wrap, line_postfix, self.text_format_syntax(node));
-
-        wrap.height()
-    }
-
-    /// Shows the line prefix, such as '* ' for a list item, '> ' for a block
-    /// quote, or the indentation for either of those, or for indented code
-    /// blocks.
-    fn show_line_prefix(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-        mut top_left: Pos2, height: f32, row_height: f32,
-    ) {
-        top_left.x -= self.indent(node);
-
-        if let Some(parent) = node.parent() {
-            self.show_line_prefix(ui, parent, line, top_left, height, row_height);
-        }
-
-        match &node.data.borrow().value {
-            NodeValue::FrontMatter(_) => unimplemented!("not a block"),
-            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
-
-            // container_block
-            NodeValue::Alert(node_alert) => self
-                .show_line_prefix_alert(ui, node, line, top_left, height, row_height, node_alert),
-            NodeValue::BlockQuote => {
-                self.show_line_prefix_block_quote(ui, node, line, top_left, height, row_height)
-            }
-            NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
-            NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => {}
-            NodeValue::FootnoteDefinition(_) => self
-                .show_line_prefix_footnote_definition(ui, node, line, top_left, height, row_height),
-            NodeValue::Item(node_list) => {
-                self.show_line_prefix_item(ui, node, line, top_left, height, row_height, node_list)
-            }
-            NodeValue::List(_) => {}
-            NodeValue::MultilineBlockQuote(_) => self.show_line_prefix_multiline_block_quote(
-                ui, node, line, top_left, height, row_height,
-            ),
-            NodeValue::Table(_) => {}
-            NodeValue::TableRow(_) => {
-                self.show_line_prefix_table_row(ui, node, line, top_left, height, row_height)
-            }
-            NodeValue::TaskItem(_) => {
-                self.show_line_prefix_task_item(ui, node, line, top_left, height, row_height)
-            }
-
-            // inline
-            NodeValue::Image(NodeLink { .. }) => unimplemented!("not a block"),
-            NodeValue::Code(_) => unimplemented!("not a block"),
-            NodeValue::Emph => unimplemented!("not a block"),
-            NodeValue::Escaped => unimplemented!("not a block"),
-            NodeValue::EscapedTag(_) => unimplemented!("not a block"),
-            NodeValue::FootnoteReference(_) => unimplemented!("not a block"),
-            NodeValue::HtmlInline(_) => unimplemented!("not a block"),
-            NodeValue::LineBreak => unimplemented!("not a block"),
-            NodeValue::Link(_) => unimplemented!("not a block"),
-            NodeValue::Math(_) => unimplemented!("not a block"),
-            NodeValue::SoftBreak => unimplemented!("not a block"),
-            NodeValue::SpoileredText => unimplemented!("not a block"),
-            NodeValue::Strikethrough => unimplemented!("not a block"),
-            NodeValue::Strong => unimplemented!("not a block"),
-            NodeValue::Subscript => unimplemented!("not a block"),
-            NodeValue::Superscript => unimplemented!("not a block"),
-            NodeValue::Text(_) => unimplemented!("not a block"),
-            NodeValue::Underline => unimplemented!("not a block"),
-            NodeValue::WikiLink(_) => unimplemented!("not a block"),
-
-            // leaf_block
-            NodeValue::CodeBlock(_) => unimplemented!("not a container block"),
-            NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
-            NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
-            NodeValue::Heading(_) => unimplemented!("not a container block"),
-            NodeValue::HtmlBlock(_) => unimplemented!("not a container block"),
-            NodeValue::Paragraph => unimplemented!("not a container block"),
-            NodeValue::TableCell => unimplemented!("not a container block"),
-            NodeValue::ThematicBreak => unimplemented!("not a container block"),
-        }
     }
 }

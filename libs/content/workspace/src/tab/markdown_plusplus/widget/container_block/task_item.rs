@@ -3,7 +3,7 @@ use egui::{Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RelCharOffset};
 
 use crate::tab::markdown_plusplus::{
-    widget::{Wrap, INDENT, ROW_HEIGHT},
+    widget::{INDENT, ROW_HEIGHT},
     MarkdownPlusPlus,
 };
 
@@ -29,13 +29,6 @@ impl<'ast> MarkdownPlusPlus {
     pub fn line_prefix_len_task_item(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> RelCharOffset {
-        todo!()
-    }
-
-    pub fn show_line_prefix_task_item(
-        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-        top_left: Pos2, height: f32, row_height: f32,
-    ) {
         todo!()
     }
 }

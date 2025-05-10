@@ -8,9 +8,7 @@ impl<'ast> MarkdownPlusPlus {
         self.text_format_code(parent)
     }
 
-    pub fn span_html_inline(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, html: &str,
-    ) -> f32 {
+    pub fn span_html_inline(&self, node: &'ast AstNode<'ast>, wrap: &Wrap, html: &str) -> f32 {
         self.span_node_text_line(node, wrap, html)
     }
 

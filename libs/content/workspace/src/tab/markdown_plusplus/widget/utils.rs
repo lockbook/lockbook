@@ -76,7 +76,6 @@ impl<'ast> MarkdownPlusPlus {
 
     /// Returns a Vec of ranges that represent the given range split on newlines
     /// (based on source text).
-    // This entire fn, impressively, was written by Claude 3.7 Sonnet
     pub fn range_lines(
         &self, range: (DocCharOffset, DocCharOffset),
     ) -> Vec<(DocCharOffset, DocCharOffset)> {
@@ -94,7 +93,7 @@ impl<'ast> MarkdownPlusPlus {
         let mut pos = 0;
 
         while pos < bytes.len() {
-            let start_pos = pos;
+            let mut start_pos = pos;
 
             // Find the end of this line
             while pos < bytes.len() {
@@ -104,12 +103,14 @@ impl<'ast> MarkdownPlusPlus {
                     let line_range = (base_offset + start_pos, base_offset + pos);
                     result.push(self.range_to_char(line_range));
                     pos += 1; // Move past the \n
+                    start_pos = pos;
                     break;
                 } else if pos + 1 < bytes.len() && bytes[pos] == b'\r' && bytes[pos + 1] == b'\n' {
                     // Found a CRLF
                     let line_range = (base_offset + start_pos, base_offset + pos);
                     result.push(self.range_to_char(line_range));
                     pos += 2; // Move past the \r\n
+                    start_pos = pos;
                     break;
                 }
 
@@ -117,7 +118,7 @@ impl<'ast> MarkdownPlusPlus {
             }
 
             // If we reached the end without finding a line ending
-            if pos == bytes.len() && start_pos < pos {
+            if pos == bytes.len() {
                 let line_range = (base_offset + start_pos, base_offset + pos);
                 result.push(self.range_to_char(line_range));
             }
@@ -167,6 +168,9 @@ impl<'ast> MarkdownPlusPlus {
     /// Returns the range for the node - easy enough to do yourself but comes up
     /// so often.
     pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+        if node.data.borrow().value == comrak::nodes::NodeValue::Document {
+            return (0.into(), self.last_cursor_position());
+        }
         self.sourcepos_to_range(node.data.borrow().sourcepos)
     }
 
@@ -221,6 +225,36 @@ impl<'ast> MarkdownPlusPlus {
     /// of the given node.
     pub fn node_last_line(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
         self.bounds.source_lines[self.node_last_line_idx(node)]
+    }
+
+    /// Returns whether the given line is one of the source lines of the given node
+    pub fn node_contains_line(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> bool {
+        let first_line = self.node_first_line(node);
+        let last_line = self.node_last_line(node);
+
+        (first_line.start(), last_line.end()).contains_range(&line, true, true)
+    }
+
+    /// Returns the row height of a line in the given node, even if that node is
+    /// a container block.
+    pub fn node_line_row_height(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> f32 {
+        // leaf blocks and inlines
+        if node.data.borrow().value.contains_inlines() || !node.data.borrow().value.block() {
+            return self.row_height(node);
+        }
+
+        // container blocks only
+        for child in node.children() {
+            if self.node_contains_line(child, line) {
+                return self.node_line_row_height(child, line);
+            }
+        }
+
+        self.row_height(node)
     }
 
     /// Returns true if the node intersects the current selection. Useful for
@@ -279,5 +313,44 @@ impl<'ast> MarkdownPlusPlus {
                 .cmp(&b.data.borrow().sourcepos.start.line)
         });
         siblings
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use egui::Context;
+    use lb_rs::{blocking::Lb, model::core_config::Config, Uuid};
+
+    #[test]
+    fn range_lines_char_no_newline() {
+        let text = "*";
+        let md = MarkdownPlusPlus::new(
+            Lb::init(Config::cli_config("/tmp")).unwrap(),
+            text,
+            Uuid::new_v4(),
+            Context::default(),
+        );
+
+        let lines = md.range_lines((0.into(), text.len().into()));
+
+        // Should produce 1 range for the entire text since there's no newline
+        assert_eq!(lines, vec![(0.into(), 1.into())]);
+    }
+
+    #[test]
+    fn range_lines_char_newline() {
+        let text = "*\n";
+        let md = MarkdownPlusPlus::new(
+            Lb::init(Config::cli_config("/tmp")).unwrap(),
+            text,
+            Uuid::new_v4(),
+            Context::default(),
+        );
+
+        let lines = md.range_lines((0.into(), text.len().into()));
+
+        // Should produce 2 ranges - one for "*" and one for empty line after "\n"
+        assert_eq!(lines, vec![(0.into(), 1.into()), (2.into(), 2.into())]);
     }
 }
