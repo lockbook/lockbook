@@ -78,35 +78,27 @@ where
     }
 }
 
-impl ServerTreeV2 {
-    fn from(owner: Owner, trees: Vec<(Owner, OwnedRwLockWriteGuard<AccountV1>)>) -> Self {
-        let mut ids = vec![];
-        for (tree_owner, tree) in &trees {
-            if tree_owner == owner {
-                ids.extend_from_slice(&tree.metas.ids());
-            } else {
-            }
-        }
-
-        ServerTreeV2 { owner, ids, trees }
-    }
-}
-
 impl TreeLike for ServerTreeV2 {
     type F = ServerMeta;
 
     fn ids(&self) -> Vec<Uuid> {
-        let mut ids = vec![];
-        for (_owner, tree) in &self.trees {
-            ids.extend_from_slice(&tree.metas.ids());
-        }
-        ids
+        self.ids.clone()
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
-        for (_owner, tree) in &self.trees {
-            if let Some(meta) = tree.metas.get().get(id) {
-                return Some(meta);
+        // limit access to the only the ids this person is supposed to be able to see
+        if !self.ids.contains(id) {
+            return None;
+        }
+
+        match self.owner_db.metas.get().get(id) {
+            Some(f) => return Some(f),
+            None => {
+                for (_owner, tree) in &self.sharee_dbs {
+                    if let Some(meta) = tree.metas.get().get(id) {
+                        return Some(meta);
+                    }
+                }
             }
         }
 
