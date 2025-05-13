@@ -234,6 +234,8 @@ class FilesViewModel: ObservableObject {
             if case .failure(let err) = AppState.lb.deleteFile(id: file.id) {
                 self.error = err.msg
             }
+            
+            AppState.workspaceState.fileOpCompleted = .Delete(id: file.id)
         }
         
         self.loadFiles()

@@ -13,9 +13,10 @@ struct SuggestedDocsView: View {
     
     var body: some View {
         if model.suggestedDocs?.isEmpty == true {
-            Text("You have no suggested documents. Start opening some files!")
+            Text("You have no suggested documents.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .padding(.horizontal)
         } else {
             ScrollView(.horizontal) {
                 HStack {

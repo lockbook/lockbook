@@ -11,7 +11,7 @@ struct TabsSheet: View {
     
     var body: some View {
         VStack {
-            Button(role: .destructive) {
+            Button {
                 self.closeAllTabs()
             } label: {
                 Text("Close all")
@@ -19,7 +19,7 @@ struct TabsSheet: View {
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
             .padding(.horizontal)
             
             Divider()

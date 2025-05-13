@@ -96,7 +96,7 @@ struct StatusBarView: View {
                 
                 Button(action: {
                     self.docCreateAction {
-                        filesModel.createDoc(parent: root.id, isDrawing: false)
+                        filesModel.createDoc(parent: root.id, isDrawing: true)
                     }
                 }) {
                     Image(systemName: "pencil.tip.crop.circle.badge.plus")

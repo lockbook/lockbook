@@ -7,6 +7,7 @@ import SwiftWorkspace
             ContentView()
         }
         .commands {
+            // verify what shortcut its blocking
             CommandGroup(replacing: .saveItem) {}
         }
         

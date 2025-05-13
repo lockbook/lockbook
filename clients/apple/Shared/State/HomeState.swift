@@ -5,6 +5,19 @@ import Combine
 class HomeState: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     
+    @Published var error: UIError? = nil
+    @Published var fileActionCompleted: FileAction? = nil
+    
+    @Published var showSettings: Bool = false
+    @Published var showPendingShares: Bool = false
+    
+    @Published var sheetInfo: FileOperationSheetInfo? = nil
+    @Published var selectSheetInfo: SelectFolderAction? = nil
+    @Published var tabsSheetInfo: TabSheetInfo? = nil
+    
+    @Published var constrainedSidebarState: ConstrainedSidebarState = .closed
+    @Published var showTabsSheet: Bool = false
+    
     init() {
         AppState.workspaceState.$renameOpenDoc.sink { [weak self] rename in
             self?.runOnActiveWorkspaceState(doRun: rename) { file in
@@ -38,19 +51,6 @@ class HomeState: ObservableObject {
             }
         }
     }
-    
-    @Published var error: UIError? = nil
-    @Published var fileActionCompleted: FileAction? = nil
-    
-    @Published var showSettings: Bool = false
-    @Published var showPendingShares: Bool = false
-    
-    @Published var sheetInfo: FileOperationSheetInfo? = nil
-    @Published var selectSheetInfo: SelectFolderAction? = nil
-    @Published var tabsSheetInfo: TabSheetInfo? = nil
-    
-    @Published var constrainedSidebarState: ConstrainedSidebarState = .closed
-    @Published var showTabsSheet: Bool = false
 }
 
 public enum ConstrainedSidebarState {

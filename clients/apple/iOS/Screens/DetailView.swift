@@ -16,6 +16,7 @@ struct DetailView: View {
                 Text("This is a preview.")
             } else {
                 WorkspaceView(AppState.workspaceState, AppState.lb.lbUnsafeRawPtr)
+                    .modifier(OnLbLinkViewModifier())
             }
         }
         .onAppear {

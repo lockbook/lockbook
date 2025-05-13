@@ -14,7 +14,7 @@ struct DeleteConfirmationButtons: View {
     
     var body: some View {
         Group {
-            Button("Delete \(deletedFilesMsg).", role: .destructive) {
+            Button("Delete \(deletedFilesMsg)", role: .destructive) {
                 filesModel.deleteFiles(files: files)
             }
             

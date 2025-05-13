@@ -11,13 +11,6 @@ struct HomeView: View {
         Group {
             if horizontalSizeClass == .compact {
                 NavigationStack {
-//                    DrawerView(homeState: homeState, menu: {
-//                        SearchContainerView {
-//                            sidebar
-//                        }
-//                    }, content: {
-//                        detail
-//                    })
                     NewDrawerView(homeState: homeState, mainView: {
                         detail
                     }, sideView: {
@@ -25,8 +18,7 @@ struct HomeView: View {
                             sidebar
                         }
                     })
-
-                    
+                    .environment(\.isConstrainedLayout, true)
                 }
             } else {
                 PathSearchContainerView {
@@ -116,7 +108,7 @@ struct SidebarView: View {
                                     selectionToolbarItem
                                 }
                         }
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, 16)
                     
                     Spacer()
                     

@@ -45,6 +45,7 @@ class FileTreeViewModel: ObservableObject {
             
             print("expanding to folder... \(file.name)")
             self?.expandToFile(file: file)
+            // go to it
         }
         .store(in: &cancellables)
     }
@@ -68,25 +69,5 @@ class FileTreeViewModel: ObservableObject {
         
         print("opening \(file.name)")
         openFolders.insert(file.id)
-    }
-        
-    func getParents(_ file: File) -> [UUID] {
-        var parents: [UUID] = []
-        
-        guard case .success(var current) = AppState.lb.getFile(id: file.parent) else {
-            return []
-        }
-        
-        while current.id != current.parent {
-            parents.append(current.id)
-            
-            if case let .success(newCurrent) = AppState.lb.getFile(id: current.parent) {
-                current = newCurrent
-            } else {
-                return parents
-            }
-        }
-        
-        return parents
     }
 }

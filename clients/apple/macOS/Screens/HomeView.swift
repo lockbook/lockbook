@@ -99,6 +99,7 @@ struct DetailView: View {
             Text("This is a preview.")
         } else {
             WorkspaceView(AppState.workspaceState, AppState.lb.lbUnsafeRawPtr)
+                .modifier(OnLbLinkViewModifier())
                 .toolbar {
                     HStack(alignment: .bottom, spacing: 5) {
                         if workspaceState.openDoc != nil {

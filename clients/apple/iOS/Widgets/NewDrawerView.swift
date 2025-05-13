@@ -5,15 +5,17 @@ struct NewDrawerView<Main: View, Side: View>: View {
     
     @ViewBuilder let mainView: Main
     @ViewBuilder let sideView: Side
-    
-    var sideBarWidth = UIScreen.main.bounds.size.width
-    
+        
     var dragActivationX: CGFloat = 20
     var velocityActivationX: CGFloat = 300
 
     @State var offset: CGFloat = 0
     @GestureState var gestureOffset: CGFloat = 0
 
+    func sidebarWidth(width: CGFloat) -> CGFloat {
+        return width - 50
+    }
+    
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
@@ -56,6 +58,8 @@ struct NewDrawerView<Main: View, Side: View>: View {
                                     homeState.constrainedSidebarState = .openPartial
                                 }
                             }
+                            
+                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                         }
                     )
                 
@@ -72,21 +76,20 @@ struct NewDrawerView<Main: View, Side: View>: View {
                             }
                         }
                 }
-                    .frame(width:  sideBarWidth)
+                .frame(width:  sidebarWidth(width: geometry.size.width))
                     .animation(.interactiveSpring(
                         response: 0.5,
                         dampingFraction: 0.8,
                         blendDuration: 0),
                                value: gestureOffset
                     )
-                    .offset(x: -sideBarWidth)
+                    .offset(x: -sidebarWidth(width: geometry.size.width))
                     .offset(x: max(self.offset + self.gestureOffset, 0))
             }
             .onReceive(homeState.$constrainedSidebarState) { newValue in
-                print("setting offset for \(newValue)")
                 withAnimation {
                     if newValue == .openPartial {
-                        offset = sideBarWidth
+                        offset = sidebarWidth(width: geometry.size.width)
                     } else {
                         offset = 0
                     }
@@ -103,30 +106,34 @@ struct NewDrawerView<Main: View, Side: View>: View {
                             if value.translation.width > 0 && homeState.constrainedSidebarState == .openPartial {
                                 out = value.translation.width * 3
                             } else {
-                                out = min(value.translation.width, sideBarWidth)
+                                out = min(value.translation.width, sidebarWidth(width: geometry.size.width))
                             }
                         }
-                        .onEnded(onEnd)
+                        .onEnded { value in
+                            onEnd(value: value, sidebarWidth: sidebarWidth(width: geometry.size.width))
+                        }
                 )
                 .disabled(homeState.constrainedSidebarState == .openPartial)
         }
     }
 
-    func onEnd(value: DragGesture.Value){
+    func onEnd(value: DragGesture.Value, sidebarWidth: CGFloat){
         let translation = value.translation.width
                 
-        if (translation > 0 && translation > (sideBarWidth * 0.6)) || value.velocity.width > velocityActivationX {
-            offset = sideBarWidth
+        if (translation > 0 && translation > (sidebarWidth * 0.6)) || value.velocity.width > velocityActivationX {
+            offset = sidebarWidth
             homeState.constrainedSidebarState = .openPartial
-        } else if -translation > (sideBarWidth / 2) {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        } else if -translation > (sidebarWidth / 2) {
             offset = 0
             homeState.constrainedSidebarState = .closed
         } else {
             if offset == 0 || homeState.constrainedSidebarState == .closed {
                 return
             }
-            offset = sideBarWidth
+            offset = sidebarWidth
             homeState.constrainedSidebarState = .openPartial
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
     }
 

@@ -27,6 +27,7 @@ struct SearchContainerSubView<Content: View>: View {
                             results
                         }
                     }
+                    .listStyle(.inset)
                 }
             } else {
                 content

@@ -28,10 +28,11 @@ struct CollapsableSection<Label: View, Content: View>: View {
 
                 Spacer()
                 
-                Image(systemName: isOpen ? "chevron.down" : "chevron.right")
+                Image(systemName: "chevron.right")
                     .foregroundColor(.secondary)
                     .padding(.leading, 5)
                     .imageScale(.small)
+                    .rotationEffect(Angle(degrees: isOpen ? 90 : 0))
             }
             .contentShape(Rectangle())
         })

@@ -33,7 +33,6 @@ struct DebugView: View {
                 
                     Spacer()
                 }
-                .modifier(CopyToClipboardViewmodifier(debugInfo: debugInfo))
             } else {
                 Spacer()
                 
@@ -61,21 +60,3 @@ struct DebugView: View {
     }
 }
 
-struct CopyToClipboardViewmodifier: ViewModifier {
-    let debugInfo: String
-    
-    func body(content: Content) -> some View {
-        #if os(iOS)
-        content.toolbar {
-            Button(action: {
-                ClipboardHelper.copyToClipboard(debugInfo)
-            }, label: {
-                Image(systemName: "doc.on.doc")
-            })
-        }
-        #else
-        content
-        #endif
-        
-    }
-}
