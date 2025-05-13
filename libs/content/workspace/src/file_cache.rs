@@ -5,35 +5,24 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
-use lb_rs::service::usage::UsageMetrics;
 use lb_rs::Uuid;
 
 pub struct FileCache {
     pub files: Vec<File>,
     pub suggested: Vec<Uuid>,
-    pub usage: UsageMetrics,
 }
 
 impl FileCache {
     pub fn new(lb: &Lb) -> LbResult<Self> {
-        Ok(Self {
-            files: lb.list_metadatas()?,
-            suggested: lb
-                .suggested_docs(Default::default())?
-                .into_iter()
-                .take(5)
-                .collect(),
-            usage: lb.get_usage()?,
-        })
+        Ok(Self { files: lb.list_metadatas()?, suggested: lb.suggested_docs(Default::default())? })
     }
 }
 
 impl Debug for FileCache {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("FileCache")
-            .field("files", &self.files.len())
-            .field("suggested", &self.suggested.len())
-            .field("usage", &self.usage.usages.len())
+            .field("files.len()", &self.files.len())
+            .field("suggested.len()", &self.suggested.len())
             .finish()
     }
 }
