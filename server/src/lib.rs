@@ -111,4 +111,5 @@ pub mod metrics;
 pub mod router_service;
 pub mod schema;
 pub mod server_tree;
+pub mod usage;
 pub mod utils;
