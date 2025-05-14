@@ -384,7 +384,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(_) => self.show_alert(ui, node, top_left),
+            NodeValue::Alert(node_alert) => self.show_alert(ui, node, top_left, node_alert),
             NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
