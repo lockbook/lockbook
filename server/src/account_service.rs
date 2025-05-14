@@ -3,13 +3,13 @@ use crate::billing::billing_model::BillingPlatform;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
-use crate::schema::{Account, ServerDb, ServerV5};
+use crate::schema::{Account, ServerDb};
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use db_rs::Db;
 use lb_rs::model::account::Username;
-use lb_rs::model::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
+use lb_rs::model::api::NewAccountError::{PublicKeyTaken, UsernameTaken};
 use lb_rs::model::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminDisappearAccountError,
     AdminDisappearAccountRequest, AdminGetAccountInfoError, AdminGetAccountInfoRequest,
@@ -17,23 +17,20 @@ use lb_rs::model::api::{
     AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
     GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
     GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountRequest,
-    NewAccountResponse, PaymentPlatform, METADATA_FEE,
+    NewAccountResponse, PaymentPlatform,
 };
 use lb_rs::model::clock::get_time;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
-use lb_rs::model::lazy::LazyTree;
 use lb_rs::model::server_file::IntoServerFile;
-use lb_rs::model::server_meta::IntoServerMeta;
 use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
 use lb_rs::model::usage::bytes_to_human;
 use libsecp256k1::PublicKey;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::ops::DerefMut;
 use tracing::warn;
-use uuid::Uuid;
 
 impl<S, A, G, D> ServerState<S, A, G, D>
 where
@@ -137,73 +134,33 @@ where
             .unwrap_or(Err(ClientError(GetUsernameError::UserNotFound)))
     }
 
+    /// This function is scheduled for deletion when sizes are included in meta itself
     pub async fn get_usage(
         &self, context: RequestContext<GetUsageRequest>,
     ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
         let mut db = self.db_v5.read().await;
 
-        let cap = Self::get_cap(&db, &context.public_key)?;
-
         let owner = Owner(context.public_key);
-        let tree = self.get_tree(owner).await?;
-        let tree = tree.to_lazy();
 
-        let usages = Self::get_usage_helper(&mut tree, db.sizes.get())?;
+        let tree = self.get_tree::<GetUsageError>(owner).await?;
+        let caps = tree.get_caps(&db);
+        let usage_report = tree.usage_report(caps).unwrap();
+
+        // to maintain legacy functionality
+        let cap = usage_report.caps.get(&owner).copied().unwrap();
+        let mut usages = vec![];
+        for file_id in tree.owner_db.metas.get().ids() {
+            usages.push(FileUsage {
+                file_id,
+                size_bytes: usage_report
+                    .sizes
+                    .get(&file_id)
+                    .copied()
+                    .unwrap_or_default(),
+            });
+        }
+
         Ok(GetUsageResponse { usages, cap })
-    }
-
-    pub fn get_usage_helper<T>(
-        tree: &mut LazyTree<T>, sizes: &HashMap<Uuid, u64>,
-    ) -> Result<Vec<FileUsage>, ServerError<GetUsageHelperError>>
-    where
-        T: TreeLike,
-    {
-        let ids = tree.ids();
-        let root_id = ids
-            .iter()
-            .find(|file_id| match tree.find(file_id) {
-                Ok(f) => f.is_root(),
-                Err(_) => false,
-            })
-            .ok_or(ClientError(GetUsageHelperError::UserDeleted))?;
-
-        let root_owner = tree
-            .maybe_find(root_id)
-            .ok_or(ClientError(GetUsageHelperError::UserDeleted))?
-            .owner();
-
-        let result = ids
-            .iter()
-            .filter_map(|&file_id| {
-                if let Ok(file) = tree.find(&file_id) {
-                    if file.owner() != root_owner {
-                        return None;
-                    }
-                } else {
-                    return None;
-                }
-
-                let file_size = match tree.calculate_deleted(&file_id).unwrap_or(true) {
-                    true => 0,
-                    false => *sizes.get(&file_id).unwrap_or(&0),
-                };
-
-                Some(FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
-            })
-            .collect();
-        Ok(result)
-    }
-
-    pub fn get_cap(
-        db: &ServerV5, public_key: &PublicKey,
-    ) -> Result<u64, ServerError<GetUsageHelperError>> {
-        Ok(db
-            .accounts
-            .get()
-            .get(&Owner(*public_key))
-            .ok_or(ServerError::ClientError(GetUsageHelperError::UserNotFound))?
-            .billing_info
-            .data_cap())
     }
 
     pub async fn delete_account(

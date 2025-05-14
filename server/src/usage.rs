@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, iter};
 
 use lb_rs::{
     model::{api::METADATA_FEE, file_like::FileLike, file_metadata::Owner, tree_like::TreeLike},
@@ -7,7 +7,10 @@ use lb_rs::{
 use tracing::error;
 use uuid::Uuid;
 
-use crate::{schema::AccountV1, server_tree::ServerTreeV2};
+use crate::{
+    schema::{AccountV1, ServerV5},
+    server_tree::ServerTreeV2,
+};
 
 pub struct UsageReport {
     pub caps: HashMap<Owner, u64>,
@@ -16,6 +19,27 @@ pub struct UsageReport {
 }
 
 impl ServerTreeV2 {
+    pub fn get_caps(&self, db: &ServerV5) -> HashMap<Owner, u64> {
+        self.sharee_dbs
+            .keys()
+            .copied()
+            .chain(iter::once(self.owner)) // an iter with all the owners
+            .map(|owner| {
+                (
+                    owner, // (owner, cap) for HashMap::collect
+                    db.accounts
+                        .get()
+                        .get(&owner)
+                        .map(|account| account.billing_info.data_cap()) // lookup each person's data cap
+                        .unwrap_or_else(|| {
+                            error!("cap missing for {owner:?}"); // page if not found
+                            0 // conservative default
+                        }),
+                )
+            })
+            .collect()
+    }
+
     /// There are two operations we evaluate space for: upsert and doc edits.
     ///
     /// During an upsert id ownership can change, the contents of
@@ -74,5 +98,13 @@ impl ServerTreeV2 {
         }
 
         Ok(size_sum)
+    }
+}
+
+impl UsageReport {
+    pub fn allowed(
+        &self, new: &[(Owner, Uuid)], deleted: &[(Owner, Uuid)], doc_changes: &[(Owner, u64)],
+    ) -> bool {
+        todo!()
     }
 }
