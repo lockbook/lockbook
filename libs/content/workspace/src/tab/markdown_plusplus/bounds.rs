@@ -1,12 +1,6 @@
-// use crate::tab::markdown_plusplus::appearance::{Appearance, CaptureCondition};
-// use crate::tab::markdown_plusplus::ast::{Ast, AstTextRange, AstTextRangeType};
-// use crate::tab::markdown_plusplus::galleys::Galleys;
-// use crate::tab::markdown_plusplus::input::capture::CaptureState;
-// use crate::tab::markdown_plusplus::input::Bound;
-// use crate::tab::markdown_plusplus::style::{BlockNodeType, InlineNodeType, MarkdownNodeType};
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 use comrak::nodes::{LineColumn, Sourcepos};
-use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt};
 use std::cmp::Ordering;
 use std::ops::Sub;
 
@@ -602,21 +596,6 @@ where
     }
 }
 
-pub fn join<const N: usize>(ranges: [&[(DocCharOffset, DocCharOffset)]; N]) -> RangeJoinIter<N> {
-    let mut result = RangeJoinIter {
-        ranges,
-        in_range: [false; N],
-        current: [None; N],
-        current_end: Some(0.into()),
-    };
-    for (idx, range) in ranges.iter().enumerate() {
-        if !range.is_empty() {
-            result.current[idx] = Some(0);
-        }
-    }
-    result
-}
-
 pub struct RangeJoinIter<'r, const N: usize> {
     ranges: [&'r [(DocCharOffset, DocCharOffset)]; N],
     in_range: [bool; N],
@@ -710,31 +689,6 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
     }
 }
 
-/// splits a range into pieces, each of which is contained in one of the ranges in `into_ranges`
-pub fn split<const N: usize>(
-    range_to_split: (DocCharOffset, DocCharOffset),
-    into_ranges: [&[(DocCharOffset, DocCharOffset)]; N],
-) -> Vec<(DocCharOffset, DocCharOffset)> {
-    let mut result = Vec::new();
-    for (indexes, into_range) in join(into_ranges) {
-        if indexes.iter().any(|&idx| idx.is_none()) {
-            // must be in a range for each splitting range
-            continue;
-        }
-
-        // must have a nonzero intersection
-        let intersection = (
-            into_range.start().max(range_to_split.start()),
-            into_range.end().min(range_to_split.end()),
-        );
-        if intersection.0 < intersection.1 {
-            // return the intersection
-            result.push(intersection);
-        }
-    }
-    result
-}
-
 impl MarkdownPlusPlus {
     pub fn print_bounds(&self) {
         self.print_words_bounds();
@@ -776,7 +730,7 @@ impl MarkdownPlusPlus {
 mod test {
     use lb_rs::model::text::offset_types::DocCharOffset;
 
-    use super::{join, Bounds};
+    use super::Bounds;
     use crate::tab::markdown_plusplus::{
         bounds::{BoundExt as _, RangesExt as _},
         input::Bound,
@@ -2162,36 +2116,5 @@ mod test {
         assert_eq!(ranges.find_intersecting((6.into(), 6.into()), true), (1, 4));
         assert_eq!(ranges.find_intersecting((7.into(), 7.into()), true), (3, 4));
         assert_eq!(ranges.find_intersecting((8.into(), 8.into()), true), (4, 4));
-    }
-
-    #[test]
-    fn range_join_iter_empty() {
-        let a: Vec<(DocCharOffset, DocCharOffset)> = vec![];
-        let b: Vec<(DocCharOffset, DocCharOffset)> = vec![];
-        let c: Vec<(DocCharOffset, DocCharOffset)> = vec![];
-
-        let result = join([&a, &b, &c]).collect::<Vec<_>>();
-
-        assert_eq!(result, &[]);
-    }
-
-    #[test]
-    fn range_join_iter() {
-        let a = vec![(0.into(), 10.into())];
-        let b = vec![(0.into(), 5.into()), (5.into(), 5.into()), (5.into(), 10.into())];
-        let c = vec![(3.into(), 7.into())];
-
-        let result = join([&a, &b, &c]).collect::<Vec<_>>();
-
-        assert_eq!(
-            result,
-            &[
-                ([Some(0), Some(0), None], (0.into(), 3.into())),
-                ([Some(0), Some(0), Some(0)], (3.into(), 5.into())),
-                ([Some(0), Some(1), Some(0)], (5.into(), 5.into())),
-                ([Some(0), Some(2), Some(0)], (5.into(), 7.into())),
-                ([Some(0), Some(2), None], (7.into(), 10.into())),
-            ]
-        )
     }
 }

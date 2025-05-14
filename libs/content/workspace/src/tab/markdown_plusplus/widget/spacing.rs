@@ -1,4 +1,4 @@
-use comrak::nodes::AstNode;
+use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{IntoRangeExt as _, RangeExt as _};
 
@@ -29,17 +29,25 @@ impl<'ast> MarkdownPlusPlus {
         let sibling_index = self.sibling_index(node, &siblings);
         let is_first_sibling = sibling_index == 0;
         let node_first_line = self.node_first_line_idx(node);
+
+        // omit fence line of fenced container blocks
+        let empty_line_adjustment = match parent.data.borrow().value {
+            NodeValue::MultilineBlockQuote(_) => -1,
+            _ => 0,
+        };
+
         if is_first_sibling {
             // parent top -> (empty row -> spacing)* -> first sibling top
             let parent_first_line = self.node_first_line_idx(parent);
-            let empty_lines = node_first_line - parent_first_line;
-            empty_lines as f32 * (ROW_HEIGHT + BLOCK_SPACING)
+            let empty_lines = (node_first_line - parent_first_line) as i32 + empty_line_adjustment;
+            empty_lines.max(0) as f32 * (ROW_HEIGHT + BLOCK_SPACING)
         } else {
             // prev sibling bottom -> spacing -> (empty row -> spacing)* -> first sibling top
             let prev_sibling = siblings[sibling_index - 1];
             let prev_sibling_last_line = self.node_last_line_idx(prev_sibling);
-            let empty_lines = node_first_line - (prev_sibling_last_line + 1);
-            BLOCK_SPACING + empty_lines as f32 * (ROW_HEIGHT + BLOCK_SPACING)
+            let empty_lines =
+                (node_first_line - (prev_sibling_last_line + 1)) as i32 + empty_line_adjustment;
+            BLOCK_SPACING + empty_lines.max(0) as f32 * (ROW_HEIGHT + BLOCK_SPACING)
         }
     }
 
@@ -104,10 +112,16 @@ impl<'ast> MarkdownPlusPlus {
             return 0.;
         }
 
+        // omit fence line of fenced container blocks
+        let empty_line_adjustment = match parent.data.borrow().value {
+            NodeValue::MultilineBlockQuote(_) => -1,
+            _ => 0,
+        };
+
         // last sibling bottom -> (empty row -> spacing)* -> parent bottom
         let parent_last_line = self.node_last_line_idx(parent);
-        let empty_lines = parent_last_line - node_last_line;
-        empty_lines as f32 * (ROW_HEIGHT + BLOCK_SPACING)
+        let empty_lines = (parent_last_line - node_last_line) as i32 + empty_line_adjustment;
+        empty_lines.max(0) as f32 * (ROW_HEIGHT + BLOCK_SPACING)
     }
 
     pub(crate) fn show_block_post_spacing(
