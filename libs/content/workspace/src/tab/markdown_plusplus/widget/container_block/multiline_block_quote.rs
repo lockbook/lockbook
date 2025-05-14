@@ -1,4 +1,4 @@
-use comrak::nodes::AstNode;
+use comrak::nodes::{AstNode, NodeMultilineBlockQuote};
 use egui::{Pos2, TextFormat, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 
@@ -24,25 +24,45 @@ impl<'ast> MarkdownPlusPlus {
     // is not available because these are a GFM extension, so assumptions are
     // made with experimental verification - 0-3 spaces indentation, with fence
     // mechanics like fenced code blocks.
-    //
-    // Cleverly, however, we do not need to support calls on the code fence
-    // lines. This is because never will a nested block have text on those
-    // lines.
     pub fn line_prefix_len_multiline_block_quote(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, node_multiline_block_quote: &NodeMultilineBlockQuote,
+        line: (DocCharOffset, DocCharOffset),
     ) -> RelCharOffset {
+        // todo: not last line, but closing fence line (is the quote closed?)
+        let NodeMultilineBlockQuote { fence_length, .. } = *node_multiline_block_quote;
+
+        // "The content of the code block consists of all subsequent lines,
+        // until a closing code fence of the same type as the code block began
+        // with (backticks or tildes), and with at least as many backticks or
+        // tildes as the opening code fence."
         let parent = node.parent().unwrap();
-        let mut result = self.line_prefix_len(parent, line);
+        let parent_prefix_len = self.line_prefix_len(parent, line);
+        let fence_str = ">".repeat(fence_length);
 
         let text = &self.buffer[(line.start() + self.line_prefix_len(parent, line), line.end())];
-        if text.starts_with("   ") {
-            result += 3;
-        } else if text.starts_with("  ") {
-            result += 2;
-        } else if text.starts_with(" ") {
-            result += 1;
+        let is_opening_fence = line == self.node_first_line(node);
+        let is_closing_fence = line == self.node_last_line(node) && text.starts_with(&fence_str);
+
+        if is_opening_fence || is_closing_fence {
+            return line.len();
         }
 
-        result.min(line.len())
+        let prefix_len = if text.starts_with("   ") {
+            3
+        } else if text.starts_with("  ") {
+            2
+        } else if text.starts_with(" ") {
+            1
+        } else {
+            0
+        };
+
+        println!("---");
+        println!("line: {:?}", &self.buffer[line]);
+        println!("parent_prefix_len: {:?}", parent_prefix_len);
+        println!("prefix_len: {:?}", prefix_len);
+        println!("result: {:?}", parent_prefix_len + prefix_len);
+
+        (parent_prefix_len + prefix_len).min(line.len())
     }
 }

@@ -26,13 +26,9 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn show_block_quote(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
-        let height = self.height_block_quote(node);
+        let height = self.height(node);
         let annotation_size = Vec2 { x: INDENT, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
-
-        // debug
-        // ui.painter()
-        //     .rect_stroke(annotation_space, 2., egui::Stroke::new(1., self.theme.fg().blue));
 
         ui.painter().vline(
             annotation_space.center().x,
@@ -46,6 +42,7 @@ impl<'ast> MarkdownPlusPlus {
             let parent_prefix_len = self.line_prefix_len(node.parent().unwrap(), line);
             let prefix = (line.start() + parent_prefix_len, line.start() + prefix_len);
 
+            println!("paragraphs.push({:?})", prefix);
             self.bounds.paragraphs.push(prefix);
         }
 

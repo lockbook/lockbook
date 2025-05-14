@@ -836,8 +836,19 @@ impl<'ast> MarkdownPlusPlus {
             }
             NodeValue::Item(node_list) => self.line_prefix_len_item(node, line, node_list),
             NodeValue::List(_) => parent_line_prefix_len(),
-            NodeValue::MultilineBlockQuote(_) => {
-                self.line_prefix_len_multiline_block_quote(node, line)
+            NodeValue::MultilineBlockQuote(node_multiline_block_quote) => {
+                let text = &self.buffer[line];
+                println!(
+                    "line: {:?}, prefix len: {:?}",
+                    text,
+                    self.line_prefix_len_multiline_block_quote(
+                        node,
+                        node_multiline_block_quote,
+                        line
+                    )
+                );
+
+                self.line_prefix_len_multiline_block_quote(node, node_multiline_block_quote, line)
             }
             NodeValue::Table(_) => parent_line_prefix_len(),
             NodeValue::TableRow(_) => self.line_prefix_len_table_row(node, line),

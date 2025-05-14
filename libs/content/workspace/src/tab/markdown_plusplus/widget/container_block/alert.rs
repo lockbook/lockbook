@@ -1,4 +1,4 @@
-use comrak::nodes::{AlertType, AstNode, NodeAlert};
+use comrak::nodes::{AlertType, AstNode, NodeAlert, NodeMultilineBlockQuote};
 use egui::{Pos2, Rect, Stroke, TextFormat, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
@@ -31,7 +31,7 @@ impl<'ast> MarkdownPlusPlus {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
         node_alert: &NodeAlert,
     ) {
-        let height = self.height_alert(node);
+        let height = self.height(node);
         let annotation_size = Vec2 { x: INDENT, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
@@ -157,9 +157,16 @@ impl<'ast> MarkdownPlusPlus {
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
         node_alert: &NodeAlert,
     ) -> RelCharOffset {
-        let NodeAlert { multiline, .. } = node_alert;
+        let NodeAlert { multiline, fence_length, fence_offset, .. } = node_alert;
         if *multiline {
-            self.line_prefix_len_multiline_block_quote(node, line)
+            self.line_prefix_len_multiline_block_quote(
+                node,
+                &NodeMultilineBlockQuote {
+                    fence_length: *fence_length,
+                    fence_offset: *fence_offset,
+                },
+                line,
+            )
         } else {
             self.line_prefix_len_block_quote(node, line)
         }
