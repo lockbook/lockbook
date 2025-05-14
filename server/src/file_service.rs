@@ -19,7 +19,7 @@ use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 use tracing::{debug, error, warn};
 
 impl<S, A, G, D> ServerState<S, A, G, D>
@@ -37,12 +37,11 @@ where
 
         let mut new_deleted = vec![];
         {
+            let tree = self.get_tree(req_owner).await?;
+            let usage_report = tree.usage_report(tree.get_caps(&self.db_v5.read().await.deref()));
+
             let mut prior_deleted = HashSet::new();
             let mut current_deleted = HashSet::new();
-
-            let mut lock = self.db_v4.lock().await;
-            let db = lock.deref_mut();
-            let tx = db.begin_transaction()?;
 
             let usage_cap =
                 Self::get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
