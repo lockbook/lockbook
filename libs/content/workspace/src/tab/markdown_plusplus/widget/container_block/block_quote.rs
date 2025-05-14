@@ -5,7 +5,7 @@ use lb_rs::model::text::offset_types::{
 };
 
 use crate::tab::markdown_plusplus::{
-    widget::{Wrap, INDENT, ROW_HEIGHT},
+    widget::{Wrap, BLOCK_SPACING, INDENT, ROW_HEIGHT},
     MarkdownPlusPlus,
 };
 
@@ -20,7 +20,8 @@ impl<'ast> MarkdownPlusPlus {
         if any_children {
             self.block_children_height(node)
         } else {
-            ROW_HEIGHT
+            let num_lines = self.node_lines(node).len();
+            num_lines as f32 * ROW_HEIGHT + num_lines.saturating_sub(1) as f32 * BLOCK_SPACING
         }
     }
 
@@ -54,18 +55,21 @@ impl<'ast> MarkdownPlusPlus {
         if any_children {
             self.show_block_children(ui, node, top_left);
         } else {
-            let line = self.node_first_line(node);
-            let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
-            let node_line_start = node_line.start().into_range();
+            for line in self.node_lines(node).iter() {
+                let line = self.bounds.source_lines[line];
+                let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
+                let node_line_start = node_line.start().into_range();
 
-            self.show_text_line(
-                ui,
-                top_left,
-                &mut Wrap::new(self.width(node)),
-                node_line_start,
-                self.text_format_document(),
-                false,
-            );
+                self.show_text_line(
+                    ui,
+                    top_left,
+                    &mut Wrap::new(self.width(node)),
+                    node_line_start,
+                    self.text_format_document(),
+                    false,
+                );
+                top_left.y += ROW_HEIGHT + BLOCK_SPACING;
+            }
         }
     }
 

@@ -31,14 +31,14 @@ impl Theme {
                 neutral_quarternary: hex_color!("#777777"),
 
                 red: hex_color!("#DF2040"),
-                green: hex_color!("#39C692"),
-                yellow: hex_color!("#FFBF00"),
-                blue: hex_color!("#0D7FF2"),
+                green: hex_color!("#00B371"),
+                yellow: hex_color!("#E6AC00"),
+                blue: hex_color!("#207FDF"),
                 magenta: hex_color!("#7855AA"),
 
                 accent_primary: hex_color!("#7855AA"),
-                accent_secondary: hex_color!("#0D7FF2"),
-                accent_tertiary: hex_color!("#39C692"),
+                accent_secondary: hex_color!("#207FDF"),
+                accent_tertiary: hex_color!("#00B371"),
             },
             bright: ColorSet {
                 neutral_primary: hex_color!("#FFFFFF"),
@@ -49,10 +49,10 @@ impl Theme {
                 red: hex_color!("#FF6680"),
                 green: hex_color!("#67E4B6"),
                 yellow: hex_color!("#FFDB70"),
-                blue: hex_color!("#4DA6FF"),
-                magenta: hex_color!("#9C75D1"),
+                blue: hex_color!("#66B2FF"),
+                magenta: hex_color!("#AC8CD9"),
 
-                accent_primary: hex_color!("#0D7FF2"),
+                accent_primary: hex_color!("#207FDF"),
                 accent_secondary: hex_color!("#67E4B6"),
                 accent_tertiary: hex_color!("#FFDB70"),
             },
