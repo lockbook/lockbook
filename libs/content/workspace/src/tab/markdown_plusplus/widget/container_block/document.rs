@@ -1,6 +1,6 @@
 use comrak::nodes::AstNode;
 use egui::{FontId, Pos2, TextFormat};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeIterExt as _};
+use lb_rs::model::text::offset_types::RangeIterExt as _;
 
 use crate::tab::markdown_plusplus::{
     widget::{Wrap, ROW_HEIGHT, ROW_SPACING},
@@ -33,20 +33,27 @@ impl<'ast> MarkdownPlusPlus {
         self.show_block_pre_spacing(ui, node, top_left);
         top_left.y += pre_spacing;
 
-        if node.children().count() == 0 {
-            for offset in
-                (DocCharOffset(0), self.buffer.current.segs.last_cursor_position() + 1).iter()
-            {
-                let range = offset.into_range();
-                self.show_node_text_line(ui, node, top_left, &mut Wrap::new(width), range);
-                self.bounds.paragraphs.push(range);
+        let any_children = node.children().next().is_some();
+        if any_children {
+            self.show_block_children(ui, node, top_left);
+            top_left.y += self.block_children_height(node);
+        } else {
+            for line_idx in self.node_lines(node).iter() {
+                let line = self.bounds.source_lines[line_idx];
+
+                self.show_text_line(
+                    ui,
+                    top_left,
+                    &mut Wrap::new(width),
+                    line,
+                    self.text_format_syntax(node),
+                    false,
+                );
+                self.bounds.paragraphs.push(line);
 
                 top_left.y += ROW_HEIGHT;
                 top_left.y += ROW_SPACING;
             }
-        } else {
-            self.show_block_children(ui, node, top_left);
-            top_left.y += self.block_children_height(node);
         }
 
         self.show_block_post_spacing(ui, node, top_left);
