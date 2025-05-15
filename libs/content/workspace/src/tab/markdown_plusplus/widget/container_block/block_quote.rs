@@ -42,7 +42,6 @@ impl<'ast> MarkdownPlusPlus {
             let parent_prefix_len = self.line_prefix_len(node.parent().unwrap(), line);
             let prefix = (line.start() + parent_prefix_len, line.start() + prefix_len);
 
-            println!("paragraphs.push({:?})", prefix);
             self.bounds.paragraphs.push(prefix);
         }
 
