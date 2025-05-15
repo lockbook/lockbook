@@ -38,6 +38,24 @@ class HomeState: ObservableObject {
             self?.sheetInfo = .createFolder(parent: root)
         }
         .store(in: &cancellables)
+        
+        #if os(iOS)
+        expandSidebarIfNoDocs()
+        #endif
+    }
+    
+    func expandSidebarIfNoDocs() {
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.5) {
+            while AppState.workspaceState.wsHandle == nil {
+                Thread.sleep(until: .now + 0.1)
+            }
+            
+            if AppState.workspaceState.openDoc == nil {
+                DispatchQueue.main.async {
+                    self.constrainedSidebarState = .openPartial
+                }
+            }
+        }
     }
     
     func runOnActiveWorkspaceState(doRun: Bool, f: (File) -> Void) {

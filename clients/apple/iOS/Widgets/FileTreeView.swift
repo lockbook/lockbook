@@ -262,6 +262,7 @@ struct FileRowContextMenu: View {
 }
 
 struct OpenDocModifier: ViewModifier {
+    @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var fileTreeModel: FileTreeViewModel
     
     let file: File
@@ -272,7 +273,7 @@ struct OpenDocModifier: ViewModifier {
                 .foregroundColor(Color.white)
                 .background(
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .foregroundStyle(Color.primary.opacity(0.05))
+                        .foregroundStyle( Color.primary.opacity(colorScheme == .light ? 0.05 : 0.1))
                         .padding(.vertical, 2)
                         .padding(.trailing)
                 )
