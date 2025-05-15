@@ -57,12 +57,6 @@ impl<'ast> MarkdownPlusPlus {
             0
         };
 
-        println!("---");
-        println!("line: {:?}", &self.buffer[line]);
-        println!("parent_prefix_len: {:?}", parent_prefix_len);
-        println!("prefix_len: {:?}", prefix_len);
-        println!("result: {:?}", parent_prefix_len + prefix_len);
-
         (parent_prefix_len + prefix_len).min(line.len())
     }
 }
