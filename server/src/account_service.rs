@@ -142,7 +142,7 @@ where
 
         let owner = Owner(context.public_key);
 
-        let tree = self.get_tree::<GetUsageError>(owner).await?;
+        let tree = self.get_tree::<GetUsageError>(owner, &[]).await?;
         let caps = tree.get_caps(&db);
         let usage_report = tree.usage_report(caps).unwrap();
 
