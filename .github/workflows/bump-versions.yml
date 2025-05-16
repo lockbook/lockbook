@@ -23,5 +23,7 @@ jobs:
           profile: minimal
           toolchain: stable
       - name: run bump script
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           cargo run -p releaser -- bump-versions ${{ github.event.inputs.bump_type }}
