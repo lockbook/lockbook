@@ -16,14 +16,21 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          persistent-credentials: false
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.LB_BOT_APP_ID }}
+          private-key: ${{ secrets.LB_BOT_PRIVATE_KEY }}
       - name: run bump script
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
           cargo run -p releaser -- bump-versions ${{ github.event.inputs.bump_type }}
