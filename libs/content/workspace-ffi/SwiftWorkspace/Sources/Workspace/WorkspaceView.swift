@@ -31,10 +31,7 @@ public struct WorkspaceView: View, Equatable {
 public struct UIWS: UIViewRepresentable {
     @ObservedObject public var workspaceState: WorkspaceState
     let coreHandle: UnsafeMutableRawPointer?
-    
-    @Environment(\.horizontalSizeClass) var horizontal
-    @Environment(\.verticalSizeClass) var vertical
-    
+        
     var openDoc: UUID? = nil
     
     static var inputManager: iOSMTKInputManager? = nil
@@ -53,18 +50,21 @@ public struct UIWS: UIViewRepresentable {
     }
     
     public func updateUIView(_ uiView: iOSMTKInputManager, context: Context) {
-        workspaceState.showTabs = horizontal == .regular && vertical == .regular
         if uiView.mtkView.showTabs != workspaceState.showTabs {
             uiView.mtkView.showHideTabs(show: workspaceState.showTabs)
         }
         
         if let id = workspaceState.openDocRequested {
             uiView.mtkView.openFile(id: id)
-            workspaceState.openDocRequested = nil
+            DispatchQueue.main.async {
+                workspaceState.openDocRequested = nil
+            }
         }
         
         if workspaceState.closeAllTabsRequested {
-            workspaceState.closeAllTabsRequested = false
+            DispatchQueue.main.async {
+                workspaceState.closeAllTabsRequested = false
+            }
             uiView.mtkView.closeAllTabs()
         }
         
@@ -73,24 +73,35 @@ public struct UIWS: UIViewRepresentable {
         }
         
         if workspaceState.shouldFocus {
-            workspaceState.shouldFocus = false
+            DispatchQueue.main.async {
+                workspaceState.shouldFocus = false
+            }
             uiView.currentWrapper?.becomeFirstResponder()
         }
         
         if workspaceState.syncRequested {
-            workspaceState.syncRequested = false
+            DispatchQueue.main.async {
+                workspaceState.syncRequested = false
+            }
             uiView.mtkView.requestSync()
         }
         
         if workspaceState.fileOpCompleted != nil {
             uiView.mtkView.fileOpCompleted(fileOp: workspaceState.fileOpCompleted!)
-            workspaceState.fileOpCompleted = nil
+            DispatchQueue.main.async {
+                workspaceState.fileOpCompleted = nil
+            }
         }
         
-        if workspaceState.closeActiveTab {
-            workspaceState.closeActiveTab = false
-            uiView.mtkView.closeActiveTab()
-            uiView.currentWrapper?.resignFirstResponder()
+        if let id = workspaceState.closeDocRequested {
+            DispatchQueue.main.async {
+                workspaceState.closeDocRequested = nil
+            }
+            let activeDoc = workspaceState.openDoc
+            uiView.mtkView.closeDoc(id: id)
+            if activeDoc == id {
+                uiView.currentWrapper?.resignFirstResponder()
+            }
         }
     }
 }
@@ -241,6 +252,10 @@ public struct NSWS: NSViewRepresentable {
         if workspaceState.fileOpCompleted != nil {
             nsView.fileOpCompleted(fileOp: workspaceState.fileOpCompleted!)
             workspaceState.fileOpCompleted = nil
+        }
+        
+        if let id = workspaceState.closeDocRequested {
+            nsView.closeDoc(id: id)
         }
     }
 }
