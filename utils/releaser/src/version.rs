@@ -19,7 +19,6 @@ pub fn bump(bump_type: BumpType) -> CliResult<()> {
     generate_lockfile();
     perform_checks();
     push_to_git(&new_version);
-    // create_merge_pr(&new_version);
 
     Ok(())
 }
@@ -173,15 +172,6 @@ fn push_to_git(version: &str) {
         ])
         .assert_success()
 }
-
-// fn create_merge_pr(version: &str) {
-//     Command::new("bash")
-//         .args(["-c", &format!("gh pr create --fill --base master --head bump-{version}")])
-//         .assert_success();
-//     Command::new("bash")
-//         .args(["-c", "gh pr merge --auto --squash"])
-//         .assert_success();
-// }
 
 fn perform_checks() {
     Command::new("bash")

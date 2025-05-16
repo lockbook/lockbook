@@ -23,15 +23,6 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
-      - name: Generate a token
-        id: generate-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.LB_BOT_APP_ID }}
-          private-key: ${{ secrets.LB_BOT_PRIVATE_KEY }}
       - name: run bump script
-        env:
-          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
-          git remote set-url origin https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/lockbook/lockbook.git
           cargo run -p releaser -- bump-versions ${{ github.event.inputs.bump_type }}
