@@ -103,7 +103,7 @@ where
         Ok(files)
     }
 
-    fn is_invisible_id(&mut self, id: Uuid) -> LbResult<bool> {
+    pub fn is_invisible_id(&mut self, id: Uuid) -> LbResult<bool> {
         Ok(self.find(&id)?.is_link()
             || self.calculate_deleted(&id)?
             || self.in_pending_share(&id)?)
