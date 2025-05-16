@@ -33,4 +33,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
+          git remote set-url origin https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/lockbook/lockbook.git
           cargo run -p releaser -- bump-versions ${{ github.event.inputs.bump_type }}
