@@ -1,0 +1,259 @@
+use std::collections::HashMap;
+use std::fmt::Debug;
+
+use itertools::Itertools;
+use tokio::sync::OwnedRwLockWriteGuard;
+use uuid::Uuid;
+
+use lb_rs::{
+    model::{
+        clock::get_time,
+        errors::DiffError,
+        file_like::FileLike,
+        file_metadata::{FileDiff, Owner},
+        lazy::{LazyStaged1, LazyTree},
+        server_meta::{IntoServerMeta, ServerMeta},
+        signed_file::SignedFile,
+        signed_meta::SignedMeta,
+        tree_like::{TreeLike, TreeLikeMut},
+    },
+    LbErrKind, LbResult,
+};
+
+use crate::{
+    billing::{
+        app_store_client::AppStoreClient, google_play_client::GooglePlayClient,
+        stripe_client::StripeClient,
+    },
+    document_service::DocumentService,
+    schema::AccountV1,
+    ServerError, ServerState,
+};
+
+// todo: is it worthwhile to have a Mut variant and make this read only?
+// If not, should these just all be normal mutexes instead of RwLocks
+pub struct ServerTreeV2 {
+    pub owner: Owner,
+    pub owner_db: OwnedRwLockWriteGuard<AccountV1>,
+    pub ids: Vec<Uuid>,
+    pub sharee_dbs: HashMap<Owner, OwnedRwLockWriteGuard<AccountV1>>,
+}
+
+impl<S, A, G, D> ServerState<S, A, G, D>
+where
+    S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
+    D: DocumentService,
+{
+    // todo -- at what point should this tree begin_tx's on the databases
+    // todo -- this needs to take a diff and also add newly shared people to this,
+    // this is so that when upsert accepts a new share it can update their db. Their
+    // ids are not added here because you can't just add a sharee and get access to
+    // their ids. But the insert logic will be able to ensure that you're not adding
+    // an id they already have in their db. It will also subsequently be able to
+    // update their secondary index about shares during change promotion
+    pub async fn get_tree<T: Debug>(
+        &self, owner: Owner, new_sharees: &[Owner],
+    ) -> Result<ServerTreeV2, ServerError<T>> {
+        let owner_dbs = self.account_dbs.read().await;
+
+        // grab our requester's db
+        let owner_db = owner_dbs.get(&owner).unwrap().clone().write_owned().await;
+        let mut ids = owner_db.metas.ids();
+
+        // get all relevant sharee dbs and sort for determinism
+        let mut owners = vec![];
+        for (owner, _ids) in owner_db.shared_files.get() {
+            owners.push(owner);
+        }
+        owners.sort_unstable_by_key(|owner| owner.0.serialize());
+
+        // aquire locks and find compute the requester's set of ids
+        let mut sharee_dbs = HashMap::new();
+        for owner in owners {
+            let db = owner_dbs.get(&owner).unwrap().clone();
+            let db = db.write_owned().await;
+            let mut temp_tree = db.metas.get().to_lazy();
+            let shared_ids = owner_db.shared_files.get().get(owner).unwrap();
+            for id in shared_ids {
+                let desc = temp_tree
+                    .descendants(id)
+                    .map_err(|e| {
+                        ServerError::InternalError(format!(
+                            "Could not compute desc {id}, {owner:?} err: {e:?}"
+                        ))
+                    })?
+                    .into_iter()
+                    .collect_vec();
+                ids.extend_from_slice(&desc);
+            }
+
+            sharee_dbs.insert(*owner, db);
+        }
+
+        // return the tree with all the metadata to fulfill requests
+        Ok(ServerTreeV2 { owner, owner_db, ids, sharee_dbs })
+    }
+}
+
+impl TreeLike for ServerTreeV2 {
+    type F = ServerMeta;
+
+    fn ids(&self) -> Vec<Uuid> {
+        self.ids.clone()
+    }
+
+    fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
+        // limit access to the only the ids this person is supposed to be able to see
+        if !self.ids.contains(id) {
+            return None;
+        }
+
+        match self.owner_db.metas.get().get(id) {
+            Some(f) => return Some(f),
+            None => {
+                for (_owner, tree) in &self.sharee_dbs {
+                    if let Some(meta) = tree.metas.get().get(id) {
+                        return Some(meta);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+}
+
+impl TreeLikeMut for ServerTreeV2 {
+    fn insert(&mut self, f: Self::F) -> crate::LbResult<Option<Self::F>> {
+        let id = *f.id();
+        let owner = f.owner();
+        let maybe_prior = LookupTable::insert(self.files, id, f.clone())?;
+
+        // maintain index: owned_files
+        if maybe_prior.as_ref().map(|f| f.owner()) != Some(f.owner()) {
+            if let Some(ref prior) = maybe_prior {
+                self.owned_files.remove(&prior.owner(), &id)?;
+            }
+            self.owned_files.insert(owner, id)?;
+        }
+
+        // maintain index: shared_files
+        let prior_sharees = if let Some(ref prior) = maybe_prior {
+            prior
+                .user_access_keys()
+                .iter()
+                .filter(|k| !k.deleted)
+                .map(|k| Owner(k.encrypted_for))
+                .collect()
+        } else {
+            HashSet::new()
+        };
+        let sharees = f
+            .user_access_keys()
+            .iter()
+            .filter(|k| !k.deleted)
+            .map(|k| Owner(k.encrypted_for))
+            .collect::<HashSet<_>>();
+        for removed_sharee in prior_sharees.difference(&sharees) {
+            self.shared_files.remove(removed_sharee, &id)?;
+        }
+        for new_sharee in sharees.difference(&prior_sharees) {
+            self.shared_files.insert(*new_sharee, id)?;
+        }
+
+        // maintain index: file_children
+        if self.file_children.get().get(&id).is_none() {
+            self.file_children.create_key(id)?;
+        }
+        if self.file_children.get().get(f.parent()).is_none() {
+            self.file_children.create_key(*f.parent())?;
+        }
+        if maybe_prior.as_ref().map(|f| *f.parent()) != Some(*f.parent()) {
+            if let Some(ref prior) = maybe_prior {
+                self.file_children.remove(prior.parent(), &id)?;
+            }
+
+            self.file_children.insert(*f.parent(), id)?;
+        }
+
+        Ok(maybe_prior)
+    }
+
+    fn remove(&mut self, id: Uuid) -> crate::LbResult<Option<Self::F>> {
+        todo!()
+    }
+
+    fn clear(&mut self) -> crate::LbResult<()> {
+        todo!()
+    }
+}
+
+type LazyServerStaged1 = LazyStaged1<ServerTreeV2, Vec<ServerMeta>>;
+
+pub trait ServerTreeOps {
+    /// Validates a diff prior to staging it. Performs individual validations, then validations that
+    /// require a tree
+    fn stage_diff(self, changes: Vec<FileDiff<SignedMeta>>) -> LbResult<LazyServerStaged1>;
+}
+
+impl ServerTreeOps for LazyTree<ServerTreeV2> {
+    fn stage_diff(self, changes: Vec<FileDiff<SignedMeta>>) -> LbResult<LazyServerStaged1> {
+        // Check new.id == old.id
+        for change in &changes {
+            if let Some(old) = &change.old {
+                if old.id() != change.new.id() {
+                    return Err(LbErrKind::Diff(DiffError::DiffMalformed))?;
+                }
+            }
+        }
+
+        // Check for changes to digest
+        for change in &changes {
+            match &change.old {
+                Some(old) => {
+                    if old.timestamped_value.value.document_hmac()
+                        != change.new.timestamped_value.value.document_hmac()
+                    {
+                        return Err(LbErrKind::Diff(DiffError::HmacModificationInvalid))?;
+                    }
+                }
+                None => {
+                    if change.new.timestamped_value.value.document_hmac().is_some() {
+                        return Err(LbErrKind::Diff(DiffError::HmacModificationInvalid))?;
+                    }
+                }
+            }
+        }
+
+        // Check for race conditions
+        for change in &changes {
+            match &change.old {
+                Some(old) => {
+                    let current = &self
+                        .maybe_find(old.id())
+                        .ok_or(LbErrKind::Diff(DiffError::OldFileNotFound))?
+                        .file;
+                    if current != old {
+                        return Err(LbErrKind::Diff(DiffError::OldVersionIncorrect))?;
+                    }
+                }
+                None => {
+                    // if you're claiming this file is new, it must be globally unique
+                    if self.tree.files.maybe_find(change.new.id()).is_some() {
+                        return Err(LbErrKind::Diff(DiffError::OldVersionRequired))?;
+                    }
+                }
+            }
+        }
+
+        let now = get_time().0 as u64;
+        let changes = changes
+            .into_iter()
+            .map(|change| change.new.add_time(now))
+            .collect();
+
+        Ok(self.stage(changes))
+    }
+}

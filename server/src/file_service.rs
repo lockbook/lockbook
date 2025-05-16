@@ -19,7 +19,7 @@ use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 use tracing::{debug, error, warn};
 
 impl<S, A, G, D> ServerState<S, A, G, D>
@@ -37,12 +37,11 @@ where
 
         let mut new_deleted = vec![];
         {
+            let tree = self.get_tree(req_owner).await?;
+            let usage_report = tree.usage_report(tree.get_caps(&self.db_v5.read().await.deref()));
+
             let mut prior_deleted = HashSet::new();
             let mut current_deleted = HashSet::new();
-
-            let mut lock = self.index_db.lock().await;
-            let db = lock.deref_mut();
-            let tx = db.begin_transaction()?;
 
             let usage_cap =
                 Self::get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
@@ -212,7 +211,7 @@ where
         let req_pk = context.public_key;
 
         {
-            let mut lock = self.index_db.lock().await;
+            let mut lock = self.db_v4.lock().await;
             let db = lock.deref_mut();
             let usage_cap =
                 Self::get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
@@ -313,7 +312,7 @@ where
         debug!(?id, ?hmac, "Inserted document contents");
 
         let result = async {
-            let mut lock = self.index_db.lock().await;
+            let mut lock = self.db_v4.lock().await;
             let db = lock.deref_mut();
             let tx = db.begin_transaction()?;
 
@@ -384,7 +383,7 @@ where
     ) -> Result<GetDocumentResponse, ServerError<GetDocumentError>> {
         let request = &context.request;
         {
-            let mut lock = self.index_db.lock().await;
+            let mut lock = self.db_v4.lock().await;
             let db = lock.deref_mut();
             let tx = db.begin_transaction()?;
 
@@ -434,7 +433,7 @@ where
         &self, context: RequestContext<GetFileIdsRequest>,
     ) -> Result<GetFileIdsResponse, ServerError<GetFileIdsError>> {
         let owner = Owner(context.public_key);
-        let mut db = self.index_db.lock().await;
+        let mut db = self.db_v4.lock().await;
         let db = db.deref_mut();
 
         Ok(GetFileIdsResponse {
@@ -457,7 +456,7 @@ where
         let request = &context.request;
         let owner = Owner(context.public_key);
 
-        let mut db = self.index_db.lock().await;
+        let mut db = self.db_v4.lock().await;
         let db = db.deref_mut();
         let mut tree = ServerTree::new(
             owner,
@@ -502,7 +501,7 @@ where
         let mut docs_to_delete = Vec::new();
 
         {
-            let mut db = self.index_db.lock().await;
+            let mut db = self.db_v4.lock().await;
             let db = db.deref_mut();
             let tx = db.begin_transaction()?;
 
@@ -613,7 +612,7 @@ where
         &self, context: RequestContext<AdminValidateAccountRequest>,
     ) -> Result<AdminValidateAccount, ServerError<AdminValidateAccountError>> {
         let request = &context.request;
-        let mut db = self.index_db.lock().await;
+        let mut db = self.db_v4.lock().await;
         if !Self::is_admin::<AdminValidateAccountError>(
             &db,
             &context.public_key,
@@ -682,7 +681,7 @@ where
     pub async fn admin_validate_server(
         &self, context: RequestContext<AdminValidateServerRequest>,
     ) -> Result<AdminValidateServer, ServerError<AdminValidateServerError>> {
-        let mut db = self.index_db.lock().await;
+        let mut db = self.db_v4.lock().await;
         let db = db.deref_mut();
 
         if !Self::is_admin::<AdminValidateServerError>(
@@ -893,7 +892,7 @@ where
         &self, context: RequestContext<AdminFileInfoRequest>,
     ) -> Result<AdminFileInfoResponse, ServerError<AdminFileInfoError>> {
         let request = &context.request;
-        let mut db = self.index_db.lock().await;
+        let mut db = self.db_v4.lock().await;
         let db = db.deref_mut();
         if !Self::is_admin::<AdminFileInfoError>(
             db,
@@ -938,7 +937,7 @@ where
     pub async fn admin_rebuild_index(
         &self, context: RequestContext<AdminRebuildIndexRequest>,
     ) -> Result<(), ServerError<AdminRebuildIndexError>> {
-        let mut db = self.index_db.lock().await;
+        let mut db = self.db_v4.lock().await;
 
         match context.request.index {
             ServerIndex::OwnedFiles => {

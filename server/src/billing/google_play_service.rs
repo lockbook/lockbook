@@ -40,7 +40,7 @@ where
         );
 
         let public_key: PublicKey = self
-            .index_db
+            .db_v4
             .lock()
             .await
             .google_play_ids
