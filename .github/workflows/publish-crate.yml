@@ -4,18 +4,7 @@ on:
   release:
     types: [published]
   workflow_dispatch:
-    inputs:
-      package:
-        description: 'Name of the crate to publish'
-        required: false
-        default: 'lb-rs'
   workflow_call:
-    inputs:
-      package:
-        description: 'Name of the crate to publish'
-        required: false
-        type: string
-        default: 'lb-rs'
     secrets:
       CRATES_IO_API_TOKEN:
         required: true
@@ -35,12 +24,13 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
-
-      - name: Set package name
-        id: package_name
+      - name: Publish lb-rs
         run: |
-          echo "PACKAGE_NAME=${{ github.event.inputs.package || 'lb-rs' }}" >> $GITHUB_ENV
-
-      - name: Publish crate
+          cargo run -p releaser -- publish-crate lb-rs
+      - name: Publish lb-fs
         run: |
-          cargo run -p releaser -- publish-crate ${{ env.PACKAGE_NAME }}
+          cargo run -p releaser -- publish-crate lb-fs
+      - name: Publish cli
+        run: |
+          cargo run -p releaser -- publish-crate lockbook
+      
