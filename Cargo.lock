@@ -4338,7 +4338,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "lockbook-cli"
+name = "lockbook"
 version = "0.9.23"
 dependencies = [
  "cli-rs",
