@@ -14,8 +14,10 @@ use std::time::Instant;
 
 use self::history::History;
 use crate::tab::svg_editor::toolbar::Toolbar;
+
 use element::PromoteWeakImage;
 pub use eraser::Eraser;
+use gesture_handler::calc_elements_bounds;
 pub use history::DeleteElement;
 pub use history::Event;
 pub use history::InsertElement;
@@ -30,10 +32,10 @@ use lb_rs::Uuid;
 pub use path_builder::PathBuilder;
 pub use pen::Pen;
 use renderer::Renderer;
+use toolbar::BoundedRect;
 pub use toolbar::Tool;
 use toolbar::ToolContext;
 use toolbar::ToolbarContext;
-use toolbar::ViewportPopover;
 use tracing::span;
 use tracing::Level;
 
@@ -44,7 +46,8 @@ pub struct SVGEditor {
 
     history: History,
     pub toolbar: Toolbar,
-    inner_rect: egui::Rect,
+    inner_rect: BoundedRect,
+    container_rect: egui::Rect,
     lb: Lb,
     pub open_file: Uuid,
     skip_frame: bool,
@@ -56,6 +59,25 @@ pub struct SVGEditor {
     allow_viewport_changes: bool,
     pub settings: CanvasSettings,
     input_ctx: InputContext,
+}
+enum Modal {
+    ViewportSettings(ViewportSettingsState),
+}
+
+struct ViewportSettingsState {
+    renderer: Renderer,
+    inner_rect: BoundedRect,
+}
+
+impl Modal {
+    /// Creates a new ViewportSettings modal with the specified renderer
+    pub fn new_viewport_settings(element_count: usize) -> Self {
+        let renderer = Renderer::new(element_count);
+        Modal::ViewportSettings(ViewportSettingsState {
+            renderer,
+            inner_rect: BoundedRect::default(),
+        })
+    }
 }
 
 pub struct Response {
@@ -97,13 +119,20 @@ impl SVGEditor {
         let elements_count = buffer.elements.len();
         let toolbar = Toolbar::new(elements_count);
 
+        let buffer_rect = calc_elements_bounds(&buffer);
+
         Self {
             buffer,
             opened_content: Buffer::new(content),
             open_file_hmac: hmac,
             history: History::default(),
             toolbar,
-            inner_rect: egui::Rect::NOTHING,
+            inner_rect: BoundedRect {
+                working_rect: buffer_rect.unwrap_or(egui::Rect::ZERO),
+                bounded_rect: buffer_rect.unwrap_or(egui::Rect::ZERO),
+                ..Default::default()
+            },
+            container_rect: egui::Rect::NOTHING,
             lb,
             open_file,
             skip_frame: false,
@@ -122,12 +151,18 @@ impl SVGEditor {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        set_style(ui);
+
         let frame = ui.ctx().frame_nr();
         let span = span!(Level::TRACE, "showing canvas widget", frame);
         let _ = span.enter();
+        self.container_rect = ui.available_rect_before_wrap();
 
-        self.inner_rect = ui.available_rect_before_wrap();
-        ui.set_clip_rect(self.inner_rect);
+        // if we have locks then the fit will controlled by the more popover
+
+        // let's get the rect that fits all elements
+        // let's bound it
+
         self.input_ctx.update(ui);
 
         let non_empty_weak_imaegs = !self.buffer.weak_images.is_empty();
@@ -152,16 +187,15 @@ impl SVGEditor {
                 };
             });
 
-        ui.painter()
-            .rect_filled(self.inner_rect, 0., ui.style().visuals.extreme_bg_color);
-
-        self.painter = ui.painter_at(self.inner_rect);
-
         self.show_toolbar(ui);
+
         self.process_events(ui);
 
-        self.show_dot_gird(ui);
+        self.painter = ui.painter_at(self.inner_rect.working_rect);
+        ui.set_clip_rect(self.inner_rect.working_rect);
 
+        self.show_background(ui);
+        self.show_dot_grid(ui);
         let global_diff = self.show_canvas(ui);
 
         if cfg!(debug_assertions) {
@@ -175,20 +209,19 @@ impl SVGEditor {
             self.has_queued_save_request = true;
             if global_diff.transformed.is_none() {
                 self.toolbar.show_tool_controls = false;
-                if !matches!(self.toolbar.viewport_popover, Some(ViewportPopover::MiniMap)) {
-                    self.toolbar.viewport_popover = None;
-                }
+                self.toolbar.viewport_popover = None;
             }
         }
-
+        self.inner_rect.update(self.container_rect, &self.buffer);
+        
         let needs_save_and_frame_is_cheap =
-            if self.has_queued_save_request && !global_diff.is_dirty() {
-                self.has_queued_save_request = false;
-                true
-            } else {
-                false
-            };
-
+        if self.has_queued_save_request && !global_diff.is_dirty() {
+            self.has_queued_save_request = false;
+            true
+        } else {
+            false
+        };
+        
         for (_, el) in &mut self.buffer.elements {
             match el {
                 Element::Path(p) => p.diff_state = DiffState::default(),
@@ -196,8 +229,14 @@ impl SVGEditor {
                 Element::Text(_) => todo!(),
             }
         }
+        
         self.buffer.master_transform_changed = false;
         Response { request_save: needs_save_and_frame_is_cheap }
+    }
+
+    fn show_background(&mut self, ui: &mut egui::Ui) {
+        ui.painter()
+            .rect_filled(self.inner_rect.working_rect, 0.0, ui.visuals().extreme_bg_color);
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) {
@@ -206,12 +245,15 @@ impl SVGEditor {
             history: &mut self.history,
             settings: &mut self.settings,
             painter: &mut self.painter,
+            inner_rect: &mut self.inner_rect,
+            container_rect: self.container_rect,
         };
 
         ui.with_layer_id(
             egui::LayerId { order: egui::Order::Middle, id: egui::Id::from("canvas_ui_overlay") },
             |ui| {
-                let mut ui = ui.child_ui(self.inner_rect, egui::Layout::default(), None);
+                let mut ui =
+                    ui.child_ui(ui.available_rect_before_wrap(), egui::Layout::default(), None);
 
                 self.toolbar
                     .show(&mut ui, &mut toolbar_context, &mut self.skip_frame);
@@ -219,19 +261,19 @@ impl SVGEditor {
         );
     }
 
-    fn show_dot_gird(&self, ui: &mut egui::Ui) {
+    fn show_dot_grid(&self, ui: &mut egui::Ui) {
         if !self.settings.show_dot_grid {
             return;
         }
 
         let mut distance_between_dots = 30.0 * self.buffer.master_transform.sx;
         let mut dot_radius = (1. * self.buffer.master_transform.sx).max(0.6);
-        if distance_between_dots < 5.0 {
+        if distance_between_dots < 7.0 {
             distance_between_dots *= 5.0;
-            dot_radius *= 3.0;
-        } else if distance_between_dots < 10.0 {
+            dot_radius *= 1.5;
+        } else if distance_between_dots < 12.0 {
             distance_between_dots *= 2.0;
-            dot_radius *= 2.0;
+            dot_radius *= 1.5;
         }
 
         let offset = egui::vec2(
@@ -246,8 +288,8 @@ impl SVGEditor {
         );
 
         let end = egui::vec2(
-            (ui.clip_rect().right() + distance_between_dots) / distance_between_dots,
-            (ui.clip_rect().bottom() + distance_between_dots) / distance_between_dots,
+            (self.inner_rect.working_rect.right() + distance_between_dots) / distance_between_dots,
+            (self.inner_rect.working_rect.bottom() + distance_between_dots) / distance_between_dots,
         );
 
         let mut dot = egui::Pos2::ZERO;
@@ -259,7 +301,7 @@ impl SVGEditor {
                     i as f32 * distance_between_dots + offset.y,
                 );
 
-                ui.painter().circle(
+                self.painter.circle(
                     dot,
                     dot_radius,
                     egui::Color32::GRAY.gamma_multiply(0.4),
@@ -291,6 +333,8 @@ impl SVGEditor {
             }) || cfg!(target_os = "ios"),
             settings: &mut self.settings,
             is_locked_vw_pen_only: self.toolbar.gesture_handler.is_locked_vw_pen_only_draw(),
+            inner_rect: &mut self.inner_rect,
+            container_rect: self.container_rect,
         };
 
         if self.skip_frame {
@@ -342,7 +386,7 @@ impl SVGEditor {
                 }
             });
 
-        let mut top = self.inner_rect.right_top();
+        let mut top = self.container_rect.right_top();
         top.x -= 250.0;
         top.y += 10.0;
 
@@ -354,6 +398,38 @@ impl SVGEditor {
                 format!("{} anchor | {} fps", anchor_count, 1000 / frame_cost.as_millis()),
             );
         }
+    }
+}
+
+fn set_style(ui: &mut egui::Ui) {
+    let toolbar_margin = egui::Margin::symmetric(15.0, 7.0);
+    ui.visuals_mut().window_rounding = egui::Rounding::same(30.0);
+    ui.style_mut().spacing.window_margin = toolbar_margin;
+    ui.style_mut()
+        .text_styles
+        .insert(egui::TextStyle::Body, egui::FontId::new(13.0, egui::FontFamily::Proportional));
+    ui.style_mut()
+        .text_styles
+        .insert(egui::TextStyle::Button, egui::FontId::new(13.0, egui::FontFamily::Proportional));
+
+    ui.visuals_mut().widgets.active.bg_fill =
+        ui.visuals_mut().widgets.active.bg_fill.linear_multiply(0.7);
+
+    if ui.visuals().dark_mode {
+        ui.visuals_mut().window_stroke =
+            egui::Stroke::new(0.5, egui::Color32::from_rgb(56, 56, 56));
+        ui.visuals_mut().window_fill = egui::Color32::from_rgb(30, 30, 30);
+        ui.visuals_mut().window_shadow = egui::Shadow::NONE;
+    } else {
+        ui.visuals_mut().window_stroke =
+            egui::Stroke::new(0.5, egui::Color32::from_rgb(235, 235, 235));
+        ui.visuals_mut().window_shadow = egui::Shadow {
+            offset: egui::vec2(1.0, 8.0),
+            blur: 20.0,
+            spread: 0.0,
+            color: egui::Color32::from_black_alpha(10),
+        };
+        ui.visuals_mut().window_fill = ui.visuals().extreme_bg_color;
     }
 }
 

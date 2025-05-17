@@ -117,7 +117,7 @@ impl Selection {
                     ui.painter().rect_filled(
                         laso_rect,
                         egui::Rounding::ZERO,
-                        ui.visuals().hyperlink_color.linear_multiply(0.1),
+                        ui.visuals().widgets.active.bg_fill.linear_multiply(0.1),
                     );
                 };
 
@@ -741,7 +741,10 @@ impl Selection {
         ui.painter().rect_stroke(
             rect,
             egui::Rounding::ZERO,
-            egui::Stroke { width: 1.0, color: ui.visuals().hyperlink_color.linear_multiply(0.4) },
+            egui::Stroke {
+                width: 1.0,
+                color: ui.visuals().widgets.active.bg_fill.linear_multiply(0.4),
+            },
         );
     }
 
@@ -768,14 +771,14 @@ impl Selection {
                 rect,
                 egui::Rounding::ZERO,
                 egui::Color32::WHITE,
-                egui::Stroke { width: 1.0, color: ui.visuals().hyperlink_color },
+                egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
             );
         }
 
         ui.painter().rect_stroke(
             rect,
             egui::Rounding::ZERO,
-            egui::Stroke { width: 1.0, color: ui.visuals().hyperlink_color },
+            egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
         );
     }
 }

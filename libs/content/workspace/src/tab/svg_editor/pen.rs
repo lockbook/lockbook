@@ -531,6 +531,8 @@ fn correct_start_of_path() {
         is_touch_frame: true,
         settings: &mut crate::tab::svg_editor::CanvasSettings::default(),
         is_locked_vw_pen_only: false,
+        inner_rect: &mut Default::default(),
+        container_rect: egui::Rect::EVERYTHING,
     };
 
     let start_pos = egui::pos2(10.0, 10.0);
@@ -585,6 +587,8 @@ fn cancel_touch_ui_event() {
         is_touch_frame: true,
         settings: &mut crate::tab::svg_editor::CanvasSettings::default(),
         is_locked_vw_pen_only: false,
+        inner_rect: &mut Default::default(),
+        container_rect: egui::Rect::EVERYTHING,
     };
 
     let input_state = PenPointerInput { is_multi_touch: false };
