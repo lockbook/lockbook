@@ -61,6 +61,9 @@ impl Icon {
     pub const ITALIC: Self = ic("\u{e23f}");
     pub const KEYBOARD_HIDE: Self = ic("\u{e31a}");
     pub const LINK: Self = ic("\u{e157}");
+    pub const LOCK_OPEN: Self = ic("\u{e898}");
+    pub const LOCK_CLOSED: Self = ic("\u{e897}");
+
     pub const MONEY: Self = ic("\u{e263}"); // Monetization On
     pub const MORE_VERT: Self = ic("\u{e5d4}");
     pub const NUMBER_LIST: Self = ic("\u{e242}"); // Number List

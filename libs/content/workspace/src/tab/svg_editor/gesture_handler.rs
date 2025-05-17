@@ -4,7 +4,7 @@ use egui::TouchPhase;
 use resvg::usvg::Transform;
 use tracing::trace;
 
-use super::{element::BoundedElement, SVGEditor};
+use super::{element::BoundedElement, toolbar::BoundedRect, util::transform_rect, SVGEditor};
 use lb_rs::model::svg::{buffer::u_transform_to_bezier, element::Element};
 
 use super::{toolbar::ToolContext, Buffer};
@@ -147,16 +147,14 @@ impl GestureHandler {
             sum_pos / pos_cardinality as f32
         } else {
             match ui.ctx().pointer_hover_pos() {
-                Some(cp) => {
-                    if gesture_ctx.painter.clip_rect().contains(cp) {
-                        cp
-                    } else {
-                        return;
-                    }
-                }
+                Some(cp) => cp,
                 None => egui::Pos2::ZERO,
             }
         };
+
+        if !gesture_ctx.container_rect.contains(pos) {
+            return;
+        }
 
         let mut t = Transform::identity();
         if let Some(p) = pan {
@@ -174,7 +172,7 @@ impl GestureHandler {
         }
 
         if pan.is_some() || is_zooming {
-            transform_canvas(gesture_ctx.buffer, t);
+            transform_canvas(gesture_ctx.buffer, gesture_ctx.inner_rect, t);
         }
     }
 
@@ -249,7 +247,7 @@ impl GestureHandler {
     }
 }
 
-pub fn transform_canvas(buffer: &mut Buffer, t: Transform) {
+pub fn transform_canvas(buffer: &mut Buffer, inner_rect: &mut BoundedRect, t: Transform) {
     let new_transform = buffer.master_transform.post_concat(t);
 
     // max allowed zoom level is 10%
@@ -278,6 +276,7 @@ pub fn transform_canvas(buffer: &mut Buffer, t: Transform) {
             Element::Text(_) => todo!(),
         }
     }
+    inner_rect.bounded_rect = transform_rect(inner_rect.bounded_rect, t);
 }
 
 pub fn get_zoom_fit_transform(buffer: &Buffer, container_rect: egui::Rect) -> Option<Transform> {
@@ -304,7 +303,7 @@ pub fn get_rect_identity_transform(
     )
 }
 
-fn calc_elements_bounds(buffer: &Buffer) -> Option<egui::Rect> {
+pub fn calc_elements_bounds(buffer: &Buffer) -> Option<egui::Rect> {
     let mut elements_bound =
         egui::Rect { min: egui::pos2(f32::MAX, f32::MAX), max: egui::pos2(f32::MIN, f32::MIN) };
     let mut dirty_bound = false;
