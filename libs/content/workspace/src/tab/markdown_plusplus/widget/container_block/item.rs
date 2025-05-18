@@ -84,7 +84,6 @@ impl<'ast> MarkdownPlusPlus {
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
         node_list: &NodeList,
     ) -> RelCharOffset {
-        let NodeList { padding: marker_width_including_spaces, .. } = *node_list;
         let parent = node.parent().unwrap();
         let parent_prefix_len = self.line_prefix_len(parent, line);
         let mut result = parent_prefix_len;
@@ -93,12 +92,23 @@ impl<'ast> MarkdownPlusPlus {
         // #1, #2, or #3, then the result of indenting each line of Ls by 1-3
         // spaces (the same for each line) also constitutes a list item with the
         // same contents and attributes."
-        let NodeValue::List(NodeList { marker_offset: indentation, .. }) =
-            parent.data.borrow().value
-        else {
-            unreachable!("items always have list parents")
-        };
+        let indentation = {
+            let first_line = self.node_first_line(node);
+            let parent_prefix_len = self.line_prefix_len(node.parent().unwrap(), first_line);
+            let node_line = (line.start() + parent_prefix_len, line.end());
 
+            let text = &self.buffer[(node_line.start(), node_line.end())];
+            if text.starts_with("   ") {
+                "   ".len()
+            } else if text.starts_with("  ") {
+                "  ".len()
+            } else if text.starts_with(" ") {
+                " ".len()
+            } else {
+                0
+            }
+        };
+        let NodeList { padding: marker_width_including_spaces, .. } = *node_list;
         if line == self.node_first_line(node) {
             result += indentation;
 
@@ -124,9 +134,9 @@ impl<'ast> MarkdownPlusPlus {
             //
             // "If a line is empty, then it need not be indented."
             let text = &self.buffer[(line.start() + parent_prefix_len, line.end())];
-            for i in 0..(marker_width_including_spaces + indentation) {
-                if text.starts_with(&" ".repeat(marker_width_including_spaces + indentation - i)) {
-                    result += marker_width_including_spaces + indentation - i;
+            for i in 0..(indentation + marker_width_including_spaces) {
+                if text.starts_with(&" ".repeat(indentation + marker_width_including_spaces - i)) {
+                    result += indentation + marker_width_including_spaces - i;
                     break;
                 }
             }
