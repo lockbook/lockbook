@@ -95,7 +95,7 @@ impl<'ast> MarkdownPlusPlus {
         let indentation = {
             let first_line = self.node_first_line(node);
             let parent_prefix_len = self.line_prefix_len(node.parent().unwrap(), first_line);
-            let node_line = (line.start() + parent_prefix_len, line.end());
+            let node_line = (first_line.start() + parent_prefix_len, first_line.end());
 
             let text = &self.buffer[(node_line.start(), node_line.end())];
             if text.starts_with("   ") {

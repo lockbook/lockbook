@@ -15,6 +15,7 @@ use super::{Location, Offset, Region};
 #[derive(Default)]
 pub struct EventState {
     prev_event: Option<Event>,
+    pub internal_events: Vec<Event>,
 }
 
 impl MarkdownPlusPlus {

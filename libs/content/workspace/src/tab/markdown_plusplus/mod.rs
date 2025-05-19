@@ -209,6 +209,9 @@ impl MarkdownPlusPlus {
         let print_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
+        if !self.event.internal_events.is_empty() {
+            ui.ctx().request_repaint();
+        }
         if self.images.any_loading() {
             ui.ctx().request_repaint_after(Duration::from_millis(8));
         }
