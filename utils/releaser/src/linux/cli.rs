@@ -17,7 +17,7 @@ pub fn release() -> CliResult<()> {
 
 pub fn build_x86() {
     Command::new("cargo")
-        .args(["build", "-p", "lockbook-cli", "--release", "--target=x86_64-unknown-linux-gnu"])
+        .args(["build", "-p", "lockbook", "--release", "--target=x86_64-unknown-linux-gnu"])
         .assert_success();
 }
 
