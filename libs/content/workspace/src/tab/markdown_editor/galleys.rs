@@ -359,16 +359,14 @@ impl GalleyInfo {
         let mut desired_size =
             Vec2::new(ui.available_width(), galley.size().y + (offset.min.y + offset.max.y));
         let padding_height = if last_galley {
-            let min_rect = ui.min_rect();
-            let height_to_fill = if min_rect.height() < max_rect.height() {
-                // fill available space
-                max_rect.height() - min_rect.height()
-            } else {
-                // end of text padding
-                max_rect.height() / 2.
-            };
-            let padding_height = height_to_fill - desired_size.y;
-            desired_size.y = height_to_fill;
+            // always add at least 1/2 the vertical screen space as end-of-text padding
+            let end_of_text_padding_height = max_rect.height() / 2.;
+
+            // if that doesn't fill the screen, make it enough to fill the screen
+            let height_to_fill = max_rect.height() - (ui.min_rect().height() + desired_size.y);
+            let padding_height = end_of_text_padding_height.max(height_to_fill);
+
+            desired_size.y += padding_height;
             padding_height
         } else {
             0.
