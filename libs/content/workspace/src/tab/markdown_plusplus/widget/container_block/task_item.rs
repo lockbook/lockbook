@@ -1,4 +1,4 @@
-use comrak::nodes::{AstNode, NodeList, NodeValue};
+use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
@@ -6,7 +6,7 @@ use lb_rs::model::text::offset_types::{
 
 use crate::tab::markdown_plusplus::{
     widget::{Wrap, INDENT},
-    MarkdownPlusPlus,
+    Event, MarkdownPlusPlus,
 };
 
 impl<'ast> MarkdownPlusPlus {
@@ -24,7 +24,19 @@ impl<'ast> MarkdownPlusPlus {
         let annotation_size = Vec2 { x: INDENT, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        ui.allocate_ui_at_rect(annotation_space, |ui| ui.checkbox(&mut maybe_check.is_some(), ""));
+        ui.allocate_ui_at_rect(annotation_space, |ui| {
+            let mut checked = maybe_check.is_some();
+            ui.checkbox(&mut checked, "");
+            if checked != maybe_check.is_some() {
+                let check_offset = self.check_offset(node);
+                let check = if checked { 'x' } else { ' ' };
+
+                self.event.internal_events.push(Event::Replace {
+                    region: (check_offset, check_offset + 1).into(),
+                    text: check.into(),
+                });
+            }
+        });
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
 
@@ -90,7 +102,7 @@ impl<'ast> MarkdownPlusPlus {
 
             // "   - [ ]   item"
             // indentation + marker + spaces + content
-            let node_line = (line.start() + parent_prefix_len, line.end());
+            let node_line = (first_line.start() + parent_prefix_len, first_line.end());
 
             // spaces + content
             let marker_width = 5;
@@ -141,5 +153,24 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         result.min(line.len())
+    }
+
+    fn check_offset(&self, node: &'ast AstNode<'ast>) -> DocCharOffset {
+        let first_line = self.node_first_line(node);
+        let parent_prefix_len = self.line_prefix_len(node.parent().unwrap(), first_line);
+        let node_line = (first_line.start() + parent_prefix_len, first_line.end());
+
+        let text = &self.buffer[(node_line.start(), node_line.end())];
+        let indentation = if text.starts_with("   ") {
+            "   ".len()
+        } else if text.starts_with("  ") {
+            "  ".len()
+        } else if text.starts_with(" ") {
+            " ".len()
+        } else {
+            0
+        };
+
+        node_line.start() + indentation + 3
     }
 }

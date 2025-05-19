@@ -1,3 +1,5 @@
+use std::mem;
+
 use crate::tab::markdown_plusplus::bounds::{BoundCase, BoundExt as _, RangesExt as _};
 use crate::tab::{self, markdown_plusplus, ClipContent, ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::icons::Icon;
@@ -16,6 +18,9 @@ impl MarkdownPlusPlus {
         let mut ops = Vec::new();
         let mut response = buffer::Response::default();
         for event in self.get_cursor_fix_events() {
+            response |= self.calc_operations(ctx, event, &mut ops);
+        }
+        for event in mem::take(&mut self.event.internal_events) {
             response |= self.calc_operations(ctx, event, &mut ops);
         }
         for event in self.get_workspace_events(ctx) {
