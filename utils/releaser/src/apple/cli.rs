@@ -19,13 +19,13 @@ pub fn release() {
 
 fn build_x86() {
     Command::new("cargo")
-        .args(["build", "-p", "lockbook-cli", "--release", "--target=x86_64-apple-darwin"])
+        .args(["build", "-p", "lockbook", "--release", "--target=x86_64-apple-darwin"])
         .assert_success();
 }
 
 fn build_arm() {
     Command::new("cargo")
-        .args(["build", "-p", "lockbook-cli", "--release", "--target=aarch64-apple-darwin"])
+        .args(["build", "-p", "lockbook", "--release", "--target=aarch64-apple-darwin"])
         .assert_success();
 }
 

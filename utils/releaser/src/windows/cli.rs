@@ -17,7 +17,7 @@ pub fn release() -> CliResult<()> {
 
 fn build() -> CliResult<()> {
     Command::new("cargo")
-        .args(["build", "-p", "lockbook-cli", "--release"])
+        .args(["build", "-p", "lockbook", "--release"])
         .assert_success();
     Ok(())
 }
