@@ -834,7 +834,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     
     var docHeaderSize: Double {
         get {
-            showTabs ? ((workspaceState?.tabCount ?? 0) > 1 ? iOSMTK.TAB_BAR_HEIGHT : 0) : iOSMTK.TITLE_BAR_HEIGHT
+            showTabs ? iOSMTK.TAB_BAR_HEIGHT : 0
         }
     }
     
@@ -951,8 +951,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         setNeedsDisplay(self.frame)
     }
 
-    func closeActiveTab() {
-        close_active_tab(wsHandle)
+    func closeDoc(id: UUID) {
+        close_tab(wsHandle, id.uuidString)
         setNeedsDisplay(self.frame)
     }
     
