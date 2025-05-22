@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 
 use itertools::Itertools;
@@ -27,7 +27,7 @@ use crate::{
     },
     document_service::DocumentService,
     schema::AccountV1,
-    ServerError, ServerState,
+    MetaLookup, ServerError, ServerState,
 };
 
 // todo: is it worthwhile to have a Mut variant and make this read only?
@@ -37,6 +37,7 @@ pub struct ServerTreeV2 {
     pub owner_db: OwnedRwLockWriteGuard<AccountV1>,
     pub ids: Vec<Uuid>,
     pub sharee_dbs: HashMap<Owner, OwnedRwLockWriteGuard<AccountV1>>,
+    pub meta_lookup: MetaLookup,
 }
 
 impl<S, A, G, D> ServerState<S, A, G, D>
@@ -53,9 +54,10 @@ where
     // their ids. But the insert logic will be able to ensure that you're not adding
     // an id they already have in their db. It will also subsequently be able to
     // update their secondary index about shares during change promotion
-    pub async fn get_tree<T: Debug>(
-        &self, owner: Owner, new_sharees: &[Owner],
-    ) -> Result<ServerTreeV2, ServerError<T>> {
+    //
+    // we're actually just going to use a secondary index to ensure that new ids are
+    // truly new, makes a lot of complexity go away
+    pub async fn get_tree<T: Debug>(&self, owner: Owner) -> Result<ServerTreeV2, ServerError<T>> {
         let owner_dbs = self.account_dbs.read().await;
 
         // grab our requester's db
@@ -65,7 +67,7 @@ where
         // get all relevant sharee dbs and sort for determinism
         let mut owners = vec![];
         for (owner, _ids) in owner_db.shared_files.get() {
-            owners.push(owner);
+            owners.push(*owner);
         }
         owners.sort_unstable_by_key(|owner| owner.0.serialize());
 
@@ -75,7 +77,7 @@ where
             let db = owner_dbs.get(&owner).unwrap().clone();
             let db = db.write_owned().await;
             let mut temp_tree = db.metas.get().to_lazy();
-            let shared_ids = owner_db.shared_files.get().get(owner).unwrap();
+            let shared_ids = owner_db.shared_files.get().get(&owner).unwrap();
             for id in shared_ids {
                 let desc = temp_tree
                     .descendants(id)
@@ -85,11 +87,11 @@ where
                         ))
                     })?
                     .into_iter()
-                    .collect_vec();
+                    .collect_vec(); // todo: can prob remove
                 ids.extend_from_slice(&desc);
             }
 
-            sharee_dbs.insert(*owner, db);
+            sharee_dbs.insert(owner, db);
         }
 
         // return the tree with all the metadata to fulfill requests
@@ -125,18 +127,29 @@ impl TreeLike for ServerTreeV2 {
     }
 }
 
+impl ServerTreeV2 {
+    fn find_owner_db(
+        &mut self, owner_db: &Owner,
+    ) -> LbResult<&mut OwnedRwLockWriteGuard<AccountV1>> {
+        if owner_db == &self.owner {
+            return Ok(&mut self.owner_db);
+        } else {
+            return self.sharee_dbs.get_mut(owner_db).ok_or(
+                LbErrKind::Unexpected(format!("Owner not found for ServerTree insertion")).into(),
+            );
+        }
+    }
+}
+
 impl TreeLikeMut for ServerTreeV2 {
-    fn insert(&mut self, f: Self::F) -> crate::LbResult<Option<Self::F>> {
+    fn insert(&mut self, f: Self::F) -> LbResult<Option<Self::F>> {
         let id = *f.id();
         let owner = f.owner();
-        let maybe_prior = LookupTable::insert(self.files, id, f.clone())?;
+        let maybe_prior = self.find_owner_db(&owner)?.metas.insert(id, f.clone())?;
 
-        // maintain index: owned_files
+        // maintain index: meta_lookup
         if maybe_prior.as_ref().map(|f| f.owner()) != Some(f.owner()) {
-            if let Some(ref prior) = maybe_prior {
-                self.owned_files.remove(&prior.owner(), &id)?;
-            }
-            self.owned_files.insert(owner, id)?;
+            self.meta_lookup.lock().unwrap().insert(id, owner);
         }
 
         // maintain index: shared_files
@@ -157,25 +170,21 @@ impl TreeLikeMut for ServerTreeV2 {
             .map(|k| Owner(k.encrypted_for))
             .collect::<HashSet<_>>();
         for removed_sharee in prior_sharees.difference(&sharees) {
-            self.shared_files.remove(removed_sharee, &id)?;
+            let db = self.find_owner_db(removed_sharee)?;
+            let mut entry = db
+                .shared_files
+                .clear_key(&owner)?
+                .ok_or(LbErrKind::Unexpected(format!(
+                    "could not find entry in shared dbs for owner"
+                )))?;
+            entry.retain(|shared_id| *shared_id != id);
+            for shared_id in entry {
+                db.shared_files.push(owner, shared_id)?;
+            }
         }
         for new_sharee in sharees.difference(&prior_sharees) {
-            self.shared_files.insert(*new_sharee, id)?;
-        }
-
-        // maintain index: file_children
-        if self.file_children.get().get(&id).is_none() {
-            self.file_children.create_key(id)?;
-        }
-        if self.file_children.get().get(f.parent()).is_none() {
-            self.file_children.create_key(*f.parent())?;
-        }
-        if maybe_prior.as_ref().map(|f| *f.parent()) != Some(*f.parent()) {
-            if let Some(ref prior) = maybe_prior {
-                self.file_children.remove(prior.parent(), &id)?;
-            }
-
-            self.file_children.insert(*f.parent(), id)?;
+            let db = self.find_owner_db(new_sharee)?;
+            db.shared_files.push(owner, id)?;
         }
 
         Ok(maybe_prior)
