@@ -38,6 +38,7 @@ use toolbar::ToolContext;
 use toolbar::ToolbarContext;
 use tracing::span;
 use tracing::Level;
+use util::transform_rect;
 
 pub struct SVGEditor {
     pub buffer: Buffer,
@@ -119,8 +120,6 @@ impl SVGEditor {
         let elements_count = buffer.elements.len();
         let toolbar = Toolbar::new(elements_count);
 
-        let buffer_rect = calc_elements_bounds(&buffer);
-
         Self {
             buffer,
             opened_content: Buffer::new(content),
@@ -128,8 +127,8 @@ impl SVGEditor {
             history: History::default(),
             toolbar,
             inner_rect: BoundedRect {
-                working_rect: buffer_rect.unwrap_or(egui::Rect::ZERO),
-                bounded_rect: buffer_rect.unwrap_or(egui::Rect::ZERO),
+                working_rect: egui::Rect::ZERO,
+                bounded_rect: egui::Rect::ZERO,
                 ..Default::default()
             },
             container_rect: egui::Rect::NOTHING,
@@ -187,9 +186,8 @@ impl SVGEditor {
                 };
             });
 
-        self.show_toolbar(ui);
-
         self.process_events(ui);
+        self.show_toolbar(ui);
 
         self.painter = ui.painter_at(self.inner_rect.working_rect);
         ui.set_clip_rect(self.inner_rect.working_rect);
@@ -209,19 +207,19 @@ impl SVGEditor {
             self.has_queued_save_request = true;
             if global_diff.transformed.is_none() {
                 self.toolbar.show_tool_controls = false;
-                self.toolbar.viewport_popover = None;
+                // self.toolbar.viewport_popover = None;
             }
         }
         self.inner_rect.update(self.container_rect, &self.buffer);
-        
+
         let needs_save_and_frame_is_cheap =
-        if self.has_queued_save_request && !global_diff.is_dirty() {
-            self.has_queued_save_request = false;
-            true
-        } else {
-            false
-        };
-        
+            if self.has_queued_save_request && !global_diff.is_dirty() {
+                self.has_queued_save_request = false;
+                true
+            } else {
+                false
+            };
+
         for (_, el) in &mut self.buffer.elements {
             match el {
                 Element::Path(p) => p.diff_state = DiffState::default(),
@@ -229,7 +227,7 @@ impl SVGEditor {
                 Element::Text(_) => todo!(),
             }
         }
-        
+
         self.buffer.master_transform_changed = false;
         Response { request_save: needs_save_and_frame_is_cheap }
     }

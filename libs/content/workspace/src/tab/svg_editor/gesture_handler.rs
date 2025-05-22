@@ -312,7 +312,9 @@ pub fn calc_elements_bounds(buffer: &Buffer) -> Option<egui::Rect> {
             continue;
         }
 
-        let el_rect = el.bounding_box();
+        let el_rect =
+            transform_rect(el.bounding_box(), buffer.master_transform.invert().unwrap_or_default());
+
         dirty_bound = true;
 
         elements_bound.min.x = elements_bound.min.x.min(el_rect.min.x);

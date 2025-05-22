@@ -51,7 +51,7 @@ pub struct Renderer {
     mesh_cache: HashMap<Uuid, MeshShape>,
     tex_cache: HashMap<Uuid, TextureHandle>,
     dark_mode: bool,
-    fit_content_transform: Option<Transform>,
+    viewport_transform: Option<Transform>,
     request_rerender: bool,
 }
 
@@ -66,6 +66,7 @@ struct MeshShape {
 #[derive(Clone, Copy, Default)]
 pub struct RenderOptions {
     pub tight_fit_mode: bool,
+    pub viewport_transform: Option<Transform>,
 }
 
 impl Renderer {
@@ -74,7 +75,7 @@ impl Renderer {
             mesh_cache: HashMap::with_capacity(elements_count),
             tex_cache: HashMap::new(),
             dark_mode: false,
-            fit_content_transform: None,
+            viewport_transform: None,
             request_rerender: true,
         }
     }
@@ -91,16 +92,19 @@ impl Renderer {
         let dark_mode_changed = ui.visuals().dark_mode != self.dark_mode;
         self.dark_mode = ui.visuals().dark_mode;
 
-        let new_fit_transform = if render_options.tight_fit_mode {
+        let new_viewport_transform = if render_options.tight_fit_mode {
             get_zoom_fit_transform(buffer, painter.clip_rect())
+        } else if render_options.viewport_transform.is_some() {
+            render_options.viewport_transform
         } else {
-            None
+            Some(buffer.master_transform)
         };
+
         let mut fit_content_transform_changed = false;
 
         // todo: don't re-tess on viewport user pan or zoom.
-        if new_fit_transform != self.fit_content_transform {
-            self.fit_content_transform = new_fit_transform;
+        if new_viewport_transform != self.viewport_transform {
+            self.viewport_transform = new_viewport_transform;
             fit_content_transform_changed = true;
         }
 
@@ -138,7 +142,14 @@ impl Renderer {
                         }
 
                         if let Some(transform) = path.diff_state.transformed {
-                            if self.mesh_cache.contains_key(id) {
+                            let mut re_tess = false;
+                            if let Some(viewport_transform) = self.viewport_transform {
+                                if viewport_transform != buffer.master_transform {
+                                    re_tess = true;
+                                }
+                            }
+
+                            if !re_tess && self.mesh_cache.contains_key(id) {
                                 return Some((*id, RenderOp::Transform(transform)));
                             }
                         }
@@ -150,7 +161,7 @@ impl Renderer {
                             frame,
                             buffer.master_transform,
                             &buffer.weak_path_pressures,
-                            self.fit_content_transform,
+                            self.viewport_transform,
                         )
                     }
                     Element::Image(image) => {
@@ -205,7 +216,7 @@ impl Renderer {
                 }
                 RenderOp::ForwordImage(img) => {
                     diff_state.data_changed = true;
-                    self.alloc_image_mesh(id, img, ui, self.fit_content_transform);
+                    self.alloc_image_mesh(id, img, ui, self.viewport_transform);
                 }
             }
         }
@@ -232,7 +243,12 @@ impl Renderer {
 
         self.request_rerender = false;
 
-        RendererOutput { diff_state, maybe_tight_fit_transform: self.fit_content_transform }
+        RendererOutput {
+            diff_state,
+            maybe_tight_fit_transform: self
+                .viewport_transform
+                .map(|t| t.pre_concat(buffer.master_transform.invert().unwrap_or_default())),
+        }
     }
 
     fn alloc_image_mesh(
@@ -287,7 +303,7 @@ impl Renderer {
 // todo: maybe impl this on element struct
 fn tesselate_path<'a>(
     p: &'a mut Path, id: &'a Uuid, dark_mode: bool, frame: u64, master_transform: Transform,
-    weak_path_pressures: &WeakPathPressures, fit_transform: Option<Transform>,
+    weak_path_pressures: &WeakPathPressures, viewport_transform: Option<Transform>,
 ) -> Option<(Uuid, RenderOp<'a>)> {
     let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
     let mut stroke_tess = StrokeTessellator::new();
@@ -308,14 +324,15 @@ fn tesselate_path<'a>(
         let mut first = None;
         let mut i = 0;
 
-        while let Some(seg) = p.data.get_segment(i) {
-            let mut thickness = stroke.width * p.transform.sx;
-            if let Some(t) = fit_transform {
-                thickness *= t.sx * master_transform.sx;
-                thickness = thickness.max(0.3);
-            } else {
-                thickness *= master_transform.sx
-            }
+        while let Some(mut seg) = p.data.get_segment(i) {
+            let mut thickness =
+                stroke.width * p.transform.sx * viewport_transform.unwrap_or_default().sx;
+            // if let Some(t) = viewport_transform {
+            //     thickness *= t.sx * master_transform.sx;
+            //     thickness = thickness.max(0.3);
+            // } else {
+            //     thickness *= master_transform.sx
+            // }
 
             if let Some(forces) = weak_path_pressures.get(id) {
                 let pressure_at_segment =
@@ -324,11 +341,18 @@ fn tesselate_path<'a>(
                 thickness += thickness * pressure_at_segment;
             }
 
-            let t = fit_transform.unwrap_or_default();
-            let seg = seg.apply_transformation(|p| DVec2 {
+            let t = master_transform.invert().unwrap_or_default();
+            seg = seg.apply_transformation(|p| DVec2 {
                 x: t.sx as f64 * p.x + t.tx as f64,
                 y: t.sy as f64 * p.y + t.ty as f64,
             });
+
+            if let Some(t) = viewport_transform {
+                seg = seg.apply_transformation(|p| DVec2 {
+                    x: t.sx as f64 * p.x + t.tx as f64,
+                    y: t.sy as f64 * p.y + t.ty as f64,
+                });
+            }
 
             let start = devc_to_point(seg.start());
             let end = devc_to_point(seg.end());

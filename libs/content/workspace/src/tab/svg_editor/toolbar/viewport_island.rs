@@ -285,18 +285,25 @@ impl Toolbar {
 
                 preview_painter.rect_filled(preview_rect, 0.0, ui.style().visuals.extreme_bg_color);
 
+                if tlbr_ctx.inner_rect.is_infinite_mode() {
+                    tlbr_ctx.inner_rect.viewport_transform = None;
+                }
+
                 let out = self.renderer.render_svg(
                     ui,
                     &mut tlbr_ctx.buffer,
                     &mut preview_painter,
-                    RenderOptions { tight_fit_mode: true },
+                    RenderOptions {
+                        tight_fit_mode: tlbr_ctx.inner_rect.viewport_transform.is_none(),
+                        viewport_transform: tlbr_ctx.inner_rect.viewport_transform,
+                    },
                 );
 
                 if let Some(t) = out.maybe_tight_fit_transform {
                     let clipped_rect = transform_rect(tlbr_ctx.container_rect, t);
                     if !tlbr_ctx.inner_rect.is_infinite_mode() {
                         tlbr_ctx.inner_rect.bounded_rect =
-                            transform_rect(clipped_rect, t.invert().unwrap_or_default());
+                            transform_rect(preview_rect, t.invert().unwrap_or_default());
                     }
                     let blue = ui.visuals().widgets.active.bg_fill;
                     preview_painter.rect(
@@ -364,11 +371,18 @@ impl Toolbar {
                         preview_rect.max + egui::vec2(-preview_rect.width(), 100.0),
                     );
 
-                    show_side_controls(ui, Side::Left, left_bound_rect, shadow.into(), tlbr_ctx);
+                    show_side_controls(ui, Side::Left, left_bound_rect, shadow.into(), tlbr_ctx, t);
 
-                    show_side_controls(ui, Side::Right, right_bound_rect, shadow.into(), tlbr_ctx);
+                    show_side_controls(
+                        ui,
+                        Side::Right,
+                        right_bound_rect,
+                        shadow.into(),
+                        tlbr_ctx,
+                        t,
+                    );
 
-                    show_side_controls(ui, Side::Top, top_bound_rect, shadow.into(), tlbr_ctx);
+                    show_side_controls(ui, Side::Top, top_bound_rect, shadow.into(), tlbr_ctx, t);
 
                     show_side_controls(
                         ui,
@@ -376,6 +390,7 @@ impl Toolbar {
                         bottom_bound_rect,
                         shadow.into(),
                         tlbr_ctx,
+                        t,
                     );
                 }
             });
@@ -470,7 +485,7 @@ fn show_bring_back_btn(
 
 fn show_side_controls(
     ui: &mut egui::Ui, side: Side, rect: egui::Rect, shadow: egui::Shape,
-    tlbr_ctx: &mut ToolbarContext,
+    tlbr_ctx: &mut ToolbarContext, transform: Transform,
 ) {
     let line_extension = 5.0;
 
@@ -529,6 +544,10 @@ fn show_side_controls(
         .clicked()
     {
         *is_locked = !*is_locked;
+        if *is_locked {
+            tlbr_ctx.inner_rect.viewport_transform =
+                Some(transform.pre_concat(tlbr_ctx.buffer.master_transform));
+        }
     }
 
     if *is_locked {

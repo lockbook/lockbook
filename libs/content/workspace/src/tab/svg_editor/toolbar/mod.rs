@@ -80,10 +80,12 @@ pub struct ToolbarContext<'a> {
 
 #[derive(Clone, Copy)]
 pub struct BoundedRect {
-    /// takes into consideration the screen size and gives the drawable area
-    pub working_rect: egui::Rect,
-    /// the drawable rect in absolute space, no consideration to screen size
+    /// the drawable rect in the master-transformed plane
     pub bounded_rect: egui::Rect,
+    /// the intersection of the bounded rect and the current screen rect  
+    pub working_rect: egui::Rect,
+    /// a transform applied on the none master-transformed plane  
+    pub viewport_transform: Option<Transform>,
     pub left_locked: bool,
     pub right_locked: bool,
     pub bottom_locked: bool,
@@ -99,6 +101,7 @@ impl Default for BoundedRect {
             right_locked: false,
             bottom_locked: false,
             top_locked: false,
+            viewport_transform: None,
         }
     }
 }
@@ -145,12 +148,6 @@ impl ViewportMode {
 
 impl BoundedRect {
     pub fn update(&mut self, container_rect: egui::Rect, buffer: &Buffer) {
-        if self.is_infinite_mode() {
-            if let Some(rect) = calc_elements_bounds(buffer) {
-                self.bounded_rect = rect;
-            }
-        }
-
         let min_x = if self.left_locked {
             self.bounded_rect.left().max(container_rect.left())
         } else {
