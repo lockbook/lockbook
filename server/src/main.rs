@@ -105,6 +105,8 @@ async fn migrate(
     let mut v5 = v5.write().await;
     let mut adbs = a_dbs.write().await;
 
+    // todo populate id -> owner
+
     for (owner, old_account) in v4.accounts.get() {
         v5.accounts
             .insert(

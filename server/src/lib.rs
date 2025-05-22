@@ -12,6 +12,7 @@ use std::env;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
+use uuid::Uuid;
 
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
 use lb_rs::model::pubkey;
@@ -40,11 +41,14 @@ where
     pub db_v4: Arc<Mutex<ServerV4>>,
     pub db_v5: Arc<RwLock<ServerV5>>,
     pub account_dbs: AccountDbs,
+    pub meta_lookup: MetaLookup,
     pub stripe_client: S,
     pub google_play_client: G,
     pub app_store_client: A,
     pub document_service: D,
 }
+
+pub type MetaLookup = Arc<std::sync::Mutex<HashMap<Uuid, Owner>>>;
 
 #[derive(Clone)]
 pub struct RequestContext<TRequest> {
