@@ -5,9 +5,9 @@
 	<key>author</key>
 	<string>Travis Vanderstad</string>
 	<key>comment</key>
-	<string>Based on the Quiet Light theme for Espresso by Ian Beck.</string>
+	<string>A vibrant, purposeful light theme.</string>
 	<key>name</key>
-	<string>Quiet Light</string>
+	<string>Mnemonic Light Innovation</string>
 	<key>settings</key>
 	<array>
 		<dict>
@@ -15,49 +15,6 @@
 			<dict>
 				<key>foreground</key>
 				<string>#000000</string>
-
-				<key>caret</key>
-				<string>#0D7FF2</string>
-
-				<key>invisibles</key>
-				<string>#777777</string>
-				<key>guide</key>
-				<string>#777777</string>
-
-				<key>lineHighlight</key>
-				<string>#4DA6FF20</string>
-				<key>rangeHighlight</key>
-				<string>#4DA6FF20</string>
-
-				<key>hoverHighlight</key>
-				<string>#4DA6FF20</string>
-
-				<key>referenceHighlight</key>
-				<string>#4DA6FF20</string>
-
-				<key>selection</key>
-				<string>#4DA6FF80</string>
-				<key>inactiveSelection</key>
-				<string>#4DA6FF40</string>
-				<key>selectionHighlight</key>
-				<string>#4DA6FF20</string>
-
-				<key>findRangeHighlight</key>
-				<string>#4DA6FF20</string>
-				<key>findMatchHighlight</key>
-				<string>#4DA6FF20</string>
-				<key>currentFindMatchHighlight</key>
-				<string>#4DA6FF20</string>
-
-				<key>wordHighlight</key>
-				<string>#4DA6FF20</string>
-				<key>wordHighlightStrong</key>
-				<string>#4DA6FF40</string>
-
-				<key>activeLinkForeground</key>
-				<string>#0D7FF2</string>
-				<key>gotoDefinitionLinkForeground</key>
-				<string>#0D7FF2</string>
 			</dict>
 		</dict>
 		<dict>

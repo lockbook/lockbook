@@ -22,6 +22,6 @@ impl<'ast> MarkdownPlusPlus {
         //
         // we show as an indented code block bc we don't have an editable info
         // string ("html" here just controls syntax highlighting)
-        self.show_indented_code_block(ui, node, top_left, width, "html", html);
+        self.show_indented_code_block(ui, node, top_left, "html", html);
     }
 }

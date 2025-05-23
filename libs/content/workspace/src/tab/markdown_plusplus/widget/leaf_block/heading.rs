@@ -42,9 +42,7 @@ impl<'ast> MarkdownPlusPlus {
         for (line_idx, line) in self.node_lines(node).iter().enumerate() {
             let line = self.bounds.source_lines[line];
 
-            let parent = node.parent().unwrap();
-            let parent_prefix_len = self.line_prefix_len(parent, line);
-            let node_line = (line.start() + parent_prefix_len, line.end());
+            let node_line = self.node_line(node, line);
 
             if line_idx < last_line_idx {
                 // non-underline content
@@ -117,10 +115,8 @@ impl<'ast> MarkdownPlusPlus {
         let mut wrap = Wrap::new(width);
         wrap.row_height = self.row_height(node);
 
-        let parent = node.parent().unwrap();
         let line = self.node_first_line(node); // more like node_ONLY_line amirite?
-        let parent_prefix_len = self.line_prefix_len(parent, line);
-        let node_line = (line.start() + parent_prefix_len, line.end());
+        let node_line = self.node_line(node, line);
 
         let reveal = line.intersects(&self.buffer.current.selection, true);
 
@@ -172,9 +168,7 @@ impl<'ast> MarkdownPlusPlus {
         for (line_idx, line) in self.node_lines(node).iter().enumerate() {
             let line = self.bounds.source_lines[line];
 
-            let parent = node.parent().unwrap();
-            let parent_prefix_len = self.line_prefix_len(parent, line);
-            let node_line = (line.start() + parent_prefix_len, line.end());
+            let node_line = self.node_line(node, line);
 
             if line_idx < last_line_idx {
                 // non-underline content
@@ -282,10 +276,8 @@ impl<'ast> MarkdownPlusPlus {
         let mut wrap = Wrap::new(width);
         wrap.row_height = self.row_height(node);
 
-        let parent = node.parent().unwrap();
         let line = self.node_first_line(node); // more like node_ONLY_line amirite?
-        let parent_prefix_len = self.line_prefix_len(parent, line);
-        let node_line = (line.start() + parent_prefix_len, line.end());
+        let node_line = self.node_line(node, line);
 
         let height = self.height_atx_heading(node);
         let reveal = line.intersects(&self.buffer.current.selection, true);

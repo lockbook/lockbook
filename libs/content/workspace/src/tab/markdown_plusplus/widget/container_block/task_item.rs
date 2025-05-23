@@ -71,9 +71,8 @@ impl<'ast> MarkdownPlusPlus {
     pub fn line_prefix_len_task_item(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> RelCharOffset {
-        let parent = node.parent().unwrap();
-        let parent_prefix_len = self.line_prefix_len(parent, line);
-        let mut result = parent_prefix_len;
+        let node_line = self.node_line(node, line);
+        let mut result = node_line.start() - line.start();
 
         // "If a sequence of lines Ls constitutes a list item according to rule
         // #1, #2, or #3, then the result of indenting each line of Ls by 1-3
@@ -143,7 +142,7 @@ impl<'ast> MarkdownPlusPlus {
             // same contents and attributes."
             //
             // "If a line is empty, then it need not be indented."
-            let text = &self.buffer[(line.start() + parent_prefix_len, line.end())];
+            let text = &self.buffer[node_line];
             for i in 0..(marker_width_including_spaces + indentation) {
                 if text.starts_with(&" ".repeat(marker_width_including_spaces + indentation - i)) {
                     result += marker_width_including_spaces + indentation - i;

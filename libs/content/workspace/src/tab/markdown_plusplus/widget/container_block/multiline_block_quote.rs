@@ -35,11 +35,10 @@ impl<'ast> MarkdownPlusPlus {
         // until a closing code fence of the same type as the code block began
         // with (backticks or tildes), and with at least as many backticks or
         // tildes as the opening code fence."
-        let parent = node.parent().unwrap();
-        let parent_prefix_len = self.line_prefix_len(parent, line);
+        let node_line = self.node_line(node, line);
         let fence_str = ">".repeat(fence_length);
 
-        let text = &self.buffer[(line.start() + self.line_prefix_len(parent, line), line.end())];
+        let text = &self.buffer[self.node_line(node, line)];
         let is_opening_fence = line == self.node_first_line(node);
         let is_closing_fence = line == self.node_last_line(node) && text.starts_with(&fence_str);
 
@@ -57,6 +56,7 @@ impl<'ast> MarkdownPlusPlus {
             0
         };
 
-        (parent_prefix_len + prefix_len).min(line.len())
+        // (parent_prefix_len + prefix_len).min(line.len())
+        todo!()
     }
 }

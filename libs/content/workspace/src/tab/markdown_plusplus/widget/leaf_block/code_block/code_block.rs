@@ -1,11 +1,10 @@
 use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Color32, FontFamily, FontId, Pos2, Rect, Sense, Stroke, TextFormat, Ui, Vec2};
-use lb_rs::model::text::offset_types::{RangeExt as _, RelByteOffset};
+use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
 use syntect::easy::HighlightLines;
 
 use crate::tab::markdown_plusplus::{
-    bounds::RangesExt as _,
-    widget::{inline::text, Wrap, BLOCK_PADDING, ROW_HEIGHT},
+    widget::{Wrap, BLOCK_PADDING, ROW_HEIGHT, ROW_SPACING},
     MarkdownPlusPlus,
 };
 
@@ -45,8 +44,6 @@ impl<'ast> MarkdownPlusPlus {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_code_block: &NodeCodeBlock,
     ) {
-        let mut width = self.width(node);
-
         if node_code_block.fenced {
             self.show_fenced_code_block(ui, node, top_left, node_code_block);
         } else {
@@ -54,7 +51,6 @@ impl<'ast> MarkdownPlusPlus {
                 ui,
                 node,
                 top_left,
-                width,
                 Default::default(),
                 &node_code_block.literal,
             );
@@ -64,234 +60,115 @@ impl<'ast> MarkdownPlusPlus {
     pub fn height_fenced_code_block(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> f32 {
-        let width = self.width(node);
+        let width = self.width(node) - 2. * BLOCK_PADDING;
 
-        let code = trim_one_trailing_newline(&node_code_block.literal);
-        let text_width = width - 2. * BLOCK_PADDING;
+        let mut result = 0.;
 
-        let info_height = ROW_HEIGHT;
-        let code_height = self.text_height(node, &Wrap::new(text_width), code);
-        BLOCK_PADDING + info_height + BLOCK_PADDING + BLOCK_PADDING + code_height + BLOCK_PADDING
+        let reveal = self.node_intersects_selection(node);
+        let first_line_idx = self.node_first_line_idx(node);
+        let last_line_idx = self.node_last_line_idx(node);
+        for line_idx in first_line_idx..=last_line_idx {
+            let line = self.bounds.source_lines[line_idx];
+            let node_line = self.node_line(node, line);
+
+            let is_opening_fence = line_idx == first_line_idx;
+            let is_closing_fence = !is_opening_fence
+                && line_idx == last_line_idx
+                && self.is_closing_fence(node, node_code_block, line);
+
+            if is_opening_fence || is_closing_fence {
+                if reveal {
+                    result += self.height_text_line(
+                        &mut Wrap::new(width),
+                        node_line,
+                        self.text_format_syntax(node),
+                    );
+                } else {
+                    result += self.height_text_line(
+                        &mut Wrap::new(width),
+                        node_line.end().into_range(),
+                        self.text_format_syntax(node),
+                    );
+                }
+            } else {
+                result += self.height_code_block_line(node, node_code_block, line);
+            }
+
+            if line_idx != last_line_idx {
+                result += ROW_SPACING;
+            }
+        }
+
+        result + 2. * ROW_SPACING
     }
 
     pub fn show_fenced_code_block(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
         node_code_block: &NodeCodeBlock,
     ) {
+        let NodeCodeBlock { literal: code, .. } = node_code_block;
+
         let mut width = self.width(node);
+        let height = self.height_fenced_code_block(node, node_code_block);
 
-        let NodeCodeBlock { fenced: _, fence_char, fence_length, fence_offset, info, literal } =
-            node_code_block;
-        let fence_length = RelByteOffset(*fence_length);
-        let fence_offset = RelByteOffset(*fence_offset);
-
-        let code = trim_one_trailing_newline(literal);
-        let text_width = width - 2. * BLOCK_PADDING;
-
-        let info_height = ROW_HEIGHT;
-        let code_height = self.text_height(node, &Wrap::new(width - 2. * BLOCK_PADDING), code);
-        let height = BLOCK_PADDING
-            + info_height
-            + BLOCK_PADDING
-            + BLOCK_PADDING
-            + code_height
-            + BLOCK_PADDING;
-
-        // full rect
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
         ui.painter()
             .rect_stroke(rect, 2., Stroke::new(1., self.theme.bg().neutral_tertiary));
+        let hovered = ui.allocate_rect(rect, Sense::hover()).hovered();
 
-        // info rect
-        let info_rect = Rect::from_min_size(
-            top_left,
-            Vec2::new(width, BLOCK_PADDING + info_height + BLOCK_PADDING),
-        );
-        ui.painter().rect(
-            info_rect,
-            2.,
-            self.theme.bg().neutral_secondary,
-            Stroke::new(1., self.theme.bg().neutral_tertiary),
-        );
+        width -= 2. * BLOCK_PADDING;
+        top_left.x += BLOCK_PADDING;
+        top_left.y += ROW_SPACING;
 
-        // copy button
-        let copy_button_size = ROW_HEIGHT;
-        let copy_button_rect = Rect::from_min_size(
-            top_left + Vec2::new(text_width - copy_button_size, BLOCK_PADDING),
-            Vec2::new(copy_button_size, copy_button_size),
-        );
-        ui.painter().rect_stroke(
-            copy_button_rect,
-            2.,
-            Stroke::new(1., self.theme.bg().neutral_tertiary),
-        );
-        if ui.allocate_rect(copy_button_rect, Sense::click()).clicked() {
-            ui.output_mut(|o| o.copied_text = code.into());
-        }
+        let reveal = self.node_intersects_selection(node);
+        let first_line_idx = self.node_first_line_idx(node);
+        let last_line_idx = self.node_last_line_idx(node);
+        for line_idx in first_line_idx..=last_line_idx {
+            let line = self.bounds.source_lines[line_idx];
+            let node_line = self.node_line(node, line);
 
-        let sourcepos = node.data.borrow().sourcepos;
-        let range = self.sourcepos_to_range(sourcepos);
-        let start = self.offset_to_byte(range.start());
+            let is_opening_fence = line_idx == first_line_idx;
+            let is_closing_fence = !is_opening_fence
+                && line_idx == last_line_idx
+                && self.is_closing_fence(node, node_code_block, line);
 
-        // info text
-        {
-            // "A fenced code block begins with a code fence, indented no more
-            // than three spaces. The line with the opening code fence may
-            // optionally contain some text following the code fence; this is
-            // trimmed of leading and trailing whitespace and called the info
-            // string"
-            // https://github.github.com/gfm/#fenced-code-blocks
-
-            // we include the leading and trailing whitespace in the editable
-            // info string; the trimmed version is still used to determine the
-            // language
-            // todo: probably want to render it to spec except in some uncapture situation
-
-            let info_line_idx = self
-                .bounds
-                .source_lines
-                .find_containing(range.start(), true, true)
-                .start();
-            let info_line_range = self.bounds.source_lines[info_line_idx];
-
-            // bounds: add paragraph for info
-            let info_start = self.offset_to_char(start + fence_offset + fence_length);
-            let info_end = info_line_range.end();
-            let info_range = (info_start, info_end);
-            self.bounds.paragraphs.push(info_range);
-
-            // draw info
-            let info_top_left = top_left + Vec2::splat(BLOCK_PADDING);
-            let mut wrap = Wrap::new(text_width);
-            let info_sourcepos = self.range_to_sourcepos(info_range);
-            self.show_node_text_line(
-                ui,
-                node,
-                info_top_left,
-                &mut wrap,
-                self.sourcepos_to_range(info_sourcepos),
-            );
-        }
-
-        // code text
-        {
-            let code_top_left = top_left
-                + Vec2::new(
-                    BLOCK_PADDING,
-                    BLOCK_PADDING + info_height + BLOCK_PADDING + BLOCK_PADDING,
+            if is_opening_fence || is_closing_fence {
+                let range = if reveal { node_line } else { node_line.end().into_range() };
+                self.bounds.paragraphs.push(range);
+                self.show_text_line(
+                    ui,
+                    top_left,
+                    &mut Wrap::new(width),
+                    range,
+                    self.text_format_syntax(node),
+                    false,
                 );
-            let mut wrap = Wrap::new(text_width);
-
-            let info_line_idx = sourcepos.start.line - 1; // convert cardinal to ordinal
-            let mut code_line_idx = info_line_idx + 1;
-
-            // "If the end of the containing block (or document) is reached and
-            // no closing code fence has been found, the code block contains all
-            // of the lines after the opening code fence until the end of the
-            // containing block (or document)."
-            // https://github.github.com/gfm/#fenced-code-blocks
-            let last_line_idx = sourcepos.end.line - 1; // convert cardinal to ordinal
-            let last_line_range = self.bounds.source_lines[last_line_idx];
-            let last_line = &self.buffer[last_line_range];
-            let code_block_closed = is_closing_fence(last_line, fence_char, fence_length.0);
-            let last_code_line_idx =
-                if code_block_closed { last_line_idx - 1 } else { last_line_idx };
-            while code_line_idx <= last_code_line_idx {
-                // "If the leading code fence is indented N spaces, then up to N
-                // spaces of indentation are removed from each line of the
-                // content (if present). (If a content line is not indented, it
-                // is preserved unchanged. If it is indented less than N spaces,
-                // all of the indentation is removed.)"
-                // https://github.github.com/gfm/#fenced-code-blocks
-                let code_line_range = self.bounds.source_lines[code_line_idx];
-                let code_line_text = &self.buffer[code_line_range];
-
-                let code_line_indentation_spaces = code_line_text
-                    .chars()
-                    .take_while(|&c| c == ' ')
-                    .count()
-                    .min(fence_offset.0);
-                let code_range =
-                    (code_line_range.start() - code_line_indentation_spaces, code_line_range.end());
-                let code_sourcepos = self.range_to_sourcepos(code_range);
-
-                // bounds
-                self.bounds.paragraphs.push(code_range);
-
-                // syntax highlighting
-                let syntax_theme = if ui.visuals().dark_mode {
-                    &self.syntax_dark_theme
-                } else {
-                    &self.syntax_light_theme
-                };
-                let mut highlighter = self
-                    .syntax_set
-                    .find_syntax_by_token(info)
-                    .map(|syntax| HighlightLines::new(syntax, syntax_theme));
-
-                // show text
-                if let Some(highlighter) = highlighter.as_mut() {
-                    // highlighted text shown as individual regions
-                    let regions = if let Some(regions) = self.syntax.get(code_line_text) {
-                        regions.clone()
-                    } else {
-                        highlighter
-                            .highlight_line(code_line_text, &self.syntax_set)
-                            .unwrap()
-                            .into_iter()
-                            .map(|(style, region)| (style, region.to_string()))
-                            .collect::<Vec<_>>()
-                    };
-
-                    let mut region_info = Vec::new();
-                    let mut region_start = self.offset_to_byte(code_range.start());
-                    for (style, region) in regions {
-                        let region_end = region_start + region.len();
-                        let region_range = self.range_to_char((region_start, region_end));
-                        region_info.push((
-                            self.range_to_sourcepos(region_range),
-                            Color32::from_rgb(
-                                style.foreground.r,
-                                style.foreground.g,
-                                style.foreground.b,
-                            ),
-                        ));
-                        region_start = region_end;
-                    }
-
-                    for (sourcepos, color) in region_info {
-                        let mut text_format = self.text_format(node);
-                        text_format.color = color;
-                        self.show_text_line(
-                            ui,
-                            code_top_left,
-                            &mut wrap,
-                            self.sourcepos_to_range(sourcepos),
-                            text_format,
-                            false,
-                        );
-                    }
-                } else {
-                    self.show_node_text_line(
-                        ui,
-                        node,
-                        code_top_left,
-                        &mut wrap,
-                        self.sourcepos_to_range(code_sourcepos),
-                    );
-                }
-
-                // all lines except the last one end in a newline...
-                if code_line_idx < last_code_line_idx {
-                    wrap.offset = wrap.row_end();
-                }
-
-                code_line_idx += 1;
+                top_left.y += self.height_text_line(
+                    &mut Wrap::new(width),
+                    range,
+                    self.text_format_syntax(node),
+                );
+            } else {
+                self.show_code_block_line(ui, node, top_left, node_code_block, line);
+                top_left.y += self.height_code_block_line(node, node_code_block, line);
             }
 
-            // ...and sometimes the last one also ends with a newline
-            if text::ends_with_newline(code) {
-                wrap.offset = wrap.row_end();
+            top_left.y += ROW_SPACING;
+        }
+
+        // copy button (todo: draw an actual button)
+        if hovered {
+            let button_size = Vec2::splat(ROW_HEIGHT);
+            let button_right_top = rect.right_top() + Vec2::new(-BLOCK_PADDING, BLOCK_PADDING);
+            let button_left_top = button_right_top - Vec2::X * button_size.x;
+            let button_rect = Rect::from_min_size(button_left_top, button_size);
+            ui.painter().rect_stroke(
+                button_rect,
+                2.,
+                Stroke::new(1., self.theme.bg().neutral_tertiary),
+            );
+            if ui.allocate_rect(button_rect, Sense::click()).clicked() {
+                ui.output_mut(|o| o.copied_text = code.into());
             }
         }
     }
@@ -306,70 +183,230 @@ impl<'ast> MarkdownPlusPlus {
     // just used for syntax highlighting when rendering unsupported node types
     // like html blocks as code
     pub fn show_indented_code_block(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, width: f32, info: &str,
-        code: &str,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, info: &str, code: &str,
     ) {
         todo!()
     }
-}
 
-fn trim_one_trailing_newline(code: &str) -> &str {
-    code.strip_suffix("\r\n")
-        .or_else(|| code.strip_suffix('\n'))
-        .unwrap_or(code)
-}
+    fn height_code_block_line(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+        line: (DocCharOffset, DocCharOffset),
+    ) -> f32 {
+        let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
 
-// "The closing code fence may be indented up to three spaces, and may be
-// followed only by spaces, which are ignored."
-// https://github.github.com/gfm/#fenced-code-blocks
-fn is_closing_fence(line: &str, fence_char: &u8, fence_length: usize) -> bool {
-    let ch = *fence_char as char;
-    let s = line.trim_end(); // Remove trailing spaces
+        let node_line = self.node_line(node, line);
 
-    let mut chars = s.chars();
-
-    // Skip up to 3 leading spaces
-    for _ in 0..3 {
-        if chars.clone().next() == Some(' ') {
-            chars.next();
+        let code_line = if *fenced {
+            // "If the leading code fence is indented N spaces, then up to N spaces
+            // of indentation are removed from each line of the content (if
+            // present). (If a content line is not indented, it is preserved
+            // unchanged. If it is indented less than N spaces, all of the
+            // indentation is removed.)"
+            // https://github.github.com/gfm/#fenced-code-blocks
+            let text = &self.buffer[node_line];
+            let indentation = text
+                .chars()
+                .take_while(|&c| c == ' ')
+                .count()
+                .min(*fence_offset);
+            (node_line.start() + indentation, node_line.end())
         } else {
-            break;
+            // "An indented code block is composed of one or more indented chunks
+            // separated by blank lines. An indented chunk is a sequence of
+            // non-blank lines, each indented four or more spaces. The contents of
+            // the code block are the literal contents of the lines, including
+            // trailing line endings, minus four spaces of indentation."
+            // https://github.github.com/gfm/#indented-code-blocks
+            let chunk_start = (node_line.start() + 4).min(node_line.end());
+            (chunk_start, node_line.end())
+        };
+        let code_line_text = &self.buffer[code_line];
+
+        // syntax highlighting
+        let syntax_theme =
+            if self.dark_mode { &self.syntax_dark_theme } else { &self.syntax_light_theme };
+        let mut highlighter = self
+            .syntax_set
+            .find_syntax_by_token(info)
+            .map(|syntax| HighlightLines::new(syntax, syntax_theme));
+
+        let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
+
+        if let Some(highlighter) = highlighter.as_mut() {
+            let regions = if let Some(regions) = self.syntax.get(code_line_text) {
+                // cached regions
+                regions
+            } else {
+                // new regions
+                let mut regions = Vec::new();
+                let mut region_start = self.offset_to_byte(code_line.start());
+                for (style, region_str) in highlighter
+                    .highlight_line(code_line_text, &self.syntax_set)
+                    .unwrap()
+                {
+                    let region_end = region_start + region_str.len();
+                    let region = self.range_to_char((region_start, region_end));
+                    regions.push((style, region));
+                    region_start = region_end;
+                }
+                self.syntax.insert(code_line_text.into(), regions.clone());
+                regions
+            };
+
+            let mut text_format = self.text_format(node);
+            for (style, region) in regions {
+                text_format.color =
+                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b);
+                wrap.offset += self.span_text_line(&wrap, region, text_format.clone());
+            }
+        } else {
+            // no syntax highlighting
+            wrap.offset += self.span_text_line(&wrap, code_line, self.text_format(node));
+        }
+
+        wrap.height()
+    }
+
+    fn show_code_block_line(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
+        node_code_block: &NodeCodeBlock, line: (DocCharOffset, DocCharOffset),
+    ) {
+        let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
+
+        let node_line = self.node_line(node, line);
+
+        let code_line = if *fenced {
+            // "If the leading code fence is indented N spaces, then up to N spaces
+            // of indentation are removed from each line of the content (if
+            // present). (If a content line is not indented, it is preserved
+            // unchanged. If it is indented less than N spaces, all of the
+            // indentation is removed.)"
+            // https://github.github.com/gfm/#fenced-code-blocks
+            let text = &self.buffer[node_line];
+            let indentation = text
+                .chars()
+                .take_while(|&c| c == ' ')
+                .count()
+                .min(*fence_offset);
+            (node_line.start() + indentation, node_line.end())
+        } else {
+            // "An indented code block is composed of one or more indented chunks
+            // separated by blank lines. An indented chunk is a sequence of
+            // non-blank lines, each indented four or more spaces. The contents of
+            // the code block are the literal contents of the lines, including
+            // trailing line endings, minus four spaces of indentation."
+            // https://github.github.com/gfm/#indented-code-blocks
+            let chunk_start = (node_line.start() + 4).min(node_line.end());
+            (chunk_start, node_line.end())
+        };
+        let code_line_text = &self.buffer[code_line];
+
+        // paragraph bounds
+        if node_line != code_line {
+            self.bounds
+                .paragraphs
+                .push((node_line.start(), code_line.start()));
+        }
+        self.bounds.paragraphs.push(code_line);
+
+        // syntax highlighting
+        let syntax_theme =
+            if self.dark_mode { &self.syntax_dark_theme } else { &self.syntax_light_theme };
+        let mut highlighter = self
+            .syntax_set
+            .find_syntax_by_token(info)
+            .map(|syntax| HighlightLines::new(syntax, syntax_theme));
+
+        let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
+
+        if let Some(highlighter) = highlighter.as_mut() {
+            let regions = if let Some(regions) = self.syntax.get(code_line_text) {
+                // cached regions
+                regions
+            } else {
+                // new regions
+                let mut regions = Vec::new();
+                let mut region_start = self.offset_to_byte(code_line.start());
+                for (style, region_str) in highlighter
+                    .highlight_line(code_line_text, &self.syntax_set)
+                    .unwrap()
+                {
+                    let region_end = region_start + region_str.len();
+                    let region = self.range_to_char((region_start, region_end));
+                    regions.push((style, region));
+                    region_start = region_end;
+                }
+                self.syntax.insert(code_line_text.into(), regions.clone());
+                regions
+            };
+
+            let mut text_format = self.text_format(node);
+            if regions.is_empty() {
+                self.show_text_line(
+                    ui,
+                    top_left,
+                    &mut wrap,
+                    code_line.start().into_range(),
+                    text_format.clone(),
+                    false,
+                );
+            }
+            for (style, region) in regions {
+                text_format.color =
+                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b);
+
+                self.show_text_line(ui, top_left, &mut wrap, region, text_format.clone(), false);
+            }
+        } else {
+            // no syntax highlighting
+            self.show_node_text_line(ui, node, top_left, &mut wrap, code_line);
         }
     }
 
-    // Must have at least fence_length fence characters
-    let mut count = 0;
-    while let Some(c) = chars.clone().next() {
-        if c == ch {
-            count += 1;
-            chars.next();
-        } else {
-            if count < fence_length {
+    // "The closing code fence may be indented up to three spaces, and may be
+    // followed only by spaces, which are ignored."
+    // https://github.github.com/gfm/#fenced-code-blocks
+    fn is_closing_fence(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+        line: (DocCharOffset, DocCharOffset),
+    ) -> bool {
+        let NodeCodeBlock { fence_char, fence_length, .. } = node_code_block;
+        let fence_char = *fence_char as char;
+        let fence_length = *fence_length as usize;
+
+        let node_line = self.node_line(node, line);
+
+        let text = &self.buffer[node_line];
+        let mut chars = text.chars().peekable();
+
+        // Skip up to 3 leading spaces
+        for _ in 0..3 {
+            if chars.peek() == Some(&' ') {
+                chars.next();
+            } else {
+                break;
+            }
+        }
+
+        // Skip exactly fence_length fence_char's
+        for _ in 0..fence_length {
+            if chars.peek() == Some(&fence_char) {
+                chars.next();
+            } else {
                 return false;
             }
-            break;
         }
-    }
 
-    // Any additional characters may be spaces only
-    chars.all(|c| c == ' ')
-}
+        // Skip any number of additional fence_char's
+        loop {
+            if chars.peek() == Some(&fence_char) {
+                chars.next();
+            } else {
+                break;
+            }
+        }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_is_closing_fence() {
-        assert!(is_closing_fence("```", &b'`', 3));
-        assert!(is_closing_fence("~~~", &b'~', 3));
-        assert!(is_closing_fence("```                    ", &b'`', 3)); // any number of trailing spaces is ok
-        assert!(is_closing_fence("   ```", &b'`', 3)); // up to 3 leading spaces is ok
-
-        assert!(!is_closing_fence("```", &b'~', 3)); // fence char mismatch
-        assert!(!is_closing_fence("~~~", &b'`', 3)); // fence char mismatch
-        assert!(!is_closing_fence("```", &b'~', 4)); // not enough fence chars
-        assert!(!is_closing_fence("    ```", &b'~', 4)); // too much leading space
-        assert!(!is_closing_fence("```   #", &b'~', 4)); // trailing character that isn't a space
+        // Any additional characters may be spaces only
+        chars.all(|c| c == ' ')
     }
 }

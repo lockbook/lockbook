@@ -79,9 +79,8 @@ impl<'ast> MarkdownPlusPlus {
     pub fn line_prefix_len_block_quote(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> RelCharOffset {
-        let parent = node.parent().unwrap();
-        let parent_prefix_len = self.line_prefix_len(parent, line);
-        let mut result = parent_prefix_len;
+        let node_line = self.node_line(node, line);
+        let mut result = node_line.start() - line.start();
 
         // "A block quote marker consists of 0-3 spaces of initial indent, plus
         // (a) the character > together with a following space, or (b) a single
@@ -90,7 +89,7 @@ impl<'ast> MarkdownPlusPlus {
         // "If a string of lines Ls constitute a sequence of blocks Bs, then the
         // result of prepending a block quote marker to the beginning of each
         // line in Ls is a block quote containing Bs."
-        let text = &self.buffer[(line.start() + parent_prefix_len, line.end())];
+        let text = &self.buffer[node_line];
         if text.starts_with("   > ") {
             result += 5;
         } else if text.starts_with("   >") || text.starts_with("  > ") {

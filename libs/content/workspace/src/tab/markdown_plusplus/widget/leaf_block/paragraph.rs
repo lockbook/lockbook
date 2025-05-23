@@ -37,9 +37,7 @@ impl<'ast> MarkdownPlusPlus {
         let width = self.width(node);
         let mut wrap = Wrap::new(width);
 
-        let parent = node.parent().unwrap();
-        let parent_prefix_len = self.line_prefix_len(parent, line);
-        let node_line = (line.start() + parent_prefix_len, line.end());
+        let node_line = self.node_line(node, line);
 
         let line_children = self.children_in_line(node, line);
 
@@ -76,12 +74,9 @@ impl<'ast> MarkdownPlusPlus {
         for line in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line];
 
-            let width = self.width(node);
-            let mut wrap = Wrap::new(width);
-
             let line_height = self.height_paragraph_line(node, line);
 
-            self.show_paragraph_line(ui, node, top_left, line, &mut wrap);
+            self.show_paragraph_line(ui, node, top_left, line);
             top_left.y += line_height;
 
             top_left.y += BLOCK_SPACING;
@@ -90,11 +85,9 @@ impl<'ast> MarkdownPlusPlus {
 
     pub fn show_paragraph_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        line: (DocCharOffset, DocCharOffset), wrap: &mut Wrap,
+        line: (DocCharOffset, DocCharOffset),
     ) {
-        let parent = node.parent().unwrap();
-        let parent_prefix_len = self.line_prefix_len(parent, line);
-        let node_line = (line.start() + parent_prefix_len, line.end());
+        let node_line = self.node_line(node, line);
 
         // "The paragraph's raw content is formed by concatenating the lines
         // and removing initial and final whitespace"
@@ -109,24 +102,26 @@ impl<'ast> MarkdownPlusPlus {
                 self.bounds.paragraphs.push(postfix_whitespace);
             }
 
+            let mut wrap = Wrap::new(self.width(node));
+
             if node_line.intersects(&self.buffer.current.selection, true) {
                 self.show_text_line(
                     ui,
                     top_left,
-                    wrap,
+                    &mut wrap,
                     leading_whitespace,
                     self.text_format_syntax(node),
                     false,
                 );
             }
             for child in &self.children_in_line(node, line) {
-                self.show_inline(ui, child, top_left, wrap);
+                self.show_inline(ui, child, top_left, &mut wrap);
             }
             if node_line.intersects(&self.buffer.current.selection, true) {
                 self.show_text_line(
                     ui,
                     top_left,
-                    wrap,
+                    &mut wrap,
                     postfix_whitespace,
                     self.text_format_syntax(node),
                     false,

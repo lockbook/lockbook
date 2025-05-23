@@ -1,30 +1,39 @@
+use lb_rs::model::text::offset_types::DocCharOffset;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use syntect::highlighting::Style;
 
 #[derive(Clone, Default)]
 pub struct SyntaxHighlightCache {
-    pub map: HashMap<String, Vec<(Style, String)>>,
-    pub used_this_frame: HashSet<String>,
+    map: RefCell<HashMap<String, Vec<(Style, (DocCharOffset, DocCharOffset))>>>, // interior mutability
+    used_this_frame: RefCell<HashSet<String>>,
 }
 
 impl SyntaxHighlightCache {
-    pub fn insert(&mut self, key: String, value: Vec<(Style, String)>) {
-        self.used_this_frame.insert(key.clone());
-        self.map.insert(key, value);
+    pub fn insert(&self, key: String, value: Vec<(Style, (DocCharOffset, DocCharOffset))>) {
+        self.used_this_frame.borrow_mut().insert(key.clone());
+        self.map.borrow_mut().insert(key, value);
     }
 
-    pub fn get(&mut self, key: &str) -> Option<&Vec<(Style, String)>> {
-        self.used_this_frame.insert(key.to_string());
-        self.map.get(key)
+    pub fn get(&self, key: &str) -> Option<Vec<(Style, (DocCharOffset, DocCharOffset))>> {
+        self.used_this_frame.borrow_mut().insert(key.to_string());
+        self.map.borrow().get(key).cloned()
     }
 
-    pub fn garbage_collect(&mut self) {
+    pub fn garbage_collect(&self) {
         // remove unused entries
-        let keys: Vec<String> = self.map.keys().cloned().collect();
+        let keys: Vec<String> = self.map.borrow().keys().cloned().collect();
+        let used = self.used_this_frame.borrow();
+        let mut map = self.map.borrow_mut();
         for key in keys {
-            if !self.used_this_frame.contains(&key) {
-                self.map.remove(&key);
+            if !used.contains(&key) {
+                map.remove(&key);
             }
         }
+    }
+
+    pub fn clear(&self) {
+        self.map.borrow_mut().clear();
+        self.used_this_frame.borrow_mut().clear();
     }
 }
