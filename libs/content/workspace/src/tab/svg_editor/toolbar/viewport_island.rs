@@ -4,7 +4,8 @@ use resvg::usvg::Transform;
 use crate::{
     tab::svg_editor::{
         gesture_handler::{
-            get_zoom_fit_transform, transform_canvas, zoom_percentage_to_transform, MIN_ZOOM_LEVEL,
+            calc_elements_bounds, get_rect_identity_transform, get_zoom_fit_transform,
+            transform_canvas, zoom_percentage_to_transform, MIN_ZOOM_LEVEL,
         },
         renderer::RenderOptions,
         util::{draw_dashed_line, transform_rect},
@@ -126,12 +127,6 @@ impl Toolbar {
                                     self.viewport_popover = None;
                                 } else {
                                     self.viewport_popover = Some(ViewportPopover::More);
-
-                                    if self.viewport_transform.is_none()
-                                        && !tlbr_ctx.inner_rect.is_infinite_mode()
-                                    {
-                                        // calculate the transform and save it
-                                    }
                                 }
                             }
                             toggle_popover_btn = Some(more_btn);
@@ -237,7 +232,7 @@ impl Toolbar {
 
     fn show_zoom_stops_popover(&self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) {
         if Button::default().text("FIT").show(ui).clicked() {
-            let transform = get_zoom_fit_transform(tlbr_ctx.buffer, tlbr_ctx.container_rect)
+            let transform = get_zoom_fit_transform(tlbr_ctx.buffer, tlbr_ctx.container_rect, false)
                 .unwrap_or_default();
 
             transform_canvas(tlbr_ctx.buffer, tlbr_ctx.inner_rect, transform);
@@ -301,10 +296,7 @@ impl Toolbar {
 
                 if let Some(t) = out.maybe_tight_fit_transform {
                     let clipped_rect = transform_rect(tlbr_ctx.container_rect, t);
-                    if !tlbr_ctx.inner_rect.is_infinite_mode() {
-                        tlbr_ctx.inner_rect.bounded_rect =
-                            transform_rect(preview_rect, t.invert().unwrap_or_default());
-                    }
+
                     let blue = ui.visuals().widgets.active.bg_fill;
                     preview_painter.rect(
                         clipped_rect,
@@ -334,6 +326,7 @@ impl Toolbar {
                                 transform = get_zoom_fit_transform(
                                     tlbr_ctx.buffer,
                                     tlbr_ctx.painter.clip_rect(),
+                                    false,
                                 )
                                 .unwrap_or_default();
                             }
@@ -371,27 +364,47 @@ impl Toolbar {
                         preview_rect.max + egui::vec2(-preview_rect.width(), 100.0),
                     );
 
-                    show_side_controls(ui, Side::Left, left_bound_rect, shadow.into(), tlbr_ctx, t);
-
-                    show_side_controls(
+                    if show_side_controls(
                         ui,
-                        Side::Right,
-                        right_bound_rect,
+                        Side::Left,
+                        left_bound_rect,
                         shadow.into(),
                         tlbr_ctx,
                         t,
-                    );
-
-                    show_side_controls(ui, Side::Top, top_bound_rect, shadow.into(), tlbr_ctx, t);
-
-                    show_side_controls(
-                        ui,
-                        Side::Bottom,
-                        bottom_bound_rect,
-                        shadow.into(),
-                        tlbr_ctx,
-                        t,
-                    );
+                    )
+                    .clicked()
+                        || show_side_controls(
+                            ui,
+                            Side::Right,
+                            right_bound_rect,
+                            shadow.into(),
+                            tlbr_ctx,
+                            t,
+                        )
+                        .clicked()
+                        || show_side_controls(
+                            ui,
+                            Side::Top,
+                            top_bound_rect,
+                            shadow.into(),
+                            tlbr_ctx,
+                            t,
+                        )
+                        .clicked()
+                        || show_side_controls(
+                            ui,
+                            Side::Bottom,
+                            bottom_bound_rect,
+                            shadow.into(),
+                            tlbr_ctx,
+                            t,
+                        )
+                        .clicked()
+                            && !tlbr_ctx.inner_rect.is_infinite_mode()
+                    {
+                        tlbr_ctx.inner_rect.bounded_rect =
+                            transform_rect(preview_rect, t.invert().unwrap_or_default());
+                    }
                 }
             });
 
@@ -428,6 +441,11 @@ impl Toolbar {
 fn show_bring_back_btn(
     ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>, viewport_island_rect: egui::Rect,
 ) -> Option<Response> {
+    let elements_bound = match calc_elements_bounds(&tlbr_ctx.buffer) {
+        Some(rect) => transform_rect(rect, tlbr_ctx.buffer.master_transform),
+        None => return None,
+    };
+
     if tlbr_ctx
         .buffer
         .elements
@@ -435,12 +453,8 @@ fn show_bring_back_btn(
         .filter(|(_, e)| !e.deleted())
         .count()
         != 0
-        && !tlbr_ctx
-            .container_rect
-            .contains_rect(tlbr_ctx.inner_rect.bounded_rect)
-        && !tlbr_ctx
-            .container_rect
-            .intersects(tlbr_ctx.inner_rect.bounded_rect)
+        && !tlbr_ctx.container_rect.contains_rect(elements_bound)
+        && !tlbr_ctx.container_rect.intersects(elements_bound)
     {
         let bring_home_x_start = viewport_island_rect.right() + 15.0;
         let bring_home_y_start = viewport_island_rect.top();
@@ -464,13 +478,17 @@ fn show_bring_back_btn(
                         ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
 
                         if Button::default()
-                            .text("Scroll back to content")
+                            .text("Focus back to content")
                             .show(ui)
                             .clicked()
                         {
-                            let transform =
-                                get_zoom_fit_transform(tlbr_ctx.buffer, tlbr_ctx.container_rect)
-                                    .unwrap_or_default();
+                            let transform = get_rect_identity_transform(
+                                tlbr_ctx.container_rect,
+                                elements_bound,
+                                0.7,
+                                tlbr_ctx.container_rect.center(),
+                            )
+                            .unwrap_or_default();
 
                             transform_canvas(tlbr_ctx.buffer, tlbr_ctx.inner_rect, transform);
                         }
@@ -486,7 +504,7 @@ fn show_bring_back_btn(
 fn show_side_controls(
     ui: &mut egui::Ui, side: Side, rect: egui::Rect, shadow: egui::Shape,
     tlbr_ctx: &mut ToolbarContext, transform: Transform,
-) {
+) -> Response {
     let line_extension = 5.0;
 
     let (layout, segment_edges, is_locked) = match side {
@@ -538,11 +556,9 @@ fn show_side_controls(
     let opacity = if *is_locked { 1.0 } else { 0.3 };
     child_ui.set_opacity(opacity);
     let icon = if *is_locked { Icon::LOCK_CLOSED } else { Icon::LOCK_OPEN };
-    if Button::default()
-        .icon(&icon.size(13.0))
-        .show(child_ui)
-        .clicked()
-    {
+    let res = Button::default().icon(&icon.size(13.0)).show(child_ui);
+
+    if res.clicked() {
         *is_locked = !*is_locked;
         if *is_locked {
             tlbr_ctx.inner_rect.viewport_transform =
@@ -555,4 +571,5 @@ fn show_side_controls(
     } else {
         draw_dashed_line(ui.painter(), &segment_edges, 5.0, 3.0, unlocked_stroke);
     }
+    res
 }

@@ -279,8 +279,14 @@ pub fn transform_canvas(buffer: &mut Buffer, inner_rect: &mut BoundedRect, t: Tr
     inner_rect.bounded_rect = transform_rect(inner_rect.bounded_rect, t);
 }
 
-pub fn get_zoom_fit_transform(buffer: &Buffer, container_rect: egui::Rect) -> Option<Transform> {
-    let elements_bound = calc_elements_bounds(buffer)?;
+/// returns the fit transform in the non master transform plane
+pub fn get_zoom_fit_transform(
+    buffer: &Buffer, container_rect: egui::Rect, absolute_plane: bool,
+) -> Option<Transform> {
+    let mut elements_bound = calc_elements_bounds(buffer)?;
+    if !absolute_plane {
+        elements_bound = transform_rect(elements_bound, buffer.master_transform);
+    }
     get_rect_identity_transform(container_rect, elements_bound, 0.7, container_rect.center())
 }
 

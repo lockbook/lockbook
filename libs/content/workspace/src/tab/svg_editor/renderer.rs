@@ -93,7 +93,7 @@ impl Renderer {
         self.dark_mode = ui.visuals().dark_mode;
 
         let new_viewport_transform = if render_options.tight_fit_mode {
-            get_zoom_fit_transform(buffer, painter.clip_rect())
+            get_zoom_fit_transform(buffer, painter.clip_rect(), true)
         } else if render_options.viewport_transform.is_some() {
             render_options.viewport_transform
         } else {
