@@ -52,7 +52,7 @@ pub struct Renderer {
     tex_cache: HashMap<Uuid, TextureHandle>,
     dark_mode: bool,
     viewport_transform: Option<Transform>,
-    request_rerender: bool,
+    pub request_rerender: bool,
 }
 
 pub struct RendererOutput {

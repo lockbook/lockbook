@@ -8,7 +8,7 @@ use resvg::usvg::Transform;
 use viewport_island::ViewportPopover;
 
 use super::{
-    gesture_handler::{calc_elements_bounds, GestureHandler},
+    gesture_handler::GestureHandler,
     history::History,
     pen::{DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
     renderer::Renderer,
@@ -30,10 +30,9 @@ pub struct Toolbar {
     pub gesture_handler: GestureHandler,
 
     hide_overlay: bool,
-    pub show_tool_controls: bool,
+    pub show_tool_popover: bool,
     layout: ToolbarLayout,
     pub viewport_popover: Option<ViewportPopover>,
-    viewport_transform: Option<Transform>,
     renderer: Renderer,
 }
 
@@ -43,7 +42,7 @@ struct ToolbarLayout {
     history_island: Option<egui::Rect>,
     viewport_island: Option<egui::Rect>,
     viewport_popover: Option<egui::Rect>,
-    tool_controls: Option<egui::Rect>,
+    tool_popover: Option<egui::Rect>,
     zoom_pct_btn: Option<egui::Rect>,
     zoom_stops_popover: Option<egui::Rect>,
     overlay_toggle: Option<egui::Rect>,
@@ -147,7 +146,7 @@ impl ViewportMode {
 }
 
 impl BoundedRect {
-    pub fn update(&mut self, container_rect: egui::Rect, buffer: &Buffer) {
+    pub fn update(&mut self, container_rect: egui::Rect) {
         let min_x = if self.left_locked {
             self.bounded_rect.left().max(container_rect.left())
         } else {
@@ -223,19 +222,19 @@ impl BoundedRect {
 macro_rules! set_tool {
     ($obj:expr, $new_tool:expr) => {
         if $obj.active_tool != $new_tool {
-            $obj.show_tool_controls = false;
-            $obj.layout.tool_controls = None;
+            $obj.show_tool_popover = false;
+            $obj.layout.tool_popover = None;
 
             if (matches!($new_tool, Tool::Selection)) {
-                $obj.selection = crate::tab::svg_editor::selection::Selection::default();
+                $obj.selection = $crate::tab::svg_editor::selection::Selection::default();
             }
             $obj.previous_tool = Some($obj.active_tool);
             $obj.active_tool = $new_tool;
         } else {
-            if $obj.show_tool_controls == true {
-                $obj.show_tool_controls = false;
+            if $obj.show_tool_popover == true {
+                $obj.show_tool_popover = false;
             } else {
-                $obj.show_tool_controls = true;
+                $obj.show_tool_popover = true;
             }
         }
     };
@@ -267,10 +266,9 @@ impl Toolbar {
             previous_tool: Default::default(),
             gesture_handler: Default::default(),
             hide_overlay: Default::default(),
-            show_tool_controls: Default::default(),
+            show_tool_popover: Default::default(),
             layout: Default::default(),
             viewport_popover: Default::default(),
-            viewport_transform: None,
         };
 
         toolbar.highlighter.active_opacity = 0.1;
@@ -306,16 +304,17 @@ impl Toolbar {
             return;
         }
 
-        let viewport_island = self.show_viewport_island(ui, tlbr_ctx);
+        // shows the viewport island + popovers + bring home button
+        let viewport_controls = self.show_viewport_controls(ui, tlbr_ctx);
 
         let tools_island = self.show_tools_island(ui);
-        let tool_controls_res = self.show_tool_controls(ui, tlbr_ctx);
+        let tool_controls_res = self.show_tool_popovers(ui, tlbr_ctx);
 
         let mut overlay_res = history_island;
         if let Some(res) = tool_controls_res {
             overlay_res = overlay_res.union(res);
         }
-        if let Some(res) = viewport_island {
+        if let Some(res) = viewport_controls {
             overlay_res = overlay_res.union(res);
         }
         overlay_res = overlay_res

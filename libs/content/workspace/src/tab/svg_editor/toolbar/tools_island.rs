@@ -134,7 +134,7 @@ impl Toolbar {
         res
     }
 
-    pub fn show_tool_controls(
+    pub fn show_tool_popovers(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
     ) -> Option<Response> {
         if self.active_tool == Tool::Selection {
@@ -146,44 +146,44 @@ impl Toolbar {
         let opacity = animate_eased(
             ui.ctx(),
             "opacity",
-            if self.layout.tool_controls.is_none() || self.hide_overlay { 0.0 } else { 1.0 },
+            if self.layout.tool_popover.is_none() || self.hide_overlay { 0.0 } else { 1.0 },
             0.2,
             easing::cubic_in_out,
         );
         ui.set_opacity(opacity);
-        let tool_controls_size = self.layout.tool_controls.unwrap_or(egui::Rect::ZERO).size();
+        let tool_popovers_size = self.layout.tool_popover.unwrap_or(egui::Rect::ZERO).size();
 
-        let tool_controls_x_start = ui.available_rect_before_wrap().left()
-            + (ui.available_width() - tool_controls_size.x) / 2.0;
-        let tool_controls_y_start = tools_island_rect.top() - tool_controls_size.y - 10.0;
-        let tool_controls_rect = egui::Rect {
-            min: egui::pos2(tool_controls_x_start, tool_controls_y_start),
-            max: egui::pos2(tool_controls_x_start + tool_controls_size.x, tool_controls_y_start),
+        let tool_popover_x_start = ui.available_rect_before_wrap().left()
+            + (ui.available_width() - tool_popovers_size.x) / 2.0;
+        let tool_popover_y_start = tools_island_rect.top() - tool_popovers_size.y - 10.0;
+        let tool_popover_rect = egui::Rect {
+            min: egui::pos2(tool_popover_x_start, tool_popover_y_start),
+            max: egui::pos2(tool_popover_x_start + tool_popovers_size.x, tool_popover_y_start),
         };
 
-        ui.allocate_rect(tool_controls_rect, egui::Sense::click());
-        if self.show_tool_controls {
-            let tool_controls = ui.allocate_ui_at_rect(tool_controls_rect, |ui| {
+        ui.allocate_rect(tool_popover_rect, egui::Sense::click());
+        if self.show_tool_popover {
+            let tool_popover = ui.allocate_ui_at_rect(tool_popover_rect, |ui| {
                 egui::Frame::window(ui.style()).show(ui, |ui| {
                     match self.active_tool {
-                        Tool::Pen => show_pen_controls(ui, &mut self.pen, tlbr_ctx),
-                        Tool::Eraser => self.show_eraser_controls(ui),
+                        Tool::Pen => show_pen_popover(ui, &mut self.pen, tlbr_ctx),
+                        Tool::Eraser => self.show_eraser_popover(ui),
                         Tool::Highlighter => {
-                            show_highlighter_controls(ui, &mut self.highlighter, tlbr_ctx)
+                            show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
                         }
                         Tool::Selection => {}
                     };
                 })
             });
 
-            self.layout.tool_controls = Some(tool_controls.response.rect);
-            Some(tool_controls.response)
+            self.layout.tool_popover = Some(tool_popover.response.rect);
+            Some(tool_popover.response)
         } else {
             None
         }
     }
 
-    fn show_eraser_controls(&mut self, ui: &mut egui::Ui) {
+    fn show_eraser_popover(&mut self, ui: &mut egui::Ui) {
         let width = 200.0;
         ui.style_mut().spacing.slider_width = width;
         ui.set_width(width);
@@ -204,7 +204,7 @@ impl Toolbar {
         ui.add_space(10.0);
     }
 }
-fn show_pen_controls(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {
+fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {
     let width = 220.0;
     ui.style_mut().spacing.slider_width = width;
     ui.set_width(width);
@@ -274,7 +274,7 @@ fn show_pressure_alpha_slider(ui: &mut egui::Ui, pen: &mut Pen) {
     });
 }
 
-fn show_highlighter_controls(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {
+fn show_highlighter_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {
     let width = 200.0;
     ui.style_mut().spacing.slider_width = width;
     ui.set_width(width);

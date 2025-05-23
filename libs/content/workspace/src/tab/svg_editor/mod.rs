@@ -17,7 +17,6 @@ use crate::tab::svg_editor::toolbar::Toolbar;
 
 use element::PromoteWeakImage;
 pub use eraser::Eraser;
-use gesture_handler::calc_elements_bounds;
 pub use history::DeleteElement;
 pub use history::Event;
 pub use history::InsertElement;
@@ -38,7 +37,6 @@ use toolbar::ToolContext;
 use toolbar::ToolbarContext;
 use tracing::span;
 use tracing::Level;
-use util::transform_rect;
 
 pub struct SVGEditor {
     pub buffer: Buffer,
@@ -60,25 +58,6 @@ pub struct SVGEditor {
     allow_viewport_changes: bool,
     pub settings: CanvasSettings,
     input_ctx: InputContext,
-}
-enum Modal {
-    ViewportSettings(ViewportSettingsState),
-}
-
-struct ViewportSettingsState {
-    renderer: Renderer,
-    inner_rect: BoundedRect,
-}
-
-impl Modal {
-    /// Creates a new ViewportSettings modal with the specified renderer
-    pub fn new_viewport_settings(element_count: usize) -> Self {
-        let renderer = Renderer::new(element_count);
-        Modal::ViewportSettings(ViewportSettingsState {
-            renderer,
-            inner_rect: BoundedRect::default(),
-        })
-    }
 }
 
 pub struct Response {
@@ -193,7 +172,7 @@ impl SVGEditor {
         ui.set_clip_rect(self.inner_rect.working_rect);
 
         self.show_background(ui);
-        self.show_dot_grid(ui);
+        self.show_dot_grid();
         let global_diff = self.show_canvas(ui);
 
         if cfg!(debug_assertions) {
@@ -206,11 +185,10 @@ impl SVGEditor {
         if global_diff.is_dirty() {
             self.has_queued_save_request = true;
             if global_diff.transformed.is_none() {
-                self.toolbar.show_tool_controls = false;
-                // self.toolbar.viewport_popover = None;
+                self.toolbar.show_tool_popover = false;
             }
         }
-        self.inner_rect.update(self.container_rect, &self.buffer);
+        self.inner_rect.update(self.container_rect);
 
         let needs_save_and_frame_is_cheap =
             if self.has_queued_save_request && !global_diff.is_dirty() {
@@ -259,7 +237,7 @@ impl SVGEditor {
         );
     }
 
-    fn show_dot_grid(&self, ui: &mut egui::Ui) {
+    fn show_dot_grid(&self) {
         if !self.settings.show_dot_grid {
             return;
         }
