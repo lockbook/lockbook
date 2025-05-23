@@ -1,5 +1,7 @@
 use comrak::nodes::AstNode;
-use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{
+    DocByteOffset, DocCharOffset, RangeExt as _, RangeIterExt as _,
+};
 
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
@@ -258,10 +260,26 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     /// Returns true if the node intersects the current selection. Useful for
-    /// checking if syntax should be revealed for a whole node.
+    /// checking if syntax should be revealed for an inline node. Block nodes
+    /// generally need additional consideration for optional indentation.
     pub fn node_intersects_selection(&self, node: &'ast AstNode<'ast>) -> bool {
         self.node_range(node)
             .intersects(&self.buffer.current.selection, true)
+    }
+
+    /// Returns true if the node's lines intersect the selection. Differs from
+    /// node_lines_intersect_selection in cases where the selection intersects
+    /// optional indentation, trailing whitespace, or the portion of a node's
+    /// lines that are due to container blocks.
+    pub fn node_lines_intersect_selection(&self, node: &'ast AstNode<'ast>) -> bool {
+        for line_idx in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line_idx];
+            let node_line = self.node_line(node, line);
+            if node_line.intersects(&self.buffer.current.selection, true) {
+                return true;
+            }
+        }
+        false
     }
 
     pub fn children_in_line(

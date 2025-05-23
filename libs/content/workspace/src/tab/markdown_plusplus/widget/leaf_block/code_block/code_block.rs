@@ -64,7 +64,7 @@ impl<'ast> MarkdownPlusPlus {
 
         let mut result = 0.;
 
-        let reveal = self.node_intersects_selection(node);
+        let reveal = self.node_lines_intersect_selection(node);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in first_line_idx..=last_line_idx {
@@ -120,7 +120,7 @@ impl<'ast> MarkdownPlusPlus {
         top_left.x += BLOCK_PADDING;
         top_left.y += ROW_SPACING;
 
-        let reveal = self.node_intersects_selection(node);
+        let reveal = self.node_lines_intersect_selection(node);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in first_line_idx..=last_line_idx {
@@ -133,8 +133,8 @@ impl<'ast> MarkdownPlusPlus {
                 && self.is_closing_fence(node, node_code_block, line);
 
             if is_opening_fence || is_closing_fence {
+                self.bounds.paragraphs.push(node_line);
                 let range = if reveal { node_line } else { node_line.end().into_range() };
-                self.bounds.paragraphs.push(range);
                 self.show_text_line(
                     ui,
                     top_left,
@@ -233,7 +233,7 @@ impl<'ast> MarkdownPlusPlus {
         let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
 
         if let Some(highlighter) = highlighter.as_mut() {
-            let regions = if let Some(regions) = self.syntax.get(code_line_text) {
+            let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {
                 // cached regions
                 regions
             } else {
@@ -249,7 +249,8 @@ impl<'ast> MarkdownPlusPlus {
                     regions.push((style, region));
                     region_start = region_end;
                 }
-                self.syntax.insert(code_line_text.into(), regions.clone());
+                self.syntax
+                    .insert(code_line_text.into(), code_line, regions.clone());
                 regions
             };
 
@@ -320,7 +321,7 @@ impl<'ast> MarkdownPlusPlus {
         let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
 
         if let Some(highlighter) = highlighter.as_mut() {
-            let regions = if let Some(regions) = self.syntax.get(code_line_text) {
+            let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {
                 // cached regions
                 regions
             } else {
@@ -336,7 +337,8 @@ impl<'ast> MarkdownPlusPlus {
                     regions.push((style, region));
                     region_start = region_end;
                 }
-                self.syntax.insert(code_line_text.into(), regions.clone());
+                self.syntax
+                    .insert(code_line_text.into(), code_line, regions.clone());
                 regions
             };
 
