@@ -156,9 +156,10 @@ private struct OnboardingTwoView: View {
     func createAccount() {
         working = true
         error = nil
+        let apiUrl = AppState.LB_API_URL ?? "https://api.prod.lockbook.net"
         
         DispatchQueue.global(qos: .userInitiated).async {
-            let operation = AppState.lb.createAccount(username: username, apiUrl: AppState.LB_API_URL, welcomeDoc: true)
+            let operation = AppState.lb.createAccount(username: username, apiUrl: apiUrl, welcomeDoc: true)
             DispatchQueue.main.async {
                 switch operation {
                 case .success:
@@ -185,20 +186,16 @@ private struct OnboardingThreeView: View {
     
     var body: some View {
         VStack(alignment: .leading) {
+            
             Text("Your account key")
                 .font(.title)
                 .fontWeight(.bold)
             
-            Text("This key confirms your identity and keeps your account secure. It's confidential and cannot be recovered if lost.")
-                .padding(.top)
+            Spacer()
             
-            Text("You can always access your key in the settings.")
-                .padding(.top, 6)
-                .padding(.bottom)
+            Text("This key confirms your identity and keeps your account secure. It's **confidential** and **cannot** be recovered if lost. You can always access your key in the **settings**.")
             
             AccountPhraseView()
-            
-            Spacer()
             
             Toggle(isOn: $storedSecurely, label: {
                 Text("I've stored my account key in safe place.")
@@ -432,7 +429,7 @@ struct SetAPIURLView: View {
 
     @State var unsavedAPIURL = ""
     @FocusState var focused: Bool
-    let defaultAPIURL: String = AppState.LB_API_URL ?? "Unknown"
+    let defaultAPIURL: String = AppState.LB_API_URL ?? "https://api.prod.lockbook.net"
     
     @Environment(\.dismiss) private var dismiss
     
