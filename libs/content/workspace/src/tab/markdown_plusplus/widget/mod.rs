@@ -2,7 +2,6 @@ use comrak::nodes::{
     AstNode, NodeFootnoteReference, NodeHeading, NodeHtmlBlock, NodeLink, NodeValue,
 };
 use egui::{Pos2, TextFormat, Ui};
-use inline::text;
 use lb_rs::model::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
