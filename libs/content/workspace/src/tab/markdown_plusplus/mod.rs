@@ -40,6 +40,7 @@ pub struct MarkdownPlusPlus {
     pub ctx: Context,
 
     // theme
+    dark_mode: bool, // supports change detection
     theme: Theme,
     syntax_set: SyntaxSet,
     syntax_light_theme: syntect::highlighting::Theme,
@@ -85,6 +86,7 @@ impl MarkdownPlusPlus {
     pub fn new(core: Lb, md: &str, file_id: Uuid, ctx: Context) -> Self {
         let theme = Theme::new(ctx.clone());
 
+        let dark_mode = ctx.style().visuals.dark_mode;
         let syntax_set = SyntaxSet::load_defaults_newlines();
 
         let light_theme_bytes = include_bytes!("assets/mnemonic-light.tmTheme").as_ref();
@@ -100,23 +102,28 @@ impl MarkdownPlusPlus {
         Self {
             core,
             client: Default::default(),
-            buffer: md.into(),
-            file_id,
             ctx,
+
+            dark_mode,
             theme,
             syntax_set,
             syntax_light_theme,
             syntax_dark_theme,
-            images: Default::default(),
-            layout_cache: Default::default(),
-            bounds: Default::default(),
+
+            file_id,
             needs_name: Default::default(),
             initialized: Default::default(),
+
+            bounds: Default::default(),
+            buffer: md.into(),
             cursor: Default::default(),
             event: Default::default(),
-            virtual_keyboard_shown: Default::default(),
             galleys: Default::default(),
+            images: Default::default(),
+            layout_cache: Default::default(),
             syntax: Default::default(),
+
+            virtual_keyboard_shown: Default::default(),
             width: Default::default(),
             height: Default::default(),
         }
@@ -162,6 +169,11 @@ impl MarkdownPlusPlus {
 
         // todo: more thoughtful cache invalidation
         self.layout_cache.clear();
+        let dark_mode = ui.style().visuals.dark_mode;
+        if dark_mode != self.dark_mode {
+            self.syntax.clear();
+            self.dark_mode = dark_mode;
+        }
 
         let start = std::time::Instant::now();
 

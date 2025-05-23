@@ -144,6 +144,7 @@ impl<'ast> MarkdownPlusPlus {
         // container blocks: if revealed, show source lines instead
         if node.parent().is_some()
             && !node.data.borrow().value.contains_inlines()
+            && !matches!(node.data.borrow().value, NodeValue::CodeBlock(_))
             && self.reveal(node)
         {
             let mut height = 0.;
@@ -351,6 +352,7 @@ impl<'ast> MarkdownPlusPlus {
         // container blocks: if revealed, show source lines instead
         if node.parent().is_some()
             && !node.data.borrow().value.contains_inlines()
+            && !matches!(node.data.borrow().value, NodeValue::CodeBlock(_))
             && self.reveal(node)
         {
             for line in self.node_lines(node).iter() {
@@ -579,29 +581,6 @@ impl<'ast> MarkdownPlusPlus {
         rows * self.row_height(node) + (rows - 1.) * ROW_SPACING
     }
 
-    // the height of possibly multiple lines of wrapped text; used for code
-    // blocks and other situations where text isn't in inlines
-    fn text_height(&self, node: &'ast AstNode<'ast>, wrap: &Wrap, text: &str) -> f32 {
-        let mut tmp_wrap = wrap.clone();
-        for (i, line) in text.lines().enumerate() {
-            tmp_wrap.offset += self.span_node_text_line(node, wrap, line);
-
-            // all lines except the last one end in a newline...
-            if i < text.lines().count() - 1 {
-                tmp_wrap.offset = tmp_wrap.row_end();
-            }
-        }
-
-        // ...and sometimes the last one also ends with a newline
-        if text::ends_with_newline(text) {
-            tmp_wrap.offset = tmp_wrap.row_end();
-        }
-
-        let span = tmp_wrap.offset - wrap.offset;
-        let rows = (span / wrap.width).ceil();
-        rows * wrap.row_height + (rows - 1.) * ROW_SPACING
-    }
-
     fn show_inline(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
     ) {
@@ -696,6 +675,16 @@ impl<'ast> MarkdownPlusPlus {
         Some((first_child_range.start(), last_child_range.end()))
     }
 
+    /// Returns the portion of the line that's within the node, exluding line
+    /// prefixes due to parent nodes.
+    pub fn node_line(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> (DocCharOffset, DocCharOffset) {
+        let parent = node.parent().unwrap();
+        let parent_prefix_len = self.line_prefix_len(parent, line);
+        (line.start() + parent_prefix_len, line.end())
+    }
+
     /// Returns 5 ranges representing the pre-node line, pre-first-child section,
     /// inter-children section, post-last-child section, and post-node line.
     /// Returns None if there are no children on this line.
@@ -714,9 +703,7 @@ impl<'ast> MarkdownPlusPlus {
             return None;
         }
 
-        let parent = node.parent().unwrap();
-        let parent_prefix_len = self.line_prefix_len(parent, line);
-        let node_line = (line.start() + parent_prefix_len, line.end());
+        let node_line = self.node_line(node, line);
 
         let node_range = self.node_range(node);
         let node_range =
