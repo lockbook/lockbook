@@ -11,7 +11,6 @@ use crate::model::errors::{LbErrKind, LbResult, Warning};
 use crate::Lb;
 
 impl Lb {
-    // todo good contender for async treatment, to speedup debug_info
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn test_repo_integrity(&self) -> LbResult<Vec<Warning>> {
         let tx = self.ro_tx().await;
@@ -35,7 +34,7 @@ impl Lb {
             }
         }
 
-        drop(tree);
+        drop(tx);
 
         let mut warnings = Vec::new();
         let mut tasks = vec![];
