@@ -145,10 +145,11 @@ impl TreeLikeMut for ServerTreeV2 {
     fn insert(&mut self, f: Self::F) -> LbResult<Option<Self::F>> {
         let id = *f.id();
         let owner = f.owner();
-        let maybe_prior = self.find_owner_db(&owner)?.metas.insert(id, f.clone())?;
+        let maybe_prior = self.remove(id)?;
+        self.find_owner_db(&owner)?.metas.insert(id, f.clone())?;
 
         // maintain index: meta_lookup
-        if maybe_prior.as_ref().map(|f| f.owner()) != Some(f.owner()) {
+        if maybe_prior.is_none() || maybe_prior.as_ref().map(|f| f.owner()) != Some(f.owner()) {
             self.meta_lookup.lock().unwrap().insert(id, owner);
         }
 
@@ -190,8 +191,11 @@ impl TreeLikeMut for ServerTreeV2 {
         Ok(maybe_prior)
     }
 
-    fn remove(&mut self, id: Uuid) -> crate::LbResult<Option<Self::F>> {
-        todo!()
+    fn remove(&mut self, id: Uuid) -> LbResult<Option<Self::F>> {
+        match self.maybe_find(&id).map(|f| f.owner()) {
+            Some(owner) => self.find_owner_db(&owner)?,
+            None => todo!(),
+        }
     }
 
     fn clear(&mut self) -> crate::LbResult<()> {
