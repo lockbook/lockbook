@@ -36,6 +36,7 @@ pub struct ServerTreeV2 {
     pub owner: Owner,
     pub owner_db: OwnedRwLockWriteGuard<AccountV1>,
     pub ids: Vec<Uuid>,
+    // todo: ensure the owner cannot be in here (maliciously crafted input)
     pub sharee_dbs: HashMap<Owner, OwnedRwLockWriteGuard<AccountV1>>,
     pub meta_lookup: MetaLookup,
 }
@@ -57,7 +58,9 @@ where
     //
     // we're actually just going to use a secondary index to ensure that new ids are
     // truly new, makes a lot of complexity go away
-    pub async fn get_tree<T: Debug>(&self, owner: Owner) -> Result<ServerTreeV2, ServerError<T>> {
+    pub async fn get_tree<T: Debug>(
+        &self, owner: Owner, req_sharees: Vec<Owner>,
+    ) -> Result<ServerTreeV2, ServerError<T>> {
         let owner_dbs = self.account_dbs.read().await;
 
         // grab our requester's db
@@ -65,11 +68,12 @@ where
         let mut ids = owner_db.metas.ids();
 
         // get all relevant sharee dbs and sort for determinism
-        let mut owners = vec![];
+        let mut owners = req_sharees;
         for (owner, _ids) in owner_db.shared_files.get() {
             owners.push(*owner);
         }
         owners.sort_unstable_by_key(|owner| owner.0.serialize());
+        owners.dedup();
 
         // aquire locks and find compute the requester's set of ids
         let mut sharee_dbs = HashMap::new();
@@ -95,7 +99,7 @@ where
         }
 
         // return the tree with all the metadata to fulfill requests
-        Ok(ServerTreeV2 { owner, owner_db, ids, sharee_dbs })
+        Ok(ServerTreeV2 { owner, owner_db, ids, sharee_dbs, meta_lookup: self.meta_lookup.clone() })
     }
 }
 
@@ -149,7 +153,7 @@ impl TreeLikeMut for ServerTreeV2 {
         self.find_owner_db(&owner)?.metas.insert(id, f.clone())?;
 
         // maintain index: meta_lookup
-        if maybe_prior.is_none() || maybe_prior.as_ref().map(|f| f.owner()) != Some(f.owner()) {
+        if maybe_prior.as_ref().map(|f| f.owner()) != Some(f.owner()) {
             self.meta_lookup.lock().unwrap().insert(id, owner);
         }
 
@@ -170,6 +174,27 @@ impl TreeLikeMut for ServerTreeV2 {
             .filter(|k| !k.deleted)
             .map(|k| Owner(k.encrypted_for))
             .collect::<HashSet<_>>();
+
+        // handle owners changing
+        if let Some(prior) = &maybe_prior {
+            if prior.owner() != owner {
+                for sharee in &prior_sharees {
+                    let db = self.find_owner_db(sharee)?;
+                    let mut entry =
+                        db.shared_files
+                            .clear_key(&prior.owner())?
+                            .ok_or(LbErrKind::Unexpected(format!(
+                                "could not find entry in shared dbs for owner"
+                            )))?;
+                    entry.retain(|shared_id| *shared_id != id);
+                    for shared_id in entry {
+                        db.shared_files.push(owner, shared_id)?;
+                    }
+                }
+            }
+        }
+
+        // handle sharees changing
         for removed_sharee in prior_sharees.difference(&sharees) {
             let db = self.find_owner_db(removed_sharee)?;
             let mut entry = db
@@ -193,13 +218,16 @@ impl TreeLikeMut for ServerTreeV2 {
 
     fn remove(&mut self, id: Uuid) -> LbResult<Option<Self::F>> {
         match self.maybe_find(&id).map(|f| f.owner()) {
-            Some(owner) => self.find_owner_db(&owner)?,
-            None => todo!(),
+            Some(owner) => {
+                let db = self.find_owner_db(&owner)?;
+                Ok(db.metas.remove(&id)?)
+            }
+            None => Ok(None),
         }
     }
 
     fn clear(&mut self) -> crate::LbResult<()> {
-        todo!()
+        todo!("no one uses this on server yet")
     }
 }
 
@@ -254,7 +282,13 @@ impl ServerTreeOps for LazyTree<ServerTreeV2> {
                 }
                 None => {
                     // if you're claiming this file is new, it must be globally unique
-                    if self.tree.files.maybe_find(change.new.id()).is_some() {
+                    if self
+                        .tree
+                        .meta_lookup
+                        .lock()
+                        .unwrap()
+                        .contains_key(change.id())
+                    {
                         return Err(LbErrKind::Diff(DiffError::OldVersionRequired))?;
                     }
                 }
