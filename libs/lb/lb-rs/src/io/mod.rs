@@ -17,7 +17,6 @@ use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::{os, process};
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use uuid::Uuid;
 
