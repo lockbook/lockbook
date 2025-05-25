@@ -13,7 +13,7 @@ use super::{
     pen::{DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
     renderer::Renderer,
     selection::Selection,
-    CanvasSettings, Eraser, Pen,
+    CanvasSettings, Eraser, Pen, ViewportSettings,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
@@ -64,8 +64,7 @@ pub struct ToolContext<'a> {
     pub is_touch_frame: bool,
     pub settings: &'a mut CanvasSettings,
     pub is_locked_vw_pen_only: bool,
-    pub inner_rect: &'a mut BoundedRect,
-    pub container_rect: egui::Rect,
+    pub viewport_settings: &'a mut ViewportSettings,
 }
 
 pub struct ToolbarContext<'a> {
@@ -73,36 +72,7 @@ pub struct ToolbarContext<'a> {
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
     pub settings: &'a mut CanvasSettings,
-    pub inner_rect: &'a mut BoundedRect,
-    pub container_rect: egui::Rect,
-}
-
-#[derive(Clone, Copy)]
-pub struct BoundedRect {
-    /// the drawable rect in the master-transformed plane
-    pub bounded_rect: egui::Rect,
-    /// the intersection of the bounded rect and the current screen rect  
-    pub working_rect: egui::Rect,
-    /// a transform applied on the none master-transformed plane  
-    pub viewport_transform: Option<Transform>,
-    pub left_locked: bool,
-    pub right_locked: bool,
-    pub bottom_locked: bool,
-    pub top_locked: bool,
-}
-
-impl Default for BoundedRect {
-    fn default() -> Self {
-        Self {
-            working_rect: egui::Rect::ZERO,
-            bounded_rect: egui::Rect::ZERO,
-            left_locked: false,
-            right_locked: false,
-            bottom_locked: false,
-            top_locked: false,
-            viewport_transform: None,
-        }
-    }
+    pub viewport_settings: &'a mut ViewportSettings,
 }
 
 pub enum ViewportMode {
@@ -128,51 +98,56 @@ impl ViewportMode {
 
     pub fn is_active(&self, tlbr_ctx: &ToolbarContext) -> bool {
         match self {
-            ViewportMode::Page => tlbr_ctx.inner_rect.is_page_mode(),
-            ViewportMode::Scroll => tlbr_ctx.inner_rect.is_scroll_mode(),
-            ViewportMode::Timeline => tlbr_ctx.inner_rect.is_timeline_mode(),
-            ViewportMode::Infinite => tlbr_ctx.inner_rect.is_infinite_mode(),
+            ViewportMode::Page => tlbr_ctx.viewport_settings.is_page_mode(),
+            ViewportMode::Scroll => tlbr_ctx.viewport_settings.is_scroll_mode(),
+            ViewportMode::Timeline => tlbr_ctx.viewport_settings.is_timeline_mode(),
+            ViewportMode::Infinite => tlbr_ctx.viewport_settings.is_infinite_mode(),
         }
     }
 
     pub fn set_active(&self, tlbr_ctx: &mut ToolbarContext) {
         match self {
-            ViewportMode::Page => tlbr_ctx.inner_rect.set_page_mode(),
-            ViewportMode::Scroll => tlbr_ctx.inner_rect.set_scroll_mode(),
-            ViewportMode::Timeline => tlbr_ctx.inner_rect.set_timeline_mode(),
-            ViewportMode::Infinite => tlbr_ctx.inner_rect.set_infinite_mode(),
+            ViewportMode::Page => tlbr_ctx.viewport_settings.set_page_mode(),
+            ViewportMode::Scroll => tlbr_ctx.viewport_settings.set_scroll_mode(),
+            ViewportMode::Timeline => tlbr_ctx.viewport_settings.set_timeline_mode(),
+            ViewportMode::Infinite => tlbr_ctx.viewport_settings.set_infinite_mode(),
         }
     }
 }
 
-impl BoundedRect {
-    pub fn update(&mut self, container_rect: egui::Rect) {
-        let min_x = if self.left_locked {
-            self.bounded_rect.left().max(container_rect.left())
+impl ViewportSettings {
+    pub fn update_working_rect(&mut self) {
+        let new_working_rect = if let Some(bounded_rect) = self.bounded_rect {
+            let min_x = if self.left_locked {
+                bounded_rect.left().max(self.container_rect.left())
+            } else {
+                self.container_rect.left()
+            };
+
+            let min_y = if self.top_locked {
+                bounded_rect.top().max(self.container_rect.top())
+            } else {
+                self.container_rect.top()
+            };
+
+            let max_x = if self.right_locked {
+                bounded_rect.right().min(self.container_rect.right())
+            } else {
+                self.container_rect.right()
+            };
+
+            let max_y = if self.bottom_locked {
+                bounded_rect.bottom().min(self.container_rect.bottom())
+            } else {
+                self.container_rect.bottom()
+            };
+
+            egui::Rect::from_min_max(egui::pos2(min_x, min_y), egui::pos2(max_x, max_y))
         } else {
-            container_rect.left()
+            self.container_rect
         };
 
-        let min_y = if self.top_locked {
-            self.bounded_rect.top().max(container_rect.top())
-        } else {
-            container_rect.top()
-        };
-
-        let max_x = if self.right_locked {
-            self.bounded_rect.right().min(container_rect.right())
-        } else {
-            container_rect.right()
-        };
-
-        let max_y = if self.bottom_locked {
-            self.bounded_rect.bottom().min(container_rect.bottom())
-        } else {
-            container_rect.bottom()
-        };
-
-        self.working_rect =
-            egui::Rect::from_min_max(egui::pos2(min_x, min_y), egui::pos2(max_x, max_y));
+        self.working_rect = new_working_rect;
     }
     pub fn is_page_mode(&self) -> bool {
         self.bottom_locked && self.left_locked && self.right_locked && self.top_locked
@@ -363,12 +338,12 @@ impl Toolbar {
 
         let island_rect = egui::Rect {
             min: egui::pos2(
-                tlbr_ctx.container_rect.right() - SCREEN_PADDING - island_size.x,
-                tlbr_ctx.container_rect.top() + SCREEN_PADDING,
+                tlbr_ctx.viewport_settings.container_rect.right() - SCREEN_PADDING - island_size.x,
+                tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING,
             ),
             max: egui::pos2(
-                tlbr_ctx.container_rect.right() - SCREEN_PADDING,
-                tlbr_ctx.container_rect.top() + SCREEN_PADDING + island_size.y,
+                tlbr_ctx.viewport_settings.container_rect.right() - SCREEN_PADDING,
+                tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING + island_size.y,
             ),
         };
         let overlay_toggle = ui.allocate_ui_at_rect(island_rect, |ui| {

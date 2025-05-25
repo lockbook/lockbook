@@ -356,7 +356,7 @@ impl Workspace {
                                     &mut svg.buffer.elements,
                                     &mut svg.buffer.weak_images,
                                     &mut svg.buffer.weak_path_pressures,
-                                    svg.buffer.master_transform,
+                                    &mut svg.buffer.weak_viewport_settings,
                                     &svg.opened_content,
                                     &svg::buffer::Buffer::new(
                                         String::from_utf8_lossy(&bytes).as_ref(),

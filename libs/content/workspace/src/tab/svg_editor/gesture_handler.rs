@@ -4,7 +4,7 @@ use egui::TouchPhase;
 use resvg::usvg::Transform;
 use tracing::trace;
 
-use super::{element::BoundedElement, toolbar::BoundedRect, util::transform_rect, SVGEditor};
+use super::{element::BoundedElement, util::transform_rect, SVGEditor, ViewportSettings};
 use lb_rs::model::svg::{buffer::u_transform_to_bezier, element::Element};
 
 use super::{toolbar::ToolContext, Buffer};
@@ -152,7 +152,7 @@ impl GestureHandler {
             }
         };
 
-        if !gesture_ctx.container_rect.contains(pos) {
+        if !gesture_ctx.viewport_settings.container_rect.contains(pos) {
             return;
         }
 
@@ -172,7 +172,7 @@ impl GestureHandler {
         }
 
         if pan.is_some() || is_zooming {
-            transform_canvas(gesture_ctx.buffer, gesture_ctx.inner_rect, t);
+            transform_canvas(gesture_ctx.buffer, gesture_ctx.viewport_settings, t);
         }
     }
 
@@ -247,18 +247,21 @@ impl GestureHandler {
     }
 }
 
-pub fn transform_canvas(buffer: &mut Buffer, inner_rect: &mut BoundedRect, t: Transform) {
-    let new_transform = buffer.master_transform.post_concat(t);
+pub fn transform_canvas(
+    buffer: &mut Buffer, viewport_settings: &mut ViewportSettings, t: Transform,
+) {
+    let new_transform = viewport_settings.master_transform.post_concat(t);
 
     // max allowed zoom level is 10%
-    if buffer.master_transform.sx < MIN_ZOOM_LEVEL && new_transform.sx < buffer.master_transform.sx
+    if viewport_settings.master_transform.sx < MIN_ZOOM_LEVEL
+        && new_transform.sx < viewport_settings.master_transform.sx
     {
         return;
     }
     if new_transform.sx == 0.0 || new_transform.sy == 0.0 {
         return;
     }
-    buffer.master_transform = new_transform;
+    viewport_settings.master_transform = new_transform;
     buffer.master_transform_changed = true;
 
     for el in buffer.elements.values_mut() {
@@ -276,18 +279,25 @@ pub fn transform_canvas(buffer: &mut Buffer, inner_rect: &mut BoundedRect, t: Tr
             Element::Text(_) => todo!(),
         }
     }
-    inner_rect.bounded_rect = transform_rect(inner_rect.bounded_rect, t);
+    viewport_settings.bounded_rect = viewport_settings
+        .bounded_rect
+        .map(|rect| transform_rect(rect, t));
 }
 
 /// returns the fit transform in the non master transform plane
 pub fn get_zoom_fit_transform(
-    buffer: &Buffer, container_rect: egui::Rect, absolute_plane: bool,
+    buffer: &Buffer, viewport_settings: &ViewportSettings, absolute_plane: bool,
 ) -> Option<Transform> {
-    let mut elements_bound = calc_elements_bounds(buffer)?;
+    let mut elements_bound = calc_elements_bounds(buffer, viewport_settings)?;
     if !absolute_plane {
-        elements_bound = transform_rect(elements_bound, buffer.master_transform);
+        elements_bound = transform_rect(elements_bound, viewport_settings.master_transform);
     }
-    get_rect_identity_transform(container_rect, elements_bound, 0.7, container_rect.center())
+    get_rect_identity_transform(
+        viewport_settings.container_rect,
+        elements_bound,
+        0.7,
+        viewport_settings.container_rect.center(),
+    )
 }
 
 /// given two rects how to transform them such that they're both equal
@@ -309,7 +319,10 @@ pub fn get_rect_identity_transform(
     )
 }
 
-pub fn calc_elements_bounds(buffer: &Buffer) -> Option<egui::Rect> {
+/// result is in absolute plane
+pub fn calc_elements_bounds(
+    buffer: &Buffer, viewport_settings: &ViewportSettings,
+) -> Option<egui::Rect> {
     let mut elements_bound =
         egui::Rect { min: egui::pos2(f32::MAX, f32::MAX), max: egui::pos2(f32::MIN, f32::MIN) };
     let mut dirty_bound = false;
@@ -318,8 +331,13 @@ pub fn calc_elements_bounds(buffer: &Buffer) -> Option<egui::Rect> {
             continue;
         }
 
-        let el_rect =
-            transform_rect(el.bounding_box(), buffer.master_transform.invert().unwrap_or_default());
+        let el_rect = transform_rect(
+            el.bounding_box(),
+            viewport_settings
+                .master_transform
+                .invert()
+                .unwrap_or_default(),
+        );
 
         dirty_bound = true;
 
@@ -337,9 +355,9 @@ pub fn calc_elements_bounds(buffer: &Buffer) -> Option<egui::Rect> {
 }
 
 pub fn zoom_percentage_to_transform(
-    zoom_percentage: f32, buffer: &mut Buffer, ui: &mut egui::Ui,
+    zoom_percentage: f32, viewport_settings: &ViewportSettings, ui: &mut egui::Ui,
 ) -> Transform {
-    let zoom_delta = (zoom_percentage) / (buffer.master_transform.sx * 100.0);
+    let zoom_delta = (zoom_percentage) / (viewport_settings.master_transform.sx * 100.0);
     Transform::identity()
         .post_scale(zoom_delta, zoom_delta)
         .post_translate(

@@ -70,19 +70,6 @@ pub struct Image {
     pub deleted: bool,
 }
 
-impl From<Transform> for WeakTransform {
-    fn from(value: Transform) -> Self {
-        WeakTransform {
-            sx: value.sx,
-            kx: value.kx,
-            ky: value.ky,
-            sy: value.sy,
-            tx: value.tx,
-            ty: value.ty,
-        }
-    }
-}
-
 impl Image {
     pub fn into_weak(&self, z_index: usize) -> WeakImage {
         WeakImage {
@@ -178,6 +165,31 @@ pub struct WeakTransform {
     pub sy: f32,
     pub tx: f32,
     pub ty: f32,
+}
+
+impl Default for WeakTransform {
+    fn default() -> Self {
+        Self { sx: 1.0, kx: 0.0, ky: 0.0, sy: 1.0, tx: 0.0, ty: 0.0 }
+    }
+}
+
+impl From<WeakTransform> for usvg::Transform {
+    fn from(wt: WeakTransform) -> Self {
+        usvg::Transform { sx: wt.sx, kx: wt.kx, ky: wt.ky, sy: wt.sy, tx: wt.tx, ty: wt.ty }
+    }
+}
+
+impl From<usvg::Transform> for WeakTransform {
+    fn from(t: usvg::Transform) -> Self {
+        WeakTransform {
+            sx: t.sx as f32,
+            kx: t.kx as f32,
+            ky: t.ky as f32,
+            sy: t.sy as f32,
+            tx: t.tx as f32,
+            ty: t.ty as f32,
+        }
+    }
 }
 
 impl Identifier for ManipulatorGroupId {

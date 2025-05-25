@@ -5,7 +5,10 @@ use super::element::BoundedElement;
 use bezier_rs::{Bezier, Subpath};
 use egui::TouchPhase;
 use glam::DVec2;
-use lb_rs::model::svg::element::{Element, ManipulatorGroupId};
+use lb_rs::model::svg::{
+    element::{Element, ManipulatorGroupId},
+    WeakRect,
+};
 use lyon::math::Point;
 use resvg::usvg::Transform;
 
@@ -79,16 +82,12 @@ pub fn pointer_intersects_outline(
     intersects_delete_brush || is_inside_delete_brush
 }
 
+pub fn transform_point(point: egui::Pos2, t: Transform) -> egui::Pos2 {
+    egui::Pos2 { x: t.sx * point.x + t.tx, y: t.sy * point.y + t.ty }
+}
+
 pub fn transform_rect(rect: egui::Rect, t: Transform) -> egui::Rect {
-    let mut t_rect = rect;
-
-    t_rect.min.x = t.sx * t_rect.min.x + t.tx;
-    t_rect.max.x = t.sx * t_rect.max.x + t.tx;
-
-    t_rect.min.y = t.sy * t_rect.min.y + t.ty;
-    t_rect.max.y = t.sy * t_rect.max.y + t.ty;
-
-    t_rect
+    egui::Rect { min: transform_point(rect.min, t), max: transform_point(rect.max, t) }
 }
 
 pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
@@ -154,4 +153,21 @@ pub fn draw_dashed_line(
             painter.line_segment([last_dash_start, last_dash_end], stroke);
         }
     }
+}
+
+pub fn expand_to_match_bigger(smaller_rect: egui::Rect, bigger_rect: egui::Rect) -> egui::Rect {
+    if smaller_rect.area() > bigger_rect.area() {
+        return smaller_rect;
+    }
+    smaller_rect.expand2(egui::vec2(
+        (bigger_rect.width() - smaller_rect.width()) / 2.0,
+        (bigger_rect.height() - smaller_rect.height()) / 2.0,
+    ))
+}
+
+pub fn promote_weak_rect(wk: WeakRect) -> egui::Rect {
+    egui::Rect::from_min_max(egui::pos2(wk.min.0, wk.min.1), egui::pos2(wk.max.0, wk.max.1))
+}
+pub fn demote_to_weak_rect(src: egui::Rect) -> WeakRect {
+    WeakRect { min: (src.min.x, src.min.y), max: (src.max.x, src.max.y) }
 }

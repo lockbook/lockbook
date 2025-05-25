@@ -1,11 +1,18 @@
 use lb_rs::{
     blocking::Lb,
     model::svg::{
+        buffer::WeakViewportSettings,
         diff::DiffState,
         element::{Element, Image, Path, WeakImage},
+        WeakRect, WeakTransform,
     },
 };
 use resvg::usvg::{NonZeroRect, Transform};
+
+use super::{
+    util::{demote_to_weak_rect, promote_weak_rect},
+    ViewportSettings,
+};
 
 pub trait BoundedElement {
     fn bounding_box(&self) -> egui::Rect;
@@ -74,6 +81,40 @@ impl PromoteWeakImage for Image {
             opacity: value.opacity,
             diff_state: DiffState::new(),
             deleted: false,
+        }
+    }
+}
+
+impl From<ViewportSettings> for WeakViewportSettings {
+    fn from(viewport: ViewportSettings) -> Self {
+        WeakViewportSettings {
+            bounded_rect: viewport.bounded_rect.map(|rect| demote_to_weak_rect(rect)),
+            master_transform: WeakTransform::from(viewport.master_transform),
+            left_locked: viewport.left_locked,
+            right_locked: viewport.right_locked,
+            bottom_locked: viewport.bottom_locked,
+            top_locked: viewport.top_locked,
+        }
+    }
+}
+
+// If you also want the reverse conversion, implement From<WeakViewportSettings> for ViewportSettings
+// Note: This will require additional fields that aren't present in WeakViewportSettings
+impl From<WeakViewportSettings> for ViewportSettings {
+    fn from(weak: WeakViewportSettings) -> Self {
+        ViewportSettings {
+            bounded_rect: weak
+                .bounded_rect
+                .map(|weak_rect| promote_weak_rect(weak_rect)),
+            // These fields don't exist in WeakViewportSettings, so you'll need default values
+            working_rect: egui::Rect::NOTHING, // or some appropriate default
+            viewport_transform: None,          // or some appropriate default
+            master_transform: Transform::from(weak.master_transform),
+            container_rect: egui::Rect::NOTHING, // or some appropriate default
+            left_locked: weak.left_locked,
+            right_locked: weak.right_locked,
+            bottom_locked: weak.bottom_locked,
+            top_locked: weak.top_locked,
         }
     }
 }

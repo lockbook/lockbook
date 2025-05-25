@@ -126,7 +126,7 @@ impl Pen {
             {
                 let mut radius = self.active_stroke_width / 2.0;
                 if !self.has_inf_thick {
-                    radius *= pen_ctx.buffer.master_transform.sx;
+                    radius *= pen_ctx.viewport_settings.master_transform.sx;
                 }
 
                 let pressure_adj = self.pressure_alpha * -0.5 + 1.;
@@ -156,7 +156,7 @@ impl Pen {
 
             if path.len() > 2 && is_snapped {
                 self.path_builder
-                    .snap(pen_ctx.buffer.master_transform, path);
+                    .snap(pen_ctx.viewport_settings.master_transform, path);
             }
 
             pen_ctx
@@ -208,7 +208,7 @@ impl Pen {
                 };
 
                 if self.has_inf_thick {
-                    path_stroke.width /= pen_ctx.buffer.master_transform.sx;
+                    path_stroke.width /= pen_ctx.viewport_settings.master_transform.sx;
                 };
 
                 if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
@@ -531,8 +531,7 @@ fn correct_start_of_path() {
         is_touch_frame: true,
         settings: &mut crate::tab::svg_editor::CanvasSettings::default(),
         is_locked_vw_pen_only: false,
-        inner_rect: &mut Default::default(),
-        container_rect: egui::Rect::EVERYTHING,
+        viewport_settings: &mut Default::default(),
     };
 
     let start_pos = egui::pos2(10.0, 10.0);
@@ -587,8 +586,7 @@ fn cancel_touch_ui_event() {
         is_touch_frame: true,
         settings: &mut crate::tab::svg_editor::CanvasSettings::default(),
         is_locked_vw_pen_only: false,
-        inner_rect: &mut Default::default(),
-        container_rect: egui::Rect::EVERYTHING,
+        viewport_settings: &mut Default::default(),
     };
 
     let input_state = PenPointerInput { is_multi_touch: false };

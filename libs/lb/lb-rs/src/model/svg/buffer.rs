@@ -4,6 +4,7 @@ use std::fmt::Write;
 use bezier_rs::{Bezier, Subpath};
 use glam::{DAffine2, DMat2, DVec2};
 use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
 use usvg::{
     fontdb::Database,
     tiny_skia_path::{PathSegment, Point},
@@ -12,33 +13,67 @@ use usvg::{
 use usvg::{Color, Paint};
 use uuid::Uuid;
 
-use super::element::{DynamicColor, Stroke, WeakImage, WeakImages, WeakPathPressures};
 use super::{
     diff::DiffState,
     element::{Element, ManipulatorGroupId, Path},
+};
+use super::{
+    element::{DynamicColor, Stroke, WeakImage, WeakImages, WeakPathPressures},
+    WeakTransform,
 };
 
 const ZOOM_G_ID: &str = "lb_master_transform";
 const WEAK_IMAGE_G_ID: &str = "lb_images";
 const WEAK_PATH_PRESSURES_G_ID: &str = "lb_path_pressures";
+const WEAK_VIEWPORT_SETTINGS_G_ID: &str = "lb_viewport_settings";
 
 #[derive(Default, Clone)]
 pub struct Buffer {
     pub elements: IndexMap<Uuid, Element>,
     pub weak_images: WeakImages,
     pub weak_path_pressures: WeakPathPressures,
-    pub master_transform: Transform,
+    pub weak_viewport_settings: WeakViewportSettings,
     pub master_transform_changed: bool,
     pub id_map: HashMap<Uuid, String>,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct WeakRect {
+    pub min: (f32, f32),
+    pub max: (f32, f32),
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+pub struct WeakViewportSettings {
+    /// the drawable rect in the master-transformed plane
+    pub bounded_rect: Option<WeakRect>,
+    pub master_transform: WeakTransform,
+    pub left_locked: bool,
+    pub right_locked: bool,
+    pub bottom_locked: bool,
+    pub top_locked: bool,
+}
+
+impl Default for WeakViewportSettings {
+    fn default() -> Self {
+        Self {
+            bounded_rect: None,
+            left_locked: false,
+            right_locked: false,
+            bottom_locked: false,
+            top_locked: false,
+            master_transform: WeakTransform::default(),
+        }
+    }
 }
 
 impl Buffer {
     pub fn new(content: &str) -> Self {
         let mut elements = IndexMap::default();
-        let mut master_transform = Transform::identity();
         let mut id_map = HashMap::default();
         let mut weak_images = WeakImages::default();
         let mut weak_path_pressures = WeakPathPressures::default();
+        let mut weak_viewport_settings = WeakViewportSettings::default();
 
         let maybe_tree = usvg::Tree::from_str(content, &Options::default(), &Database::default());
 
@@ -51,7 +86,7 @@ impl Buffer {
                 parse_child(
                     u_el,
                     &mut elements,
-                    &mut master_transform,
+                    &mut weak_viewport_settings,
                     &mut id_map,
                     &mut weak_images,
                     &mut weak_path_pressures,
@@ -61,9 +96,9 @@ impl Buffer {
 
         Self {
             elements,
-            master_transform,
             id_map,
             weak_images,
+            weak_viewport_settings,
             weak_path_pressures,
             master_transform_changed: false,
         }
@@ -71,8 +106,9 @@ impl Buffer {
 
     pub fn reload(
         local_elements: &mut IndexMap<Uuid, Element>, local_weak_images: &mut WeakImages,
-        local_weak_pressures: &mut WeakPathPressures, local_master_transform: Transform,
-        base_buffer: &Self, remote_buffer: &Self,
+        local_weak_pressures: &mut WeakPathPressures,
+        local_viewport_settings: &mut WeakViewportSettings, base_buffer: &Self,
+        remote_buffer: &Self,
     ) {
         // todo: convert weak images
         for (id, base_img) in base_buffer.weak_images.iter() {
@@ -92,6 +128,8 @@ impl Buffer {
                 local_weak_images.insert(*id, *remote_img);
             }
         }
+
+        let local_master_transform = Transform::from(local_viewport_settings.master_transform);
 
         base_buffer
             .elements
@@ -185,7 +223,7 @@ impl Buffer {
         serialize_inner(
             &self.id_map,
             &self.elements,
-            self.master_transform,
+            &self.weak_viewport_settings,
             &self.weak_images,
             &self.weak_path_pressures,
         )
@@ -194,11 +232,13 @@ impl Buffer {
 
 pub fn serialize_inner(
     id_map: &HashMap<Uuid, String>, elements: &IndexMap<Uuid, Element>,
-    master_transform: Transform, buffer_weak_images: &WeakImages,
+    weak_viewport_settings: &WeakViewportSettings, buffer_weak_images: &WeakImages,
     weak_pressures: &WeakPathPressures,
 ) -> String {
     let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
     let mut weak_images = WeakImages::default();
+    let master_transform = Transform::from(weak_viewport_settings.master_transform);
+
     for (index, el) in elements.iter().enumerate() {
         match el.1 {
             Element::Path(p) => {
@@ -276,20 +316,27 @@ pub fn serialize_inner(
         );
     }
 
+    let binary_data = bincode::serialize(&weak_viewport_settings).expect("Failed to serialize");
+    let base64_data = base64::encode(&binary_data);
+
+    let _ = write!(
+        &mut root,
+        "<g id=\"{}\"> <g id=\"{}\"></g></g>",
+        WEAK_VIEWPORT_SETTINGS_G_ID, base64_data
+    );
+
     let _ = write!(&mut root, "{} </svg>", zoom_level);
     root
 }
 
 pub fn parse_child(
-    u_el: &usvg::Node, elements: &mut IndexMap<Uuid, Element>, master_transform: &mut Transform,
-    id_map: &mut HashMap<Uuid, String>, weak_images: &mut WeakImages,
-    weak_path_pressures: &mut WeakPathPressures,
+    u_el: &usvg::Node, elements: &mut IndexMap<Uuid, Element>,
+    weak_viewport_settings: &mut WeakViewportSettings, id_map: &mut HashMap<Uuid, String>,
+    weak_images: &mut WeakImages, weak_path_pressures: &mut WeakPathPressures,
 ) {
     match &u_el {
         usvg::Node::Group(group) => {
-            if group.id().eq(ZOOM_G_ID) {
-                *master_transform = group.transform();
-            } else if group.id().eq(WEAK_IMAGE_G_ID) {
+            if group.id().eq(WEAK_IMAGE_G_ID) {
                 if let Some(usvg::Node::Group(weak_images_g)) = group.children().first() {
                     let base64 = base64::decode(weak_images_g.id().as_bytes())
                         .expect("Failed to decode base64");
@@ -305,12 +352,21 @@ pub fn parse_child(
                     let decoded: WeakPathPressures = bincode::deserialize(&base64).unwrap();
                     *weak_path_pressures = decoded;
                 }
+            } else if group.id().eq(WEAK_VIEWPORT_SETTINGS_G_ID) {
+                if let Some(usvg::Node::Group(weak_viewport_settings_g)) = group.children().first()
+                {
+                    let base64 = base64::decode(weak_viewport_settings_g.id().as_bytes())
+                        .expect("Failed to decode base64");
+
+                    let decoded: WeakViewportSettings = bincode::deserialize(&base64).unwrap();
+                    *weak_viewport_settings = decoded;
+                }
             } else {
                 group.children().iter().for_each(|u_el| {
                     parse_child(
                         u_el,
                         elements,
-                        master_transform,
+                        weak_viewport_settings,
                         id_map,
                         weak_images,
                         weak_path_pressures,

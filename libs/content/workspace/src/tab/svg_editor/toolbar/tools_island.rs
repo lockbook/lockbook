@@ -209,7 +209,7 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
     ui.style_mut().spacing.slider_width = width;
     ui.set_width(width);
 
-    show_stroke_preview(ui, pen, tlbr_ctx.buffer);
+    show_stroke_preview(ui, pen, tlbr_ctx);
     // a bit hacky but without this there will be collision with
     // thickness hints.
     ui.add_space(20.0);
@@ -279,7 +279,7 @@ fn show_highlighter_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut Too
     ui.style_mut().spacing.slider_width = width;
     ui.set_width(width);
 
-    show_stroke_preview(ui, pen, tlbr_ctx.buffer);
+    show_stroke_preview(ui, pen, tlbr_ctx);
 
     // a bit hacky but without this there will be collision with
     // thickness hints.
@@ -333,7 +333,7 @@ fn show_color_btn(
     ui.interact(rect, id, egui::Sense::click_and_drag())
 }
 
-fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
+fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {
     let (res, painter) = ui.allocate_painter(
         egui::vec2(ui.available_width(), 100.0),
         egui::Sense::focusable_noninteractive(),
@@ -361,7 +361,7 @@ fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, buffer: &Buffer) {
 
     let mut thickness = pen.active_stroke_width;
     if !pen.has_inf_thick {
-        thickness *= buffer.master_transform.sx;
+        thickness *= tlbr_ctx.viewport_settings.master_transform.sx;
     }
 
     let subapth: Subpath<ManipulatorGroupId> = bez.graduated_outline(

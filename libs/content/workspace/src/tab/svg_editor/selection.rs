@@ -689,13 +689,12 @@ impl Selection {
                     (Uuid::new_v4(), selection_ctx.buffer.elements.get(&el.id).unwrap().clone())
                 })
                 .collect();
-            let master_transform = selection_ctx.buffer.master_transform;
             let weak_images = &selection_ctx.buffer.weak_images;
 
             let serialized_selection = serialize_inner(
                 id_map,
                 elements,
-                master_transform,
+                &selection_ctx.buffer.weak_viewport_settings,
                 weak_images,
                 &selection_ctx.buffer.weak_path_pressures,
             );

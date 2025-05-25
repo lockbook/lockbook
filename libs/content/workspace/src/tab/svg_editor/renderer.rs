@@ -51,13 +51,13 @@ pub struct Renderer {
     mesh_cache: HashMap<Uuid, MeshShape>,
     tex_cache: HashMap<Uuid, TextureHandle>,
     dark_mode: bool,
-    viewport_transform: Option<Transform>,
+    viewport_transform: Transform,
     pub request_rerender: bool,
 }
 
 pub struct RendererOutput {
     pub diff_state: DiffState,
-    pub maybe_tight_fit_transform: Option<Transform>,
+    pub absolute_transform: Transform,
 }
 struct MeshShape {
     shape: Mesh,
@@ -65,7 +65,6 @@ struct MeshShape {
 }
 #[derive(Clone, Copy, Default)]
 pub struct RenderOptions {
-    pub tight_fit_mode: bool,
     pub viewport_transform: Option<Transform>,
 }
 
@@ -75,14 +74,14 @@ impl Renderer {
             mesh_cache: HashMap::with_capacity(elements_count),
             tex_cache: HashMap::new(),
             dark_mode: false,
-            viewport_transform: None,
+            viewport_transform: Transform::identity(),
             request_rerender: true,
         }
     }
 
     pub fn render_svg(
         &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, painter: &mut egui::Painter,
-        render_options: RenderOptions,
+        render_options: RenderOptions, master_transform: Transform,
     ) -> RendererOutput {
         let frame = ui.ctx().frame_nr();
         let span = span!(Level::TRACE, "rendering svg", frame);
@@ -92,13 +91,12 @@ impl Renderer {
         let dark_mode_changed = ui.visuals().dark_mode != self.dark_mode;
         self.dark_mode = ui.visuals().dark_mode;
 
-        let new_viewport_transform = if render_options.tight_fit_mode {
-            get_zoom_fit_transform(buffer, painter.clip_rect(), true)
-        } else if render_options.viewport_transform.is_some() {
-            render_options.viewport_transform
-        } else {
-            Some(buffer.master_transform)
-        };
+        let new_viewport_transform =
+            if let Some(viewport_transform) = render_options.viewport_transform {
+                viewport_transform
+            } else {
+                master_transform
+            };
 
         let mut fit_content_transform_changed = false;
 
@@ -107,6 +105,8 @@ impl Renderer {
             self.viewport_transform = new_viewport_transform;
             fit_content_transform_changed = true;
         }
+
+        let is_main_canvas_render = self.viewport_transform == master_transform;
 
         let paint_ops: Vec<(Uuid, RenderOp)> = buffer
             .elements
@@ -121,9 +121,9 @@ impl Renderer {
                         let stale_mesh = if let Some(MeshShape { scale, .. }) =
                             self.mesh_cache.get(id)
                         {
-                            let current_el_scale = path.transform.sx * buffer.master_transform.sx;
+                            let current_el_scale = path.transform.sx * self.viewport_transform.sx;
                             let diff = current_el_scale.max(*scale) / current_el_scale.min(*scale);
-                            diff > 5.0 && !render_options.tight_fit_mode
+                            diff > 5.0 && !is_main_canvas_render
                         } else {
                             false
                         };
@@ -143,10 +143,15 @@ impl Renderer {
 
                         if let Some(transform) = path.diff_state.transformed {
                             let mut re_tess = false;
-                            if let Some(viewport_transform) = self.viewport_transform {
-                                if viewport_transform != buffer.master_transform {
-                                    re_tess = true;
-                                }
+
+                            // if we're rendering using the master transform then this is  part of the main
+                            // canvas render loop, not mini map or an external user like an editor preview.
+                            // each transform is recorded on the master transform plane, and applying it
+                            // to another plane would be incorrect. so just re-tesselate instead.
+                            // todo: figure out how to convert the transform between planes to
+                            // avoid re-tesselation.
+                            if !is_main_canvas_render {
+                                re_tess = true
                             }
 
                             if !re_tess && self.mesh_cache.contains_key(id) {
@@ -159,14 +164,12 @@ impl Renderer {
                             id,
                             ui.visuals().dark_mode,
                             frame,
-                            buffer.master_transform,
+                            master_transform,
                             &buffer.weak_path_pressures,
                             self.viewport_transform,
                         )
                     }
                     Element::Image(image) => {
-                        // let image_clone = image.clone();
-
                         if image.deleted
                             || (!image.diff_state.opacity_changed
                                 && !image.diff_state.data_changed
@@ -203,9 +206,6 @@ impl Renderer {
                     self.mesh_cache.insert(id.to_owned(), m);
                 }
                 RenderOp::Transform(t) => {
-                    if render_options.tight_fit_mode && buffer.master_transform_changed {
-                        continue;
-                    }
                     diff_state.transformed = Some(t);
                     if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(&id) {
                         for v in &mut shape.vertices {
@@ -245,14 +245,14 @@ impl Renderer {
 
         RendererOutput {
             diff_state,
-            maybe_tight_fit_transform: self
+            absolute_transform: self
                 .viewport_transform
-                .map(|t| t.pre_concat(buffer.master_transform.invert().unwrap_or_default())),
+                .pre_concat(master_transform.invert().unwrap_or_default()),
         }
     }
 
     fn alloc_image_mesh(
-        &mut self, id: Uuid, img: &mut Image, ui: &mut egui::Ui, fit_transform: Option<Transform>,
+        &mut self, id: Uuid, img: &mut Image, ui: &mut egui::Ui, viewport_transform: Transform,
     ) {
         match &img.data {
             ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
@@ -274,13 +274,12 @@ impl Renderer {
 
                 let texture = self.tex_cache.get(&id).unwrap();
 
-                let mut rect = egui::Rect {
+                let rect = egui::Rect {
                     min: egui::pos2(img.view_box.left(), img.view_box.top()),
                     max: egui::pos2(img.view_box.right(), img.view_box.bottom()),
                 };
-                if let Some(t) = fit_transform {
-                    rect = transform_rect(rect, t)
-                }
+
+                let rect = transform_rect(rect, viewport_transform);
 
                 let uv = egui::Rect {
                     min: egui::Pos2 { x: 0.0, y: 0.0 },
@@ -303,14 +302,13 @@ impl Renderer {
 // todo: maybe impl this on element struct
 fn tesselate_path<'a>(
     p: &'a mut Path, id: &'a Uuid, dark_mode: bool, frame: u64, master_transform: Transform,
-    weak_path_pressures: &WeakPathPressures, viewport_transform: Option<Transform>,
+    weak_path_pressures: &WeakPathPressures, viewport_transform: Transform,
 ) -> Option<(Uuid, RenderOp<'a>)> {
     let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
     let mut stroke_tess = StrokeTessellator::new();
 
     let span = span!(Level::TRACE, "tessellating path", frame = frame);
     let _ = span.enter();
-
     if let Some(stroke) = p.stroke {
         if p.data.is_empty() {
             return Some((*id, RenderOp::Delete));
@@ -325,14 +323,7 @@ fn tesselate_path<'a>(
         let mut i = 0;
 
         while let Some(mut seg) = p.data.get_segment(i) {
-            let mut thickness =
-                stroke.width * p.transform.sx * viewport_transform.unwrap_or_default().sx;
-            // if let Some(t) = viewport_transform {
-            //     thickness *= t.sx * master_transform.sx;
-            //     thickness = thickness.max(0.3);
-            // } else {
-            //     thickness *= master_transform.sx
-            // }
+            let mut thickness = stroke.width * p.transform.sx * viewport_transform.sx;
 
             if let Some(forces) = weak_path_pressures.get(id) {
                 let pressure_at_segment =
@@ -347,12 +338,11 @@ fn tesselate_path<'a>(
                 y: t.sy as f64 * p.y + t.ty as f64,
             });
 
-            if let Some(t) = viewport_transform {
-                seg = seg.apply_transformation(|p| DVec2 {
-                    x: t.sx as f64 * p.x + t.tx as f64,
-                    y: t.sy as f64 * p.y + t.ty as f64,
-                });
-            }
+            let t = viewport_transform;
+            seg = seg.apply_transformation(|p| DVec2 {
+                x: t.sx as f64 * p.x + t.tx as f64,
+                y: t.sy as f64 * p.y + t.ty as f64,
+            });
 
             let start = devc_to_point(seg.start());
             let end = devc_to_point(seg.end());

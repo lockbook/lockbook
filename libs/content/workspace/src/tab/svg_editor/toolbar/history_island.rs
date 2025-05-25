@@ -6,8 +6,10 @@ impl Toolbar {
     pub fn show_history_island(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
     ) -> egui::Response {
-        let history_island_x_start = tlbr_ctx.container_rect.left() + SCREEN_PADDING;
-        let history_island_y_start = tlbr_ctx.container_rect.top() + SCREEN_PADDING;
+        let history_island_x_start =
+            tlbr_ctx.viewport_settings.container_rect.left() + SCREEN_PADDING;
+        let history_island_y_start =
+            tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING;
 
         let history_rect = egui::Rect {
             min: egui::pos2(history_island_x_start, history_island_y_start),
