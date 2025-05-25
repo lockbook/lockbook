@@ -1,8 +1,8 @@
-name: Deploy
+name: Deploy Product Documentation
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   deploy:
