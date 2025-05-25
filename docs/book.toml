@@ -1,0 +1,5 @@
+[book]
+authors = ["Lockbook Maintainers"]
+language = "en"
+src = "."
+title = "Lockbook"
