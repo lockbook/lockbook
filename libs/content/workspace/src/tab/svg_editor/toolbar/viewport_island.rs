@@ -91,7 +91,7 @@ impl Toolbar {
 
                 transform = Some(zoom_percentage_to_transform(
                     target_zoom_percentage,
-                    &tlbr_ctx.viewport_settings,
+                    tlbr_ctx.viewport_settings,
                     ui,
                 ));
             }
@@ -117,7 +117,7 @@ impl Toolbar {
 
                 transform = Some(zoom_percentage_to_transform(
                     target_zoom_percentage,
-                    &tlbr_ctx.viewport_settings,
+                    tlbr_ctx.viewport_settings,
                     ui,
                 ));
             };
@@ -234,7 +234,7 @@ impl Toolbar {
                     tlbr_ctx.viewport_settings.container_rect.center(),
                 )
             } else {
-                get_zoom_fit_transform(tlbr_ctx.buffer, &tlbr_ctx.viewport_settings, false)
+                get_zoom_fit_transform(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, false)
             }
             .unwrap_or_default();
 
@@ -329,20 +329,18 @@ impl Toolbar {
         preview_painter.rect_filled(preview_rect, 0.0, ui.style().visuals.extreme_bg_color);
 
         if tlbr_ctx.viewport_settings.is_infinite_mode() {
-            let elements_bound =
-                calc_elements_bounds(&tlbr_ctx.buffer, &tlbr_ctx.viewport_settings).unwrap_or(
-                    egui::Rect::from_min_size(
-                        transform_point(
-                            tlbr_ctx.viewport_settings.container_rect.center(),
-                            tlbr_ctx
-                                .viewport_settings
-                                .master_transform
-                                .invert()
-                                .unwrap_or_default(),
-                        ),
-                        egui::vec2(10.0, 10.0),
+            let elements_bound = calc_elements_bounds(tlbr_ctx.buffer, tlbr_ctx.viewport_settings)
+                .unwrap_or(egui::Rect::from_min_size(
+                    transform_point(
+                        tlbr_ctx.viewport_settings.container_rect.center(),
+                        tlbr_ctx
+                            .viewport_settings
+                            .master_transform
+                            .invert()
+                            .unwrap_or_default(),
                     ),
-                );
+                    egui::vec2(10.0, 10.0),
+                ));
             let tight_fit_rect =
                 expand_to_match_bigger(elements_bound, tlbr_ctx.viewport_settings.container_rect);
 
@@ -467,7 +465,7 @@ fn handle_mini_map_transforms(
             && !preview_painter.clip_rect().contains_rect(clipped_rect);
 
         let transform = if is_outside_bounds && res.clicked() {
-            get_zoom_fit_transform(tlbr_ctx.buffer, &tlbr_ctx.viewport_settings, false)
+            get_zoom_fit_transform(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, false)
         } else if let Some(delta) = maybe_delta {
             let delta = delta / out.absolute_transform.sx;
             Some(Transform::default().post_translate(delta.x, delta.y))
@@ -484,7 +482,7 @@ fn handle_mini_map_transforms(
 fn show_bring_back_btn(
     ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>, viewport_island_rect: egui::Rect,
 ) -> Option<Response> {
-    let elements_bound = match calc_elements_bounds(tlbr_ctx.buffer, &tlbr_ctx.viewport_settings) {
+    let elements_bound = match calc_elements_bounds(tlbr_ctx.buffer, tlbr_ctx.viewport_settings) {
         Some(rect) => transform_rect(rect, tlbr_ctx.viewport_settings.master_transform),
         None => return None,
     };

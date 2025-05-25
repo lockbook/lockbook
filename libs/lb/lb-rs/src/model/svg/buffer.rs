@@ -43,28 +43,16 @@ pub struct WeakRect {
     pub max: (f32, f32),
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Default, Copy, Serialize, Deserialize)]
 pub struct WeakViewportSettings {
     /// the drawable rect in the master-transformed plane
     pub bounded_rect: Option<WeakRect>,
     pub master_transform: WeakTransform,
+    pub viewport_transform: Option<WeakTransform>,
     pub left_locked: bool,
     pub right_locked: bool,
     pub bottom_locked: bool,
     pub top_locked: bool,
-}
-
-impl Default for WeakViewportSettings {
-    fn default() -> Self {
-        Self {
-            bounded_rect: None,
-            left_locked: false,
-            right_locked: false,
-            bottom_locked: false,
-            top_locked: false,
-            master_transform: WeakTransform::default(),
-        }
-    }
 }
 
 impl Buffer {

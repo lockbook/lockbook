@@ -15,7 +15,6 @@ use rayon::prelude::*;
 use resvg::usvg::{ImageKind, Transform};
 use tracing::{span, Level};
 
-use crate::tab::svg_editor::gesture_handler::get_zoom_fit_transform;
 use crate::theme::palette::ThemePalette;
 
 use super::util::{devc_to_point, transform_rect};

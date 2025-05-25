@@ -24,7 +24,6 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::svg::buffer::u_transform_to_bezier;
 use lb_rs::model::svg::buffer::Buffer;
-use lb_rs::model::svg::buffer::WeakViewportSettings;
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::Element;
 use lb_rs::model::svg::element::Image;
@@ -38,7 +37,6 @@ use toolbar::ToolContext;
 use toolbar::ToolbarContext;
 use tracing::span;
 use tracing::Level;
-use util::promote_weak_rect;
 
 pub struct SVGEditor {
     pub buffer: Buffer,
@@ -93,22 +91,6 @@ impl Default for ViewportSettings {
     }
 }
 
-impl ViewportSettings {
-    fn from_weak(wk: WeakViewportSettings) -> Self {
-        Self {
-            bounded_rect: wk.bounded_rect.map(|val| promote_weak_rect(val)),
-            master_transform: Transform::from(wk.master_transform),
-            working_rect: egui::Rect::ZERO,
-            viewport_transform: None,
-            left_locked: wk.left_locked,
-            right_locked: wk.right_locked,
-            bottom_locked: wk.bottom_locked,
-            top_locked: wk.top_locked,
-            container_rect: egui::Rect::NOTHING,
-        }
-    }
-}
-
 pub struct Response {
     pub request_save: bool,
 }
@@ -138,7 +120,7 @@ impl SVGEditor {
         let content = std::str::from_utf8(bytes).unwrap();
 
         let mut buffer = Buffer::new(content);
-        let viewport_settings = ViewportSettings::from_weak(buffer.weak_viewport_settings);
+        let viewport_settings = ViewportSettings::from(buffer.weak_viewport_settings);
 
         for (_, el) in buffer.elements.iter_mut() {
             if let Element::Path(path) = el {

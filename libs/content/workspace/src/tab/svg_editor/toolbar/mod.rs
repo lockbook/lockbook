@@ -4,7 +4,6 @@ mod viewport_island;
 
 use crate::{theme::icons::Icon, widgets::Button};
 use lb_rs::model::svg::buffer::{get_highlighter_colors, get_pen_colors, Buffer};
-use resvg::usvg::Transform;
 use viewport_island::ViewportPopover;
 
 use super::{

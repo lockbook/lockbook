@@ -5,7 +5,7 @@ use egui::{InnerResponse, Response, RichText};
 use egui_animation::{animate_eased, easing};
 use glam::DVec2;
 use lb_rs::model::svg::{
-    buffer::{get_highlighter_colors, get_pen_colors, Buffer},
+    buffer::{get_highlighter_colors, get_pen_colors},
     element::{DynamicColor, ManipulatorGroupId},
 };
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, VertexBuffers};

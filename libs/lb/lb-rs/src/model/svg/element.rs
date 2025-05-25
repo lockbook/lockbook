@@ -181,14 +181,7 @@ impl From<WeakTransform> for usvg::Transform {
 
 impl From<usvg::Transform> for WeakTransform {
     fn from(t: usvg::Transform) -> Self {
-        WeakTransform {
-            sx: t.sx as f32,
-            kx: t.kx as f32,
-            ky: t.ky as f32,
-            sy: t.sy as f32,
-            tx: t.tx as f32,
-            ty: t.ty as f32,
-        }
+        WeakTransform { sx: t.sx, kx: t.kx, ky: t.ky, sy: t.sy, tx: t.tx, ty: t.ty }
     }
 }
 
