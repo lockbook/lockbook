@@ -26,6 +26,7 @@ struct ColorHelper {
 }
 
 pub struct SpaceInspector {
+    lb: Lb,
     state: Arc<Mutex<AppState>>,
     data: Data,
     layer_height: f32,
@@ -75,6 +76,7 @@ impl SpaceInspector {
             layer_height: 60.0,
             colors: vec![],
             current_rect: Rect::NOTHING,
+            lb: lb.clone(),
         }
     }
 
@@ -176,6 +178,10 @@ impl SpaceInspector {
                     ui.menu_button("Layer Size", |ui| {
                         ui.add(egui::Slider::new(&mut self.layer_height, 1.0..=100.0));
                     });
+
+                    if ui.button("Refresh").clicked() {
+                        self.paint_order = vec![];
+                    }
                 });
             });
         });
@@ -449,15 +455,27 @@ impl SpaceInspector {
                 response.context_menu(|ui| {
                     ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
 
+                    ui.label(&self.data.all_files[&item.id].file.name.to_string());
+                    ui.label(&display_size);
+                    ui.separator();
+
                     if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
                         ui.close_menu();
                     }
-
-                    if ui.button("Make Root").clicked() {
-                        changed_focused_folder = Some(item.id);
-                        ui.close_menu();
+                    if item_filerow.file.is_folder() {
+                        if ui.button("Make Root").clicked() {
+                            changed_focused_folder = Some(item.id);
+                            ui.close_menu();
+                        }
                     }
-                    if ui.button("Delete").clicked() {}
+                    if ui.button("Delete").clicked() {
+                        let lb = self.lb.clone();
+                        let id = item_filerow.file.id;
+                        thread::spawn(move || {
+                            let _ = lb.delete_file(&id);
+                            println!("test");
+                        });
+                    }
                 });
 
                 response.on_hover_text(hover_text);
