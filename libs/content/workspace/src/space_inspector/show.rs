@@ -12,6 +12,11 @@ use lb_rs::{blocking::Lb, LbErrKind, Uuid};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+enum DeletionStatus {
+    Deleting,
+    DoneDeleting,
+}
+
 /// Responsible for tracking on screen locations for folders
 #[derive(Debug)]
 struct DrawHelper {
@@ -36,7 +41,7 @@ pub struct SpaceInspector {
 }
 
 #[derive(Default, Debug)]
-pub enum AppState {
+enum AppState {
     #[default]
     Loading,
     Ready(Data),
@@ -178,10 +183,6 @@ impl SpaceInspector {
                     ui.menu_button("Layer Size", |ui| {
                         ui.add(egui::Slider::new(&mut self.layer_height, 1.0..=100.0));
                     });
-
-                    if ui.button("Refresh").clicked() {
-                        self.paint_order = vec![];
-                    }
                 });
             });
         });
@@ -322,6 +323,7 @@ impl SpaceInspector {
         big_table[parent_type][layer]
     }
 
+    /// Responsible for drawing each file / folder. Also gives them interactivity with the root functionality and context menu
     pub fn follow_paint_order(
         &mut self, ui: &mut Ui, root_anchor: Rect, window: Rect,
     ) -> Option<Uuid> {
@@ -332,6 +334,8 @@ impl SpaceInspector {
         let mut visited_folders: Vec<DrawHelper> = vec![];
         let mut current_parent =
             DrawHelper { id: self.data.focused_folder, starting_position: 0.0 };
+
+        let mut deleted_id: Option<Uuid> = None;
 
         for (i, item) in self.paint_order.iter().enumerate() {
             let item_filerow = &self.data.all_files[&item.id];
@@ -471,13 +475,12 @@ impl SpaceInspector {
                     if ui.button("Delete").clicked() {
                         let lb = self.lb.clone();
                         let id = item_filerow.file.id;
+                        deleted_id = Some(id);
                         thread::spawn(move || {
                             let _ = lb.delete_file(&id);
-                            println!("test");
                         });
                     }
                 });
-
                 response.on_hover_text(hover_text);
             }
 
@@ -491,6 +494,14 @@ impl SpaceInspector {
             current_position += item.portion * (root_anchor.max.x - root_anchor.min.x);
             child_number += 1;
         }
+        match deleted_id {
+            Some(id) => {
+                self.data.all_files.remove(&id);
+                self.data.folder_sizes.remove(&id);
+                self.paint_order = vec![];
+            }
+            None => (),
+        };
         changed_focused_folder
     }
 }
