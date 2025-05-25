@@ -347,6 +347,10 @@ fn tesselate_path<'a>(
                 thickness += thickness * pressure_at_segment;
             }
 
+            if master_transform != viewport_transform {
+                thickness = thickness.max(0.3);
+            }
+
             let t = master_transform.invert().unwrap_or_default();
             seg = seg.apply_transformation(|p| DVec2 {
                 x: t.sx as f64 * p.x + t.tx as f64,

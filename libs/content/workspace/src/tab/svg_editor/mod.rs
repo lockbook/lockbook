@@ -14,6 +14,7 @@ use std::time::Instant;
 
 use self::history::History;
 use crate::tab::svg_editor::toolbar::Toolbar;
+use crate::workspace::WsPersistentStore;
 
 use element::PromoteWeakImage;
 pub use eraser::Eraser;
@@ -32,6 +33,8 @@ pub use path_builder::PathBuilder;
 pub use pen::Pen;
 use renderer::Renderer;
 use resvg::usvg::Transform;
+use serde::Deserialize;
+use serde::Serialize;
 pub use toolbar::Tool;
 use toolbar::ToolContext;
 use toolbar::ToolbarContext;
@@ -42,6 +45,8 @@ pub struct SVGEditor {
     pub buffer: Buffer,
     pub opened_content: Buffer,
     pub open_file_hmac: Option<DocumentHmac>,
+
+    cfg: WsPersistentStore,
 
     history: History,
     pub toolbar: Toolbar,
@@ -94,15 +99,26 @@ impl Default for ViewportSettings {
 pub struct Response {
     pub request_save: bool,
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
 pub struct CanvasSettings {
     pub pencil_only_drawing: bool,
     show_dot_grid: bool,
+    pub left_locked: bool,
+    pub right_locked: bool,
+    pub bottom_locked: bool,
+    pub top_locked: bool,
 }
 
 impl Default for CanvasSettings {
     fn default() -> Self {
-        Self { pencil_only_drawing: false, show_dot_grid: true }
+        Self {
+            pencil_only_drawing: false,
+            show_dot_grid: true,
+            left_locked: false,
+            right_locked: false,
+            bottom_locked: false,
+            top_locked: false,
+        }
     }
 }
 
@@ -115,12 +131,12 @@ pub enum CanvasOp {
 impl SVGEditor {
     pub fn new(
         bytes: &[u8], ctx: &egui::Context, lb: lb_rs::blocking::Lb, open_file: Uuid,
-        hmac: Option<DocumentHmac>, maybe_settings: Option<CanvasSettings>,
+        hmac: Option<DocumentHmac>, cfg: &WsPersistentStore,
     ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
         let mut buffer = Buffer::new(content);
-        let viewport_settings = ViewportSettings::from(buffer.weak_viewport_settings);
+        let mut viewport_settings = ViewportSettings::from(buffer.weak_viewport_settings);
 
         for (_, el) in buffer.elements.iter_mut() {
             if let Element::Path(path) = el {
@@ -131,6 +147,18 @@ impl SVGEditor {
 
         let elements_count = buffer.elements.len();
         let toolbar = Toolbar::new(elements_count);
+
+        let mut cfg = cfg.clone();
+        let settings = cfg.get_canvas_settings();
+
+        if viewport_settings.master_transform == Transform::identity() && buffer.elements.is_empty()
+        {
+            viewport_settings.bottom_locked = settings.bottom_locked;
+            viewport_settings.left_locked = settings.left_locked;
+            viewport_settings.right_locked = settings.right_locked;
+            viewport_settings.top_locked = settings.top_locked;
+            viewport_settings.bounded_rect = Some(ctx.available_rect());
+        }
 
         Self {
             buffer,
@@ -151,8 +179,9 @@ impl SVGEditor {
             renderer: Renderer::new(elements_count),
             has_queued_save_request: false,
             allow_viewport_changes: false,
-            settings: maybe_settings.unwrap_or_default(),
+            settings,
             viewport_settings,
+            cfg,
         }
     }
 
@@ -258,6 +287,7 @@ impl SVGEditor {
             settings: &mut self.settings,
             painter: &mut self.painter,
             viewport_settings: &mut self.viewport_settings,
+            cfg: &mut self.cfg,
         };
 
         ui.with_layer_id(

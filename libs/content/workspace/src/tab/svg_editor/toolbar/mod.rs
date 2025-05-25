@@ -2,7 +2,7 @@ mod history_island;
 mod tools_island;
 mod viewport_island;
 
-use crate::{theme::icons::Icon, widgets::Button};
+use crate::{theme::icons::Icon, widgets::Button, workspace::WsPersistentStore};
 use lb_rs::model::svg::buffer::{get_highlighter_colors, get_pen_colors, Buffer};
 use viewport_island::ViewportPopover;
 
@@ -72,6 +72,7 @@ pub struct ToolbarContext<'a> {
     pub history: &'a mut History,
     pub settings: &'a mut CanvasSettings,
     pub viewport_settings: &'a mut ViewportSettings,
+    pub cfg: &'a mut WsPersistentStore,
 }
 
 pub enum ViewportMode {

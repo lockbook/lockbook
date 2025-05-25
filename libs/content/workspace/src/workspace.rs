@@ -22,7 +22,7 @@ use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
-use crate::tab::svg_editor::SVGEditor;
+use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
 use crate::task_manager;
 use crate::task_manager::{
@@ -294,11 +294,6 @@ impl Workspace {
                     let writeable_dir = &self.core.get_config().writeable_path;
                     let show_tabs = self.show_tabs;
 
-                    let canvas_settings = self
-                        .tabs
-                        .iter()
-                        .find_map(|tab| tab.svg().map(|svg| svg.settings));
-
                     if let Some(tab) = self.tabs.get_mut_by_id(id) {
                         let (maybe_hmac, bytes) = match content_result {
                             Ok((hmac, bytes)) => (hmac, bytes),
@@ -347,7 +342,7 @@ impl Workspace {
                                     core.clone(),
                                     id,
                                     maybe_hmac,
-                                    canvas_settings,
+                                    &self.cfg,
                                 )));
                             } else {
                                 let svg = tab.svg_mut().unwrap();
@@ -725,13 +720,20 @@ pub struct WsPersistentStore {
 struct WsPresistentData {
     open_tabs: Vec<Uuid>,
     current_tab: Option<Uuid>,
+    canvas: CanvasSettings,
     auto_save: bool,
     auto_sync: bool,
 }
 
 impl Default for WsPresistentData {
     fn default() -> Self {
-        Self { auto_save: true, auto_sync: true, open_tabs: Vec::default(), current_tab: None }
+        Self {
+            auto_save: true,
+            auto_sync: true,
+            open_tabs: Vec::default(),
+            current_tab: None,
+            canvas: CanvasSettings::default(),
+        }
     }
 }
 
@@ -768,6 +770,16 @@ impl WsPersistentStore {
     pub fn get_tabs(&self) -> (Vec<Uuid>, Option<Uuid>) {
         let data_lock = self.data.read().unwrap();
         (data_lock.open_tabs.clone(), data_lock.current_tab)
+    }
+
+    pub fn set_canvas_settings(&mut self, canvas_settings: CanvasSettings) {
+        let mut data_lock = self.data.write().unwrap();
+        data_lock.canvas = canvas_settings;
+        self.write_to_file();
+    }
+
+    pub fn get_canvas_settings(&mut self) -> CanvasSettings {
+        self.data.read().unwrap().canvas
     }
 
     pub fn get_auto_sync(&self) -> bool {

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use super::element::BoundedElement;
+use super::{element::BoundedElement, CanvasSettings, ViewportSettings};
 
 use bezier_rs::{Bezier, Subpath};
 use egui::TouchPhase;
@@ -170,4 +170,13 @@ pub fn promote_weak_rect(wk: WeakRect) -> egui::Rect {
 }
 pub fn demote_to_weak_rect(src: egui::Rect) -> WeakRect {
     WeakRect { min: (src.min.x, src.min.y), max: (src.max.x, src.max.y) }
+}
+
+impl CanvasSettings {
+    pub fn update_viewport_settings(&mut self, vs: &ViewportSettings) {
+        self.bottom_locked = vs.bottom_locked;
+        self.left_locked = vs.left_locked;
+        self.right_locked = vs.right_locked;
+        self.top_locked = vs.top_locked;
+    }
 }

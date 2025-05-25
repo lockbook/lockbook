@@ -283,6 +283,12 @@ impl Toolbar {
                             tlbr_ctx.viewport_settings.viewport_transform = Some(bounds.1);
                         }
                     }
+
+                    tlbr_ctx
+                        .settings
+                        .update_viewport_settings(tlbr_ctx.viewport_settings);
+
+                    tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
                 }
                 ui.add_space(8.0);
             }
@@ -328,7 +334,9 @@ impl Toolbar {
 
         preview_painter.rect_filled(preview_rect, 0.0, ui.style().visuals.extreme_bg_color);
 
-        if tlbr_ctx.viewport_settings.is_infinite_mode() {
+        if tlbr_ctx.viewport_settings.is_infinite_mode()
+            || tlbr_ctx.viewport_settings.viewport_transform.is_none()
+        {
             let elements_bound = calc_elements_bounds(tlbr_ctx.buffer, tlbr_ctx.viewport_settings)
                 .unwrap_or(egui::Rect::from_min_size(
                     transform_point(
@@ -425,8 +433,15 @@ impl Toolbar {
                 t,
             ));
 
-        if res.clicked() || res.drag_started() && !tlbr_ctx.viewport_settings.is_infinite_mode() {
-            tlbr_ctx.viewport_settings.bounded_rect = Some(bounded_rect)
+        if res.clicked() || res.drag_started() {
+            if !tlbr_ctx.viewport_settings.is_infinite_mode() {
+                tlbr_ctx.viewport_settings.bounded_rect = Some(bounded_rect)
+            }
+            tlbr_ctx
+                .settings
+                .update_viewport_settings(tlbr_ctx.viewport_settings);
+
+            tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
         }
 
         Some((bounded_rect, t.pre_concat(tlbr_ctx.viewport_settings.master_transform)))
