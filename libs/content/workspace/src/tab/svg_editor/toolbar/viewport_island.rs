@@ -241,7 +241,7 @@ impl Toolbar {
             transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
         }
 
-        for zoom_percentage in [120.0, 100.0, 80.0, 60.0] {
+        for zoom_percentage in [120.0, 100.0, 80.0] {
             if Button::default()
                 .text(format!("{}%", (zoom_percentage as i32)))
                 .show(ui)

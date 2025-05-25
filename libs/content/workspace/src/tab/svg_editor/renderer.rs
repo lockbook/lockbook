@@ -122,7 +122,7 @@ impl Renderer {
                         {
                             let current_el_scale = path.transform.sx * self.viewport_transform.sx;
                             let diff = current_el_scale.max(*scale) / current_el_scale.min(*scale);
-                            diff > 5.0 && !is_main_canvas_render
+                            diff > 5.0 && is_main_canvas_render
                         } else {
                             false
                         };
@@ -142,7 +142,6 @@ impl Renderer {
 
                         if let Some(transform) = path.diff_state.transformed {
                             let mut re_tess = false;
-
                             // if we're rendering using the master transform then this is  part of the main
                             // canvas render loop, not mini map or an external user like an editor preview.
                             // each transform is recorded on the master transform plane, and applying it
@@ -150,14 +149,17 @@ impl Renderer {
                             // todo: figure out how to convert the transform between planes to
                             // avoid re-tesselation.
                             if !is_main_canvas_render {
-                                re_tess = true
-                            }
+                                if buffer.master_transform_changed {
+                                    return None;
+                                } else {
+                                    re_tess = true;
+                                }
+                            };
 
                             if !re_tess && self.mesh_cache.contains_key(id) {
                                 return Some((*id, RenderOp::Transform(transform)));
                             }
                         }
-
                         tesselate_path(
                             path,
                             id,
@@ -181,7 +183,16 @@ impl Renderer {
                         }
 
                         if let Some(transform) = image.diff_state.transformed {
-                            if self.mesh_cache.contains_key(id) {
+                            let mut re_tess = false;
+                            if !is_main_canvas_render {
+                                if buffer.master_transform_changed {
+                                    return None;
+                                } else {
+                                    re_tess = true;
+                                }
+                            };
+
+                            if !re_tess && self.mesh_cache.contains_key(id) {
                                 return Some((*id, RenderOp::Transform(transform)));
                             }
                         }
@@ -215,7 +226,7 @@ impl Renderer {
                 }
                 RenderOp::ForwordImage(img) => {
                     diff_state.data_changed = true;
-                    self.alloc_image_mesh(id, img, ui, self.viewport_transform);
+                    self.alloc_image_mesh(id, img, ui, self.viewport_transform, master_transform);
                 }
             }
         }
@@ -252,6 +263,7 @@ impl Renderer {
 
     fn alloc_image_mesh(
         &mut self, id: Uuid, img: &mut Image, ui: &mut egui::Ui, viewport_transform: Transform,
+        master_transform: Transform,
     ) {
         match &img.data {
             ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
@@ -278,7 +290,11 @@ impl Renderer {
                     max: egui::pos2(img.view_box.right(), img.view_box.bottom()),
                 };
 
-                let rect = transform_rect(rect, viewport_transform);
+                let t = master_transform.invert().unwrap_or_default();
+                let rect = transform_rect(rect, t);
+
+                let t = viewport_transform;
+                let rect = transform_rect(rect, t);
 
                 let uv = egui::Rect {
                     min: egui::Pos2 { x: 0.0, y: 0.0 },

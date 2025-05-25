@@ -174,9 +174,9 @@ impl SVGEditor {
         self.show_toolbar(ui);
 
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
+        self.show_background(ui);
         ui.set_clip_rect(self.viewport_settings.working_rect);
 
-        self.show_background(ui);
         self.show_dot_grid();
         let global_diff = self.show_canvas(ui);
 
@@ -239,6 +239,11 @@ impl SVGEditor {
     }
 
     fn show_background(&mut self, ui: &mut egui::Ui) {
+        ui.painter().rect_filled(
+            self.viewport_settings.container_rect,
+            0.0,
+            ui.visuals().code_bg_color,
+        );
         ui.painter().rect_filled(
             self.viewport_settings.working_rect,
             0.0,
