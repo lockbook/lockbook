@@ -68,11 +68,8 @@ impl MarkdownPlusPlus {
     /// incorrect - use [`sourcepos_to_range`] instead.
     pub fn line_column_to_offset(&self, line_column: LineColumn) -> DocCharOffset {
         // convert cardinal to ordinal
-        let line_column = if line_column.column == 0 {
-            LineColumn { line: line_column.line.saturating_sub(2), column: line_column.column }
-        } else {
-            LineColumn { line: line_column.line.saturating_sub(1), column: line_column.column - 1 }
-        };
+        let line_column =
+            LineColumn { line: line_column.line.saturating_sub(1), column: line_column.column - 1 };
 
         let line: (DocCharOffset, DocCharOffset) = *self
             .bounds
@@ -98,20 +95,29 @@ impl MarkdownPlusPlus {
         LineColumn { line: line_idx + 1, column: line_column_byte.0 + 1 }
     }
 
-    pub fn sourcepos_to_range(&self, sourcepos: Sourcepos) -> (DocCharOffset, DocCharOffset) {
+    pub fn sourcepos_to_range(&self, mut sourcepos: Sourcepos) -> (DocCharOffset, DocCharOffset) {
+        // convert (inc, inc) pair to (inc, exc) pair; this must be done before
+        // line-column conversion because end columns can be 0 and the
+        // line-column conversion subtracts by 1 to convert cardinal to ordinal,
+        // which would otherwise underflow
+        sourcepos.end.column += 1;
+
         let start = self.line_column_to_offset(sourcepos.start);
         let end = self.line_column_to_offset(sourcepos.end);
 
-        // convert (inc, inc) pair to (inc, exc) pair
-        (start, end + 1)
+        (start, end)
     }
 
     pub fn range_to_sourcepos(&self, range: (DocCharOffset, DocCharOffset)) -> Sourcepos {
-        // convert (inc, exc) pair to (inc, inc) pair
-        let range = (range.0, range.1 - 1);
-
         let start = self.offset_to_line_column(range.0);
-        let end = self.offset_to_line_column(range.1);
+        let mut end = self.offset_to_line_column(range.1);
+
+        // convert (inc, exc) pair to (inc, inc) pair; this must be done after
+        // offset conversion because the sourcepos representation demands that
+        // the end column be at a zero position of a following line instead of
+        // an end position of a prior line when the offset is at the end of a
+        // line
+        end.column -= 1;
 
         Sourcepos { start, end }
     }
@@ -728,12 +734,14 @@ impl MarkdownPlusPlus {
 
 #[cfg(test)]
 mod test {
+    use comrak::nodes::{LineColumn, Sourcepos};
     use lb_rs::model::text::offset_types::DocCharOffset;
 
     use super::Bounds;
     use crate::tab::markdown_plusplus::{
         bounds::{BoundExt as _, RangesExt as _},
         input::Bound,
+        MarkdownPlusPlus,
     };
 
     #[test]
@@ -2116,5 +2124,37 @@ mod test {
         assert_eq!(ranges.find_intersecting((6.into(), 6.into()), true), (1, 4));
         assert_eq!(ranges.find_intersecting((7.into(), 7.into()), true), (3, 4));
         assert_eq!(ranges.find_intersecting((8.into(), 8.into()), true), (4, 4));
+    }
+
+    #[test]
+    fn sourcepos_to_range_fenced_code_block() {
+        let text = "```\nfn main() {}\n```";
+        let mut md = MarkdownPlusPlus::test(text);
+        md.calc_source_lines();
+
+        let sourcepos = Sourcepos {
+            start: LineColumn { line: 1, column: 1 },
+            end: LineColumn { line: 3, column: 3 },
+        };
+        let range: (DocCharOffset, DocCharOffset) = (0.into(), text.len().into());
+
+        assert_eq!(md.sourcepos_to_range(sourcepos), range);
+        assert_eq!(md.range_to_sourcepos(range), sourcepos);
+    }
+
+    #[test]
+    fn sourcepos_to_range_unclosed_fenced_code_block() {
+        let text = "```\n";
+        let mut md = MarkdownPlusPlus::test(text);
+        md.calc_source_lines();
+
+        let sourcepos = Sourcepos {
+            start: LineColumn { line: 1, column: 1 },
+            end: LineColumn { line: 2, column: 0 },
+        };
+        let range: (DocCharOffset, DocCharOffset) = (0.into(), text.len().into());
+
+        assert_eq!(md.sourcepos_to_range(sourcepos), range);
+        assert_eq!(md.range_to_sourcepos(range), sourcepos);
     }
 }

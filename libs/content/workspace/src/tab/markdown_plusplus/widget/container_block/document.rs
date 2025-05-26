@@ -28,11 +28,6 @@ impl<'ast> MarkdownPlusPlus {
     ) {
         let width = self.width(node);
 
-        // leading and trailing newlines are not parsed as part of the document
-        let pre_spacing = self.block_pre_spacing_height(node);
-        self.show_block_pre_spacing(ui, node, top_left);
-        top_left.y += pre_spacing;
-
         let any_children = node.children().next().is_some();
         if any_children {
             self.show_block_children(ui, node, top_left);
@@ -55,7 +50,5 @@ impl<'ast> MarkdownPlusPlus {
                 top_left.y += ROW_SPACING;
             }
         }
-
-        self.show_block_post_spacing(ui, node, top_left);
     }
 }
