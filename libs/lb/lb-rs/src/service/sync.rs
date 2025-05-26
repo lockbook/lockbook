@@ -31,6 +31,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 use time::Duration;
+use usvg::Transform;
 use uuid::Uuid;
 
 pub type SyncFlag = Arc<AtomicBool>;
@@ -645,7 +646,11 @@ impl Lb {
                                         for (_, el) in local_buffer.elements.iter_mut() {
                                             if let Element::Path(path) = el {
                                                 path.data.apply_transform(u_transform_to_bezier(
-                                                    &local_buffer.master_transform,
+                                                    &Transform::from(
+                                                        local_buffer
+                                                            .weak_viewport_settings
+                                                            .master_transform,
+                                                    ),
                                                 ));
                                             }
                                         }
@@ -653,7 +658,7 @@ impl Lb {
                                             &mut local_buffer.elements,
                                             &mut local_buffer.weak_images,
                                             &mut local_buffer.weak_path_pressures,
-                                            local_buffer.master_transform,
+                                            &mut local_buffer.weak_viewport_settings,
                                             &base_buffer,
                                             &remote_buffer,
                                         );

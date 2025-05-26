@@ -117,7 +117,7 @@ impl Selection {
                     ui.painter().rect_filled(
                         laso_rect,
                         egui::Rounding::ZERO,
-                        ui.visuals().hyperlink_color.linear_multiply(0.1),
+                        ui.visuals().widgets.active.bg_fill.linear_multiply(0.1),
                     );
                 };
 
@@ -689,13 +689,12 @@ impl Selection {
                     (Uuid::new_v4(), selection_ctx.buffer.elements.get(&el.id).unwrap().clone())
                 })
                 .collect();
-            let master_transform = selection_ctx.buffer.master_transform;
             let weak_images = &selection_ctx.buffer.weak_images;
 
             let serialized_selection = serialize_inner(
                 id_map,
                 elements,
-                master_transform,
+                &selection_ctx.buffer.weak_viewport_settings,
                 weak_images,
                 &selection_ctx.buffer.weak_path_pressures,
             );
@@ -741,7 +740,10 @@ impl Selection {
         ui.painter().rect_stroke(
             rect,
             egui::Rounding::ZERO,
-            egui::Stroke { width: 1.0, color: ui.visuals().hyperlink_color.linear_multiply(0.4) },
+            egui::Stroke {
+                width: 1.0,
+                color: ui.visuals().widgets.active.bg_fill.linear_multiply(0.4),
+            },
         );
     }
 
@@ -768,14 +770,14 @@ impl Selection {
                 rect,
                 egui::Rounding::ZERO,
                 egui::Color32::WHITE,
-                egui::Stroke { width: 1.0, color: ui.visuals().hyperlink_color },
+                egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
             );
         }
 
         ui.painter().rect_stroke(
             rect,
             egui::Rounding::ZERO,
-            egui::Stroke { width: 1.0, color: ui.visuals().hyperlink_color },
+            egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
         );
     }
 }

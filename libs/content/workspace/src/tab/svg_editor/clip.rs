@@ -125,13 +125,13 @@ impl SVGEditor {
                                     .unwrap_or(ui.available_rect_before_wrap().center()),
                             );
 
-                            let delta =
-                                paste_pos - container.center() * self.buffer.master_transform.sx;
+                            let delta = paste_pos
+                                - container.center() * self.viewport_settings.master_transform.sx;
 
                             let transform = Transform::identity()
                                 .post_scale(
-                                    self.buffer.master_transform.sx,
-                                    self.buffer.master_transform.sy,
+                                    self.viewport_settings.master_transform.sx,
+                                    self.viewport_settings.master_transform.sy,
                                 )
                                 .post_translate(delta.x, delta.y);
 
