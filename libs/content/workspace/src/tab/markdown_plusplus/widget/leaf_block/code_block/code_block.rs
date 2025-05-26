@@ -50,15 +50,15 @@ impl<'ast> MarkdownPlusPlus {
             self.show_indented_code_block(ui, node, top_left, node_code_block);
         }
     }
-
     pub fn height_fenced_code_block(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> f32 {
         let width = self.width(node) - 2. * BLOCK_PADDING;
 
-        let mut result = 0.;
+        let mut result = BLOCK_PADDING;
+        result -= ROW_SPACING;
 
-        let reveal = self.node_lines_intersect_selection(node);
+        let reveal = self.reveal_fenced_code_block(node);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in first_line_idx..=last_line_idx {
@@ -72,6 +72,7 @@ impl<'ast> MarkdownPlusPlus {
 
             if is_opening_fence || is_closing_fence {
                 if reveal {
+                    result += ROW_SPACING;
                     result += self.height_text_line(
                         &mut Wrap::new(width),
                         node_line,
@@ -79,15 +80,12 @@ impl<'ast> MarkdownPlusPlus {
                     );
                 }
             } else {
-                result += self.height_code_block_line(node, node_code_block, line);
-            }
-
-            if line_idx != last_line_idx {
                 result += ROW_SPACING;
+                result += self.height_code_block_line(node, node_code_block, line);
             }
         }
 
-        result + 2. * BLOCK_PADDING
+        result + BLOCK_PADDING
     }
 
     pub fn show_fenced_code_block(
@@ -104,8 +102,9 @@ impl<'ast> MarkdownPlusPlus {
         width -= 2. * BLOCK_PADDING;
         top_left.x += BLOCK_PADDING;
         top_left.y += BLOCK_PADDING;
+        top_left.y -= ROW_SPACING; // makes spacing logic simpler
 
-        let reveal = self.node_lines_intersect_selection(node);
+        let reveal = self.reveal_fenced_code_block(node);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in first_line_idx..=last_line_idx {
@@ -120,6 +119,7 @@ impl<'ast> MarkdownPlusPlus {
             if is_opening_fence || is_closing_fence {
                 self.bounds.paragraphs.push(node_line);
                 if reveal {
+                    top_left.y += ROW_SPACING;
                     self.show_text_line(
                         ui,
                         top_left,
@@ -135,12 +135,15 @@ impl<'ast> MarkdownPlusPlus {
                     );
                 }
             } else {
+                top_left.y += ROW_SPACING;
                 self.show_code_block_line(ui, node, top_left, node_code_block, line);
                 top_left.y += self.height_code_block_line(node, node_code_block, line);
             }
-
-            top_left.y += ROW_SPACING;
         }
+    }
+
+    fn reveal_fenced_code_block(&self, node: &'ast AstNode<'ast>) -> bool {
+        self.node_lines_intersect_selection(node)
     }
 
     pub fn height_indented_code_block(
@@ -221,7 +224,7 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    pub fn reveal_indented_code_block(&self, node: &'ast AstNode<'ast>) -> bool {
+    fn reveal_indented_code_block(&self, node: &'ast AstNode<'ast>) -> bool {
         let mut reveal = false;
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
@@ -428,7 +431,6 @@ impl<'ast> MarkdownPlusPlus {
     ) -> bool {
         let NodeCodeBlock { fence_char, fence_length, .. } = node_code_block;
         let fence_char = *fence_char as char;
-        let fence_length = *fence_length as usize;
 
         let node_line = self.node_line(node, line);
 
@@ -445,7 +447,7 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         // Skip exactly fence_length fence_char's
-        for _ in 0..fence_length {
+        for _ in 0..*fence_length {
             if chars.peek() == Some(&fence_char) {
                 chars.next();
             } else {
