@@ -1,3 +1,3 @@
 #!/bin/sh
 
-cd .. && mdbook serve --open
+mdbook serve --open
