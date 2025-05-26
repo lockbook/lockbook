@@ -37,10 +37,10 @@ impl Toolbar {
         let viewport_island_x_start = history_island.right() + 15.0;
         let viewport_island_y_start = history_island.top();
 
-        let viewport_rect = self.layout.viewport_island.unwrap_or(egui::Rect {
+        let viewport_rect = egui::Rect {
             min: egui::pos2(viewport_island_x_start, viewport_island_y_start),
             max: egui::Pos2 { x: viewport_island_x_start, y: history_island.bottom() },
-        });
+        };
 
         let mut island_res = ui
             .allocate_ui_at_rect(viewport_rect, |ui| {
@@ -51,12 +51,8 @@ impl Toolbar {
             .inner
             .response;
 
-        // the viewport island will expand and shrink depending on the zoom level it's
-        // width determines the width of the more viewport popover which should
-        // be consistent. Bref, this avoids flicker in the viewport popover
-        if self.layout.viewport_island.is_none() {
-            self.layout.viewport_island = Some(island_res.rect);
-        }
+        self.layout.viewport_island = Some(island_res.rect);
+
         let viewport_island_rect = self.layout.viewport_island.unwrap();
 
         if let Some(res) = self.show_popovers(ui, tlbr_ctx, viewport_island_rect) {
@@ -104,7 +100,6 @@ impl Toolbar {
                 };
 
             let zoom_pct_btn = Button::default().text(zoom_percentage_label).show(ui);
-
             self.layout.zoom_pct_btn = Some(zoom_pct_btn.rect);
 
             if zoom_pct_btn.clicked() || zoom_pct_btn.drag_started() {
@@ -125,6 +120,9 @@ impl Toolbar {
             if let Some(t) = transform {
                 transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, t);
             };
+
+            // fixes the jitter
+            ui.add_space((50.0 - zoom_pct_btn.rect.width()).max(0.0));
 
             ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
 

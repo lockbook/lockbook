@@ -203,6 +203,8 @@ impl SVGEditor {
         self.show_toolbar(ui);
 
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
+        self.viewport_settings.update_working_rect();
+
         self.show_background(ui);
         ui.set_clip_rect(self.viewport_settings.working_rect);
 
@@ -222,7 +224,6 @@ impl SVGEditor {
                 self.toolbar.show_tool_popover = false;
             }
         }
-        self.viewport_settings.update_working_rect();
 
         let needs_save_and_frame_is_cheap =
             if self.has_queued_save_request && !global_diff.is_dirty() {
