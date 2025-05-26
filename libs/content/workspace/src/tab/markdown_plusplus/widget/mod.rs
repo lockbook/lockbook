@@ -212,9 +212,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Heading(NodeHeading { level, setext, .. }) => {
                 self.height_heading(node, *level, *setext)
             }
-            NodeValue::HtmlBlock(NodeHtmlBlock { literal, .. }) => {
-                self.height_html_block(node, literal)
-            }
+            NodeValue::HtmlBlock(_) => self.height_html_block(node),
             NodeValue::Paragraph => self.height_paragraph(node),
             NodeValue::TableCell => self.height_table_cell(node),
             NodeValue::ThematicBreak => self.height_thematic_break(),
@@ -436,9 +434,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Heading(NodeHeading { level, setext }) => {
                 self.show_heading(ui, node, top_left, *level, *setext)
             }
-            NodeValue::HtmlBlock(NodeHtmlBlock { literal, .. }) => {
-                self.show_html_block(ui, node, top_left, literal)
-            }
+            NodeValue::HtmlBlock(_) => self.show_html_block(ui, node, top_left),
             NodeValue::Paragraph => self.show_paragraph(ui, node, top_left),
             NodeValue::TableCell => self.show_table_cell(ui, node, top_left),
             NodeValue::ThematicBreak => self.show_thematic_break(ui, node, top_left),
