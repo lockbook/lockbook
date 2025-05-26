@@ -1,10 +1,10 @@
 use comrak::nodes::{AstNode, NodeCodeBlock};
-use egui::{Color32, FontFamily, FontId, Pos2, Rect, Sense, Stroke, TextFormat, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
+use egui::{Color32, FontFamily, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
+use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt};
 use syntect::easy::HighlightLines;
 
 use crate::tab::markdown_plusplus::{
-    widget::{Wrap, BLOCK_PADDING, ROW_HEIGHT, ROW_SPACING},
+    widget::{Wrap, BLOCK_PADDING, ROW_SPACING},
     MarkdownPlusPlus,
 };
 
@@ -36,7 +36,7 @@ impl<'ast> MarkdownPlusPlus {
         if node_code_block.fenced {
             self.height_fenced_code_block(node, node_code_block)
         } else {
-            self.height_indented_code_block(node, &node_code_block.info, &node_code_block.literal)
+            self.height_indented_code_block(node, node_code_block)
         }
     }
 
@@ -47,13 +47,7 @@ impl<'ast> MarkdownPlusPlus {
         if node_code_block.fenced {
             self.show_fenced_code_block(ui, node, top_left, node_code_block);
         } else {
-            self.show_indented_code_block(
-                ui,
-                node,
-                top_left,
-                Default::default(),
-                &node_code_block.literal,
-            );
+            self.show_indented_code_block(ui, node, top_left, node_code_block);
         }
     }
 
@@ -100,21 +94,18 @@ impl<'ast> MarkdownPlusPlus {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
         node_code_block: &NodeCodeBlock,
     ) {
-        let NodeCodeBlock { literal: code, .. } = node_code_block;
-
         let mut width = self.width(node);
         let height = self.height_fenced_code_block(node, node_code_block);
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
         ui.painter()
             .rect_stroke(rect, 2., Stroke::new(1., self.theme.bg().neutral_tertiary));
-        let hovered = ui.allocate_rect(rect, Sense::hover()).hovered();
 
         width -= 2. * BLOCK_PADDING;
         top_left.x += BLOCK_PADDING;
         top_left.y += BLOCK_PADDING;
 
-        let reveal = self.node_lines_intersect_selection(node); // todo: also check if in per-line indentation
+        let reveal = self.node_lines_intersect_selection(node);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in first_line_idx..=last_line_idx {
@@ -150,37 +141,105 @@ impl<'ast> MarkdownPlusPlus {
 
             top_left.y += ROW_SPACING;
         }
-
-        // copy button (todo: draw an actual button)
-        if hovered {
-            let button_size = Vec2::splat(ROW_HEIGHT);
-            let button_right_top = rect.right_top() + Vec2::new(-BLOCK_PADDING, BLOCK_PADDING);
-            let button_left_top = button_right_top - Vec2::X * button_size.x;
-            let button_rect = Rect::from_min_size(button_left_top, button_size);
-            ui.painter().rect_stroke(
-                button_rect,
-                2.,
-                Stroke::new(1., self.theme.bg().neutral_tertiary),
-            );
-            if ui.allocate_rect(button_rect, Sense::click()).clicked() {
-                ui.output_mut(|o| o.copied_text = code.into());
-            }
-        }
     }
 
     pub fn height_indented_code_block(
-        &self, node: &'ast AstNode<'ast>, info: &str, code: &str,
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> f32 {
-        todo!()
+        let mut result = 0.;
+
+        let reveal = self.reveal_indented_code_block(node);
+        let first_line_idx = self.node_first_line_idx(node);
+        let last_line_idx = self.node_last_line_idx(node);
+        for line_idx in first_line_idx..=last_line_idx {
+            let line = self.bounds.source_lines[line_idx];
+
+            if reveal {
+                let node_line = self.node_line(node, line);
+                result += self.height_text_line(
+                    &mut Wrap::new(self.width(node) - 2. * BLOCK_PADDING),
+                    node_line,
+                    self.text_format_syntax(node),
+                );
+            } else {
+                result += self.height_code_block_line(node, node_code_block, line);
+            }
+
+            if line_idx != last_line_idx {
+                result += ROW_SPACING;
+            }
+        }
+
+        result + 2. * BLOCK_PADDING
     }
 
     // indented code blocks don't have an info string; the `info` parameter is
     // just used for syntax highlighting when rendering unsupported node types
     // like html blocks as code
     pub fn show_indented_code_block(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, info: &str, code: &str,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
+        node_code_block: &NodeCodeBlock,
     ) {
-        todo!()
+        let width = self.width(node);
+        let height = self.height_indented_code_block(node, node_code_block);
+
+        let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
+        ui.painter()
+            .rect_stroke(rect, 2., Stroke::new(1., self.theme.bg().neutral_tertiary));
+
+        top_left.x += BLOCK_PADDING;
+        top_left.y += BLOCK_PADDING;
+
+        let reveal = self.reveal_indented_code_block(node);
+        let first_line_idx = self.node_first_line_idx(node);
+        let last_line_idx = self.node_last_line_idx(node);
+        for line_idx in first_line_idx..=last_line_idx {
+            let line = self.bounds.source_lines[line_idx];
+
+            if reveal {
+                let node_line = self.node_line(node, line);
+                self.bounds.paragraphs.push(node_line);
+                self.show_text_line(
+                    ui,
+                    top_left,
+                    &mut Wrap::new(width),
+                    node_line,
+                    self.text_format_syntax(node),
+                    false,
+                );
+                top_left.y += self.height_text_line(
+                    &mut Wrap::new(width),
+                    node_line,
+                    self.text_format_syntax(node),
+                );
+            } else {
+                self.show_code_block_line(ui, node, top_left, node_code_block, line);
+                top_left.y += self.height_code_block_line(node, node_code_block, line);
+            }
+
+            top_left.y += ROW_SPACING;
+        }
+    }
+
+    pub fn reveal_indented_code_block(&self, node: &'ast AstNode<'ast>) -> bool {
+        let mut reveal = false;
+        for line_idx in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line_idx];
+            let node_line = self.node_line(node, line);
+
+            let indentation = (node_line.start(), node_line.end().min(node_line.start() + 4));
+            if indentation.intersects(&self.buffer.current.selection, false)
+                || self
+                    .buffer
+                    .current
+                    .selection
+                    .contains(indentation.start(), true, true)
+            {
+                reveal = true;
+                break;
+            }
+        }
+        reveal
     }
 
     fn height_code_block_line(

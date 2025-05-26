@@ -1,4 +1,4 @@
-use comrak::nodes::AstNode;
+use comrak::nodes::{AstNode, NodeCodeBlock, NodeValue};
 use lb_rs::model::text::offset_types::{
     DocByteOffset, DocCharOffset, RangeExt as _, RangeIterExt as _,
 };
@@ -185,12 +185,30 @@ impl<'ast> MarkdownPlusPlus {
             range.1 = range.1.min(parent_range.1);
         }
 
+        // hack: GFM spec says "Blank lines preceding or following an indented
+        // code block are not included in it" and I have observed the behavior
+        // for following lines to be incorrect in e.g. "    f\n"
+        if let NodeValue::CodeBlock(NodeCodeBlock { fenced: false, .. }) = node.data.borrow().value
+        {
+            for line_idx in self.node_lines_impl(range).iter() {
+                let line = self.bounds.source_lines[line_idx];
+                let node_line = self.node_line(node, line);
+                if self.buffer[node_line].chars().any(|c| !c.is_whitespace()) {
+                    range.1 = line.end();
+                }
+            }
+        }
+
         range
     }
 
     /// Returns the (inclusive, exclusive) range of lines that this node is sourced from.
     pub fn node_lines(&self, node: &'ast AstNode<'ast>) -> (usize, usize) {
-        let range_lines = self.range_lines(self.node_range(node));
+        self.node_lines_impl(self.node_range(node))
+    }
+
+    fn node_lines_impl(&self, range: (DocCharOffset, DocCharOffset)) -> (usize, usize) {
+        let range_lines = self.range_lines(range);
 
         let first_line = *range_lines.first().unwrap();
         let start_line_idx = self
