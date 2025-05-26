@@ -83,12 +83,6 @@ impl<'ast> MarkdownPlusPlus {
                         node_line,
                         self.text_format_syntax(node),
                     );
-                } else {
-                    result += self.height_text_line(
-                        &mut Wrap::new(width),
-                        node_line.end().into_range(),
-                        self.text_format_syntax(node),
-                    );
                 }
             } else {
                 result += self.height_code_block_line(node, node_code_block, line);
@@ -123,7 +117,6 @@ impl<'ast> MarkdownPlusPlus {
         let reveal = self.node_lines_intersect_selection(node); // todo: also check if in per-line indentation
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
-        // for line_idx in self.node_lines(node).iter() {
         for line_idx in first_line_idx..=last_line_idx {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
@@ -135,20 +128,21 @@ impl<'ast> MarkdownPlusPlus {
 
             if is_opening_fence || is_closing_fence {
                 self.bounds.paragraphs.push(node_line);
-                let range = if reveal { node_line } else { node_line.end().into_range() };
-                self.show_text_line(
-                    ui,
-                    top_left,
-                    &mut Wrap::new(width),
-                    range,
-                    self.text_format_syntax(node),
-                    false,
-                );
-                top_left.y += self.height_text_line(
-                    &mut Wrap::new(width),
-                    range,
-                    self.text_format_syntax(node),
-                );
+                if reveal {
+                    self.show_text_line(
+                        ui,
+                        top_left,
+                        &mut Wrap::new(width),
+                        node_line,
+                        self.text_format_syntax(node),
+                        false,
+                    );
+                    top_left.y += self.height_text_line(
+                        &mut Wrap::new(width),
+                        node_line,
+                        self.text_format_syntax(node),
+                    );
+                }
             } else {
                 self.show_code_block_line(ui, node, top_left, node_code_block, line);
                 top_left.y += self.height_code_block_line(node, node_code_block, line);
