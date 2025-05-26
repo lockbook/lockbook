@@ -167,10 +167,25 @@ impl<'ast> MarkdownPlusPlus {
         range_lines
     }
 
-    /// Returns the range for the node - easy enough to do yourself but comes up
-    /// so often.
+    /// Returns the range for the node.
     pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
-        self.sourcepos_to_range(node.data.borrow().sourcepos)
+        let mut range = self.sourcepos_to_range(node.data.borrow().sourcepos);
+
+        // hack: comrak's sourcepos's are unstable (and indeed broken) for some
+        // nested block situations. clamping each range to its parent's prevents
+        // the worst of the adverse consequences (e.g. double-rendering source
+        // text).
+        //
+        // see also:
+        // * https://github.com/kivikakk/comrak/issues/567
+        // * https://github.com/kivikakk/comrak/issues/570
+        if let Some(parent) = node.parent() {
+            let parent_range = self.node_range(parent);
+            range.0 = range.0.max(parent_range.0);
+            range.1 = range.1.min(parent_range.1);
+        }
+
+        range
     }
 
     /// Returns the (inclusive, exclusive) range of lines that this node is sourced from.
