@@ -1,39 +1,32 @@
-# Summary
-
 [Introduction](README.md)
+[Values]()
 
-## Design & Technical Documentation
+# Using Lockbook
 
-- [System Architecture](design-tech/system-architecture.md)
-- [Data Model](design-tech/data_model.md)
-- [Sync](design-tech/sync.md)
-- [Billing](design-tech/billing.md)
-- [Sharing](design-tech/sharing.md)
+- [Installing]()
+- [File Management]()
+- [Editing Markdown]()
+- [Drawing]()
+- [Multimedia]()
+- [Collaboration & Sync]()
 
-## UX Design
+# Extending Lockbook
 
-- [Editor](design-ux/editor.md)
-- [File Types](design-ux/file-types.md)
-- [Launch](design-ux/launch.md)
-- [Lifecycle](design-ux/lifecycle.md)
-- [Navigation](design-ux/navigation.md)
-- [Search](design-ux/search.md)
-- [Sharing UX](design-ux/sharing.md)
-- [To-do](design-ux/todo.md)
+- [CLI]()
+- [Programatic Interface]()
+- [Lockbook FS]()
 
-## Guides
+# Contributing To Lockbook
 
-- [CLI Completions](guides/cli-completions.md)
-- [Releasing](guides/releasing.md)
+- [As a user]()
+- [As a hobbyist]()
+- [As a programmer]()
 
-### Build Guides
-- [Android](guides/build/android.md)
-- [Apple](guides/build/apple.md)
-- [CLI](guides/build/cli.md)
-- [Linux](guides/build/linux.md)
-- [Windows](guides/build/windows.md)
+# Technical Documentation
 
-## Operations
+- [System Architecture]()
+- [Data Model]()
+- [Sync]()
+- [Billing]()
+- [Sharing]()
 
-- [Breaking Changes](operations/breaking-changes.md)
-- [Performance Monitoring](operations/performance-monitoring.md)
