@@ -50,6 +50,7 @@ impl<'ast> MarkdownPlusPlus {
             self.show_indented_code_block(ui, node, top_left, node_code_block);
         }
     }
+
     pub fn height_fenced_code_block(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> f32 {
@@ -58,7 +59,7 @@ impl<'ast> MarkdownPlusPlus {
         let mut result = BLOCK_PADDING;
         result -= ROW_SPACING;
 
-        let reveal = self.reveal_fenced_code_block(node);
+        let reveal = self.reveal_fenced_code_block(node, node_code_block);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in first_line_idx..=last_line_idx {
@@ -104,7 +105,7 @@ impl<'ast> MarkdownPlusPlus {
         top_left.y += BLOCK_PADDING;
         top_left.y -= ROW_SPACING; // makes spacing logic simpler
 
-        let reveal = self.reveal_fenced_code_block(node);
+        let reveal = self.reveal_fenced_code_block(node, node_code_block);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in first_line_idx..=last_line_idx {
@@ -142,8 +143,22 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    fn reveal_fenced_code_block(&self, node: &'ast AstNode<'ast>) -> bool {
-        self.node_lines_intersect_selection(node)
+    fn reveal_fenced_code_block(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+    ) -> bool {
+        let first_line_idx = self.node_first_line_idx(node);
+        let last_line_idx = self.node_last_line_idx(node);
+
+        if first_line_idx == last_line_idx {
+            return true; // only opening fence: always reveal
+        }
+        if first_line_idx + 1 == last_line_idx
+            && self.is_closing_fence(node, node_code_block, self.bounds.source_lines[last_line_idx])
+        {
+            return true; // only opening + closing fence: always reveal
+        }
+
+        self.node_lines_intersect_selection(node) // selection-based reveal
     }
 
     pub fn height_indented_code_block(
@@ -230,6 +245,8 @@ impl<'ast> MarkdownPlusPlus {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
 
+            // reveal if selection is inside the indentation, but not at the
+            // indentation's end / content's start
             let indentation = (node_line.start(), node_line.end().min(node_line.start() + 4));
             if indentation.intersects(&self.buffer.current.selection, false)
                 || self
