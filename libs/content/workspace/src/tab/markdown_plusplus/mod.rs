@@ -129,6 +129,23 @@ impl MarkdownPlusPlus {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn test(md: &str) -> Self {
+        Self::new(
+            Lb::init(lb_rs::model::core_config::Config {
+                writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+                logs: false,
+                stdout_logs: false,
+                colored_logs: false,
+                background_work: false,
+            })
+            .unwrap(),
+            md,
+            Uuid::new_v4(),
+            Context::default(),
+        )
+    }
+
     pub fn id(&self) -> Id {
         Id::new(self.file_id)
     }
@@ -206,7 +223,10 @@ impl MarkdownPlusPlus {
         options.extension.wikilinks_title_after_pipe = true; // matches obsidian
         options.extension.wikilinks_title_before_pipe = false; // would not match obsidian
         options.render.escaped_char_spans = true;
-        let root = comrak::parse_document(&arena, &self.buffer.current.text, &options);
+
+        let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
+
+        let root = comrak::parse_document(&arena, &text_with_newline, &options);
 
         let ast_elapsed = start.elapsed();
         let start = std::time::Instant::now();

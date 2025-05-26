@@ -99,7 +99,7 @@ impl<'ast> MarkdownPlusPlus {
             }
         }
 
-        result + 2. * ROW_SPACING
+        result + 2. * BLOCK_PADDING
     }
 
     pub fn show_fenced_code_block(
@@ -118,11 +118,12 @@ impl<'ast> MarkdownPlusPlus {
 
         width -= 2. * BLOCK_PADDING;
         top_left.x += BLOCK_PADDING;
-        top_left.y += ROW_SPACING;
+        top_left.y += BLOCK_PADDING;
 
-        let reveal = self.node_lines_intersect_selection(node);
+        let reveal = self.node_lines_intersect_selection(node); // todo: also check if in per-line indentation
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
+        // for line_idx in self.node_lines(node).iter() {
         for line_idx in first_line_idx..=last_line_idx {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);

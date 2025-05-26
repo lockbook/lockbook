@@ -170,9 +170,6 @@ impl<'ast> MarkdownPlusPlus {
     /// Returns the range for the node - easy enough to do yourself but comes up
     /// so often.
     pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
-        if node.data.borrow().value == comrak::nodes::NodeValue::Document {
-            return (0.into(), self.last_cursor_position());
-        }
         self.sourcepos_to_range(node.data.borrow().sourcepos)
     }
 
@@ -199,21 +196,17 @@ impl<'ast> MarkdownPlusPlus {
 
     /// Returns the line index of the first line of a node
     pub fn node_first_line_idx(&self, node: &'ast AstNode<'ast>) -> usize {
-        let range_lines = self.range_lines(self.node_range(node));
-        let first_line = *range_lines.first().unwrap();
         self.bounds
             .source_lines
-            .find_containing(first_line.start(), true, true)
+            .find_containing(self.node_range(node).start(), true, true)
             .start()
     }
 
     /// Returns the line index of the last line of a node
     pub fn node_last_line_idx(&self, node: &'ast AstNode<'ast>) -> usize {
-        let range_lines = self.range_lines(self.node_range(node));
-        let last_line = *range_lines.last().unwrap();
         self.bounds
             .source_lines
-            .find_containing(last_line.end(), true, true)
+            .find_containing(self.node_range(node).end(), true, true)
             .start()
     }
 
@@ -337,18 +330,11 @@ impl<'ast> MarkdownPlusPlus {
 #[cfg(test)]
 mod test {
     use super::*;
-    use egui::Context;
-    use lb_rs::{blocking::Lb, model::core_config::Config, Uuid};
 
     #[test]
     fn range_lines_char_no_newline() {
         let text = "*";
-        let md = MarkdownPlusPlus::new(
-            Lb::init(Config::cli_config("/tmp")).unwrap(),
-            text,
-            Uuid::new_v4(),
-            Context::default(),
-        );
+        let md = MarkdownPlusPlus::test(text);
 
         let lines = md.range_lines((0.into(), text.len().into()));
 
@@ -359,12 +345,7 @@ mod test {
     #[test]
     fn range_lines_char_newline() {
         let text = "*\n";
-        let md = MarkdownPlusPlus::new(
-            Lb::init(Config::cli_config("/tmp")).unwrap(),
-            text,
-            Uuid::new_v4(),
-            Context::default(),
-        );
+        let md = MarkdownPlusPlus::test(text);
 
         let lines = md.range_lines((0.into(), text.len().into()));
 
