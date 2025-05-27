@@ -685,9 +685,7 @@ impl Selection {
             let elements: &IndexMap<Uuid, Element> = &self
                 .selected_elements
                 .drain(..)
-                .map(|el| {
-                    (Uuid::new_v4(), selection_ctx.buffer.elements.get(&el.id).unwrap().clone())
-                })
+                .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))
                 .collect();
             let weak_images = &selection_ctx.buffer.weak_images;
 
