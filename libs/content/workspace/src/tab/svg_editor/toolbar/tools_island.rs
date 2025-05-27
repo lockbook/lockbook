@@ -15,13 +15,14 @@ use crate::{
     tab::svg_editor::{
         eraser::DEFAULT_ERASER_RADIUS,
         gesture_handler::get_rect_identity_transform,
-        pen::{DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
+        pen::{PenSettings, DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
         renderer::VertexConstructor,
         util::{bb_to_rect, devc_to_point},
-        Pen, Tool,
+        CanvasSettings, Pen, Tool,
     },
     theme::{icons::Icon, palette::ThemePalette},
     widgets::{switch, Button},
+    workspace::WsPersistentStore,
 };
 
 use super::{
@@ -183,6 +184,22 @@ impl Toolbar {
         }
     }
 
+    pub fn hide_tool_popover(
+        &mut self, canvas_settings: &mut CanvasSettings, cfg: &mut WsPersistentStore,
+    ) {
+        self.show_tool_popover = false;
+
+        let color = self.pen.active_color.light;
+        canvas_settings.pen = PenSettings {
+            color: egui::Color32::from_rgb(color.red, color.green, color.blue),
+            width: self.pen.active_stroke_width,
+            opacity: self.pen.active_opacity,
+            pressure_alpha: self.pen.pressure_alpha,
+            has_inf_thick: self.pen.has_inf_thick,
+        };
+
+        cfg.set_canvas_settings(*canvas_settings);
+    }
     fn show_eraser_popover(&mut self, ui: &mut egui::Ui) {
         let width = 200.0;
         ui.style_mut().spacing.slider_width = width;

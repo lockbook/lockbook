@@ -3,16 +3,12 @@ mod tools_island;
 mod viewport_island;
 
 use crate::{theme::icons::Icon, widgets::Button, workspace::WsPersistentStore};
-use lb_rs::model::svg::buffer::{get_highlighter_colors, get_pen_colors, Buffer};
+use lb_rs::model::svg::buffer::Buffer;
 use viewport_island::ViewportPopover;
 
 use super::{
-    gesture_handler::GestureHandler,
-    history::History,
-    pen::{DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
-    renderer::Renderer,
-    selection::Selection,
-    CanvasSettings, Eraser, Pen, ViewportSettings,
+    gesture_handler::GestureHandler, history::History, pen::PenSettings, renderer::Renderer,
+    selection::Selection, CanvasSettings, Eraser, Pen, ViewportSettings,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
@@ -216,24 +212,31 @@ macro_rules! set_tool {
 }
 
 impl Toolbar {
-    pub fn set_tool(&mut self, new_tool: Tool) {
+    pub fn set_tool(
+        &mut self, new_tool: Tool, settings: &mut CanvasSettings, cfg: &mut WsPersistentStore,
+    ) {
         set_tool!(self, new_tool);
+        if !self.show_tool_popover {
+            self.hide_tool_popover(settings, cfg);
+        }
     }
 
-    pub fn toggle_tool_between_eraser(&mut self) {
+    pub fn toggle_tool_between_eraser(
+        &mut self, settings: &mut CanvasSettings, cfg: &mut WsPersistentStore,
+    ) {
         let new_tool = if self.active_tool == Tool::Eraser {
             self.previous_tool.unwrap_or(Tool::Pen)
         } else {
             Tool::Eraser
         };
 
-        self.set_tool(new_tool);
+        self.set_tool(new_tool, settings, cfg);
     }
 
-    pub fn new(elements_count: usize) -> Self {
-        let mut toolbar = Toolbar {
-            pen: Pen::new(get_pen_colors()[0], DEFAULT_PEN_STROKE_WIDTH),
-            highlighter: Pen::new(get_highlighter_colors()[0], DEFAULT_HIGHLIGHTER_STROKE_WIDTH),
+    pub fn new(elements_count: usize, settings: &CanvasSettings) -> Self {
+        Toolbar {
+            pen: Pen::new(settings.pen),
+            highlighter: Pen::new(PenSettings::default_highlighter()),
             renderer: Renderer::new(elements_count),
             active_tool: Default::default(),
             eraser: Default::default(),
@@ -244,11 +247,7 @@ impl Toolbar {
             show_tool_popover: Default::default(),
             layout: Default::default(),
             viewport_popover: Default::default(),
-        };
-
-        toolbar.highlighter.active_opacity = 0.1;
-        toolbar.pen.active_opacity = 1.0;
-        toolbar
+        }
     }
 
     pub fn show(

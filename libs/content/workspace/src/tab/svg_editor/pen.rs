@@ -3,12 +3,14 @@ use egui::{PointerButton, TouchId, TouchPhase};
 use egui_animation::{animate_bool_eased, easing};
 use lb_rs::{
     model::svg::{
+        buffer::{get_dyn_color, get_highlighter_colors, get_pen_colors},
         diff::DiffState,
         element::{DynamicColor, Element, Path, Stroke},
     },
     Uuid,
 };
-use resvg::usvg::Transform;
+use resvg::usvg::{Color, Transform};
+use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use tracing::{event, trace, Level};
 use tracing_test::traced_test;
@@ -33,23 +35,69 @@ pub struct Pen {
     hover_pos: Option<(egui::Pos2, Instant)>,
 }
 
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct PenSettings {
+    pub color: egui::Color32,
+    pub width: f32,
+    pub opacity: f32,
+    pub pressure_alpha: f32,
+    pub has_inf_thick: bool,
+}
+
+impl Default for PenSettings {
+    fn default() -> Self {
+        PenSettings::default_pen()
+    }
+}
+
+impl PenSettings {
+    pub fn default_pen() -> Self {
+        let color = get_pen_colors()[0].dark;
+
+        Self {
+            color: egui::Color32::from_rgb(color.red, color.green, color.blue),
+            width: DEFAULT_PEN_STROKE_WIDTH,
+            opacity: 1.0,
+            pressure_alpha: if cfg!(target_os = "ios") { 0.5 } else { 0.0 },
+            has_inf_thick: false,
+        }
+    }
+    pub fn default_highlighter() -> Self {
+        let color = get_highlighter_colors()[0].dark;
+
+        Self {
+            color: egui::Color32::from_rgb(color.red, color.green, color.blue),
+            width: DEFAULT_HIGHLIGHTER_STROKE_WIDTH,
+            opacity: 0.1,
+            pressure_alpha: 0.0,
+            has_inf_thick: false,
+        }
+    }
+}
+
 #[derive(Clone)]
 enum IntegrationEvent<'a> {
     Custom(&'a crate::Event),
     Native(&'a egui::Event),
 }
 impl Pen {
-    pub fn new(active_color: DynamicColor, active_stroke_width: f32) -> Self {
+    pub fn new(settings: PenSettings) -> Self {
+        let active_color = get_dyn_color(Color {
+            red: settings.color.r(),
+            green: settings.color.g(),
+            blue: settings.color.b(),
+        });
+
         Pen {
             active_color,
-            active_stroke_width,
+            active_stroke_width: settings.width,
             current_id: Uuid::new_v4(),
             path_builder: PathBuilder::new(),
             maybe_snap_started: None,
-            active_opacity: 1.0,
+            active_opacity: settings.opacity,
             hover_pos: None,
-            has_inf_thick: false,
-            pressure_alpha: 0.0,
+            has_inf_thick: settings.has_inf_thick,
+            pressure_alpha: settings.pressure_alpha,
         }
     }
 
@@ -518,7 +566,7 @@ pub struct DrawPayload {
 #[traced_test]
 #[test]
 fn correct_start_of_path() {
-    let mut pen = Pen::new(DynamicColor::default(), 1.0);
+    let mut pen = Pen::new(PenSettings::default_pen());
     let mut pen_ctx = ToolContext {
         painter: &mut egui::Painter::new(
             egui::Context::default(),
@@ -573,7 +621,7 @@ fn cancel_touch_ui_event() {
         },
     ];
 
-    let mut pen = Pen::new(DynamicColor::default(), 1.0);
+    let mut pen = Pen::new(PenSettings::default_pen());
     let mut pen_ctx = ToolContext {
         painter: &mut egui::Painter::new(
             egui::Context::default(),
