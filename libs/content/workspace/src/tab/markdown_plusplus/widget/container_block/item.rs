@@ -2,7 +2,7 @@ use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
 use egui::text::LayoutJob;
 use egui::{Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
 use crate::tab::markdown_plusplus::widget::{Wrap, BULLET_RADIUS, INDENT, ROW_HEIGHT};
@@ -15,7 +15,14 @@ impl<'ast> MarkdownPlusPlus {
         if any_children {
             self.block_children_height(node)
         } else {
-            ROW_HEIGHT
+            let line = self.node_first_line(node);
+            let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
+
+            self.height_text_line(
+                &mut Wrap::new(self.width(node) - INDENT),
+                node_line,
+                self.text_format_document(),
+            )
         }
     }
 
@@ -67,13 +74,13 @@ impl<'ast> MarkdownPlusPlus {
         } else {
             let line = self.node_first_line(node);
             let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
-            let node_line_start = node_line.start().into_range();
 
+            self.bounds.paragraphs.push(node_line);
             self.show_text_line(
                 ui,
                 top_left,
-                &mut Wrap::new(self.width(node)),
-                node_line_start,
+                &mut Wrap::new(self.width(node) - INDENT),
+                node_line,
                 self.text_format_document(),
                 false,
             );

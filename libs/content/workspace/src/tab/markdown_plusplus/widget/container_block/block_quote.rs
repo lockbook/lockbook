@@ -1,11 +1,11 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
 use crate::tab::markdown_plusplus::{
-    widget::{Wrap, BLOCK_SPACING, INDENT, ROW_HEIGHT},
+    widget::{Wrap, BLOCK_SPACING, INDENT},
     MarkdownPlusPlus,
 };
 
@@ -16,13 +16,29 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn height_block_quote(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let mut result = 0.;
+
+        let first_line_idx = self.node_first_line_idx(node);
         let any_children = node.children().next().is_some();
         if any_children {
-            self.block_children_height(node)
+            result += self.block_children_height(node)
         } else {
-            let num_lines = self.node_lines(node).len();
-            num_lines as f32 * ROW_HEIGHT + num_lines.saturating_sub(1) as f32 * BLOCK_SPACING
+            for line_idx in self.node_lines(node).iter() {
+                let line = self.bounds.source_lines[line_idx];
+                let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
+
+                if line_idx != first_line_idx {
+                    result += BLOCK_SPACING;
+                }
+                result += self.height_text_line(
+                    &mut Wrap::new(self.width(node)),
+                    node_line,
+                    self.text_format_syntax(node),
+                );
+            }
         }
+
+        result
     }
 
     pub fn show_block_quote(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
@@ -47,24 +63,33 @@ impl<'ast> MarkdownPlusPlus {
 
         top_left.x += annotation_space.width();
 
+        let first_line_idx = self.node_first_line_idx(node);
         let any_children = node.children().next().is_some();
         if any_children {
             self.show_block_children(ui, node, top_left);
         } else {
-            for line in self.node_lines(node).iter() {
-                let line = self.bounds.source_lines[line];
+            for line_idx in self.node_lines(node).iter() {
+                let line = self.bounds.source_lines[line_idx];
                 let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
-                let node_line_start = node_line.start().into_range();
 
+                if line_idx != first_line_idx {
+                    top_left.y += BLOCK_SPACING;
+                }
+
+                self.bounds.paragraphs.push(node_line);
                 self.show_text_line(
                     ui,
                     top_left,
                     &mut Wrap::new(self.width(node)),
-                    node_line_start,
-                    self.text_format_document(),
+                    node_line,
+                    self.text_format_syntax(node),
                     false,
                 );
-                top_left.y += ROW_HEIGHT + BLOCK_SPACING;
+                top_left.y += self.height_text_line(
+                    &mut Wrap::new(self.width(node)),
+                    node_line,
+                    self.text_format_syntax(node),
+                );
             }
         }
     }

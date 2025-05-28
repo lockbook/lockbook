@@ -27,14 +27,6 @@ impl<'ast> MarkdownPlusPlus {
         self.text_mid_span(wrap, Default::default(), &self.buffer[range], text_format)
     }
 
-    /// Kinda hacky. You probably mean to pass a fresh Wrap here.
-    pub fn height_text_line(
-        &self, wrap: &mut Wrap, range: (DocCharOffset, DocCharOffset), text_format: TextFormat,
-    ) -> f32 {
-        wrap.offset += self.span_text_line(wrap, range, text_format);
-        wrap.height()
-    }
-
     pub fn show_text(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
     ) {
@@ -64,6 +56,14 @@ impl<'ast> MarkdownPlusPlus {
         self.show_text_line(ui, top_left, wrap, range, text_format, spoiler);
     }
 
+    /// Kinda hacky. You probably mean to pass a fresh Wrap here.
+    pub fn height_text_line(
+        &self, wrap: &mut Wrap, range: (DocCharOffset, DocCharOffset), text_format: TextFormat,
+    ) -> f32 {
+        wrap.offset += self.span_text_line(wrap, range, text_format);
+        wrap.height()
+    }
+
     /// Show the source text specified by the given range.
     ///
     /// The text must not contain newlines. It doesn't matter if it wraps. It
@@ -77,6 +77,14 @@ impl<'ast> MarkdownPlusPlus {
         range: (DocCharOffset, DocCharOffset), text_format: TextFormat, spoiler: bool,
     ) {
         self.show_override_text_line(ui, top_left, wrap, range, text_format, spoiler, None);
+    }
+
+    /// Kinda hacky. You probably mean to pass a fresh Wrap here.
+    pub fn height_override_text_line(
+        &self, wrap: &mut Wrap, text: &str, text_format: TextFormat,
+    ) -> f32 {
+        wrap.offset += self.text_mid_span(wrap, Default::default(), text, text_format);
+        wrap.height()
     }
 
     /// Show the source text specified by the given range, optionally overriding
