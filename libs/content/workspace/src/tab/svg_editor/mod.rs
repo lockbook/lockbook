@@ -31,6 +31,7 @@ use lb_rs::model::svg::element::Image;
 use lb_rs::Uuid;
 pub use path_builder::PathBuilder;
 pub use pen::Pen;
+use pen::PenSettings;
 use renderer::Renderer;
 use resvg::usvg::Transform;
 use serde::Deserialize;
@@ -46,7 +47,7 @@ pub struct SVGEditor {
     pub opened_content: Buffer,
     pub open_file_hmac: Option<DocumentHmac>,
 
-    cfg: WsPersistentStore,
+    pub cfg: WsPersistentStore,
 
     history: History,
     pub toolbar: Toolbar,
@@ -99,7 +100,7 @@ impl Default for ViewportSettings {
 pub struct Response {
     pub request_save: bool,
 }
-#[derive(Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct CanvasSettings {
     pub pencil_only_drawing: bool,
     show_dot_grid: bool,
@@ -107,6 +108,7 @@ pub struct CanvasSettings {
     pub right_locked: bool,
     pub bottom_locked: bool,
     pub top_locked: bool,
+    pub pen: PenSettings,
 }
 
 impl Default for CanvasSettings {
@@ -118,6 +120,7 @@ impl Default for CanvasSettings {
             right_locked: false,
             bottom_locked: false,
             top_locked: false,
+            pen: PenSettings::default_pen(),
         }
     }
 }
@@ -146,10 +149,11 @@ impl SVGEditor {
         }
 
         let elements_count = buffer.elements.len();
-        let toolbar = Toolbar::new(elements_count);
 
         let mut cfg = cfg.clone();
         let settings = cfg.get_canvas_settings();
+
+        let toolbar = Toolbar::new(elements_count, &settings);
 
         if viewport_settings.master_transform == Transform::identity() && buffer.elements.is_empty()
         {
@@ -221,7 +225,10 @@ impl SVGEditor {
         if global_diff.is_dirty() {
             self.has_queued_save_request = true;
             if global_diff.transformed.is_none() {
-                self.toolbar.show_tool_popover = false;
+                self.toolbar
+                    .hide_tool_popover(&mut self.settings, &mut self.cfg);
+
+                self.toolbar.toggle_viewport_popover(None);
             }
         }
 

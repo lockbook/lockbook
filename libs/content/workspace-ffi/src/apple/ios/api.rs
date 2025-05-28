@@ -863,8 +863,11 @@ pub unsafe extern "C" fn toggle_drawing_tool(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if let Some(svg) = obj.workspace.current_tab_svg_mut() {
-        svg.toolbar
-            .set_tool(svg.toolbar.previous_tool.unwrap_or(Tool::Pen));
+        svg.toolbar.set_tool(
+            svg.toolbar.previous_tool.unwrap_or(Tool::Pen),
+            &mut svg.settings,
+            &mut svg.cfg,
+        );
     }
 }
 
@@ -875,7 +878,8 @@ pub unsafe extern "C" fn toggle_drawing_tool_between_eraser(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if let Some(svg) = obj.workspace.current_tab_svg_mut() {
-        svg.toolbar.toggle_tool_between_eraser()
+        svg.toolbar
+            .toggle_tool_between_eraser(&mut svg.settings, &mut svg.cfg)
     }
 }
 

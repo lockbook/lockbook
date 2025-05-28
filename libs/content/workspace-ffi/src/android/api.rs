@@ -530,10 +530,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleEraserSVG(
 
     if let Some(svg) = obj.workspace.current_tab_svg_mut() {
         if select == 1 {
-            svg.toolbar.set_tool(Tool::Eraser);
-        } else if svg.toolbar.active_tool == Tool::Eraser {
             svg.toolbar
-                .set_tool(svg.toolbar.previous_tool.unwrap_or(Tool::Pen));
+                .set_tool(Tool::Eraser, &mut svg.settings, &mut svg.cfg);
+        } else if svg.toolbar.active_tool == Tool::Eraser {
+            svg.toolbar.set_tool(
+                svg.toolbar.previous_tool.unwrap_or(Tool::Pen),
+                &mut svg.settings,
+                &mut svg.cfg,
+            );
         }
     }
 }

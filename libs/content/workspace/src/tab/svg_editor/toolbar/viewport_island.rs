@@ -103,7 +103,7 @@ impl Toolbar {
             self.layout.zoom_pct_btn = Some(zoom_pct_btn.rect);
 
             if zoom_pct_btn.clicked() || zoom_pct_btn.drag_started() {
-                self.toggle_popover(Some(ViewportPopover::ZoomStops));
+                self.toggle_viewport_popover(Some(ViewportPopover::ZoomStops));
             }
 
             if Button::default().icon(&Icon::ZOOM_IN).show(ui).clicked() {
@@ -134,7 +134,7 @@ impl Toolbar {
 
             let more_btn = Button::default().icon(&icon).show(ui);
             if more_btn.clicked() || more_btn.drag_started() {
-                self.toggle_popover(Some(ViewportPopover::More))
+                self.toggle_viewport_popover(Some(ViewportPopover::More))
             }
         })
     }
@@ -445,7 +445,7 @@ impl Toolbar {
         Some((bounded_rect, t.pre_concat(tlbr_ctx.viewport_settings.master_transform)))
     }
 
-    pub fn toggle_popover(&mut self, new_popover: Option<ViewportPopover>) {
+    pub fn toggle_viewport_popover(&mut self, new_popover: Option<ViewportPopover>) {
         if self.viewport_popover == new_popover {
             self.viewport_popover = None;
         } else {

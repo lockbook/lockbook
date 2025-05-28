@@ -371,16 +371,7 @@ pub fn parse_child(
 
             let stroke = if let Some(s) = path.stroke() {
                 if let Paint::Color(color) = *s.paint() {
-                    let canvas_colors = get_canvas_colors();
-
-                    let maybe_dynamic_color = if let Some(dynamic_color) = canvas_colors
-                        .iter()
-                        .find(|c| c.light.eq(&color) || c.dark.eq(&color))
-                    {
-                        *dynamic_color
-                    } else {
-                        DynamicColor { light: color, dark: color }
-                    };
+                    let maybe_dynamic_color = get_dyn_color(color);
 
                     Some(Stroke {
                         color: maybe_dynamic_color,
@@ -415,6 +406,20 @@ pub fn parse_child(
         }
         _ => {}
     }
+}
+
+pub fn get_dyn_color(color: Color) -> DynamicColor {
+    let canvas_colors = get_canvas_colors();
+
+    let maybe_dynamic_color = if let Some(dynamic_color) = canvas_colors
+        .iter()
+        .find(|c| c.light.eq(&color) || c.dark.eq(&color))
+    {
+        *dynamic_color
+    } else {
+        DynamicColor { light: color, dark: color }
+    };
+    maybe_dynamic_color
 }
 
 fn get_internal_id(svg_id: &str, id_map: &mut HashMap<Uuid, String>) -> Uuid {
