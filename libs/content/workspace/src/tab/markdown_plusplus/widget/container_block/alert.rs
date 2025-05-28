@@ -23,8 +23,31 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    pub fn height_alert(&self, node: &'ast AstNode<'ast>) -> f32 {
-        self.height_block_quote(node)
+    pub fn height_alert(&self, node: &'ast AstNode<'ast>, node_alert: &NodeAlert) -> f32 {
+        let mut result = self.height_alert_title_line(node, node_alert);
+
+        let first_line_idx = self.node_first_line_idx(node);
+        let any_children = node.children().next().is_some();
+        if any_children {
+            result += BLOCK_SPACING;
+            result += self.block_children_height(node)
+        } else {
+            for line_idx in self.node_lines(node).iter() {
+                let line = self.bounds.source_lines[line_idx];
+                let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
+
+                if line_idx != first_line_idx {
+                    result += BLOCK_SPACING;
+                    result += self.height_text_line(
+                        &mut Wrap::new(self.width(node)),
+                        node_line,
+                        self.text_format_syntax(node),
+                    );
+                }
+            }
+        }
+
+        result
     }
 
     pub fn show_alert(
@@ -34,10 +57,6 @@ impl<'ast> MarkdownPlusPlus {
         let height = self.height(node);
         let annotation_size = Vec2 { x: INDENT, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
-
-        // debug
-        // ui.painter()
-        //     .rect_stroke(annotation_space, 2., egui::Stroke::new(1., self.theme.fg().blue));
 
         ui.painter().vline(
             annotation_space.center().x,
@@ -54,34 +73,117 @@ impl<'ast> MarkdownPlusPlus {
             self.bounds.paragraphs.push(prefix);
         }
 
-        top_left.x += annotation_space.width();
+        top_left.x += INDENT;
 
-        let line = self.node_first_line(node);
-        let node_line = (line.start() + self.line_prefix_len_block_quote(node, line), line.end());
-        if node_line.intersects(&self.buffer.current.selection, true) {
+        // title line is shown & revealed separately from block syntax as if
+        // it's a child block - see also: special handling in spacing.rs
+        self.show_alert_title_line(ui, node, top_left, node_alert);
+        top_left.y += self.height_alert_title_line(node, node_alert);
+
+        let first_line = self.node_first_line(node);
+        let any_children = node.children().next().is_some();
+        if any_children {
+            top_left.y += BLOCK_SPACING;
+            self.show_block_children(ui, node, top_left);
+        } else {
+            for line in self.node_lines(node).iter() {
+                let line = self.bounds.source_lines[line];
+                let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
+
+                if line != first_line {
+                    top_left.y += BLOCK_SPACING;
+
+                    self.bounds.paragraphs.push(node_line);
+                    self.show_text_line(
+                        ui,
+                        top_left,
+                        &mut Wrap::new(self.width(node) - INDENT),
+                        node_line,
+                        self.text_format_syntax(node),
+                        false,
+                    );
+                    top_left.y += self.height_text_line(
+                        &mut Wrap::new(self.width(node) - INDENT),
+                        node_line,
+                        self.text_format_syntax(node),
+                    );
+                }
+            }
+        }
+    }
+
+    pub fn height_alert_title_line(
+        &self, node: &'ast AstNode<'ast>, node_alert: &NodeAlert,
+    ) -> f32 {
+        let mut result = 0.;
+
+        let first_line = self.node_first_line(node);
+        let first_node_line = (
+            first_line.start() + self.line_prefix_len_block_quote(node, first_line),
+            first_line.end(),
+        );
+        if first_node_line.intersects(&self.buffer.current.selection, true) {
+            result += self.height_text_line(
+                &mut Wrap::new(self.width(node) - INDENT),
+                first_node_line,
+                self.text_format_syntax(node),
+            );
+        } else {
+            let title_width = self.width(node) - INDENT - ROW_HEIGHT - INDENT;
+
+            let (_type, title) = self.alert_type_title_ranges(node);
+            if node_alert.title.is_some() {
+                result += self.height_text_line(
+                    &mut Wrap::new(title_width),
+                    title,
+                    self.text_format(node),
+                );
+            } else {
+                let type_display_text = match node_alert.alert_type {
+                    AlertType::Note => "Note",
+                    AlertType::Tip => "Tip",
+                    AlertType::Important => "Important",
+                    AlertType::Warning => "Warning",
+                    AlertType::Caution => "Caution",
+                };
+                result += self.height_override_text_line(
+                    &mut Wrap::new(title_width),
+                    type_display_text,
+                    self.text_format(node),
+                );
+            }
+        }
+
+        result
+    }
+
+    pub fn show_alert_title_line(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, node_alert: &NodeAlert,
+    ) {
+        let first_line = self.node_first_line(node);
+        let first_node_line = (
+            first_line.start() + self.line_prefix_len_block_quote(node, first_line),
+            first_line.end(),
+        );
+        self.bounds.paragraphs.push(first_node_line);
+        if first_node_line.intersects(&self.buffer.current.selection, true) {
             // note and title line are revealed separately from block syntax as
             // if they're a child block
             self.show_text_line(
                 ui,
                 top_left,
-                &mut Wrap::new(self.width(node) - annotation_space.width()),
-                node_line,
+                &mut Wrap::new(self.width(node) - INDENT),
+                first_node_line,
                 self.text_format_syntax(node),
                 false,
             );
         } else {
             let icon_space = Rect::from_min_size(top_left, Vec2::splat(ROW_HEIGHT));
             let display_text_top_left = top_left + Vec2::X * INDENT;
+            let title_width = self.width(node) - INDENT - ROW_HEIGHT - INDENT;
 
             // icon
             {
-                // debug
-                // ui.painter().rect_stroke(
-                //     icon_space,
-                //     2.,
-                //     egui::Stroke::new(1., self.text_format(node).color),
-                // );
-
                 let icon = &match node_alert.alert_type {
                     AlertType::Note => Icon::INFO,
                     AlertType::Tip => Icon::LIGHT_BULB,
@@ -104,7 +206,7 @@ impl<'ast> MarkdownPlusPlus {
                 self.show_text_line(
                     ui,
                     display_text_top_left,
-                    &mut Wrap::new(self.width(node) - annotation_space.width()),
+                    &mut Wrap::new(title_width),
                     title,
                     self.text_format(node),
                     false,
@@ -120,35 +222,12 @@ impl<'ast> MarkdownPlusPlus {
                 self.show_override_text_line(
                     ui,
                     display_text_top_left,
-                    &mut Wrap::new(self.width(node) - annotation_space.width()),
-                    (node_line.end() - 1).into_range(),
+                    &mut Wrap::new(title_width),
+                    (first_node_line.end() - 1).into_range(),
                     self.text_format(node),
                     false,
                     Some(type_display_text),
                 );
-            }
-        }
-
-        self.bounds.paragraphs.push(node_line);
-
-        let any_children = node.children().next().is_some();
-        if any_children {
-            self.show_block_children(ui, node, top_left);
-        } else {
-            for line in self.node_lines(node).iter() {
-                let line = self.bounds.source_lines[line];
-                let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
-                let node_line_start = node_line.start().into_range();
-
-                self.show_text_line(
-                    ui,
-                    top_left,
-                    &mut Wrap::new(self.width(node)),
-                    node_line_start,
-                    self.text_format_document(),
-                    false,
-                );
-                top_left.y += ROW_HEIGHT + BLOCK_SPACING;
             }
         }
     }

@@ -1,6 +1,4 @@
-use comrak::nodes::{
-    AstNode, NodeFootnoteReference, NodeHeading, NodeHtmlBlock, NodeLink, NodeValue,
-};
+use comrak::nodes::{AstNode, NodeFootnoteReference, NodeHeading, NodeLink, NodeValue};
 use egui::{Pos2, TextFormat, Ui};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
@@ -66,7 +64,9 @@ impl Wrap {
 
     /// The height of the wrapped text; always at least [`Self::row_height`]
     pub fn height(&self) -> f32 {
-        ((self.offset / self.width).ceil() * self.row_height).max(self.row_height)
+        let num_rows = ((self.offset / self.width).ceil() as usize).max(1);
+        let num_spacings = num_rows.saturating_sub(1);
+        num_rows as f32 * self.row_height + num_spacings as f32 * ROW_SPACING
     }
 }
 
@@ -171,7 +171,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(_) => self.height_alert(node),
+            NodeValue::Alert(node_alert) => self.height_alert(node, node_alert),
             NodeValue::BlockQuote => self.height_block_quote(node),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),

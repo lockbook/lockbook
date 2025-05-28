@@ -103,8 +103,8 @@ impl<'ast> MarkdownPlusPlus {
             }
 
             let mut wrap = Wrap::new(self.width(node));
-
-            if node_line.intersects(&self.buffer.current.selection, true) {
+            let reveal = node_line.intersects(&self.buffer.current.selection, true);
+            if reveal {
                 self.show_text_line(
                     ui,
                     top_left,
@@ -117,7 +117,7 @@ impl<'ast> MarkdownPlusPlus {
             for child in &self.children_in_line(node, line) {
                 self.show_inline(ui, child, top_left, &mut wrap);
             }
-            if node_line.intersects(&self.buffer.current.selection, true) {
+            if reveal {
                 self.show_text_line(
                     ui,
                     top_left,
@@ -128,6 +128,7 @@ impl<'ast> MarkdownPlusPlus {
                 );
             }
         } else {
+            // todo: probably wrong - don't we want to show as syntax, or at least map the whole range?
             self.bounds.paragraphs.push(node_line.start().into_range());
         }
     }
