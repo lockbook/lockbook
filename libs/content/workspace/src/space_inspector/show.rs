@@ -1,4 +1,4 @@
-use super::data::{Data, StorageCell};
+use super::data::{Data, StorageCell, StorageTree};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use color_art;
@@ -11,11 +11,6 @@ use lb_rs::model::{errors::LbErr, file::File, usage::bytes_to_human};
 use lb_rs::{blocking::Lb, LbErrKind, Uuid};
 use std::sync::{Arc, Mutex};
 use std::thread;
-
-enum DeletionStatus {
-    Deleting,
-    DoneDeleting,
-}
 
 /// Responsible for tracking on screen locations for folders
 #[derive(Debug)]
@@ -472,6 +467,7 @@ impl SpaceInspector {
                             ui.close_menu();
                         }
                     }
+
                     if ui.button("Delete").clicked() {
                         let lb = self.lb.clone();
                         let id = item_filerow.file.id;
@@ -494,14 +490,56 @@ impl SpaceInspector {
             current_position += item.portion * (root_anchor.max.x - root_anchor.min.x);
             child_number += 1;
         }
+
+        // handles visual deletion
         match deleted_id {
             Some(id) => {
+                // Updates the size of all parents of deleted file
+                let deleted_size = Data::get_size(&self.data, &id);
+                self.update_parent_sizes(&id, deleted_size);
+
+                // Handles deletion of selected file and its children
+
+                let deleted_children = Data::get_children(&self.data, &id);
+
+                self.delete_children(deleted_children);
+
+                if Data::is_folder(&self.data, &id) {
+                    self.data.folder_sizes.remove(&id);
+                }
                 self.data.all_files.remove(&id);
-                self.data.folder_sizes.remove(&id);
+
                 self.paint_order = vec![];
             }
             None => (),
         };
         changed_focused_folder
+    }
+
+    /// Recursive function that goes up to update folder sizes of parents
+    fn update_parent_sizes(&mut self, child: &Uuid, size_difference: u64) {
+        let parent_id = self.data.all_files[child].file.parent;
+        if parent_id == *child {
+            return;
+        }
+        let original_size = self.data.folder_sizes[&parent_id];
+        self.data
+            .folder_sizes
+            .insert(parent_id, original_size - size_difference);
+        self.update_parent_sizes(&parent_id, size_difference);
+    }
+
+    /// Recursive function that is called when file is deleted
+    fn delete_children(&mut self, trees: Vec<StorageTree>) {
+        for tree in trees {
+            if Data::is_folder(&self.data, &tree.id) {
+                self.data.folder_sizes.remove(&tree.id);
+            }
+            self.data.all_files.remove(&tree.id);
+
+            if !tree.children.is_empty() {
+                self.delete_children(tree.children);
+            }
+        }
     }
 }

@@ -23,10 +23,10 @@ pub struct FileRow {
 /// Stores information in a tree format returned by get_children()
 #[derive(PartialEq, Debug, Clone)]
 pub struct StorageTree {
-    id: Uuid,
+    pub id: Uuid,
     name: String,
     portion: f32,
-    children: Vec<StorageTree>,
+    pub children: Vec<StorageTree>,
 }
 
 /// Responsible for storing relevant folder information for painting. Portion represents the ratio of size between the file and the root
@@ -97,7 +97,23 @@ impl Data {
         filerows
     }
 
-    fn get_children(&self, id: &Uuid) -> Vec<StorageTree> {
+    pub fn get_size(&self, id: &Uuid) -> u64 {
+        if self.all_files[id].file.is_folder() {
+            self.folder_sizes[id]
+        } else {
+            self.all_files[id].size
+        }
+    }
+
+    pub fn is_folder(&self, id: &Uuid) -> bool {
+        if self.all_files[id].file.is_folder() {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn get_children(&self, id: &Uuid) -> Vec<StorageTree> {
         if !self.all_files[id].file.is_folder() {
             return vec![];
         }
