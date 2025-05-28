@@ -716,7 +716,7 @@ pub struct WsPersistentStore {
     data: Arc<RwLock<WsPresistentData>>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 struct WsPresistentData {
     open_tabs: Vec<Uuid>,
     current_tab: Option<Uuid>,
