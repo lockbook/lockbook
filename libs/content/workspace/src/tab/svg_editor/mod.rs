@@ -203,8 +203,8 @@ impl SVGEditor {
         let non_empty_weak_imaegs = !self.buffer.weak_images.is_empty();
         self.promote_weak_images();
 
-        self.process_events(ui);
         self.show_toolbar(ui);
+        self.process_events(ui);
 
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
         self.viewport_settings.update_working_rect();
