@@ -116,7 +116,9 @@ impl SVGEditor {
 
                         let mut new_ids = Vec::with_capacity(pasted_buffer.elements.iter().count());
 
-                        for (_, el) in pasted_buffer.elements.iter() {
+                        for (id, el) in pasted_buffer.elements.iter() {
+                            let new_id = Uuid::new_v4();
+
                             let mut transformed_el = el.clone();
 
                             let paste_pos = r.pointer.hover_pos().unwrap_or(
@@ -125,19 +127,29 @@ impl SVGEditor {
                                     .unwrap_or(ui.available_rect_before_wrap().center()),
                             );
 
-                            let delta =
-                                paste_pos - container.center() * self.buffer.master_transform.sx;
+                            let delta = paste_pos
+                                - container.center() * self.viewport_settings.master_transform.sx;
 
                             let transform = Transform::identity()
                                 .post_scale(
-                                    self.buffer.master_transform.sx,
-                                    self.buffer.master_transform.sy,
+                                    self.viewport_settings.master_transform.sx,
+                                    self.viewport_settings.master_transform.sy,
                                 )
                                 .post_translate(delta.x, delta.y);
 
                             match &mut transformed_el {
                                 Element::Path(path) => {
-                                    path.data.apply_transform(u_transform_to_bezier(&transform))
+                                    path.data.apply_transform(u_transform_to_bezier(&transform));
+
+                                    let maybe_pressure = self
+                                        .buffer
+                                        .weak_path_pressures
+                                        .get(id)
+                                        .map(|vec| vec.to_owned());
+
+                                    if let Some(pressures) = maybe_pressure {
+                                        self.buffer.weak_path_pressures.insert(new_id, pressures);
+                                    }
                                 }
                                 Element::Image(image) => {
                                     if let Some(new_vbox) = image.view_box.transform(transform) {
@@ -147,7 +159,6 @@ impl SVGEditor {
                                 Element::Text(_) => todo!(),
                             }
 
-                            let new_id = Uuid::new_v4();
                             self.buffer
                                 .elements
                                 .insert_before(0, new_id, transformed_el);

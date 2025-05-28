@@ -4,7 +4,6 @@ use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::lazy::{LazyStaged1, LazyTree};
 use crate::model::signed_file::SignedFile;
-use crate::model::staged::StagedTreeLike;
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use crate::model::{symkey, validate};
 use crate::service::keychain::Keychain;
@@ -13,11 +12,9 @@ use uuid::Uuid;
 
 use super::ValidationFailure;
 
-impl<Base, Local, Staged> LazyTree<Staged>
+impl<T> LazyTree<T>
 where
-    Base: TreeLike<F = SignedFile>,
-    Local: TreeLike<F = Base::F>,
-    Staged: StagedTreeLike<Base = Base, Staged = Local>,
+    T: TreeLike<F = SignedFile>,
 {
     pub fn path_to_id(&mut self, path: &str, root: &Uuid, keychain: &Keychain) -> LbResult<Uuid> {
         let mut current = *root;
@@ -91,47 +88,37 @@ where
         // Deal with filter
         let filtered = match filter {
             Some(Filter::DocumentsOnly) => {
-                let mut ids = HashSet::new();
+                let mut ids = vec![];
                 for id in self.ids() {
                     if self.find(&id)?.is_document() {
-                        ids.insert(id);
+                        ids.push(id);
                     }
                 }
                 ids
             }
             Some(Filter::FoldersOnly) => {
-                let mut ids = HashSet::new();
+                let mut ids = vec![];
                 for id in self.ids() {
                     if self.find(&id)?.is_folder() {
-                        ids.insert(id);
+                        ids.push(id);
                     }
                 }
                 ids
             }
             Some(Filter::LeafNodesOnly) => {
-                let mut retained: HashSet<Uuid> = self.ids().into_iter().collect();
+                let mut retained: Vec<_> = self.ids().into_iter().collect();
                 for id in self.ids() {
-                    retained.remove(self.find(&id)?.parent());
+                    let parent = self.find(&id)?.parent();
+                    retained.retain(|fid| fid != parent);
                 }
                 retained
             }
-            None => self.ids().into_iter().collect(),
+            None => self.ids(),
         };
 
-        // remove deleted; include links not linked files
         let mut paths = vec![];
-        for id in filtered.clone() {
-            let id = match self.linked_by(&id)? {
-                None => id,
-                Some(link) => {
-                    if filtered.contains(&link) {
-                        continue;
-                    }
-                    link
-                }
-            };
-
-            if !self.calculate_deleted(&id)? && !self.in_pending_share(&id)? {
+        for id in filtered {
+            if !self.is_invisible_id(id)? {
                 paths.push((id, self.id_to_path(&id, keychain)?));
             }
         }

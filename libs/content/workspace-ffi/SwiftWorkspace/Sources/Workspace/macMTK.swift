@@ -41,6 +41,11 @@ public class MacMTK: MTKView, MTKViewDelegate {
         request_sync(wsHandle)
         setNeedsDisplay(self.frame)
     }
+    
+    func closeDoc(id: UUID) {
+        close_tab(wsHandle, id.uuidString)
+        setNeedsDisplay(self.frame)
+    }
 
     func fileOpCompleted(fileOp: WSFileOpCompleted) {
         switch fileOp {

@@ -1,11 +1,18 @@
 use lb_rs::{
     blocking::Lb,
     model::svg::{
+        buffer::WeakViewportSettings,
         diff::DiffState,
         element::{Element, Image, Path, WeakImage},
+        WeakTransform,
     },
 };
 use resvg::usvg::{NonZeroRect, Transform};
+
+use super::{
+    util::{demote_to_weak_rect, promote_weak_rect},
+    ViewportSettings,
+};
 
 pub trait BoundedElement {
     fn bounding_box(&self) -> egui::Rect;
@@ -74,6 +81,36 @@ impl PromoteWeakImage for Image {
             opacity: value.opacity,
             diff_state: DiffState::new(),
             deleted: false,
+        }
+    }
+}
+
+impl From<ViewportSettings> for WeakViewportSettings {
+    fn from(viewport: ViewportSettings) -> Self {
+        WeakViewportSettings {
+            bounded_rect: viewport.bounded_rect.map(demote_to_weak_rect),
+            master_transform: WeakTransform::from(viewport.master_transform),
+            left_locked: viewport.left_locked,
+            right_locked: viewport.right_locked,
+            bottom_locked: viewport.bottom_locked,
+            top_locked: viewport.top_locked,
+            viewport_transform: viewport.viewport_transform.map(WeakTransform::from),
+        }
+    }
+}
+
+impl From<WeakViewportSettings> for ViewportSettings {
+    fn from(weak: WeakViewportSettings) -> Self {
+        ViewportSettings {
+            bounded_rect: weak.bounded_rect.map(promote_weak_rect),
+            working_rect: egui::Rect::NOTHING,
+            viewport_transform: weak.viewport_transform.map(Transform::from),
+            master_transform: Transform::from(weak.master_transform),
+            container_rect: egui::Rect::NOTHING,
+            left_locked: weak.left_locked,
+            right_locked: weak.right_locked,
+            bottom_locked: weak.bottom_locked,
+            top_locked: weak.top_locked,
         }
     }
 }
