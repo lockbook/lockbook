@@ -24,6 +24,10 @@ impl<'ast> MarkdownPlusPlus {
             // document never spaced
             return 0.;
         };
+        if matches!(node.data.borrow().value, NodeValue::TableRow(_)) {
+            // table rows never spaced
+            return 0.;
+        }
         let width = self.width(node);
 
         let mut result = 0.;
@@ -36,7 +40,7 @@ impl<'ast> MarkdownPlusPlus {
             // parent top -> (empty row -> spacing)* -> first sibling top
             let mut spacing_first_line = self.node_first_line_idx(parent);
 
-            if let NodeValue::Alert(node_alert) = &parent.data.borrow().value {
+            if matches!(&parent.data.borrow().value, NodeValue::Alert(_)) {
                 // the first line of an alert is rendered by the alert
                 spacing_first_line += 1;
             }
@@ -75,6 +79,10 @@ impl<'ast> MarkdownPlusPlus {
             // document never spaced
             return;
         };
+        if matches!(node.data.borrow().value, NodeValue::TableRow(_)) {
+            // table rows never spaced
+            return;
+        }
         let width = self.width(node);
 
         let siblings = self.sorted_siblings(node);
@@ -84,7 +92,7 @@ impl<'ast> MarkdownPlusPlus {
             // parent top -> (empty row -> spacing)* -> first sibling top
             let mut spacing_first_line = self.node_first_line_idx(parent);
 
-            if let NodeValue::Alert(node_alert) = &parent.data.borrow().value {
+            if matches!(&parent.data.borrow().value, NodeValue::Alert(_)) {
                 // the first line of an alert is rendered by the alert
                 spacing_first_line += 1;
             }

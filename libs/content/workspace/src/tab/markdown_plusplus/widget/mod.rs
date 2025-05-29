@@ -338,7 +338,10 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Heading(_) => indented_width(),
             NodeValue::HtmlBlock(_) => indented_width(),
             NodeValue::Paragraph => indented_width(),
-            NodeValue::TableCell => 1.0 / node.parent().unwrap().children().count() as f32,
+            NodeValue::TableCell => {
+                (parent_width() / node.parent().unwrap().children().count() as f32)
+                    - 2. * BLOCK_PADDING
+            }
             NodeValue::ThematicBreak => indented_width(),
         }
     }
