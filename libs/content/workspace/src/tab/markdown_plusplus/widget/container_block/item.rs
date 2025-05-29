@@ -21,7 +21,7 @@ impl<'ast> MarkdownPlusPlus {
             self.height_text_line(
                 &mut Wrap::new(self.width(node) - INDENT),
                 node_line,
-                self.text_format_document(),
+                self.text_format_syntax(node),
             )
         }
     }
@@ -81,7 +81,7 @@ impl<'ast> MarkdownPlusPlus {
                 top_left,
                 &mut Wrap::new(self.width(node) - INDENT),
                 node_line,
-                self.text_format_document(),
+                self.text_format_syntax(node),
                 false,
             );
         }

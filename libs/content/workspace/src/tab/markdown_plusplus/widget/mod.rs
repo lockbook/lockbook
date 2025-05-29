@@ -449,52 +449,16 @@ impl<'ast> MarkdownPlusPlus {
             // add pre-spacing
             let pre_spacing = self.block_pre_spacing_height(child);
             self.show_block_pre_spacing(ui, child, top_left);
-
-            // debug
-            // ui.painter().rect_stroke(
-            //     egui::Rect::from_min_size(
-            //         top_left,
-            //         egui::Vec2::new(self.width(child), pre_spacing),
-            //     ),
-            //     2.,
-            //     egui::Stroke::new(pre_spacing.min(1.), self.theme.bg().neutral_quarternary),
-            // );
-            // println!("{}pre_spacing: {}", "  ".repeat(node.ancestors().count() - 1), pre_spacing);
-
             top_left.y += pre_spacing;
 
             // add block
             let child_height = self.height(child);
             self.show_block(ui, child, top_left);
-
-            // debug
-            // ui.painter().rect_stroke(
-            //     egui::Rect::from_min_size(
-            //         top_left,
-            //         egui::Vec2::new(self.width(child), child_height),
-            //     ),
-            //     2.,
-            //     egui::Stroke::new(1., self.theme.bg().green),
-            // );
-            // println!("{}child_height: {}", "  ".repeat(node.ancestors().count() - 1), child_height);
-
             top_left.y += child_height;
 
             // add post-spacing
             let post_spacing = self.block_post_spacing_height(child);
             self.show_block_post_spacing(ui, child, top_left);
-
-            // debug
-            // ui.painter().rect_stroke(
-            //     egui::Rect::from_min_size(
-            //         top_left,
-            //         egui::Vec2::new(self.width(child), post_spacing),
-            //     ),
-            //     2.,
-            //     egui::Stroke::new(post_spacing.min(1.), self.theme.bg().neutral_quarternary),
-            // );
-            // println!("{}post_spacing: {}", "  ".repeat(node.ancestors().count() - 1), post_spacing);
-
             top_left.y += post_spacing;
         }
 
@@ -858,24 +822,30 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    fn line_prefix_intersects_selection(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> bool {
-        let line_prefix = (line.start(), line.start() + self.line_prefix_len(node, line));
-        if line_prefix.is_empty() {
-            return false;
-        }
-
-        let selection = self.buffer.current.selection;
-
-        line_prefix.intersects(&selection, false) || selection.end() == line_prefix.start()
-    }
-
     /// returns true if the syntax for a container block should be revealed
     fn reveal(&self, node: &'ast AstNode<'ast>) -> bool {
         for line in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line];
-            if self.line_prefix_intersects_selection(node, line) {
+
+            let line_prefix = (line.start(), line.start() + self.line_prefix_len(node, line));
+            if line_prefix.is_empty() {
+                continue;
+            }
+
+            let selection = self.buffer.current.selection;
+            if line_prefix.intersects(&selection, false) {
+                // line prefix contains some part of the selection
+                return true;
+            }
+            if selection.end() == line_prefix.start() {
+                // start of line prefix is inclusive
+                return true;
+            }
+            if self.buffer[line_prefix].chars().all(|c| c.is_whitespace())
+                && selection.start() == line_prefix.end()
+            {
+                // line prefix contains only whitespace: end of line prefix is inclusive
+                // this improves the editing experience for list items
                 return true;
             }
         }
