@@ -16,7 +16,7 @@ use self::history::History;
 use crate::tab::svg_editor::toolbar::Toolbar;
 use crate::workspace::WsPersistentStore;
 
-use element::PromoteWeakImage;
+use element::PromoteBufferWeakImages;
 pub use eraser::Eraser;
 pub use history::DeleteElement;
 pub use history::Event;
@@ -27,7 +27,6 @@ use lb_rs::model::svg::buffer::u_transform_to_bezier;
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::Element;
-use lb_rs::model::svg::element::Image;
 use lb_rs::Uuid;
 pub use path_builder::PathBuilder;
 pub use pen::Pen;
@@ -201,7 +200,8 @@ impl SVGEditor {
         self.buffer.weak_viewport_settings = self.viewport_settings.into();
 
         let non_empty_weak_imaegs = !self.buffer.weak_images.is_empty();
-        self.promote_weak_images();
+        self.buffer
+            .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
 
         self.show_toolbar(ui);
         self.process_events(ui);
@@ -250,29 +250,6 @@ impl SVGEditor {
 
         self.buffer.master_transform_changed = false;
         Response { request_save: needs_save_and_frame_is_cheap }
-    }
-
-    fn promote_weak_images(&mut self) {
-        self.buffer
-            .weak_images
-            .drain()
-            .for_each(|(id, mut weak_image)| {
-                weak_image.transform(self.viewport_settings.master_transform);
-
-                let mut image = Image::from_weak(weak_image, &self.lb);
-
-                image.diff_state.transformed = None;
-
-                if weak_image.z_index >= self.buffer.elements.len() {
-                    self.buffer.elements.insert(id, Element::Image(image));
-                } else {
-                    self.buffer.elements.shift_insert(
-                        weak_image.z_index,
-                        id,
-                        Element::Image(image),
-                    );
-                };
-            });
     }
 
     fn show_background(&mut self, ui: &mut egui::Ui) {
