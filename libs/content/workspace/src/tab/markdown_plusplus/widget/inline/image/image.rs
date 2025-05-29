@@ -106,12 +106,6 @@ impl<'ast> MarkdownPlusPlus {
                             fill_texture_id: texture_id,
                             uv: Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } },
                         });
-                        // ui.painter().image(
-                        //     texture_id,
-                        //     rect,
-                        //     Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } },
-                        //     Default::default(),
-                        // );
                     });
                 }
                 ImageState::Failed(_) => {

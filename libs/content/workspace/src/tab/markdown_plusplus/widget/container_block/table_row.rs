@@ -68,9 +68,10 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
+    // todo: design work for uncapture + whatever else this affects
     pub fn line_prefix_len_table_row(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> RelCharOffset {
-        todo!()
+        0.into()
     }
 }
