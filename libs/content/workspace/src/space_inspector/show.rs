@@ -473,7 +473,7 @@ impl SpaceInspector {
                         let id = item_filerow.file.id;
                         deleted_id = Some(id);
                         thread::spawn(move || {
-                            let _ = lb.delete_file(&id);
+                            let _ = lb.delete_file(&id).unwrap();
                         });
                     }
                 });
