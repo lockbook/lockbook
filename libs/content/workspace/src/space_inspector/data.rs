@@ -106,11 +106,7 @@ impl Data {
     }
 
     pub fn is_folder(&self, id: &Uuid) -> bool {
-        if self.all_files[id].file.is_folder() {
-            true
-        } else {
-            false
-        }
+        self.all_files[id].file.is_folder()
     }
 
     pub fn get_children(&self, id: &Uuid) -> Vec<StorageTree> {

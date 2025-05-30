@@ -454,18 +454,16 @@ impl SpaceInspector {
                 response.context_menu(|ui| {
                     ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
 
-                    ui.label(&self.data.all_files[&item.id].file.name.to_string());
+                    ui.label(self.data.all_files[&item.id].file.name.to_string());
                     ui.label(&display_size);
                     ui.separator();
 
                     if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
                         ui.close_menu();
                     }
-                    if item_filerow.file.is_folder() {
-                        if ui.button("Make Root").clicked() {
-                            changed_focused_folder = Some(item.id);
-                            ui.close_menu();
-                        }
+                    if item_filerow.file.is_folder() && ui.button("Make Root").clicked() {
+                        changed_focused_folder = Some(item.id);
+                        ui.close_menu();
                     }
 
                     if ui.button("Delete").clicked() {
@@ -473,7 +471,7 @@ impl SpaceInspector {
                         let id = item_filerow.file.id;
                         deleted_id = Some(id);
                         thread::spawn(move || {
-                            let _ = lb.delete_file(&id).unwrap();
+                            lb.delete_file(&id).unwrap();
                         });
                     }
                 });
@@ -492,26 +490,23 @@ impl SpaceInspector {
         }
 
         // handles visual deletion
-        match deleted_id {
-            Some(id) => {
-                // Updates the size of all parents of deleted file
-                let deleted_size = Data::get_size(&self.data, &id);
-                self.update_parent_sizes(&id, deleted_size);
+        if let Some(id) = deleted_id {
+            // Updates the size of all parents of deleted file
+            let deleted_size = Data::get_size(&self.data, &id);
+            self.update_parent_sizes(&id, deleted_size);
 
-                // Handles deletion of selected file and its children
+            // Handles deletion of selected file and its children
 
-                let deleted_children = Data::get_children(&self.data, &id);
+            let deleted_children = Data::get_children(&self.data, &id);
 
-                self.delete_children(deleted_children);
+            self.delete_children(deleted_children);
 
-                if Data::is_folder(&self.data, &id) {
-                    self.data.folder_sizes.remove(&id);
-                }
-                self.data.all_files.remove(&id);
-
-                self.paint_order = vec![];
+            if Data::is_folder(&self.data, &id) {
+                self.data.folder_sizes.remove(&id);
             }
-            None => (),
+            self.data.all_files.remove(&id);
+
+            self.paint_order = vec![];
         };
         changed_focused_folder
     }
