@@ -11,8 +11,8 @@ use resvg::usvg::{NonZeroRect, Transform};
 use crate::tab::{svg_editor::element::BoundedElement, ClipContent, ExtendedInput as _};
 
 use super::{
-    gesture_handler::get_rect_identity_transform, selection::SelectedElement, util::transform_rect,
-    InsertElement, SVGEditor, Tool,
+    element::PromoteBufferWeakImages, gesture_handler::get_rect_identity_transform,
+    selection::SelectedElement, util::transform_rect, InsertElement, SVGEditor, Tool,
 };
 
 impl SVGEditor {
@@ -101,7 +101,11 @@ impl SVGEditor {
                     if !payload.starts_with("<svg") {
                         continue;
                     }
-                    let pasted_buffer = Buffer::new(payload);
+                    let mut pasted_buffer = Buffer::new(payload);
+
+                    pasted_buffer
+                        .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
+
                     if !pasted_buffer.elements.is_empty() || !pasted_buffer.weak_images.is_empty() {
                         let mut container = egui::Rect::NOTHING;
                         for el in pasted_buffer.elements.iter() {
@@ -115,7 +119,6 @@ impl SVGEditor {
                         }
 
                         let mut new_ids = Vec::with_capacity(pasted_buffer.elements.iter().count());
-
                         for (id, el) in pasted_buffer.elements.iter() {
                             let new_id = Uuid::new_v4();
 
