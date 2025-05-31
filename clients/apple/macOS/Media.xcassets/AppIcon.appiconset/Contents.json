@@ -13,7 +13,7 @@
       "size" : "16x16"
     },
     {
-      "filename" : "logo-padded-32 1.png",
+      "filename" : "logo-padded-32.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "32x32"
@@ -37,7 +37,7 @@
       "size" : "128x128"
     },
     {
-      "filename" : "logo-padded-256 1.png",
+      "filename" : "logo-padded-256.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "256x256"
@@ -49,7 +49,7 @@
       "size" : "256x256"
     },
     {
-      "filename" : "logo-padded-512 1.png",
+      "filename" : "logo-padded-512.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "512x512"
