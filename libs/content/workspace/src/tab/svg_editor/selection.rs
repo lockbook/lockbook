@@ -688,7 +688,7 @@ impl Selection {
                 .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))
                 .collect();
             // let weak_images = &selection_ctx.buffer.weak_images;
-            
+
             let serialized_selection = serialize_inner(
                 id_map,
                 elements,
