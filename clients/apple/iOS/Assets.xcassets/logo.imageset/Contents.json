@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "AppIcon512x512.png",
+      "filename" : "logo-padded.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
