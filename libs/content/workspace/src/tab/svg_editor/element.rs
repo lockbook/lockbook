@@ -1,7 +1,7 @@
 use lb_rs::{
     blocking::Lb,
     model::svg::{
-        buffer::WeakViewportSettings,
+        buffer::{Buffer, WeakViewportSettings},
         diff::DiffState,
         element::{Element, Image, Path, WeakImage},
         WeakTransform,
@@ -112,5 +112,28 @@ impl From<WeakViewportSettings> for ViewportSettings {
             bottom_locked: weak.bottom_locked,
             top_locked: weak.top_locked,
         }
+    }
+}
+
+pub trait PromoteBufferWeakImages {
+    fn promote_weak_images(&mut self, master_transform: Transform, lb: &Lb);
+}
+
+impl PromoteBufferWeakImages for Buffer {
+    fn promote_weak_images(&mut self, master_transform: Transform, lb: &Lb) {
+        self.weak_images.drain().for_each(|(id, mut weak_image)| {
+            weak_image.transform(master_transform);
+
+            let mut image = Image::from_weak(weak_image, lb);
+
+            image.diff_state.transformed = None;
+
+            if weak_image.z_index >= self.elements.len() {
+                self.elements.insert(id, Element::Image(image));
+            } else {
+                self.elements
+                    .shift_insert(weak_image.z_index, id, Element::Image(image));
+            };
+        });
     }
 }
