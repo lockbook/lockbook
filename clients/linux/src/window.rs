@@ -409,6 +409,7 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
         Ok(s) => (s, None),
         Err(err) => (Default::default(), Some(err.to_string())),
     };
+
     let app = lbeguiapp::Lockbook::new(&context, settings, maybe_settings_err);
 
     let start_time = Instant::now();
