@@ -70,7 +70,8 @@ impl SettingsModal {
                 let usage_info =
                     UsageSettingsInfo { sub_info_result, metrics_result, uncompressed_result };
 
-                info_tx.send(usage_info).unwrap();
+                // error ignored, sometimes settings is closed before it's result is seen, it's fine
+                info_tx.send(usage_info).unwrap_or_default();
             }
         });
 

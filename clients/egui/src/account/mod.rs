@@ -112,15 +112,15 @@ impl AccountScreen {
         // focus management
         let full_doc_search_id = Id::from("full_doc_search");
         let suggested_docs_id = Id::from("suggested_docs");
-        let sidebar_expanded = !self.settings.read().unwrap().zen_mode;
 
+        let sidebar_expanded = !self.settings.read().unwrap().zen_mode;
         if ctx.input(|i| i.key_pressed(Key::F) && i.modifiers.command && i.modifiers.shift) {
             if !sidebar_expanded {
-                self.settings.write().unwrap().zen_mode = false;
+                self.update_zen_mode(false);
 
                 ctx.memory_mut(|m| m.request_focus(full_doc_search_id));
             } else if ctx.memory(|m| m.has_focus(full_doc_search_id)) {
-                self.settings.write().unwrap().zen_mode = true;
+                self.update_zen_mode(true);
 
                 ctx.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
             } else {
@@ -199,7 +199,7 @@ impl AccountScreen {
                             .frame(true)
                             .show(ui);
                         if zen_mode_btn.clicked() {
-                            self.settings.write().unwrap().zen_mode = false;
+                            self.update_zen_mode(false);
                         }
                         zen_mode_btn.on_hover_text("Show side panel");
                     });
@@ -366,11 +366,8 @@ impl AccountScreen {
 
         // Ctrl-E toggle zen mode
         if ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::E)) {
-            let mut zen_mode = false;
-            if let Ok(settings) = &self.settings.read() {
-                zen_mode = !settings.zen_mode;
-            }
-            self.settings.write().unwrap().zen_mode = zen_mode;
+            let current_zen_mode = self.settings.read().unwrap().zen_mode;
+            self.update_zen_mode(!current_zen_mode);
         }
 
         // Ctrl-Space or Ctrl-O or Ctrl-L pressed while search modal is not open.
@@ -536,16 +533,19 @@ impl AccountScreen {
                     let zen_mode_btn = Button::default().icon(&Icon::TOGGLE_SIDEBAR).show(ui);
 
                     if zen_mode_btn.clicked() {
-                        self.settings.write().unwrap().zen_mode = true;
-                        if let Err(err) = self.settings.read().unwrap().to_file() {
-                            self.modals.error = Some(ErrorModal::new(err));
-                        }
+                        self.update_zen_mode(true);
                     }
 
                     zen_mode_btn.on_hover_text("Hide side panel");
                 });
             },
         );
+    }
+
+    fn update_zen_mode(&mut self, new_value: bool) {
+        if let Err(err) = self.settings.write().unwrap().write_zen_mode(new_value) {
+            self.modals.error = Some(ErrorModal::new(err));
+        }
     }
 
     fn save_settings(&mut self) {
