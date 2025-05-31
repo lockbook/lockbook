@@ -6,14 +6,21 @@ struct NewDrawerView<Main: View, Side: View>: View {
     @ViewBuilder let mainView: Main
     @ViewBuilder let sideView: Side
         
-    var dragActivationX: CGFloat = 20
-    var velocityActivationX: CGFloat = 300
+    let dragActivationClosedX: CGFloat = 20
+    let dragActivationOpenX: CGFloat = 50
+    
+    let velocityActivationX: CGFloat = 300
+    let successThreshold: CGFloat = 0.6
+    
+    let sidebarTrailingPadding: CGFloat = 50
 
     @State var offset: CGFloat = 0
     @GestureState var gestureOffset: CGFloat = 0
+    
+    
 
     func sidebarWidth(width: CGFloat) -> CGFloat {
-        return width - 50
+        return width - sidebarTrailingPadding
     }
     
     var body: some View {
@@ -83,8 +90,7 @@ struct NewDrawerView<Main: View, Side: View>: View {
                         blendDuration: 0),
                                value: gestureOffset
                     )
-                    .offset(x: -sidebarWidth(width: geometry.size.width))
-                    .offset(x: max(self.offset + self.gestureOffset, 0))
+                    .offset(x: min(-sidebarWidth(width: geometry.size.width) + max(self.offset + self.gestureOffset, 0), 0))
             }
             .onReceive(homeState.$constrainedSidebarState) { newValue in
                 withAnimation {
@@ -98,48 +104,71 @@ struct NewDrawerView<Main: View, Side: View>: View {
             
             Rectangle()
                 .fill(Color.clear)
-                .frame(width: dragActivationX)
+                .frame(width: dragActivationClosedX)
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture()
                         .updating($gestureOffset) { value, out, _ in
-                            if value.translation.width > 0 && homeState.constrainedSidebarState == .openPartial {
-                                out = value.translation.width * 3
-                            } else {
-                                out = min(value.translation.width, sidebarWidth(width: geometry.size.width))
-                            }
+                            out = min(value.translation.width, sidebarWidth(width: geometry.size.width))
                         }
                         .onEnded { value in
-                            onEnd(value: value, sidebarWidth: sidebarWidth(width: geometry.size.width))
+                            onOpenEnd(translation: value.translation.width, velocity: value.velocity.width, sidebarWidth: sidebarWidth(width: geometry.size.width))
                         }
                 )
                 .disabled(homeState.constrainedSidebarState == .openPartial)
+            
+            Rectangle()
+                .fill(Color.clear)
+                .frame(width: dragActivationClosedX)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture()
+                        .updating($gestureOffset) { value, out, _ in
+                            out = max(value.translation.width, -sidebarWidth(width: geometry.size.width))
+                        }
+                        .onEnded { value in
+                            onCloseEnd(translation: value.translation.width, velocity: value.velocity.width, sidebarWidth: sidebarWidth(width: geometry.size.width))
+                        }
+                )
+                .disabled(homeState.constrainedSidebarState == .closed)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, 30)
         }
     }
-
-    func onEnd(value: DragGesture.Value, sidebarWidth: CGFloat){
-        let translation = value.translation.width
+    
+    func onOpenEnd(translation: CGFloat, velocity: CGFloat, sidebarWidth: CGFloat){
+        let isOpenEnough = translation > 0 && translation > (sidebarWidth * successThreshold)
+        let isFastEnough = velocity > velocityActivationX
                 
-        if (translation > 0 && translation > (sidebarWidth * 0.6)) || value.velocity.width > velocityActivationX {
+        if isOpenEnough || isFastEnough {
             offset = sidebarWidth
             homeState.constrainedSidebarState = .openPartial
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        } else if -translation > (sidebarWidth / 2) {
+        } else {
             offset = 0
             homeState.constrainedSidebarState = .closed
+        }
+    }
+    
+    func onCloseEnd(translation: CGFloat, velocity: CGFloat, sidebarWidth: CGFloat) {
+        let translation = abs(translation)
+        let velocity = abs(velocity)
+        
+        let isOpenEnough = translation > 0 && translation > (sidebarWidth * successThreshold)
+        let isFastEnough = velocity > velocityActivationX
+                
+        if isOpenEnough || isFastEnough {
+            offset = 0
+            homeState.constrainedSidebarState = .closed
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         } else {
-            if offset == 0 || homeState.constrainedSidebarState == .closed {
-                return
-            }
             offset = sidebarWidth
             homeState.constrainedSidebarState = .openPartial
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
     }
 
     func getBlurRadius() -> CGFloat {
-        let progress =  (offset + gestureOffset) / (UIScreen.main.bounds.height * 0.50)
-        return progress
+        return (offset + gestureOffset) / (UIScreen.main.bounds.height * 0.50)
     }
 }
 
