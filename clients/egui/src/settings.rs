@@ -19,6 +19,15 @@ pub struct Settings {
 }
 
 impl Settings {
+    pub fn write_zen_mode(&mut self, new_value: bool) -> io::Result<()> {
+        if self.zen_mode == new_value {
+            return Ok(());
+        }
+
+        self.zen_mode = new_value;
+        self.to_file()
+    }
+
     pub fn read_from_file() -> Result<Self, Box<dyn std::error::Error>> {
         let path = match data_dir() {
             Ok(dir) => format!("{}/egui/settings.json", dir),
