@@ -40,12 +40,7 @@ struct DebugView: View {
                 
                 ProgressView()
                     .onAppear {
-                        DispatchQueue.global(qos: .userInitiated).async {
-                            let debug = AppState.lb.debugInfo()
-                            DispatchQueue.main.async {
-                                debugInfo = debug
-                            }
-                        }
+                        calculateDebugInfo()
                     }
                 
                 Spacer()
