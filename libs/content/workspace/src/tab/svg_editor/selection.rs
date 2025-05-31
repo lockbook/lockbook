@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 use lb_rs::{
     model::svg::{
         buffer::serialize_inner,
-        element::{Element, ManipulatorGroupId},
+        element::{Element, ManipulatorGroupId, WeakImages},
     },
     Uuid,
 };
@@ -687,13 +687,13 @@ impl Selection {
                 .drain(..)
                 .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))
                 .collect();
-            let weak_images = &selection_ctx.buffer.weak_images;
+            // let weak_images = &selection_ctx.buffer.weak_images;
 
             let serialized_selection = serialize_inner(
                 id_map,
                 elements,
                 &selection_ctx.buffer.weak_viewport_settings,
-                weak_images,
+                &WeakImages::default(),
                 &selection_ctx.buffer.weak_path_pressures,
             );
 
