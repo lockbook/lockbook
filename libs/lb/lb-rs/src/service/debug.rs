@@ -5,6 +5,7 @@ use crate::{get_code_version, service::logging::LOG_FILE};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::NaiveDateTime;
 use serde::Serialize;
+use std::backtrace::Backtrace;
 use std::env;
 use std::io::SeekFrom;
 use std::path::{Path, PathBuf};
@@ -25,6 +26,7 @@ pub struct DebugInfo {
     pub integrity: String,
     pub log_tail: String,
     pub last_panic: String,
+    pub example_backtrace: String,
 }
 
 impl Lb {
@@ -148,6 +150,7 @@ impl Lb {
             last_synced,
             os_info,
             last_panic: last_panic?,
+            example_backtrace: format!("{:?}", Backtrace::force_capture()),
         })?)
     }
 }
