@@ -496,17 +496,15 @@ impl SpaceInspector {
             self.update_parent_sizes(&id, deleted_size);
 
             // Handles deletion of selected file and its children
-
             let deleted_children = Data::get_children(&self.data, &id);
-
             self.delete_children(deleted_children);
-
             if Data::is_folder(&self.data, &id) {
                 self.data.folder_sizes.remove(&id);
             }
             self.data.all_files.remove(&id);
-
-            self.paint_order = vec![];
+            if let Some(pos) = self.paint_order.iter().position(|cell| cell.id == id) {
+                self.paint_order.remove(pos);
+            }
         };
         changed_focused_folder
     }
@@ -517,6 +515,7 @@ impl SpaceInspector {
         if parent_id == *child {
             return;
         }
+
         let original_size = self.data.folder_sizes[&parent_id];
         self.data
             .folder_sizes
@@ -531,7 +530,9 @@ impl SpaceInspector {
                 self.data.folder_sizes.remove(&tree.id);
             }
             self.data.all_files.remove(&tree.id);
-
+            if let Some(pos) = self.paint_order.iter().position(|cell| cell.id == tree.id) {
+                self.paint_order.remove(pos);
+            }
             if !tree.children.is_empty() {
                 self.delete_children(tree.children);
             }
