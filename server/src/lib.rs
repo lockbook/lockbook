@@ -1,13 +1,18 @@
+use account_dbs::AccountDbs;
 use billing::app_store_client::AppStoreClient;
 use billing::google_play_client::GooglePlayClient;
 use billing::stripe_client::StripeClient;
 use document_service::DocumentService;
 use lb_rs::model::clock;
 use lb_rs::model::errors::LbResult;
+use lb_rs::model::file_metadata::Owner;
+use schema::{ServerV4, ServerV5};
+use std::collections::HashMap;
 use std::env;
 use std::fmt::Debug;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
+use uuid::Uuid;
 
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
 use lb_rs::model::pubkey;
@@ -18,7 +23,6 @@ use serde::{Deserialize, Serialize};
 use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_error::SimplifiedStripeError;
-use crate::schema::ServerV4;
 use crate::ServerError::ClientError;
 pub use stripe;
 use tracing::log::warn;
@@ -34,12 +38,17 @@ where
     D: DocumentService,
 {
     pub config: config::Config,
-    pub index_db: Arc<Mutex<ServerV4>>,
+    pub db_v4: Arc<Mutex<ServerV4>>,
+    pub db_v5: Arc<RwLock<ServerV5>>,
+    pub account_dbs: AccountDbs,
+    pub meta_lookup: MetaLookup,
     pub stripe_client: S,
     pub google_play_client: G,
     pub app_store_client: A,
     pub document_service: D,
 }
+
+pub type MetaLookup = Arc<std::sync::Mutex<HashMap<Uuid, Owner>>>;
 
 #[derive(Clone)]
 pub struct RequestContext<TRequest> {
@@ -94,6 +103,7 @@ where
     )
 }
 
+pub mod account_dbs;
 pub mod account_service;
 pub mod billing;
 pub mod config;
@@ -104,4 +114,6 @@ pub mod loggers;
 pub mod metrics;
 pub mod router_service;
 pub mod schema;
+pub mod server_tree;
+pub mod usage;
 pub mod utils;

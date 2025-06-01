@@ -14,6 +14,9 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use uuid::Uuid;
 
+use super::meta::Meta;
+use super::signed_meta::SignedMeta;
+
 pub const FREE_TIER_USAGE_SIZE: u64 = 1000000;
 pub const PREMIUM_TIER_USAGE_SIZE: u64 = 30000000000;
 /// a fee of 1000 bytes allows 1000 file creations under the free tier.

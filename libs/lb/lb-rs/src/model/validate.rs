@@ -291,7 +291,7 @@ where
             // newly deleted files cannot have non-deletion updates
             if self.calculate_deleted(&id)? {
                 if let Some(base) = self.tree.base().maybe_find(&id) {
-                    if FileDiff::edit(&base, &self.find(&id)?)
+                    if FileDiff::edit(base.clone(), self.find(&id)?.clone())
                         .diff()
                         .iter()
                         .any(|d| d != &Diff::Deleted)
@@ -471,9 +471,9 @@ where
         for id in self.tree.staged().ids() {
             let staged = self.tree.staged().find(&id)?;
             if let Some(base) = self.tree.base().maybe_find(&id) {
-                result.push(FileDiff::edit(base, staged));
+                result.push(FileDiff::edit(base.clone(), staged.clone()));
             } else {
-                result.push(FileDiff::new(staged));
+                result.push(FileDiff::new(staged.clone()));
             }
         }
         Ok(result)
