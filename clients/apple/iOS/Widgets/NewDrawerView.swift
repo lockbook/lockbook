@@ -16,8 +16,6 @@ struct NewDrawerView<Main: View, Side: View>: View {
 
     @State var offset: CGFloat = 0
     @GestureState var gestureOffset: CGFloat = 0
-    
-    
 
     func sidebarWidth(width: CGFloat) -> CGFloat {
         return width - sidebarTrailingPadding
@@ -83,7 +81,7 @@ struct NewDrawerView<Main: View, Side: View>: View {
                             }
                         }
                 }
-                .frame(width:  sidebarWidth(width: geometry.size.width))
+                .frame(width: sidebarWidth(width: geometry.size.width))
                     .animation(.interactiveSpring(
                         response: 0.5,
                         dampingFraction: 0.8,
@@ -132,7 +130,7 @@ struct NewDrawerView<Main: View, Side: View>: View {
                 )
                 .disabled(homeState.constrainedSidebarState == .closed)
                 .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, 30)
+                .padding(.trailing, sidebarTrailingPadding - 20)
         }
     }
     
