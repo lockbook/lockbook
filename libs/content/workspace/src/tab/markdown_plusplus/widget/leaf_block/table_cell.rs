@@ -1,5 +1,6 @@
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
-use egui::{Pos2, Ui, Vec2};
+use egui::{Pos2, Ui};
+use lb_rs::model::text::offset_types::RangeExt as _;
 
 use crate::tab::markdown_plusplus::{
     widget::{Wrap, BLOCK_PADDING, BLOCK_SPACING},
@@ -8,8 +9,9 @@ use crate::tab::markdown_plusplus::{
 
 impl<'ast> MarkdownPlusPlus {
     pub fn height_table_cell(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let mut width = self.width(node);
-        width -= 2.0 * BLOCK_PADDING;
+        let width = self.width(node) - 2.0 * BLOCK_PADDING;
+        let mut wrap = Wrap::new(width);
+        let node_line = self.node_range(node); // table cells are always single-line
 
         let mut images_height = 0.;
         for descendant in node.descendants() {
@@ -19,17 +21,35 @@ impl<'ast> MarkdownPlusPlus {
             }
         }
 
-        images_height
-            + self.inline_children_height(node, width - 2. * BLOCK_PADDING)
-            + 2.0 * BLOCK_PADDING
+        if let Some((pre_node, pre_children, _, post_children, post_node)) =
+            self.line_ranges(node, node_line)
+        {
+            let reveal = node_line.intersects(&self.buffer.current.selection, true);
+            if reveal {
+                wrap.offset += self.span_text_line(&wrap, pre_node, self.text_format_syntax(node));
+                wrap.offset +=
+                    self.span_text_line(&wrap, pre_children, self.text_format_syntax(node));
+            }
+            for child in &self.children_in_range(node, node_line) {
+                wrap.offset += self.span(child, &wrap);
+            }
+            if reveal {
+                wrap.offset +=
+                    self.span_text_line(&wrap, post_children, self.text_format_syntax(node));
+                wrap.offset += self.span_text_line(&wrap, post_node, self.text_format_syntax(node));
+            }
+        } else {
+            wrap.offset += self.span_text_line(&wrap, node_line, self.text_format_syntax(node));
+        }
+
+        images_height + wrap.height()
     }
 
     pub fn show_table_cell(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
-        let width = self.width(node);
-        let wrap = Wrap::new(width);
-
-        top_left += Vec2::splat(BLOCK_PADDING);
-        let width = wrap.width - 2.0 * BLOCK_PADDING;
+        top_left.x += BLOCK_PADDING;
+        let width = self.width(node) - 2.0 * BLOCK_PADDING;
+        let mut wrap = Wrap::new(width);
+        let node_line = self.node_range(node); // table cells are always single-line
 
         for descendant in node.descendants() {
             if let NodeValue::Image(NodeLink { url, .. }) = &descendant.data.borrow().value {
@@ -39,11 +59,75 @@ impl<'ast> MarkdownPlusPlus {
             }
         }
 
-        self.show_inline_children(ui, node, top_left, &mut Wrap::new(width));
+        if let Some((pre_node, pre_children, children, post_children, post_node)) =
+            self.line_ranges(node, node_line)
+        {
+            if !pre_node.is_empty() {
+                self.bounds.paragraphs.push(pre_node);
+            }
+            if !pre_children.is_empty() {
+                self.bounds.paragraphs.push(pre_children);
+            }
+            self.bounds.paragraphs.push(children);
+            if !post_children.is_empty() {
+                self.bounds.paragraphs.push(post_children);
+            }
+            if !post_node.is_empty() {
+                self.bounds.paragraphs.push(post_node);
+            }
 
-        // bounds
-        let sourcepos = node.data.borrow().sourcepos;
-        let range = self.sourcepos_to_range(sourcepos);
-        self.bounds.paragraphs.push(range);
+            let reveal = node_line.intersects(&self.buffer.current.selection, true);
+            if reveal {
+                self.show_text_line(
+                    ui,
+                    top_left,
+                    &mut wrap,
+                    pre_node,
+                    self.text_format_syntax(node),
+                    false,
+                );
+                self.show_text_line(
+                    ui,
+                    top_left,
+                    &mut wrap,
+                    pre_children,
+                    self.text_format_syntax(node),
+                    false,
+                );
+            }
+            for child in &self.children_in_range(node, node_line) {
+                self.show_inline(ui, child, top_left, &mut wrap);
+            }
+            if reveal {
+                self.show_text_line(
+                    ui,
+                    top_left,
+                    &mut wrap,
+                    post_children,
+                    self.text_format_syntax(node),
+                    false,
+                );
+                self.show_text_line(
+                    ui,
+                    top_left,
+                    &mut wrap,
+                    post_node,
+                    self.text_format_syntax(node),
+                    false,
+                );
+            }
+        } else {
+            if !node_line.is_empty() {
+                self.bounds.paragraphs.push(node_line);
+            }
+            self.show_text_line(
+                ui,
+                top_left,
+                &mut wrap,
+                node_line,
+                self.text_format_syntax(node),
+                false,
+            );
+        }
     }
 }

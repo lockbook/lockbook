@@ -30,8 +30,6 @@ impl<'ast> MarkdownPlusPlus {
         // blank line.
         // https://github.github.com/gfm/#link-title
 
-        // self.show_inline_children(ui, node, top_left, wrap);
-
         self.show_circumfix(ui, node, top_left, wrap);
     }
 }
