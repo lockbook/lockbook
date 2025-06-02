@@ -74,14 +74,15 @@ impl<'ast> MarkdownPlusPlus {
         let mut wrap = Wrap::new(width);
         wrap.row_height = self.row_height(node);
 
-        if let Some((indentation, prefix, _, postfix_whitespace, _)) = self.line_ranges(node, line)
+        if let Some((indentation, prefix, _, postfix_whitespace, _)) =
+            self.line_ranges(node, self.node_line(node, line))
         {
             if reveal {
                 wrap.offset +=
                     self.span_text_line(&wrap, indentation, self.text_format_syntax(node));
                 wrap.offset += self.span_text_line(&wrap, prefix, self.text_format_syntax(node));
             }
-            for child in &self.children_in_line(node, line) {
+            for child in &self.children_in_range(node, line) {
                 wrap.offset += self.span(child, &wrap);
             }
             if reveal {
@@ -120,7 +121,8 @@ impl<'ast> MarkdownPlusPlus {
 
         let reveal = line.intersects(&self.buffer.current.selection, true);
 
-        if let Some((indentation, prefix_range, _, postfix_range, _)) = self.line_ranges(node, line)
+        if let Some((indentation, prefix_range, _, postfix_range, _)) =
+            self.line_ranges(node, node_line)
         {
             if reveal {
                 if !indentation.is_empty() {
@@ -215,7 +217,7 @@ impl<'ast> MarkdownPlusPlus {
         wrap.row_height = self.row_height(node);
 
         if let Some((indentation, prefix, children, postfix_whitespace, _)) =
-            self.line_ranges(node, line)
+            self.line_ranges(node, self.node_line(node, line))
         {
             if !indentation.is_empty() {
                 self.bounds.paragraphs.push(indentation);
@@ -250,7 +252,7 @@ impl<'ast> MarkdownPlusPlus {
                     );
                 }
             }
-            for child in &self.children_in_line(node, line) {
+            for child in &self.children_in_range(node, line) {
                 self.show_inline(ui, child, top_left, &mut wrap);
             }
             if reveal && !postfix_whitespace.is_empty() {
@@ -282,7 +284,8 @@ impl<'ast> MarkdownPlusPlus {
         let height = self.height_atx_heading(node);
         let reveal = line.intersects(&self.buffer.current.selection, true);
 
-        if let Some((indentation, prefix_range, _, postfix_range, _)) = self.line_ranges(node, line)
+        if let Some((indentation, prefix_range, _, postfix_range, _)) =
+            self.line_ranges(node, node_line)
         {
             if reveal {
                 if !indentation.is_empty() {

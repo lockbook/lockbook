@@ -287,7 +287,7 @@ impl<'ast> MarkdownPlusPlus {
 
     /// Returns true if the node intersects the current selection. Useful for
     /// checking if syntax should be revealed for an inline node. Block nodes
-    /// generally need additional consideration for optional indentation.
+    /// generally need additional consideration for optional indentation etc.
     pub fn node_intersects_selection(&self, node: &'ast AstNode<'ast>) -> bool {
         self.node_range(node)
             .intersects(&self.buffer.current.selection, true)
@@ -308,12 +308,12 @@ impl<'ast> MarkdownPlusPlus {
         false
     }
 
-    pub fn children_in_line(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    pub fn children_in_range(
+        &self, node: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset),
     ) -> Vec<&'ast AstNode<'ast>> {
         let mut children = Vec::new();
         for child in self.sorted_children(node) {
-            if line.contains_range(&self.node_range(child), true, true) {
+            if range.contains_range(&self.node_range(child), true, true) {
                 children.push(child);
             }
         }

@@ -150,13 +150,13 @@ impl<'ast> MarkdownPlusPlus {
 
             for line in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line];
-                let prefix_len = self.line_prefix_len(node.parent().unwrap(), line);
-                let postfix = (line.start() + prefix_len, line.end());
+                let node_line = self.node_line(node, line);
 
-                let mut wrap = Wrap::new(self.width(node));
-                wrap.offset += self.span_text_line(&wrap, postfix, self.text_format_syntax(node)); // todo: match row height?
-
-                height += wrap.height();
+                height += self.height_text_line(
+                    &mut Wrap::new(self.width(node)),
+                    node_line,
+                    self.text_format_syntax(node),
+                );
                 height += BLOCK_SPACING;
             }
             if height > 0. {
@@ -180,7 +180,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Item(_) => self.height_item(node),
             NodeValue::List(_) => self.block_children_height(node),
             NodeValue::MultilineBlockQuote(_) => self.height_multiline_block_quote(node),
-            NodeValue::Table(_) => self.block_children_height(node),
+            NodeValue::Table(_) => self.height_table(node),
             NodeValue::TableRow(_) => self.height_table_row(node),
             NodeValue::TaskItem(_) => self.block_children_height(node),
 
@@ -356,23 +356,20 @@ impl<'ast> MarkdownPlusPlus {
             && self.reveal(node)
         {
             for line in self.node_lines(node).iter() {
-                let parent = node.parent().unwrap();
-
                 let line = self.bounds.source_lines[line];
-                let prefix_len = self.line_prefix_len(parent, line);
-                let postfix = (line.start() + prefix_len, line.end());
+                let node_line = self.node_line(node, line);
 
                 let mut wrap = Wrap::new(self.width(node));
                 self.show_text_line(
                     ui,
                     top_left,
                     &mut wrap,
-                    postfix,
+                    node_line,
                     self.text_format_syntax(node),
                     false,
                 );
 
-                self.bounds.paragraphs.push(postfix);
+                self.bounds.paragraphs.push(node_line);
 
                 top_left.y += wrap.height();
                 top_left.y += BLOCK_SPACING;
@@ -464,10 +461,6 @@ impl<'ast> MarkdownPlusPlus {
             self.show_block_post_spacing(ui, child, top_left);
             top_left.y += post_spacing;
         }
-
-        // debug
-        // ui.painter()
-        //     .rect_stroke(rect, 2., egui::Stroke::new(1., self.theme.bg().tertiary));
     }
 
     fn span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
@@ -652,7 +645,7 @@ impl<'ast> MarkdownPlusPlus {
     /// Returns None if there are no children on this line.
     #[allow(clippy::type_complexity)]
     fn line_ranges(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset),
     ) -> Option<(
         (DocCharOffset, DocCharOffset),
         (DocCharOffset, DocCharOffset),
@@ -660,12 +653,10 @@ impl<'ast> MarkdownPlusPlus {
         (DocCharOffset, DocCharOffset),
         (DocCharOffset, DocCharOffset),
     )> {
-        let children = self.children_in_line(node, line);
+        let children = self.children_in_range(node, node_line);
         if children.is_empty() {
             return None;
         }
-
-        let node_line = self.node_line(node, line);
 
         let node_range = self.node_range(node);
         let node_range =
@@ -703,45 +694,66 @@ impl<'ast> MarkdownPlusPlus {
 
     fn circumfix_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         let mut tmp_wrap = wrap.clone();
-        if self.node_intersects_selection(node) {
-            tmp_wrap.offset += self.prefix_span(node, &tmp_wrap);
+
+        let any_children = node.children().next().is_some();
+        if any_children {
+            let reveal = self.node_intersects_selection(node);
+            if reveal {
+                tmp_wrap.offset += self.prefix_span(node, &tmp_wrap);
+            }
+            tmp_wrap.offset += self.inline_children_span(node, &tmp_wrap);
+            if reveal {
+                tmp_wrap.offset += self.postfix_span(node, &tmp_wrap);
+            }
+        } else {
+            tmp_wrap.offset +=
+                self.span_text_line(wrap, self.node_range(node), self.text_format_syntax(node))
         }
-        tmp_wrap.offset += self.inline_children_span(node, &tmp_wrap);
-        if self.node_intersects_selection(node) {
-            tmp_wrap.offset += self.postfix_span(node, &tmp_wrap);
-        }
+
         tmp_wrap.offset - wrap.offset
     }
 
     fn show_circumfix(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
     ) {
-        if self.node_intersects_selection(node) {
-            if let Some(prefix_range) = self.prefix_range(node) {
-                self.show_text_line(
-                    ui,
-                    top_left,
-                    wrap,
-                    prefix_range,
-                    self.text_format_syntax(node),
-                    false,
-                );
+        let any_children = node.children().next().is_some();
+        if any_children {
+            let reveal = self.node_intersects_selection(node);
+            if reveal {
+                if let Some(prefix_range) = self.prefix_range(node) {
+                    self.show_text_line(
+                        ui,
+                        top_left,
+                        wrap,
+                        prefix_range,
+                        self.text_format_syntax(node),
+                        false,
+                    );
+                }
             }
-        }
-
-        self.show_inline_children(ui, node, top_left, wrap);
-
-        if self.node_intersects_selection(node) {
-            if let Some(postfix_range) = self.postfix_range(node) {
-                self.show_text_line(
-                    ui,
-                    top_left,
-                    wrap,
-                    postfix_range,
-                    self.text_format_syntax(node),
-                    false,
-                );
+            self.show_inline_children(ui, node, top_left, wrap);
+            if reveal {
+                if let Some(postfix_range) = self.postfix_range(node) {
+                    self.show_text_line(
+                        ui,
+                        top_left,
+                        wrap,
+                        postfix_range,
+                        self.text_format_syntax(node),
+                        false,
+                    );
+                }
             }
+        } else {
+            #[allow(clippy::collapsible_else_if)]
+            self.show_text_line(
+                ui,
+                top_left,
+                wrap,
+                self.node_range(node),
+                self.text_format_syntax(node),
+                false,
+            );
         }
     }
 
@@ -789,7 +801,7 @@ impl<'ast> MarkdownPlusPlus {
                 self.line_prefix_len_multiline_block_quote(node, node_multiline_block_quote, line)
             }
             NodeValue::Table(_) => parent_line_prefix_len(),
-            NodeValue::TableRow(_) => self.line_prefix_len_table_row(node, line),
+            NodeValue::TableRow(_) => parent_line_prefix_len(),
             NodeValue::TaskItem(_) => self.line_prefix_len_task_item(node, line),
 
             // inline
