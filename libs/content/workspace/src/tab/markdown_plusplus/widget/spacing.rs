@@ -7,7 +7,7 @@ use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 use super::{Wrap, BLOCK_SPACING};
 
 impl<'ast> MarkdownPlusPlus {
-    fn sibling_index(
+    pub fn sibling_index(
         &self, node: &'ast AstNode<'ast>, sorted_siblings: &[&'ast AstNode<'ast>],
     ) -> usize {
         let range = self.node_range(node);
