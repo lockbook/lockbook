@@ -1,6 +1,5 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Stroke, Ui, Vec2};
-use lb_rs::model::text::offset_types::RangeExt;
 
 use crate::tab::markdown_plusplus::{
     widget::{Wrap, ROW_HEIGHT},
@@ -14,23 +13,15 @@ impl<'ast> MarkdownPlusPlus {
 
     pub fn show_thematic_break(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
         let width = self.width(node);
-
-        // for some reason, thematic break ranges contain the trailing newline,
-        // so we trim the range to the first line
-        let mut range = self.bounds.source_lines[self.node_lines(node).start()];
         let mut wrap = Wrap::new(width);
-
-        // when the thematic break is nested in a container block with per-line
-        // syntax, like a block quote, the range needs to be stripped of that
-        // syntax
-        range.0 += self.line_prefix_len(node.parent().unwrap(), range);
+        let node_line = self.node_line(node, self.node_first_line(node));
 
         if self.node_intersects_selection(node) {
             self.show_text_line(
                 ui,
                 top_left,
                 &mut wrap,
-                range,
+                node_line,
                 self.text_format_syntax(node),
                 false,
             );
@@ -43,6 +34,6 @@ impl<'ast> MarkdownPlusPlus {
             );
         }
 
-        self.bounds.paragraphs.push(range);
+        self.bounds.paragraphs.push(node_line);
     }
 }

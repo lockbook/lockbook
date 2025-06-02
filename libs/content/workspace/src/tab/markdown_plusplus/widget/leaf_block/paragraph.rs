@@ -17,7 +17,7 @@ impl<'ast> MarkdownPlusPlus {
             }
         }
 
-        let last_line_idx = self.node_lines(node).iter().count() - 1;
+        let last_line_idx = self.node_last_line_idx(node);
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
 

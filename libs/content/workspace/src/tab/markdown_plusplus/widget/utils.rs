@@ -360,6 +360,167 @@ impl<'ast> MarkdownPlusPlus {
     }
 }
 
+pub trait NodeValueExt {
+    fn is_leaf_block(&self) -> bool;
+    fn is_container_block(&self) -> bool;
+    fn is_inline(&self) -> bool;
+}
+
+impl NodeValueExt for NodeValue {
+    fn is_leaf_block(&self) -> bool {
+        match self {
+            NodeValue::FrontMatter(_) | NodeValue::Raw(_) => false,
+
+            // container_block
+            NodeValue::Alert(_)
+            | NodeValue::BlockQuote
+            | NodeValue::DescriptionItem(_)
+            | NodeValue::DescriptionList
+            | NodeValue::Document
+            | NodeValue::FootnoteDefinition(_)
+            | NodeValue::Item(_)
+            | NodeValue::List(_)
+            | NodeValue::MultilineBlockQuote(_)
+            | NodeValue::Table(_)
+            | NodeValue::TableRow(_)
+            | NodeValue::TaskItem(_) => false,
+
+            // inline
+            NodeValue::Image(_)
+            | NodeValue::Code(_)
+            | NodeValue::Emph
+            | NodeValue::Escaped
+            | NodeValue::EscapedTag(_)
+            | NodeValue::FootnoteReference(_)
+            | NodeValue::HtmlInline(_)
+            | NodeValue::LineBreak
+            | NodeValue::Link(_)
+            | NodeValue::Math(_)
+            | NodeValue::SoftBreak
+            | NodeValue::SpoileredText
+            | NodeValue::Strikethrough
+            | NodeValue::Strong
+            | NodeValue::Subscript
+            | NodeValue::Superscript
+            | NodeValue::Text(_)
+            | NodeValue::Underline
+            | NodeValue::WikiLink(_) => false,
+
+            // leaf_block
+            NodeValue::CodeBlock(_)
+            | NodeValue::DescriptionDetails
+            | NodeValue::DescriptionTerm
+            | NodeValue::Heading(_)
+            | NodeValue::HtmlBlock(_)
+            | NodeValue::Paragraph
+            | NodeValue::TableCell
+            | NodeValue::ThematicBreak => true,
+        }
+    }
+
+    fn is_container_block(&self) -> bool {
+        match self {
+            NodeValue::FrontMatter(_) | NodeValue::Raw(_) => false,
+
+            // container_block
+            NodeValue::Alert(_)
+            | NodeValue::BlockQuote
+            | NodeValue::DescriptionItem(_)
+            | NodeValue::DescriptionList
+            | NodeValue::Document
+            | NodeValue::FootnoteDefinition(_)
+            | NodeValue::Item(_)
+            | NodeValue::List(_)
+            | NodeValue::MultilineBlockQuote(_)
+            | NodeValue::Table(_)
+            | NodeValue::TableRow(_)
+            | NodeValue::TaskItem(_) => true,
+
+            // inline
+            NodeValue::Image(_)
+            | NodeValue::Code(_)
+            | NodeValue::Emph
+            | NodeValue::Escaped
+            | NodeValue::EscapedTag(_)
+            | NodeValue::FootnoteReference(_)
+            | NodeValue::HtmlInline(_)
+            | NodeValue::LineBreak
+            | NodeValue::Link(_)
+            | NodeValue::Math(_)
+            | NodeValue::SoftBreak
+            | NodeValue::SpoileredText
+            | NodeValue::Strikethrough
+            | NodeValue::Strong
+            | NodeValue::Subscript
+            | NodeValue::Superscript
+            | NodeValue::Text(_)
+            | NodeValue::Underline
+            | NodeValue::WikiLink(_) => false,
+
+            // leaf_block
+            NodeValue::CodeBlock(_)
+            | NodeValue::DescriptionDetails
+            | NodeValue::DescriptionTerm
+            | NodeValue::Heading(_)
+            | NodeValue::HtmlBlock(_)
+            | NodeValue::Paragraph
+            | NodeValue::TableCell
+            | NodeValue::ThematicBreak => false,
+        }
+    }
+
+    fn is_inline(&self) -> bool {
+        match self {
+            NodeValue::FrontMatter(_) | NodeValue::Raw(_) => false,
+
+            // container_block
+            NodeValue::Alert(_)
+            | NodeValue::BlockQuote
+            | NodeValue::DescriptionItem(_)
+            | NodeValue::DescriptionList
+            | NodeValue::Document
+            | NodeValue::FootnoteDefinition(_)
+            | NodeValue::Item(_)
+            | NodeValue::List(_)
+            | NodeValue::MultilineBlockQuote(_)
+            | NodeValue::Table(_)
+            | NodeValue::TableRow(_)
+            | NodeValue::TaskItem(_) => false,
+
+            // inline
+            NodeValue::Image(_)
+            | NodeValue::Code(_)
+            | NodeValue::Emph
+            | NodeValue::Escaped
+            | NodeValue::EscapedTag(_)
+            | NodeValue::FootnoteReference(_)
+            | NodeValue::HtmlInline(_)
+            | NodeValue::LineBreak
+            | NodeValue::Link(_)
+            | NodeValue::Math(_)
+            | NodeValue::SoftBreak
+            | NodeValue::SpoileredText
+            | NodeValue::Strikethrough
+            | NodeValue::Strong
+            | NodeValue::Subscript
+            | NodeValue::Superscript
+            | NodeValue::Text(_)
+            | NodeValue::Underline
+            | NodeValue::WikiLink(_) => true,
+
+            // leaf_block
+            NodeValue::CodeBlock(_)
+            | NodeValue::DescriptionDetails
+            | NodeValue::DescriptionTerm
+            | NodeValue::Heading(_)
+            | NodeValue::HtmlBlock(_)
+            | NodeValue::Paragraph
+            | NodeValue::TableCell
+            | NodeValue::ThematicBreak => false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
