@@ -1,4 +1,4 @@
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt};
+use lb_rs::model::text::offset_types::DocCharOffset;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use syntect::highlighting::Style;
@@ -25,10 +25,7 @@ pub struct SyntaxHighlightCache {
 
 impl SyntaxHighlightCache {
     pub fn insert(
-        &self,
-        text: String,
-        range: (DocCharOffset, DocCharOffset),
-        value: SyntaxHighlightResult,
+        &self, text: String, range: (DocCharOffset, DocCharOffset), value: SyntaxHighlightResult,
     ) {
         let key = SyntaxCacheKey::new(text, range);
         self.used_this_frame.borrow_mut().insert(key.clone());
@@ -36,9 +33,7 @@ impl SyntaxHighlightCache {
     }
 
     pub fn get(
-        &self,
-        text: &str,
-        range: (DocCharOffset, DocCharOffset),
+        &self, text: &str, range: (DocCharOffset, DocCharOffset),
     ) -> Option<SyntaxHighlightResult> {
         let key = SyntaxCacheKey::new(text.to_string(), range);
         self.used_this_frame.borrow_mut().insert(key.clone());

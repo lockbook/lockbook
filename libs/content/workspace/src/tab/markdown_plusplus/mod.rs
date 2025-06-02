@@ -192,12 +192,10 @@ impl MarkdownPlusPlus {
             self.dark_mode = dark_mode;
         }
 
-        let start = std::time::Instant::now();
-
-        self.process_events(ui.ctx());
         self.calc_source_lines();
-
         self.print_source_lines_bounds();
+
+        let start = std::time::Instant::now();
 
         let arena = Arena::new();
         let mut options = Options::default();
@@ -211,7 +209,7 @@ impl MarkdownPlusPlus {
         options.extension.header_ids = None; // intended for HTML renderers
         options.extension.math_code = true; // rendered as code for now
         options.extension.math_dollars = true; // rendered as code for now
-        options.extension.multiline_block_quotes = true;
+        options.extension.multiline_block_quotes = false; // todo
         options.extension.spoiler = true;
         options.extension.strikethrough = true;
         options.extension.subscript = true;
@@ -241,12 +239,6 @@ impl MarkdownPlusPlus {
         let print_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
-        if !self.event.internal_events.is_empty() {
-            ui.ctx().request_repaint();
-        }
-        if self.images.any_loading() {
-            ui.ctx().request_repaint_after(Duration::from_millis(8));
-        }
         self.images = widget::inline::image::cache::calc(
             root,
             &self.images,
@@ -310,6 +302,13 @@ impl MarkdownPlusPlus {
             "                                                              render: {:?}",
             render_elapsed
         );
+
+        if self.process_events(ui.ctx(), root) {
+            ui.ctx().request_repaint();
+        }
+        if self.images.any_loading() {
+            ui.ctx().request_repaint_after(Duration::from_millis(8));
+        }
 
         // focus editor by default
         if ui.memory(|m| m.focused().is_none()) {

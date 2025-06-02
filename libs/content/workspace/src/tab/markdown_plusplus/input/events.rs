@@ -4,6 +4,7 @@ use crate::tab::markdown_plusplus::bounds::{BoundCase, BoundExt as _, RangesExt 
 use crate::tab::{self, markdown_plusplus, ClipContent, ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
+use comrak::nodes::AstNode;
 use egui::{Context, EventFilter, Pos2, Stroke, ViewportCommand};
 use lb_rs::model::text::buffer;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
@@ -13,24 +14,24 @@ use markdown_plusplus::MarkdownPlusPlus;
 use super::canonical::translate_egui_keyboard_event;
 use super::{mutation, Bound, Location};
 
-impl MarkdownPlusPlus {
-    pub fn process_events(&mut self, ctx: &Context) -> bool {
+impl<'ast> MarkdownPlusPlus {
+    pub fn process_events(&mut self, ctx: &Context, root: &'ast AstNode<'ast>) -> bool {
         let mut ops = Vec::new();
         let mut response = buffer::Response::default();
         for event in self.get_cursor_fix_events() {
-            response |= self.calc_operations(ctx, event, &mut ops);
+            response |= self.calc_operations(ctx, root, event, &mut ops);
         }
         for event in mem::take(&mut self.event.internal_events) {
-            response |= self.calc_operations(ctx, event, &mut ops);
+            response |= self.calc_operations(ctx, root, event, &mut ops);
         }
         for event in self.get_workspace_events(ctx) {
-            response |= self.calc_operations(ctx, event, &mut ops);
+            response |= self.calc_operations(ctx, root, event, &mut ops);
         }
         for event in self.get_key_events(ctx) {
-            response |= self.calc_operations(ctx, event, &mut ops);
+            response |= self.calc_operations(ctx, root, event, &mut ops);
         }
         for event in self.get_pointer_events(ctx) {
-            response |= self.calc_operations(ctx, event, &mut ops);
+            response |= self.calc_operations(ctx, root, event, &mut ops);
         }
         self.buffer.queue(ops);
         response |= self.buffer.update();

@@ -97,7 +97,7 @@ pub enum Event {
     Select { region: Region },
     Replace { region: Region, text: String },
     ToggleStyle { region: Region, style: MarkdownNode }, // supports toolbar and inline tyle keyboard shortcuts
-    Newline { advance_cursor: bool }, // distinct from replace because it triggers auto-bullet, etc
+    Newline { shift: bool }, // distinct from replace because it triggers auto-bullet, etc
     Delete { region: Region }, // distinct from replace because it triggers numbered list renumber, etc
     Indent { deindent: bool }, // distinct from replace because it's a no-op for first list item, etc
     Find { term: String, backwards: bool },

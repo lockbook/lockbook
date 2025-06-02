@@ -89,7 +89,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::FootnoteDefinition(_) => self.text_format_footnote_definition(parent()),
             NodeValue::Item(_) => parent_text_format(),
             NodeValue::List(_) => parent_text_format(),
-            NodeValue::MultilineBlockQuote(_) => self.text_format_multiline_block_quote(parent()),
+            NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => parent_text_format(),
             NodeValue::TableRow(is_header_row) => {
                 self.text_format_table_row(parent(), *is_header_row)
@@ -166,7 +166,9 @@ impl<'ast> MarkdownPlusPlus {
             return height;
         }
 
-        let height = match &node.data.borrow().value {
+        let value = &node.data.borrow().value;
+        let sp = &node.data.borrow().sourcepos;
+        let height = match value {
             NodeValue::FrontMatter(_) => 0.,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
@@ -179,31 +181,31 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::FootnoteDefinition(_) => self.height_footnote_definition(node),
             NodeValue::Item(_) => self.height_item(node),
             NodeValue::List(_) => self.block_children_height(node),
-            NodeValue::MultilineBlockQuote(_) => self.height_multiline_block_quote(node),
+            NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => self.height_table(node),
             NodeValue::TableRow(_) => self.height_table_row(node),
             NodeValue::TaskItem(_) => self.block_children_height(node),
 
             // inline
             NodeValue::Image(NodeLink { url, .. }) => self.height_image(node, url), // used when rendering the image itself
-            NodeValue::Code(_) => unimplemented!("not a block"),
-            NodeValue::Emph => unimplemented!("not a block"),
-            NodeValue::Escaped => unimplemented!("not a block"),
-            NodeValue::EscapedTag(_) => unimplemented!("not a block"),
-            NodeValue::FootnoteReference(_) => unimplemented!("not a block"),
-            NodeValue::HtmlInline(_) => unimplemented!("not a block"),
-            NodeValue::LineBreak => unimplemented!("not a block"),
-            NodeValue::Link(_) => unimplemented!("not a block"),
-            NodeValue::Math(_) => unimplemented!("not a block"),
-            NodeValue::SoftBreak => unimplemented!("not a block"),
-            NodeValue::SpoileredText => unimplemented!("not a block"),
-            NodeValue::Strikethrough => unimplemented!("not a block"),
-            NodeValue::Strong => unimplemented!("not a block"),
-            NodeValue::Subscript => unimplemented!("not a block"),
-            NodeValue::Superscript => unimplemented!("not a block"),
-            NodeValue::Text(_) => unimplemented!("not a block"),
-            NodeValue::Underline => unimplemented!("not a block"),
-            NodeValue::WikiLink(_) => unimplemented!("not a block"),
+            NodeValue::Code(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Emph => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Escaped => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::EscapedTag(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::FootnoteReference(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::HtmlInline(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::LineBreak => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Link(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Math(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::SoftBreak => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::SpoileredText => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Strikethrough => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Strong => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Subscript => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Superscript => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Text(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Underline => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::WikiLink(_) => unimplemented!("not a block: {} {:?}", sp, value),
 
             // leaf_block
             NodeValue::CodeBlock(node_code_block) => self.height_code_block(node, node_code_block),
@@ -235,7 +237,9 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn indent(&self, node: &'ast AstNode<'ast>) -> f32 {
-        match &node.data.borrow().value {
+        let value = &node.data.borrow().value;
+        let sp = &node.data.borrow().sourcepos;
+        match value {
             NodeValue::FrontMatter(_) => 0.,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
@@ -248,41 +252,41 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::FootnoteDefinition(_) => INDENT,
             NodeValue::Item(_) => INDENT,
             NodeValue::List(_) => 0., // indentation handled by items
-            NodeValue::MultilineBlockQuote(_) => INDENT,
+            NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => 0.,
             NodeValue::TableRow(_) => 0.,
             NodeValue::TaskItem(_) => INDENT,
 
             // inline
-            NodeValue::Image(_) => unimplemented!("not a block"),
-            NodeValue::Code(_) => unimplemented!("not a block"),
-            NodeValue::Emph => unimplemented!("not a block"),
-            NodeValue::Escaped => unimplemented!("not a block"),
-            NodeValue::EscapedTag(_) => unimplemented!("not a block"),
-            NodeValue::FootnoteReference(_) => unimplemented!("not a block"),
-            NodeValue::HtmlInline(_) => unimplemented!("not a block"),
-            NodeValue::LineBreak => unimplemented!("not a block"),
-            NodeValue::Link(_) => unimplemented!("not a block"),
-            NodeValue::Math(_) => unimplemented!("not a block"),
-            NodeValue::SoftBreak => unimplemented!("not a block"),
-            NodeValue::SpoileredText => unimplemented!("not a block"),
-            NodeValue::Strikethrough => unimplemented!("not a block"),
-            NodeValue::Strong => unimplemented!("not a block"),
-            NodeValue::Subscript => unimplemented!("not a block"),
-            NodeValue::Superscript => unimplemented!("not a block"),
-            NodeValue::Text(_) => unimplemented!("not a block"),
-            NodeValue::Underline => unimplemented!("not a block"),
-            NodeValue::WikiLink(_) => unimplemented!("not a block"),
+            NodeValue::Image(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Code(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Emph => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Escaped => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::EscapedTag(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::FootnoteReference(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::HtmlInline(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::LineBreak => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Link(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Math(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::SoftBreak => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::SpoileredText => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Strikethrough => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Strong => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Subscript => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Superscript => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Text(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Underline => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::WikiLink(_) => unimplemented!("not a block: {} {:?}", sp, value),
 
             // leaf_block
-            NodeValue::CodeBlock(_) => unimplemented!("not a container block"),
+            NodeValue::CodeBlock(_) => unimplemented!("not a container block: {} {:?}", sp, value),
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
-            NodeValue::Heading(_) => unimplemented!("not a container block"),
-            NodeValue::HtmlBlock(_) => unimplemented!("not a container block"),
-            NodeValue::Paragraph => unimplemented!("not a container block"),
-            NodeValue::TableCell => unimplemented!("not a container block"),
-            NodeValue::ThematicBreak => unimplemented!("not a container block"),
+            NodeValue::Heading(_) => unimplemented!("not a container block: {} {:?}", sp, value),
+            NodeValue::HtmlBlock(_) => unimplemented!("not a container block: {} {:?}", sp, value),
+            NodeValue::Paragraph => unimplemented!("not a container block: {} {:?}", sp, value),
+            NodeValue::TableCell => unimplemented!("not a container block: {} {:?}", sp, value),
+            NodeValue::ThematicBreak => unimplemented!("not a container block: {} {:?}", sp, value),
         }
     }
 
@@ -292,7 +296,9 @@ impl<'ast> MarkdownPlusPlus {
         let parent_indent = || self.indent(parent());
         let indented_width = || parent_width() - parent_indent();
 
-        match &node.data.borrow().value {
+        let value = &node.data.borrow().value;
+        let sp = &node.data.borrow().sourcepos;
+        match value {
             NodeValue::FrontMatter(_) => 0.,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
@@ -305,31 +311,31 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::FootnoteDefinition(_) => indented_width(),
             NodeValue::Item(_) => indented_width(),
             NodeValue::List(_) => indented_width(), // indentation handled by items
-            NodeValue::MultilineBlockQuote(_) => indented_width(),
+            NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => indented_width(),
             NodeValue::TableRow(_) => indented_width(),
             NodeValue::TaskItem(_) => indented_width(),
 
             // inline
-            NodeValue::Image(_) => unimplemented!("not a block"),
-            NodeValue::Code(_) => unimplemented!("not a block"),
-            NodeValue::Emph => unimplemented!("not a block"),
-            NodeValue::Escaped => unimplemented!("not a block"),
-            NodeValue::EscapedTag(_) => unimplemented!("not a block"),
-            NodeValue::FootnoteReference(_) => unimplemented!("not a block"),
-            NodeValue::HtmlInline(_) => unimplemented!("not a block"),
-            NodeValue::LineBreak => unimplemented!("not a block"),
-            NodeValue::Link(_) => unimplemented!("not a block"),
-            NodeValue::Math(_) => unimplemented!("not a block"),
-            NodeValue::SoftBreak => unimplemented!("not a block"),
-            NodeValue::SpoileredText => unimplemented!("not a block"),
-            NodeValue::Strikethrough => unimplemented!("not a block"),
-            NodeValue::Strong => unimplemented!("not a block"),
-            NodeValue::Subscript => unimplemented!("not a block"),
-            NodeValue::Superscript => unimplemented!("not a block"),
-            NodeValue::Text(_) => unimplemented!("not a block"),
-            NodeValue::Underline => unimplemented!("not a block"),
-            NodeValue::WikiLink(_) => unimplemented!("not a block"),
+            NodeValue::Image(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Code(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Emph => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Escaped => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::EscapedTag(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::FootnoteReference(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::HtmlInline(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::LineBreak => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Link(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Math(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::SoftBreak => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::SpoileredText => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Strikethrough => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Strong => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Subscript => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Superscript => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Text(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Underline => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::WikiLink(_) => unimplemented!("not a block: {} {:?}", sp, value),
 
             // leaf_block
             NodeValue::CodeBlock(_) => indented_width(),
@@ -377,7 +383,9 @@ impl<'ast> MarkdownPlusPlus {
             return;
         }
 
-        match &node.data.borrow().value {
+        let value = &node.data.borrow().value;
+        let sp = &node.data.borrow().sourcepos;
+        match value {
             NodeValue::FrontMatter(_) => {}
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
@@ -390,9 +398,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::FootnoteDefinition(_) => self.show_footnote_definition(ui, node, top_left),
             NodeValue::Item(_) => self.show_item(ui, node, top_left),
             NodeValue::List(_) => self.show_block_children(ui, node, top_left),
-            NodeValue::MultilineBlockQuote(_) => {
-                self.show_multiline_block_quote(ui, node, top_left)
-            }
+            NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => self.show_table(ui, node, top_left),
             NodeValue::TableRow(is_header_row) => {
                 self.show_table_row(ui, node, top_left, *is_header_row)
@@ -405,24 +411,24 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Image(NodeLink { url, .. }) => {
                 self.show_image_block(ui, node, top_left, url)
             }
-            NodeValue::Code(_) => unimplemented!("not a block"),
-            NodeValue::Emph => unimplemented!("not a block"),
-            NodeValue::Escaped => unimplemented!("not a block"),
-            NodeValue::EscapedTag(_) => unimplemented!("not a block"),
-            NodeValue::FootnoteReference(_) => unimplemented!("not a block"),
-            NodeValue::HtmlInline(_) => unimplemented!("not a block"),
-            NodeValue::LineBreak => unimplemented!("not a block"),
-            NodeValue::Link(_) => unimplemented!("not a block"),
-            NodeValue::Math(_) => unimplemented!("not a block"),
-            NodeValue::SoftBreak => unimplemented!("not a block"),
-            NodeValue::SpoileredText => unimplemented!("not a block"),
-            NodeValue::Strikethrough => unimplemented!("not a block"),
-            NodeValue::Strong => unimplemented!("not a block"),
-            NodeValue::Subscript => unimplemented!("not a block"),
-            NodeValue::Superscript => unimplemented!("not a block"),
-            NodeValue::Text(_) => unimplemented!("not a block"),
-            NodeValue::Underline => unimplemented!("not a block"),
-            NodeValue::WikiLink(_) => unimplemented!("not a block"),
+            NodeValue::Code(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Emph => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Escaped => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::EscapedTag(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::FootnoteReference(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::HtmlInline(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::LineBreak => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Link(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Math(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::SoftBreak => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::SpoileredText => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Strikethrough => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Strong => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Subscript => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Superscript => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Text(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Underline => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::WikiLink(_) => unimplemented!("not a block: {} {:?}", sp, value),
 
             // leaf_block
             NodeValue::CodeBlock(node_code_block) => {
@@ -476,7 +482,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::FootnoteDefinition(_) => unimplemented!("not an inline"),
             NodeValue::Item(_) => unimplemented!("not an inline"),
             NodeValue::List(_) => unimplemented!("not an inline"),
-            NodeValue::MultilineBlockQuote(_) => unimplemented!("not an inline"),
+            NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => unimplemented!("not an inline"),
             NodeValue::TableRow(_) => unimplemented!("not an inline"),
 
@@ -551,7 +557,7 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::FootnoteDefinition(_) => unimplemented!("not an inline"),
             NodeValue::Item(_) => unimplemented!("not an inline"),
             NodeValue::List(_) => unimplemented!("not an inline"),
-            NodeValue::MultilineBlockQuote(_) => unimplemented!("not an inline"),
+            NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => unimplemented!("not an inline"),
             NodeValue::TableRow(_) => unimplemented!("not an inline"),
             NodeValue::TaskItem(_) => unimplemented!("not an inline"),
@@ -775,14 +781,16 @@ impl<'ast> MarkdownPlusPlus {
     // the last containing blockquote marker."
     //
     // https://github.github.com/gfm/#list-items
-    fn line_prefix_len(
+    pub fn line_prefix_len(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> RelCharOffset {
         let parent = || node.parent().unwrap();
         let parent_line_prefix_len = || self.line_prefix_len(parent(), line);
 
-        match &node.data.borrow().value {
-            NodeValue::FrontMatter(_) => unimplemented!("not a block"),
+        let value = &node.data.borrow().value;
+        let sp = &node.data.borrow().sourcepos;
+        match value {
+            NodeValue::FrontMatter(_) => unimplemented!("not a block: {} {:?}", sp, value),
             NodeValue::Raw(_) => unimplemented!("can only be created programmatically"),
 
             // container_block
@@ -796,43 +804,41 @@ impl<'ast> MarkdownPlusPlus {
             }
             NodeValue::Item(node_list) => self.line_prefix_len_item(node, line, node_list),
             NodeValue::List(_) => parent_line_prefix_len(),
-            NodeValue::MultilineBlockQuote(node_multiline_block_quote) => {
-                self.line_prefix_len_multiline_block_quote(node, node_multiline_block_quote, line)
-            }
+            NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => parent_line_prefix_len(),
             NodeValue::TableRow(_) => parent_line_prefix_len(),
             NodeValue::TaskItem(_) => self.line_prefix_len_task_item(node, line),
 
             // inline
-            NodeValue::Image(NodeLink { .. }) => unimplemented!("not a block"),
-            NodeValue::Code(_) => unimplemented!("not a block"),
-            NodeValue::Emph => unimplemented!("not a block"),
-            NodeValue::Escaped => unimplemented!("not a block"),
-            NodeValue::EscapedTag(_) => unimplemented!("not a block"),
-            NodeValue::FootnoteReference(_) => unimplemented!("not a block"),
-            NodeValue::HtmlInline(_) => unimplemented!("not a block"),
-            NodeValue::LineBreak => unimplemented!("not a block"),
-            NodeValue::Link(_) => unimplemented!("not a block"),
-            NodeValue::Math(_) => unimplemented!("not a block"),
-            NodeValue::SoftBreak => unimplemented!("not a block"),
-            NodeValue::SpoileredText => unimplemented!("not a block"),
-            NodeValue::Strikethrough => unimplemented!("not a block"),
-            NodeValue::Strong => unimplemented!("not a block"),
-            NodeValue::Subscript => unimplemented!("not a block"),
-            NodeValue::Superscript => unimplemented!("not a block"),
-            NodeValue::Text(_) => unimplemented!("not a block"),
-            NodeValue::Underline => unimplemented!("not a block"),
-            NodeValue::WikiLink(_) => unimplemented!("not a block"),
+            NodeValue::Image(NodeLink { .. }) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Code(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Emph => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Escaped => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::EscapedTag(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::FootnoteReference(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::HtmlInline(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::LineBreak => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Link(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Math(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::SoftBreak => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::SpoileredText => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Strikethrough => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Strong => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Subscript => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Superscript => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Text(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Underline => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::WikiLink(_) => unimplemented!("not a block: {} {:?}", sp, value),
 
             // leaf_block
-            NodeValue::CodeBlock(_) => unimplemented!("not a container block"),
+            NodeValue::CodeBlock(_) => unimplemented!("not a container block: {} {:?}", sp, value),
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
-            NodeValue::Heading(_) => unimplemented!("not a container block"),
-            NodeValue::HtmlBlock(_) => unimplemented!("not a container block"),
-            NodeValue::Paragraph => unimplemented!("not a container block"),
-            NodeValue::TableCell => unimplemented!("not a container block"),
-            NodeValue::ThematicBreak => unimplemented!("not a container block"),
+            NodeValue::Heading(_) => unimplemented!("not a container block: {} {:?}", sp, value),
+            NodeValue::HtmlBlock(_) => unimplemented!("not a container block: {} {:?}", sp, value),
+            NodeValue::Paragraph => unimplemented!("not a container block: {} {:?}", sp, value),
+            NodeValue::TableCell => unimplemented!("not a container block: {} {:?}", sp, value),
+            NodeValue::ThematicBreak => unimplemented!("not a container block: {} {:?}", sp, value),
         }
     }
 
