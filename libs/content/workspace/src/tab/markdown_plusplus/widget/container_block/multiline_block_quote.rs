@@ -1,3 +1,5 @@
+// this extension has been disabled until I get around to implementing
+
 use comrak::nodes::{AstNode, NodeMultilineBlockQuote};
 use egui::{Pos2, TextFormat, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};

@@ -3,13 +3,14 @@ use crate::tab::markdown_plusplus::galleys::Galleys;
 use crate::tab::markdown_plusplus::input::Event;
 use crate::tab::markdown_plusplus::widget::ROW_SPACING;
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
+use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Rangef, Vec2};
 use lb_rs::model::text::buffer::{self};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, ToRangeExt as _};
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
 use super::advance::AdvanceExt as _;
-use super::{Location, Offset, Region};
+use super::{Bound, Location, Offset, Region};
 
 /// tracks editor state necessary to support translating input events to buffer operations
 #[derive(Default)]
@@ -18,11 +19,12 @@ pub struct EventState {
     pub internal_events: Vec<Event>,
 }
 
-impl MarkdownPlusPlus {
+impl<'ast> MarkdownPlusPlus {
     /// Translates editor events into buffer operations by interpreting them in the context of the current editor state.
     /// Dispatches events that aren't buffer operations. Returns a (text_updated, selection_updated) pair.
     pub fn calc_operations(
-        &mut self, ctx: &egui::Context, event: Event, operations: &mut Vec<Operation>,
+        &mut self, ctx: &egui::Context, root: &'ast AstNode<'ast>, event: Event,
+        operations: &mut Vec<Operation>,
     ) -> buffer::Response {
         let current_selection = self.buffer.current.selection;
         let mut response = buffer::Response::default();
@@ -104,236 +106,202 @@ impl MarkdownPlusPlus {
                 //     }
                 // }
             }
-            Event::Newline { advance_cursor } => {
-                // let galley_idx = self.galleys.galley_at_char(current_selection.1);
-                // let galley = &self.galleys[galley_idx];
-                // let ast_text_range = self
-                //     .bounds
-                //     .ast
-                //     .find_containing(current_selection.1, true, true)
-                //     .iter()
-                //     .last();
-                // let after_galley_head = current_selection.1 >= galley.text_range().start();
+            Event::Newline { shift } => {
+                // insert/extend/terminate container blocks
+                let mut handled = || {
+                    // selection must be empty
+                    let offset = if current_selection.is_empty() {
+                        current_selection.0
+                    } else {
+                        return false;
+                    };
 
-                // 'modification: {
-                //     if let Some(ast_text_range) = ast_text_range {
-                //         let ast_text_range = &self.bounds.ast[ast_text_range];
-                //         if ast_text_range.range_type == AstTextRangeType::Tail
-                //             && ast_text_range.node(&self.ast).node_type()
-                //                 == MarkdownNodeType::Inline(InlineNodeType::Link)
-                //             && ast_text_range.range.end() != current_selection.1
-                //         {
-                //             // cursor inside link url -> move cursor to end of link
-                //             operations
-                //                 .push(Operation::Select(ast_text_range.range.end().to_range()));
-                //             break 'modification;
-                //         }
-                //     }
+                    let node = self.container_block_descendant_at_offset(root, offset);
 
-                //     // insert new list item, remove current list item, or insert newline before current list item
-                //     if matches!(
-                //         galley.annotation,
-                //         Some(Annotation::Item(..) | Annotation::BlockQuote)
-                //     ) && after_galley_head
-                //     {
-                //         // cursor at end of galley
-                //         if galley.size() - galley.head_size - galley.tail_size == 0 {
-                //             // empty galley -> delete current annotation
-                //             let range =
-                //                 (galley.range.start(), galley.range.start() + galley.size());
-                //             let text = "".into();
-                //             operations.push(Operation::Replace(Replace { range, text }));
-                //         } else {
-                //             // nonempty galley -> insert new item with same annotation
-                //             operations.push(Operation::Replace(Replace {
-                //                 range: current_selection,
-                //                 text: "\n".into(),
-                //             }));
+                    if matches!(
+                        node.data.borrow().value,
+                        NodeValue::List(_) | NodeValue::Table(_) | NodeValue::TableRow(_)
+                    ) {
+                        return false;
+                    }
 
-                //             match galley.annotation {
-                //                 Some(Annotation::Item(ListItem::Bulleted, _)) => {
-                //                     operations.push(Operation::Replace(Replace {
-                //                         range: current_selection,
-                //                         text: galley.head(&self.buffer).to_string(),
-                //                     }));
-                //                 }
-                //                 Some(Annotation::Item(
-                //                     ListItem::Numbered(cur_number),
-                //                     indent_level,
-                //                 )) => {
-                //                     let head = galley.head(&self.buffer);
-                //                     let text = head
-                //                         [0..head.len() - (cur_number).to_string().len() - 2]
-                //                         .to_string()
-                //                         + (&(cur_number + 1).to_string() as &str)
-                //                         + ". ";
-                //                     operations.push(Operation::Replace(Replace {
-                //                         range: current_selection,
-                //                         text,
-                //                     }));
+                    let (line_idx, _) =
+                        self.bounds.source_lines.find_containing(offset, true, true);
+                    let line = self.bounds.source_lines[line_idx];
 
-                //                     let renumbered_galleys = {
-                //                         let mut this = HashMap::new();
-                //                         increment_numbered_list_items(
-                //                             galley_idx,
-                //                             indent_level,
-                //                             1,
-                //                             false,
-                //                             &self.galleys,
-                //                             &mut this,
-                //                         );
-                //                         this
-                //                     };
-                //                     for (galley_idx, galley_new_number) in renumbered_galleys {
-                //                         let galley = &self.galleys[galley_idx];
-                //                         if let Some(Annotation::Item(
-                //                             ListItem::Numbered(galley_cur_number),
-                //                             ..,
-                //                         )) = galley.annotation
-                //                         {
-                //                             operations.push(Operation::Replace(Replace {
-                //                                 range: (
-                //                                     galley.range.start() + galley.head_size,
-                //                                     galley.range.start() + galley.head_size
-                //                                         - (galley_cur_number).to_string().len()
-                //                                         - 2,
-                //                                 ),
-                //                                 text: galley_new_number.to_string() + ". ",
-                //                             }));
-                //                         }
-                //                     }
-                //                 }
-                //                 Some(Annotation::Item(ListItem::Todo(_), _)) => {
-                //                     let head = galley.head(&self.buffer);
-                //                     operations.push(Operation::Replace(Replace {
-                //                         range: current_selection,
-                //                         text: head[0..head.len() - 6].to_string() + "* [ ] ",
-                //                     }));
-                //                 }
-                //                 Some(Annotation::BlockQuote) => {
-                //                     operations.push(Operation::Replace(Replace {
-                //                         range: current_selection,
-                //                         text: "> ".into(),
-                //                     }));
-                //                 }
-                //                 _ => {}
-                //             }
+                    let prefix_len = self.line_prefix_len(node, line);
+                    let prefix = (line.start(), line.start() + prefix_len);
+                    let content = (prefix.end(), line.end());
 
-                //             operations.push(Operation::Select(current_selection));
-                //         }
-                //         break 'modification;
-                //     }
+                    if shift {
+                        // shift -> extend
+                        let extension_prefix = match &node.data.borrow().value {
+                            NodeValue::FrontMatter(_) | NodeValue::Raw(_) => {
+                                unreachable!("not a container block")
+                            }
 
-                // if it's none of the other things, just insert a newline
-                operations.push(Operation::Replace(Replace {
-                    range: current_selection,
-                    text: "\n".into(),
-                }));
-                if advance_cursor {
-                    operations.push(Operation::Select(current_selection.start().to_range()));
+                            // container_block
+                            NodeValue::Alert(_) => self.buffer[prefix].into(),
+                            NodeValue::BlockQuote => self.buffer[prefix].into(),
+                            NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
+                            NodeValue::DescriptionList => unimplemented!("extension disabled"),
+                            NodeValue::Document => "".into(),
+                            NodeValue::FootnoteDefinition(_) => "  ".into(),
+
+                            NodeValue::Item(_) => " ".repeat(prefix.len().0),
+                            NodeValue::List(_) => unreachable!("skipped"),
+                            NodeValue::MultilineBlockQuote(_) => {
+                                unimplemented!("extension disabled")
+                            }
+                            NodeValue::Table(_) => unreachable!("skipped"),
+                            NodeValue::TableRow(_) => unreachable!("skipped"),
+                            NodeValue::TaskItem(_) => " ".repeat(prefix.len().0),
+
+                            // inline
+                            NodeValue::Image(_)
+                            | NodeValue::Code(_)
+                            | NodeValue::Emph
+                            | NodeValue::Escaped
+                            | NodeValue::EscapedTag(_)
+                            | NodeValue::FootnoteReference(_)
+                            | NodeValue::HtmlInline(_)
+                            | NodeValue::LineBreak
+                            | NodeValue::Link(_)
+                            | NodeValue::Math(_)
+                            | NodeValue::SoftBreak
+                            | NodeValue::SpoileredText
+                            | NodeValue::Strikethrough
+                            | NodeValue::Strong
+                            | NodeValue::Subscript
+                            | NodeValue::Superscript
+                            | NodeValue::Text(_)
+                            | NodeValue::Underline
+                            | NodeValue::WikiLink(_) => unreachable!("not a container block"),
+
+                            // leaf_block
+                            NodeValue::CodeBlock(_)
+                            | NodeValue::DescriptionDetails
+                            | NodeValue::DescriptionTerm
+                            | NodeValue::Heading(_)
+                            | NodeValue::HtmlBlock(_)
+                            | NodeValue::Paragraph
+                            | NodeValue::TableCell
+                            | NodeValue::ThematicBreak => unreachable!("not a container block"),
+                        };
+
+                        operations.push(Operation::Replace(Replace {
+                            range: current_selection,
+                            text: "\n".into(),
+                        }));
+                        operations.push(Operation::Replace(Replace {
+                            range: current_selection,
+                            text: extension_prefix,
+                        }));
+                    } else if content.is_empty() {
+                        // empty container block -> terminate
+                        let Some(parent) = node.parent() else {
+                            return false;
+                        };
+
+                        let parent_prefix_len = self.line_prefix_len(parent, line);
+                        let own_prefix_len = prefix_len - parent_prefix_len;
+                        let own_prefix = (offset - own_prefix_len, offset);
+
+                        operations.push(Operation::Replace(Replace {
+                            range: own_prefix,
+                            text: "".into(),
+                        }));
+                    } else {
+                        // nonempty container block -> insert
+                        operations.push(Operation::Replace(Replace {
+                            range: current_selection,
+                            text: "\n".into(),
+                        }));
+                        operations.push(Operation::Replace(Replace {
+                            range: current_selection,
+                            text: self.buffer[prefix].into(),
+                        }));
+                    }
+                    true
+                };
+                if !handled() {
+                    // default -> insert newline
+                    operations.push(Operation::Replace(Replace {
+                        range: current_selection,
+                        text: "\n".into(),
+                    }));
                 }
 
-                // }
+                // advance cursor
+                operations.push(Operation::Select(current_selection.start().to_range()));
             }
             Event::Delete { region } => {
-                let range = self.region_to_range(region);
-                operations.push(Operation::Replace(Replace { range, text: "".into() }));
-                operations.push(Operation::Select(range.start().to_range()));
+                // delete container block prefix
+                let mut handled = || {
+                    // must be vanilla backspace
+                    if !matches!(
+                        region,
+                        Region::SelectionOrOffset {
+                            offset: Offset::Next(Bound::Char), // todo: consider other bound types
+                            backwards: true,
+                        }
+                    ) {
+                        return false;
+                    }
 
-                // // check if we deleted a numbered list annotation and renumber subsequent items
-                // let ast_text_ranges = self.bounds.ast.find_contained(range, true, true);
-                // let mut unnumbered_galleys = HashSet::new();
-                // let mut renumbered_galleys = HashMap::new();
-                // for ast_text_range in ast_text_ranges.iter() {
-                //     // skip non-head ranges; remaining ranges are head ranges contained by the selection
-                //     if self.bounds.ast[ast_text_range].range_type != AstTextRangeType::Head {
-                //         continue;
-                //     }
+                    // selection must be empty
+                    let offset = if current_selection.is_empty() {
+                        current_selection.0
+                    } else {
+                        return false;
+                    };
 
-                //     // if the range is a list item annotation contained by the deleted region, renumber subsequent items
-                //     let ast_node = self.bounds.ast[ast_text_range]
-                //         .ancestors
-                //         .last()
-                //         .copied()
-                //         .unwrap(); // ast text ranges always have themselves as the last ancestor
-                //     let galley_idx = self
-                //         .galleys
-                //         .galley_at_char(self.ast.nodes[ast_node].text_range.start());
-                //     if let Some(Annotation::Item(ListItem::Numbered(number), indent_level)) =
-                //         self.galleys[galley_idx].annotation
-                //     {
-                //         renumbered_galleys = HashMap::new(); // only the last one matters; otherwise they stack
-                //         increment_numbered_list_items(
-                //             galley_idx,
-                //             indent_level,
-                //             number,
-                //             true,
-                //             &self.galleys,
-                //             &mut renumbered_galleys,
-                //         );
-                //     }
+                    let node = self.container_block_descendant_at_offset(root, offset);
 
-                //     unnumbered_galleys.insert(galley_idx);
-                // }
+                    if matches!(
+                        node.data.borrow().value,
+                        NodeValue::List(_) | NodeValue::Table(_) | NodeValue::TableRow(_)
+                    ) {
+                        return false;
+                    }
 
-                // // if we deleted the space between two numbered lists, renumber the second list to extend the first
-                // let start_galley_idx = self.galleys.galley_at_char(range.start());
-                // let end_galley_idx = self.galleys.galley_at_char(range.end());
-                // if start_galley_idx < end_galley_idx {
-                //     // todo: account for indent levels
-                //     if let Some(Annotation::Item(ListItem::Numbered(prev_number), _)) =
-                //         self.galleys[start_galley_idx].annotation
-                //     {
-                //         if let Some(Annotation::Item(
-                //             ListItem::Numbered(next_number),
-                //             next_indent_level,
-                //         )) = self
-                //             .galleys
-                //             .galleys
-                //             .get(end_galley_idx + 1)
-                //             .and_then(|g| g.annotation.as_ref())
-                //         {
-                //             let (amount, decrement) = if prev_number >= *next_number {
-                //                 (prev_number - next_number + 1, false)
-                //             } else {
-                //                 (next_number - prev_number - 1, true)
-                //             };
+                    let (line_idx, _) =
+                        self.bounds.source_lines.find_containing(offset, true, true);
+                    let line = self.bounds.source_lines[line_idx];
 
-                //             renumbered_galleys = HashMap::new(); // only the last one matters; otherwise they stack
-                //             increment_numbered_list_items(
-                //                 end_galley_idx,
-                //                 *next_indent_level,
-                //                 amount,
-                //                 decrement,
-                //                 &self.galleys,
-                //                 &mut renumbered_galleys,
-                //             );
-                //         }
-                //     }
-                // }
+                    let prefix_len = self.line_prefix_len(node, line);
+                    let prefix = (line.start(), line.start() + prefix_len);
+                    let content = (prefix.end(), line.end());
 
-                // // apply renumber operations once at the end because otherwise they stack up and clobber each other
-                // for (galley_idx, new_number) in renumbered_galleys {
-                //     // don't number items that were deleted
-                //     if unnumbered_galleys.contains(&galley_idx) {
-                //         continue;
-                //     }
+                    // content must be empty
+                    if !content.is_empty() {
+                        return false;
+                    }
 
-                //     let galley = &self.galleys[galley_idx];
-                //     if let Some(Annotation::Item(ListItem::Numbered(cur_number), ..)) =
-                //         galley.annotation
-                //     {
-                //         operations.push(Operation::Replace(Replace {
-                //             range: (
-                //                 galley.range.start() + galley.head_size,
-                //                 galley.range.start() + galley.head_size
-                //                     - (cur_number).to_string().len()
-                //                     - 2,
-                //             ),
-                //             text: new_number.to_string() + ". ",
-                //         }));
-                //     }
-                // }
+                    // node must not be document
+                    let Some(parent) = node.parent() else {
+                        return false;
+                    };
+
+                    // empty container block -> terminate
+                    let parent_prefix_len = self.line_prefix_len(parent, line);
+                    let own_prefix_len = prefix_len - parent_prefix_len;
+                    let own_prefix = (offset - own_prefix_len, offset);
+
+                    operations
+                        .push(Operation::Replace(Replace { range: own_prefix, text: "".into() }));
+
+                    true
+                };
+                if !handled() {
+                    // default -> delete region
+                    let range = self.region_to_range(region);
+                    operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                    operations.push(Operation::Select(range.start().to_range()));
+                }
+
+                // advance cursor
+                operations.push(Operation::Select(current_selection.start().to_range()));
             }
             Event::Indent { deindent } => {
                 // let mut renumbering_processed_galleys = HashSet::new();

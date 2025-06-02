@@ -176,10 +176,9 @@ impl<'ast> MarkdownPlusPlus {
         // the worst of the adverse consequences (e.g. double-rendering source
         // text).
         //
-        // see also:
-        // * https://github.com/kivikakk/comrak/issues/567
-        // * https://github.com/kivikakk/comrak/issues/570
-        if let Some(parent) = node.parent() {
+        // see: https://github.com/kivikakk/comrak/issues/567
+        if matches!(node.data.borrow().value, NodeValue::Paragraph) {
+            let parent = node.parent().unwrap();
             let parent_range = self.node_range(parent);
             range.0 = range.0.max(parent_range.0);
             range.1 = range.1.min(parent_range.1);
@@ -187,7 +186,7 @@ impl<'ast> MarkdownPlusPlus {
 
         // hack: GFM spec says "Blank lines preceding or following an indented
         // code block are not included in it" and I have observed the behavior
-        // for following lines to be incorrect in e.g. "    f\n"
+        // for following lines to be incorrect in e.g. "    f\n".
         if let NodeValue::CodeBlock(NodeCodeBlock { fenced: false, .. }) = node.data.borrow().value
         {
             for line_idx in self.node_lines_impl(range).iter() {
@@ -197,6 +196,29 @@ impl<'ast> MarkdownPlusPlus {
                     range.1 = line.end();
                 }
             }
+        }
+
+        // hack: list items are emitted to contain all lines until the next
+        // block which would cause the cursor to be shown indented; we trim
+        // trailing blank lines.
+        if matches!(node.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_)) {
+            let node_lines = self.node_lines_impl(range);
+            let mut last_nonempty_line_idx = node_lines.start();
+            for line_idx in node_lines.iter() {
+                let line = self.bounds.source_lines[line_idx];
+                let node_line = self.node_line(node, line);
+                if !node_line.is_empty() {
+                    last_nonempty_line_idx = line_idx;
+                }
+            }
+
+            let last_nonempty_line = self.bounds.source_lines[last_nonempty_line_idx];
+            range.1 = last_nonempty_line.end();
+        }
+        if matches!(node.data.borrow().value, NodeValue::List(_)) {
+            let children = self.sorted_children(node);
+            let last_child = children.last().unwrap();
+            range.1 = self.node_range(last_child).1;
         }
 
         range
@@ -283,6 +305,33 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         self.row_height(node)
+    }
+
+    /// Returns the innermost node containing the offset.
+    pub fn descendant_at_offset(
+        &self, node: &'ast AstNode<'ast>, offset: DocCharOffset,
+    ) -> &'ast AstNode<'ast> {
+        for child in node.children() {
+            if self.node_range(child).contains(offset, true, true) {
+                return self.descendant_at_offset(child, offset);
+            }
+        }
+        node
+    }
+
+    /// Returns the innermost node containing the offset.
+    pub fn container_block_descendant_at_offset(
+        &self, node: &'ast AstNode<'ast>, offset: DocCharOffset,
+    ) -> &'ast AstNode<'ast> {
+        for child in node.children() {
+            if !child.data.borrow().value.is_container_block() {
+                continue;
+            }
+            if self.node_range(child).contains(offset, true, true) {
+                return self.container_block_descendant_at_offset(child, offset);
+            }
+        }
+        node
     }
 
     /// Returns true if the node intersects the current selection. Useful for
