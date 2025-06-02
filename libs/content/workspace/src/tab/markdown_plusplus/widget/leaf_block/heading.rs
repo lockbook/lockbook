@@ -38,9 +38,9 @@ impl<'ast> MarkdownPlusPlus {
         let reveal = self.reveal_setext_syntax(node);
         let mut result = 0.;
 
-        let last_line_idx = self.node_lines(node).iter().count() - 1;
-        for (line_idx, line) in self.node_lines(node).iter().enumerate() {
-            let line = self.bounds.source_lines[line];
+        let last_line_idx = self.node_last_line_idx(node);
+        for line_idx in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line_idx];
 
             let node_line = self.node_line(node, line);
 
@@ -166,9 +166,9 @@ impl<'ast> MarkdownPlusPlus {
         let width = self.width(node);
         let reveal = self.reveal_setext_syntax(node);
 
-        let last_line_idx = self.node_lines(node).iter().count() - 1;
-        for (line_idx, line) in self.node_lines(node).iter().enumerate() {
-            let line = self.bounds.source_lines[line];
+        let last_line_idx = self.node_last_line_idx(node);
+        for line_idx in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line_idx];
 
             let node_line = self.node_line(node, line);
 

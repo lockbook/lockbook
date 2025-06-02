@@ -3,6 +3,7 @@ use egui::{Pos2, TextFormat, Ui};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
+use utils::NodeValueExt as _;
 
 use super::MarkdownPlusPlus;
 
@@ -142,8 +143,7 @@ impl<'ast> MarkdownPlusPlus {
 
         // container blocks: if revealed, show source lines instead
         if node.parent().is_some()
-            && !node.data.borrow().value.contains_inlines()
-            && !matches!(node.data.borrow().value, NodeValue::CodeBlock(_))
+            && node.data.borrow().value.is_container_block()
             && self.reveal(node)
         {
             let mut height = 0.;
@@ -351,8 +351,7 @@ impl<'ast> MarkdownPlusPlus {
     ) {
         // container blocks: if revealed, show source lines instead
         if node.parent().is_some()
-            && !node.data.borrow().value.contains_inlines()
-            && !matches!(node.data.borrow().value, NodeValue::CodeBlock(_))
+            && node.data.borrow().value.is_container_block()
             && self.reveal(node)
         {
             for line in self.node_lines(node).iter() {
