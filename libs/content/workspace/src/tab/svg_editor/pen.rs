@@ -289,7 +289,7 @@ impl Pen {
                         fill: None,
                         stroke: Some(path_stroke),
                         transform: Transform::identity(),
-                        opacity: self.active_opacity,
+                        opacity: 1.0,
                         diff_state: DiffState::default(),
                         deleted: false,
                     });

@@ -280,7 +280,7 @@ fn show_opacity_slider(ui: &mut egui::Ui, pen: &mut Pen) {
             egui::Stroke { width: 2.5, color: slider_color };
         ui.spacing_mut().slider_width = ui.available_width();
         ui.spacing_mut().slider_rail_height = 2.0;
-        ui.add(egui::Slider::new(&mut pen.active_opacity, 0.05..=1.0).show_value(false));
+        ui.add(egui::Slider::new(&mut pen.active_opacity, 0.01..=1.0).show_value(false));
     });
 }
 
