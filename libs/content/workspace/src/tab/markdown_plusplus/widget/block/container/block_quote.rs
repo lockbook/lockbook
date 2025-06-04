@@ -4,10 +4,9 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
-use crate::tab::markdown_plusplus::{
-    widget::{Wrap, BLOCK_SPACING, INDENT},
-    MarkdownPlusPlus,
-};
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_plusplus::widget::{BLOCK_SPACING, INDENT};
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
     pub fn text_format_block_quote(&self, parent: &AstNode<'_>) -> TextFormat {

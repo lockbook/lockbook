@@ -60,7 +60,7 @@ impl MarkdownPlusPlus {
         self.bounds.source_lines.clear();
 
         let doc = (0.into(), self.last_cursor_position());
-        self.bounds.source_lines = self.range_lines(doc);
+        self.bounds.source_lines = self.range_split_newlines(doc);
     }
 
     /// Translates a comrak::LineColumn into an lb_rs::DocCharOffset. Note that comrak's text ranges, represented using

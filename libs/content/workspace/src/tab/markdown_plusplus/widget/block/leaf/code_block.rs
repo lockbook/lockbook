@@ -1,12 +1,16 @@
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+};
+
 use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Color32, FontFamily, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt};
-use syntect::easy::HighlightLines;
+use syntect::{easy::HighlightLines, highlighting::Style};
 
-use crate::tab::markdown_plusplus::{
-    widget::{Wrap, BLOCK_PADDING, ROW_SPACING},
-    MarkdownPlusPlus,
-};
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_plusplus::widget::{BLOCK_PADDING, ROW_SPACING};
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
     pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> TextFormat {
@@ -435,7 +439,7 @@ impl<'ast> MarkdownPlusPlus {
             }
         } else {
             // no syntax highlighting
-            self.show_node_text_line(ui, node, top_left, &mut wrap, code_line);
+            self.show_text_line(ui, top_left, &mut wrap, code_line, self.text_format(node), false);
         }
     }
 
@@ -483,5 +487,60 @@ impl<'ast> MarkdownPlusPlus {
 
         // Any additional characters may be spaces only
         chars.all(|c| c == ' ')
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+struct SyntaxCacheKey {
+    text: String,
+    range: (DocCharOffset, DocCharOffset),
+}
+
+impl SyntaxCacheKey {
+    fn new(text: String, range: (DocCharOffset, DocCharOffset)) -> Self {
+        Self { text, range }
+    }
+}
+
+pub type SyntaxHighlightResult = Vec<(Style, (DocCharOffset, DocCharOffset))>;
+
+#[derive(Clone, Default)]
+pub struct SyntaxHighlightCache {
+    map: RefCell<HashMap<SyntaxCacheKey, SyntaxHighlightResult>>,
+    used_this_frame: RefCell<HashSet<SyntaxCacheKey>>,
+}
+
+impl SyntaxHighlightCache {
+    pub fn insert(
+        &self, text: String, range: (DocCharOffset, DocCharOffset), value: SyntaxHighlightResult,
+    ) {
+        let key = SyntaxCacheKey::new(text, range);
+        self.used_this_frame.borrow_mut().insert(key.clone());
+        self.map.borrow_mut().insert(key, value);
+    }
+
+    pub fn get(
+        &self, text: &str, range: (DocCharOffset, DocCharOffset),
+    ) -> Option<SyntaxHighlightResult> {
+        let key = SyntaxCacheKey::new(text.to_string(), range);
+        self.used_this_frame.borrow_mut().insert(key.clone());
+        self.map.borrow().get(&key).cloned()
+    }
+
+    pub fn garbage_collect(&self) {
+        // Remove entries that weren't accessed this frame
+        let keys: Vec<SyntaxCacheKey> = self.map.borrow().keys().cloned().collect();
+        let used = self.used_this_frame.borrow();
+        let mut map = self.map.borrow_mut();
+        for key in keys {
+            if !used.contains(&key) {
+                map.remove(&key);
+            }
+        }
+    }
+
+    pub fn clear(&self) {
+        self.map.borrow_mut().clear();
+        self.used_this_frame.borrow_mut().clear();
     }
 }

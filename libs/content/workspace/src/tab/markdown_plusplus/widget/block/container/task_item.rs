@@ -4,10 +4,9 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
-use crate::tab::markdown_plusplus::{
-    widget::{Wrap, INDENT},
-    Event, MarkdownPlusPlus,
-};
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_plusplus::widget::INDENT;
+use crate::tab::markdown_plusplus::{Event, MarkdownPlusPlus};
 
 impl<'ast> MarkdownPlusPlus {
     pub fn height_task_item(&self, node: &'ast AstNode<'ast>) -> f32 {

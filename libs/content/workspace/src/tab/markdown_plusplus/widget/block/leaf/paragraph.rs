@@ -2,10 +2,9 @@ use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt, RangeIterExt as _};
 
-use crate::tab::markdown_plusplus::{
-    widget::{Wrap, BLOCK_SPACING},
-    MarkdownPlusPlus,
-};
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_plusplus::widget::BLOCK_SPACING;
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
     pub fn height_paragraph(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -43,7 +42,7 @@ impl<'ast> MarkdownPlusPlus {
         let Some((pre_node, pre_children, _, post_children, post_node)) =
             self.line_ranges(node, node_line)
         else {
-            unreachable!("Paragraphs always have children")
+            unreachable!("Paragraphs always have children") // todo: but not always on every line
         };
 
         let reveal = node_line.intersects(&self.buffer.current.selection, true);
@@ -96,7 +95,7 @@ impl<'ast> MarkdownPlusPlus {
         let Some((pre_node, pre_children, children, post_children, post_node)) =
             self.line_ranges(node, node_line)
         else {
-            unreachable!("Paragraphs always have children")
+            unreachable!("Paragraphs always have children") // todo: but not always on every line
         };
 
         if !pre_node.is_empty() {

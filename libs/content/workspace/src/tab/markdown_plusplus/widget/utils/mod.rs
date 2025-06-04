@@ -1,10 +1,9 @@
-use comrak::nodes::{AstNode, NodeCodeBlock, NodeValue};
-use lb_rs::model::text::offset_types::{
-    DocByteOffset, DocCharOffset, RangeExt as _, RangeIterExt as _,
-};
+use comrak::nodes::{AstNode, NodeValue};
+use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _};
 
-use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
+
+pub(crate) mod text_layout;
 
 impl<'ast> MarkdownPlusPlus {
     // wrappers because I'm tired of writing ".buffer.current.segs" all the time
@@ -33,8 +32,8 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     /// Returns a Vec of ranges that represent the given range split on newlines
-    /// (based on source text).
-    pub fn range_lines(
+    /// (based on source text). Behavior inspired by [`str::split`].
+    pub fn range_split_newlines(
         &self, range: (DocCharOffset, DocCharOffset),
     ) -> Vec<(DocCharOffset, DocCharOffset)> {
         let text = &self.buffer[range];
@@ -90,146 +89,6 @@ impl<'ast> MarkdownPlusPlus {
         result
     }
 
-    /// Returns the range for the node.
-    pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
-        let mut range = self.sourcepos_to_range(node.data.borrow().sourcepos);
-
-        // hack: comrak's sourcepos's are unstable (and indeed broken) for some
-        // nested block situations. clamping each range to its parent's prevents
-        // the worst of the adverse consequences (e.g. double-rendering source
-        // text).
-        //
-        // see: https://github.com/kivikakk/comrak/issues/567
-        if matches!(node.data.borrow().value, NodeValue::Paragraph) {
-            let parent = node.parent().unwrap();
-            let parent_range = self.node_range(parent);
-            range.0 = range.0.max(parent_range.0);
-            range.1 = range.1.min(parent_range.1);
-        }
-
-        // hack: GFM spec says "Blank lines preceding or following an indented
-        // code block are not included in it" and I have observed the behavior
-        // for following lines to be incorrect in e.g. "    f\n".
-        if let NodeValue::CodeBlock(NodeCodeBlock { fenced: false, .. }) = node.data.borrow().value
-        {
-            for line_idx in self.node_lines_impl(range).iter() {
-                let line = self.bounds.source_lines[line_idx];
-                let node_line = self.node_line(node, line);
-                if self.buffer[node_line].chars().any(|c| !c.is_whitespace()) {
-                    range.1 = line.end();
-                }
-            }
-        }
-
-        // hack: list items are emitted to contain all lines until the next
-        // block which would cause the cursor to be shown indented; we trim
-        // trailing blank lines.
-        if matches!(node.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_)) {
-            let node_lines = self.node_lines_impl(range);
-            let mut last_nonempty_line_idx = node_lines.start();
-            for line_idx in node_lines.iter() {
-                let line = self.bounds.source_lines[line_idx];
-                let node_line = self.node_line(node, line);
-                if !node_line.is_empty() {
-                    last_nonempty_line_idx = line_idx;
-                }
-            }
-
-            let last_nonempty_line = self.bounds.source_lines[last_nonempty_line_idx];
-            range.1 = last_nonempty_line.end();
-        }
-        if matches!(node.data.borrow().value, NodeValue::List(_)) {
-            let children = self.sorted_children(node);
-            let last_child = children.last().unwrap();
-            range.1 = self.node_range(last_child).1;
-        }
-
-        range
-    }
-
-    /// Returns the (inclusive, exclusive) range of lines that this node is sourced from.
-    pub fn node_lines(&self, node: &'ast AstNode<'ast>) -> (usize, usize) {
-        self.node_lines_impl(self.node_range(node))
-    }
-
-    fn node_lines_impl(&self, range: (DocCharOffset, DocCharOffset)) -> (usize, usize) {
-        let range_lines = self.range_lines(range);
-
-        let first_line = *range_lines.first().unwrap();
-        let start_line_idx = self
-            .bounds
-            .source_lines
-            .find_containing(first_line.start(), true, true)
-            .start();
-
-        let last_line = *range_lines.last().unwrap();
-        let end_line_idx = self
-            .bounds
-            .source_lines
-            .find_containing(last_line.end(), true, true)
-            .end(); // note: preserves (inclusive, exclusive) behavior
-
-        (start_line_idx, end_line_idx)
-    }
-
-    /// Returns the line index of the first line of a node
-    pub fn node_first_line_idx(&self, node: &'ast AstNode<'ast>) -> usize {
-        self.bounds
-            .source_lines
-            .find_containing(self.node_range(node).start(), true, true)
-            .start()
-    }
-
-    /// Returns the line index of the last line of a node
-    pub fn node_last_line_idx(&self, node: &'ast AstNode<'ast>) -> usize {
-        self.bounds
-            .source_lines
-            .find_containing(self.node_range(node).end(), true, true)
-            .start()
-    }
-
-    /// Returns the first line, the whole first line, and nothing but the first
-    /// line of the given node.
-    pub fn node_first_line(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
-        self.bounds.source_lines[self.node_first_line_idx(node)]
-    }
-
-    /// Returns the last line, the whole last line, and nothing but the last line
-    /// of the given node.
-    pub fn node_last_line(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
-        self.bounds.source_lines[self.node_last_line_idx(node)]
-    }
-
-    /// Returns whether the given line is one of the source lines of the given node
-    pub fn node_contains_line(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> bool {
-        let first_line = self.node_first_line(node);
-        let last_line = self.node_last_line(node);
-
-        (first_line.start(), last_line.end()).contains_range(&line, true, true)
-    }
-
-    /// Returns the row height of a line in the given node, even if that node is
-    /// a container block.
-    pub fn node_line_row_height(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> f32 {
-        // leaf blocks and inlines
-        if node.data.borrow().value.contains_inlines() || !node.data.borrow().value.block() {
-            return self.row_height(node);
-        }
-
-        // container blocks only
-        for child in node.children() {
-            if self.node_contains_line(child, line) {
-                return self.node_line_row_height(child, line);
-            }
-        }
-
-        self.row_height(node)
-    }
-
     /// Returns the innermost node containing the offset.
     pub fn container_block_descendant_at_offset(
         &self, node: &'ast AstNode<'ast>, offset: DocCharOffset,
@@ -244,82 +103,9 @@ impl<'ast> MarkdownPlusPlus {
         }
         node
     }
-
-    /// Returns true if the node intersects the current selection. Useful for
-    /// checking if syntax should be revealed for an inline node. Block nodes
-    /// generally need additional consideration for optional indentation etc.
-    pub fn node_intersects_selection(&self, node: &'ast AstNode<'ast>) -> bool {
-        self.node_range(node)
-            .intersects(&self.buffer.current.selection, true)
-    }
-
-    /// Returns true if the node's lines intersect the selection. Differs from
-    /// node_lines_intersect_selection in cases where the selection intersects
-    /// optional indentation, trailing whitespace, or the portion of a node's
-    /// lines that are due to container blocks.
-    pub fn node_lines_intersect_selection(&self, node: &'ast AstNode<'ast>) -> bool {
-        for line_idx in self.node_lines(node).iter() {
-            let line = self.bounds.source_lines[line_idx];
-            let node_line = self.node_line(node, line);
-            if node_line.intersects(&self.buffer.current.selection, true) {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub fn children_in_range(
-        &self, node: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset),
-    ) -> Vec<&'ast AstNode<'ast>> {
-        let mut children = Vec::new();
-        for child in self.sorted_children(node) {
-            if range.contains_range(&self.node_range(child), true, true) {
-                children.push(child);
-            }
-        }
-        children
-    }
-
-    /// Returns the children of the given node in sourcepos order.
-    pub fn sorted_children(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        let mut children = Vec::new();
-        children.extend(node.children());
-        children.sort_by(|a, b| {
-            a.data
-                .borrow()
-                .sourcepos
-                .start
-                .line
-                .cmp(&b.data.borrow().sourcepos.start.line)
-        });
-        children
-    }
-
-    /// Returns the siblings of the given node in sourcepos order (unlike
-    /// `node.siblings()`).
-    pub fn sorted_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        let mut preceding_siblings = node.preceding_siblings();
-        preceding_siblings.next().unwrap(); // "Call .next().unwrap() once on the iterator to skip the node itself."
-
-        let mut following_siblings = node.following_siblings();
-        following_siblings.next().unwrap(); // "Call .next().unwrap() once on the iterator to skip the node itself."
-
-        let mut siblings = Vec::new();
-        siblings.extend(preceding_siblings);
-        siblings.push(node);
-        siblings.extend(following_siblings);
-        siblings.sort_by(|a, b| {
-            a.data
-                .borrow()
-                .sourcepos
-                .start
-                .line
-                .cmp(&b.data.borrow().sourcepos.start.line)
-        });
-        siblings
-    }
 }
 
+#[allow(dead_code)]
 pub trait NodeValueExt {
     fn is_leaf_block(&self) -> bool;
     fn is_container_block(&self) -> bool;
@@ -490,7 +276,7 @@ mod test {
         let text = "*";
         let md = MarkdownPlusPlus::test(text);
 
-        let lines = md.range_lines((0.into(), text.len().into()));
+        let lines = md.range_split_newlines((0.into(), text.len().into()));
 
         // Should produce 1 range for the entire text since there's no newline
         assert_eq!(lines, vec![(0.into(), 1.into())]);
@@ -501,7 +287,7 @@ mod test {
         let text = "*\n";
         let md = MarkdownPlusPlus::test(text);
 
-        let lines = md.range_lines((0.into(), text.len().into()));
+        let lines = md.range_split_newlines((0.into(), text.len().into()));
 
         // Should produce 2 ranges - one for "*" and one for empty line after "\n"
         assert_eq!(lines, vec![(0.into(), 1.into()), (2.into(), 2.into())]);

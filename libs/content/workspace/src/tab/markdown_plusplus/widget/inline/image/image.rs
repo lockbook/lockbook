@@ -4,10 +4,9 @@ use comrak::nodes::AstNode;
 use egui::{self, Align2, Color32, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use epaint::RectShape;
 
-use crate::tab::markdown_plusplus::{
-    widget::{Wrap, MARGIN},
-    MarkdownPlusPlus,
-};
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_plusplus::widget::MARGIN;
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 use super::cache::ImageState;
 

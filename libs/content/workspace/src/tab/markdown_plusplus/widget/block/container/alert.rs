@@ -1,10 +1,11 @@
-use comrak::nodes::{AlertType, AstNode, NodeAlert, NodeMultilineBlockQuote};
+use comrak::nodes::{AlertType, AstNode, NodeAlert};
 use egui::{Pos2, Rect, Stroke, TextFormat, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
-use crate::tab::markdown_plusplus::widget::{Wrap, BLOCK_SPACING, INDENT, ROW_HEIGHT};
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_plusplus::widget::{BLOCK_SPACING, INDENT, ROW_HEIGHT};
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 use crate::theme::icons::Icon;
 
@@ -234,24 +235,10 @@ impl<'ast> MarkdownPlusPlus {
 
     pub fn line_prefix_len_alert(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-        node_alert: &NodeAlert,
     ) -> RelCharOffset {
-        let NodeAlert { multiline, fence_length, fence_offset, .. } = node_alert;
-        if *multiline {
-            self.line_prefix_len_multiline_block_quote(
-                node,
-                &NodeMultilineBlockQuote {
-                    fence_length: *fence_length,
-                    fence_offset: *fence_offset,
-                },
-                line,
-            )
-        } else {
-            self.line_prefix_len_block_quote(node, line)
-        }
+        self.line_prefix_len_block_quote(node, line)
     }
 
-    // todo: multiline
     fn alert_type_title_ranges(
         &self, node: &'ast AstNode<'ast>,
     ) -> ((DocCharOffset, DocCharOffset), (DocCharOffset, DocCharOffset)) {

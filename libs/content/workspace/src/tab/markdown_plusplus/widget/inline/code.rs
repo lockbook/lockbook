@@ -2,7 +2,8 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, TextFormat, Ui};
 use lb_rs::model::text::offset_types::RangeExt as _;
 
-use crate::tab::markdown_plusplus::{widget::Wrap, MarkdownPlusPlus};
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
     pub fn text_format_code(&self, parent: &AstNode<'_>) -> TextFormat {
@@ -14,8 +15,7 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn span_code(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
-        let sourcepos = node.data.borrow().sourcepos;
-        let range = self.sourcepos_to_range(sourcepos);
+        let range = self.node_range(node);
 
         let infix_range = (range.start() + 1, range.end() - 1);
         let infix_span = self.span_text_line(wrap, infix_range, self.text_format(node));
@@ -36,8 +36,7 @@ impl<'ast> MarkdownPlusPlus {
     pub fn show_code(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
     ) {
-        let sourcepos = node.data.borrow().sourcepos;
-        let range = self.sourcepos_to_range(sourcepos);
+        let range = self.node_range(node);
 
         let prefix_range = (range.start(), range.start() + 1);
         let infix_range = (range.start() + 1, range.end() - 1);
