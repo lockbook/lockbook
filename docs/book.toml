@@ -3,3 +3,7 @@ authors = ["Lockbook Maintainers"]
 language = "en"
 src = "."
 title = "Lockbook"
+
+[output.html]
+default-theme = "Innovation"
+preferred-dark-theme = "Premonition"
