@@ -532,15 +532,6 @@ impl<'ast> MarkdownPlusPlus {
         tmp_wrap.offset - wrap.offset
     }
 
-    // the size of a block that contains inlines is the span of the inlines
-    // divided by the wrap width (rounded up), times the row height (plus
-    // spacing)
-    fn inline_children_height(&self, node: &'ast AstNode<'ast>, width: f32) -> f32 {
-        let children_span = self.inline_children_span(node, &Wrap::new(width));
-        let rows = (children_span / width).ceil();
-        rows * self.row_height(node) + (rows - 1.) * ROW_SPACING
-    }
-
     fn show_inline(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
     ) {

@@ -32,50 +32,6 @@ impl<'ast> MarkdownPlusPlus {
         self.buffer.current.segs.last_cursor_position()
     }
 
-    // additional helpers
-    /// Returns a range that represents the given range with leading and
-    /// trailing whitespace removed (based on source text). Returns the empty
-    /// range at the end of the given range if the whole range is whitespace.
-    pub fn range_trim(
-        &self, range: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
-        let text = &self.buffer[range];
-        let mut byte_range = self.range_to_byte(range);
-
-        byte_range.0 += text.len() - text.trim_start().len();
-
-        let text = &self.buffer[range];
-        byte_range.1 -= text.len() - text.trim_end().len();
-
-        self.range_to_char(byte_range)
-    }
-
-    /// Returns a range that represents the given range with leading whitespace
-    /// removed (based on source text).
-    pub fn range_trim_start(
-        &self, range: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
-        let text = &self.buffer[range];
-        let mut byte_range = self.range_to_byte(range);
-
-        byte_range.0 += text.len() - text.trim_start().len();
-
-        self.range_to_char(byte_range)
-    }
-
-    /// Returns a range that represents the given range with trailing whitespace
-    /// removed (based on source text).
-    pub fn range_trim_end(
-        &self, range: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
-        let text = &self.buffer[range];
-        let mut byte_range = self.range_to_byte(range);
-
-        byte_range.1 -= text.len() - text.trim_end().len();
-
-        self.range_to_char(byte_range)
-    }
-
     /// Returns a Vec of ranges that represent the given range split on newlines
     /// (based on source text).
     pub fn range_lines(
@@ -132,39 +88,6 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         result
-    }
-
-    /// Returns a Vec of ranges that represent the given range, split on
-    /// newlines, and expanded to include the whole first and last line.
-    pub fn range_full_lines(
-        &self, range: (DocCharOffset, DocCharOffset),
-    ) -> Vec<(DocCharOffset, DocCharOffset)> {
-        let mut range_lines = self.range_lines(range);
-
-        if range_lines.is_empty() {
-            return range_lines;
-        }
-        let first_line = *range_lines.first().unwrap();
-        let last_line = *range_lines.last().unwrap();
-
-        let start_line_idx = self
-            .bounds
-            .source_lines
-            .find_containing(first_line.start(), true, true)
-            .start();
-        let start_line = self.bounds.source_lines[start_line_idx];
-
-        let end_line_idx = self
-            .bounds
-            .source_lines
-            .find_containing(last_line.end(), true, true)
-            .start();
-        let end_line = self.bounds.source_lines[end_line_idx];
-
-        range_lines.first_mut().unwrap().0 = start_line.start();
-        range_lines.last_mut().unwrap().1 = end_line.end();
-
-        range_lines
     }
 
     /// Returns the range for the node.
@@ -305,18 +228,6 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         self.row_height(node)
-    }
-
-    /// Returns the innermost node containing the offset.
-    pub fn descendant_at_offset(
-        &self, node: &'ast AstNode<'ast>, offset: DocCharOffset,
-    ) -> &'ast AstNode<'ast> {
-        for child in node.children() {
-            if self.node_range(child).contains(offset, true, true) {
-                return self.descendant_at_offset(child, offset);
-            }
-        }
-        node
     }
 
     /// Returns the innermost node containing the offset.
