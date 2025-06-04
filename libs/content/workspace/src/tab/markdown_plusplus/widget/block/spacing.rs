@@ -2,23 +2,11 @@ use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::RangeExt as _;
 
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_plusplus::widget::BLOCK_SPACING;
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
-use super::{Wrap, BLOCK_SPACING};
-
 impl<'ast> MarkdownPlusPlus {
-    pub fn sibling_index(
-        &self, node: &'ast AstNode<'ast>, sorted_siblings: &[&'ast AstNode<'ast>],
-    ) -> usize {
-        let range = self.node_range(node);
-        let this_sibling_index = sorted_siblings
-            .iter()
-            .position(|sibling| self.node_range(sibling) == range)
-            .unwrap();
-
-        this_sibling_index
-    }
-
     pub fn block_pre_spacing_height(&self, node: &'ast AstNode<'ast>) -> f32 {
         let Some(parent) = node.parent() else {
             // document never spaced

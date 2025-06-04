@@ -2,10 +2,9 @@ use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::RangeExt as _;
 
-use crate::tab::markdown_plusplus::{
-    widget::{Wrap, BLOCK_PADDING, BLOCK_SPACING},
-    MarkdownPlusPlus,
-};
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_plusplus::widget::{BLOCK_PADDING, BLOCK_SPACING};
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
     pub fn height_table_cell(&self, node: &'ast AstNode<'ast>) -> f32 {

@@ -18,9 +18,9 @@ use lb_rs::{blocking::Lb, Uuid};
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use theme::Theme;
+use widget::block::leaf::code_block::SyntaxHighlightCache;
+use widget::block::LayoutCache;
 use widget::inline::image::cache::ImageCache;
-use widget::layout::cache::LayoutCache;
-use widget::leaf_block::code_block::cache::SyntaxHighlightCache;
 use widget::{MARGIN, MAX_WIDTH};
 
 mod bounds;

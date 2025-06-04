@@ -2,10 +2,9 @@ use comrak::nodes::AstNode;
 use egui::{FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
-use crate::tab::markdown_plusplus::{
-    widget::{Wrap, BLOCK_SPACING, ROW_SPACING},
-    MarkdownPlusPlus,
-};
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_plusplus::widget::{BLOCK_SPACING, ROW_SPACING};
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
     pub fn text_format_heading(&self, parent: &AstNode<'_>, level: u8) -> TextFormat {

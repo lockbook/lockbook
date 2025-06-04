@@ -3,7 +3,7 @@ use std::sync::Arc;
 use comrak::nodes::AstNode;
 use egui::{FontFamily, FontId, Pos2, TextFormat, Ui};
 
-use crate::tab::markdown_plusplus::widget::Wrap;
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {

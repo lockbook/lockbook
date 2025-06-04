@@ -1,4 +1,5 @@
-use crate::tab::markdown_plusplus::{widget::Wrap, MarkdownPlusPlus};
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl MarkdownPlusPlus {
     pub fn span_soft_break(&self, wrap: &Wrap) -> f32 {

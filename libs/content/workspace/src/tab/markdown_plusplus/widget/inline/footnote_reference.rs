@@ -2,7 +2,8 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, TextFormat, Ui};
 use lb_rs::model::text::offset_types::{IntoRangeExt as _, RangeExt as _};
 
-use crate::tab::markdown_plusplus::{widget::Wrap, MarkdownPlusPlus};
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
     pub fn text_format_footnote_reference(&self, parent: &AstNode<'_>) -> TextFormat {
@@ -13,8 +14,7 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn span_footnote_reference(&self, node: &'ast AstNode<'ast>, wrap: &Wrap, ix: u32) -> f32 {
-        let sourcepos = node.data.borrow().sourcepos;
-        let range = self.sourcepos_to_range(sourcepos);
+        let range = self.node_range(node);
 
         if self.node_intersects_selection(node) {
             let prefix_range = (range.start(), range.start() + 2);
@@ -36,8 +36,7 @@ impl<'ast> MarkdownPlusPlus {
     pub fn show_footnote_reference(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap, ix: u32,
     ) {
-        let sourcepos = node.data.borrow().sourcepos;
-        let range = self.sourcepos_to_range(sourcepos);
+        let range = self.node_range(node);
 
         let prefix_range = (range.start(), range.start() + 2);
         let infix_range = (range.start() + 2, range.end() - 1);

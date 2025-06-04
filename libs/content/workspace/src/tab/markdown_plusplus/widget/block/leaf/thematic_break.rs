@@ -1,10 +1,9 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 
-use crate::tab::markdown_plusplus::{
-    widget::{Wrap, ROW_HEIGHT},
-    MarkdownPlusPlus,
-};
+use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_plusplus::widget::ROW_HEIGHT;
+use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 
 impl<'ast> MarkdownPlusPlus {
     pub fn height_thematic_break(&self) -> f32 {
