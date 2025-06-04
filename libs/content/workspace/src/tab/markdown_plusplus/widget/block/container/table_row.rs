@@ -71,7 +71,7 @@ impl<'ast> MarkdownPlusPlus {
             // bounds
             {
                 let row_range = self.node_range(node);
-                let children = self.sorted_children(node);
+                let children = self.sorted_children(node); // todo: these will always already be sorted
 
                 let mut range_start = row_range.start();
                 for cell in &children {
@@ -130,7 +130,7 @@ impl<'ast> MarkdownPlusPlus {
     fn reveal_table_row(&self, node: &'ast AstNode<'ast>) -> bool {
         let selection = self.buffer.current.selection;
         let row_range = self.node_range(node);
-        let children = self.sorted_children(node);
+        let children = self.sorted_children(node); // todo: these will always already be sorted
 
         let mut range_start = row_range.start();
         for cell in &children {
