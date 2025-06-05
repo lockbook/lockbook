@@ -262,7 +262,6 @@ impl Workspace {
     }
 
     #[instrument(level = "trace", skip_all)]
-
     pub fn process_updates(&mut self) {
         let task_manager::Response {
             completed_loads,
