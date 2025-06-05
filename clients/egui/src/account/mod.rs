@@ -14,7 +14,10 @@ use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, Vec2};
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
+use lb::service::events::broadcast::error::TryRecvError;
+use lb::service::events::{self, Event};
 use lb::service::import_export::ImportStatus;
+use lb::subscribers::status::Status;
 use lb::Uuid;
 use tree::FilesExt;
 use workspace_rs::theme::icons::Icon;
@@ -38,11 +41,15 @@ pub struct AccountScreen {
     update_tx: mpsc::Sender<AccountUpdate>,
     update_rx: mpsc::Receiver<AccountUpdate>,
 
+    lb_rx: events::Receiver<Event>,
+
     tree: FileTree,
     is_new_user: bool,
     full_search_doc: FullDocSearch,
     sync: SyncPanel,
     usage: Result<Usage, String>,
+    // todo: this will prob move into sync panel
+    lb_status: Status,
     workspace: Workspace,
     modals: Modals,
     shutdown: Option<AccountShutdownProgress>,
@@ -77,6 +84,8 @@ impl AccountScreen {
             workspace: Workspace::new(&core_clone, &ctx.clone()),
             modals: Modals::default(),
             shutdown: None,
+            lb_rx: core.subscribe(),
+            lb_status: core.status(),
         };
         result.tree.recalc_suggested_files(&core, ctx);
         result
@@ -96,6 +105,7 @@ impl AccountScreen {
     }
 
     pub fn update(&mut self, ctx: &egui::Context) {
+        self.process_lb_updates(ctx);
         self.process_updates(ctx);
         self.process_keys(ctx);
         self.process_dropped_files(ctx);
@@ -237,10 +247,6 @@ impl AccountScreen {
                     }
                 }
 
-                if wso.sync_done.is_some() {
-                    self.refresh_tree(ctx);
-                }
-
                 for msg in wso.failure_messages {
                     self.toasts.error(msg);
                 }
@@ -270,6 +276,22 @@ impl AccountScreen {
                 escape: false, // escape releases focus which is generally grabbed by the editor
             };
             ctx.memory_mut(|m| m.set_focus_lock_filter(focused, event_filter))
+        }
+    }
+
+    fn process_lb_updates(&mut self, ctx: &egui::Context) {
+        match self.lb_rx.try_recv() {
+            Ok(evt) => match evt {
+                Event::MetadataChanged => {
+                    self.refresh_tree(ctx);
+                }
+                Event::StatusUpdated => {
+                    self.lb_status = self.core.status();
+                }
+                _ => {}
+            },
+            Err(TryRecvError::Empty) => {}
+            Err(e) => eprintln!("cannot recv events from lb-rs {e:?}"),
         }
     }
 
@@ -314,22 +336,17 @@ impl AccountScreen {
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
                 AccountUpdate::FileImported(result) => match result {
-                    Ok(files) => {
-                        self.tree.update_files(files);
+                    Ok(()) => {
                         self.modals.file_picker = None;
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
                 AccountUpdate::FileCreated(result) => self.file_created(ctx, result),
-                AccountUpdate::FileDeleted(f) => {
-                    // inefficient but fine
-                    let mut files = self.tree.files.clone();
-                    files.retain(|file| file.id != f.id);
+                AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
+                AccountUpdate::ReloadTree(files) => {
                     self.tree.update_files(files);
                     self.tree.recalc_suggested_files(&self.core, ctx);
                 }
-                AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
-                AccountUpdate::ReloadTree(files) => self.tree.update_files(files),
 
                 AccountUpdate::FinalSyncAttemptDone => {
                     if let Some(s) = &mut self.shutdown {
@@ -668,8 +685,6 @@ impl AccountScreen {
             }
         }
 
-        self.refresh_tree(ctx);
-
         ctx.request_repaint();
     }
 
@@ -750,11 +765,7 @@ impl AccountScreen {
                 }
             });
 
-            let all_metas = core.list_metadatas().unwrap();
-
-            let result = result
-                .map(|_| all_metas)
-                .map_err(|err| format!("{:?}", err));
+            let result = result.map_err(|err| format!("{:?}", err));
 
             update_tx.send(AccountUpdate::FileImported(result)).unwrap();
             ctx.request_repaint();
@@ -778,10 +789,7 @@ impl AccountScreen {
 
         thread::spawn(move || {
             for f in &files {
-                core.delete_file(&f.id).unwrap(); // TODO
-                update_tx
-                    .send(AccountUpdate::FileDeleted(f.clone()))
-                    .unwrap();
+                core.delete_file(&f.id).unwrap();
             }
             update_tx.send(AccountUpdate::DoneDeleting).unwrap();
             ctx.request_repaint();
@@ -821,10 +829,9 @@ pub enum AccountUpdate {
 
     FileCreated(Result<File, String>),
     FileShared(Result<(), String>),
-    FileDeleted(File),
 
     /// if a file has been imported successfully refresh the tree, otherwise show what went wrong
-    FileImported(Result<Vec<File>, String>),
+    FileImported(Result<(), String>),
 
     ShareAccepted(Result<File, String>),
 

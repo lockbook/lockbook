@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use tokio::runtime::Runtime;
+use tokio::{runtime::Runtime, sync::broadcast::Receiver};
 use uuid::Uuid;
 
 use crate::{
@@ -20,6 +20,7 @@ use crate::{
     },
     service::{
         activity::RankingWeights,
+        events::Event,
         import_export::{ExportFileInfo, ImportStatus},
         sync::{SyncProgress, SyncStatus},
         usage::{UsageItemMetric, UsageMetrics},
@@ -308,6 +309,10 @@ impl Lb {
 
     pub fn admin_set_user_tier(&self, username: &str, info: AdminSetUserTierInfo) -> LbResult<()> {
         self.rt.block_on(self.lb.set_user_tier(username, info))
+    }
+
+    pub fn subscribe(&self) -> Receiver<Event> {
+        self.lb.subscribe()
     }
 
     pub fn status(&self) -> Status {
