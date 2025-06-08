@@ -6,7 +6,9 @@ use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Rangef, Vec2};
 use lb_rs::model::text::buffer::{self};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, ToRangeExt as _};
+use lb_rs::model::text::offset_types::{
+    DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt, ToRangeExt as _,
+};
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
 use super::advance::AdvanceExt as _;
@@ -304,264 +306,52 @@ impl<'ast> MarkdownPlusPlus {
                 operations.push(Operation::Select(current_selection.start().to_range()));
             }
             Event::Indent { deindent } => {
-                // let mut renumbering_processed_galleys = HashSet::new();
-                // let mut indented_galleys = HashMap::new();
-                // let mut renumbered_galleys = HashMap::new();
+                let lines = self
+                    .bounds
+                    .source_lines
+                    .find_intersecting(current_selection, true);
+                let first_line_idx = lines.0;
 
-                // // determine indent level of galleys to (de)indent
-                // let start_galley = self.galleys.galley_at_char(current_selection.start());
-                // let end_galley = self.galleys.galley_at_char(current_selection.end());
-                // for galley_idx in start_galley..=end_galley {
-                //     let galley = &self.galleys.galleys[galley_idx];
-                //     let cur_indent_level = match galley.annotation {
-                //         Some(Annotation::Item(_, indent_level)) => indent_level,
-                //         _ => indent_level(&self.buffer[galley.range]),
-                //     };
-                //     indented_galleys.insert(galley_idx, cur_indent_level);
-                // }
+                // indent into prior list item
+                let indent = || {
+                    // must not be first line
+                    if first_line_idx == 0 {
+                        // default -> four space indent
+                        return 4.into();
+                    }
 
-                // // (de)indent identified galleys in order
-                // // iterate forwards for indent and backwards for de-indent because when indenting, the indentation of the
-                // // prior item constraints the indentation of the current item, and when de-indenting, the indentation of
-                // // the next item constraints the indentation of the current item
-                // let ordered_galleys = {
-                //     let mut this = Vec::new();
-                //     this.extend(indented_galleys.keys());
-                //     this.sort();
-                //     if deindent {
-                //         this.reverse();
-                //     }
-                //     this
-                // };
-                // for galley_idx in ordered_galleys {
-                //     let galley = &self.galleys[galley_idx];
-                //     let cur_indent_level = indented_galleys[&galley_idx];
+                    let prior_line_idx = first_line_idx - 1;
+                    let prior_line = self.bounds.source_lines[prior_line_idx];
+                    let prior_node =
+                        self.container_block_descendant_at_offset(root, prior_line.start());
 
-                //     let galley_text = &(&self.buffer)[(galley.range.start(), galley.range.end())];
-                //     let indent_seq = indent_seq(galley_text);
+                    // prior line must be in list item
+                    if !matches!(
+                        prior_node.data.borrow().value,
+                        NodeValue::Item(_) | NodeValue::TaskItem(_)
+                    ) {
+                        // default -> four space indent
+                        return 4.into();
+                    }
 
-                //     // indent or de-indent if able
-                //     let new_indent_level = if deindent {
-                //         let mut can_deindent = true;
-                //         if cur_indent_level == 0 {
-                //             can_deindent = false; // cannot de-indent if not indented
-                //         } else if galley_idx != self.galleys.len() - 1 {
-                //             let next_galley = &self.galleys[galley_idx + 1];
-                //             if let (
-                //                 Some(Annotation::Item(..)),
-                //                 Some(Annotation::Item(.., next_indent_level)),
-                //             ) = (&galley.annotation, &next_galley.annotation)
-                //             {
-                //                 let next_indent_level = indented_galleys
-                //                     .get(&(galley_idx + 1))
-                //                     .copied()
-                //                     .unwrap_or(*next_indent_level);
-                //                 if next_indent_level > cur_indent_level {
-                //                     can_deindent = false; // list item cannot be de-indented if already indented less than next item
-                //                 }
-                //             }
-                //         }
+                    let prefix_len = self.line_prefix_len(prior_node, prior_line);
+                    let parent_prefix_len =
+                        self.line_prefix_len(prior_node.parent().unwrap(), prior_line);
+                    prefix_len - parent_prefix_len
+                };
+                let indent = indent();
 
-                //         if can_deindent {
-                //             operations.push(Operation::Replace(Replace {
-                //                 range: (
-                //                     galley.range.start(),
-                //                     galley.range.start() + indent_seq.len(),
-                //                 ),
-                //                 text: "".into(),
-                //             }));
+                for line_idx in lines.iter() {
+                    let line = self.bounds.source_lines[line_idx];
 
-                //             cur_indent_level - 1
-                //         } else {
-                //             cur_indent_level
-                //         }
-                //     } else {
-                //         let mut can_indent = true;
-                //         if matches!(galley.annotation, Some(Annotation::Item(..))) {
-                //             if galley_idx == 0 {
-                //                 can_indent = false; // first galley cannot be indented
-                //             } else {
-                //                 let prior_galley = &self.galleys[galley_idx - 1];
-                //                 if let Some(Annotation::Item(_, prior_indent_level)) =
-                //                     &prior_galley.annotation
-                //                 {
-                //                     let prior_indent_level = indented_galleys
-                //                         .get(&(galley_idx - 1))
-                //                         .copied()
-                //                         .unwrap_or(*prior_indent_level);
-                //                     if prior_indent_level < cur_indent_level {
-                //                         can_indent = false; // list item cannot be indented if already indented more than prior item
-                //                     }
-                //                 } else {
-                //                     can_indent = false; // first list item of a list cannot be indented
-                //                 }
-                //             }
-                //         }
+                    operations.push(Operation::Replace(Replace {
+                        range: line.start().into_range(),
+                        text: " ".repeat(indent.0),
+                    }));
+                }
 
-                //         if can_indent {
-                //             operations.push(Operation::Replace(Replace {
-                //                 range: galley.range.start().to_range(),
-                //                 text: indent_seq.to_string(),
-                //             }));
-
-                //             cur_indent_level + 1
-                //         } else {
-                //             cur_indent_level
-                //         }
-                //     };
-
-                //     if new_indent_level != cur_indent_level {
-                //         indented_galleys.insert(galley_idx, new_indent_level);
-                //     }
-                // }
-
-                // operations.push(Operation::Select(current_selection));
-
-                // // numbered list item renumbering
-                // // always iterate forwards when renumbering because numbers are based on prior numbers for both indent
-                // // and deindent operations
-                // let ast_text_ranges = self.bounds.ast.find_intersecting(current_selection, true);
-                // for ast_text_range in ast_text_ranges.iter() {
-                //     let ast_node = self.bounds.ast[ast_text_range]
-                //         .ancestors
-                //         .last()
-                //         .copied()
-                //         .unwrap(); // ast text ranges always have themselves as the last ancestor
-                //     let galley_idx = self
-                //         .galleys
-                //         .galley_at_char(self.ast.nodes[ast_node].text_range.start());
-
-                //     let (cur_number, cur_indent_level) = if let MarkdownNode::Block(
-                //         BlockNode::ListItem(ListItem::Numbered(cur_number), indent_level),
-                //     ) = self.ast.nodes[ast_node].node_type
-                //     {
-                //         (cur_number, indent_level)
-                //     } else {
-                //         continue; // only process numbered list items
-                //     };
-                //     let new_indent_level = if let Some(new_indent_level) =
-                //         indented_galleys.get(&galley_idx).copied()
-                //     {
-                //         new_indent_level
-                //     } else {
-                //         continue; // only process indented galleys
-                //     };
-                //     if !renumbering_processed_galleys.insert(galley_idx) {
-                //         continue; // only process each galley once
-                //     }
-
-                //     // re-number numbered lists
-                //     let cur_number = renumbered_galleys
-                //         .get(&galley_idx)
-                //         .copied()
-                //         .unwrap_or(cur_number);
-
-                //     // assign a new_number to this item based on position in new nested list
-                //     let new_number = {
-                //         let mut new_number = 1;
-                //         let mut prior_galley_idx = galley_idx;
-                //         while prior_galley_idx > 0 {
-                //             prior_galley_idx -= 1;
-                //             let prior_galley = &self.galleys[prior_galley_idx];
-                //             if let Some(Annotation::Item(
-                //                 ListItem::Numbered(prior_number),
-                //                 prior_indent_level,
-                //             )) = prior_galley.annotation
-                //             {
-                //                 // if prior galley has already been processed, use its new indent level and number
-                //                 let prior_indent_level = indented_galleys
-                //                     .get(&prior_galley_idx)
-                //                     .copied()
-                //                     .unwrap_or(prior_indent_level);
-                //                 let prior_number = renumbered_galleys
-                //                     .get(&prior_galley_idx)
-                //                     .copied()
-                //                     .unwrap_or(prior_number);
-
-                //                 match prior_indent_level.cmp(&new_indent_level) {
-                //                     Ordering::Greater => {
-                //                         continue; // skip more-nested list items
-                //                     }
-                //                     Ordering::Less => {
-                //                         break; // our element is the first in its sublist
-                //                     }
-                //                     Ordering::Equal => {
-                //                         new_number = prior_number + 1; // our element comes after this one in its sublist
-                //                         break;
-                //                     }
-                //                 }
-                //             } else {
-                //                 break;
-                //             }
-                //         }
-
-                //         renumbered_galleys.insert(galley_idx, new_number);
-
-                //         new_number
-                //     };
-
-                //     renumbered_galleys.insert(galley_idx, new_number);
-
-                //     if deindent {
-                //         // decrement numbers in old list by this item's old number
-                //         increment_numbered_list_items(
-                //             galley_idx,
-                //             cur_indent_level,
-                //             cur_number,
-                //             true,
-                //             &self.galleys,
-                //             &mut renumbered_galleys,
-                //         );
-
-                //         // increment numbers in new nested list by one
-                //         increment_numbered_list_items(
-                //             galley_idx,
-                //             new_indent_level,
-                //             1,
-                //             false,
-                //             &self.galleys,
-                //             &mut renumbered_galleys,
-                //         );
-                //     } else {
-                //         // decrement numbers in old list by one
-                //         increment_numbered_list_items(
-                //             galley_idx,
-                //             cur_indent_level,
-                //             1,
-                //             true,
-                //             &self.galleys,
-                //             &mut renumbered_galleys,
-                //         );
-
-                //         // increment numbers in new nested list by this item's new number
-                //         increment_numbered_list_items(
-                //             galley_idx,
-                //             new_indent_level,
-                //             new_number,
-                //             false,
-                //             &self.galleys,
-                //             &mut renumbered_galleys,
-                //         );
-                //     }
-                // }
-
-                // // apply renumber operations once at the end because otherwise they stack up and clobber each other
-                // for (galley_idx, new_number) in renumbered_galleys {
-                //     let galley = &self.galleys[galley_idx];
-                //     if let Some(Annotation::Item(ListItem::Numbered(cur_number), ..)) =
-                //         galley.annotation
-                //     {
-                //         operations.push(Operation::Replace(Replace {
-                //             range: (
-                //                 galley.range.start() + galley.head_size,
-                //                 galley.range.start() + galley.head_size
-                //                     - (cur_number).to_string().len()
-                //                     - 2,
-                //             ),
-                //             text: new_number.to_string() + ". ",
-                //         }));
-                //     }
-                // }
+                // advance cursor
+                operations.push(Operation::Select(current_selection.start().to_range()));
             }
             Event::Find { term, backwards } => {
                 // if let Some(result) = self.find(term, backwards) {
