@@ -14,7 +14,7 @@ pub fn init(config: &Config) -> LbResult<()> {
         let lockbook_log_level = env::var("LOG_LEVEL")
             .ok()
             .and_then(|s| s.as_str().parse().ok())
-            .unwrap_or(LevelFilter::DEBUG);
+            .unwrap_or(LevelFilter::WARN);
 
         let mut layers = Vec::with_capacity(2);
 

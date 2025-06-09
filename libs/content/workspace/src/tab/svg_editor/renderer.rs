@@ -17,7 +17,7 @@ use tracing::{span, Level};
 
 use crate::theme::palette::ThemePalette;
 
-use super::util::{devc_to_point, transform_rect};
+use super::util::{devc_to_point, transform_point, transform_rect};
 use super::Buffer;
 
 const STROKE_WIDTH: AttributeIndex = 0;
@@ -156,7 +156,10 @@ impl Renderer {
                                 }
                             };
 
-                            if !re_tess && self.mesh_cache.contains_key(id) {
+                            if !re_tess
+                                && transform.sx == transform.sy
+                                && self.mesh_cache.contains_key(id)
+                            {
                                 return Some((*id, RenderOp::Transform(transform)));
                             }
                         }
@@ -219,8 +222,7 @@ impl Renderer {
                     diff_state.transformed = Some(t);
                     if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(&id) {
                         for v in &mut shape.vertices {
-                            v.pos.x = t.sx * v.pos.x + t.tx;
-                            v.pos.y = t.sy * v.pos.y + t.ty;
+                            v.pos = transform_point(v.pos, t);
                         }
                     }
                 }
@@ -338,7 +340,8 @@ fn tesselate_path<'a>(
         let mut i = 0;
 
         while let Some(mut seg) = p.data.get_segment(i) {
-            let mut thickness = stroke.width * p.transform.sx * viewport_transform.sx;
+            let mut thickness =
+                stroke.width * (p.transform.sx + p.transform.sy) / 2.0 * viewport_transform.sx;
 
             if let Some(forces) = weak_path_pressures.get(id) {
                 let pressure_at_segment =
