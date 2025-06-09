@@ -5,6 +5,7 @@ edition = "2021"
 license = "BSD-3-Clause"
 description = "A Virtual file system implementation for lockbook.net."
 homepage = "https://lockbook.net"
+repository = "https://github.com/lockbook/lockbook/"
 readme = "../../docs/README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
