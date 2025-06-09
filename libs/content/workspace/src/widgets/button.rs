@@ -190,7 +190,7 @@ impl<'a> Button<'a> {
         resp
     }
 
-    //  copied from the egui spinner impl.
+    /// copied from the egui spinner impl.
     fn show_spinner(ui: &mut egui::Ui, spinner_pos: egui::Pos2) {
         let color = ui.visuals().strong_text_color();
 

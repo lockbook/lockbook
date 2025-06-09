@@ -69,6 +69,45 @@ pub struct Status {
     pub sync_status: Option<String>,
 }
 
+impl Status {
+    pub fn msg(&self) -> Option<String> {
+        if self.syncing {
+            return Some("Syncing...".to_string());
+        }
+
+        if self.offline {
+            if !self.dirty_locally.is_empty() {
+                return Some(format!("Offline, {} changes unsynced.", self.dirty_locally.len()));
+            }
+
+            if let Some(last_synced) = &self.sync_status {
+                return Some(format!("Offline, last synced: {}", last_synced));
+            }
+
+            return Some("Offline.".to_string());
+        }
+
+        if self.out_of_space {
+            return Some("You're out of space!".to_string());
+        }
+
+        if self.update_required {
+            return Some("An update is required to continue.".to_string());
+        }
+
+        if !self.dirty_locally.is_empty() {
+            let dirty_locally = self.dirty_locally.len();
+            return Some(format!("{dirty_locally} changes unsynced"));
+        }
+
+        if let Some(last_synced) = &self.sync_status {
+            return Some(format!("Last synced: {}", last_synced));
+        }
+
+        None
+    }
+}
+
 impl Lb {
     pub async fn status(&self) -> Status {
         self.status.current_status.read().await.clone()
@@ -109,22 +148,28 @@ impl Lb {
     }
 
     async fn process_event(&self, e: Event) -> LbResult<()> {
-        let mut current = self.status.current_status.read().await.clone();
+        let current = self.status.current_status.read().await.clone();
         match e {
             Event::MetadataChanged | Event::DocumentWritten(_) => {
-                self.compute_dirty_locally(&mut current).await?;
+                self.compute_dirty_locally(current).await?;
             }
-            Event::Sync(s) => self.update_sync(s, &mut current).await?,
+            Event::Sync(s) => self.update_sync(s, current).await?,
             _ => {}
         }
         Ok(())
     }
 
-    async fn compute_dirty_locally(&self, &mut status: Status) -> LbResult<bool> {
+    async fn set_status(&self, status: Status) -> LbResult<()> {
+        *self.status.current_status.write().await = status;
+        self.events.status_updated();
+        Ok(())
+    }
+
+    async fn compute_dirty_locally(&self, mut status: Status) -> LbResult<()> {
         let new = self.local_changes().await;
         if new != status.dirty_locally {
             status.dirty_locally = self.local_changes().await;
-            self.events.status_updated();
+            self.set_status(status).await?;
         }
         Ok(())
     }
@@ -154,10 +199,10 @@ impl Lb {
         });
     }
 
-    async fn update_sync(&self, s: SyncIncrement, status: &mut Status) -> LbResult<()> {
+    async fn update_sync(&self, s: SyncIncrement, mut status: Status) -> LbResult<()> {
         match s {
             SyncIncrement::SyncStarted => {
-                self.reset_sync(status);
+                self.reset_sync(&mut status);
                 status.syncing = true;
             }
             SyncIncrement::PullingDocument(id, in_progress) => {
@@ -175,7 +220,7 @@ impl Lb {
                 }
             }
             SyncIncrement::SyncFinished(maybe_problem) => {
-                self.reset_sync(status);
+                self.reset_sync(&mut status);
                 self.compute_usage().await;
                 match maybe_problem {
                     Some(LbErrKind::ClientUpdateRequired) => {
@@ -201,7 +246,7 @@ impl Lb {
             }
         }
 
-        self.events.status_updated();
+        self.set_status(status).await?;
 
         Ok(())
     }

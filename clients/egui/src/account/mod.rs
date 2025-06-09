@@ -287,7 +287,6 @@ impl AccountScreen {
                 }
                 Event::StatusUpdated => {
                     self.lb_status = self.core.status();
-                    println!("new status: {:?}", self.lb_status);
                 }
                 _ => {}
             },

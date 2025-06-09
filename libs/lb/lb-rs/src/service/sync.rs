@@ -101,7 +101,8 @@ impl Lb {
             ctx.msg("Preparing Sync..."); // todo remove
             self.events.sync(SyncIncrement::SyncStarted);
 
-            sleep(std::time::Duration::from_secs(2)).await;
+            // sleep(std::time::Duration::from_secs(2)).await;
+            return Err(LbErrKind::UsageIsOverDataCap.into());
             self.prune().await?;
             got_updates = self.fetch_meta(&mut ctx).await?;
             self.populate_pk_cache(&mut ctx).await?;

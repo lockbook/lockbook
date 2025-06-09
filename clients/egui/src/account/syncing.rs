@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use egui::TextWrapMode;
+use egui::{Color32, TextWrapMode};
 use lb::model::errors::LbErr;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::{Button, ProgressBar};
@@ -101,8 +101,15 @@ impl super::AccountScreen {
 
     pub fn show_sync_btn(&mut self, ui: &mut egui::Ui) {
         let visuals_before_button = ui.style().clone();
+        if self.lb_status.offline {
+            ui.visuals_mut().widgets.active.bg_fill = Color32::GRAY;
+        } else if self.lb_status.update_required || self.lb_status.out_of_space {
+            ui.visuals_mut().widgets.active.bg_fill = ui.visuals().error_fg_color;
+        };
+
         let text_stroke =
             egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+
         ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
         ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
         ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
@@ -115,9 +122,17 @@ impl super::AccountScreen {
         ui.visuals_mut().widgets.active.bg_fill =
             ui.visuals().widgets.active.bg_fill.gamma_multiply(0.3);
 
+        let icon = if self.lb_status.offline {
+            Icon::OFFLINE
+        } else if self.lb_status.update_required || self.lb_status.out_of_space {
+            Icon::SYNC_PROBLEM
+        } else {
+            Icon::SYNC
+        };
+
         let sync_btn = Button::default()
             .text("Sync")
-            .icon(&Icon::SYNC)
+            .icon(&icon)
             .icon_alignment(egui::Align::RIGHT)
             .padding(egui::vec2(10.0, 7.0))
             .frame(true)
@@ -140,7 +155,7 @@ impl super::AccountScreen {
             Some(format!("Updated {}", &self.workspace.status.dirtyness.last_synced))
         };
 
-        if let Some(msg) = tooltip_msg {
+        if let Some(msg) = self.lb_status.msg() {
             sync_btn.on_hover_ui_at_pointer(|ui| {
                 ui.label(msg);
             });
