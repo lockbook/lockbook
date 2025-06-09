@@ -32,7 +32,7 @@ pub struct SpaceUpdater {
 /// space to represent information (phones?) earlier fields are more
 /// important than later fields. Ideally anything with an ID is represented
 /// in the file tree itself.
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct Status {
     /// some recent server interaction failed due to network conditions
     pub offline: bool,
@@ -120,7 +120,7 @@ impl Lb {
         Ok(())
     }
 
-    async fn compute_dirty_locally(&self, status: &mut Status) -> LbResult<()> {
+    async fn compute_dirty_locally(&self, &mut status: Status) -> LbResult<bool> {
         let new = self.local_changes().await;
         if new != status.dirty_locally {
             status.dirty_locally = self.local_changes().await;
