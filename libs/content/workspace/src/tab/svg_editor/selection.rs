@@ -10,7 +10,7 @@ use lb_rs::{
 };
 use resvg::usvg::Transform;
 
-use super::element::BoundedElement;
+use super::{element::BoundedElement, util::transform_rect};
 
 use crate::{theme::icons::Icon, widgets::Button};
 
@@ -36,6 +36,10 @@ enum SelectionOperation {
     WestScale,
     NorthScale,
     SouthScale,
+    NorthWestScale,
+    NorthEastScale,
+    SouthEastScale,
+    SouthWestScale,
     LasoBuild(BuildPayload),
     #[default]
     Idle,
@@ -58,7 +62,7 @@ enum SelectionEvent {
     LasoBuild(BuildPayload),
     EndLaso,
     SelectAll,
-    StartTransform(egui::Pos2),
+    StartTransform,
     Transform(egui::Pos2),
     EndTransform,
     Delete,
@@ -71,6 +75,7 @@ struct BuildPayload {
 
 struct SelectionInputState {
     transform_occured: bool,
+    suggested_op: Option<SelectionOperation>,
     delta: egui::Vec2,
     is_multi_touch: bool,
 }
@@ -79,11 +84,30 @@ impl Selection {
     pub fn handle_input(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
         let is_multi_touch = is_multi_touch(ui);
 
+        let mut child_ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
+        child_ui.set_clip_rect(selection_ctx.viewport_settings.container_rect);
+        let mut suggested_op = None;
+        child_ui.with_layer_id(
+            egui::LayerId { order: egui::Order::PanelResizeLine, id: "selection_overlay".into() },
+            |ui| {
+                if let Some(laso_rect) = self.laso_rect {
+                    ui.painter().rect_filled(
+                        laso_rect,
+                        egui::Rounding::ZERO,
+                        ui.visuals().widgets.active.bg_fill.linear_multiply(0.1),
+                    );
+                };
+
+                suggested_op = self.show_selection_rects(ui, selection_ctx);
+            },
+        );
+
         ui.input(|r| {
             let mut input_state = SelectionInputState {
                 transform_occured: false,
                 delta: r.pointer.delta(),
                 is_multi_touch,
+                suggested_op,
             };
             for e in r.events.iter() {
                 if input_state.is_multi_touch
@@ -103,31 +127,16 @@ impl Selection {
                     }
                 }
 
-                if let Some(selection_event) = self.map_ui_event(e, selection_ctx) {
+                if let Some(selection_event) = self.map_ui_event(e, selection_ctx, &input_state) {
                     self.handle_selection_event(selection_event, selection_ctx, &mut input_state);
                 }
             }
         });
-
-        let mut ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
-        ui.with_layer_id(
-            egui::LayerId { order: egui::Order::PanelResizeLine, id: "selection_overlay".into() },
-            |ui| {
-                if let Some(laso_rect) = self.laso_rect {
-                    ui.painter().rect_filled(
-                        laso_rect,
-                        egui::Rounding::ZERO,
-                        ui.visuals().widgets.active.bg_fill.linear_multiply(0.1),
-                    );
-                };
-
-                self.show_selection_rects(ui, selection_ctx);
-            },
-        );
     }
 
     fn map_ui_event(
         &self, event: &egui::Event, selection_ctx: &mut ToolContext,
+        input_state: &SelectionInputState,
     ) -> Option<SelectionEvent> {
         match self.current_op {
             SelectionOperation::Idle => {
@@ -142,10 +151,8 @@ impl Selection {
                         }
                         if pressed {
                             // if the pos is inside of the current selection rect + feathering, then this is the start of a new drag
-                            if self.decide_transform_type(pos, selection_ctx)
-                                != SelectionOperation::Idle
-                            {
-                                return Some(SelectionEvent::StartTransform(pos));
+                            if input_state.suggested_op.is_some() {
+                                return Some(SelectionEvent::StartTransform);
                             } else {
                                 // if we're in prefer draw with pencil mode, then we shouldn't start build operation
                                 // if the event is coming from the finger and not the pen
@@ -168,10 +175,8 @@ impl Selection {
                         // ensure that it's pencil touch and not finger touch
                         force?;
 
-                        if self.decide_transform_type(pos, selection_ctx)
-                            != SelectionOperation::Idle
-                        {
-                            return Some(SelectionEvent::StartTransform(pos));
+                        if input_state.suggested_op.is_some() {
+                            return Some(SelectionEvent::StartTransform);
                         } else {
                             // if we're in prefer draw with pencil mode, then we shouldn't start build operation
                             // if the event is coming from the finger and not the pen
@@ -194,31 +199,23 @@ impl Selection {
                     _ => {}
                 }
             }
-            SelectionOperation::LasoBuild(_) => {
-                match *event {
-                    egui::Event::PointerMoved(pos) => {
-                        return Some(SelectionEvent::LasoBuild(BuildPayload {
-                            pos,
-                            modifiers: egui::Modifiers::NONE,
-                        }))
-                    }
-                    egui::Event::PointerButton { pos: _, button, pressed, modifiers: _ } => {
-                        if button != egui::PointerButton::Primary {
-                            return None;
-                        }
-                        if !pressed {
-                            // if the pos is inside of the current selection rect + feathering, then this is the start of a new drag
-                            if self.selected_elements.is_empty() {
-                                return Some(SelectionEvent::EndLaso);
-                            } else {
-                                return Some(SelectionEvent::EndLaso);
-                                // return Some(SelectionEvent::StartTransform(pos));
-                            }
-                        }
-                    }
-                    _ => {}
+            SelectionOperation::LasoBuild(_) => match *event {
+                egui::Event::PointerMoved(pos) => {
+                    return Some(SelectionEvent::LasoBuild(BuildPayload {
+                        pos,
+                        modifiers: egui::Modifiers::NONE,
+                    }))
                 }
-            }
+                egui::Event::PointerButton { pos: _, button, pressed, modifiers: _ } => {
+                    if button != egui::PointerButton::Primary {
+                        return None;
+                    }
+                    if !pressed {
+                        return Some(SelectionEvent::EndLaso);
+                    }
+                }
+                _ => {}
+            },
             _ => {
                 match *event {
                     egui::Event::PointerMoved(pos2) => {
@@ -248,8 +245,8 @@ impl Selection {
         r: &mut SelectionInputState,
     ) {
         match selection_event {
-            SelectionEvent::StartTransform(pos) => {
-                self.current_op = self.decide_transform_type(pos, selection_ctx);
+            SelectionEvent::StartTransform => {
+                self.current_op = r.suggested_op.unwrap_or(SelectionOperation::Idle);
             }
             SelectionEvent::Transform(pos) => {
                 if r.transform_occured || r.is_multi_touch {
@@ -257,21 +254,150 @@ impl Selection {
                 }
                 let container_rect = self.get_container_rect(selection_ctx.buffer);
 
-                self.selected_elements.iter_mut().for_each(|s_el| {
+                let min_allowed = egui::vec2(10.0, 10.0);
+
+                for s_el in self.selected_elements.iter_mut() {
                     // see what edge
                     let transform = match self.current_op {
                         SelectionOperation::Translation => {
                             Transform::identity().post_translate(r.delta.x, r.delta.y)
                         }
                         SelectionOperation::Idle => Transform::identity(),
-                        _ => snap_scale(pos, container_rect),
+                        SelectionOperation::EastScale => {
+                            let new_width =
+                                container_rect.width() + (pos.x - container_rect.right());
+
+                            let sx = new_width / container_rect.width();
+                            let anchor = container_rect.min.x;
+
+                            Transform::identity()
+                                .post_scale(sx, 1.0)
+                                .post_translate(anchor * (1. - sx), 0.0)
+                        }
+                        SelectionOperation::WestScale => {
+                            let new_width =
+                                container_rect.width() + (container_rect.left() - pos.x);
+
+                            let sx = new_width / container_rect.width();
+                            let anchor = container_rect.max.x;
+                            Transform::identity()
+                                .post_scale(sx, 1.0)
+                                .post_translate(anchor * (1. - sx), 0.0)
+                        }
+                        SelectionOperation::NorthScale => {
+                            let new_height =
+                                container_rect.height() + (container_rect.top() - pos.y);
+
+                            let sy = new_height / container_rect.height();
+                            let anchor = container_rect.max.y;
+                            Transform::identity()
+                                .post_scale(1.0, sy)
+                                .post_translate(0.0, anchor * (1. - sy))
+                        }
+                        SelectionOperation::SouthScale => {
+                            let new_height =
+                                container_rect.height() + (pos.y - container_rect.bottom());
+
+                            let sy = new_height / container_rect.height();
+
+                            let anchor = container_rect.min.y;
+                            if new_height < 10.0 {
+                                Transform::identity()
+                            } else {
+                                Transform::identity()
+                                    .post_scale(1.0, sy)
+                                    .post_translate(0.0, anchor * (1. - sy))
+                            }
+                        }
+                        SelectionOperation::SouthWestScale => {
+                            let new_height =
+                                container_rect.height() + (pos.y - container_rect.bottom());
+                            let new_width =
+                                container_rect.width() + (container_rect.left() - pos.x);
+
+                            let sy = new_height / container_rect.height();
+                            let sx = new_width / container_rect.width();
+
+                            let s_uniform = (sx + sy) / 2.0;
+
+                            let anchor = container_rect.right_top();
+                            Transform::identity()
+                                .post_scale(s_uniform, s_uniform)
+                                .post_translate(
+                                    anchor.x * (1. - s_uniform),
+                                    anchor.y * (1. - s_uniform),
+                                )
+                        }
+                        SelectionOperation::NorthWestScale => {
+                            let new_height =
+                                container_rect.height() + (container_rect.top() - pos.y);
+                            let new_width =
+                                container_rect.width() + (container_rect.left() - pos.x);
+
+                            let sy = new_height / container_rect.height();
+                            let sx = new_width / container_rect.width();
+
+                            let s_uniform = (sx + sy) / 2.0;
+
+                            let anchor = container_rect.right_bottom();
+                            Transform::identity()
+                                .post_scale(s_uniform, s_uniform)
+                                .post_translate(
+                                    anchor.x * (1. - s_uniform),
+                                    anchor.y * (1. - s_uniform),
+                                )
+                        }
+                        SelectionOperation::NorthEastScale => {
+                            let new_height =
+                                container_rect.height() + (container_rect.top() - pos.y);
+                            let new_width =
+                                container_rect.width() + (pos.x - container_rect.right());
+
+                            let sy = new_height / container_rect.height();
+                            let sx = new_width / container_rect.width();
+
+                            let s_uniform = (sx + sy) / 2.0;
+
+                            let anchor = container_rect.left_bottom();
+                            Transform::identity()
+                                .post_scale(s_uniform, s_uniform)
+                                .post_translate(
+                                    anchor.x * (1. - s_uniform),
+                                    anchor.y * (1. - s_uniform),
+                                )
+                        }
+                        SelectionOperation::SouthEastScale => {
+                            let new_height =
+                                container_rect.height() + (pos.y - container_rect.bottom());
+                            let new_width =
+                                container_rect.width() + (pos.x - container_rect.right());
+
+                            let sy = new_height / container_rect.height();
+                            let sx = new_width / container_rect.width();
+
+                            let s_uniform = (sx + sy) / 2.0;
+
+                            let anchor = container_rect.left_top();
+                            Transform::identity()
+                                .post_scale(s_uniform, s_uniform)
+                                .post_translate(
+                                    anchor.x * (1. - s_uniform),
+                                    anchor.y * (1. - s_uniform),
+                                )
+                        }
+                        _ => snap_scale(pos, container_rect), // todod: figure out if this can be removed
                     };
+
+                    let new_rect = transform_rect(container_rect, transform);
+                    if new_rect.width() < min_allowed.x || new_rect.height() < min_allowed.y {
+                        continue;
+                    }
 
                     if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
                         el.transform(transform);
                         s_el.transform = s_el.transform.post_concat(transform);
                     }
-                });
+                }
 
                 r.transform_occured = true;
             }
@@ -429,66 +555,15 @@ impl Selection {
         }
     }
 
-    fn decide_transform_type(
-        &self, cursor_pos: egui::Pos2, selection_ctx: &mut ToolContext,
-    ) -> SelectionOperation {
-        let rect = self.get_container_rect(selection_ctx.buffer);
-
-        let edge_stroke = egui::Stroke {
-            width: 10.0,
-            color: egui::Color32::DEBUG_COLOR, // we will never show the stroke, just use it to calc bounds
-        };
-
-        let left = egui::Shape::LineSegment {
-            points: [rect.min, rect.min + egui::vec2(0.0, rect.height())],
-            stroke: edge_stroke.into(),
-        }
-        .visual_bounding_rect();
-
-        let right = egui::Shape::LineSegment {
-            points: [rect.max, rect.max - egui::vec2(0.0, rect.height())],
-            stroke: edge_stroke.into(),
-        }
-        .visual_bounding_rect();
-
-        let top = egui::Shape::LineSegment {
-            points: [rect.min, rect.min + egui::vec2(rect.width(), 0.0)],
-            stroke: edge_stroke.into(),
-        }
-        .visual_bounding_rect();
-
-        let bottom = egui::Shape::LineSegment {
-            points: [rect.max, rect.max - egui::vec2(rect.width(), 0.0)],
-            stroke: edge_stroke.into(),
-        }
-        .visual_bounding_rect();
-
-        if left.contains(cursor_pos) {
-            return SelectionOperation::WestScale;
-        }
-        if right.contains(cursor_pos) {
-            return SelectionOperation::EastScale;
-        }
-
-        if top.contains(cursor_pos) {
-            return SelectionOperation::NorthScale;
-        }
-        if bottom.contains(cursor_pos) {
-            return SelectionOperation::SouthScale;
-        }
-
-        if rect.expand(10.0).contains(cursor_pos) {
-            return SelectionOperation::Translation;
-        }
-
-        SelectionOperation::Idle
-    }
-
-    pub fn show_selection_rects(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
+    fn show_selection_rects(
+        &mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext,
+    ) -> Option<SelectionOperation> {
         if self.selected_elements.is_empty() {
-            return;
+            return None;
         }
         let container = self.get_container_rect(selection_ctx.buffer);
+        let mut op = None;
+
         if self.current_op != SelectionOperation::Translation {
             for el in self.selected_elements.iter() {
                 let child = match selection_ctx.buffer.elements.get(&el.id) {
@@ -500,7 +575,7 @@ impl Selection {
                 }
             }
 
-            self.show_selection_container(ui, container);
+            op = self.show_selection_container(ui, container);
         }
 
         ui.visuals_mut().window_rounding = egui::Rounding::same(10.0);
@@ -530,30 +605,25 @@ impl Selection {
         }
 
         if let SelectionOperation::LasoBuild(_) = self.current_op {
-            return;
+            return None;
         }
 
-        // todo: figure out color space format to get a clean fade in animation
-        // currently it fades into gray before going transparent
-        // let opacity = animate_bool_eased(
-        //     ui.ctx(),
-        //     "selection_tooltip",
-        //     self.current_op == SelectionOperation::Idle,
-        //     easing::cubic_out,
-        //     0.2,
-        // );
         let opacity = if self.current_op == SelectionOperation::Idle { 1.0 } else { 0.0 };
 
         ui.set_opacity(opacity);
 
         let gap_between_btn_and_rect = 15.0;
 
+        // minimizes layout shifts
+        let approx_container_tooltip =
+            egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(250.0, 40.0));
+
         let min = container.min
             - egui::vec2(
                 0.0,
                 self.layout
                     .container_tooltip
-                    .unwrap_or(egui::Rect::ZERO)
+                    .unwrap_or(approx_container_tooltip)
                     .height()
                     + gap_between_btn_and_rect,
             );
@@ -568,6 +638,8 @@ impl Selection {
         if opacity == 0.0 {
             self.layout.container_tooltip = None;
         }
+
+        op
     }
 
     fn show_tooltip(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
@@ -745,31 +817,56 @@ impl Selection {
         );
     }
 
-    fn show_selection_container(&self, ui: &mut egui::Ui, rect: egui::Rect) {
-        for corner in [
-            rect.min,
-            rect.max,
-            rect.min + egui::vec2(rect.width(), 0.0),
-            rect.min + egui::vec2(0.0, rect.height()),
-        ] {
+    fn show_selection_container(
+        &self, ui: &mut egui::Ui, rect: egui::Rect,
+    ) -> Option<SelectionOperation> {
+        let mut out = None;
+
+        let corners = [
+            (rect.min, SelectionOperation::NorthWestScale),
+            (rect.max, SelectionOperation::SouthEastScale),
+            (rect.right_top(), SelectionOperation::NorthEastScale),
+            (rect.left_bottom(), SelectionOperation::SouthWestScale),
+            (rect.center_top(), SelectionOperation::NorthScale),
+            (rect.center_bottom(), SelectionOperation::SouthScale),
+            (rect.left_center(), SelectionOperation::WestScale),
+            (rect.right_center(), SelectionOperation::EastScale),
+        ];
+
+        let res =
+            ui.interact(rect.expand(5.0), "selection_container_rect".into(), egui::Sense::drag());
+        let should_translate = out.is_none() && (res.dragged() || res.drag_started());
+
+        for (i, &(anchor, scale_op)) in corners.iter().enumerate() {
             let handle_side_length = 8.0; // handle is a square
-            let corner = egui::pos2(corner.x, corner.y);
+            let anchor = egui::pos2(anchor.x, anchor.y);
             let rect = egui::Rect {
                 min: egui::pos2(
-                    corner.x - handle_side_length / 2.0,
-                    corner.y - handle_side_length / 2.0,
+                    anchor.x - handle_side_length / 2.0,
+                    anchor.y - handle_side_length / 2.0,
                 ),
                 max: egui::pos2(
-                    corner.x + handle_side_length / 2.0,
-                    corner.y + handle_side_length / 2.0,
+                    anchor.x + handle_side_length / 2.0,
+                    anchor.y + handle_side_length / 2.0,
                 ),
             };
+
             ui.painter().rect(
                 rect,
-                egui::Rounding::ZERO,
+                egui::Rounding::same(2.0),
                 egui::Color32::WHITE,
                 egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
             );
+
+            let res = ui.interact(
+                rect.expand(5.0),
+                egui::Id::new(format!("{:#?}{}", scale_op, i)),
+                egui::Sense::drag(),
+            );
+
+            if res.dragged() || res.drag_started() {
+                out = Some(scale_op);
+            }
         }
 
         ui.painter().rect_stroke(
@@ -777,6 +874,11 @@ impl Selection {
             egui::Rounding::ZERO,
             egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
         );
+        if out.is_none() && should_translate {
+            out = Some(SelectionOperation::Translation);
+        }
+
+        out
     }
 }
 
