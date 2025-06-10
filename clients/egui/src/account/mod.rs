@@ -535,10 +535,7 @@ impl AccountScreen {
                     settings_btn.on_hover_text("Settings");
 
                     let incoming_shares_btn = Button::default()
-                        .icon(
-                            &Icon::SHARED_FOLDER
-                                .badge(!self.workspace.status.dirtyness.pending_shares.is_empty()),
-                        )
+                        .icon(&Icon::SHARED_FOLDER.badge(self.lb_status.pending_shares))
                         .show(ui);
 
                     if incoming_shares_btn.clicked() {

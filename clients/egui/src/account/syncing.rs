@@ -156,9 +156,7 @@ impl super::AccountScreen {
         };
 
         if let Some(msg) = self.lb_status.msg() {
-            sync_btn.on_hover_ui_at_pointer(|ui| {
-                ui.label(msg);
-            });
+            sync_btn.on_hover_text(msg);
         }
 
         ui.set_style(visuals_before_button);

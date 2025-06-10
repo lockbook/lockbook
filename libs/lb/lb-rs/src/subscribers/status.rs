@@ -77,7 +77,12 @@ impl Status {
 
         if self.offline {
             if !self.dirty_locally.is_empty() {
-                return Some(format!("Offline, {} changes unsynced.", self.dirty_locally.len()));
+                let len = self.dirty_locally.len();
+                return Some(format!(
+                    "Offline, {} change{} unsynced.",
+                    len,
+                    if len > 1 { "s" } else { "" }
+                ));
             }
 
             if let Some(last_synced) = &self.sync_status {
@@ -222,6 +227,11 @@ impl Lb {
             SyncIncrement::SyncFinished(maybe_problem) => {
                 self.reset_sync(&mut status);
                 self.compute_usage().await;
+                status.dirty_locally = self.local_changes().await;
+                if status.dirty_locally.is_empty() {
+                    status.sync_status = self.get_last_synced_human().await.ok();
+                }
+                status.pending_shares = !self.get_pending_shares().await?.is_empty();
                 match maybe_problem {
                     Some(LbErrKind::ClientUpdateRequired) => {
                         status.update_required = true;
@@ -232,13 +242,7 @@ impl Lb {
                     Some(LbErrKind::UsageIsOverDataCap) => {
                         status.out_of_space = true;
                     }
-                    None => {
-                        status.dirty_locally = self.local_changes().await;
-                        if status.dirty_locally.is_empty() {
-                            status.sync_status = self.get_last_synced_human().await.ok();
-                        }
-                        status.pending_shares = !self.get_pending_shares().await?.is_empty();
-                    }
+                    None => {}
                     _ => {
                         error!("unexpected sync problem found {maybe_problem:?}");
                     }
