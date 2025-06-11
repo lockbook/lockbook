@@ -31,7 +31,6 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 use time::Duration;
-use tokio::time::sleep;
 use usvg::Transform;
 use uuid::Uuid;
 
@@ -101,7 +100,6 @@ impl Lb {
             ctx.msg("Preparing Sync..."); // todo remove
             self.events.sync(SyncIncrement::SyncStarted);
 
-            // sleep(std::time::Duration::from_secs(2)).await;
             self.prune().await?;
             got_updates = self.fetch_meta(&mut ctx).await?;
             self.populate_pk_cache(&mut ctx).await?;

@@ -149,12 +149,6 @@ impl super::AccountScreen {
             self.sync.btn_lost_hover_after_sync = true;
         }
 
-        let tooltip_msg = if !self.sync.btn_lost_hover_after_sync {
-            self.workspace.status.sync_message.to_owned()
-        } else {
-            Some(format!("Updated {}", &self.workspace.status.dirtyness.last_synced))
-        };
-
         if let Some(msg) = self.lb_status.msg() {
             sync_btn.on_hover_text(msg);
         }
