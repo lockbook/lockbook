@@ -461,7 +461,7 @@ impl SpaceInspector {
                     if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
                         ui.close_menu();
                     }
-                    if item_filerow.file.is_folder() && ui.button("Make Root").clicked() {
+                    if item_filerow.file.is_folder() && ui.button("Focus File").clicked() {
                         changed_focused_folder = Some(item.id);
                         ui.close_menu();
                     }
