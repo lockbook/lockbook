@@ -336,7 +336,7 @@ impl Toolbar {
             set_tool!(self, Tool::Pen);
         }
 
-        if ui.input(|r| r.key_pressed(egui::Key::T)) {
+        if ui.input(|r| r.key_pressed(egui::Key::Tab)) {
             self.toggle_at_cursor_tool_popover();
         }
     }
