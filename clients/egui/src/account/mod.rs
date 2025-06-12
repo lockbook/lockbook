@@ -24,7 +24,6 @@ use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::Workspace;
 
-use crate::model::AccountScreenInitData;
 use crate::settings::Settings;
 
 use self::full_doc_search::FullDocSearch;
@@ -47,7 +46,6 @@ pub struct AccountScreen {
     is_new_user: bool,
     full_search_doc: FullDocSearch,
     sync: SyncPanel,
-    // todo: this will prob move into sync panel
     lb_status: Status,
     workspace: Workspace,
     modals: Modals,
@@ -56,13 +54,12 @@ pub struct AccountScreen {
 
 impl AccountScreen {
     pub fn new(
-        settings: Arc<RwLock<Settings>>, core: &Lb, acct_data: AccountScreenInitData,
-        ctx: &egui::Context, is_new_user: bool,
+        settings: Arc<RwLock<Settings>>, core: &Lb, files: Vec<File>, ctx: &egui::Context,
+        is_new_user: bool,
     ) -> Self {
         let core = core.clone();
         let (update_tx, update_rx) = mpsc::channel();
 
-        let AccountScreenInitData { files } = acct_data;
         let core_clone = core.clone();
 
         let toasts = egui_notify::Toasts::default()

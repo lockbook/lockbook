@@ -5,26 +5,27 @@ use egui::text::LayoutJob;
 use egui::Image;
 use lb::blocking::Lb;
 use lb::model::errors::LbErr;
+use lb::model::file::File;
 use lb::service::sync::SyncProgress;
 use lb::DEFAULT_API_LOCATION;
 use workspace_rs::widgets::Button;
 
-use crate::model::{AccountPhraseData, AccountScreenInitData};
+use crate::model::AccountPhraseData;
 use crate::settings::Settings;
 
 pub struct OnboardHandOff {
     pub settings: Arc<RwLock<Settings>>,
     pub core: Lb,
-    pub acct_data: AccountScreenInitData,
+    pub acct_data: Vec<File>,
 }
 
 enum Update {
-    AccountCreated(Result<AccountScreenInitData, LbErr>),
+    AccountCreated(Result<Vec<File>, LbErr>),
     AccountPhraseConfirmation(Result<AccountPhraseData, LbErr>),
     AccountImported(Option<LbErr>),
     ImportSyncProgress(SyncProgress),
     ImportSyncDone(Option<LbErr>),
-    AccountDataLoaded(Result<AccountScreenInitData, LbErr>),
+    AccountDataLoaded(Result<Vec<File>, LbErr>),
 }
 
 struct Router {
@@ -582,10 +583,10 @@ fn set_button_style(ui: &mut egui::Ui) {
     ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
 }
 
-fn load_account_data(core: &Lb) -> Result<AccountScreenInitData, LbErr> {
+fn load_account_data(core: &Lb) -> Result<Vec<File>, LbErr> {
     let files = core.list_metadatas()?;
 
-    Ok(AccountScreenInitData { files })
+    Ok(files)
 }
 
 #[derive(Clone, Copy, PartialEq)]
