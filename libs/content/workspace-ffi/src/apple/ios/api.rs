@@ -874,6 +874,17 @@ pub unsafe extern "C" fn toggle_drawing_tool(obj: *mut c_void) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
+pub unsafe extern "C" fn show_tool_popover_at_cursor(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    if let Some(svg) = obj.workspace.current_tab_svg_mut() {
+        svg.toolbar.toggle_at_cursor_tool_popover();
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
 pub unsafe extern "C" fn toggle_drawing_tool_between_eraser(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
