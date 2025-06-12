@@ -18,7 +18,9 @@ pub struct StatusUpdater {
     space_updated: Arc<Mutex<SpaceUpdater>>,
 }
 
+/// rate limit get_usage calls to once every 60 seconds or so
 pub struct SpaceUpdater {
+    initialized: bool,
     spawned: bool,
     last_computed: Instant,
 }
@@ -67,6 +69,8 @@ pub struct Status {
     /// if there is no pending work this will have a human readable
     /// description of when we last synced successfully
     pub sync_status: Option<String>,
+
+    pub unexpected_sync_problem: Option<String>,
 }
 
 impl Status {
@@ -100,6 +104,10 @@ impl Status {
             return Some("An update is required to continue.".to_string());
         }
 
+        if let Some(err) = &self.unexpected_sync_problem {
+            return Some(err.to_string());
+        }
+
         if !self.dirty_locally.is_empty() {
             let dirty_locally = self.dirty_locally.len();
             return Some(format!("{dirty_locally} changes unsynced"));
@@ -120,6 +128,7 @@ impl Lb {
 
     pub async fn set_initial_state(&self) -> LbResult<()> {
         if self.keychain.get_account().is_ok() {
+            self.spawn_compute_usage().await;
             let mut current = self.status.current_status.write().await;
             current.dirty_locally = self.local_changes().await;
             if current.dirty_locally.is_empty() {
@@ -179,18 +188,20 @@ impl Lb {
         Ok(())
     }
 
-    async fn compute_usage(&self) {
+    async fn spawn_compute_usage(&self) {
         let mut lock = self.status.space_updated.lock().await;
         if lock.spawned {
             return;
         }
+        let initialized = lock.initialized;
         lock.spawned = true;
+        lock.initialized = true;
         let computed = lock.last_computed;
         drop(lock);
 
         let bg = self.clone();
         tokio::spawn(async move {
-            if computed.elapsed() < Duration::from_secs(60) {
+            if initialized && computed.elapsed() < Duration::from_secs(60) {
                 tokio::time::sleep(Duration::from_secs(60) - computed.elapsed()).await;
             }
             let usage = bg.get_usage().await.log_and_ignore();
@@ -226,7 +237,7 @@ impl Lb {
             }
             SyncIncrement::SyncFinished(maybe_problem) => {
                 self.reset_sync(&mut status);
-                self.compute_usage().await;
+                self.spawn_compute_usage().await;
                 status.dirty_locally = self.local_changes().await;
                 if status.dirty_locally.is_empty() {
                     status.sync_status = self.get_last_synced_human().await.ok();
@@ -243,8 +254,10 @@ impl Lb {
                         status.out_of_space = true;
                     }
                     None => {}
-                    _ => {
-                        error!("unexpected sync problem found {maybe_problem:?}");
+                    Some(e) => {
+                        status.unexpected_sync_problem =
+                            Some(format!("unexpected error {e:?}: {e}"));
+                        error!("unexpected error {e:?}: {e}");
                     }
                 }
             }
@@ -263,11 +276,12 @@ impl Lb {
         status.update_required = false;
         status.out_of_space = false;
         status.sync_status = None;
+        status.unexpected_sync_problem = None;
     }
 }
 
 impl Default for SpaceUpdater {
     fn default() -> Self {
-        Self { spawned: false, last_computed: Instant::now() }
+        Self { spawned: false, last_computed: Instant::now(), initialized: false }
     }
 }

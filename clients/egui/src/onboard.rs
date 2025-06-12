@@ -585,16 +585,7 @@ fn set_button_style(ui: &mut egui::Ui) {
 fn load_account_data(core: &Lb) -> Result<AccountScreenInitData, LbErr> {
     let files = core.list_metadatas()?;
 
-    // todo: a bunch of this logic is duplicated, and we could consider consolidating it
-    // and letting the workspace manage this state in the background
-    let usage = match core.get_usage() {
-        Ok(metrics) => Ok(metrics.into()),
-        Err(err) => return Err(err),
-    };
-
-    let sync_status = core.get_last_synced_human_string();
-
-    Ok(AccountScreenInitData { sync_status, files, usage })
+    Ok(AccountScreenInitData { files })
 }
 
 #[derive(Clone, Copy, PartialEq)]

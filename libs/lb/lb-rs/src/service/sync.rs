@@ -99,7 +99,6 @@ impl Lb {
         let mut pipeline: LbResult<()> = async {
             ctx.msg("Preparing Sync..."); // todo remove
             self.events.sync(SyncIncrement::SyncStarted);
-
             self.prune().await?;
             got_updates = self.fetch_meta(&mut ctx).await?;
             self.populate_pk_cache(&mut ctx).await?;

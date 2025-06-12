@@ -24,7 +24,7 @@ use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::Workspace;
 
-use crate::model::{AccountScreenInitData, Usage};
+use crate::model::AccountScreenInitData;
 use crate::settings::Settings;
 
 use self::full_doc_search::FullDocSearch;
@@ -47,7 +47,6 @@ pub struct AccountScreen {
     is_new_user: bool,
     full_search_doc: FullDocSearch,
     sync: SyncPanel,
-    usage: Result<Usage, String>,
     // todo: this will prob move into sync panel
     lb_status: Status,
     workspace: Workspace,
@@ -63,7 +62,7 @@ impl AccountScreen {
         let core = core.clone();
         let (update_tx, update_rx) = mpsc::channel();
 
-        let AccountScreenInitData { sync_status, files, usage } = acct_data;
+        let AccountScreenInitData { files } = acct_data;
         let core_clone = core.clone();
 
         let toasts = egui_notify::Toasts::default()
@@ -79,8 +78,7 @@ impl AccountScreen {
             is_new_user,
             tree: FileTree::new(files),
             full_search_doc: FullDocSearch::default(),
-            sync: SyncPanel::new(sync_status),
-            usage,
+            sync: SyncPanel::new(),
             workspace: Workspace::new(&core_clone, &ctx.clone()),
             modals: Modals::default(),
             shutdown: None,
@@ -156,7 +154,6 @@ impl AccountScreen {
                             self.show_nav_panel(ui);
 
                             ui.add_space(15.0);
-                            self.show_sync_error_warn(ui);
                         });
 
                     ui.vertical(|ui| {
