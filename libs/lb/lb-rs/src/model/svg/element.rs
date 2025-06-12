@@ -37,7 +37,7 @@ pub struct Stroke {
     pub width: f32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct DynamicColor {
     pub light: usvg::Color,
     pub dark: usvg::Color,

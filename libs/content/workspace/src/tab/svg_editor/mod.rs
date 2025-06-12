@@ -273,6 +273,7 @@ impl SVGEditor {
             painter: &mut self.painter,
             viewport_settings: &mut self.viewport_settings,
             cfg: &mut self.cfg,
+            input_ctx: &self.input_ctx,
         };
 
         ui.with_layer_id(
@@ -467,7 +468,7 @@ fn set_style(ui: &mut egui::Ui) {
 
 // across frame persistent state about egui's input
 #[derive(Default)]
-struct InputContext {
+pub struct InputContext {
     pub last_touch: Option<egui::Pos2>,
 }
 

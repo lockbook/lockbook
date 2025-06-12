@@ -2,7 +2,10 @@ mod history_island;
 mod tools_island;
 mod viewport_island;
 
-use crate::{theme::icons::Icon, widgets::Button, workspace::WsPersistentStore};
+use crate::{
+    tab::svg_editor::InputContext, theme::icons::Icon, widgets::Button,
+    workspace::WsPersistentStore,
+};
 use lb_rs::model::svg::buffer::Buffer;
 use viewport_island::ViewportPopover;
 
@@ -26,6 +29,7 @@ pub struct Toolbar {
 
     hide_overlay: bool,
     pub show_tool_popover: bool,
+    pub show_at_cursor_tool_popover: Option<Option<egui::Pos2>>,
     layout: ToolbarLayout,
     pub viewport_popover: Option<ViewportPopover>,
     renderer: Renderer,
@@ -69,6 +73,7 @@ pub struct ToolbarContext<'a> {
     pub settings: &'a mut CanvasSettings,
     pub viewport_settings: &'a mut ViewportSettings,
     pub cfg: &'a mut WsPersistentStore,
+    pub input_ctx: &'a InputContext,
 }
 
 pub enum ViewportMode {
@@ -247,13 +252,16 @@ impl Toolbar {
             show_tool_popover: Default::default(),
             layout: Default::default(),
             viewport_popover: Default::default(),
+            show_at_cursor_tool_popover: None,
         }
     }
 
     pub fn show(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext, skip_frame: &mut bool,
     ) {
-        self.handle_keyboard_shortcuts(ui, tlbr_ctx.history, tlbr_ctx.buffer);
+        self.handle_keyboard_shortcuts(ui, tlbr_ctx);
+
+        let tool_popover_at_cursor = self.show_tool_popovers_at_cursor(ui, tlbr_ctx);
 
         let opacity = if self.hide_overlay { 0.0 } else { 1.0 };
 
@@ -285,12 +293,17 @@ impl Toolbar {
         let tool_controls_res = self.show_tool_popovers(ui, tlbr_ctx);
 
         let mut overlay_res = history_island;
+        if let Some(res) = tool_popover_at_cursor {
+            overlay_res = overlay_res.union(res);
+        }
+
         if let Some(res) = tool_controls_res {
             overlay_res = overlay_res.union(res);
         }
         if let Some(res) = viewport_controls {
             overlay_res = overlay_res.union(res);
         }
+
         overlay_res = overlay_res
             .union(tools_island.inner.response)
             .union(overlay_toggle_res);
@@ -300,17 +313,15 @@ impl Toolbar {
         }
     }
 
-    fn handle_keyboard_shortcuts(
-        &mut self, ui: &mut egui::Ui, history: &mut History, buffer: &mut Buffer,
-    ) {
+    fn handle_keyboard_shortcuts(&mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) {
         if ui.input_mut(|r| {
             r.consume_key(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), egui::Key::Z)
         }) {
-            history.redo(buffer);
+            tlbr_ctx.history.redo(tlbr_ctx.buffer);
         }
 
         if ui.input_mut(|r| r.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
-            history.undo(buffer);
+            tlbr_ctx.history.undo(tlbr_ctx.buffer);
         }
 
         if ui.input(|r| r.key_pressed(egui::Key::E)) {
@@ -324,6 +335,14 @@ impl Toolbar {
         if ui.input(|r| r.key_pressed(egui::Key::B)) {
             set_tool!(self, Tool::Pen);
         }
+
+        if ui.input(|r| r.key_pressed(egui::Key::Tab)) {
+            self.toggle_at_cursor_tool_popover();
+        }
+    }
+
+    pub fn toggle_at_cursor_tool_popover(&mut self) {
+        self.show_at_cursor_tool_popover = Some(None);
     }
 
     fn show_overlay_toggle(
