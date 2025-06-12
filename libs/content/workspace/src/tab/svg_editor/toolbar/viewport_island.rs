@@ -3,12 +3,14 @@ use resvg::usvg::Transform;
 
 use crate::{
     tab::svg_editor::{
+        background::{show_dot_grid, show_lines_background},
         gesture_handler::{
             calc_elements_bounds, get_rect_identity_transform, get_zoom_fit_transform,
             transform_canvas, zoom_percentage_to_transform, MIN_ZOOM_LEVEL,
         },
         renderer::{RenderOptions, RendererOutput},
         util::{draw_dashed_line, expand_to_match_bigger, transform_point, transform_rect},
+        BackgroundOverlay,
     },
     theme::icons::Icon,
     widgets::{switch, Button},
@@ -292,21 +294,21 @@ impl Toolbar {
             }
         });
 
-        ui.add_space(15.0);
-        ui.add(egui::Separator::default().shrink(ui.available_width() * 0.45));
-        ui.add_space(15.0);
+        ui.add_space(10.0);
 
         ui.horizontal(|ui| {
-            ui.label("Show dot grid");
-            ui.add_space(10.0);
-            switch(ui, &mut tlbr_ctx.settings.show_dot_grid);
+            ui.label("Zoom lock");
+            // ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.add_space(5.0);
                 switch(ui, &mut self.gesture_handler.is_zoom_locked);
-                ui.add_space(10.0);
-                ui.label("Zoom lock");
             });
         });
+
+        ui.add_space(10.0);
+        ui.add(egui::Separator::default().shrink(ui.available_width() * 0.45));
+        ui.add_space(10.0);
+
+        show_background_selector(ui, tlbr_ctx);
 
         ui.add_space(10.0);
     }
@@ -458,6 +460,190 @@ impl Toolbar {
             self.renderer.request_rerender = true;
         }
     }
+}
+
+fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>) {
+    ui.label("Background");
+    ui.add_space(5.0);
+
+    let x_padding = 15.0;
+    let width = ui.available_width();
+    let selector_count_per_row = 4;
+    let bg_selector_dim = egui::vec2(
+        (width - x_padding * (selector_count_per_row - 1) as f32) / selector_count_per_row as f32,
+        40.0,
+    );
+
+    let default_stroke = egui::Stroke { width: 1.5, color: egui::Color32::GRAY };
+    let transform = Transform::identity()
+        .post_scale(0.5, 0.5)
+        .post_translate(-1.0, 3.0);
+
+    ui.visuals_mut().widgets.active.fg_stroke.color = ui
+        .visuals_mut()
+        .widgets
+        .active
+        .fg_stroke
+        .color
+        .linear_multiply(0.6);
+    ui.visuals_mut().widgets.inactive.fg_stroke.color = ui
+        .visuals_mut()
+        .widgets
+        .active
+        .fg_stroke
+        .color
+        .linear_multiply(0.6);
+    ui.visuals_mut().widgets.hovered.fg_stroke.color = ui
+        .visuals_mut()
+        .widgets
+        .active
+        .fg_stroke
+        .color
+        .linear_multiply(0.6);
+
+    ui.visuals_mut().widgets.active.fg_stroke.width =
+        ui.visuals_mut().widgets.hovered.fg_stroke.width;
+    ui.horizontal(|ui| {
+        let dot_selector_rect = egui::Rect::from_min_size(ui.cursor().min, bg_selector_dim);
+        let dot_res = ui.allocate_rect(dot_selector_rect, egui::Sense::click_and_drag());
+
+        let is_active = tlbr_ctx.settings.background_type == BackgroundOverlay::Dots;
+        let stroke = if is_active {
+            let mut copy = default_stroke;
+            copy.color = ui.visuals().widgets.active.bg_fill;
+            copy
+        } else {
+            let a = ui.style().interact(&dot_res);
+            a.fg_stroke
+            // default_stroke
+        };
+        ui.painter().rect(
+            dot_res.rect,
+            3.0,
+            if is_active {
+                ui.visuals().widgets.active.bg_fill.linear_multiply(0.05)
+            } else {
+                egui::Color32::TRANSPARENT
+            },
+            stroke,
+        );
+
+        show_dot_grid(dot_res.rect, transform, &ui.painter_at(dot_res.rect), Some(1.5));
+
+        if dot_res.clicked() {
+            tlbr_ctx.settings.background_type = BackgroundOverlay::Dots;
+            tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+        }
+
+        ui.add_space(x_padding);
+        let notebook_selector_rect = egui::Rect::from_min_size(ui.cursor().min, bg_selector_dim);
+
+        let notebook_res = ui.allocate_rect(notebook_selector_rect, egui::Sense::click_and_drag());
+
+        let is_active = tlbr_ctx.settings.background_type == BackgroundOverlay::Lines;
+        let stroke = if is_active {
+            let mut copy = default_stroke;
+            copy.color = ui.visuals().widgets.active.bg_fill;
+            copy
+        } else {
+            ui.style().interact(&notebook_res).fg_stroke
+        };
+
+        ui.painter().rect(
+            notebook_res.rect,
+            3.0,
+            if is_active {
+                ui.visuals().widgets.active.bg_fill.linear_multiply(0.05)
+            } else {
+                egui::Color32::TRANSPARENT
+            },
+            stroke,
+        );
+
+        show_lines_background(
+            false,
+            notebook_res.rect,
+            transform,
+            &ui.painter_at(notebook_res.rect),
+            Some(1.0),
+        );
+
+        if notebook_res.clicked() {
+            tlbr_ctx.settings.background_type = BackgroundOverlay::Lines;
+            tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+        }
+
+        ui.add_space(x_padding);
+
+        let grid_selector_rect = egui::Rect::from_min_size(ui.cursor().min, bg_selector_dim);
+
+        let grid_res = ui.allocate_rect(grid_selector_rect, egui::Sense::click_and_drag());
+
+        let is_active = tlbr_ctx.settings.background_type == BackgroundOverlay::Grid;
+        let stroke = if is_active {
+            let mut copy = default_stroke;
+            copy.color = ui.visuals().widgets.active.bg_fill;
+            copy
+        } else {
+            ui.style().interact(&grid_res).fg_stroke
+        };
+
+        ui.painter().rect(
+            grid_res.rect,
+            3.0,
+            if is_active {
+                ui.visuals().widgets.active.bg_fill.linear_multiply(0.05)
+            } else {
+                egui::Color32::TRANSPARENT
+            },
+            stroke,
+        );
+
+        show_lines_background(
+            true,
+            grid_res.rect,
+            transform,
+            &ui.painter_at(grid_res.rect),
+            Some(1.0),
+        );
+
+        if grid_res.clicked() {
+            tlbr_ctx.settings.background_type = BackgroundOverlay::Grid;
+            tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+        }
+
+        ui.add_space(x_padding);
+
+        let blank_selector_rect = egui::Rect::from_min_size(ui.cursor().min, bg_selector_dim);
+
+        let blank_res = ui.allocate_rect(blank_selector_rect, egui::Sense::click_and_drag());
+
+        let is_active = tlbr_ctx.settings.background_type == BackgroundOverlay::Blank;
+
+        let stroke = if is_active {
+            let mut copy = default_stroke;
+            copy.color = ui.visuals().widgets.active.bg_fill;
+            copy
+        } else {
+            ui.style().interact(&blank_res).fg_stroke
+        };
+
+        ui.painter().rect(
+            blank_res.rect,
+            3.0,
+            if is_active {
+                ui.visuals().widgets.active.bg_fill.linear_multiply(0.05)
+            } else {
+                egui::Color32::TRANSPARENT
+            },
+            stroke,
+        );
+
+        if blank_res.clicked() {
+            tlbr_ctx.settings.background_type = BackgroundOverlay::Blank;
+            tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+        }
+    });
 }
 
 fn handle_mini_map_transforms(
