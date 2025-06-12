@@ -337,7 +337,7 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
     // thickness hints.
     ui.add_space(20.0);
 
-    show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=30.0);
+    show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=10.0);
 
     if cfg!(target_os = "ios") {
         ui.add_space(10.0);
