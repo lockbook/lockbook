@@ -3,20 +3,20 @@ use std::sync::{mpsc, Arc, RwLock};
 use lb::blocking::Lb;
 use lb::model::core_config::Config;
 use lb::model::errors::LbErrKind;
+use lb::model::file::File;
 
-use crate::model::AccountScreenInitData;
 use crate::settings::Settings;
 
 pub struct SplashHandOff {
     pub settings: Arc<RwLock<Settings>>,
     pub core: Lb,
-    pub maybe_acct_data: Option<AccountScreenInitData>,
+    pub maybe_acct_data: Option<Vec<File>>,
 }
 
 enum SplashUpdate {
     Status(String),
     Error(String),
-    Done((Lb, Option<AccountScreenInitData>)),
+    Done((Lb, Option<Vec<File>>)),
 }
 
 pub struct SplashScreen {
@@ -68,11 +68,6 @@ impl SplashScreen {
             };
 
             if is_signed_in {
-                tx.send(SplashUpdate::Status("Loading sync status...".to_string()))
-                    .unwrap();
-
-                let sync_status = core.get_last_synced_human_string();
-
                 tx.send(SplashUpdate::Status("Loading files...".to_string()))
                     .unwrap();
 
@@ -85,21 +80,7 @@ impl SplashScreen {
                     }
                 };
 
-                tx.send(SplashUpdate::Status("Loading usage data...".to_string()))
-                    .unwrap();
-
-                let usage = core
-                    .get_usage()
-                    .map(|metrics| metrics.into())
-                    .map_err(|err| format!("{:?}", err));
-
-                tx.send(SplashUpdate::Status("Loading suggested documents...".to_string()))
-                    .unwrap();
-
-                let acct_data = AccountScreenInitData { sync_status, files, usage };
-
-                tx.send(SplashUpdate::Done((core, Some(acct_data))))
-                    .unwrap();
+                tx.send(SplashUpdate::Done((core, Some(files)))).unwrap();
             } else {
                 tx.send(SplashUpdate::Done((core, None))).unwrap();
             }
