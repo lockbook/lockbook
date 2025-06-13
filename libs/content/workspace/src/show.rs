@@ -28,7 +28,8 @@ impl Workspace {
 
         self.set_tooltip_visibility(ui);
 
-        self.process_updates();
+        self.process_lb_updates();
+        self.process_task_updates();
         self.process_keys();
         self.status.message = self.status_message();
 

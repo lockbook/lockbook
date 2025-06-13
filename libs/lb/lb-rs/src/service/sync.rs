@@ -34,6 +34,8 @@ use time::Duration;
 use usvg::Transform;
 use uuid::Uuid;
 
+use super::events::Actor;
+
 pub type SyncFlag = Arc<AtomicBool>;
 
 pub struct SyncContext {
@@ -133,7 +135,7 @@ impl Lb {
             // did it?
             self.events.meta_changed();
             for id in &ctx.pulled_docs {
-                self.events.doc_written(*id);
+                self.events.doc_written(*id, Some(Actor::Sync));
             }
         }
 

@@ -164,7 +164,7 @@ impl Lb {
     async fn process_event(&self, e: Event) -> LbResult<()> {
         let current = self.status.current_status.read().await.clone();
         match e {
-            Event::MetadataChanged | Event::DocumentWritten(_) => {
+            Event::MetadataChanged | Event::DocumentWritten(_, _) => {
                 self.compute_dirty_locally(current).await?;
             }
             Event::Sync(s) => self.update_sync(s, current).await?,

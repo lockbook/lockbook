@@ -3,7 +3,6 @@ pub mod mind_map;
 pub mod output;
 pub mod show;
 pub mod space_inspector;
-pub mod syncing;
 pub mod tab;
 pub mod task_manager;
 pub mod theme;
