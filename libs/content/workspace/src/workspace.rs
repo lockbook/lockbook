@@ -1,7 +1,7 @@
 use egui::{Context, ViewportCommand};
 
 use lb_rs::blocking::Lb;
-use lb_rs::model::errors::{LbErr, LbErrKind};
+use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::filename::NameComponents;
@@ -65,6 +65,7 @@ impl Workspace {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_persistence.json");
+        let files = FileCache::new(core).log_and_ignore();
 
         let mut ws = Self {
             tabs: Default::default(),
@@ -72,7 +73,7 @@ impl Workspace {
             user_last_seen: Instant::now(),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
-            files: None,
+            files,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
 
@@ -268,7 +269,7 @@ impl Workspace {
         match self.lb_rx.try_recv() {
             Ok(evt) => match evt {
                 Event::MetadataChanged => {
-                    self.files = Some(FileCache::new(&self.core).unwrap());
+                    self.files = FileCache::new(&self.core).log_and_ignore();
                 }
                 Event::DocumentWritten(id, Some(Actor::Sync)) => {
                     for i in 0..self.tabs.len() {
