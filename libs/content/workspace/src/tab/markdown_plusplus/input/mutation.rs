@@ -242,15 +242,17 @@ impl<'ast> MarkdownPlusPlus {
 
                         let prior_line_idx = first_selected_line_idx - 1;
                         let prior_line = self.bounds.source_lines[prior_line_idx];
-
-                        // among blocks on prior line, choose least deep that
-                        // has a prefix on the prior line but not on the first
-                        // selected line. this rule accounts for empty-prefix
-                        // nodes like lists and prefix-less situations like
-                        // paragraph continuation text.
                         let prior_line_deepest_container =
                             self.deepest_container_block_at_offset(root, prior_line.end());
-                        let mut prior_line_selected_container_extension_prefix = None;
+
+                        // among blocks on prior line, find the least deep that
+                        // has a prefix on the prior line but not on the first
+                        // selected line. this is the container that the
+                        // selected lines will be tab-indented into. this rule
+                        // accounts for empty-prefix nodes like lists and
+                        // prefix-less situations like paragraph continuation
+                        // text.
+                        let mut prior_line_container_extension_prefix = None;
                         for prior_line_container in prior_line_deepest_container.ancestors() {
                             let has_prefix_on_prior_line = !self
                                 .line_own_prefix(prior_line_container, prior_line)
@@ -270,13 +272,12 @@ impl<'ast> MarkdownPlusPlus {
                                 if let Some(extension_prefix) =
                                     self.extension_own_prefix(prior_line_container)
                                 {
-                                    prior_line_selected_container_extension_prefix =
-                                        Some(extension_prefix);
+                                    prior_line_container_extension_prefix = Some(extension_prefix);
                                 }
                             }
                         }
-                        let Some(prior_line_selected_container_extension_prefix) =
-                            prior_line_selected_container_extension_prefix
+                        let Some(prior_line_container_extension_prefix) =
+                            prior_line_container_extension_prefix
                         else {
                             return false;
                         };
@@ -286,30 +287,44 @@ impl<'ast> MarkdownPlusPlus {
                         // the prefix; this would improve behavior when lazy
                         // continuation lines are mixed with
                         // non-lazy-continuation lines
+                        // todo: more attention to multi-line indentation
                         for line_idx in selected_lines.iter() {
                             let line = self.bounds.source_lines[line_idx];
                             let container =
                                 self.deepest_container_block_at_offset(root, line.end());
-                            let container_prefix = self.line_prefix(container, line);
+                            let container_own_prefix = self.line_own_prefix(container, line);
+
+                            let insertion_offset =
+                                if Some(self.buffer[container_own_prefix].to_string())
+                                    == self.extension_own_prefix(container)
+                                {
+                                    // on what could be a subsequent line of a
+                                    // container block, tab to indent the line
+                                    // contents; this is the experience when
+                                    // e.g. tab-indenting the cursor into a
+                                    // preceding container block
+                                    container_own_prefix.end()
+                                } else {
+                                    // on what can only be the first line of a
+                                    // container block, tab to indent the block;
+                                    // this is the experience when e.g.
+                                    // tab-indenting a list item into the list
+                                    // item above
+                                    container_own_prefix.start()
+                                };
 
                             operations.push(Operation::Replace(Replace {
-                                range: container_prefix.end().into_range(),
-                                text: prior_line_selected_container_extension_prefix.clone(),
+                                range: insertion_offset.into_range(),
+                                text: prior_line_container_extension_prefix.clone(),
                             }));
                         }
+
+                        // panic!("debug");
 
                         true
                     };
                     if !handled() {
-                        // default -> indent each line 4 spaces
-                        for line_idx in selected_lines.iter() {
-                            let line = self.bounds.source_lines[line_idx];
-
-                            operations.push(Operation::Replace(Replace {
-                                range: line.start().into_range(),
-                                text: " ".repeat(4),
-                            }));
-                        }
+                        // default -> do nothing
                     }
                 } else {
                     // de-indent out of current container block
@@ -319,9 +334,21 @@ impl<'ast> MarkdownPlusPlus {
                             let line = self.bounds.source_lines[line_idx];
                             let container =
                                 self.deepest_container_block_at_offset(root, line.end());
+                            let container_own_prefix = self.line_own_prefix(container, line);
+
+                            // on what can only be the first line of a container
+                            // block, shift-tab to de-indent the block rather
+                            // than its contents
+                            let skip_container =
+                                Some(self.buffer[container_own_prefix].to_string())
+                                    != self.extension_own_prefix(container);
 
                             let mut found_container_ancestor = false;
-                            for ancestor in container.ancestors().skip(1) {
+                            for ancestor in container.ancestors() {
+                                if container.same_node(ancestor) && skip_container {
+                                    continue;
+                                }
+
                                 let ancestor_own_prefix = self.line_own_prefix(ancestor, line);
                                 if !ancestor_own_prefix.is_empty() {
                                     found_container_ancestor = true;
@@ -337,8 +364,20 @@ impl<'ast> MarkdownPlusPlus {
                             let line = self.bounds.source_lines[line_idx];
                             let container =
                                 self.deepest_container_block_at_offset(root, line.end());
+                            let container_own_prefix = self.line_own_prefix(container, line);
 
-                            for ancestor in container.ancestors().skip(1) {
+                            // on what can only be the first line of a container
+                            // block, shift-tab to de-indent the block rather
+                            // than its contents
+                            let skip_container =
+                                Some(self.buffer[container_own_prefix].to_string())
+                                    != self.extension_own_prefix(container);
+
+                            for ancestor in container.ancestors() {
+                                if container.same_node(ancestor) && skip_container {
+                                    continue;
+                                }
+
                                 let ancestor_own_prefix = self.line_own_prefix(ancestor, line);
                                 if !ancestor_own_prefix.is_empty() {
                                     operations.push(Operation::Replace(Replace {
@@ -353,23 +392,12 @@ impl<'ast> MarkdownPlusPlus {
                         true
                     };
                     if !handled() {
-                        // default -> de-indent each line up to 4 spaces
-                        for line_idx in selected_lines.iter() {
-                            let line = self.bounds.source_lines[line_idx];
-                            let leading_spaces =
-                                self.buffer[line].chars().take_while(|c| c == &' ').count();
-                            let deindent = leading_spaces.min(4);
-
-                            operations.push(Operation::Replace(Replace {
-                                range: (line.start(), line.start() + deindent),
-                                text: "".into(),
-                            }));
-                        }
+                        // default -> do nothing
                     }
                 }
 
                 // advance cursor
-                operations.push(Operation::Select(current_selection.start().to_range()));
+                operations.push(Operation::Select(current_selection));
             }
             Event::Find { term, backwards } => {
                 // if let Some(result) = self.find(term, backwards) {

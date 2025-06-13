@@ -1,9 +1,7 @@
 use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
 use egui::text::LayoutJob;
 use egui::{Pos2, Rect, Ui, Vec2};
-use lb_rs::model::text::offset_types::{
-    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
-};
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeIterExt as _, RelCharOffset};
 
 use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_plusplus::widget::{BULLET_RADIUS, INDENT, ROW_HEIGHT};
