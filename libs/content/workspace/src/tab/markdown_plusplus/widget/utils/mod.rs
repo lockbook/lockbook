@@ -1,7 +1,7 @@
 use comrak::nodes::{AstNode, NodeValue};
-use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _, RangeIterExt};
 
-use crate::tab::markdown_plusplus::MarkdownPlusPlus;
+use crate::tab::markdown_plusplus::{bounds::RangesExt as _, MarkdownPlusPlus};
 
 pub(crate) mod text_layout;
 
@@ -89,19 +89,36 @@ impl<'ast> MarkdownPlusPlus {
         result
     }
 
-    /// Returns the innermost node containing the offset.
-    pub fn container_block_descendant_at_offset(
+    pub fn selection_offset(&self) -> Option<DocCharOffset> {
+        if self.buffer.current.selection.is_empty() {
+            Some(self.buffer.current.selection.0)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the deepest container block node containing the offset.
+    pub fn deepest_container_block_at_offset(
         &self, node: &'ast AstNode<'ast>, offset: DocCharOffset,
     ) -> &'ast AstNode<'ast> {
         for child in node.children() {
             if !child.data.borrow().value.is_container_block() {
                 continue;
             }
-            if self.node_range(child).contains(offset, true, true) {
-                return self.container_block_descendant_at_offset(child, offset);
+            for line_idx in self.node_lines(child).iter() {
+                let line = self.bounds.source_lines[line_idx];
+                let node_line = self.node_line(child, line);
+                if node_line.contains(offset, false, true) {
+                    return self.deepest_container_block_at_offset(child, offset);
+                }
             }
         }
         node
+    }
+
+    pub fn line_at_offset(&self, offset: DocCharOffset) -> (DocCharOffset, DocCharOffset) {
+        let (line_idx, _) = self.bounds.source_lines.find_containing(offset, true, true);
+        self.bounds.source_lines[line_idx]
     }
 }
 
@@ -264,6 +281,20 @@ impl NodeValueExt for NodeValue {
             | NodeValue::TableCell
             | NodeValue::ThematicBreak => false,
         }
+    }
+}
+
+impl<'ast> NodeValueExt for AstNode<'ast> {
+    fn is_leaf_block(&self) -> bool {
+        self.data.borrow().value.is_leaf_block()
+    }
+
+    fn is_container_block(&self) -> bool {
+        self.data.borrow().value.is_container_block()
+    }
+
+    fn is_inline(&self) -> bool {
+        self.data.borrow().value.is_inline()
     }
 }
 

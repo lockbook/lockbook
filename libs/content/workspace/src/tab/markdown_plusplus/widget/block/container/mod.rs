@@ -1,7 +1,7 @@
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
 use crate::tab::markdown_plusplus::widget::INDENT;
@@ -107,8 +107,18 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
-    /// How many leading characters on this line belong to the given node and
-    /// its ancestors?
+    /// How many leading characters on the given line belong to the given node
+    /// and its ancestors? For example, in "`> * p`", the line prefix len of the
+    /// block quote is 2 and of the list item is 4. This function only processes
+    /// container blocks, so the paragraph is not supported.
+    ///
+    /// This fn's second return value indicates whether the given line is a lazy
+    /// continuation line of the given node. For example, in:
+    /// ```md
+    /// > block quote line one
+    /// block quote line two
+    /// ```
+    /// the second line is a lazy continuation line of the block quote.
     // "It is tempting to think of this in terms of columns: the continuation
     // blocks must be indented at least to the column of the first
     // non-whitespace character after the list marker. However, that is not
@@ -128,13 +138,23 @@ impl<'ast> MarkdownPlusPlus {
     // https://github.github.com/gfm/#list-items
     pub fn line_prefix_len(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> RelCharOffset {
-        let parent = || node.parent().unwrap();
-        let parent_line_prefix_len = || self.line_prefix_len(parent(), line);
+    ) -> (RelCharOffset, bool) {
+        if let Some(cached) = self.get_cached_line_prefix_len(node, line) {
+            return cached;
+        }
+
+        let Some(parent) = node.parent() else {
+            return (0.into(), false); // document has no prefix
+        };
+        let (parent_prefix_len, parent_lazy) = self.line_prefix_len(parent, line);
+        if parent_lazy {
+            // lazy continuation status is inherited
+            return (parent_prefix_len, parent_lazy);
+        }
 
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
-        match value {
+        let maybe_own_prefix_len = match value {
             NodeValue::FrontMatter(_) => unimplemented!("not a block: {} {:?}", sp, value),
             NodeValue::Raw(_) => unimplemented!("can only be created programmatically"),
 
@@ -143,15 +163,15 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::BlockQuote => self.line_prefix_len_block_quote(node, line),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => 0.into(),
+            NodeValue::Document => Some(0.into()),
             NodeValue::FootnoteDefinition(_) => {
                 self.line_prefix_len_footnote_definition(node, line)
             }
             NodeValue::Item(node_list) => self.line_prefix_len_item(node, line, node_list),
-            NodeValue::List(_) => parent_line_prefix_len(),
+            NodeValue::List(_) => Some(0.into()),
             NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
-            NodeValue::Table(_) => parent_line_prefix_len(),
-            NodeValue::TableRow(_) => parent_line_prefix_len(),
+            NodeValue::Table(_) => Some(0.into()),
+            NodeValue::TableRow(_) => Some(0.into()),
             NodeValue::TaskItem(_) => self.line_prefix_len_task_item(node, line),
 
             // inline
@@ -184,7 +204,246 @@ impl<'ast> MarkdownPlusPlus {
             NodeValue::Paragraph => unimplemented!("not a container block: {} {:?}", sp, value),
             NodeValue::TableCell => unimplemented!("not a container block: {} {:?}", sp, value),
             NodeValue::ThematicBreak => unimplemented!("not a container block: {} {:?}", sp, value),
+        };
+        let result = if let Some(own_prefix_len) = maybe_own_prefix_len {
+            (parent_prefix_len + own_prefix_len, false)
+        } else {
+            (parent_prefix_len, true)
+        };
+
+        self.set_cached_line_prefix_len(node, line, result);
+        result
+    }
+
+    /// Returns the range representing the portion of the line that belongs to
+    /// the given node's ancestors; comes before [`line_own_prefix`] which
+    /// comes before [`line_content`].
+    ///
+    /// In the following example:
+    ///
+    /// ```md
+    /// > * quoted list item
+    /// ```
+    ///
+    /// * For the list item:
+    ///   * the line ancestors prefix is "`> `"
+    ///   * the line own prefix is "`* `"
+    ///   * the line content is "`quoted list item`"
+    /// * For the block quote:
+    ///   * the line ancestors prefix is ""
+    ///   * the line own prefix is "`> `"
+    ///   * the line content is "`* quoted list item`"
+    pub fn line_ancestors_prefix(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> (DocCharOffset, DocCharOffset) {
+        let Some(parent) = node.parent() else { return line.start().into_range() }; // document has no ancestors
+        let (parent_prefix_len, _) = self.line_prefix_len(parent, line);
+        (line.start(), line.start() + parent_prefix_len)
+    }
+
+    /// Returns the range representing the portion of the line that constitutes
+    /// the given node's prefix; comes after [`line_ancestors_prefix`] and
+    /// before [`line_content`].
+    ///
+    /// See [`line_ancestors_prefix`] for an example.
+    pub fn line_own_prefix(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> (DocCharOffset, DocCharOffset) {
+        let Some(parent) = node.parent() else { return line.start().into_range() }; // document has no prefix
+        let (parent_prefix_len, _) = self.line_prefix_len(parent, line);
+        let (prefix_len, _) = self.line_prefix_len(node, line);
+
+        (line.start() + parent_prefix_len, line.start() + prefix_len)
+    }
+
+    /// Returns the range representing the portion of the line after the given
+    /// node's prefix; comes after [`line_ancestors_prefix`] and
+    /// [`line_own_prefix`].
+    ///
+    /// See [`line_ancestors_prefix`] for an example.
+    pub fn line_content(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> (DocCharOffset, DocCharOffset) {
+        let (prefix_len, _) = self.line_prefix_len(node, line);
+        (line.start() + prefix_len, line.end())
+    }
+
+    /// Returns the range representing the portion of the line before the
+    /// [`node_content`]. Equivalent to [`line_ancestors_prefix`] +
+    /// [`line_own_prefix`]. Always has length == [`line_prefix_len`].
+    pub fn line_prefix(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> (DocCharOffset, DocCharOffset) {
+        let (prefix_len, _) = self.line_prefix_len(node, line);
+        (line.start(), line.start() + prefix_len)
+    }
+
+    /// Returns the string that could be prepended to a line to make that line
+    /// an extension of the given node e.g. "`> `" for block quotes or "` `" for
+    /// list items. Returns `None` if the node is not supported e.g. tables.
+    pub fn extension_own_prefix(&self, node: &'ast AstNode<'ast>) -> Option<String> {
+        let line = self.node_first_line(node);
+        let own_prefix = self.line_own_prefix(node, line);
+
+        Some(match &node.data.borrow().value {
+            NodeValue::FrontMatter(_) | NodeValue::Raw(_) => {
+                unreachable!("not a container block")
+            }
+
+            // container_block
+            NodeValue::Alert(_) => self.buffer[own_prefix].into(),
+            NodeValue::BlockQuote => self.buffer[own_prefix].into(),
+            NodeValue::DescriptionItem(_) => {
+                unimplemented!("extension disabled")
+            }
+            NodeValue::DescriptionList => unimplemented!("extension disabled"),
+            NodeValue::Document => {
+                return None;
+            }
+            NodeValue::FootnoteDefinition(_) => "  ".into(),
+
+            NodeValue::Item(_) => " ".repeat(own_prefix.len().0),
+            NodeValue::List(_) => {
+                return None;
+            }
+            NodeValue::MultilineBlockQuote(_) => {
+                unimplemented!("extension disabled")
+            }
+            NodeValue::Table(_) => {
+                return None;
+            }
+            NodeValue::TableRow(_) => {
+                return None;
+            }
+            NodeValue::TaskItem(_) => " ".repeat(own_prefix.len().0),
+
+            // inline
+            NodeValue::Image(_)
+            | NodeValue::Code(_)
+            | NodeValue::Emph
+            | NodeValue::Escaped
+            | NodeValue::EscapedTag(_)
+            | NodeValue::FootnoteReference(_)
+            | NodeValue::HtmlInline(_)
+            | NodeValue::LineBreak
+            | NodeValue::Link(_)
+            | NodeValue::Math(_)
+            | NodeValue::SoftBreak
+            | NodeValue::SpoileredText
+            | NodeValue::Strikethrough
+            | NodeValue::Strong
+            | NodeValue::Subscript
+            | NodeValue::Superscript
+            | NodeValue::Text(_)
+            | NodeValue::Underline
+            | NodeValue::WikiLink(_) => unreachable!("not a container block"),
+
+            // leaf_block
+            NodeValue::CodeBlock(_)
+            | NodeValue::DescriptionDetails
+            | NodeValue::DescriptionTerm
+            | NodeValue::Heading(_)
+            | NodeValue::HtmlBlock(_)
+            | NodeValue::Paragraph
+            | NodeValue::TableCell
+            | NodeValue::ThematicBreak => unreachable!("not a container block"),
+        })
+    }
+
+    /// Returns the prefix required to extend the given node and its ancestors
+    /// to a new line i.e. the concatenation of [`extension_own_prefix`] of all
+    /// container block ancestors.
+    pub fn extension_prefix(&self, node: &'ast AstNode<'ast>) -> Option<String> {
+        let mut result = if let Some(parent) = node.parent() {
+            self.extension_prefix(parent)?
+        } else {
+            Default::default()
+        };
+
+        if let Some(own_prefix) = self.extension_own_prefix(node) {
+            result += &own_prefix;
         }
+
+        Some(result)
+    }
+
+    /// Returns the prefix required to insert a new node of the same type after
+    /// the given prior node, extending all ancestors.
+    pub fn insertion_prefix(&self, prior_node: &'ast AstNode<'ast>) -> Option<String> {
+        let mut result = if let Some(parent) = prior_node.parent() {
+            self.extension_prefix(parent)?
+        } else {
+            Default::default()
+        };
+
+        let line = self.node_first_line(prior_node);
+        let own_prefix = self.line_own_prefix(prior_node, line);
+
+        match &prior_node.data.borrow().value {
+            NodeValue::FrontMatter(_) | NodeValue::Raw(_) => {
+                unreachable!("not a container block")
+            }
+
+            // container_block
+            NodeValue::Alert(_) => result += &self.buffer[own_prefix],
+            NodeValue::BlockQuote => result += &self.buffer[own_prefix],
+            NodeValue::DescriptionItem(_) => {
+                unimplemented!("extension disabled")
+            }
+            NodeValue::DescriptionList => unimplemented!("extension disabled"),
+            NodeValue::Document => {
+                return None;
+            }
+            NodeValue::FootnoteDefinition(_) => result += &self.buffer[own_prefix], // unsure about this one
+
+            NodeValue::Item(_) => result += &self.buffer[own_prefix],
+            NodeValue::List(_) => {
+                return None;
+            }
+            NodeValue::MultilineBlockQuote(_) => {
+                unimplemented!("extension disabled")
+            }
+            NodeValue::Table(_) => {
+                return None;
+            }
+            NodeValue::TableRow(_) => {
+                return None;
+            }
+            NodeValue::TaskItem(_) => result += &self.buffer[own_prefix],
+
+            // inline
+            NodeValue::Image(_)
+            | NodeValue::Code(_)
+            | NodeValue::Emph
+            | NodeValue::Escaped
+            | NodeValue::EscapedTag(_)
+            | NodeValue::FootnoteReference(_)
+            | NodeValue::HtmlInline(_)
+            | NodeValue::LineBreak
+            | NodeValue::Link(_)
+            | NodeValue::Math(_)
+            | NodeValue::SoftBreak
+            | NodeValue::SpoileredText
+            | NodeValue::Strikethrough
+            | NodeValue::Strong
+            | NodeValue::Subscript
+            | NodeValue::Superscript
+            | NodeValue::Text(_)
+            | NodeValue::Underline
+            | NodeValue::WikiLink(_) => unreachable!("not a container block"),
+
+            // leaf_block
+            NodeValue::CodeBlock(_)
+            | NodeValue::DescriptionDetails
+            | NodeValue::DescriptionTerm
+            | NodeValue::Heading(_)
+            | NodeValue::HtmlBlock(_)
+            | NodeValue::Paragraph
+            | NodeValue::TableCell
+            | NodeValue::ThematicBreak => unreachable!("not a container block"),
+        };
+
+        Some(result)
     }
 
     /// returns true if the syntax for a container block should be revealed
@@ -192,7 +451,7 @@ impl<'ast> MarkdownPlusPlus {
         for line in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line];
 
-            let line_prefix = (line.start(), line.start() + self.line_prefix_len(node, line));
+            let line_prefix = self.line_prefix(node, line);
             if line_prefix.is_empty() {
                 continue;
             }
@@ -206,10 +465,13 @@ impl<'ast> MarkdownPlusPlus {
                 // start of line prefix is inclusive
                 return true;
             }
-            if self.buffer[line_prefix].chars().all(|c| c.is_whitespace())
+            if self.buffer[self.node_line(node, line)]
+                .chars()
+                .all(|c| c.is_whitespace())
                 && selection.start() == line_prefix.end()
             {
-                // line prefix contains only whitespace: end of line prefix is inclusive
+                // line prefix and contents contain only whitespace: end of line
+                // prefix is inclusive
                 // this improves the editing experience for list items
                 return true;
             }

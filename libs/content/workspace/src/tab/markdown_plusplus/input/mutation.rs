@@ -3,7 +3,7 @@ use crate::tab::markdown_plusplus::galleys::Galleys;
 use crate::tab::markdown_plusplus::input::Event;
 use crate::tab::markdown_plusplus::widget::ROW_SPACING;
 use crate::tab::markdown_plusplus::MarkdownPlusPlus;
-use comrak::nodes::{AstNode, NodeValue};
+use comrak::nodes::AstNode;
 use egui::{Pos2, Rangef, Vec2};
 use lb_rs::model::text::buffer::{self};
 use lb_rs::model::text::offset_types::{
@@ -112,83 +112,19 @@ impl<'ast> MarkdownPlusPlus {
                 // insert/extend/terminate container blocks
                 let mut handled = || {
                     // selection must be empty
-                    let offset = if current_selection.is_empty() {
-                        current_selection.0
-                    } else {
+                    let Some(offset) = self.selection_offset() else {
                         return false;
                     };
 
-                    let node = self.container_block_descendant_at_offset(root, offset);
-
-                    if matches!(
-                        node.data.borrow().value,
-                        NodeValue::List(_) | NodeValue::Table(_) | NodeValue::TableRow(_)
-                    ) {
-                        return false;
-                    }
-
-                    let (line_idx, _) =
-                        self.bounds.source_lines.find_containing(offset, true, true);
-                    let line = self.bounds.source_lines[line_idx];
-
-                    let prefix_len = self.line_prefix_len(node, line);
-                    let prefix = (line.start(), line.start() + prefix_len);
-                    let content = (prefix.end(), line.end());
+                    let container = self.deepest_container_block_at_offset(root, offset);
+                    let line = self.line_at_offset(offset);
+                    let line_content = self.line_content(container, line);
+                    let own_prefix = self.line_own_prefix(container, line);
 
                     if shift {
                         // shift -> extend
-                        let extension_prefix = match &node.data.borrow().value {
-                            NodeValue::FrontMatter(_) | NodeValue::Raw(_) => {
-                                unreachable!("not a container block")
-                            }
-
-                            // container_block
-                            NodeValue::Alert(_) => self.buffer[prefix].into(),
-                            NodeValue::BlockQuote => self.buffer[prefix].into(),
-                            NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
-                            NodeValue::DescriptionList => unimplemented!("extension disabled"),
-                            NodeValue::Document => "".into(),
-                            NodeValue::FootnoteDefinition(_) => "  ".into(),
-
-                            NodeValue::Item(_) => " ".repeat(prefix.len().0),
-                            NodeValue::List(_) => unreachable!("skipped"),
-                            NodeValue::MultilineBlockQuote(_) => {
-                                unimplemented!("extension disabled")
-                            }
-                            NodeValue::Table(_) => unreachable!("skipped"),
-                            NodeValue::TableRow(_) => unreachable!("skipped"),
-                            NodeValue::TaskItem(_) => " ".repeat(prefix.len().0),
-
-                            // inline
-                            NodeValue::Image(_)
-                            | NodeValue::Code(_)
-                            | NodeValue::Emph
-                            | NodeValue::Escaped
-                            | NodeValue::EscapedTag(_)
-                            | NodeValue::FootnoteReference(_)
-                            | NodeValue::HtmlInline(_)
-                            | NodeValue::LineBreak
-                            | NodeValue::Link(_)
-                            | NodeValue::Math(_)
-                            | NodeValue::SoftBreak
-                            | NodeValue::SpoileredText
-                            | NodeValue::Strikethrough
-                            | NodeValue::Strong
-                            | NodeValue::Subscript
-                            | NodeValue::Superscript
-                            | NodeValue::Text(_)
-                            | NodeValue::Underline
-                            | NodeValue::WikiLink(_) => unreachable!("not a container block"),
-
-                            // leaf_block
-                            NodeValue::CodeBlock(_)
-                            | NodeValue::DescriptionDetails
-                            | NodeValue::DescriptionTerm
-                            | NodeValue::Heading(_)
-                            | NodeValue::HtmlBlock(_)
-                            | NodeValue::Paragraph
-                            | NodeValue::TableCell
-                            | NodeValue::ThematicBreak => unreachable!("not a container block"),
+                        let Some(extension_prefix) = self.extension_prefix(container) else {
+                            return false;
                         };
 
                         operations.push(Operation::Replace(Replace {
@@ -199,15 +135,13 @@ impl<'ast> MarkdownPlusPlus {
                             range: current_selection,
                             text: extension_prefix,
                         }));
-                    } else if content.is_empty() {
+                    } else if line_content.is_empty() {
                         // empty container block -> terminate
-                        let Some(parent) = node.parent() else {
-                            return false;
-                        };
 
-                        let parent_prefix_len = self.line_prefix_len(parent, line);
-                        let own_prefix_len = prefix_len - parent_prefix_len;
-                        let own_prefix = (offset - own_prefix_len, offset);
+                        // operation must do something
+                        if own_prefix.is_empty() {
+                            return false;
+                        }
 
                         operations.push(Operation::Replace(Replace {
                             range: own_prefix,
@@ -215,13 +149,17 @@ impl<'ast> MarkdownPlusPlus {
                         }));
                     } else {
                         // nonempty container block -> insert
+                        let Some(insertion_prefix) = self.insertion_prefix(container) else {
+                            return false;
+                        };
+
                         operations.push(Operation::Replace(Replace {
                             range: current_selection,
                             text: "\n".into(),
                         }));
                         operations.push(Operation::Replace(Replace {
                             range: current_selection,
-                            text: self.buffer[prefix].into(),
+                            text: insertion_prefix,
                         }));
                     }
                     true
@@ -240,11 +178,11 @@ impl<'ast> MarkdownPlusPlus {
             Event::Delete { region } => {
                 // delete container block prefix
                 let mut handled = || {
-                    // must be vanilla backspace
+                    // must be mostly vanilla backspace
                     if !matches!(
                         region,
                         Region::SelectionOrOffset {
-                            offset: Offset::Next(Bound::Char), // todo: consider other bound types
+                            offset: Offset::Next(Bound::Char | Bound::Word),
                             backwards: true,
                         }
                     ) {
@@ -252,43 +190,24 @@ impl<'ast> MarkdownPlusPlus {
                     }
 
                     // selection must be empty
-                    let offset = if current_selection.is_empty() {
-                        current_selection.0
-                    } else {
+                    let Some(offset) = self.selection_offset() else {
                         return false;
                     };
 
-                    let node = self.container_block_descendant_at_offset(root, offset);
+                    let container = self.deepest_container_block_at_offset(root, offset);
+                    let line = self.line_at_offset(offset);
+                    let own_prefix = self.line_own_prefix(container, line);
+                    let content = self.line_content(container, line);
 
-                    if matches!(
-                        node.data.borrow().value,
-                        NodeValue::List(_) | NodeValue::Table(_) | NodeValue::TableRow(_)
-                    ) {
+                    // selection must be at content start
+                    if offset != content.start() {
                         return false;
                     }
 
-                    let (line_idx, _) =
-                        self.bounds.source_lines.find_containing(offset, true, true);
-                    let line = self.bounds.source_lines[line_idx];
-
-                    let prefix_len = self.line_prefix_len(node, line);
-                    let prefix = (line.start(), line.start() + prefix_len);
-                    let content = (prefix.end(), line.end());
-
-                    // content must be empty
-                    if !content.is_empty() {
+                    // operation must do something
+                    if own_prefix.is_empty() {
                         return false;
                     }
-
-                    // node must not be document
-                    let Some(parent) = node.parent() else {
-                        return false;
-                    };
-
-                    // empty container block -> terminate
-                    let parent_prefix_len = self.line_prefix_len(parent, line);
-                    let own_prefix_len = prefix_len - parent_prefix_len;
-                    let own_prefix = (offset - own_prefix_len, offset);
 
                     operations
                         .push(Operation::Replace(Replace { range: own_prefix, text: "".into() }));
@@ -306,48 +225,147 @@ impl<'ast> MarkdownPlusPlus {
                 operations.push(Operation::Select(current_selection.start().to_range()));
             }
             Event::Indent { deindent } => {
-                let lines = self
+                let selected_lines = self
                     .bounds
                     .source_lines
                     .find_intersecting(current_selection, true);
-                let first_line_idx = lines.0;
+                let first_selected_line_idx = selected_lines.0;
+                let first_selected_line = self.bounds.source_lines[first_selected_line_idx];
 
-                // indent into prior list item
-                let indent = || {
-                    // must not be first line
-                    if first_line_idx == 0 {
-                        // default -> four space indent
-                        return 4.into();
+                if !deindent {
+                    // indent into extension of block on prior line
+                    let mut handled = || {
+                        // must not be first line
+                        if first_selected_line_idx == 0 {
+                            return false;
+                        }
+
+                        let prior_line_idx = first_selected_line_idx - 1;
+                        let prior_line = self.bounds.source_lines[prior_line_idx];
+
+                        // among blocks on prior line, choose least deep that
+                        // has a prefix on the prior line but not on the first
+                        // selected line. this rule accounts for empty-prefix
+                        // nodes like lists and prefix-less situations like
+                        // paragraph continuation text.
+                        let prior_line_deepest_container =
+                            self.deepest_container_block_at_offset(root, prior_line.end());
+                        let mut prior_line_selected_container_extension_prefix = None;
+                        for prior_line_container in prior_line_deepest_container.ancestors() {
+                            let has_prefix_on_prior_line = !self
+                                .line_own_prefix(prior_line_container, prior_line)
+                                .is_empty();
+                            let has_prefix_on_first_selected_line = if self
+                                .node_last_line_idx(prior_line_container)
+                                < first_selected_line_idx
+                            {
+                                false
+                            } else {
+                                !self
+                                    .line_own_prefix(prior_line_container, first_selected_line)
+                                    .is_empty()
+                            };
+
+                            if has_prefix_on_prior_line && !has_prefix_on_first_selected_line {
+                                if let Some(extension_prefix) =
+                                    self.extension_own_prefix(prior_line_container)
+                                {
+                                    prior_line_selected_container_extension_prefix =
+                                        Some(extension_prefix);
+                                }
+                            }
+                        }
+                        let Some(prior_line_selected_container_extension_prefix) =
+                            prior_line_selected_container_extension_prefix
+                        else {
+                            return false;
+                        };
+
+                        // prepend container prefix to each line
+                        // todo: only prepend to lines which do not already have
+                        // the prefix; this would improve behavior when lazy
+                        // continuation lines are mixed with
+                        // non-lazy-continuation lines
+                        for line_idx in selected_lines.iter() {
+                            let line = self.bounds.source_lines[line_idx];
+                            let container =
+                                self.deepest_container_block_at_offset(root, line.end());
+                            let container_prefix = self.line_prefix(container, line);
+
+                            operations.push(Operation::Replace(Replace {
+                                range: container_prefix.end().into_range(),
+                                text: prior_line_selected_container_extension_prefix.clone(),
+                            }));
+                        }
+
+                        true
+                    };
+                    if !handled() {
+                        // default -> indent each line 4 spaces
+                        for line_idx in selected_lines.iter() {
+                            let line = self.bounds.source_lines[line_idx];
+
+                            operations.push(Operation::Replace(Replace {
+                                range: line.start().into_range(),
+                                text: " ".repeat(4),
+                            }));
+                        }
                     }
+                } else {
+                    // de-indent out of current container block
+                    let mut handled = || {
+                        // all lines must have container ancestor prefix
+                        for line_idx in selected_lines.iter() {
+                            let line = self.bounds.source_lines[line_idx];
+                            let container =
+                                self.deepest_container_block_at_offset(root, line.end());
 
-                    let prior_line_idx = first_line_idx - 1;
-                    let prior_line = self.bounds.source_lines[prior_line_idx];
-                    let prior_node =
-                        self.container_block_descendant_at_offset(root, prior_line.start());
+                            let mut found_container_ancestor = false;
+                            for ancestor in container.ancestors().skip(1) {
+                                let ancestor_own_prefix = self.line_own_prefix(ancestor, line);
+                                if !ancestor_own_prefix.is_empty() {
+                                    found_container_ancestor = true;
+                                }
+                            }
+                            if !found_container_ancestor {
+                                return false;
+                            }
+                        }
 
-                    // prior line must be in list item
-                    if !matches!(
-                        prior_node.data.borrow().value,
-                        NodeValue::Item(_) | NodeValue::TaskItem(_)
-                    ) {
-                        // default -> four space indent
-                        return 4.into();
+                        // remove container ancestor prefix from each line
+                        for line_idx in selected_lines.iter() {
+                            let line = self.bounds.source_lines[line_idx];
+                            let container =
+                                self.deepest_container_block_at_offset(root, line.end());
+
+                            for ancestor in container.ancestors().skip(1) {
+                                let ancestor_own_prefix = self.line_own_prefix(ancestor, line);
+                                if !ancestor_own_prefix.is_empty() {
+                                    operations.push(Operation::Replace(Replace {
+                                        range: ancestor_own_prefix,
+                                        text: "".into(),
+                                    }));
+                                    break;
+                                }
+                            }
+                        }
+
+                        true
+                    };
+                    if !handled() {
+                        // default -> de-indent each line up to 4 spaces
+                        for line_idx in selected_lines.iter() {
+                            let line = self.bounds.source_lines[line_idx];
+                            let leading_spaces =
+                                self.buffer[line].chars().take_while(|c| c == &' ').count();
+                            let deindent = leading_spaces.min(4);
+
+                            operations.push(Operation::Replace(Replace {
+                                range: (line.start(), line.start() + deindent),
+                                text: "".into(),
+                            }));
+                        }
                     }
-
-                    let prefix_len = self.line_prefix_len(prior_node, prior_line);
-                    let parent_prefix_len =
-                        self.line_prefix_len(prior_node.parent().unwrap(), prior_line);
-                    prefix_len - parent_prefix_len
-                };
-                let indent = indent();
-
-                for line_idx in lines.iter() {
-                    let line = self.bounds.source_lines[line_idx];
-
-                    operations.push(Operation::Replace(Replace {
-                        range: line.start().into_range(),
-                        text: " ".repeat(indent.0),
-                    }));
                 }
 
                 // advance cursor

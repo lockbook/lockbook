@@ -1,6 +1,5 @@
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Ui};
-use lb_rs::model::text::offset_types::RangeExt as _;
 
 use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_plusplus::widget::BLOCK_SPACING;
@@ -46,7 +45,7 @@ impl<'ast> MarkdownPlusPlus {
         // show each empty row with mapped text range
         for line_idx in spacing_first_line..node_first_line {
             let line = self.bounds.source_lines[line_idx];
-            let node_line = (line.start() + self.line_prefix_len(parent, line), line.end());
+            let node_line = self.node_line(node, line);
 
             result += self.height_text_line(
                 &mut Wrap::new(width),
@@ -98,7 +97,7 @@ impl<'ast> MarkdownPlusPlus {
         // show each empty row with mapped text range
         for line_idx in spacing_first_line..node_first_line {
             let line = self.bounds.source_lines[line_idx];
-            let node_line = (line.start() + self.line_prefix_len(parent, line), line.end());
+            let node_line = self.node_line(node, line);
 
             self.bounds.paragraphs.push(node_line);
             self.show_text_line(
@@ -145,7 +144,7 @@ impl<'ast> MarkdownPlusPlus {
         let parent_last_line = self.node_last_line_idx(parent);
         for line_idx in (node_last_line + 1)..=parent_last_line {
             let line = self.bounds.source_lines[line_idx];
-            let node_line = (line.start() + self.line_prefix_len(parent, line), line.end());
+            let node_line = self.node_line(node, line);
 
             result += BLOCK_SPACING;
 
@@ -185,7 +184,7 @@ impl<'ast> MarkdownPlusPlus {
         let parent_last_line = self.node_last_line_idx(parent);
         for line_idx in (node_last_line + 1)..=parent_last_line {
             let line = self.bounds.source_lines[line_idx];
-            let node_line = (line.start() + self.line_prefix_len(parent, line), line.end());
+            let node_line = self.node_line(node, line);
 
             top_left.y += BLOCK_SPACING;
 

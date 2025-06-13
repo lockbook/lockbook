@@ -17,11 +17,11 @@ impl<'ast> MarkdownPlusPlus {
             self.block_children_height(node)
         } else {
             let line = self.node_first_line(node);
-            let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
+            let line_content = self.line_content(node, line);
 
             self.height_text_line(
                 &mut Wrap::new(self.width(node) - INDENT),
-                node_line,
+                line_content,
                 self.text_format_syntax(node),
             )
         }
@@ -64,11 +64,9 @@ impl<'ast> MarkdownPlusPlus {
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
 
-            let prefix_len = self.line_prefix_len(node, line);
-            let parent_prefix_len = self.line_prefix_len(node.parent().unwrap(), line);
-            let prefix = (line.start() + parent_prefix_len, line.start() + prefix_len);
-
-            self.bounds.paragraphs.push(prefix);
+            self.bounds
+                .paragraphs
+                .push(self.line_own_prefix(node, line));
         }
 
         top_left.x += INDENT;
@@ -78,14 +76,14 @@ impl<'ast> MarkdownPlusPlus {
             self.show_block_children(ui, node, top_left);
         } else {
             let line = self.node_first_line(node);
-            let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
+            let line_content = self.line_content(node, line);
 
-            self.bounds.paragraphs.push(node_line);
+            self.bounds.paragraphs.push(line_content);
             self.show_text_line(
                 ui,
                 top_left,
                 &mut Wrap::new(self.width(node) - INDENT),
-                node_line,
+                line_content,
                 self.text_format_syntax(node),
                 false,
             );
@@ -95,9 +93,9 @@ impl<'ast> MarkdownPlusPlus {
     pub fn line_prefix_len_item(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
         node_list: &NodeList,
-    ) -> RelCharOffset {
+    ) -> Option<RelCharOffset> {
         let node_line = self.node_line(node, line);
-        let mut result = node_line.start() - line.start();
+        let mut result = 0.into();
 
         // "If a sequence of lines Ls constitutes a list item according to rule
         // #1, #2, or #3, then the result of indenting each line of Ls by 1-3
@@ -105,10 +103,9 @@ impl<'ast> MarkdownPlusPlus {
         // same contents and attributes."
         let indentation = {
             let first_line = self.node_first_line(node);
-            let parent_prefix_len = self.line_prefix_len(node.parent().unwrap(), first_line);
-            let node_line = (first_line.start() + parent_prefix_len, first_line.end());
+            let first_node_line = self.node_line(node, first_line);
 
-            let text = &self.buffer[(node_line.start(), node_line.end())];
+            let text = &self.buffer[first_node_line];
             if text.starts_with("   ") {
                 "   ".len()
             } else if text.starts_with("  ") {
@@ -153,6 +150,6 @@ impl<'ast> MarkdownPlusPlus {
             }
         }
 
-        result.min(line.len())
+        Some(result)
     }
 }

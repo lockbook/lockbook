@@ -65,14 +65,16 @@ impl<'ast> MarkdownPlusPlus {
     // items)
     pub fn line_prefix_len_footnote_definition(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> RelCharOffset {
+    ) -> Option<RelCharOffset> {
         // todo: change paramater type of `line` to `usize` (index instead of
         // value) here and elsewhere
-        if line == self.node_first_line(node) {
+        // todo: unsure of lazy continuation line behavior in footnote
+        // definitions
+        Some(if line == self.node_first_line(node) {
             self.prefix_range(node).unwrap().len()
         } else {
             RelCharOffset(2).min(line.len())
-        }
+        })
     }
 
     /// Footnote definitions are usually rendered in the order in which they're
