@@ -14,6 +14,7 @@ use crate::Lb;
 use uuid::Uuid;
 
 use super::activity;
+use super::events::Actor;
 
 impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -58,7 +59,7 @@ impl Lb {
         self.docs.insert(id, hmac, &encrypted_document).await?;
         tx.end();
 
-        self.events.doc_written(id);
+        self.events.doc_written(id, None);
         let bg_lb = self.clone();
         tokio::spawn(async move {
             bg_lb
@@ -125,7 +126,11 @@ impl Lb {
             .insert(id, Some(hmac), &encrypted_document)
             .await?;
         tx.end();
-        self.events.doc_written(id);
+
+        // todo: when workspace isn't the only writer, this arg needs to be exposed
+        // this will happen when lb-fs is integrated into an app and shares an lb-rs with ws
+        // or it will happen when there are multiple co-operative core processes.
+        self.events.doc_written(id, Some(Actor::Workspace));
 
         let bg_lb = self.clone();
         tokio::spawn(async move {
