@@ -461,6 +461,9 @@ impl Workspace {
             }
         }
         start.warn_after("processing completed saves", Duration::from_millis(100));
+        if let Some(sync) = completed_sync {
+            self.last_sync_completed = Some(sync.timing.completed_at);
+        }
 
         let start = Instant::now();
         {
@@ -474,10 +477,6 @@ impl Workspace {
             }
         }
         start.warn_after("processing sync progress", Duration::from_millis(100));
-
-        if let Some(sync) = completed_sync {
-            self.last_sync_completed = Some(sync.timing.completed_at);
-        }
 
         // background work: queue
         let now = Instant::now();
@@ -511,7 +510,7 @@ impl Workspace {
 
                 let instant_of_next_sync = last_sync + sync_period;
                 if instant_of_next_sync < now {
-                    // self.tasks.queue_sync();
+                    self.tasks.queue_sync();
                 } else {
                     let duration_until_next_sync = instant_of_next_sync - now;
                     self.ctx.request_repaint_after(duration_until_next_sync);
