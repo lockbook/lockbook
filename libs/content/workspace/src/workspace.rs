@@ -7,12 +7,14 @@ use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg;
 use lb_rs::model::svg::buffer::Buffer;
+use lb_rs::service::events::{self, Actor, Event};
 use lb_rs::Uuid;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
+use tokio::sync::broadcast::error::TryRecvError;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::file_cache::FileCache;
@@ -50,6 +52,7 @@ pub struct Workspace {
     pub cfg: WsPersistentStore,
     pub ctx: Context,
     pub core: Lb,
+    pub lb_rx: events::Receiver<Event>,
     pub show_tabs: bool,              // set on mobile to hide the tab strip
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
@@ -86,6 +89,7 @@ impl Workspace {
 
             current_tab_changed: Default::default(),
             last_touch_event: Default::default(),
+            lb_rx: core.subscribe(),
         };
 
         let (open_tabs, current_tab) = ws.cfg.get_tabs();
@@ -262,14 +266,32 @@ impl Workspace {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn process_updates(&mut self) {
-        let task_manager::Response {
-            completed_loads,
-            completed_saves,
-            completed_sync,
-            completed_sync_status_update,
-            completed_file_cache_refresh,
-        } = self.tasks.update();
+    pub fn process_lb_updates(&mut self) {
+        match self.lb_rx.try_recv() {
+            Ok(evt) => match evt {
+                Event::MetadataChanged => {
+                    self.files = Some(FileCache::new(&self.core).unwrap());
+                }
+                Event::DocumentWritten(id, actor) => {
+                    if let Some(Actor::Sync) = actor {
+                        for i in 0..self.tabs.len() {
+                            if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
+                                self.open_file(id, false, false);
+                            }
+                        }
+                    };
+                }
+                _ => {}
+            },
+            Err(TryRecvError::Empty) => {}
+            Err(e) => eprintln!("cannot recv events from lb-rs {e:?}"),
+        }
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    pub fn process_task_updates(&mut self) {
+        let task_manager::Response { completed_loads, completed_saves, completed_sync: _ } =
+            self.tasks.update();
 
         let start = Instant::now();
         for load in completed_loads {
@@ -437,32 +459,10 @@ impl Workspace {
                     if sync {
                         self.tasks.queue_sync();
                     }
-                    self.tasks.queue_file_cache_refresh();
                 }
             }
         }
         start.warn_after("processing completed saves", Duration::from_millis(100));
-
-        let start = Instant::now();
-        if let Some(sync) = completed_sync {
-            self.sync_done(sync)
-        }
-        start.warn_after("processing completed sync", Duration::from_millis(100));
-
-        let start = Instant::now();
-        if let Some(update) = completed_sync_status_update {
-            self.sync_status_update_done(update)
-        }
-        start.warn_after("processing completed sync status update", Duration::from_millis(100));
-
-        let start = Instant::now();
-        if let Some(refresh) = completed_file_cache_refresh {
-            match refresh.cache_result {
-                Ok(cache) => self.files = Some(cache),
-                Err(err) => error!("failed to refresh file cache: {:?}", err),
-            }
-        }
-        start.warn_after("processing completed file cache refresh", Duration::from_millis(100));
 
         let start = Instant::now();
         {
@@ -479,26 +479,6 @@ impl Workspace {
 
         // background work: queue
         let now = Instant::now();
-        let start = Instant::now();
-        if let Some(last_sync_status_refresh) = self
-            .tasks
-            .sync_status_update_queued_at()
-            .or(self.last_sync_status_refresh_completed)
-        {
-            let instant_of_next_sync_status_refresh =
-                last_sync_status_refresh + Duration::from_secs(1);
-            if instant_of_next_sync_status_refresh < now {
-                self.tasks.queue_sync_status_update();
-            } else {
-                let duration_until_next_sync_status_refresh =
-                    instant_of_next_sync_status_refresh - now;
-                self.ctx
-                    .request_repaint_after(duration_until_next_sync_status_refresh);
-            }
-        } else {
-            self.tasks.queue_sync_status_update();
-        }
-        start.warn_after("processing sync status refresh", Duration::from_millis(100));
 
         let start = Instant::now();
         if self.cfg.get_auto_save() {
@@ -657,7 +637,6 @@ impl Workspace {
         }
 
         self.out.file_renamed = Some((id, new_name));
-        self.tasks.queue_file_cache_refresh();
         self.ctx.request_repaint();
     }
 
@@ -666,7 +645,6 @@ impl Workspace {
         match self.core.move_file(&id, &new_parent) {
             Ok(()) => {
                 self.out.file_moved = Some((id, new_parent));
-                self.tasks.queue_file_cache_refresh();
                 self.ctx.request_repaint();
             }
             Err(LbErr { kind, .. }) => {

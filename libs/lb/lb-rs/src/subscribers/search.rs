@@ -193,7 +193,7 @@ impl Lb {
                                 lb.update_tantivy(vec![], deleted_ids).await;
                             }
                         }
-                        Event::DocumentWritten(id) => {
+                        Event::DocumentWritten(id, _) => {
                             lb.update_tantivy(vec![id], vec![id]).await;
                         }
                         _ => {}
