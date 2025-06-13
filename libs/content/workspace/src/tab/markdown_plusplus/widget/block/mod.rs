@@ -2,7 +2,9 @@ use std::cell::RefCell;
 
 use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::{Pos2, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
+use lb_rs::model::text::offset_types::{
+    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
+};
 
 use crate::tab::markdown_plusplus::bounds::RangesExt as _;
 use crate::tab::markdown_plusplus::widget::utils::text_layout::Wrap;
@@ -312,12 +314,15 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     /// Returns the portion of the line that's within the node, excluding line
-    /// prefixes due to parent nodes.
+    /// prefixes due to parent nodes. For container blocks, this is equivalent
+    /// to [`line_own_prefix`] + [`line_content`]. For leaf blocks, which have
+    /// no prefix, this is equivalent to [`line_content`].
     pub fn node_line(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> (DocCharOffset, DocCharOffset) {
-        let parent = node.parent().unwrap();
-        let parent_prefix_len = self.line_prefix_len(parent, line);
+        let Some(parent) = node.parent() else { return line }; // document has no prefix
+        let (parent_prefix_len, _) = self.line_prefix_len(parent, line);
+
         (line.start() + parent_prefix_len, line.end())
     }
 
@@ -361,14 +366,22 @@ pub struct CacheEntry<T> {
     value: T,
 }
 
+pub struct LinePrefixCacheEntry {
+    node_ptr: usize,
+    line: (DocCharOffset, DocCharOffset),
+    value: (RelCharOffset, bool),
+}
+
 #[derive(Default)]
 pub struct LayoutCache {
     pub height: RefCell<Vec<CacheEntry<f32>>>,
+    pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
 }
 
 impl LayoutCache {
     pub fn clear(&self) {
         self.height.borrow_mut().clear();
+        self.line_prefix_len.borrow_mut().clear();
     }
 }
 
@@ -389,6 +402,32 @@ impl<'ast> MarkdownPlusPlus {
         match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
             Ok(i) => cache[i].value = height,
             Err(i) => cache.insert(i, CacheEntry { range, value: height }),
+        }
+    }
+
+    pub fn get_cached_line_prefix_len(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) -> Option<(RelCharOffset, bool)> {
+        let node_ptr = node as *const _ as usize;
+        self.layout_cache
+            .line_prefix_len
+            .borrow()
+            .binary_search_by(|entry| entry.node_ptr.cmp(&node_ptr).then(entry.line.cmp(&line)))
+            .ok()
+            .map(|i| self.layout_cache.line_prefix_len.borrow()[i].value)
+    }
+
+    pub fn set_cached_line_prefix_len(
+        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+        value: (RelCharOffset, bool),
+    ) {
+        let node_ptr = node as *const _ as usize;
+        let mut cache = self.layout_cache.line_prefix_len.borrow_mut();
+        match cache
+            .binary_search_by(|entry| entry.node_ptr.cmp(&node_ptr).then(entry.line.cmp(&line)))
+        {
+            Ok(i) => cache[i].value = value,
+            Err(i) => cache.insert(i, LinePrefixCacheEntry { node_ptr, line, value }),
         }
     }
 }

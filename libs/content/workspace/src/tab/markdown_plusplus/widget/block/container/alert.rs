@@ -35,13 +35,13 @@ impl<'ast> MarkdownPlusPlus {
         } else {
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
-                let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
+                let line_content = self.line_content(node, line);
 
                 if line_idx != first_line_idx {
                     result += BLOCK_SPACING;
                     result += self.height_text_line(
                         &mut Wrap::new(self.width(node)),
-                        node_line,
+                        line_content,
                         self.text_format_syntax(node),
                     );
                 }
@@ -67,11 +67,9 @@ impl<'ast> MarkdownPlusPlus {
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
 
-            let prefix_len = self.line_prefix_len(node, line);
-            let parent_prefix_len = self.line_prefix_len(node.parent().unwrap(), line);
-            let prefix = (line.start() + parent_prefix_len, line.start() + prefix_len);
-
-            self.bounds.paragraphs.push(prefix);
+            self.bounds
+                .paragraphs
+                .push(self.line_own_prefix(node, line));
         }
 
         top_left.x += INDENT;
@@ -89,23 +87,23 @@ impl<'ast> MarkdownPlusPlus {
         } else {
             for line in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line];
-                let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
+                let line_content = self.line_content(node, line);
 
                 if line != first_line {
                     top_left.y += BLOCK_SPACING;
 
-                    self.bounds.paragraphs.push(node_line);
+                    self.bounds.paragraphs.push(line_content);
                     self.show_text_line(
                         ui,
                         top_left,
                         &mut Wrap::new(self.width(node) - INDENT),
-                        node_line,
+                        line_content,
                         self.text_format_syntax(node),
                         false,
                     );
                     top_left.y += self.height_text_line(
                         &mut Wrap::new(self.width(node) - INDENT),
-                        node_line,
+                        line_content,
                         self.text_format_syntax(node),
                     );
                 }
@@ -118,15 +116,12 @@ impl<'ast> MarkdownPlusPlus {
     ) -> f32 {
         let mut result = 0.;
 
-        let first_line = self.node_first_line(node);
-        let first_node_line = (
-            first_line.start() + self.line_prefix_len_block_quote(node, first_line),
-            first_line.end(),
-        );
-        if first_node_line.intersects(&self.buffer.current.selection, true) {
+        let line = self.node_first_line(node);
+        let line_content = self.line_content(node, line);
+        if line_content.intersects(&self.buffer.current.selection, true) {
             result += self.height_text_line(
                 &mut Wrap::new(self.width(node) - INDENT),
-                first_node_line,
+                line_content,
                 self.text_format_syntax(node),
             );
         } else {
@@ -161,20 +156,17 @@ impl<'ast> MarkdownPlusPlus {
     pub fn show_alert_title_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, node_alert: &NodeAlert,
     ) {
-        let first_line = self.node_first_line(node);
-        let first_node_line = (
-            first_line.start() + self.line_prefix_len_block_quote(node, first_line),
-            first_line.end(),
-        );
-        self.bounds.paragraphs.push(first_node_line);
-        if first_node_line.intersects(&self.buffer.current.selection, true) {
+        let line = self.node_first_line(node);
+        let line_content = self.line_content(node, line);
+        self.bounds.paragraphs.push(line_content);
+        if line_content.intersects(&self.buffer.current.selection, true) {
             // note and title line are revealed separately from block syntax as
             // if they're a child block
             self.show_text_line(
                 ui,
                 top_left,
                 &mut Wrap::new(self.width(node) - INDENT),
-                first_node_line,
+                line_content,
                 self.text_format_syntax(node),
                 false,
             );
@@ -224,7 +216,7 @@ impl<'ast> MarkdownPlusPlus {
                     ui,
                     display_text_top_left,
                     &mut Wrap::new(title_width),
-                    (first_node_line.end() - 1).into_range(),
+                    (line_content.end() - 1).into_range(),
                     self.text_format(node),
                     false,
                     Some(type_display_text),
@@ -235,7 +227,7 @@ impl<'ast> MarkdownPlusPlus {
 
     pub fn line_prefix_len_alert(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> RelCharOffset {
+    ) -> Option<RelCharOffset> {
         self.line_prefix_len_block_quote(node, line)
     }
 
@@ -243,26 +235,26 @@ impl<'ast> MarkdownPlusPlus {
         &self, node: &'ast AstNode<'ast>,
     ) -> ((DocCharOffset, DocCharOffset), (DocCharOffset, DocCharOffset)) {
         let line = self.node_first_line(node);
-        let node_line = (line.start() + self.line_prefix_len_block_quote(node, line), line.end());
-        let node_line_text = &self.buffer[node_line].to_uppercase();
+        let line_content = self.line_content(node, line);
+        let line_content_text = &self.buffer[line_content].to_uppercase();
 
-        let type_len = if node_line_text.starts_with("[!NOTE]") {
+        let type_len = if line_content_text.starts_with("[!NOTE]") {
             "[!NOTE]".len()
-        } else if node_line_text.starts_with("[!TIP]") {
+        } else if line_content_text.starts_with("[!TIP]") {
             "[!TIP]".len()
-        } else if node_line_text.starts_with("[!IMPORTANT]") {
+        } else if line_content_text.starts_with("[!IMPORTANT]") {
             "[!IMPORTANT]".len()
-        } else if node_line_text.starts_with("[!WARNING]") {
+        } else if line_content_text.starts_with("[!WARNING]") {
             "[!WARNING]".len()
-        } else if node_line_text.starts_with("[!CAUTION]") {
+        } else if line_content_text.starts_with("[!CAUTION]") {
             "[!CAUTION]".len()
         } else {
             unreachable!("supported alert types are note, tip, important, warning, caution")
         };
-        let _type = (node_line.start(), node_line.start() + type_len);
+        let _type = (line_content.start(), line_content.start() + type_len);
 
         // todo: empty title
-        let untrimmed_title = (node_line.start() + type_len, node_line.end());
+        let untrimmed_title = (line_content.start() + type_len, line_content.end());
         let untrimmed_title_text = &self.buffer[untrimmed_title];
         let title = if untrimmed_title_text.trim().is_empty() {
             untrimmed_title

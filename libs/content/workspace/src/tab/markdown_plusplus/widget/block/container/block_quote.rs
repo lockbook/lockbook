@@ -24,14 +24,14 @@ impl<'ast> MarkdownPlusPlus {
         } else {
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
-                let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
+                let line_content = self.line_content(node, line);
 
                 if line_idx != first_line_idx {
                     result += BLOCK_SPACING;
                 }
                 result += self.height_text_line(
                     &mut Wrap::new(self.width(node)),
-                    node_line,
+                    line_content,
                     self.text_format_syntax(node),
                 );
             }
@@ -53,11 +53,9 @@ impl<'ast> MarkdownPlusPlus {
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
 
-            let prefix_len = self.line_prefix_len(node, line);
-            let parent_prefix_len = self.line_prefix_len(node.parent().unwrap(), line);
-            let prefix = (line.start() + parent_prefix_len, line.start() + prefix_len);
-
-            self.bounds.paragraphs.push(prefix);
+            self.bounds
+                .paragraphs
+                .push(self.line_own_prefix(node, line));
         }
 
         top_left.x += annotation_space.width();
@@ -69,24 +67,24 @@ impl<'ast> MarkdownPlusPlus {
         } else {
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
-                let node_line = (line.start() + self.line_prefix_len(node, line), line.end());
+                let line_content = self.line_content(node, line);
 
                 if line_idx != first_line_idx {
                     top_left.y += BLOCK_SPACING;
                 }
 
-                self.bounds.paragraphs.push(node_line);
+                self.bounds.paragraphs.push(line_content);
                 self.show_text_line(
                     ui,
                     top_left,
                     &mut Wrap::new(self.width(node)),
-                    node_line,
+                    line_content,
                     self.text_format_syntax(node),
                     false,
                 );
                 top_left.y += self.height_text_line(
                     &mut Wrap::new(self.width(node)),
-                    node_line,
+                    line_content,
                     self.text_format_syntax(node),
                 );
             }
@@ -94,17 +92,17 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     // This routine is standard-/reference-complexity, as the prefix len is
-    // line-by-line (unlike list items) and block quotes contain multiline text,
-    // so they are their own client. Most of the fundamental behavior with line
+    // line-by-line (unlike list items) and block quotes contain blocks
+    // including other block quotes. Most of the fundamental behavior with line
     // prefix lengths can be observed with block quotes alone.
     //
     // This implementation does benefit from the simplicity of the node - there
     // are only 8 cases.
     pub fn line_prefix_len_block_quote(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> RelCharOffset {
+    ) -> Option<RelCharOffset> {
         let node_line = self.node_line(node, line);
-        let mut result = node_line.start() - line.start();
+        let mut result = 0.into();
 
         // "A block quote marker consists of 0-3 spaces of initial indent, plus
         // (a) the character > together with a following space, or (b) a single
@@ -124,13 +122,15 @@ impl<'ast> MarkdownPlusPlus {
             result += 2;
         } else if text.starts_with(">") {
             result += 1;
+        } else {
+            // "If a string of lines Ls constitute a block quote with contents Bs,
+            // then the result of deleting the initial block quote marker from one
+            // or more lines in which the next non-whitespace character after the
+            // block quote marker is paragraph continuation text is a block quote
+            // with Bs as its content."
+            return None;
         }
 
-        // "If a string of lines Ls constitute a block quote with contents Bs,
-        // then the result of deleting the initial block quote marker from one
-        // or more lines in which the next non-whitespace character after the
-        // block quote marker is paragraph continuation text is a block quote
-        // with Bs as its content."
-        result.min(line.len())
+        Some(result)
     }
 }
