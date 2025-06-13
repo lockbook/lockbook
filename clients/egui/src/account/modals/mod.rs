@@ -17,7 +17,7 @@ pub use file_picker::FilePickerAction;
 pub use help::HelpModal;
 pub use new_file::{NewFileParams, NewFolderModal};
 pub use search::SearchModal;
-pub use settings::{SettingsModal, SettingsResponse};
+pub use settings::SettingsModal;
 
 use super::OpenModal;
 

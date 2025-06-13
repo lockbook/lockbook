@@ -270,14 +270,12 @@ impl Workspace {
                 Event::MetadataChanged => {
                     self.files = Some(FileCache::new(&self.core).unwrap());
                 }
-                Event::DocumentWritten(id, actor) => {
-                    if let Some(Actor::Sync) = actor {
-                        for i in 0..self.tabs.len() {
-                            if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
-                                self.open_file(id, false, false);
-                            }
+                Event::DocumentWritten(id, Some(Actor::Sync)) => {
+                    for i in 0..self.tabs.len() {
+                        if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
+                            self.open_file(id, false, false);
                         }
-                    };
+                    }
                 }
                 _ => {}
             },
