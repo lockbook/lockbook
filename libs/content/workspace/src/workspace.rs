@@ -42,7 +42,6 @@ pub struct Workspace {
     pub files: Option<FileCache>,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
-    pub last_sync_status_refresh_completed: Option<Instant>,
 
     // Output
     pub status: WsStatus,
@@ -76,7 +75,6 @@ impl Workspace {
             files: None,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
-            last_sync_status_refresh_completed: Default::default(),
 
             status: Default::default(),
             out: Default::default(),
@@ -290,7 +288,7 @@ impl Workspace {
 
     #[instrument(level = "trace", skip_all)]
     pub fn process_task_updates(&mut self) {
-        let task_manager::Response { completed_loads, completed_saves, completed_sync: _ } =
+        let task_manager::Response { completed_loads, completed_saves, completed_sync } =
             self.tasks.update();
 
         let start = Instant::now();
@@ -477,6 +475,10 @@ impl Workspace {
         }
         start.warn_after("processing sync progress", Duration::from_millis(100));
 
+        if let Some(sync) = completed_sync {
+            self.last_sync_completed = Some(sync.timing.completed_at);
+        }
+
         // background work: queue
         let now = Instant::now();
 
@@ -509,7 +511,7 @@ impl Workspace {
 
                 let instant_of_next_sync = last_sync + sync_period;
                 if instant_of_next_sync < now {
-                    self.tasks.queue_sync();
+                    // self.tasks.queue_sync();
                 } else {
                     let duration_until_next_sync = instant_of_next_sync - now;
                     self.ctx.request_repaint_after(duration_until_next_sync);
