@@ -1,4 +1,9 @@
 # Sync v3
+
+*this document is slightly out of date, it doesn't contain documentation on work
+like `safe_write` which enables near-real-time collaboration. It will be updated
+soon.*
+
 ## Overview
 Sync v3 is the latest iteration of our logic that syncs users' file trees across
 devices. It is designed under the following key constraints:

@@ -3,7 +3,7 @@
 
 # Using Lockbook
 
-- [Installing]()
+- [Installing](installing.md)
 - [File Management]()
 - [Editing Markdown]()
 - [Drawing]()
@@ -24,9 +24,16 @@
 
 # Technical Documentation
 
+- [Building](building/readme.md)
+  - [CLI](building/cli.md)
+  - [Linux](building/linux.md)
+  - [Apple](building/apple.md)
+  - [Android](building/android.md)
+  - [Windows](building/windows.md)
+  - [Lb-rs & Server](building/server.md)
 - [System Architecture]()
 - [Data Model]()
-- [Sync]()
-- [Billing]()
-- [Sharing]()
+- [Sync](sync.md)
+- [Billing](billing.md)
+- [Sharing](sharing.md)
 
