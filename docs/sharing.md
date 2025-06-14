@@ -1,7 +1,7 @@
 # Sharing
 
 This technical design is in service of the [corresponding UX
-design](../design-ux/sharing.md).
+design](sharing.md).
 
 ## Data Model
 

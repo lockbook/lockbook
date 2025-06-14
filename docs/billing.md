@@ -1,4 +1,4 @@
-# Overview
+# Billing
 
 + Pricing details
 + Data model
@@ -143,4 +143,3 @@ An integration can be tested locally if a user becomes a [license tester](https:
 # Platform Migrations
 
 Due to a smaller service fee on Stripe, there is a strong incentive to migrate users off payment platforms by Google Play and Apple. Therefore, in the future, payment migrations may be implemented.
-
