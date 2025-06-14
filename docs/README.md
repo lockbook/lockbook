@@ -27,6 +27,6 @@ Lockbook compresses your files before measuring your usage. Compressed text file
 ## Developer-Friendly
 The Lockbook CLI will fit right into your favorite chain of piped-together Unix commands. Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. Our Rust library `lb-rs` has bindings for C and Java. Lockbook creates documents in Markdown and SVG, open formats that lend themselves to extensibility and automation.
 
-## How To Install
+---
 
-- [**installation guide**](installing.md)
+[**Try Lockbook today!**](installing.md)

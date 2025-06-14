@@ -1,5 +1,5 @@
 [Introduction](README.md)
-[Values]()
+[Values](values.md)
 
 # Using Lockbook
 

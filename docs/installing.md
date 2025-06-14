@@ -2,7 +2,7 @@
 
 For convenience, we try to make Lockbook as widely available as possible.
 
-Being, you can always build Lockbook [from source](building.md).
+Being open source, you can always build Lockbook [yourself](building.md).
 
 ## Mobile
 - [App Store](https://apps.apple.com/us/app/lockbook/id1526775001)
