@@ -9,6 +9,8 @@ import SwiftWorkspace
         .commands {
             // verify what shortcut its blocking
             CommandGroup(replacing: .saveItem) {}
+            
+            SidebarCommands()
         }
         
         #if os(macOS)
@@ -23,10 +25,21 @@ struct ContentView: View {
     @StateObject var appState = AppState.shared
     
     var body: some View {
-        if appState.isLoggedIn {
-            HomeContextWrapper()
-        } else {
-            OnboardingView()
+        Group {
+            if appState.isLoggedIn {
+                HomeContextWrapper()
+            } else {
+                OnboardingView()
+            }
+        }
+        .alert(item: $appState.error) { err in
+            Alert(
+                title: Text(err.title),
+                message: Text(err.message),
+                dismissButton: .default(Text("Ok"), action: {
+                    AppState.shared.error = nil
+                })
+            )
         }
     }
 }

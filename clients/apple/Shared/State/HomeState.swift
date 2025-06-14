@@ -5,7 +5,6 @@ import Combine
 class HomeState: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     
-    @Published var error: UIError? = nil
     @Published var fileActionCompleted: FileAction? = nil
     
     @Published var showSettings: Bool = false
@@ -82,11 +81,6 @@ public enum FileAction {
     case createFolder
     case importFiles
     case acceptedShare
-}
-
-enum UIError {
-    case lb(error: LbError)
-    case custom(title: String, msg: String)
 }
 
 struct TabSheetInfo: Identifiable {
