@@ -18,6 +18,7 @@
 
 # Contributing To Lockbook
 
+- [Motivation to Contribute](contrib-motivation.md)
 - [As a user]()
 - [As a hobbyist]()
 - [As a programmer]()
