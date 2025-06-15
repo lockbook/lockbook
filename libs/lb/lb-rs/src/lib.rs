@@ -25,21 +25,7 @@ pub mod service;
 pub mod subscribers;
 pub mod inner_lb;
 pub mod proxy_lb;
-
-pub enum Lb {
-    ActualLb(InnerLb),
-    ExposedLb(ProxyLb)
-}
-
-impl Lb {
-    pub async fn init(config: Config) -> LbResult<Self> {
-        if true { 
-            let inner_lb = InnerLb::init(config).await?;
-            return Ok(Lb::ActualLb(inner_lb));
-        }
-        Ok(Lb::ExposedLb(ProxyLb{}))
-    }
-}
+pub mod enum_lb;
 
 pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -48,8 +34,8 @@ pub fn get_code_version() -> &'static str {
 pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-use proxy_lb::ProxyLb;
 pub use uuid::Uuid;
 pub use model::errors::{LbErrKind, LbResult};
 pub use model::core_config::Config;
+pub use enum_lb::Lb;
 pub use inner_lb::InnerLb;
