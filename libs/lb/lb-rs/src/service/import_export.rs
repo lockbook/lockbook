@@ -2,7 +2,7 @@ use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::file_metadata::FileType;
 use crate::model::ValidationFailure;
-use crate::Lb;
+use crate::InnerLb as Lb;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::fs;

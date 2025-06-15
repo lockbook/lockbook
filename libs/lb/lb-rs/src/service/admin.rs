@@ -2,7 +2,7 @@ use crate::io::network::ApiError;
 use crate::model::account::Username;
 use crate::model::api::*;
 use crate::model::errors::{core_err_unexpected, LbErrKind, LbResult};
-use crate::Lb;
+use crate::InnerLb as Lb;
 use uuid::Uuid;
 
 impl Lb {

@@ -5,7 +5,7 @@ use crate::model::api::{
 use crate::model::errors::{core_err_unexpected, LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileMetadata, FileType, Owner};
-use crate::{Lb, DEFAULT_API_LOCATION};
+use crate::{InnerLb as Lb, DEFAULT_API_LOCATION};
 use libsecp256k1::SecretKey;
 use qrcode_generator::QrCodeEcc;
 

@@ -10,7 +10,7 @@ use crate::model::lazy::LazyTree;
 use crate::model::signed_file::SignedFile;
 use crate::model::tree_like::TreeLike;
 use crate::model::validate;
-use crate::Lb;
+use crate::InnerLb as Lb;
 use uuid::Uuid;
 
 use super::activity;

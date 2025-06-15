@@ -4,7 +4,7 @@ use crate::model::file::{File, ShareMode};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::Owner;
 use crate::model::tree_like::TreeLike;
-use crate::Lb;
+use crate::InnerLb as Lb;
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
 

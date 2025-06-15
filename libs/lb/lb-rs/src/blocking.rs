@@ -33,14 +33,14 @@ use crate::{
 
 #[derive(Clone)]
 pub struct Lb {
-    lb: crate::Lb,
+    lb: crate::InnerLb,
     rt: Arc<Runtime>,
 }
 
 impl Lb {
     pub fn init(config: Config) -> LbResult<Self> {
         let rt = Arc::new(Runtime::new().unwrap());
-        let lb = rt.block_on(crate::Lb::init(config))?;
+        let lb = rt.block_on(crate::InnerLb::init(config))?;
         Ok(Self { rt, lb })
     }
 

@@ -6,7 +6,7 @@ use crate::model::api::{
     UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
 use crate::model::errors::{core_err_unexpected, LbErrKind, LbResult};
-use crate::Lb;
+use crate::InnerLb as Lb;
 
 // todo: when core is responsible for syncing, these should probably trigger syncs and status updates
 impl Lb {
