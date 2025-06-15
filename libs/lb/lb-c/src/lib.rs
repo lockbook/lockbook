@@ -1032,7 +1032,7 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
     let notify_obj = Arc::new(AtomicPtr::new(notify_obj as *mut c_void));
 
     std::thread::spawn(move || loop {
-        if let Some(Event::StatusUpdated) = rx.try_recv().ok() {
+        if let Ok(Event::StatusUpdated) = rx.try_recv() {
             notify(
                 notify_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void,
                 LbEvent { status_updated: true },
