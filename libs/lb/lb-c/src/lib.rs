@@ -1025,6 +1025,7 @@ pub struct LbEvent {
 pub type LbNotify = extern "C" fn(*const c_void, LbEvent);
 
 #[no_mangle]
+#[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, notify: LbNotify) {
     let lb = rlb(lb);
 
