@@ -71,9 +71,9 @@ public class Lb: LbAPI {
         let res = start(writablePath: writablePath, logs: logs)
         print("Lb init result: \(res)")
         
-        subscribe(notify: { event in
-            self.status = self.getStatus()
-        })
+//        subscribe(notify: { event in
+//            self.status = self.getStatus()
+//        })
     }
             
     public func start(writablePath: String, logs: Bool) -> Result<Void, LbError> {
