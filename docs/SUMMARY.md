@@ -12,16 +12,17 @@
 
 # Extending Lockbook
 
+- [Extending Lockbook](extending.md)
 - [CLI]()
 - [Programatic Interface]()
 - [Lockbook FS]()
 
 # Contributing To Lockbook
 
-- [Motivation to Contribute](contrib-motivation.md)
-- [As a user]()
-- [As a hobbyist]()
-- [As a programmer]()
+- [How to contribute to Lockbook](contrib-motivation.md)
+  - [As a user](contrib-user.md)
+  - [As a hobbyist](contrib-hobbyist.md)
+  - [As a programmer]()
 
 # Technical Documentation
 
