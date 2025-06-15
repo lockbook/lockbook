@@ -13,7 +13,7 @@ use lb_c_err::LbFfiErr;
 use lb_file::{LbFile, LbFileList, LbFileType};
 pub use lb_rs::*;
 pub use lb_rs::{blocking::Lb, model::core_config::Config};
-use lb_rs::{model::file::ShareMode, service::activity::RankingWeights};
+use lb_rs::{model::file::ShareMode, service::{activity::RankingWeights, events::Event}};
 use lb_work::LbSyncRes;
 use model::api::{
     AppStoreAccountState, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
@@ -1011,6 +1011,33 @@ pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
         space_used,
         sync_status,
     }
+}
+
+#[derive(Default)]
+#[repr(C)]
+pub struct LbEvent {
+    pub status_updated: bool
+}
+
+pub type LbNotify = extern "C" fn(*const c_void, LbEvent);
+
+#[no_mangle]
+pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, notify: LbNotify) {
+    let lb = rlb(lb);
+
+    let mut rx = lb.subscribe();
+    let notify_obj = Arc::new(AtomicPtr::new(notify_obj as *mut c_void));
+
+    std::thread::spawn(move || {
+        loop {
+            if let Some(Event::StatusUpdated) = rx.try_recv().ok() {
+                notify(
+                    notify_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void,
+                    LbEvent { status_updated: true }
+                );
+            }
+        }
+    });
 }
 
 mod ffi_utils;
