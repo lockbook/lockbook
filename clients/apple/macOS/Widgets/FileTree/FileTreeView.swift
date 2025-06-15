@@ -236,7 +236,7 @@ class FileTreeDataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDat
     func moveDraggedFiles(treeView: NSOutlineView, newParent: UUID) {
         for file in dragged ?? [] {
             if case .failure(let err) = AppState.lb.moveFile(id: file.id, newParent: newParent) {
-                homeState.error = .lb(error: err)
+                AppState.shared.error = .lb(error: err)
                 break
             }
         }
