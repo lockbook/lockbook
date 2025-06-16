@@ -31,7 +31,7 @@ pub trait TreeLike: Sized {
     fn all_files(&self) -> LbResult<Vec<&Self::F>> {
         let ids = self.ids();
         let mut all = Vec::with_capacity(ids.len());
-        for id in self.ids() {
+        for id in ids {
             let meta = self.find(&id)?;
             all.push(meta);
         }
