@@ -21,7 +21,21 @@ impl Lb {
 }
 
 impl Lb {
-
+    pub async fn create_account(
+        &mut self,
+        username: &str,
+        api_url: &str,
+        welcome_doc: bool,
+    ) -> LbResult<Account> {
+        match self {
+            Lb::ActualLb(inner) => {
+                inner.create_account(username, api_url, welcome_doc).await
+            }
+            Lb::ExposedLb(proxy) => {
+                proxy.create_account(username, api_url, welcome_doc).await
+            }
+        }
+    }
 }
 
 use std::net::{Ipv4Addr, SocketAddrV4};
@@ -30,3 +44,4 @@ use crate::model::core_config::Config;
 use crate::{LbErrKind, LbResult};
 use crate::inner_lb::InnerLb;
 use crate::proxy_lb::ProxyLb;
+use crate::model::account::Account;

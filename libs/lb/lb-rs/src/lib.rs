@@ -40,3 +40,4 @@ pub use enum_lb::Lb;
 pub use inner_lb::InnerLb;
 pub use uuid::Uuid;
 pub use model::errors::{LbErrKind, LbResult};
+use model::core_config::Config;
