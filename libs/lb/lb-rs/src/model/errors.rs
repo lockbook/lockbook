@@ -7,7 +7,7 @@ use std::sync::PoisonError;
 
 use hmac::crypto_mac::MacError;
 use serde::ser::SerializeStruct;
-use serde::{Serialize, Serializer};
+use serde::{Serialize, Serializer,Deserialize,Deserializer,de::{self,Visitor}};
 use tracing::error;
 use uuid::Uuid;
 
@@ -22,6 +22,32 @@ pub type LbResult<T> = Result<T, LbErr>;
 pub struct LbErr {
     pub kind: LbErrKind,
     pub backtrace: Option<Backtrace>,
+}
+
+impl Serialize for LbErr {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: Serializer {
+        let s = format!("{:?}", self);
+        serializer.serialize_str(&s)
+    }
+}
+
+impl<'de> Deserialize<'de> for LbErr {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where D: Deserializer<'de> {
+        struct LbErrVisitor;
+        impl<'de> Visitor<'de> for LbErrVisitor {
+            type Value = LbErr;
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a debug‐formatted LbErr string")
+            }
+            fn visit_str<E>(self, s: &str) -> Result<LbErr, E>
+            where E: de::Error {
+                Ok(LbErrKind::Unexpected(s.to_string()).into())
+            }
+        }
+        deserializer.deserialize_str(LbErrVisitor)
+    }
 }
 
 /// Using this within core has limited meaning as the unexpected / expected error

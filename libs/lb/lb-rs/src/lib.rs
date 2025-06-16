@@ -26,6 +26,7 @@ pub mod subscribers;
 pub mod inner_lb;
 pub mod proxy_lb;
 pub mod enum_lb;
+pub mod rpc;
 
 pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -34,8 +35,8 @@ pub fn get_code_version() -> &'static str {
 pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub use uuid::Uuid;
-pub use model::errors::{LbErrKind, LbResult};
-pub use model::core_config::Config;
+
 pub use enum_lb::Lb;
 pub use inner_lb::InnerLb;
+pub use uuid::Uuid;
+pub use model::errors::{LbErrKind, LbResult};
