@@ -1,5 +1,5 @@
 #[derive(Clone)]
-pub struct InnerLb {
+pub struct LbServer {
     pub config: Config,
     pub keychain: Keychain,
     pub db: LbDb,
@@ -11,7 +11,7 @@ pub struct InnerLb {
     pub status: StatusUpdater,
 }
 
-impl InnerLb {
+impl LbServer {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub async fn init(config: Config) -> LbResult<Self> {
         logging::init(&config)?;

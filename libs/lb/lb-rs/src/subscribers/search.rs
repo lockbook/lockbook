@@ -2,7 +2,7 @@ use crate::model::errors::{LbResult, Unexpected};
 use crate::model::file::File;
 use crate::service::activity::RankingWeights;
 use crate::service::events::Event;
-use crate::InnerLb as Lb;
+use crate::LbServer as Lb;
 use serde::Serialize;
 use std::ops::Range;
 use std::sync::atomic::AtomicBool;

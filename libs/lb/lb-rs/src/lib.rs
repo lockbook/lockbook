@@ -23,8 +23,8 @@ pub mod io;
 pub mod model;
 pub mod service;
 pub mod subscribers;
-pub mod inner_lb;
-pub mod proxy_lb;
+pub mod lb_server;
+pub mod lb_client;
 pub mod enum_lb;
 pub mod rpc;
 
@@ -37,7 +37,7 @@ pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 
 pub use enum_lb::Lb;
-pub use inner_lb::InnerLb;
+pub use lb_server::LbServer;
 pub use uuid::Uuid;
 pub use model::errors::{LbErrKind, LbResult};
 use model::core_config::Config;

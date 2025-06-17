@@ -1,8 +1,8 @@
-pub struct ProxyLb {
+pub struct LbClient {
     pub addr: SocketAddrV4
 }
 
-impl ProxyLb {
+impl LbClient {
     pub async fn create_account(
         &self,
         username: &str,

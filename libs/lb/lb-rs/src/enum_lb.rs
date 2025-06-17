@@ -1,6 +1,6 @@
 pub enum Lb {
-    ActualLb(InnerLb),
-    ExposedLb(ProxyLb)
+    Direct(LbServer),
+    Network(LbClient)
 }
 
 impl Lb {
@@ -9,11 +9,11 @@ impl Lb {
 
         match TcpListener::bind(socket).await {
             Ok(listener) => {
-                let inner_lb = InnerLb::init(config).await?;
-                Ok(Lb::ActualLb(inner_lb))
+                let inner_lb = LbServer::init(config).await?;
+                Ok(Lb::Direct(inner_lb))
             }
             Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => {
-                Ok(Lb::ExposedLb(ProxyLb{addr: socket}))
+                Ok(Lb::Network(LbClient{addr: socket}))
             }
             Err(error) => Err(LbErrKind::Unexpected(format!("Failed to bind: {error}")).into())
         }
@@ -28,10 +28,10 @@ impl Lb {
         welcome_doc: bool,
     ) -> LbResult<Account> {
         match self {
-            Lb::ActualLb(inner) => {
+            Lb::Direct(inner) => {
                 inner.create_account(username, api_url, welcome_doc).await
             }
-            Lb::ExposedLb(proxy) => {
+            Lb::Network(proxy) => {
                 proxy.create_account(username, api_url, welcome_doc).await
             }
         }
@@ -42,6 +42,6 @@ use std::net::{Ipv4Addr, SocketAddrV4};
 use tokio::net::TcpListener;    
 use crate::model::core_config::Config;
 use crate::{LbErrKind, LbResult};
-use crate::inner_lb::InnerLb;
-use crate::proxy_lb::ProxyLb;
+use crate::lb_server::LbServer;
+use crate::lb_client::LbClient;
 use crate::model::account::Account;

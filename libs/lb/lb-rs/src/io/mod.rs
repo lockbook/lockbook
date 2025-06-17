@@ -12,7 +12,7 @@ use crate::model::account::Account;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_file::SignedFile;
 use crate::service::activity::DocEvent;
-use crate::InnerLb as Lb;
+use crate::LbServer as Lb;
 use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
 use std::ops::{Deref, DerefMut};

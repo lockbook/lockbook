@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::{
     model::errors::{LbErrKind, LbResult, Unexpected},
     service::{events::Event, sync::SyncIncrement, usage::UsageMetrics},
-    InnerLb as Lb,
+    LbServer as Lb,
 };
 
 #[derive(Clone, Default)]

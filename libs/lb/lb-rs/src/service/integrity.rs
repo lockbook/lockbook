@@ -8,7 +8,7 @@ use crate::model::filename::DocumentType;
 use crate::model::tree_like::TreeLike;
 
 use crate::model::errors::{LbErrKind, LbResult, Warning};
-use crate::InnerLb as Lb;
+use crate::LbServer as Lb;
 
 impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]

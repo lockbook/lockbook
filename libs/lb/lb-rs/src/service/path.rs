@@ -2,7 +2,7 @@ use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::path_ops::Filter;
 use crate::model::tree_like::TreeLike;
-use crate::InnerLb as Lb;
+use crate::LbServer as Lb;
 use uuid::Uuid;
 
 impl Lb {

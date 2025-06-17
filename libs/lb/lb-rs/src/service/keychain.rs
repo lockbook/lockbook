@@ -9,7 +9,7 @@ use crate::{
         crypto::AESKey,
         errors::{LbErrKind, LbResult},
     },
-    InnerLb as Lb,
+    LbServer as Lb,
 };
 use libsecp256k1::PublicKey;
 use tokio::sync::OnceCell;

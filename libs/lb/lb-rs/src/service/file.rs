@@ -5,7 +5,7 @@ use crate::model::file_metadata::{FileType, Owner};
 use crate::model::filename::MAX_FILENAME_LENGTH;
 use crate::model::symkey;
 use crate::model::tree_like::TreeLike;
-use crate::InnerLb as Lb;
+use crate::LbServer as Lb;
 use std::iter;
 use uuid::Uuid;
 

@@ -2,7 +2,7 @@ pub use tokio::sync::broadcast::{self, Receiver, Sender};
 use tracing::*;
 use uuid::Uuid;
 
-use crate::InnerLb as Lb;
+use crate::LbServer as Lb;
 
 use super::sync::SyncIncrement;
 
