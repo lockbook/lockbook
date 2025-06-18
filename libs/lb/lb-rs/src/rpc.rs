@@ -4,10 +4,6 @@ pub struct RpcRequest {
     pub args: Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct RpcResponse<T> {
-    pub result: LbResult<T>,
-}
 
 impl RpcRequest {
     pub fn new(method: impl Into<String>, args: Vec<u8>) -> Self {
@@ -43,13 +39,68 @@ where
     let mut resp_buf = vec![0u8; resp_len as usize];
     stream.read_exact(&mut resp_buf).await.map_err(core_err_unexpected)?;
 
-    let resp: RpcResponse<T> = bincode::deserialize(&resp_buf).map_err(core_err_unexpected)?;
-    resp.result
+    let resp: T = bincode::deserialize(&resp_buf).map_err(core_err_unexpected)?;
+    Ok(resp)
 }
 
+
+pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
+    match req.method.as_str() {
+        "create_account" => {
+            let args: (String, String, bool) = bincode::deserialize(&req.args).map_err(core_err_unexpected)?;
+            let res = lb.create_account(&args.0,&args.1,args.2).await?;
+            let payload = bincode::serialize(&res).map_err(core_err_unexpected)?;
+            Ok(payload)
+        }
+        other => Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
+    }
+}
+
+pub async fn handle_connection(stream: TcpStream, lb: Arc<LbServer>) -> LbResult<()> {
+    let mut stream = stream;
+
+    let mut len_buf = [0u8; 4];
+    stream.read_exact(&mut len_buf).await?;
+    let msg_len = u32::from_be_bytes(len_buf) as usize;
+
+    let mut buf = vec![0u8; msg_len];
+    stream.read_exact(&mut buf).await?;
+
+    let req: RpcRequest = bincode::deserialize(&buf).map_err(core_err_unexpected)?;
+    let payload = dispatch(lb, req).await?;
+
+    let mut out = Vec::with_capacity(4 + payload.len());
+    out.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+    out.extend_from_slice(&payload);
+    stream.write_all(&out).await?;
+
+    Ok(())
+}
+
+
+pub async fn listen_for_connections(lb: Arc<LbServer>, listener: TcpListener) -> LbResult<()> {
+    println!("[listen] Started listening");
+ 
+    loop {
+        let (stream, _) = listener.accept().await
+            .map_err(core_err_unexpected)?;
+
+        let lb = lb.clone();
+        tokio::spawn(async move {
+            if let Err(e) = handle_connection(stream, lb).await {
+                eprintln!("Connection error: {e:?}");
+            }
+        });
+    }
+}
+
+
+
+use std::sync::Arc;
 use serde::{Serialize,Deserialize};
-use tokio::net::TcpStream;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use bincode;
-use crate::{LbResult};
+use crate::{LbResult, LbServer};
 use crate::model::errors::{core_err_unexpected};
+use crate::model::errors::LbErrKind;
