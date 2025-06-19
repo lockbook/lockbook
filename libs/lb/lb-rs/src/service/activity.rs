@@ -1,6 +1,6 @@
 use crate::model::errors::LbResult;
 use crate::model::tree_like::TreeLike;
-use crate::Lb;
+use crate::LbServer as Lb;
 use serde::Deserialize;
 use serde::Serialize;
 use std::cmp;
