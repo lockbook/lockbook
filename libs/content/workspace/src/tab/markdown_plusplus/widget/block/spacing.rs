@@ -99,7 +99,6 @@ impl<'ast> MarkdownPlusPlus {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
 
-            self.bounds.paragraphs.push(node_line);
             self.show_text_line(
                 ui,
                 top_left,
@@ -188,7 +187,6 @@ impl<'ast> MarkdownPlusPlus {
 
             top_left.y += BLOCK_SPACING;
 
-            self.bounds.paragraphs.push(node_line);
             self.show_text_line(
                 ui,
                 top_left,
@@ -202,6 +200,75 @@ impl<'ast> MarkdownPlusPlus {
                 node_line,
                 self.text_format_syntax(node),
             );
+        }
+    }
+
+    pub fn compute_bounds_block_pre_spacing(&mut self, node: &'ast AstNode<'ast>) {
+        let Some(parent) = node.parent() else {
+            // document never spaced
+            return;
+        };
+        if matches!(node.data.borrow().value, NodeValue::TableRow(_)) {
+            // table rows never spaced
+            return;
+        }
+
+        let siblings = self.sorted_siblings(node);
+        let sibling_index = self.sibling_index(node, &siblings);
+        let is_first_sibling = sibling_index == 0;
+
+        let spacing_first_line = if is_first_sibling {
+            // parent top -> (empty row -> spacing)* -> first sibling top
+            let mut spacing_first_line = self.node_first_line_idx(parent);
+
+            if matches!(&parent.data.borrow().value, NodeValue::Alert(_)) {
+                // the first line of an alert is rendered by the alert
+                spacing_first_line += 1;
+            }
+
+            spacing_first_line
+        } else {
+            // prev sibling bottom -> spacing -> (empty row -> spacing)* -> first sibling top
+            let prev_sibling = siblings[sibling_index - 1];
+            self.node_last_line_idx(prev_sibling) + 1
+        };
+        let node_first_line = self.node_first_line_idx(node);
+
+        // compute bounds for each empty row with mapped text range
+        for line_idx in spacing_first_line..node_first_line {
+            let line = self.bounds.source_lines[line_idx];
+            let node_line = self.node_line(node, line);
+            self.bounds.paragraphs.push(node_line);
+            self.bounds.inline_paragraphs.push(node_line);
+        }
+    }
+
+    pub(crate) fn compute_bounds_block_post_spacing(&mut self, node: &'ast AstNode<'ast>) {
+        let Some(parent) = node.parent() else {
+            // document never spaced
+            return;
+        };
+        if matches!(node.data.borrow().value, NodeValue::TableRow(_)) {
+            // table rows never spaced
+            return;
+        }
+
+        let siblings = self.sorted_siblings(node);
+        let sibling_index = self.sibling_index(node, &siblings);
+        let is_last_sibling = sibling_index == siblings.len() - 1;
+        let node_last_line = self.node_last_line_idx(node);
+        if !is_last_sibling {
+            // lines between blocks rendered as pre-spacing
+            return;
+        }
+
+        // compute bounds for each empty row with mapped text range
+        let parent_last_line = self.node_last_line_idx(parent);
+        for line_idx in (node_last_line + 1)..=parent_last_line {
+            let line = self.bounds.source_lines[line_idx];
+            let node_line = self.node_line(node, line);
+            self.bounds.paragraphs.push(node_line);
+            self.bounds.inline_paragraphs.push(node_line);
         }
     }
 }

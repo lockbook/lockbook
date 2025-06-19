@@ -98,20 +98,6 @@ impl<'ast> MarkdownPlusPlus {
             unreachable!("Paragraphs always have children") // todo: but not always on every line
         };
 
-        if !pre_node.is_empty() {
-            self.bounds.paragraphs.push(pre_node);
-        }
-        if !pre_children.is_empty() {
-            self.bounds.paragraphs.push(pre_children);
-        }
-        self.bounds.paragraphs.push(children);
-        if !post_children.is_empty() {
-            self.bounds.paragraphs.push(post_children);
-        }
-        if !post_node.is_empty() {
-            self.bounds.paragraphs.push(post_node);
-        }
-
         let reveal = node_line.intersects(&self.buffer.current.selection, true);
         if reveal {
             self.show_text_line(
@@ -151,6 +137,42 @@ impl<'ast> MarkdownPlusPlus {
                 self.text_format_syntax(node),
                 false,
             );
+        }
+    }
+
+    pub fn compute_bounds_paragraph(&mut self, node: &'ast AstNode<'ast>) {
+        for line in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line];
+            self.compute_bounds_paragraph_line(node, line);
+        }
+    }
+
+    pub fn compute_bounds_paragraph_line(
+        &mut self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) {
+        let node_line = self.node_line(node, line);
+
+        // "The paragraph's raw content is formed by concatenating the lines
+        // and removing initial and final whitespace"
+        let Some((pre_node, pre_children, children, post_children, post_node)) =
+            self.line_ranges(node, node_line)
+        else {
+            unreachable!("Paragraphs always have children") // todo: but not always on every line
+        };
+
+        if !pre_node.is_empty() {
+            self.bounds.paragraphs.push(pre_node);
+        }
+        if !pre_children.is_empty() {
+            self.bounds.paragraphs.push(pre_children);
+        }
+        self.bounds.paragraphs.push(children);
+        self.bounds.inline_paragraphs.push(children);
+        if !post_children.is_empty() {
+            self.bounds.paragraphs.push(post_children);
+        }
+        if !post_node.is_empty() {
+            self.bounds.paragraphs.push(post_node);
         }
     }
 }

@@ -53,6 +53,15 @@ pub struct Bounds {
     /// * Text ranges can be empty.
     /// * Text ranges can touch.
     pub text: Text,
+
+    /// Inline paragraphs are the subset of paragraphs that can contain typical markdown inline
+    /// formatting like emphasis, strong, links, code spans, etc. This includes content within
+    /// paragraphs, headings, table cells, and spacing areas between nodes where inline formatting
+    /// would be expected to work.
+    /// * Documents may have no inline paragraphs.
+    /// * Inline paragraphs can be empty.
+    /// * Inline paragraphs cannot touch.
+    pub inline_paragraphs: Paragraphs,
 }
 
 impl MarkdownPlusPlus {
@@ -701,6 +710,7 @@ impl MarkdownPlusPlus {
         self.print_lines_bounds();
         self.print_source_lines_bounds();
         self.print_paragraphs_bounds();
+        self.print_inline_paragraphs_bounds();
         self.print_text_bounds();
     }
 
@@ -722,6 +732,10 @@ impl MarkdownPlusPlus {
 
     pub fn print_text_bounds(&self) {
         println!("text: {:?}", self.ranges_text(&self.bounds.text));
+    }
+
+    pub fn print_inline_paragraphs_bounds(&self) {
+        println!("inline paragraphs: {:?}", self.ranges_text(&self.bounds.inline_paragraphs));
     }
 
     fn ranges_text(&self, ranges: &[(DocCharOffset, DocCharOffset)]) -> Vec<String> {

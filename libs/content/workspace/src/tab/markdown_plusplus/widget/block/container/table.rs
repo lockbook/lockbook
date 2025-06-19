@@ -50,17 +50,10 @@ impl<'ast> MarkdownPlusPlus {
                     false,
                 );
 
-                self.bounds.paragraphs.push(node_line);
-
                 top_left.y += wrap.height();
                 top_left.y += BLOCK_SPACING;
             }
         } else {
-            let delimiter_row_line_idx = self.node_first_line_idx(node) + 1;
-            let delimiter_row_line = self.bounds.source_lines[delimiter_row_line_idx];
-            let delimiter_row_node_line = self.node_line(node, delimiter_row_line);
-            self.bounds.paragraphs.push(delimiter_row_node_line);
-
             self.show_block_children(ui, node, top_left);
 
             // draw exterior decoration
@@ -71,6 +64,23 @@ impl<'ast> MarkdownPlusPlus {
                 2.,
                 Stroke { width: 1., color: self.theme.bg().neutral_tertiary },
             );
+        }
+    }
+
+    pub fn compute_bounds_table(&mut self, node: &'ast AstNode<'ast>) {
+        if self.reveal_table(node) {
+            for line_idx in self.node_lines(node).iter() {
+                let line = self.bounds.source_lines[line_idx];
+                let node_line = self.node_line(node, line);
+                self.bounds.paragraphs.push(node_line);
+            }
+        } else {
+            let delimiter_row_line_idx = self.node_first_line_idx(node) + 1;
+            let delimiter_row_line = self.bounds.source_lines[delimiter_row_line_idx];
+            let delimiter_row_node_line = self.node_line(node, delimiter_row_line);
+            self.bounds.paragraphs.push(delimiter_row_node_line);
+
+            self.compute_bounds_block_children(node);
         }
     }
 

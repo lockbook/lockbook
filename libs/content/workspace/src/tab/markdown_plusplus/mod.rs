@@ -254,6 +254,7 @@ impl MarkdownPlusPlus {
         ui.spacing_mut().item_spacing.x = 0.;
 
         self.bounds.paragraphs.clear();
+        self.bounds.inline_paragraphs.clear();
         self.galleys.galleys.clear();
         ScrollArea::vertical()
             .drag_to_scroll(false)
@@ -285,6 +286,7 @@ impl MarkdownPlusPlus {
         );
         println!("document: {:?}", self.buffer.current.text);
         self.print_paragraphs_bounds();
+        self.print_inline_paragraphs_bounds();
         println!(
             "{}",
             "--------------------------------------------------------------------------------"
@@ -331,6 +333,9 @@ impl MarkdownPlusPlus {
 
         ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
         ui.interact(rect, self.id(), Sense::click_and_drag()); // catches pointer input missed by individual widgets e.g. clicking after line end to place cursor
+
+        // compute bounds for all nodes
+        self.compute_bounds(root);
 
         // shows the actual UI
         ui.allocate_ui_at_rect(rect, |ui| {

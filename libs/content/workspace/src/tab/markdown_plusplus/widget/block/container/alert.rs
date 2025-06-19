@@ -92,7 +92,6 @@ impl<'ast> MarkdownPlusPlus {
                 if line != first_line {
                     top_left.y += BLOCK_SPACING;
 
-                    self.bounds.paragraphs.push(line_content);
                     self.show_text_line(
                         ui,
                         top_left,
@@ -158,7 +157,6 @@ impl<'ast> MarkdownPlusPlus {
     ) {
         let line = self.node_first_line(node);
         let line_content = self.line_content(node, line);
-        self.bounds.paragraphs.push(line_content);
         if line_content.intersects(&self.buffer.current.selection, true) {
             // note and title line are revealed separately from block syntax as
             // if they're a child block
@@ -229,6 +227,41 @@ impl<'ast> MarkdownPlusPlus {
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> Option<RelCharOffset> {
         self.line_prefix_len_block_quote(node, line)
+    }
+
+    pub fn compute_bounds_alert(&mut self, node: &'ast AstNode<'ast>, _node_alert: &NodeAlert) {
+        // Push bounds for line prefix (vertical line annotation)
+        for line_idx in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line_idx];
+            self.bounds
+                .paragraphs
+                .push(self.line_own_prefix(node, line));
+        }
+
+        // Push bounds for title line
+        self.compute_bounds_alert_title_line(node);
+
+        // Handle children or remaining lines
+        let first_line = self.node_first_line(node);
+        let any_children = node.children().next().is_some();
+        if any_children {
+            self.compute_bounds_block_children(node);
+        } else {
+            for line in self.node_lines(node).iter() {
+                let line = self.bounds.source_lines[line];
+                let line_content = self.line_content(node, line);
+
+                if line != first_line {
+                    self.bounds.paragraphs.push(line_content);
+                }
+            }
+        }
+    }
+
+    pub fn compute_bounds_alert_title_line(&mut self, node: &'ast AstNode<'ast>) {
+        let line = self.node_first_line(node);
+        let line_content = self.line_content(node, line);
+        self.bounds.paragraphs.push(line_content);
     }
 
     fn alert_type_title_ranges(

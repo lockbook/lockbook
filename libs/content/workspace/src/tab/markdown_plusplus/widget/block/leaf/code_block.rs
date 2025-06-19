@@ -122,7 +122,6 @@ impl<'ast> MarkdownPlusPlus {
                 && self.is_closing_fence(node, node_code_block, line);
 
             if is_opening_fence || is_closing_fence {
-                self.bounds.paragraphs.push(node_line);
                 if reveal {
                     top_left.y += ROW_SPACING;
                     self.show_text_line(
@@ -220,7 +219,6 @@ impl<'ast> MarkdownPlusPlus {
 
             if reveal {
                 let node_line = self.node_line(node, line);
-                self.bounds.paragraphs.push(node_line);
                 self.show_text_line(
                     ui,
                     top_left,
@@ -380,14 +378,6 @@ impl<'ast> MarkdownPlusPlus {
         };
         let code_line_text = &self.buffer[code_line];
 
-        // paragraph bounds
-        if node_line != code_line {
-            self.bounds
-                .paragraphs
-                .push((node_line.start(), code_line.start()));
-        }
-        self.bounds.paragraphs.push(code_line);
-
         // syntax highlighting
         let syntax_theme =
             if self.dark_mode { &self.syntax_dark_theme } else { &self.syntax_light_theme };
@@ -542,5 +532,72 @@ impl SyntaxHighlightCache {
     pub fn clear(&self) {
         self.map.borrow_mut().clear();
         self.used_this_frame.borrow_mut().clear();
+    }
+}
+
+impl<'ast> MarkdownPlusPlus {
+    pub fn compute_bounds_code_block(
+        &mut self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+    ) {
+        if node_code_block.fenced {
+            self.compute_bounds_fenced_code_block(node, node_code_block)
+        } else {
+            self.compute_bounds_indented_code_block(node, node_code_block)
+        }
+    }
+
+    pub fn compute_bounds_fenced_code_block(
+        &mut self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+    ) {
+        let reveal = self.reveal_fenced_code_block(node, node_code_block);
+        let first_line_idx = self.node_first_line_idx(node);
+        let last_line_idx = self.node_last_line_idx(node);
+
+        for line_idx in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line_idx];
+            let node_line = self.node_line(node, line);
+
+            let is_opening_fence = line_idx == first_line_idx;
+            let is_closing_fence = line_idx == last_line_idx;
+
+            if is_opening_fence || is_closing_fence {
+                self.bounds.paragraphs.push(node_line);
+            } else if reveal {
+                self.bounds.paragraphs.push(node_line);
+            } else {
+                self.compute_bounds_code_block_line(node, line);
+            }
+        }
+    }
+
+    pub fn compute_bounds_indented_code_block(
+        &mut self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+    ) {
+        let reveal = self.reveal_indented_code_block(node);
+
+        for line in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line];
+            if reveal {
+                let node_line = self.node_line(node, line);
+                self.bounds.paragraphs.push(node_line);
+            } else {
+                self.compute_bounds_code_block_line(node, line);
+            }
+        }
+    }
+
+    fn compute_bounds_code_block_line(
+        &mut self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+    ) {
+        let node_line = self.node_line(node, line);
+        let code_line = self.line_content(node, line);
+
+        // Push bounds for indentation prefix
+        if code_line.start() > node_line.start() {
+            self.bounds
+                .paragraphs
+                .push((node_line.start(), code_line.start()));
+        }
+        self.bounds.paragraphs.push(code_line);
     }
 }

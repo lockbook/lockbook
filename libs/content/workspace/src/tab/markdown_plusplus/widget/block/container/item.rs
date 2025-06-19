@@ -76,7 +76,6 @@ impl<'ast> MarkdownPlusPlus {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
 
-            self.bounds.paragraphs.push(line_content);
             self.show_text_line(
                 ui,
                 top_left,
@@ -149,5 +148,25 @@ impl<'ast> MarkdownPlusPlus {
         }
 
         Some(result)
+    }
+
+    pub fn compute_bounds_item(&mut self, node: &'ast AstNode<'ast>) {
+        // Push bounds for line prefix (bullet/number annotation)
+        for line_idx in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line_idx];
+            self.bounds
+                .paragraphs
+                .push(self.line_own_prefix(node, line));
+        }
+
+        // Handle children or line content
+        let any_children = node.children().next().is_some();
+        if any_children {
+            self.compute_bounds_block_children(node);
+        } else {
+            let line = self.node_first_line(node);
+            let line_content = self.line_content(node, line);
+            self.bounds.paragraphs.push(line_content);
+        }
     }
 }

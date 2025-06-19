@@ -2,6 +2,7 @@ use comrak::nodes::{AstNode, NodeCodeBlock, NodeHeading, NodeValue};
 use egui::TextFormat;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
+use super::widget::utils::NodeValueExt as _;
 use super::{bounds::RangesExt as _, MarkdownPlusPlus};
 
 pub(crate) mod block;
@@ -172,5 +173,75 @@ impl<'ast> MarkdownPlusPlus {
     fn row_height(&self, node: &AstNode<'_>) -> f32 {
         let text_format = self.text_format(node).font_id;
         self.ctx.fonts(|fonts| fonts.row_height(&text_format))
+    }
+
+    pub fn compute_bounds(&mut self, node: &'ast AstNode<'ast>) {
+        // container blocks: if revealed, compute bounds for source lines instead
+        if node.parent().is_some()
+            && node.data.borrow().value.is_container_block()
+            && self.reveal(node)
+        {
+            for line in self.node_lines(node).iter() {
+                let line = self.bounds.source_lines[line];
+                let node_line = self.node_line(node, line);
+                self.bounds.paragraphs.push(node_line);
+            }
+            return;
+        }
+
+        let value = &node.data.borrow().value;
+        match value {
+            NodeValue::FrontMatter(_) => {}
+            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
+
+            // container_block
+            NodeValue::Alert(node_alert) => self.compute_bounds_alert(node, node_alert),
+            NodeValue::BlockQuote => self.compute_bounds_block_quote(node),
+            NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
+            NodeValue::DescriptionList => unimplemented!("extension disabled"),
+            NodeValue::Document => self.compute_bounds_document(node),
+            NodeValue::FootnoteDefinition(_) => self.compute_bounds_footnote_definition(node),
+            NodeValue::Item(_) => self.compute_bounds_item(node),
+            NodeValue::List(_) => self.compute_bounds_list(node),
+            NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
+            NodeValue::Table(_) => self.compute_bounds_table(node),
+            NodeValue::TableRow(_) => self.compute_bounds_table_row(node),
+            NodeValue::TaskItem(_) => self.compute_bounds_task_item(node),
+
+            // inline
+            NodeValue::Image(_) => {}
+            NodeValue::Code(_) => {}
+            NodeValue::Emph => {}
+            NodeValue::Escaped => {}
+            NodeValue::EscapedTag(_) => {}
+            NodeValue::FootnoteReference(_) => {}
+            NodeValue::HtmlInline(_) => {}
+            NodeValue::LineBreak => {}
+            NodeValue::Link(_) => {}
+            NodeValue::Math(_) => {}
+            NodeValue::SoftBreak => {}
+            NodeValue::SpoileredText => {}
+            NodeValue::Strikethrough => {}
+            NodeValue::Strong => {}
+            NodeValue::Subscript => {}
+            NodeValue::Superscript => {}
+            NodeValue::Text(_) => {}
+            NodeValue::Underline => {}
+            NodeValue::WikiLink(_) => {}
+
+            // leaf_block
+            NodeValue::CodeBlock(node_code_block) => {
+                self.compute_bounds_code_block(node, node_code_block)
+            }
+            NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
+            NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
+            NodeValue::Heading(NodeHeading { level, setext, .. }) => {
+                self.compute_bounds_heading(node, *level, *setext)
+            }
+            NodeValue::HtmlBlock(_) => self.compute_bounds_html_block(node),
+            NodeValue::Paragraph => self.compute_bounds_paragraph(node),
+            NodeValue::TableCell => self.compute_bounds_table_cell(node),
+            NodeValue::ThematicBreak => self.compute_bounds_thematic_break(node),
+        }
     }
 }

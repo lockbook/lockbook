@@ -195,8 +195,6 @@ impl<'ast> MarkdownPlusPlus {
                     top_left.y += wrap.height();
                     top_left.y += ROW_SPACING;
                 }
-
-                self.bounds.paragraphs.push(node_line);
             }
         }
 
@@ -218,17 +216,6 @@ impl<'ast> MarkdownPlusPlus {
         if let Some((indentation, prefix, children, postfix_whitespace, _)) =
             self.line_ranges(node, self.node_line(node, line))
         {
-            if !indentation.is_empty() {
-                self.bounds.paragraphs.push(indentation);
-            }
-            if !prefix.is_empty() {
-                self.bounds.paragraphs.push(prefix);
-            }
-            self.bounds.paragraphs.push(children);
-            if !postfix_whitespace.is_empty() {
-                self.bounds.paragraphs.push(postfix_whitespace);
-            }
-
             if reveal {
                 if !indentation.is_empty() {
                     self.show_text_line(
@@ -306,14 +293,8 @@ impl<'ast> MarkdownPlusPlus {
                     false,
                 );
             }
-            if !indentation.is_empty() {
-                self.bounds.paragraphs.push(indentation);
-            }
-            self.bounds.paragraphs.push(prefix_range);
-
             if let Some(infix_range) = self.infix_range(node) {
                 self.show_inline_children(ui, node, top_left, &mut wrap);
-                self.bounds.paragraphs.push(infix_range);
             }
 
             if reveal && !postfix_range.is_empty() {
@@ -326,9 +307,6 @@ impl<'ast> MarkdownPlusPlus {
                     false,
                 );
             }
-            if !postfix_range.is_empty() {
-                self.bounds.paragraphs.push(postfix_range);
-            }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
             self.show_text_line(
@@ -339,7 +317,6 @@ impl<'ast> MarkdownPlusPlus {
                 self.text_format_syntax(node),
                 false,
             );
-            self.bounds.paragraphs.push(node_line);
         }
 
         top_left.y += height;
@@ -356,5 +333,97 @@ impl<'ast> MarkdownPlusPlus {
             line_break_rect.center().y,
             Stroke { width: 1.0, color: self.theme.bg().neutral_tertiary },
         );
+    }
+
+    pub fn compute_bounds_heading(&mut self, node: &'ast AstNode<'ast>, _level: u8, setext: bool) {
+        if setext {
+            self.compute_bounds_setext_heading(node)
+        } else {
+            self.compute_bounds_atx_heading(node)
+        }
+    }
+
+    fn compute_bounds_setext_heading(&mut self, node: &'ast AstNode<'ast>) {
+        let reveal = self.reveal_setext_syntax(node);
+        let last_line_idx = self.node_last_line_idx(node);
+
+        for line_idx in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line_idx];
+
+            if line_idx < last_line_idx {
+                // non-underline content
+                self.compute_bounds_setext_heading_line(node, line, reveal);
+            } else {
+                // underline
+                let node_line = self.node_line(node, line);
+                self.bounds.paragraphs.push(node_line);
+            }
+        }
+    }
+
+    fn compute_bounds_setext_heading_line(
+        &mut self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset), reveal: bool,
+    ) {
+        let node_line = self.node_line(node, line);
+
+        if reveal {
+            let Some((indentation, prefix, children, postfix_whitespace, _)) =
+                self.line_ranges(node, node_line)
+            else {
+                self.bounds.paragraphs.push(node_line);
+                return;
+            };
+
+            if !indentation.is_empty() {
+                self.bounds.paragraphs.push(indentation);
+            }
+            if !prefix.is_empty() {
+                self.bounds.paragraphs.push(prefix);
+            }
+            self.bounds.paragraphs.push(children);
+            self.bounds.inline_paragraphs.push(children);
+            if !postfix_whitespace.is_empty() {
+                self.bounds.paragraphs.push(postfix_whitespace);
+            }
+        } else {
+            let Some((_indentation, _prefix, children, _postfix_whitespace, _)) =
+                self.line_ranges(node, node_line)
+            else {
+                self.bounds.paragraphs.push(node_line);
+                return;
+            };
+
+            self.bounds.paragraphs.push(children);
+            self.bounds.inline_paragraphs.push(children);
+        }
+    }
+
+    fn compute_bounds_atx_heading(&mut self, node: &'ast AstNode<'ast>) {
+        let line = self.node_first_line(node);
+        let node_line = self.node_line(node, line);
+
+        if let Some((indentation, prefix_range, _infix_range, postfix_range, _)) =
+            self.line_ranges(node, node_line)
+        {
+            if !indentation.is_empty() {
+                self.bounds.paragraphs.push(indentation);
+            }
+            self.bounds.paragraphs.push(prefix_range);
+
+            if let Some(infix_range) = self.infix_range(node) {
+                self.bounds.paragraphs.push(infix_range);
+                self.bounds.inline_paragraphs.push(infix_range);
+                for child in node.children() {
+                    self.compute_bounds(child);
+                }
+            }
+
+            if !postfix_range.is_empty() {
+                self.bounds.paragraphs.push(postfix_range);
+            }
+        } else {
+            // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
+            self.bounds.paragraphs.push(node_line);
+        }
     }
 }

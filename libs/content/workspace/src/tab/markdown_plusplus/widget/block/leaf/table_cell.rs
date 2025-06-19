@@ -58,23 +58,9 @@ impl<'ast> MarkdownPlusPlus {
             }
         }
 
-        if let Some((pre_node, pre_children, children, post_children, post_node)) =
+        if let Some((pre_node, pre_children, _, post_children, post_node)) =
             self.line_ranges(node, node_line)
         {
-            if !pre_node.is_empty() {
-                self.bounds.paragraphs.push(pre_node);
-            }
-            if !pre_children.is_empty() {
-                self.bounds.paragraphs.push(pre_children);
-            }
-            self.bounds.paragraphs.push(children);
-            if !post_children.is_empty() {
-                self.bounds.paragraphs.push(post_children);
-            }
-            if !post_node.is_empty() {
-                self.bounds.paragraphs.push(post_node);
-            }
-
             let reveal = node_line.intersects(&self.buffer.current.selection, true);
             if reveal {
                 self.show_text_line(
@@ -116,9 +102,6 @@ impl<'ast> MarkdownPlusPlus {
                 );
             }
         } else {
-            if !node_line.is_empty() {
-                self.bounds.paragraphs.push(node_line);
-            }
             self.show_text_line(
                 ui,
                 top_left,
@@ -127,6 +110,35 @@ impl<'ast> MarkdownPlusPlus {
                 self.text_format_syntax(node),
                 false,
             );
+        }
+    }
+
+    pub fn compute_bounds_table_cell(&mut self, node: &'ast AstNode<'ast>) {
+        let node_line = self.node_range(node); // table cells are always single-line
+
+        if let Some((pre_node, pre_children, children, post_children, post_node)) =
+            self.line_ranges(node, node_line)
+        {
+            if !pre_node.is_empty() {
+                self.bounds.paragraphs.push(pre_node);
+            }
+            if !pre_children.is_empty() {
+                self.bounds.paragraphs.push(pre_children);
+            }
+            self.bounds.paragraphs.push(children);
+            self.bounds.inline_paragraphs.push(children);
+            if !post_children.is_empty() {
+                self.bounds.paragraphs.push(post_children);
+            }
+            if !post_node.is_empty() {
+                self.bounds.paragraphs.push(post_node);
+            }
+        } else {
+            #[allow(clippy::collapsible_else_if)]
+            if !node_line.is_empty() {
+                self.bounds.paragraphs.push(node_line);
+                self.bounds.inline_paragraphs.push(node_line);
+            }
         }
     }
 }

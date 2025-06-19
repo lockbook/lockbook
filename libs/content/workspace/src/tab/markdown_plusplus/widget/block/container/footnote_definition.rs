@@ -77,6 +77,10 @@ impl<'ast> MarkdownPlusPlus {
         })
     }
 
+    pub fn compute_bounds_footnote_definition(&mut self, node: &'ast AstNode<'ast>) {
+        self.compute_bounds_block_children(node);
+    }
+
     /// Footnote definitions are usually rendered in the order in which they're
     /// referenced, rather than the order in which they're written ('source
     /// order'). From where I'm sitting, I just don't see how that works in an
@@ -99,6 +103,7 @@ impl<'ast> MarkdownPlusPlus {
     /// it's intended behavior. This is why [`Self::sorted_siblings`] exists.
     /// Anyway, we leverage this behavior to determine the number we should
     /// render for the definition, since the node itself does not contain it.
+
     fn definition_number(&self, node: &'ast AstNode<'ast>) -> usize {
         let mut result = 0;
         let document = node.ancestors().last().expect("There is always a document");

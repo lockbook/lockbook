@@ -43,10 +43,20 @@ impl<'ast> MarkdownPlusPlus {
                     self.text_format_syntax(node),
                     false,
                 );
-                self.bounds.paragraphs.push(line);
-
                 top_left.y += ROW_HEIGHT;
                 top_left.y += ROW_SPACING;
+            }
+        }
+    }
+
+    pub fn compute_bounds_document(&mut self, node: &'ast AstNode<'ast>) {
+        let any_children = node.children().next().is_some();
+        if any_children {
+            self.compute_bounds_block_children(node);
+        } else {
+            for line_idx in self.node_lines(node).iter() {
+                let line = self.bounds.source_lines[line_idx];
+                self.bounds.paragraphs.push(line);
             }
         }
     }

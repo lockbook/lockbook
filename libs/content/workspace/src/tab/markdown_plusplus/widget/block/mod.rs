@@ -190,8 +190,6 @@ impl<'ast> MarkdownPlusPlus {
                     false,
                 );
 
-                self.bounds.paragraphs.push(node_line);
-
                 top_left.y += wrap.height();
                 top_left.y += BLOCK_SPACING;
             }

@@ -508,4 +508,28 @@ impl<'ast> MarkdownPlusPlus {
 
         self.row_height(node)
     }
+
+    pub fn compute_bounds_list(&mut self, node: &'ast AstNode<'ast>) {
+        self.compute_bounds_block_children(node);
+    }
+
+    pub fn compute_bounds_task_item(&mut self, node: &'ast AstNode<'ast>) {
+        self.compute_bounds_block_children(node);
+    }
+
+    // compute bounds for blocks stacked vertically
+    pub fn compute_bounds_block_children(&mut self, node: &'ast AstNode<'ast>) {
+        let mut children: Vec<_> = node.children().collect();
+        children.sort_by_key(|child| child.data.borrow().sourcepos);
+        for child in children {
+            // add pre-spacing bounds
+            self.compute_bounds_block_pre_spacing(child);
+
+            // add block bounds
+            self.compute_bounds(child);
+
+            // add post-spacing bounds
+            self.compute_bounds_block_post_spacing(child);
+        }
+    }
 }
