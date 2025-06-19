@@ -1,7 +1,3 @@
-pub struct LbClient {
-    pub addr: SocketAddrV4
-}
-
 impl LbClient {
     pub async fn create_account(
         &self,
@@ -109,8 +105,8 @@ impl LbClient {
     }
 }
 
+use crate::lb_client::LbClient;
 use crate::{model::errors::core_err_unexpected, LbResult};
-use std::net::{SocketAddrV4};
 use libsecp256k1::SecretKey;
 use tokio::net::TcpStream;
 use crate::rpc::call_rpc;
