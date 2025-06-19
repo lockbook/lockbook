@@ -1,12 +1,12 @@
 #[derive(Serialize, Deserialize)]
 pub struct RpcRequest {
     pub method: String,
-    pub args: Vec<u8>,
+    pub args: Option<Vec<u8>>,
 }
 
 
 impl RpcRequest {
-    pub fn new(method: impl Into<String>, args: Vec<u8>) -> Self {
+    pub fn new(method: impl Into<String>, args: Option<Vec<u8>>) -> Self {
         Self {
             method: method.into(),
             args,
@@ -17,7 +17,7 @@ impl RpcRequest {
 pub async fn call_rpc<T>(
     stream: &mut TcpStream,
     method: &str,
-    args: Vec<u8>,
+    args: Option<Vec<u8>>,
 ) -> LbResult<T>
 where
     T: for<'de> Deserialize<'de>,
@@ -47,8 +47,16 @@ where
 pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
     match req.method.as_str() {
         "create_account" => {
-            let args: (String, String, bool) = bincode::deserialize(&req.args).map_err(core_err_unexpected)?;
+            let raw = req.args.unwrap_or_default();
+            let args: (String, String, bool) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
             let res = lb.create_account(&args.0,&args.1,args.2).await?;
+            let payload = bincode::serialize(&res).map_err(core_err_unexpected)?;
+            Ok(payload)
+        }
+        "import_account" => {
+            let raw = req.args.unwrap_or_default();
+            let args: (String, Option<String>) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let res = lb.import_account(&args.0,args.1.as_deref()).await?;
             let payload = bincode::serialize(&res).map_err(core_err_unexpected)?;
             Ok(payload)
         }
