@@ -27,6 +27,7 @@ pub mod lb_server;
 pub mod lb_client;
 pub mod lb_enum;
 pub mod rpc;
+pub mod dispatch;
 
 pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
