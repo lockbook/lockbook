@@ -2,6 +2,7 @@ pub mod account;
 pub mod activity;
 pub mod admin;
 pub mod billing;
+pub mod debug;
 
 pub enum Lb {
     Direct(LbServer),

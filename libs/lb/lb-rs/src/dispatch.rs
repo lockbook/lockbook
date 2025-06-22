@@ -164,6 +164,12 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             bincode::serialize(&info).map_err(core_err_unexpected)?
         }
 
+        "debug_info" => {
+            let os_info: String = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let debug_str = lb.debug_info(os_info).await?;
+            bincode::serialize(&debug_str).map_err(core_err_unexpected)?
+        }   
+
         other => {
             return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
         }
