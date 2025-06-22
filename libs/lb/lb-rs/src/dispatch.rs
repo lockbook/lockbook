@@ -132,6 +132,38 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             bincode::serialize(&()).map_err(core_err_unexpected)?
         }
 
+        "upgrade_account_stripe" => {
+            let tier: StripeAccountTier =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.upgrade_account_stripe(tier).await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
+        "upgrade_account_google_play" => {
+            let (purchase_token, account_id): (String, String) =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.upgrade_account_google_play(&purchase_token, &account_id).await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
+        "upgrade_account_app_store" => {
+            let (original_transaction_id, app_account_token): (String, String) =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.upgrade_account_app_store(original_transaction_id, app_account_token)
+                .await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
+        "cancel_subscription" => {
+            lb.cancel_subscription().await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
+        "get_subscription_info" => {
+            let info: Option<SubscriptionInfo> = lb.get_subscription_info().await?;
+            bincode::serialize(&info).map_err(core_err_unexpected)?
+        }
+
         other => {
             return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
         }
@@ -144,7 +176,7 @@ use std::sync::Arc;
 
 use libsecp256k1::SecretKey;
 use uuid::Uuid;
-use crate::model::api::{AccountFilter, AccountIdentifier, AdminSetUserTierInfo, ServerIndex};
+use crate::model::api::{AccountFilter, AccountIdentifier, AdminSetUserTierInfo, ServerIndex, StripeAccountTier, SubscriptionInfo};
 use crate::model::errors::LbErrKind;
 use crate::model::errors::{core_err_unexpected};
 use crate::rpc::RpcRequest;

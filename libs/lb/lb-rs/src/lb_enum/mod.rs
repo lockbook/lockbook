@@ -1,6 +1,8 @@
 pub mod account;
 pub mod activity;
 pub mod admin;
+pub mod billing;
+
 pub enum Lb {
     Direct(LbServer),
     Network(LbClient)
