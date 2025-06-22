@@ -24,7 +24,7 @@ impl LbClient {
             .await
             .map_err(core_err_unexpected)?;
 
-        let args = bincode::serialize(&filter.map(|s| s))
+        let args = bincode::serialize(&filter)
             .map_err(core_err_unexpected)?;
 
         call_rpc(&mut stream, "list_users", Some(args)).await

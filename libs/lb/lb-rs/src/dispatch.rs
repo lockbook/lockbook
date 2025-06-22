@@ -168,6 +168,35 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             let os_info: String = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
             let debug_str = lb.debug_info(os_info).await?;
             bincode::serialize(&debug_str).map_err(core_err_unexpected)?
+        }
+
+        "read_document" => {
+            let (id, user_activity): (Uuid, bool) =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let doc = lb.read_document(id, user_activity).await?;
+            bincode::serialize(&doc).map_err(core_err_unexpected)?
+        }
+
+        "write_document" => {
+            let (id, content): (Uuid, Vec<u8>) =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.write_document(id, &content).await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
+        "read_document_with_hmac" => {
+            let (id, user_activity): (Uuid, bool) =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let pair: (Option<DocumentHmac>, DecryptedDocument) =
+                lb.read_document_with_hmac(id, user_activity).await?;
+            bincode::serialize(&pair).map_err(core_err_unexpected)?
+        }
+
+        "safe_write" => {
+            let (id, old_hmac, content): (Uuid, Option<DocumentHmac>, Vec<u8>) =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let new_hmac = lb.safe_write(id, old_hmac, content).await?;
+            bincode::serialize(&new_hmac).map_err(core_err_unexpected)?
         }   
 
         other => {
@@ -183,7 +212,9 @@ use std::sync::Arc;
 use libsecp256k1::SecretKey;
 use uuid::Uuid;
 use crate::model::api::{AccountFilter, AccountIdentifier, AdminSetUserTierInfo, ServerIndex, StripeAccountTier, SubscriptionInfo};
+use crate::model::crypto::DecryptedDocument;
 use crate::model::errors::LbErrKind;
 use crate::model::errors::{core_err_unexpected};
+use crate::model::file_metadata::DocumentHmac;
 use crate::rpc::RpcRequest;
 use crate::{LbServer,LbResult};
