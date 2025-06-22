@@ -4,6 +4,7 @@ pub mod admin;
 pub mod billing;
 pub mod debug;
 pub mod documents;
+pub mod events;
 pub struct LbClient {
     pub addr: SocketAddrV4
 }

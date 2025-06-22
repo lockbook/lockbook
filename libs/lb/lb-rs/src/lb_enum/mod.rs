@@ -4,7 +4,7 @@ pub mod admin;
 pub mod billing;
 pub mod debug;
 pub mod documents;
-
+pub mod events;
 pub enum Lb {
     Direct(LbServer),
     Network(LbClient)

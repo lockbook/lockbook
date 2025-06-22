@@ -2,7 +2,7 @@ impl LbClient {
     pub async fn read_document(
         &self, id: Uuid, user_activity: bool,
     ) -> LbResult<DecryptedDocument>{
-       let mut stream = TcpStream::connect(&self.addr)
+        let mut stream = TcpStream::connect(&self.addr)
             .await
             .map_err(core_err_unexpected)?;
 
