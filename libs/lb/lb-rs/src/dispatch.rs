@@ -73,12 +73,65 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             bincode::serialize(&()).map_err(core_err_unexpected)?
         }
 
-        "suggested_docs" => {
-            let settings: RankingWeights = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
-            lb.suggested_docs(settings).await?;
+        "disappear_account" => {
+            let username: String =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.disappear_account(&username).await?;
             bincode::serialize(&()).map_err(core_err_unexpected)?
         }
-        
+
+        "disappear_file" => {
+            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.disappear_file(id).await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
+        "list_users" => {
+            let filter: Option<AccountFilter> =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let users = lb.list_users(filter).await?;
+            bincode::serialize(&users).map_err(core_err_unexpected)?
+        }
+
+        "get_account_info" => {
+            let identifier: AccountIdentifier =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let info = lb.get_account_info(identifier).await?;
+            bincode::serialize(&info).map_err(core_err_unexpected)?
+        }
+
+        "validate_account" => {
+            let username: String =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let validation = lb.validate_account(&username).await?;
+            bincode::serialize(&validation).map_err(core_err_unexpected)?
+        }
+
+        "validate_server" => {
+            let server_info = lb.validate_server().await?;
+            bincode::serialize(&server_info).map_err(core_err_unexpected)?
+        }
+
+        "file_info" => {
+            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let info = lb.file_info(id).await?;
+            bincode::serialize(&info).map_err(core_err_unexpected)?
+        }
+
+        "rebuild_index" => {
+            let index: ServerIndex =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.rebuild_index(index).await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
+        "set_user_tier" => {
+            let (username, tier_info): (String, AdminSetUserTierInfo) =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.set_user_tier(&username, tier_info).await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
         other => {
             return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
         }
@@ -90,8 +143,9 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
 use std::sync::Arc;
 
 use libsecp256k1::SecretKey;
+use uuid::Uuid;
+use crate::model::api::{AccountFilter, AccountIdentifier, AdminSetUserTierInfo, ServerIndex};
 use crate::model::errors::LbErrKind;
 use crate::model::errors::{core_err_unexpected};
 use crate::rpc::RpcRequest;
-use crate::service::activity::RankingWeights;
 use crate::{LbServer,LbResult};
