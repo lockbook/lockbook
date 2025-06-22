@@ -197,7 +197,67 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
                 bincode::deserialize(&raw).map_err(core_err_unexpected)?;
             let new_hmac = lb.safe_write(id, old_hmac, content).await?;
             bincode::serialize(&new_hmac).map_err(core_err_unexpected)?
-        }   
+        }
+
+        "create_file" => {
+            let (name, parent, file_type): (String, Uuid, FileType) =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let file = lb.create_file(&name, &parent, file_type).await?;
+            bincode::serialize(&file).map_err(core_err_unexpected)?
+        }
+
+        "rename_file" => {
+            let (id, new_name): (Uuid, String) =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.rename_file(&id, &new_name).await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
+        "move_file" => {
+            let (id, new_parent): (Uuid, Uuid) =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.move_file(&id, &new_parent).await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
+        "delete" => {
+            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.delete(&id).await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
+        "root" => {
+            let file = lb.root().await?;
+            bincode::serialize(&file).map_err(core_err_unexpected)?
+        }
+
+        "list_metadatas" => {
+            let files = lb.list_metadatas().await?;
+            bincode::serialize(&files).map_err(core_err_unexpected)?
+        }
+
+        "get_children" => {
+            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let children = lb.get_children(&id).await?;
+            bincode::serialize(&children).map_err(core_err_unexpected)?
+        }
+
+        "get_and_get_children_recursively" => {
+            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let all = lb.get_and_get_children_recursively(&id).await?;
+            bincode::serialize(&all).map_err(core_err_unexpected)?
+        }
+
+        "get_file_by_id" => {
+            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let file = lb.get_file_by_id(id).await?;
+            bincode::serialize(&file).map_err(core_err_unexpected)?
+        }
+
+        "local_changes" => {
+            let changes: Vec<Uuid> = lb.local_changes().await;
+            bincode::serialize(&changes).map_err(core_err_unexpected)?
+        }
 
         other => {
             return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
@@ -215,6 +275,6 @@ use crate::model::api::{AccountFilter, AccountIdentifier, AdminSetUserTierInfo, 
 use crate::model::crypto::DecryptedDocument;
 use crate::model::errors::LbErrKind;
 use crate::model::errors::{core_err_unexpected};
-use crate::model::file_metadata::DocumentHmac;
+use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::rpc::RpcRequest;
 use crate::{LbServer,LbResult};

@@ -5,6 +5,7 @@ pub mod billing;
 pub mod debug;
 pub mod documents;
 pub mod events;
+pub mod file;
 pub enum Lb {
     Direct(LbServer),
     Network(LbClient)
