@@ -73,6 +73,12 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             bincode::serialize(&()).map_err(core_err_unexpected)?
         }
 
+        "suggested_docs" => {
+            let settings: RankingWeights = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.suggested_docs(settings).await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+        
         other => {
             return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
         }
@@ -87,4 +93,5 @@ use libsecp256k1::SecretKey;
 use crate::model::errors::LbErrKind;
 use crate::model::errors::{core_err_unexpected};
 use crate::rpc::RpcRequest;
+use crate::service::activity::RankingWeights;
 use crate::{LbServer,LbResult};

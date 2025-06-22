@@ -1,4 +1,5 @@
 pub mod account;
+pub mod activity;
 
 pub enum Lb {
     Direct(LbServer),

@@ -1,4 +1,5 @@
 pub mod account;
+pub mod activity;
 pub struct LbClient {
     pub addr: SocketAddrV4
 }
