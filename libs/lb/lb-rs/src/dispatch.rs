@@ -264,6 +264,11 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             bincode::serialize(&changes).map_err(core_err_unexpected)?
         }
 
+        "get_account" => {
+            let account_ref: &Account = lb.get_account()?;
+            bincode::serialize(account_ref).map_err(core_err_unexpected)?
+        }
+
         other => {
             return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
         }
@@ -276,6 +281,7 @@ use std::sync::Arc;
 
 use libsecp256k1::SecretKey;
 use uuid::Uuid;
+use crate::model::account::Account;
 use crate::model::api::{AccountFilter, AccountIdentifier, AdminSetUserTierInfo, ServerIndex, StripeAccountTier, SubscriptionInfo};
 use crate::model::crypto::DecryptedDocument;
 use crate::model::errors::{LbErrKind, Warning};
