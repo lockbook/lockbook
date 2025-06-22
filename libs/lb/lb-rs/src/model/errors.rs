@@ -546,7 +546,7 @@ impl From<ApiError<api::GetUsageError>> for LbErr {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Warning {
     EmptyFile(Uuid),
     InvalidUTF8(Uuid),

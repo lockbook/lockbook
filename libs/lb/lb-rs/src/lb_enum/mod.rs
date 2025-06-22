@@ -7,6 +7,7 @@ pub mod documents;
 pub mod events;
 pub mod file;
 pub mod import_export;
+pub mod integrity;
 pub enum Lb {
     Direct(LbServer),
     Network(LbClient)

@@ -258,6 +258,11 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             let changes: Vec<Uuid> = lb.local_changes().await;
             bincode::serialize(&changes).map_err(core_err_unexpected)?
         }
+        //TODO : events module and import_export module
+        "test_repo_integrity" => {
+            let changes: Vec<Warning> = lb.test_repo_integrity().await?;
+            bincode::serialize(&changes).map_err(core_err_unexpected)?
+        }
 
         other => {
             return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
@@ -273,7 +278,7 @@ use libsecp256k1::SecretKey;
 use uuid::Uuid;
 use crate::model::api::{AccountFilter, AccountIdentifier, AdminSetUserTierInfo, ServerIndex, StripeAccountTier, SubscriptionInfo};
 use crate::model::crypto::DecryptedDocument;
-use crate::model::errors::LbErrKind;
+use crate::model::errors::{LbErrKind, Warning};
 use crate::model::errors::{core_err_unexpected};
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::rpc::RpcRequest;
