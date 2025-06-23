@@ -16,7 +16,9 @@ pub struct CursorState {
 
 impl Editor {
     pub fn show_selection(&self, ui: &mut egui::Ui) {
-        let selection = self.buffer.current.selection;
+        let selection = self
+            .in_progress_selection
+            .unwrap_or(self.buffer.current.selection);
 
         // todo: binary search
         for galley_info in self.galleys.galleys.iter().rev() {
@@ -56,7 +58,11 @@ impl Editor {
 
     // todo: improve cursor rendering at the end of inline code segments and similar constructs
     pub fn show_cursor(&self, ui: &mut egui::Ui) {
-        let [top, bot] = self.cursor_line(self.buffer.current.selection.1);
+        let selection = self
+            .in_progress_selection
+            .unwrap_or(self.buffer.current.selection);
+
+        let [top, bot] = self.cursor_line(selection.1);
         ui.painter().clone().vline(
             top.x,
             Rangef { min: top.y, max: bot.y },
@@ -65,7 +71,11 @@ impl Editor {
     }
 
     pub fn scroll_to_cursor(&self, ui: &mut egui::Ui) {
-        let [top, bot] = self.cursor_line(self.buffer.current.selection.1);
+        let selection = self
+            .in_progress_selection
+            .unwrap_or(self.buffer.current.selection);
+
+        let [top, bot] = self.cursor_line(selection.1);
         let rect = Rect::from_min_max(top, bot);
         ui.scroll_to_rect(rect.expand(rect.height()), None);
     }

@@ -17,6 +17,7 @@ use input::cursor::CursorState;
 use input::mutation::EventState;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
+use lb_rs::model::text::offset_types::DocCharOffset;
 use lb_rs::{blocking::Lb, Uuid};
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
@@ -81,6 +82,11 @@ pub struct Editor {
     // widgets
     // pub toolbar: Toolbar,
     // pub find: Find,
+
+    // selection state
+    /// During drag operations, stores the selection that would be applied
+    /// without actually updating the buffer selection (which would affect syntax reveal)
+    pub in_progress_selection: Option<(DocCharOffset, DocCharOffset)>,
 
     // ?
     pub virtual_keyboard_shown: bool,
@@ -147,6 +153,8 @@ impl Editor {
             images: Default::default(),
             layout_cache: Default::default(),
             syntax: Default::default(),
+
+            in_progress_selection: None,
 
             virtual_keyboard_shown: Default::default(),
             scroll_to_cursor: Default::default(),

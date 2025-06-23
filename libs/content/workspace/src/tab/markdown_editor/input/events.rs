@@ -132,7 +132,7 @@ impl<'ast> Editor {
         }
     }
 
-    fn get_pointer_events(&self, ctx: &Context) -> Vec<Event> {
+    fn get_pointer_events(&mut self, ctx: &Context) -> Vec<Event> {
         let modifiers = ctx.input(|i| i.modifiers);
 
         if let Some(response) = ctx.read_response(self.id()) {
@@ -228,16 +228,24 @@ impl<'ast> Editor {
             } else if response.secondary_clicked() {
                 ctx.set_context_menu(pos);
                 return Vec::new();
-            } else if response.dragged() && modifiers.shift {
-                Region::ToLocation(location)
-            } else if response.dragged() {
-                if response.drag_started() {
-                    let drag_origin = ctx.input(|i| i.pointer.press_origin()).unwrap_or_default();
-
-                    Region::Location(Location::Pos(drag_origin))
+            } else if response.drag_started() {
+                return Vec::new();
+            } else if response.drag_stopped() {
+                if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
+                    Region::from(in_progress_selection)
                 } else {
-                    Region::ToLocation(location)
+                    return Vec::new();
                 }
+            } else if response.dragged() && modifiers.shift {
+                self.in_progress_selection =
+                    Some(self.region_to_range(Region::ToLocation(location)));
+                return Vec::new();
+            } else if response.dragged() {
+                let drag_origin = ctx.input(|i| i.pointer.press_origin()).unwrap_or_default();
+                let region =
+                    Region::BetweenLocations { start: Location::Pos(drag_origin), end: location };
+                self.in_progress_selection = Some(self.region_to_range(region));
+                return Vec::new();
             } else {
                 // can't yet tell if drag
                 return Vec::new();
