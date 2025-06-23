@@ -2,7 +2,7 @@ use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::file_metadata::FileType;
 use crate::model::ValidationFailure;
-use crate::LbServer as Lb;
+use crate::LbServer;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::fs;
@@ -17,7 +17,7 @@ pub enum ImportStatus {
     FinishedItem(File),
 }
 
-impl Lb {
+impl LbServer {
     #[instrument(level = "debug", skip(self, update_status), err(Debug))]
     pub async fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,

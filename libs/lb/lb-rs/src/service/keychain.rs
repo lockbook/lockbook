@@ -9,7 +9,7 @@ use crate::{
         crypto::AESKey,
         errors::{LbErrKind, LbResult},
     },
-    LbServer as Lb,
+    LbServer,
 };
 use libsecp256k1::PublicKey;
 use tokio::sync::OnceCell;
@@ -43,7 +43,7 @@ impl From<Option<&Account>> for Keychain {
     }
 }
 
-impl Lb {
+impl LbServer {
     pub fn get_account(&self) -> LbResult<&Account> {
         self.keychain.get_account()
     }

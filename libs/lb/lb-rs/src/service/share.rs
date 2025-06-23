@@ -4,11 +4,11 @@ use crate::model::file::{File, ShareMode};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::Owner;
 use crate::model::tree_like::TreeLike;
-use crate::LbServer as Lb;
+use crate::LbServer;
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
-impl Lb {
+impl LbServer {
     // todo: this can check whether the username is known already
     #[instrument(level = "debug", skip(self))]
     pub async fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> LbResult<()> {

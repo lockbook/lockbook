@@ -2,7 +2,7 @@ pub use tokio::sync::broadcast::{self, Receiver, Sender};
 use tracing::*;
 use uuid::Uuid;
 
-use crate::LbServer as Lb;
+use crate::LbServer;
 
 use super::sync::SyncIncrement;
 
@@ -66,7 +66,7 @@ impl EventSubs {
     }
 }
 
-impl Lb {
+impl LbServer {
     pub fn subscribe(&self) -> Receiver<Event> {
         self.events.tx.subscribe()
     }

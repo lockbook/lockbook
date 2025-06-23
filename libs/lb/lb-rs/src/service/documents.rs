@@ -10,13 +10,13 @@ use crate::model::lazy::LazyTree;
 use crate::model::signed_file::SignedFile;
 use crate::model::tree_like::TreeLike;
 use crate::model::validate;
-use crate::LbServer as Lb;
+use crate::LbServer;
 use uuid::Uuid;
 
 use super::activity;
 use super::events::Actor;
 
-impl Lb {
+impl LbServer {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn read_document(
         &self, id: Uuid, user_activity: bool,

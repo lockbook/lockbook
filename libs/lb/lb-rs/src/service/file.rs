@@ -5,11 +5,11 @@ use crate::model::file_metadata::{FileType, Owner};
 use crate::model::filename::MAX_FILENAME_LENGTH;
 use crate::model::symkey;
 use crate::model::tree_like::TreeLike;
-use crate::LbServer as Lb;
+use crate::LbServer;
 use std::iter;
 use uuid::Uuid;
 
-impl Lb {
+impl LbServer {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_file(
         &self, name: &str, parent: &Uuid, file_type: FileType,

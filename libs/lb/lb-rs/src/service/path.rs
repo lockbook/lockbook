@@ -2,10 +2,10 @@ use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::path_ops::Filter;
 use crate::model::tree_like::TreeLike;
-use crate::LbServer as Lb;
+use crate::LbServer;
 use uuid::Uuid;
 
-impl Lb {
+impl LbServer {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_link_at_path(&self, path: &str, target_id: Uuid) -> LbResult<File> {
         let mut tx = self.begin_tx().await;

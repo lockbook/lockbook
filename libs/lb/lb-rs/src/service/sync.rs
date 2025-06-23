@@ -18,7 +18,7 @@ use crate::model::tree_like::TreeLike;
 use crate::model::work_unit::WorkUnit;
 use crate::model::{clock, svg};
 use crate::model::{symkey, ValidationFailure};
-use crate::LbServer as Lb;
+use crate::LbServer;
 pub use basic_human_duration::ChronoHumanDuration;
 use futures::stream;
 use futures::StreamExt;
@@ -53,7 +53,7 @@ pub struct SyncContext {
     pulled_docs: Vec<Uuid>,
 }
 
-impl Lb {
+impl LbServer {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub async fn calculate_work(&self) -> LbResult<SyncStatus> {
         let tx = self.ro_tx().await;
