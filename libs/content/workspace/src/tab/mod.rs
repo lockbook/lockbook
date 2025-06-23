@@ -17,14 +17,12 @@ use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::model::svg;
 use lb_rs::Uuid;
-use markdown_plusplus::MarkdownPlusPlus;
 use std::ops::IndexMut;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub mod image_viewer;
 pub mod markdown_editor;
-pub mod markdown_plusplus;
 pub mod pdf_viewer;
 pub mod svg_editor;
 
@@ -47,11 +45,9 @@ impl Tab {
         }
     }
 
-    // todo: markdown++
     pub fn hmac(&self) -> Option<DocumentHmac> {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.hmac,
-            // ContentState::Open(TabContent::MarkdownPlusPlus(md)) => md.hmac,
             ContentState::Open(TabContent::Svg(svg)) => svg.open_file_hmac,
             _ => None,
         }
@@ -60,25 +56,20 @@ impl Tab {
     pub fn seq(&self) -> usize {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.buffer.current.seq,
-            ContentState::Open(TabContent::MarkdownPlusPlus(md)) => md.buffer.current.seq,
             _ => 0,
         }
     }
 
-    // todo: markdown++
     pub fn markdown(&self) -> Option<&Markdown> {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => Some(md),
-            // ContentState::Open(TabContent::MarkdownPlusPlus(md)) => Some(md),
             _ => None,
         }
     }
 
-    // todo: markdown++
     pub fn markdown_mut(&mut self) -> Option<&mut Markdown> {
         match &mut self.content {
             ContentState::Open(TabContent::Markdown(md)) => Some(md),
-            // ContentState::Open(TabContent::MarkdownPlusPlus(md)) => Some(md),
             _ => None,
         }
     }
@@ -174,7 +165,6 @@ pub enum ContentState {
 pub enum TabContent {
     Image(ImageViewer),
     Markdown(Markdown),
-    MarkdownPlusPlus(MarkdownPlusPlus),
     Pdf(PdfViewer),
     Svg(SVGEditor),
     MindMap(MindMap),
@@ -198,7 +188,6 @@ impl TabContent {
     pub fn id(&self) -> Option<Uuid> {
         match self {
             TabContent::Markdown(md) => Some(md.file_id),
-            TabContent::MarkdownPlusPlus(markdown_plus_plus) => Some(markdown_plus_plus.file_id),
             TabContent::Svg(svg) => Some(svg.open_file),
             TabContent::Image(image_viewer) => Some(image_viewer.id),
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
@@ -207,11 +196,9 @@ impl TabContent {
         }
     }
 
-    // todo: markdown++
     pub fn hmac(&self) -> Option<DocumentHmac> {
         match self {
             TabContent::Markdown(md) => md.hmac,
-            TabContent::MarkdownPlusPlus(_) => None,
             TabContent::Svg(svg) => svg.open_file_hmac,
             _ => None,
         }
@@ -220,7 +207,6 @@ impl TabContent {
     pub fn seq(&self) -> usize {
         match self {
             TabContent::Markdown(md) => md.buffer.current.seq,
-            TabContent::MarkdownPlusPlus(md) => md.buffer.current.seq,
             _ => 0,
         }
     }
@@ -284,7 +270,6 @@ impl TabFailure {
 #[derive(Debug, Clone)]
 pub enum Event {
     Markdown(markdown_editor::Event),
-    MarkdownPlusPlus(markdown_plusplus::Event),
     Drop { content: Vec<ClipContent>, position: egui::Pos2 },
     Paste { content: Vec<ClipContent>, position: egui::Pos2 },
     PredictedTouch { id: egui::TouchId, force: Option<f32>, pos: egui::Pos2 },

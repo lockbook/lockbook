@@ -23,7 +23,6 @@ use crate::output::{Response, WsStatus};
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Editor as Markdown;
-use crate::tab::markdown_plusplus::MarkdownPlusPlus;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
@@ -297,7 +296,7 @@ impl Workspace {
             {
                 {
                     let CompletedLoad {
-                        request: LoadRequest { id, is_new_file: _, tab_created }, // todo: use is_new_file
+                        request: LoadRequest { id, is_new_file, tab_created },
                         content_result,
                         timing: _,
                     } = load;
@@ -380,23 +379,20 @@ impl Workspace {
                                 svg.open_file_hmac = maybe_hmac;
                             }
                         } else if ext == "md" || ext == "txt" {
-                            tab.content = ContentState::Open(TabContent::MarkdownPlusPlus(
-                                MarkdownPlusPlus::new(
-                                    self.core.clone(),
-                                    String::from_utf8_lossy(&bytes).as_ref(),
-                                    id,
-                                    ctx.clone(),
-                                ),
-                            ));
-
                             if tab_created {
-                                // ...
+                                tab.content =
+                                    ContentState::Open(TabContent::Markdown(Markdown::new(
+                                        core.clone(),
+                                        &String::from_utf8_lossy(&bytes),
+                                        id,
+                                        maybe_hmac,
+                                        is_new_file,
+                                        ext != "md",
+                                    )));
                             } else {
-                                // ...
-
-                                // let md = tab.markdown_mut().unwrap();
-                                // md.reload(String::from_utf8_lossy(&bytes).into());
-                                // md.hmac = maybe_hmac;
+                                let md = tab.markdown_mut().unwrap();
+                                md.reload(String::from_utf8_lossy(&bytes).into());
+                                md.hmac = maybe_hmac;
                             }
                         } else {
                             tab.content = ContentState::Failed(TabFailure::SimpleMisc(format!(

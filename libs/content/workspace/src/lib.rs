@@ -15,5 +15,5 @@ pub use tab::Event;
 use epaint::text::FontDefinitions;
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
-    tab::markdown_plusplus::register_fonts(fonts);
+    tab::markdown_editor::register_fonts(fonts)
 }
