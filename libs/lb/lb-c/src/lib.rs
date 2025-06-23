@@ -613,6 +613,26 @@ pub extern "C" fn lb_suggested_docs(lb: *mut Lb) -> LbIdListRes {
     }
 }
 
+#[no_mangle]
+pub extern "C" fn lb_clear_suggested(lb: *mut Lb) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.clear_suggested() {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_clear_suggested_id(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.clear_suggested_id(id.into()) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
 #[repr(C)]
 pub struct LbUsageMetricsRes {
     err: *mut LbFfiErr,
