@@ -657,6 +657,9 @@ public class Lb: LbAPI {
 }
 
 public class MockLb: LbAPI {
+    @Published public var status: Status = Status()
+    public var statusPublisher: Published<Status>.Publisher { $status }
+    
     public var lb: OpaquePointer? = nil
     public var lbUnsafeRawPtr: UnsafeMutableRawPointer? = nil
     

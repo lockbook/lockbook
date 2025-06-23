@@ -37,7 +37,7 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
 
     if content == "\n" {
         obj.context
-            .push_markdown_event(Event::Newline { advance_cursor: true });
+            .push_markdown_event(Event::Newline { shift: false });
     } else if content == "\t" {
         obj.context
             .push_markdown_event(Event::Indent { deindent: false });
@@ -550,7 +550,6 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
     let segs = &markdown.buffer.current.segs;
     let galleys = &markdown.galleys;
     let text = &markdown.bounds.text;
-    let appearance = &markdown.appearance;
 
     let selection_representing_rect = {
         let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
@@ -576,8 +575,8 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         (selection_start, end_of_rect)
     };
 
-    let start_line = cursor::line(selection_representing_rect.start(), galleys, text, appearance);
-    let end_line = cursor::line(selection_representing_rect.end(), galleys, text, appearance);
+    let start_line = markdown.cursor_line(selection_representing_rect.start());
+    let end_line = markdown.cursor_line(selection_representing_rect.end());
 
     CRect {
         min_x: (start_line[1].x + 1.0) as f64,
@@ -613,16 +612,11 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
         None => return CTextPosition::default(),
     };
 
-    let segs = &markdown.buffer.current.segs;
     let galleys = &markdown.galleys;
     let text = &markdown.bounds.text;
 
-    let offset = mutation::pos_to_char_offset(
-        Pos2 { x: point.x as f32, y: point.y as f32 },
-        galleys,
-        segs,
-        text,
-    );
+    let offset =
+        mutation::pos_to_char_offset(Pos2 { x: point.x as f32, y: point.y as f32 }, galleys, text);
 
     CTextPosition { none: false, pos: offset.0 }
 }
@@ -655,9 +649,8 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
 
     let galleys = &markdown.galleys;
     let text = &markdown.bounds.text;
-    let appearance = &markdown.appearance;
 
-    let line = cursor::line(pos.pos.into(), galleys, text, appearance);
+    let line = markdown.cursor_line(pos.pos.into());
 
     CRect {
         min_x: line[0].x as f64,
@@ -694,7 +687,6 @@ pub unsafe extern "C" fn selection_rects(
 
     let galleys = &markdown.galleys;
     let text = &markdown.bounds.text;
-    let appearance = &markdown.appearance;
     let bounds = &markdown.bounds;
 
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
@@ -721,8 +713,8 @@ pub unsafe extern "C" fn selection_rects(
             continue;
         }
 
-        let start_line = cursor::line(line.0, galleys, text, appearance);
-        let end_line = cursor::line(line.1, galleys, text, appearance);
+        let start_line = markdown.cursor_line(line.0);
+        let end_line = markdown.cursor_line(line.1);
         selection_rects.push(CRect {
             min_x: (start_line[1].x) as f64,
             min_y: start_line[0].y as f64,
