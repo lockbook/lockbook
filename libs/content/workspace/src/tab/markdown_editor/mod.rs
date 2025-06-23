@@ -206,7 +206,7 @@ impl Editor {
         let mut resp = Response::default();
 
         self.height = ui.available_size().y;
-        self.width = ui.max_rect().width().min(MAX_WIDTH);
+        self.width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
 
         // todo: more thoughtful cache invalidation
         self.layout_cache.clear();
@@ -374,7 +374,7 @@ impl Editor {
         let max_rect = ui.max_rect();
         ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
 
-        let padding = (ui.available_width() - ui.max_rect().width().min(MAX_WIDTH)) / 2.;
+        let padding = (ui.available_width() - self.width) / 2.;
 
         let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
         let height = self.height(root);
