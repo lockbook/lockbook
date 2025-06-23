@@ -1,6 +1,7 @@
-use comrak::nodes::AstNode;
-use egui::{Pos2, Stroke, TextFormat, Ui};
+use comrak::nodes::{AstNode, NodeLink};
+use egui::{OpenUrl, Pos2, Stroke, TextFormat, Ui};
 
+use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::Editor;
 
@@ -20,7 +21,8 @@ impl<'ast> Editor {
 
     pub fn show_link(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-    ) {
+        node_link: &NodeLink,
+    ) -> Response {
         // An inline link consists of a link text followed immediately by a left
         // parenthesis `(`, optional whitespace, an optional link destination,
         // an optional link title separated from the link destination by
@@ -31,6 +33,18 @@ impl<'ast> Editor {
         // blank line.
         // https://github.github.com/gfm/#link-title
 
-        self.show_circumfix(ui, node, top_left, wrap);
+        let response = self.show_circumfix(ui, node, top_left, wrap);
+
+        let modifiers = ui.input(|i| i.modifiers);
+        if response.hovered && modifiers.command {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+        }
+        if response.clicked && modifiers.command {
+            let url = &node_link.url;
+            let url = if !url.contains("://") { &format!("https://{}", url) } else { url };
+            ui.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(url)));
+        }
+
+        response
     }
 }

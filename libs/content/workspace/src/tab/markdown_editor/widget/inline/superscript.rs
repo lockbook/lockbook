@@ -3,6 +3,7 @@ use std::sync::Arc;
 use comrak::nodes::AstNode;
 use egui::{FontFamily, FontId, Pos2, TextFormat, Ui};
 
+use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::Editor;
 
@@ -45,13 +46,15 @@ impl<'ast> Editor {
 
     pub fn show_superscript(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-    ) {
+    ) -> Response {
         let mut text_format_syntax = self.text_format_syntax(node);
         text_format_syntax.font_id.size = self.text_format(node.parent().unwrap()).font_id.size;
 
+        let mut response = Response { clicked: false, hovered: false };
+
         if self.node_intersects_selection(node) {
             if let Some(prefix_range) = self.prefix_range(node) {
-                self.show_text_line(
+                response |= self.show_text_line(
                     ui,
                     top_left,
                     wrap,
@@ -62,12 +65,21 @@ impl<'ast> Editor {
             }
         }
 
-        self.show_inline_children(ui, node, top_left, wrap);
+        response |= self.show_inline_children(ui, node, top_left, wrap);
 
         if self.node_intersects_selection(node) {
             if let Some(postfix_range) = self.postfix_range(node) {
-                self.show_text_line(ui, top_left, wrap, postfix_range, text_format_syntax, false);
+                response |= self.show_text_line(
+                    ui,
+                    top_left,
+                    wrap,
+                    postfix_range,
+                    text_format_syntax,
+                    false,
+                );
             }
         }
+
+        response
     }
 }

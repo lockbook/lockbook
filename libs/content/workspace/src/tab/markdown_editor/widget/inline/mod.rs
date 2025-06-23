@@ -25,6 +25,18 @@ pub(crate) mod text;
 pub(crate) mod underline;
 pub(crate) mod wiki_link;
 
+pub struct Response {
+    pub clicked: bool,
+    pub hovered: bool,
+}
+
+impl std::ops::BitOrAssign for Response {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.clicked |= rhs.clicked;
+        self.hovered |= rhs.hovered;
+    }
+}
+
 impl<'ast> Editor {
     pub fn span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         match &node.data.borrow().value {
@@ -82,9 +94,9 @@ impl<'ast> Editor {
 
     pub fn show_inline(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-    ) {
+    ) -> Response {
         match &node.data.borrow().value {
-            NodeValue::FrontMatter(_) => {}
+            NodeValue::FrontMatter(_) => Response { clicked: false, hovered: false },
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
@@ -112,7 +124,7 @@ impl<'ast> Editor {
             }
             NodeValue::HtmlInline(_) => self.show_html_inline(ui, node, top_left, wrap),
             NodeValue::LineBreak => self.show_line_break(wrap),
-            NodeValue::Link(_) => self.show_link(ui, node, top_left, wrap),
+            NodeValue::Link(node_link) => self.show_link(ui, node, top_left, wrap, node_link),
             NodeValue::Math(_) => self.show_math(ui, node, top_left, wrap),
             NodeValue::SoftBreak => self.show_soft_break(wrap),
             NodeValue::SpoileredText => self.show_spoilered_text(ui, node, top_left, wrap),
@@ -149,10 +161,12 @@ impl<'ast> Editor {
     // inlines are stacked horizontally and wrapped
     pub fn show_inline_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-    ) {
+    ) -> Response {
+        let mut response = Response { clicked: false, hovered: false };
         for child in node.children() {
-            self.show_inline(ui, child, top_left, wrap);
+            response |= self.show_inline(ui, child, top_left, wrap);
         }
+        response
     }
 
     /// Returns the range between the start of the node and the start of its
@@ -227,13 +241,14 @@ impl<'ast> Editor {
 
     pub fn show_circumfix(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-    ) {
+    ) -> Response {
+        let mut response = Response { clicked: false, hovered: false };
         let any_children = node.children().next().is_some();
         if any_children {
             let reveal = self.node_intersects_selection(node);
             if reveal {
                 if let Some(prefix_range) = self.prefix_range(node) {
-                    self.show_text_line(
+                    response |= self.show_text_line(
                         ui,
                         top_left,
                         wrap,
@@ -243,10 +258,10 @@ impl<'ast> Editor {
                     );
                 }
             }
-            self.show_inline_children(ui, node, top_left, wrap);
+            response |= self.show_inline_children(ui, node, top_left, wrap);
             if reveal {
                 if let Some(postfix_range) = self.postfix_range(node) {
-                    self.show_text_line(
+                    response |= self.show_text_line(
                         ui,
                         top_left,
                         wrap,
@@ -257,8 +272,7 @@ impl<'ast> Editor {
                 }
             }
         } else {
-            #[allow(clippy::collapsible_else_if)]
-            self.show_text_line(
+            response |= self.show_text_line(
                 ui,
                 top_left,
                 wrap,
@@ -267,6 +281,8 @@ impl<'ast> Editor {
                 false,
             );
         }
+
+        response
     }
 
     /// Returns true if the node intersects the current selection. Useful for

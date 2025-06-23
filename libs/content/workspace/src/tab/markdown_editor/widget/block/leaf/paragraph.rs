@@ -100,7 +100,7 @@ impl<'ast> Editor {
 
         let reveal = node_line.intersects(&self.buffer.current.selection, true);
         if reveal {
-            self.show_text_line(
+            let _ = self.show_text_line(
                 ui,
                 top_left,
                 &mut wrap,
@@ -108,7 +108,7 @@ impl<'ast> Editor {
                 self.text_format_syntax(node),
                 false,
             );
-            self.show_text_line(
+            let _ = self.show_text_line(
                 ui,
                 top_left,
                 &mut wrap,
@@ -121,7 +121,7 @@ impl<'ast> Editor {
             self.show_inline(ui, child, top_left, &mut wrap);
         }
         if reveal {
-            self.show_text_line(
+            let _ = self.show_text_line(
                 ui,
                 top_left,
                 &mut wrap,
@@ -129,7 +129,7 @@ impl<'ast> Editor {
                 self.text_format_syntax(node),
                 false,
             );
-            self.show_text_line(
+            let _ = self.show_text_line(
                 ui,
                 top_left,
                 &mut wrap,

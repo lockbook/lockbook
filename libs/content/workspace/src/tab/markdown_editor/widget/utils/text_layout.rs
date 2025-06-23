@@ -6,6 +6,7 @@ use egui::{Pos2, Sense, Stroke, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_editor::galleys::GalleyInfo;
+use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::{INLINE_PADDING, ROW_HEIGHT, ROW_SPACING};
 use crate::tab::markdown_editor::Editor;
 
@@ -76,8 +77,8 @@ impl Editor {
     pub fn show_text_line(
         &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset), text_format: TextFormat, spoiler: bool,
-    ) {
-        self.show_override_text_line(ui, top_left, wrap, range, text_format, spoiler, None);
+    ) -> Response {
+        self.show_override_text_line(ui, top_left, wrap, range, text_format, spoiler, None)
     }
 
     /// Kinda hacky. You probably mean to pass a fresh Wrap here.
@@ -99,7 +100,7 @@ impl Editor {
         &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset), mut text_format: TextFormat, spoiler: bool,
         override_text: Option<&str>,
-    ) {
+    ) -> Response {
         let text = override_text.unwrap_or(&self.buffer[range]);
         let pre_span = self.text_pre_span(wrap, text_format.clone());
         let mid_span = self.text_mid_span(wrap, pre_span, text, text_format.clone());
@@ -127,16 +128,16 @@ impl Editor {
         let pos = top_left + Vec2::new(0., wrap.row() as f32 * (wrap.row_height + ROW_SPACING));
 
         let mut hovered = false;
+        let mut clicked = false;
         for (i, row) in galley.rows.iter().enumerate() {
             let rect = row.rect.translate(pos.to_vec2());
             let rect = rect.translate(Vec2::new(0., i as f32 * ROW_SPACING));
 
-            if ui
-                .allocate_rect(rect.expand2(Vec2::new(INLINE_PADDING, 1.)), Sense::hover())
-                .hovered()
-            {
-                hovered = true;
-            }
+            let response =
+                ui.allocate_rect(rect.expand2(Vec2::new(INLINE_PADDING, 1.)), Sense::click());
+
+            hovered |= response.hovered();
+            clicked |= response.clicked();
         }
 
         let mut empty_rows = 0;
@@ -211,6 +212,8 @@ impl Editor {
 
         wrap.offset += mid_span;
         wrap.offset += post_span;
+
+        Response { clicked, hovered }
     }
 
     pub fn text_pre_span(&self, wrap: &Wrap, text_format: TextFormat) -> f32 {

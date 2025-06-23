@@ -4,6 +4,7 @@ use comrak::nodes::AstNode;
 use egui::{self, Align2, Color32, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use epaint::RectShape;
 
+use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::widget::MARGIN;
 use crate::tab::markdown_editor::Editor;
@@ -21,8 +22,8 @@ impl<'ast> Editor {
 
     pub fn show_image(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-    ) {
-        self.show_circumfix(ui, node, top_left, wrap);
+    ) -> Response {
+        self.show_circumfix(ui, node, top_left, wrap)
     }
 
     pub fn height_image(&self, node: &'ast AstNode<'ast>, url: &str) -> f32 {

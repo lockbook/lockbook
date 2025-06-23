@@ -1,6 +1,7 @@
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Ui};
 
+use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::Editor;
 
@@ -17,13 +18,13 @@ impl<'ast> Editor {
 
     pub fn show_text(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-    ) {
+    ) -> Response {
         let range = self.node_range(node);
         let text_format = self.text_format(node);
         let spoiler = node
             .ancestors()
             .any(|node| matches!(node.data.borrow().value, NodeValue::SpoileredText));
 
-        self.show_text_line(ui, top_left, wrap, range, text_format, spoiler);
+        self.show_text_line(ui, top_left, wrap, range, text_format, spoiler)
     }
 }

@@ -406,11 +406,15 @@ impl Editor {
         let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
 
         ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
-        ui.interact(
+        let response = ui.interact(
             rect,
             self.id(),
             Sense { click: true, drag: !self.touch_mode, focusable: true },
         );
+        if response.hovered() {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text); // overridable by widgets
+        }
+
         ui.advance_cursor_after_rect(rect);
 
         ui.allocate_ui_at_rect(rect, |ui| {

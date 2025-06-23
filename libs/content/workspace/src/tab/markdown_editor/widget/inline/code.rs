@@ -2,6 +2,7 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, TextFormat, Ui};
 use lb_rs::model::text::offset_types::RangeExt as _;
 
+use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::Editor;
 
@@ -35,15 +36,17 @@ impl<'ast> Editor {
 
     pub fn show_code(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-    ) {
+    ) -> Response {
         let range = self.node_range(node);
 
         let prefix_range = (range.start(), range.start() + 1);
         let infix_range = (range.start() + 1, range.end() - 1);
         let postfix_range = (range.end() - 1, range.end());
 
+        let mut response = Response { clicked: false, hovered: false };
+
         if self.node_intersects_selection(node) {
-            self.show_text_line(
+            response |= self.show_text_line(
                 ui,
                 top_left,
                 wrap,
@@ -53,10 +56,11 @@ impl<'ast> Editor {
             );
         }
 
-        self.show_text_line(ui, top_left, wrap, infix_range, self.text_format(node), false);
+        response |=
+            self.show_text_line(ui, top_left, wrap, infix_range, self.text_format(node), false);
 
         if self.node_intersects_selection(node) {
-            self.show_text_line(
+            response |= self.show_text_line(
                 ui,
                 top_left,
                 wrap,
@@ -65,5 +69,7 @@ impl<'ast> Editor {
                 false,
             );
         }
+
+        response
     }
 }

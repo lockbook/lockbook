@@ -1,6 +1,7 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, TextFormat, Ui};
 
+use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::Editor;
 
@@ -27,11 +28,12 @@ impl<'ast> Editor {
 
     pub fn show_escaped_tag(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-    ) {
+    ) -> Response {
+        let mut response = Response { clicked: false, hovered: false };
         let any_children = node.children().next().is_some();
         if any_children {
             if let Some(prefix_range) = self.prefix_range(node) {
-                self.show_text_line(
+                response |= self.show_text_line(
                     ui,
                     top_left,
                     wrap,
@@ -40,9 +42,9 @@ impl<'ast> Editor {
                     false,
                 );
             }
-            self.show_inline_children(ui, node, top_left, wrap);
+            response |= self.show_inline_children(ui, node, top_left, wrap);
             if let Some(postfix_range) = self.postfix_range(node) {
-                self.show_text_line(
+                response |= self.show_text_line(
                     ui,
                     top_left,
                     wrap,
@@ -52,8 +54,7 @@ impl<'ast> Editor {
                 );
             }
         } else {
-            #[allow(clippy::collapsible_else_if)]
-            self.show_text_line(
+            response |= self.show_text_line(
                 ui,
                 top_left,
                 wrap,
@@ -62,5 +63,6 @@ impl<'ast> Editor {
                 false,
             );
         }
+        response
     }
 }

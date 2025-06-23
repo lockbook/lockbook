@@ -181,27 +181,6 @@ impl<'ast> Editor {
                 }
             }
 
-            // hover-based cursor icons
-            let hovering_clickable = ctx
-                .input(|r| r.pointer.latest_pos())
-                .map(|pos| {
-                    modifiers.command
-                    // && mutation::pos_to_link(
-                    //     pos,
-                    //     &self.galleys,
-                    //     &self.buffer,
-                    //     &self.bounds,
-                    //     &self.ast,
-                    // )
-                    // .is_some()
-                })
-                .unwrap_or_default();
-            if response.hovered() && hovering_clickable {
-                ctx.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            } else if response.hovered() {
-                ctx.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
-            }
-
             // note: early return here unless response has a pointer interaction
             let pos = if let Some(pos) = response.interact_pointer_pos() {
                 pos
@@ -210,21 +189,8 @@ impl<'ast> Editor {
             };
             let location = Location::Pos(pos);
 
-            let maybe_clicked_link: Option<String> =
-                if modifiers.command || cfg!(target_os = "ios") || cfg!(target_os = "android") {
-                    // mutation::pos_to_link(pos, &self.galleys, &self.buffer, &self.bounds, &self.ast)
-                    None // todo
-                } else {
-                    None
-                };
-
             // note: deliberate order; a double click is also a click
-            let region = if response.clicked() && maybe_clicked_link.is_some() {
-                let url = maybe_clicked_link.unwrap();
-                let url = if !url.contains("://") { format!("https://{}", url) } else { url };
-                ctx.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
-                return Vec::new();
-            } else if response.double_clicked() || response.triple_clicked() {
+            let region = if response.double_clicked() || response.triple_clicked() {
                 // egui triple click detection is not that good and can report triple clicks without reporting double clicks
                 if cfg!(target_os = "android") {
                     // android native context menu: multi-tapped for selection

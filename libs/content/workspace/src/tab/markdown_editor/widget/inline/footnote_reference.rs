@@ -2,6 +2,7 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, TextFormat, Ui};
 use lb_rs::model::text::offset_types::{IntoRangeExt as _, RangeExt as _};
 
+use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::Editor;
 
@@ -35,15 +36,17 @@ impl<'ast> Editor {
     // [^footnotereference]
     pub fn show_footnote_reference(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap, ix: u32,
-    ) {
+    ) -> Response {
         let range = self.node_range(node);
 
         let prefix_range = (range.start(), range.start() + 2);
         let infix_range = (range.start() + 2, range.end() - 1);
         let postfix_range = (range.end() - 1, range.end());
 
+        let mut response = Response { clicked: false, hovered: false };
+
         if self.node_intersects_selection(node) {
-            self.show_text_line(
+            response |= self.show_text_line(
                 ui,
                 top_left,
                 wrap,
@@ -52,9 +55,10 @@ impl<'ast> Editor {
                 false,
             );
 
-            self.show_text_line(ui, top_left, wrap, infix_range, self.text_format(node), false);
+            response |=
+                self.show_text_line(ui, top_left, wrap, infix_range, self.text_format(node), false);
 
-            self.show_text_line(
+            response |= self.show_text_line(
                 ui,
                 top_left,
                 wrap,
@@ -64,7 +68,7 @@ impl<'ast> Editor {
             );
         } else {
             let text = format!("{}", ix);
-            self.show_override_text_line(
+            response |= self.show_override_text_line(
                 ui,
                 top_left,
                 wrap,
@@ -74,5 +78,7 @@ impl<'ast> Editor {
                 Some(&text),
             );
         }
+
+        response
     }
 }
