@@ -10,6 +10,7 @@ pub mod import_export;
 pub mod integrity;
 pub mod keychain;
 pub mod path;
+pub mod share;
 
 pub enum Lb {
     Direct(LbServer),

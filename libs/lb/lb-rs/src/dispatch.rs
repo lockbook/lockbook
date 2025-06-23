@@ -269,6 +269,59 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             bincode::serialize(account_ref).map_err(core_err_unexpected)?
         }
 
+        "create_link_at_path" => {
+            let (path, target_id): (String, Uuid) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let res = lb.create_link_at_path(&path, target_id).await?;
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+
+        "create_at_path" => {
+            let path: String = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let res = lb.create_at_path(&path).await?;
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+
+        "get_by_path" => {
+            let path: String = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let res = lb.get_by_path(&path).await?;
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+
+        "get_path_by_id" => {
+            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let res = lb.get_path_by_id(id).await?;
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+
+        "list_paths" => {
+            let filter: Option<Filter> = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let res = lb.list_paths(filter).await?;
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+
+        "list_paths_with_ids" => {
+            let filter: Option<Filter> = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let res = lb.list_paths_with_ids(filter).await?;
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+
+        "share_file" => {
+            let (id, username, mode): (Uuid, String, ShareMode) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.share_file(id, &username, mode).await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
+        "get_pending_shares" => {
+            let res = lb.get_pending_shares().await?;
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+
+        "reject_share" => {
+            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            lb.reject_share(&id).await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
         other => {
             return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
         }
@@ -286,6 +339,8 @@ use crate::model::api::{AccountFilter, AccountIdentifier, AdminSetUserTierInfo, 
 use crate::model::crypto::DecryptedDocument;
 use crate::model::errors::{LbErrKind, Warning};
 use crate::model::errors::{core_err_unexpected};
+use crate::model::file::ShareMode;
 use crate::model::file_metadata::{DocumentHmac, FileType};
+use crate::model::path_ops::Filter;
 use crate::rpc::RpcRequest;
 use crate::{LbServer,LbResult};
