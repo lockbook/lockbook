@@ -321,7 +321,7 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             lb.reject_share(&id).await?;
             bincode::serialize(&()).map_err(core_err_unexpected)?
         }
-
+        //TODO sync api
         other => {
             return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
         }

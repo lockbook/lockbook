@@ -11,6 +11,7 @@ pub mod integrity;
 pub mod keychain;
 pub mod path;
 pub mod share;
+pub mod sync;
 
 pub enum Lb {
     Direct(LbServer),
