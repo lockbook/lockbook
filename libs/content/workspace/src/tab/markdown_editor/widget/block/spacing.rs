@@ -50,7 +50,7 @@ impl<'ast> Editor {
             result += self.height_text_line(
                 &mut Wrap::new(width),
                 node_line,
-                self.text_format_syntax(node),
+                self.text_format_document(),
             );
 
             result += BLOCK_SPACING;
@@ -104,13 +104,13 @@ impl<'ast> Editor {
                 top_left,
                 &mut Wrap::new(width),
                 node_line,
-                self.text_format_syntax(node),
+                self.text_format_document(),
                 false,
             );
             top_left.y += self.height_text_line(
                 &mut Wrap::new(width),
                 node_line,
-                self.text_format_syntax(node),
+                self.text_format_document(),
             );
 
             top_left.y += BLOCK_SPACING;
@@ -150,7 +150,7 @@ impl<'ast> Editor {
             result += self.height_text_line(
                 &mut Wrap::new(width),
                 node_line,
-                self.text_format_syntax(node),
+                self.text_format_document(),
             );
         }
 
@@ -192,13 +192,13 @@ impl<'ast> Editor {
                 top_left,
                 &mut Wrap::new(width),
                 node_line,
-                self.text_format_syntax(node),
+                self.text_format_document(),
                 false,
             );
             top_left.y += self.height_text_line(
                 &mut Wrap::new(width),
                 node_line,
-                self.text_format_syntax(node),
+                self.text_format_document(),
             );
         }
     }
