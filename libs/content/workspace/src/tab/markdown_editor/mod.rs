@@ -1,4 +1,5 @@
 use std::io::{BufReader, Cursor};
+use std::mem;
 use std::sync::Arc;
 
 use bounds::Bounds;
@@ -83,6 +84,7 @@ pub struct Editor {
 
     // ?
     pub virtual_keyboard_shown: bool,
+    scroll_to_cursor: bool,
 
     /// width used to render the root node, populated at frame start
     width: f32,
@@ -147,6 +149,7 @@ impl Editor {
             syntax: Default::default(),
 
             virtual_keyboard_shown: Default::default(),
+            scroll_to_cursor: Default::default(),
             width: Default::default(),
             height: Default::default(),
         }
@@ -221,7 +224,6 @@ impl Editor {
         }
 
         self.calc_source_lines();
-        self.print_source_lines_bounds();
 
         let start = std::time::Instant::now();
 
@@ -308,15 +310,18 @@ impl Editor {
                         .fill(self.theme.bg().neutral_primary)
                         .show(ui, |ui| self.render(ui, root));
                 });
+                self.bounds.paragraphs.sort();
+                self.galleys.galleys.sort_by_key(|g| g.range);
+
+                if ui.ctx().os() != OperatingSystem::IOS {
+                    self.show_selection(ui);
+                    self.show_cursor(ui);
+                }
+                if mem::take(&mut self.scroll_to_cursor) {
+                    self.scroll_to_cursor(ui);
+                }
             });
         resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
-
-        self.bounds.paragraphs.sort();
-        self.galleys.galleys.sort_by_key(|g| g.range);
-        if ui.ctx().os() != OperatingSystem::IOS {
-            self.show_selection(ui);
-            self.show_cursor(ui);
-        }
 
         self.bounds.text = self.bounds.paragraphs.clone(); // todo: inline character capture
         self.bounds.words = self.bounds.paragraphs.clone(); // todo: real words
@@ -352,10 +357,15 @@ impl Editor {
             render_elapsed
         );
 
-        let selection = self.buffer.current.selection;
+        let prior_selection = self.buffer.current.selection;
         if self.process_events(ui.ctx(), root) {
             resp.text_updated = true;
-            resp.selection_updated = selection != self.buffer.current.selection;
+            ui.ctx().request_repaint();
+        }
+        resp.selection_updated = prior_selection != self.buffer.current.selection;
+        let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
+        if resp.selection_updated && !all_selected {
+            self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
         }
         if self.images.any_loading() {
@@ -393,7 +403,6 @@ impl Editor {
 
             document_height + unfilled_space.max(end_of_text_padding)
         };
-        println!("height: {}\n", height);
         let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
 
         ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame

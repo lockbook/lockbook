@@ -1,6 +1,6 @@
 use egui::epaint::text::cursor::Cursor;
 use egui::{text::CCursor, Pos2};
-use egui::{Rangef, Stroke, Vec2};
+use egui::{Rangef, Rect, Stroke, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_editor::widget::INLINE_PADDING;
@@ -62,6 +62,12 @@ impl Editor {
             Rangef { min: top.y, max: bot.y },
             Stroke::new(1., self.theme.fg().accent_secondary),
         );
+    }
+
+    pub fn scroll_to_cursor(&self, ui: &mut egui::Ui) {
+        let [top, bot] = self.cursor_line(self.buffer.current.selection.1);
+        let rect = Rect::from_min_max(top, bot);
+        ui.scroll_to_rect(rect.expand(rect.height()), None);
     }
 
     pub fn cursor_line(&self, offset: DocCharOffset) -> [Pos2; 2] {
