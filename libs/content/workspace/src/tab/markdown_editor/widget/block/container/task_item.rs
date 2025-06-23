@@ -6,7 +6,7 @@ use lb_rs::model::text::offset_types::{
 
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::widget::INDENT;
-use crate::tab::markdown_editor::{Event, Editor};
+use crate::tab::markdown_editor::{Editor, Event};
 
 impl<'ast> Editor {
     pub fn height_task_item(&self, node: &'ast AstNode<'ast>) -> f32 {
