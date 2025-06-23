@@ -65,6 +65,7 @@ pub struct Editor {
     pub needs_name: bool,
     pub initialized: bool,
     pub plaintext_mode: bool,
+    pub touch_mode: bool,
 
     // internal systems
     pub bounds: Bounds,
@@ -116,6 +117,8 @@ impl Editor {
         let mut buffer = BufReader::new(cursor);
         let syntax_dark_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
 
+        let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
+
         Self {
             core,
             client: Default::default(),
@@ -132,6 +135,7 @@ impl Editor {
             needs_name,
             initialized: Default::default(),
             plaintext_mode,
+            touch_mode,
 
             bounds: Default::default(),
             buffer: md.into(),
@@ -280,9 +284,9 @@ impl Editor {
         self.bounds.paragraphs.clear();
         self.bounds.inline_paragraphs.clear();
         self.galleys.galleys.clear();
+        self.compute_bounds(root);
 
-        let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
-        if touch_mode {
+        if self.touch_mode {
             ui.ctx().style_mut(|style| {
                 style.spacing.scroll = egui::style::ScrollStyle::solid();
             });
@@ -294,7 +298,7 @@ impl Editor {
                 .unwrap_or_default()
         });
         let scroll_area_output = ScrollArea::vertical()
-            .drag_to_scroll(touch_mode)
+            .drag_to_scroll(self.touch_mode)
             .id_source(self.file_id)
             .show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
@@ -327,6 +331,7 @@ impl Editor {
                 .bright_black()
         );
         println!("document: {:?}", self.buffer.current.text);
+        println!("paragraphs: {:?}", self.bounds.paragraphs);
         self.print_paragraphs_bounds();
         self.print_inline_paragraphs_bounds();
         println!(
@@ -371,39 +376,37 @@ impl Editor {
     }
 
     fn render<'a>(&mut self, ui: &mut Ui, root: &'a AstNode<'a>) {
-        let max_rect = ui.max_rect();
+        let scroll_view_height = ui.max_rect().height();
         ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
 
         let padding = (ui.available_width() - self.width) / 2.;
 
         let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
-        let height = self.height(root);
+        let height = {
+            let document_height = self.height(root);
+            let unfilled_space = if document_height < scroll_view_height {
+                scroll_view_height - document_height
+            } else {
+                0.
+            };
+            let end_of_text_padding = scroll_view_height / 2.;
+
+            document_height + unfilled_space.max(end_of_text_padding)
+        };
+        println!("height: {}\n", height);
         let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
 
         ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
-        ui.interact(rect, self.id(), Sense::click_and_drag()); // catches pointer input missed by individual widgets e.g. clicking after line end to place cursor
+        ui.interact(
+            rect,
+            self.id(),
+            Sense { click: true, drag: !self.touch_mode, focusable: false },
+        );
+        ui.advance_cursor_after_rect(rect);
 
-        // compute bounds for all nodes
-        self.compute_bounds(root);
-
-        // shows the actual UI
         ui.allocate_ui_at_rect(rect, |ui| {
             self.show_block(ui, root, top_left);
         });
-
-        let mut desired_size = Vec2::new(ui.max_rect().width(), max_rect.height());
-
-        let min_rect = ui.min_rect();
-        let fill_available_space = if min_rect.height() < max_rect.height() {
-            // fill available space
-            max_rect.height() - min_rect.height()
-        } else {
-            0.
-        };
-        let end_of_text_padding = max_rect.height() / 2.;
-        desired_size.y = fill_available_space.max(end_of_text_padding);
-
-        ui.allocate_space(desired_size);
     }
 }
 
