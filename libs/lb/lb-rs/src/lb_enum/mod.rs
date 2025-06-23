@@ -12,6 +12,7 @@ pub mod keychain;
 pub mod path;
 pub mod share;
 pub mod sync;
+pub mod usage;
 
 pub enum Lb {
     Direct(LbServer),

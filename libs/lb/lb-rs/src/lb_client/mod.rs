@@ -11,6 +11,7 @@ pub mod integrity;
 pub mod keychain;
 pub mod path;
 pub mod share;
+pub mod usage;
 pub struct LbClient {
     pub addr: SocketAddrV4
 }

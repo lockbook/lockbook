@@ -322,6 +322,18 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             bincode::serialize(&()).map_err(core_err_unexpected)?
         }
         //TODO sync api
+        "get_usage" => {
+            let res = lb.get_usage().await?;
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+        "get_uncompressed_usage_breakdown" => {
+            let res = lb.get_uncompressed_usage_breakdown().await?;
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+        "get_uncompressed_usage" => {
+            let res = lb.get_uncompressed_usage().await?;
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
         other => {
             return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
         }
