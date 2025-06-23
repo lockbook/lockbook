@@ -6,7 +6,7 @@ use std::ptr::null;
 use tracing::instrument;
 use workspace_rs::tab::markdown_editor::bounds::RangesExt;
 use workspace_rs::tab::markdown_editor::input::advance::AdvanceExt as _;
-use workspace_rs::tab::markdown_editor::input::{cursor, mutation};
+use workspace_rs::tab::markdown_editor::input::mutation;
 use workspace_rs::tab::markdown_editor::input::{Bound, Event, Increment, Offset, Region};
 use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;
@@ -549,7 +549,6 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
 
     let segs = &markdown.buffer.current.segs;
     let galleys = &markdown.galleys;
-    let text = &markdown.bounds.text;
 
     let selection_representing_rect = {
         let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
@@ -647,9 +646,6 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
         None => return CRect::default(),
     };
 
-    let galleys = &markdown.galleys;
-    let text = &markdown.bounds.text;
-
     let line = markdown.cursor_line(pos.pos.into());
 
     CRect {
@@ -685,8 +681,6 @@ pub unsafe extern "C" fn selection_rects(
         None => return UITextSelectionRects::default(),
     };
 
-    let galleys = &markdown.galleys;
-    let text = &markdown.bounds.text;
     let bounds = &markdown.bounds;
 
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
