@@ -395,6 +395,8 @@ pub struct Response {
     pub delete_requests: HashSet<Uuid>,
     pub dropped_on: Option<Uuid>,
     pub space_inspector_root: Option<File>,
+    pub clear_suggested: bool,
+    pub clear_suggested_id: Option<Uuid>,
 }
 
 impl Response {
@@ -411,6 +413,8 @@ impl Response {
         this.delete_requests.extend(other.delete_requests);
         this.dropped_on = this.dropped_on.or(other.dropped_on);
         this.space_inspector_root = this.space_inspector_root.or(other.space_inspector_root);
+        this.clear_suggested = this.clear_suggested || other.clear_suggested;
+        this.clear_suggested_id = this.clear_suggested_id.or(other.clear_suggested_id);
         this
     }
 }
@@ -903,16 +907,27 @@ impl FileTree {
             default_fill = ui.style().visuals.selection.bg_fill;
         }
 
-        if Button::default()
+        let suggested_docs_btn = Button::default()
             .icon(&Icon::FOLDER)
             .icon_color(ui.style().visuals.widgets.active.bg_fill)
             .text("Suggested Documents")
             .default_fill(default_fill)
             .frame(true)
             .hexpand(true)
-            .show(ui)
-            .clicked()
-        {
+            .show(ui);
+
+        suggested_docs_btn.context_menu(|ui| {
+            if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
+                ui.close_menu();
+            }
+
+            if ui.button("Clear All").clicked() {
+                resp.clear_suggested = true;
+                ui.close_menu();
+            }
+        });
+
+        if suggested_docs_btn.clicked() {
             ui.memory_mut(|m| m.request_focus(suggested_docs_id));
             self.selected.clear();
             self.cut.clear();
@@ -950,6 +965,13 @@ impl FileTree {
                     .hexpand(true)
                     .indent(15.)
                     .show(ui);
+
+                file_resp.context_menu(|ui| {
+                    if ui.button("Remove Suggestion").clicked() {
+                        resp.clear_suggested_id = Some(id);
+                        ui.close_menu();
+                    }
+                });
 
                 if file_resp.clicked() {
                     ui.memory_mut(|m| m.request_focus(suggested_docs_id));
