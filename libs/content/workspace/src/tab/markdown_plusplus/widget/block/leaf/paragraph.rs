@@ -42,7 +42,7 @@ impl<'ast> MarkdownPlusPlus {
         let Some((pre_node, pre_children, _, post_children, post_node)) =
             self.line_ranges(node, node_line)
         else {
-            unreachable!("Paragraphs always have children") // todo: but not always on every line
+            unreachable!("Paragraphs always have children") // todo: but sometimes they span multiple lines
         };
 
         let reveal = node_line.intersects(&self.buffer.current.selection, true);

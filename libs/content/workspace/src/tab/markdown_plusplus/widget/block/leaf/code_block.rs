@@ -586,6 +586,7 @@ impl<'ast> MarkdownPlusPlus {
         }
     }
 
+    // todo: wrong for indented code blocks
     fn compute_bounds_code_block_line(
         &mut self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) {

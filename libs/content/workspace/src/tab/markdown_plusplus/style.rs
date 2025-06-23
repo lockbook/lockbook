@@ -1,4 +1,5 @@
 use crate::tab::markdown_editor::appearance::Appearance;
+use comrak::nodes::NodeValue;
 use egui::{FontFamily, Stroke, TextFormat, Visuals};
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::fmt::{Display, Formatter};
@@ -69,6 +70,64 @@ impl MarkdownNodeType {
 
     pub fn conflicts_with(&self, other: &MarkdownNodeType) -> bool {
         matches!((self, other), (Self::Block(..), Self::Block(..)))
+    }
+
+    pub fn matches(&self, value: &NodeValue) -> bool {
+        match (value, self) {
+            (NodeValue::FrontMatter(_), _) => false,
+            (NodeValue::Raw(_), _) => unreachable!("can only be created programmatically"),
+
+            // container_block
+            (NodeValue::Alert(_), _) => false,
+            (NodeValue::BlockQuote, _) => false,
+            (NodeValue::DescriptionItem(_), _) => unimplemented!("extension disabled"),
+            (NodeValue::DescriptionList, _) => unimplemented!("extension disabled"),
+            (NodeValue::Document, _) => false,
+            (NodeValue::FootnoteDefinition(_), _) => false,
+            (NodeValue::Item(_), _) => false,
+            (NodeValue::List(_), _) => false,
+            (NodeValue::MultilineBlockQuote(_), _) => unimplemented!("extension disabled"),
+            (NodeValue::Table(_), _) => false,
+            (NodeValue::TableRow(_), _) => false,
+            (NodeValue::TaskItem(_), _) => false,
+
+            // inline
+            (NodeValue::Image(_), _) => false,
+            (NodeValue::Code(_), MarkdownNodeType::Inline(InlineNodeType::Code)) => true,
+            (NodeValue::Code(_), _) => false,
+            (NodeValue::Emph, MarkdownNodeType::Inline(InlineNodeType::Italic)) => true,
+            (NodeValue::Emph, _) => false,
+            (NodeValue::Escaped, _) => false,
+            (NodeValue::EscapedTag(_), _) => false,
+            (NodeValue::FootnoteReference(_), _) => false,
+            (NodeValue::HtmlInline(_), _) => false,
+            (NodeValue::LineBreak, _) => false,
+            (NodeValue::Link(_), _) => false,
+            (NodeValue::Math(_), _) => false,
+            (NodeValue::SoftBreak, _) => false,
+            (NodeValue::SpoileredText, _) => false,
+            (NodeValue::Strikethrough, MarkdownNodeType::Inline(InlineNodeType::Strikethrough)) => {
+                true
+            }
+            (NodeValue::Strikethrough, _) => false,
+            (NodeValue::Strong, MarkdownNodeType::Inline(InlineNodeType::Bold)) => true,
+            (NodeValue::Strong, _) => false,
+            (NodeValue::Subscript, _) => false,
+            (NodeValue::Superscript, _) => false,
+            (NodeValue::Text(_), _) => false,
+            (NodeValue::Underline, _) => false,
+            (NodeValue::WikiLink(_), _) => false,
+
+            // leaf_block
+            (NodeValue::CodeBlock(_), _) => false,
+            (NodeValue::DescriptionDetails, _) => unimplemented!("extension disabled"),
+            (NodeValue::DescriptionTerm, _) => unimplemented!("extension disabled"),
+            (NodeValue::Heading(_), _) => false,
+            (NodeValue::HtmlBlock(_), _) => false,
+            (NodeValue::Paragraph, _) => false,
+            (NodeValue::TableCell, _) => false,
+            (NodeValue::ThematicBreak, _) => false,
+        }
     }
 }
 

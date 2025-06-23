@@ -176,19 +176,6 @@ impl<'ast> MarkdownPlusPlus {
     }
 
     pub fn compute_bounds(&mut self, node: &'ast AstNode<'ast>) {
-        // container blocks: if revealed, compute bounds for source lines instead
-        if node.parent().is_some()
-            && node.data.borrow().value.is_container_block()
-            && self.reveal(node)
-        {
-            for line in self.node_lines(node).iter() {
-                let line = self.bounds.source_lines[line];
-                let node_line = self.node_line(node, line);
-                self.bounds.paragraphs.push(node_line);
-            }
-            return;
-        }
-
         let value = &node.data.borrow().value;
         match value {
             NodeValue::FrontMatter(_) => {}
