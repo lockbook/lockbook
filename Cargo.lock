@@ -4137,11 +4137,7 @@ dependencies = [
 [[package]]
 name = "lb-fonts"
 version = "0.1.5"
-
-[[package]]
-name = "lb-fonts"
-version = "0.1.5"
-source = "git+https://github.com/lockbook/lb-fonts#b2718aad58a7ff1c7bbe85f03cb37cec14517b56"
+source = "git+https://github.com/lockbook/lb-fonts#54b09038cbc3048f45e7d771a0118c2c808d4491"
 
 [[package]]
 name = "lb-fs"
@@ -4451,7 +4447,7 @@ dependencies = [
  "egui_wgpu_backend",
  "env_logger",
  "image 0.24.9",
- "lb-fonts 0.1.5 (git+https://github.com/lockbook/lb-fonts)",
+ "lb-fonts",
  "lb-rs",
  "pdfium-render",
  "rfd",
@@ -9385,7 +9381,7 @@ dependencies = [
  "indexmap 2.5.0",
  "jni",
  "lazy_static",
- "lb-fonts 0.1.5",
+ "lb-fonts",
  "lb-pdf",
  "lb-rs",
  "linkify",

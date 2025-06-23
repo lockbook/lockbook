@@ -17,7 +17,7 @@ egui_extras = { version = "0.28.1" }
 epaint = "0.28.1"
 glam = "0.22.0"
 image = "0.24"
-lb-fonts = { path = "../../../../lb-fonts" }
+lb-fonts = { git = "https://github.com/lockbook/lb-fonts" }
 lb-pdf = { git = "https://github.com/lockbook/lb-pdf" }
 linkify = "0.10.0"
 lyon = "1.0.1"
