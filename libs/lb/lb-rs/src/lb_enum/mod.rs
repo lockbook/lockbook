@@ -9,6 +9,8 @@ pub mod file;
 pub mod import_export;
 pub mod integrity;
 pub mod keychain;
+pub mod path;
+
 pub enum Lb {
     Direct(LbServer),
     Network(LbClient)
