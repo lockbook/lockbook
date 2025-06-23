@@ -106,7 +106,6 @@ pub enum Event {
     Cut,
     Copy,
     ToggleDebug,
-    ToggleCheckbox(usize),
     IncrementBaseFontSize,
     DecrementBaseFontSize,
 }

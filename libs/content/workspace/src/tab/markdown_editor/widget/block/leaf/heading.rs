@@ -213,7 +213,7 @@ impl<'ast> Editor {
         let mut wrap = Wrap::new(width);
         wrap.row_height = self.row_height(node);
 
-        if let Some((indentation, prefix, children, postfix_whitespace, _)) =
+        if let Some((indentation, prefix, _children, postfix_whitespace, _)) =
             self.line_ranges(node, self.node_line(node, line))
         {
             if reveal {
@@ -293,7 +293,7 @@ impl<'ast> Editor {
                     false,
                 );
             }
-            if let Some(infix_range) = self.infix_range(node) {
+            if self.infix_range(node).is_some() {
                 self.show_inline_children(ui, node, top_left, &mut wrap);
             }
 

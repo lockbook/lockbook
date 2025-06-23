@@ -92,7 +92,7 @@ impl<'ast> Editor {
 
         // "The paragraph's raw content is formed by concatenating the lines
         // and removing initial and final whitespace"
-        let Some((pre_node, pre_children, children, post_children, post_node)) =
+        let Some((pre_node, pre_children, _children, post_children, post_node)) =
             self.line_ranges(node, node_line)
         else {
             unreachable!("Paragraphs always have children") // todo: but not always on every line

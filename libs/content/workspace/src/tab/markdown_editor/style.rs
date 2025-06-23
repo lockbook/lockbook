@@ -1,9 +1,7 @@
 use comrak::nodes::NodeValue;
-use egui::{FontFamily, Stroke, TextFormat, Visuals};
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
-use std::sync::Arc;
 
 /// Represents a type of markdown node e.g. link, not a particular node e.g. link to google.com (see MarkdownNode)
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]

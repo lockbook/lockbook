@@ -25,9 +25,6 @@ impl<'ast> Editor {
     }
 
     pub fn compute_bounds_html_block(&mut self, node: &'ast AstNode<'ast>) {
-        self.compute_bounds_indented_code_block(
-            node,
-            &NodeCodeBlock { info: "html".into(), ..Default::default() },
-        );
+        self.compute_bounds_indented_code_block(node);
     }
 }

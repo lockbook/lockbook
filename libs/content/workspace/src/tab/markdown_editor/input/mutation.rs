@@ -410,18 +410,6 @@ impl<'ast> Editor {
                 //         self.appearance.base_font_size.map(|size| size - 1.)
                 // }
             }
-            Event::ToggleCheckbox(galley_idx) => {
-                // let galley = &self.galleys[galley_idx];
-                // if let Some(Annotation::Item(ListItem::Todo(checked), ..)) = galley.annotation {
-                //     operations.push(Operation::Replace(Replace {
-                //         range: (
-                //             galley.range.start() + galley.head_size - 6,
-                //             galley.range.start() + galley.head_size,
-                //         ),
-                //         text: if checked { "* [ ] " } else { "* [x] " }.into(),
-                //     }));
-                // }
-            }
         }
 
         response

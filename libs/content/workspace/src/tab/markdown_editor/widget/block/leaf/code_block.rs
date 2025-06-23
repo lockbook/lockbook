@@ -542,7 +542,7 @@ impl<'ast> Editor {
         if node_code_block.fenced {
             self.compute_bounds_fenced_code_block(node, node_code_block)
         } else {
-            self.compute_bounds_indented_code_block(node, node_code_block)
+            self.compute_bounds_indented_code_block(node)
         }
     }
 
@@ -570,9 +570,7 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn compute_bounds_indented_code_block(
-        &mut self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
-    ) {
+    pub fn compute_bounds_indented_code_block(&mut self, node: &'ast AstNode<'ast>) {
         let reveal = self.reveal_indented_code_block(node);
 
         for line in self.node_lines(node).iter() {
