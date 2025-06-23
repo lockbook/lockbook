@@ -1,6 +1,6 @@
 use egui::epaint::text::cursor::Cursor;
 use egui::{text::CCursor, Pos2};
-use egui::{Stroke, Vec2};
+use egui::{Rangef, Stroke, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_editor::widget::INLINE_PADDING;
@@ -15,10 +15,8 @@ pub struct CursorState {
 }
 
 impl Editor {
-    pub fn show_selection(&mut self, ui: &mut egui::Ui) {
+    pub fn show_selection(&self, ui: &mut egui::Ui) {
         let selection = self.buffer.current.selection;
-        let cursor = selection.1;
-        let mut cursor_drawn = false;
 
         // todo: binary search
         for galley_info in self.galleys.galleys.iter().rev() {
@@ -53,30 +51,19 @@ impl Editor {
                 2.,
                 self.theme.fg().accent_secondary.gamma_multiply(0.15),
             );
-
-            // draw cursor
-            // we need to only draw the cursor for the later galley (prefer next row)
-            // todo: improve cursor rendering at the end of inline code segments and similar constructs
-            // todo: factor to use cursor_line (also used by iOS FFI)
-            if !cursor_drawn && range.contains(cursor, true, true) {
-                let cursor = galley.from_ccursor(CCursor {
-                    index: (selection.1 - range.start()).0,
-                    prefer_next_row: true,
-                });
-                let x = cursor_to_pos_abs(galley_info, cursor).x;
-                let y_range = rect.y_range();
-                ui.painter().clone().vline(
-                    x,
-                    y_range,
-                    Stroke::new(1., self.theme.fg().accent_secondary),
-                );
-
-                cursor_drawn = true;
-            }
         }
     }
 
     // todo: improve cursor rendering at the end of inline code segments and similar constructs
+    pub fn show_cursor(&self, ui: &mut egui::Ui) {
+        let [top, bot] = self.cursor_line(self.buffer.current.selection.1);
+        ui.painter().clone().vline(
+            top.x,
+            Rangef { min: top.y, max: bot.y },
+            Stroke::new(1., self.theme.fg().accent_secondary),
+        );
+    }
+
     pub fn cursor_line(&self, offset: DocCharOffset) -> [Pos2; 2] {
         for galley_info in self.galleys.galleys.iter().rev() {
             let GalleyInfo { range, galley, rect, .. } = galley_info;

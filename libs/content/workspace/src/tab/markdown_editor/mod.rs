@@ -309,7 +309,10 @@ impl Editor {
 
         self.bounds.paragraphs.sort();
         self.galleys.galleys.sort_by_key(|g| g.range);
-        self.show_selection(ui);
+        if ui.ctx().os() != OperatingSystem::IOS {
+            self.show_selection(ui);
+            self.show_cursor(ui);
+        }
 
         self.bounds.text = self.bounds.paragraphs.clone(); // todo: inline character capture
         self.bounds.words = self.bounds.paragraphs.clone(); // todo: real words
