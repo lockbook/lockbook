@@ -409,7 +409,7 @@ impl Editor {
         ui.interact(
             rect,
             self.id(),
-            Sense { click: true, drag: !self.touch_mode, focusable: false },
+            Sense { click: true, drag: !self.touch_mode, focusable: true },
         );
         ui.advance_cursor_after_rect(rect);
 
