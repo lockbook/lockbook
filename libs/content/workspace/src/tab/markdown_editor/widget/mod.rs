@@ -7,7 +7,7 @@ use super::{bounds::RangesExt as _, Editor};
 pub(crate) mod block;
 pub(crate) mod find;
 pub(crate) mod inline;
-// pub(crate) mod toolbar;
+pub(crate) mod toolbar;
 pub(crate) mod utils;
 
 pub const MARGIN: f32 = 20.0; // space between the editor and window border; must be large enough to accommodate bordered elements e.g. code blocks

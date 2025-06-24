@@ -1,15 +1,15 @@
 use std::time::{Duration, Instant};
 
+use comrak::nodes::{AstNode, NodeHeading, NodeValue};
 use egui::{Frame, Margin, Separator, Stroke, Ui};
-use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::RangeExt as _;
 use pulldown_cmark::{HeadingLevel, LinkType};
 
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 
-use crate::tab::markdown_editor;
-use markdown_editor::bounds::Bounds;
+use crate::tab::markdown_editor::{self, Editor};
 use markdown_editor::input::Region;
 use markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use markdown_editor::Event;
@@ -26,33 +26,28 @@ impl Default for Toolbar {
     }
 }
 
-impl Toolbar {
-    pub fn show(
-        &mut self, bounds: &Bounds, selection: (DocCharOffset, DocCharOffset),
-        virtual_keyboard_shown: bool, ui: &mut Ui,
-    ) {
+impl<'ast> Editor {
+    pub fn show_toolbar(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
         Frame::canvas(ui.style())
             .stroke(Stroke::NONE)
             .inner_margin(Margin::symmetric(10., 10.))
-            .show(ui, |ui| self.show_inner(bounds, selection, virtual_keyboard_shown, ui))
+            .show(ui, |ui| self.show_toolbar_inner(root, ui))
             .inner
     }
 
     #[allow(clippy::option_map_unit_fn)] // use of .map() reduces line wrapping, improving readability
-    pub fn show_inner(
-        &mut self, bounds: &Bounds, selection: (DocCharOffset, DocCharOffset),
-        virtual_keyboard_shown: bool, ui: &mut Ui,
-    ) {
+    pub fn show_toolbar_inner(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
         egui::ScrollArea::horizontal().show(ui, |ui| {
             ui.horizontal(|ui| {
+                ui.visuals_mut().widgets.active.bg_fill = self.theme.fg().blue;
+
                 let is_mobile = cfg!(target_os = "ios") || cfg!(target_os = "android");
-                let s = ast.styles_at_offset(selection.1, &bounds.ast);
 
                 ui.spacing_mut().button_padding = egui::vec2(5., 5.);
 
                 let mut events = Vec::new();
 
-                if is_mobile && virtual_keyboard_shown {
+                if is_mobile && self.virtual_keyboard_shown {
                     let resp = IconButton::new(&Icon::KEYBOARD_HIDE).show(ui);
                     if resp.clicked() {
                         ui.ctx().set_virtual_keyboard_shown(false);
@@ -78,34 +73,52 @@ impl Toolbar {
 
                 add_seperator(ui);
 
-                self.heading_button(&s, ui).map(|e| events.push(e));
+                self.heading_button(root, ui).map(|e| events.push(e));
                 ui.add_space(5.);
-                inline(&Icon::BOLD, InlineNode::Bold, &s, ui).map(|e| events.push(e));
+                self.inline(&Icon::BOLD, InlineNode::Bold, root, ui)
+                    .map(|e| events.push(e));
                 ui.add_space(5.);
-                inline(&Icon::ITALIC, InlineNode::Italic, &s, ui).map(|e| events.push(e));
+                self.inline(&Icon::ITALIC, InlineNode::Italic, root, ui)
+                    .map(|e| events.push(e));
                 ui.add_space(5.);
-                inline(&Icon::CODE, InlineNode::Code, &s, ui).map(|e| events.push(e));
+                self.inline(&Icon::CODE, InlineNode::Code, root, ui)
+                    .map(|e| events.push(e));
                 ui.add_space(5.);
-                inline(&Icon::STRIKETHROUGH, InlineNode::Strikethrough, &s, ui)
+                self.inline(&Icon::STRIKETHROUGH, InlineNode::Strikethrough, root, ui)
                     .map(|e| events.push(e));
 
                 add_seperator(ui);
 
-                block(&Icon::NUMBER_LIST, BlockNode::ListItem(ListItem::Numbered(1), 0), &s, ui)
-                    .map(|e| events.push(e));
+                self.block(
+                    &Icon::NUMBER_LIST,
+                    BlockNode::ListItem(ListItem::Numbered(1), 0),
+                    root,
+                    ui,
+                )
+                .map(|e| events.push(e));
                 ui.add_space(5.);
-                block(&Icon::BULLET_LIST, BlockNode::ListItem(ListItem::Bulleted, 0), &s, ui)
-                    .map(|e| events.push(e));
+                self.block(
+                    &Icon::BULLET_LIST,
+                    BlockNode::ListItem(ListItem::Bulleted, 0),
+                    root,
+                    ui,
+                )
+                .map(|e| events.push(e));
                 ui.add_space(5.);
-                block(&Icon::TODO_LIST, BlockNode::ListItem(ListItem::Todo(false), 0), &s, ui)
-                    .map(|e| events.push(e));
+                self.block(
+                    &Icon::TODO_LIST,
+                    BlockNode::ListItem(ListItem::Todo(false), 0),
+                    root,
+                    ui,
+                )
+                .map(|e| events.push(e));
 
                 add_seperator(ui);
 
-                inline(
+                self.inline(
                     &Icon::LINK,
                     InlineNode::Link(LinkType::Inline, "".into(), "".into()),
-                    &s,
+                    root,
                     ui,
                 )
                 .map(|e| events.push(e));
@@ -141,18 +154,24 @@ impl Toolbar {
         });
     }
 
-    fn heading_button(&mut self, styles_at_cursor: &[MarkdownNode], ui: &mut Ui) -> Option<Event> {
+    fn heading_button(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) -> Option<Event> {
         let mut current_heading_level = 0;
         let mut applied = false;
-        for style in styles_at_cursor.iter() {
-            if let MarkdownNode::Block(BlockNode::Heading(level)) = style {
-                current_heading_level = *level as _;
-                applied = true;
-                break;
+
+        for node in root.descendants() {
+            if let NodeValue::Heading(NodeHeading { level, .. }) = &node.data.borrow().value {
+                if self
+                    .node_range(node)
+                    .contains_range(&self.buffer.current.selection, true, true)
+                {
+                    current_heading_level = *level as usize;
+                    applied = true;
+                    break;
+                }
             }
         }
 
-        let level = if self.heading_last_click_at.elapsed() > Duration::from_secs(1) {
+        let level = if self.toolbar.heading_last_click_at.elapsed() > Duration::from_secs(1) {
             1
         } else {
             current_heading_level.min(5) + 1
@@ -166,38 +185,38 @@ impl Toolbar {
             .tooltip(format!("{}", style))
             .show(ui);
         if resp.clicked() {
-            self.heading_last_click_at = Instant::now();
+            self.toolbar.heading_last_click_at = Instant::now();
             Some(Event::ToggleStyle { region: Region::Selection, style })
         } else {
             None
         }
     }
-}
 
-fn inline(
-    icon: &'static Icon, style: InlineNode, styles_at_cursor: &[MarkdownNode], ui: &mut Ui,
-) -> Option<Event> {
-    button(icon, MarkdownNode::Inline(style), styles_at_cursor, ui)
-}
+    fn inline(
+        &self, icon: &'static Icon, style: InlineNode, root: &'ast AstNode<'ast>, ui: &mut Ui,
+    ) -> Option<Event> {
+        self.button(icon, MarkdownNode::Inline(style), root, ui)
+    }
 
-fn block(
-    icon: &'static Icon, style: BlockNode, styles_at_cursor: &[MarkdownNode], ui: &mut Ui,
-) -> Option<Event> {
-    button(icon, MarkdownNode::Block(style), styles_at_cursor, ui)
-}
+    fn block(
+        &self, icon: &'static Icon, style: BlockNode, root: &'ast AstNode<'ast>, ui: &mut Ui,
+    ) -> Option<Event> {
+        self.button(icon, MarkdownNode::Block(style), root, ui)
+    }
 
-fn button(
-    icon: &'static Icon, style: MarkdownNode, styles_at_cursor: &[MarkdownNode], ui: &mut Ui,
-) -> Option<Event> {
-    let applied = styles_at_cursor.iter().any(|s| s == &style);
-    let resp = IconButton::new(icon)
-        .colored(applied)
-        .tooltip(format!("{}", style))
-        .show(ui);
-    if resp.clicked() {
-        Some(Event::ToggleStyle { region: Region::Selection, style })
-    } else {
-        None
+    fn button(
+        &self, icon: &'static Icon, style: MarkdownNode, root: &'ast AstNode<'ast>, ui: &mut Ui,
+    ) -> Option<Event> {
+        let applied = self.styled(root, self.buffer.current.selection, &style);
+        let resp = IconButton::new(icon)
+            .colored(applied)
+            .tooltip(format!("{}", style))
+            .show(ui);
+        if resp.clicked() {
+            Some(Event::ToggleStyle { region: Region::Selection, style })
+        } else {
+            None
+        }
     }
 }
 

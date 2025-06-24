@@ -50,7 +50,7 @@ impl<'ast> Editor {
                             range.end().min(inline_paragraph.end()),
                         );
 
-                        unapply |= self.should_unapply(root, paragraph_range, &style);
+                        unapply |= self.styled(root, paragraph_range, &style);
                     }
                 }
 
@@ -413,7 +413,7 @@ impl<'ast> Editor {
     }
 
     /// Returns true if all text in the given range has style `style`
-    pub fn should_unapply(
+    pub fn styled(
         &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset),
         style: &MarkdownNode,
     ) -> bool {

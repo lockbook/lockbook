@@ -69,6 +69,16 @@ impl MarkdownNodeType {
         matches!((self, other), (Self::Block(..), Self::Block(..)))
     }
 
+    pub fn matching(value: &NodeValue) -> Option<Self> {
+        match value {
+            NodeValue::Code(_) => Some(Self::Inline(InlineNodeType::Code)),
+            NodeValue::Emph => Some(Self::Inline(InlineNodeType::Italic)),
+            NodeValue::Strong => Some(Self::Inline(InlineNodeType::Bold)),
+            NodeValue::Strikethrough => Some(Self::Inline(InlineNodeType::Strikethrough)),
+            _ => None,
+        }
+    }
+
     pub fn matches(&self, value: &NodeValue) -> bool {
         match (value, self) {
             (NodeValue::FrontMatter(_), _) => false,

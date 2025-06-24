@@ -228,8 +228,6 @@ impl<'ast> Editor {
             } else if response.secondary_clicked() {
                 ctx.set_context_menu(pos);
                 return Vec::new();
-            } else if response.drag_started() {
-                return Vec::new();
             } else if response.drag_stopped() {
                 if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
                     Region::from(in_progress_selection)

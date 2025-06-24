@@ -27,6 +27,7 @@ use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::block::LayoutCache;
 use widget::find::Find;
 use widget::inline::image::cache::ImageCache;
+use widget::toolbar::{Toolbar, MOBILE_TOOL_BAR_SIZE};
 use widget::{MARGIN, MAX_WIDTH};
 
 pub mod bounds;
@@ -47,7 +48,7 @@ pub struct Response {
     pub scroll_updated: bool,
 
     // actions taken
-    pub suggest_rename: Option<String>,
+    pub suggest_rename: Option<String>, // todo
 }
 
 pub struct Editor {
@@ -82,7 +83,7 @@ pub struct Editor {
     pub syntax: SyntaxHighlightCache,
 
     // widgets
-    // pub toolbar: Toolbar,
+    pub toolbar: Toolbar,
     pub find: Find,
 
     // selection state
@@ -140,7 +141,7 @@ impl Editor {
             syntax_light_theme,
             syntax_dark_theme,
 
-            // toolbar: Default::default(),
+            toolbar: Default::default(),
             find: Default::default(),
 
             file_id,
@@ -323,26 +324,20 @@ impl Editor {
                 }
 
                 // ...then show editor content...
-                let scroll_area_output = self.show_scrollable_editor(ui, root);
-                resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
+                ui.allocate_ui(
+                    egui::vec2(ui.available_width(), ui.available_height() - MOBILE_TOOL_BAR_SIZE),
+                    |ui| {
+                        let scroll_area_output = self.show_scrollable_editor(ui, root);
+                        resp.scroll_updated =
+                            scroll_area_output.state.offset != prev_scroll_area_offset;
+                    },
+                );
 
                 // ...then show toolbar at the bottom
-                // self.toolbar.show(
-                //     &self.ast,
-                //     &self.bounds,
-                //     self.buffer.current.selection,
-                //     self.virtual_keyboard_shown,
-                //     ui,
-                // );
+                self.show_toolbar(root, ui);
             } else {
                 // non-touch devices: show toolbar...
-                // self.toolbar.show(
-                //     &self.ast,
-                //     &self.bounds,
-                //     self.buffer.current.selection,
-                //     self.virtual_keyboard_shown,
-                //     ui,
-                // );
+                self.show_toolbar(root, ui);
 
                 // ...then show find...
                 let find_resp = self.find.show(&self.buffer, ui);
@@ -458,7 +453,7 @@ impl Editor {
                                 self.id(),
                                 Sense { click: true, drag: !self.touch_mode, focusable: true },
                             );
-                            if response.hovered() {
+                            if response.hovered() || response.clicked() {
                                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
                                 // overridable by widgets
                             }

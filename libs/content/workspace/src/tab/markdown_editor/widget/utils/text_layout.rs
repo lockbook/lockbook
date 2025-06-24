@@ -133,8 +133,10 @@ impl Editor {
             let rect = row.rect.translate(pos.to_vec2());
             let rect = rect.translate(Vec2::new(0., i as f32 * ROW_SPACING));
 
-            let response =
-                ui.allocate_rect(rect.expand2(Vec2::new(INLINE_PADDING, 1.)), Sense::click());
+            let response = ui.allocate_rect(
+                rect.expand2(Vec2::new(INLINE_PADDING, 1.)),
+                Sense { click: todo!(), drag: false, focusable: false },
+            );
 
             hovered |= response.hovered();
             clicked |= response.clicked();
