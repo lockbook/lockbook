@@ -24,7 +24,20 @@ impl<'ast> Editor {
         let spoiler = node
             .ancestors()
             .any(|node| matches!(node.data.borrow().value, NodeValue::SpoileredText));
+        let clickable = ui.input(|i| i.modifiers.command)
+            && node
+                .ancestors()
+                .any(|node| matches!(node.data.borrow().value, NodeValue::Link(..)));
 
-        self.show_text_line(ui, top_left, wrap, range, text_format, spoiler)
+        self.show_override_text_line(
+            ui,
+            top_left,
+            wrap,
+            range,
+            text_format,
+            spoiler,
+            None,
+            clickable,
+        )
     }
 }

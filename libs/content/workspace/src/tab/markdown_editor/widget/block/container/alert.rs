@@ -218,6 +218,7 @@ impl<'ast> Editor {
                     self.text_format(node),
                     false,
                     Some(type_display_text),
+                    false,
                 );
             }
         }

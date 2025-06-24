@@ -76,6 +76,7 @@ impl<'ast> Editor {
                 self.text_format(node),
                 false,
                 Some(&text),
+                false,
             );
         }
 
