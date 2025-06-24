@@ -8,6 +8,7 @@ use comrak::nodes::AstNode;
 use comrak::{Arena, Options};
 use core::time::Duration;
 use egui::os::OperatingSystem;
+use egui::scroll_area::ScrollAreaOutput;
 use egui::{
     scroll_area, Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id,
     Rect, ScrollArea, Sense, Stroke, Ui, Vec2,
@@ -24,6 +25,7 @@ use syntect::parsing::SyntaxSet;
 use theme::Theme;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::block::LayoutCache;
+use widget::find::Find;
 use widget::inline::image::cache::ImageCache;
 use widget::{MARGIN, MAX_WIDTH};
 
@@ -81,7 +83,7 @@ pub struct Editor {
 
     // widgets
     // pub toolbar: Toolbar,
-    // pub find: Find,
+    pub find: Find,
 
     // selection state
     /// During drag operations, stores the selection that would be applied
@@ -137,6 +139,9 @@ impl Editor {
             syntax_set,
             syntax_light_theme,
             syntax_dark_theme,
+
+            // toolbar: Default::default(),
+            find: Default::default(),
 
             file_id,
             hmac,
@@ -307,29 +312,51 @@ impl Editor {
                 .map(|s: scroll_area::State| s.offset)
                 .unwrap_or_default()
         });
-        let scroll_area_output = ScrollArea::vertical()
-            .drag_to_scroll(self.touch_mode)
-            .id_source(self.file_id)
-            .show(ui, |ui| {
-                ui.vertical_centered_justified(|ui| {
-                    Frame::canvas(ui.style())
-                        .inner_margin(MARGIN)
-                        .stroke(Stroke::NONE)
-                        .fill(self.theme.bg().neutral_primary)
-                        .show(ui, |ui| self.render(ui, root));
-                });
-                self.bounds.paragraphs.sort();
-                self.galleys.galleys.sort_by_key(|g| g.range);
+        ui.vertical(|ui| {
+            if self.touch_mode {
+                // touch devices: show find...
+                let find_resp = self.find.show(&self.buffer, ui);
+                if let Some(term) = find_resp.term {
+                    self.event
+                        .internal_events
+                        .push(Event::Find { term, backwards: find_resp.backwards });
+                }
 
-                if ui.ctx().os() != OperatingSystem::IOS {
-                    self.show_selection(ui);
-                    self.show_cursor(ui);
+                // ...then show editor content...
+                let scroll_area_output = self.show_scrollable_editor(ui, root);
+                resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
+
+                // ...then show toolbar at the bottom
+                // self.toolbar.show(
+                //     &self.ast,
+                //     &self.bounds,
+                //     self.buffer.current.selection,
+                //     self.virtual_keyboard_shown,
+                //     ui,
+                // );
+            } else {
+                // non-touch devices: show toolbar...
+                // self.toolbar.show(
+                //     &self.ast,
+                //     &self.bounds,
+                //     self.buffer.current.selection,
+                //     self.virtual_keyboard_shown,
+                //     ui,
+                // );
+
+                // ...then show find...
+                let find_resp = self.find.show(&self.buffer, ui);
+                if let Some(term) = find_resp.term {
+                    self.event
+                        .internal_events
+                        .push(Event::Find { term, backwards: find_resp.backwards });
                 }
-                if mem::take(&mut self.scroll_to_cursor) {
-                    self.scroll_to_cursor(ui);
-                }
-            });
-        resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
+
+                // ...then show editor content
+                let scroll_area_output = self.show_scrollable_editor(ui, root);
+                resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
+            }
+        });
 
         self.bounds.text = self.bounds.paragraphs.clone(); // todo: inline character capture
         self.bounds.words = self.bounds.paragraphs.clone(); // todo: real words
@@ -393,41 +420,67 @@ impl Editor {
         resp
     }
 
-    fn render<'a>(&mut self, ui: &mut Ui, root: &'a AstNode<'a>) {
-        let scroll_view_height = ui.max_rect().height();
-        ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
+    fn show_scrollable_editor<'a>(
+        &mut self, ui: &mut Ui, root: &'a AstNode<'a>,
+    ) -> ScrollAreaOutput<()> {
+        ScrollArea::vertical()
+            .drag_to_scroll(self.touch_mode)
+            .id_source(self.file_id)
+            .show(ui, |ui| {
+                ui.vertical_centered_justified(|ui| {
+                    Frame::canvas(ui.style())
+                        .inner_margin(MARGIN)
+                        .stroke(Stroke::NONE)
+                        .fill(self.theme.bg().neutral_primary)
+                        .show(ui, |ui| {
+                            let scroll_view_height = ui.max_rect().height();
+                            ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
 
-        let padding = (ui.available_width() - self.width) / 2.;
+                            let padding = (ui.available_width() - self.width) / 2.;
 
-        let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
-        let height = {
-            let document_height = self.height(root);
-            let unfilled_space = if document_height < scroll_view_height {
-                scroll_view_height - document_height
-            } else {
-                0.
-            };
-            let end_of_text_padding = scroll_view_height / 2.;
+                            let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
+                            let height = {
+                                let document_height = self.height(root);
+                                let unfilled_space = if document_height < scroll_view_height {
+                                    scroll_view_height - document_height
+                                } else {
+                                    0.
+                                };
+                                let end_of_text_padding = scroll_view_height / 2.;
 
-            document_height + unfilled_space.max(end_of_text_padding)
-        };
-        let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
+                                document_height + unfilled_space.max(end_of_text_padding)
+                            };
+                            let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
 
-        ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
-        let response = ui.interact(
-            rect,
-            self.id(),
-            Sense { click: true, drag: !self.touch_mode, focusable: true },
-        );
-        if response.hovered() {
-            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text); // overridable by widgets
-        }
+                            ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
+                            let response = ui.interact(
+                                rect,
+                                self.id(),
+                                Sense { click: true, drag: !self.touch_mode, focusable: true },
+                            );
+                            if response.hovered() {
+                                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
+                                // overridable by widgets
+                            }
 
-        ui.advance_cursor_after_rect(rect);
+                            ui.advance_cursor_after_rect(rect);
 
-        ui.allocate_ui_at_rect(rect, |ui| {
-            self.show_block(ui, root, top_left);
-        });
+                            ui.allocate_ui_at_rect(rect, |ui| {
+                                self.show_block(ui, root, top_left);
+                            });
+                        });
+                });
+                self.bounds.paragraphs.sort();
+                self.galleys.galleys.sort_by_key(|g| g.range);
+
+                if ui.ctx().os() != OperatingSystem::IOS {
+                    self.show_selection(ui);
+                    self.show_cursor(ui);
+                }
+                if mem::take(&mut self.scroll_to_cursor) {
+                    self.scroll_to_cursor(ui);
+                }
+            })
     }
 }
 

@@ -18,7 +18,6 @@ use super::{Bound, Location, Offset, Region};
 /// tracks editor state necessary to support translating input events to buffer operations
 #[derive(Default)]
 pub struct EventState {
-    prev_event: Option<Event>,
     pub internal_events: Vec<Event>,
 }
 
@@ -31,8 +30,6 @@ impl<'ast> Editor {
     ) -> buffer::Response {
         let current_selection = self.buffer.current.selection;
         let mut response = buffer::Response::default();
-        // let prev_event_eq = self.event.prev_event.as_ref() == Some(&event);
-        self.event.prev_event = Some(event.clone());
         match event {
             Event::Select { region } => {
                 operations.push(Operation::Select(self.region_to_range(region)));
@@ -368,9 +365,9 @@ impl<'ast> Editor {
                 operations.push(Operation::Select(current_selection));
             }
             Event::Find { term, backwards } => {
-                // if let Some(result) = self.find(term, backwards) {
-                //     operations.push(Operation::Select(result));
-                // }
+                if let Some(result) = self.find(term, backwards) {
+                    operations.push(Operation::Select(result));
+                }
             }
             Event::Undo => {
                 response |= self.buffer.undo();
