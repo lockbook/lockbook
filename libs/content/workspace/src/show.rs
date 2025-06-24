@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use tracing::instrument;
 
 use crate::output::Response;
-use crate::tab::{image_viewer, ContentState, Tab, TabContent};
+use crate::tab::{image_viewer, ContentState, Tab, TabContent, TabStatus};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::Workspace;
@@ -652,6 +652,9 @@ impl Workspace {
         let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
         ui.painter()
             .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
+
+        let bg_color = get_apple_bg_color(ui);
+        ui.painter().rect_filled(remaining_rect, 0.0, bg_color);
     }
 
     fn process_keys(&mut self) {
@@ -732,54 +735,149 @@ impl Workspace {
         &mut self, ui: &mut egui::Ui, t: usize, is_active: bool, active_tab_changed: bool,
     ) -> Option<TabLabelResponse> {
         let mut result = None;
-        let icon_size = 16.0;
+        let icon_size = 15.0;
         let x_icon = Icon::CLOSE.size(icon_size);
         let status = self.tab_status(t);
-        let status_icon = status.icon();
 
-        let padding_x = 10.;
-        let w = if self.tabs[t].is_closing { 40. } else { 160. };
-        let h = 40.;
+        ui.style_mut()
+            .text_styles
+            .insert(egui::TextStyle::Body, egui::FontId::new(14.0, egui::FontFamily::Proportional));
 
-        let (tab_label_rect, tab_label_resp) = ui.allocate_exact_size(
-            (w, h).into(),
-            Sense { click: true, drag: false, focusable: false },
-        );
+        let tab_bg =
+            if is_active { ui.style().visuals.extreme_bg_color } else { get_apple_bg_color(ui) };
 
-        if is_active {
-            ui.painter().rect(
-                tab_label_rect,
-                0.,
-                ui.style().visuals.extreme_bg_color,
-                egui::Stroke::NONE,
-            );
-        };
+        let tab_padding = egui::Margin::symmetric(10.0, 10.0);
 
-        if is_active && active_tab_changed {
-            tab_label_resp.scroll_to_me(None);
-        }
+        let tab_label = egui::Frame::default()
+            .fill(tab_bg)
+            .inner_margin(tab_padding)
+            .show(ui, |ui| {
+                ui.add_visible_ui(self.tabs[t].rename.is_none(), |ui| {
+                    let start = ui.available_rect_before_wrap().min;
+                    let tab_intel_text = if status == TabStatus::Clean {
+                        (t + 1).to_string()
+                    } else {
+                        "*".to_string()
+                    };
 
-        // closing (just draw status icon)
-        if self.tabs[t].is_closing {
-            let icon_draw_pos = egui::pos2(
-                tab_label_rect.min.x + padding_x,
-                tab_label_rect.center().y - status_icon.size / 2.0,
-            );
+                    let tab_intel_color = if status == TabStatus::Clean {
+                        ui.style().visuals.hyperlink_color
+                    } else {
+                        ui.style().visuals.warn_fg_color
+                    };
 
-            let icon: egui::WidgetText = (&status_icon).into();
-            let icon = icon.into_galley(
-                ui,
-                Some(TextWrapMode::Extend),
-                status_icon.size,
-                egui::TextStyle::Body,
-            );
-            ui.painter()
-                .galley(icon_draw_pos, icon, ui.visuals().text_color());
-        }
+                    let tab_intel: egui::WidgetText = egui::RichText::new(tab_intel_text)
+                        .font(egui::FontId::monospace(12.0))
+                        .color(tab_intel_color)
+                        .into();
+                    let tab_intel_galley = tab_intel.into_galley(
+                        ui,
+                        Some(TextWrapMode::Extend),
+                        f32::INFINITY,
+                        egui::TextStyle::Body,
+                    );
+                    let tab_intel_rect =
+                        egui::Align2::LEFT_TOP.anchor_size(start, tab_intel_galley.size());
+
+                    ui.painter().galley(
+                        tab_intel_rect.left_center() - egui::vec2(0.0, 5.5),
+                        tab_intel_galley,
+                        ui.visuals().text_color(),
+                    );
+
+                    let text: egui::WidgetText = self.tab_title(&self.tabs[t]).into();
+                    let text_galley = text.into_galley(
+                        ui,
+                        Some(TextWrapMode::Truncate),
+                        200.0,
+                        egui::TextStyle::Body,
+                    );
+                    let text_rect = egui::Align2::LEFT_TOP.anchor_size(
+                        tab_intel_rect.right_top() + egui::vec2(7.0, 0.0),
+                        text_galley.size(),
+                    );
+                    let text_resp = ui.interact(
+                        text_rect,
+                        Id::new("tab label").with(t),
+                        Sense { click: true, drag: false, focusable: false },
+                    );
+
+                    let close_button: egui::WidgetText = egui::RichText::new(x_icon.icon)
+                        .line_height(Some(14.0))
+                        .font(egui::FontId::monospace(x_icon.size))
+                        .into();
+                    let close_button_galley = close_button.into_galley(
+                        ui,
+                        Some(TextWrapMode::Extend),
+                        f32::INFINITY,
+                        egui::TextStyle::Body,
+                    );
+                    let close_button_rect = egui::Align2::LEFT_CENTER.anchor_size(
+                        text_rect.right_center() + egui::vec2(5.0, 0.0),
+                        close_button_galley.size(),
+                    );
+                    let close_button_resp = ui.interact(
+                        close_button_rect,
+                        Id::new("tab label close button").with(t),
+                        Sense { click: true, drag: false, focusable: false },
+                    );
+
+                    let text_color = if is_active {
+                        ui.visuals().text_color()
+                    } else {
+                        ui.visuals()
+                            .widgets
+                            .noninteractive
+                            .fg_stroke
+                            .color
+                            .linear_multiply(0.8)
+                    };
+
+                    // draw the tab text
+                    ui.painter().galley(text_rect.min, text_galley, text_color);
+
+                    let touch_mode =
+                        matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
+
+                    if close_button_resp.clicked() || text_resp.middle_clicked() {
+                        result = Some(TabLabelResponse::Closed);
+                    }
+                    if close_button_resp.hovered() {
+                        ui.painter().rect(
+                            close_button_rect.expand(2.0),
+                            2.0,
+                            ui.visuals().code_bg_color,
+                            egui::Stroke::NONE,
+                        );
+                    }
+
+                    let estimated_tab_label_resp = text_resp.union(close_button_resp);
+
+                    let show_close_button =
+                        touch_mode || estimated_tab_label_resp.hovered() || is_active;
+
+                    if show_close_button {
+                        ui.painter().galley(
+                            close_button_rect.min,
+                            close_button_galley,
+                            ui.visuals().text_color(),
+                        );
+                    }
+
+                    if text_resp.clicked() {
+                        result = Some(TabLabelResponse::Clicked);
+                    }
+
+                    ui.advance_cursor_after_rect(estimated_tab_label_resp.rect);
+
+                    text_resp
+                })
+            });
+
         // renaming
-        else if let Some(ref mut str) = self.tabs[t].rename {
+        if let Some(ref mut str) = self.tabs[t].rename {
             let res = ui
-                .allocate_ui_at_rect(tab_label_rect, |ui| {
+                .allocate_ui_at_rect(tab_label.response.rect, |ui| {
                     ui.add(
                         egui::TextEdit::singleline(str)
                             .font(TextStyle::Small)
@@ -818,175 +916,65 @@ impl Workspace {
             if res.lost_focus() {
                 self.tabs[t].rename = None;
             }
-        } else {
-            // interact with button rect whether it's shown or not
-            let close_button_pos = egui::pos2(
-                tab_label_rect.max.x - padding_x - x_icon.size,
-                tab_label_rect.center().y - x_icon.size / 2.0,
+        }
+
+        if is_active && active_tab_changed {
+            tab_label.response.scroll_to_me(None);
+        }
+
+        if !is_active && tab_label.response.hovered() {
+            ui.painter().rect_filled(
+                tab_label.response.rect,
+                0.0,
+                egui::Color32::WHITE.linear_multiply(0.002),
             );
-            let close_button_rect =
-                egui::Rect::from_min_size(close_button_pos, egui::vec2(x_icon.size, x_icon.size))
-                    .expand(2.0);
-            let close_button_resp = ui.interact(
-                close_button_rect,
-                Id::new("tab label close button").with(t),
-                Sense { click: true, drag: false, focusable: false },
-            );
+        }
 
-            let status_icon_pos = egui::pos2(
-                tab_label_rect.min.x + padding_x,
-                tab_label_rect.center().y - status_icon.size / 2.0,
-            );
-            let status_icon_rect = egui::Rect::from_min_size(
-                status_icon_pos,
-                egui::vec2(status_icon.size, status_icon.size),
-            )
-            .expand(2.0);
-
-            // touch mode: always show close button
-            let touch_mode =
-                matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
-            let show_close_button =
-                touch_mode || tab_label_resp.hovered() || close_button_resp.hovered();
-
-            // draw backgrounds and set cursor icon
-            if close_button_resp.hovered() {
-                ui.painter().rect(
-                    close_button_rect,
-                    2.0,
-                    ui.visuals().code_bg_color,
-                    egui::Stroke::NONE,
-                );
-                ui.output_mut(|o: &mut egui::PlatformOutput| {
-                    o.cursor_icon = egui::CursorIcon::PointingHand
-                });
-            } else if tab_label_resp.hovered() {
-                ui.output_mut(|o: &mut egui::PlatformOutput| {
-                    o.cursor_icon = egui::CursorIcon::PointingHand
-                });
-            }
-
-            // draw status icon
-            {
-                let icon_draw_pos = egui::pos2(
-                    tab_label_rect.min.x + padding_x,
-                    tab_label_rect.center().y - status_icon.size / 2.0,
-                );
-
-                let icon: egui::WidgetText = (&status_icon).into();
-                let icon = icon.into_galley(
-                    ui,
-                    Some(TextWrapMode::Extend),
-                    status_icon.size,
-                    egui::TextStyle::Body,
-                );
-                ui.painter()
-                    .galley(icon_draw_pos, icon, ui.visuals().text_color());
-            }
-
-            // status icon tooltip explains situation
-            ui.ctx()
-                .style_mut(|s| s.visuals.menu_rounding = (2.).into());
-            ui.interact(
-                status_icon_rect,
-                Id::new("tab label status icon").with(t),
-                Sense { click: false, drag: false, focusable: false },
-            )
-            .on_hover_ui(|ui| {
-                let text = self.tab_status(t).summary();
-                let text: egui::WidgetText = text.into();
-                let text =
-                    text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Small);
-                ui.add(egui::Label::new(text));
-
-                let last_saved = self.tabs[t].last_saved.elapsed_human_string();
-                let text: egui::WidgetText = format!("last saved {last_saved}").into();
-                let text =
-                    text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Small);
-                ui.add(egui::Label::new(text));
-
-                ui.ctx().request_repaint_after_secs(1.0);
-            });
-
-            // draw text
-            let text: egui::WidgetText = self.tab_title(&self.tabs[t]).into();
-            let wrap_width = if show_close_button {
-                w - (padding_x + status_icon.size + padding_x + padding_x + x_icon.size + padding_x)
-            } else {
-                w - (padding_x + status_icon.size + padding_x + padding_x)
-            };
-
-            // tooltip contains unelided text
-            let mut text_rect = tab_label_resp.rect;
-            text_rect.min.x = status_icon_rect.max.x;
-            text_rect.max.x = close_button_rect.min.x;
-            ui.interact(
-                text_rect,
-                Id::new("tab label text").with(t),
-                Sense { click: false, drag: false, focusable: false },
-            )
-            .on_hover_ui(|ui| {
-                let text = text.clone().into_galley(
-                    ui,
-                    Some(TextWrapMode::Extend),
-                    wrap_width,
-                    egui::TextStyle::Small,
-                );
-                ui.add(egui::Label::new(text));
-            });
-
-            let text = text.into_galley(
-                ui,
-                Some(TextWrapMode::Truncate),
-                wrap_width,
-                egui::TextStyle::Small,
-            );
-            let text_color = ui.style().interact(&tab_label_resp).text_color();
-            let text_pos = egui::pos2(
-                tab_label_rect.min.x + padding_x + status_icon.size + padding_x,
-                tab_label_rect.center().y - 0.5 * text.size().y,
-            );
-            ui.painter().galley(text_pos, text, text_color);
-
-            // draw close button icon
-            if show_close_button {
-                let icon_draw_pos = egui::pos2(
-                    close_button_rect.center().x - x_icon.size / 2.,
-                    close_button_rect.center().y - x_icon.size / 2.2,
-                );
-                let icon: egui::WidgetText = (&x_icon).into();
-                let icon_color = if close_button_resp.is_pointer_button_down_on() {
-                    ui.visuals().widgets.active.bg_fill
-                } else {
-                    ui.visuals().text_color()
-                };
-                let icon = icon.into_galley(
-                    ui,
-                    Some(TextWrapMode::Extend),
-                    x_icon.size,
-                    egui::TextStyle::Body,
-                );
-                ui.painter().galley(icon_draw_pos, icon, icon_color);
-            }
-
-            // respond to input
-            if close_button_resp.clicked() || tab_label_resp.middle_clicked() {
-                result = Some(TabLabelResponse::Closed);
-            } else if tab_label_resp.clicked() {
-                result = Some(TabLabelResponse::Clicked);
-            }
+        if is_active && active_tab_changed {
+            tab_label.response.scroll_to_me(None);
         }
 
         // draw separators
         let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
         if !is_active {
-            ui.painter()
-                .hline(tab_label_rect.x_range(), tab_label_rect.max.y, sep_stroke);
+            ui.painter().hline(
+                tab_label.response.rect.x_range(),
+                tab_label.response.rect.max.y,
+                sep_stroke,
+            );
         }
-        ui.painter()
-            .vline(tab_label_rect.max.x, tab_label_rect.y_range(), sep_stroke);
+        ui.painter().vline(
+            tab_label.response.rect.max.x,
+            tab_label.response.rect.y_range(),
+            sep_stroke,
+        );
+
+        tab_label.response.on_hover_ui(|ui| {
+            let text = self.tab_status(t).summary();
+            let text: egui::WidgetText = RichText::from(text).size(15.0).into();
+            let text = text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Body);
+            ui.add(egui::Label::new(text));
+
+            let last_saved = self.tabs[t].last_saved.elapsed_human_string();
+            let text: egui::WidgetText = RichText::from(format!("last saved {last_saved}"))
+                .size(12.0)
+                .into();
+            let text = text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Body);
+            ui.add(egui::Label::new(text));
+
+            ui.ctx().request_repaint_after_secs(1.0);
+        });
 
         result
+    }
+}
+
+/// get the color for the native apple title bar
+fn get_apple_bg_color(ui: &mut egui::Ui) -> egui::Color32 {
+    if ui.visuals().dark_mode {
+        egui::Color32::from_rgb(57, 57, 56)
+    } else {
+        egui::Color32::from_rgb(240, 240, 239)
     }
 }
 
