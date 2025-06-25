@@ -39,14 +39,15 @@ impl<'ast> Editor {
 
         let annotation_size = Vec2 { x: INDENT, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
-        let text_format = self.text_format_syntax(node);
 
+        let mut annotation_text_format = self.text_format_syntax(node);
+        annotation_text_format.color = self.theme.fg().neutral_tertiary;
         match list_type {
             ListType::Bullet => {
                 ui.painter().circle_filled(
                     annotation_space.center(),
                     BULLET_RADIUS * row_height / ROW_HEIGHT,
-                    text_format.color,
+                    annotation_text_format.color,
                 );
             }
             ListType::Ordered => {
@@ -55,7 +56,7 @@ impl<'ast> Editor {
                 let number = start + sibling_index;
 
                 let text = format!("{}.", number);
-                let layout_job = LayoutJob::single_section(text, text_format);
+                let layout_job = LayoutJob::single_section(text, annotation_text_format);
                 let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
                 ui.painter()
                     .galley(annotation_space.left_top(), galley, Default::default());

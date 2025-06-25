@@ -161,8 +161,13 @@ impl<'ast> Editor {
 
     pub fn text_format_syntax(&self, node: &'ast AstNode<'ast>) -> TextFormat {
         let mono = self.text_format_code(node);
+
         TextFormat {
-            color: self.theme.fg().neutral_quarternary,
+            color: if self.plaintext_mode {
+                self.theme.fg().neutral_primary
+            } else {
+                self.theme.fg().neutral_quarternary
+            },
             background: Default::default(),
             underline: Default::default(),
             strikethrough: Default::default(),

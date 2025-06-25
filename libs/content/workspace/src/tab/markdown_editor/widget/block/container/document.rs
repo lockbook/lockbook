@@ -28,22 +28,22 @@ impl<'ast> Editor {
         let width = self.width(node);
 
         let any_children = node.children().next().is_some();
-        if any_children {
+        if any_children && !self.plaintext_mode {
             self.show_block_children(ui, node, top_left);
-            top_left.y += self.block_children_height(node);
         } else {
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
 
+                let mut wrap = Wrap::new(width);
                 self.show_text_line(
                     ui,
                     top_left,
-                    &mut Wrap::new(width),
+                    &mut wrap,
                     line,
                     self.text_format_syntax(node),
                     false,
                 );
-                top_left.y += ROW_HEIGHT;
+                top_left.y += wrap.height();
                 top_left.y += ROW_SPACING;
             }
         }
