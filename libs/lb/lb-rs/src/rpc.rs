@@ -4,6 +4,11 @@ pub struct RpcRequest {
     pub args: Option<Vec<u8>>,
 }
 
+#[derive(Serialize, Deserialize)]
+pub enum CallbackMessage<S, T> {
+    Status(S),
+    Done(LbResult<T>),
+}
 
 impl RpcRequest {
     pub fn new(method: impl Into<String>, args: Option<Vec<u8>>) -> Self {
@@ -41,6 +46,41 @@ where
 
     let resp: T = bincode::deserialize(&resp_buf).map_err(core_err_unexpected)?;
     Ok(resp)
+}
+
+pub async fn call_rpc_with_callback<S, T, F>(
+    stream: &mut TcpStream,
+    method: &str,
+    args: Option<Vec<u8>>,
+    mut on_status: F,
+) -> LbResult<T>
+where
+    S: DeserializeOwned,
+    T: DeserializeOwned,
+    F: FnMut(S),
+{
+    let req = RpcRequest::new(method, args);
+    let req_bytes = bincode::serialize(&req).map_err(core_err_unexpected)?;
+    let mut out = Vec::with_capacity(4 + req_bytes.len());
+    out.extend_from_slice(&(req_bytes.len() as u32).to_be_bytes());
+    out.extend_from_slice(&req_bytes);
+    stream.write_all(&out).await.map_err(core_err_unexpected)?;
+
+    loop {
+        let mut len_buf = [0u8; 4];
+        stream.read_exact(&mut len_buf).await.map_err(core_err_unexpected)?;
+        let n = u32::from_be_bytes(len_buf) as usize;
+
+        let mut payload = vec![0u8; n];
+        stream.read_exact(&mut payload).await.map_err(core_err_unexpected)?;
+
+        let msg: CallbackMessage<S, T> =
+            bincode::deserialize(&payload).map_err(core_err_unexpected)?;
+        match msg {
+            CallbackMessage::Status(s) => on_status(s),
+            CallbackMessage::Done(res) => return res,
+        }
+    }
 }
 
 pub async fn handle_connection(stream: TcpStream, lb: Arc<LbServer>) -> LbResult<()> {
@@ -81,6 +121,7 @@ pub async fn listen_for_connections(lb: Arc<LbServer>, listener: TcpListener) ->
 
 use crate::dispatch::dispatch;
 use std::sync::Arc;
+use serde::de::DeserializeOwned;
 use serde::{Serialize,Deserialize};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

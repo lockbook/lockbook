@@ -259,6 +259,38 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             bincode::serialize(&changes).map_err(core_err_unexpected)?
         }
         //TODO : events module and import_export module
+        "import_files" => {
+            let (paths, dest): (Vec<String>, Uuid) =
+                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let sources: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+            let statuses = Arc::new(Mutex::new(Vec::new()));
+
+            let cb_statuses = statuses.clone();
+            let status_cb = move |status: ImportStatus| {
+                let mut guard = cb_statuses.lock().unwrap();
+                guard.push(status);
+            };
+            lb.import_files(&sources, dest, &status_cb).await?;
+
+            let mut buf = Vec::new();
+            let mut guard = statuses.lock().unwrap();
+            for status in guard.drain(..) {
+                let msg: CallbackMessage<ImportStatus, ()> =
+                    CallbackMessage::Status(status);
+                let bytes = bincode::serialize(&msg).map_err(core_err_unexpected)?;
+                buf.extend(&(bytes.len() as u32).to_be_bytes());
+                buf.extend(bytes);
+            }
+
+            let done_msg: CallbackMessage<ImportStatus, ()> =
+                CallbackMessage::Done(Ok(()));
+            let done_bytes = bincode::serialize(&done_msg).map_err(core_err_unexpected)?;
+            buf.extend(&(done_bytes.len() as u32).to_be_bytes());
+            buf.extend(done_bytes);
+
+            buf
+        }
+        
         "test_repo_integrity" => {
             let changes: Vec<Warning> = lb.test_repo_integrity().await?;
             bincode::serialize(&changes).map_err(core_err_unexpected)?
@@ -342,9 +374,11 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
     Ok(payload)
 }
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use libsecp256k1::SecretKey;
+use std::sync::Mutex;
 use uuid::Uuid;
 use crate::model::account::Account;
 use crate::model::api::{AccountFilter, AccountIdentifier, AdminSetUserTierInfo, ServerIndex, StripeAccountTier, SubscriptionInfo};
@@ -354,5 +388,6 @@ use crate::model::errors::{core_err_unexpected};
 use crate::model::file::ShareMode;
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::path_ops::Filter;
-use crate::rpc::RpcRequest;
+use crate::rpc::{CallbackMessage, RpcRequest};
+use crate::service::import_export::ImportStatus;
 use crate::{LbServer,LbResult};

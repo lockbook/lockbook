@@ -5,12 +5,14 @@ use crate::model::ValidationFailure;
 use crate::LbServer;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
+#[derive(Serialize, Deserialize, Clone)]
 pub enum ImportStatus {
     CalculatedTotal(usize),
     StartingItem(String),

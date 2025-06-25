@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct LbClient {
     pub addr: SocketAddrV4
 }
@@ -456,7 +457,19 @@ impl LbClient {
     pub async fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> LbResult<()>{
-        
+        let mut stream = TcpStream::connect(&self.addr)
+            .await
+            .map_err(core_err_unexpected)?;
+        let source_paths: Vec<String> = sources.iter().map(|path| path.to_string_lossy().into_owned()).collect();
+        let args = bincode::serialize(&(source_paths, dest))
+            .map_err(core_err_unexpected)?;
+        call_rpc_with_callback::<ImportStatus, (), _>(
+            &mut stream,
+            "import_files",
+            Some(args),
+            update_status,
+        )
+        .await
     }
 
     pub async fn export_file<F: Fn(ExportFileInfo)>(
@@ -596,7 +609,7 @@ impl LbClient {
 use crate::{model::errors::core_err_unexpected};
 use libsecp256k1::SecretKey;
 use tokio::net::TcpStream;
-use crate::rpc::call_rpc;
+use crate::rpc::{call_rpc, call_rpc_with_callback};
 use crate::Uuid;
 use std::collections::HashMap;
 use std::net::SocketAddrV4;
