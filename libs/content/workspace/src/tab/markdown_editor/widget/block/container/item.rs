@@ -87,7 +87,7 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn line_prefix_len_item(
+    pub fn own_prefix_len_item(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
         node_list: &NodeList,
     ) -> Option<RelCharOffset> {

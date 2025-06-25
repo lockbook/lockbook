@@ -45,9 +45,7 @@ impl<'ast> Editor {
 
             if line_idx < last_line_idx {
                 // non-underline content
-                self.height_setext_heading_line(node, line, reveal);
-
-                result += self.height_setext_heading_line(node, line, reveal);
+                result += self.height_setext_heading_line(node, node_line, reveal);
                 result += ROW_SPACING;
             } else {
                 // setext heading underline
@@ -67,23 +65,21 @@ impl<'ast> Editor {
     }
 
     pub fn height_setext_heading_line(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset), reveal: bool,
+        &self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset), reveal: bool,
     ) -> f32 {
         let width = self.width(node);
         let mut wrap = Wrap::new(width);
         wrap.row_height = self.row_height(node);
 
         if let Some((indentation, prefix, _, postfix_whitespace, _)) =
-            self.line_ranges(node, self.node_line(node, line))
+            self.split_range(node, node_line)
         {
             if reveal {
                 wrap.offset +=
                     self.span_text_line(&wrap, indentation, self.text_format_syntax(node));
                 wrap.offset += self.span_text_line(&wrap, prefix, self.text_format_syntax(node));
             }
-            for child in &self.children_in_range(node, line) {
-                wrap.offset += self.span(child, &wrap);
-            }
+            wrap.offset += self.inline_children_span(node, &wrap, node_line);
             if reveal {
                 wrap.offset +=
                     self.span_text_line(&wrap, postfix_whitespace, self.text_format_syntax(node));
@@ -121,7 +117,7 @@ impl<'ast> Editor {
         let reveal = line.intersects(&self.buffer.current.selection, true);
 
         if let Some((indentation, prefix_range, _, postfix_range, _)) =
-            self.line_ranges(node, node_line)
+            self.split_range(node, node_line)
         {
             if reveal {
                 if !indentation.is_empty() {
@@ -133,7 +129,7 @@ impl<'ast> Editor {
             }
 
             if self.infix_range(node).is_some() {
-                wrap.offset += self.inline_children_span(node, &wrap);
+                wrap.offset += self.inline_children_span(node, &wrap, node_line);
             }
 
             if reveal && !postfix_range.is_empty() {
@@ -173,9 +169,9 @@ impl<'ast> Editor {
 
             if line_idx < last_line_idx {
                 // non-underline content
-                self.show_setext_heading_line(ui, node, top_left, line, reveal);
+                self.show_setext_heading_line(ui, node, top_left, node_line, reveal);
 
-                top_left.y += self.height_setext_heading_line(node, line, reveal);
+                top_left.y += self.height_setext_heading_line(node, node_line, reveal);
                 top_left.y += ROW_SPACING;
             } else {
                 // setext heading underline
@@ -207,14 +203,14 @@ impl<'ast> Editor {
     #[allow(clippy::too_many_arguments)]
     fn show_setext_heading_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        line: (DocCharOffset, DocCharOffset), reveal: bool,
+        node_line: (DocCharOffset, DocCharOffset), reveal: bool,
     ) {
         let width = self.width(node);
         let mut wrap = Wrap::new(width);
         wrap.row_height = self.row_height(node);
 
         if let Some((indentation, prefix, _children, postfix_whitespace, _)) =
-            self.line_ranges(node, self.node_line(node, line))
+            self.split_range(node, node_line)
         {
             if reveal {
                 if !indentation.is_empty() {
@@ -238,9 +234,7 @@ impl<'ast> Editor {
                     );
                 }
             }
-            for child in &self.children_in_range(node, line) {
-                self.show_inline(ui, child, top_left, &mut wrap);
-            }
+            self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
             if reveal && !postfix_whitespace.is_empty() {
                 self.show_text_line(
                     ui,
@@ -271,7 +265,7 @@ impl<'ast> Editor {
         let reveal = line.intersects(&self.buffer.current.selection, true);
 
         if let Some((indentation, prefix_range, _, postfix_range, _)) =
-            self.line_ranges(node, node_line)
+            self.split_range(node, node_line)
         {
             if reveal {
                 if !indentation.is_empty() {
@@ -294,7 +288,7 @@ impl<'ast> Editor {
                 );
             }
             if self.infix_range(node).is_some() {
-                self.show_inline_children(ui, node, top_left, &mut wrap);
+                self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
             }
 
             if reveal && !postfix_range.is_empty() {
@@ -368,7 +362,7 @@ impl<'ast> Editor {
 
         if reveal {
             let Some((indentation, prefix, children, postfix_whitespace, _)) =
-                self.line_ranges(node, node_line)
+                self.split_range(node, node_line)
             else {
                 self.bounds.paragraphs.push(node_line);
                 return;
@@ -387,7 +381,7 @@ impl<'ast> Editor {
             }
         } else {
             let Some((_indentation, _prefix, children, _postfix_whitespace, _)) =
-                self.line_ranges(node, node_line)
+                self.split_range(node, node_line)
             else {
                 self.bounds.paragraphs.push(node_line);
                 return;
@@ -403,7 +397,7 @@ impl<'ast> Editor {
         let node_line = self.node_line(node, line);
 
         if let Some((indentation, prefix_range, _infix_range, postfix_range, _)) =
-            self.line_ranges(node, node_line)
+            self.split_range(node, node_line)
         {
             if !indentation.is_empty() {
                 self.bounds.paragraphs.push(indentation);

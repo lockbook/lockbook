@@ -31,18 +31,17 @@ impl<'ast> Editor {
     }
 
     pub fn height_paragraph_line(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset),
     ) -> f32 {
         let width = self.width(node);
         let mut wrap = Wrap::new(width);
-        let node_line = self.node_line(node, line);
 
         // "The paragraph's raw content is formed by concatenating the lines
         // and removing initial and final whitespace"
         let Some((pre_node, pre_children, _, post_children, post_node)) =
-            self.line_ranges(node, node_line)
+            self.split_range(node, node_line)
         else {
-            unreachable!("Paragraphs always have children") // todo: but sometimes they span multiple lines
+            unreachable!("Paragraphs always have children")
         };
 
         let reveal = node_line.intersects(&self.buffer.current.selection, true);
@@ -50,9 +49,7 @@ impl<'ast> Editor {
             wrap.offset += self.span_text_line(&wrap, pre_node, self.text_format_syntax(node));
             wrap.offset += self.span_text_line(&wrap, pre_children, self.text_format_syntax(node));
         }
-        for child in &self.children_in_range(node, node_line) {
-            wrap.offset += self.span(child, &wrap);
-        }
+        wrap.offset += self.inline_children_span(node, &wrap, node_line);
         if reveal {
             wrap.offset += self.span_text_line(&wrap, post_children, self.text_format_syntax(node));
             wrap.offset += self.span_text_line(&wrap, post_node, self.text_format_syntax(node));
@@ -72,10 +69,11 @@ impl<'ast> Editor {
 
         for line in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line];
+            let node_line = self.node_line(node, line);
 
-            let line_height = self.height_paragraph_line(node, line);
+            let line_height = self.height_paragraph_line(node, node_line);
 
-            self.show_paragraph_line(ui, node, top_left, line);
+            self.show_paragraph_line(ui, node, top_left, node_line);
             top_left.y += line_height;
 
             top_left.y += BLOCK_SPACING;
@@ -84,23 +82,22 @@ impl<'ast> Editor {
 
     pub fn show_paragraph_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        line: (DocCharOffset, DocCharOffset),
+        node_line: (DocCharOffset, DocCharOffset),
     ) {
         let width = self.width(node);
         let mut wrap = Wrap::new(width);
-        let node_line = self.node_line(node, line);
 
         // "The paragraph's raw content is formed by concatenating the lines
         // and removing initial and final whitespace"
-        let Some((pre_node, pre_children, _children, post_children, post_node)) =
-            self.line_ranges(node, node_line)
+        let Some((pre_node, pre_children, _, post_children, post_node)) =
+            self.split_range(node, node_line)
         else {
-            unreachable!("Paragraphs always have children") // todo: but not always on every line
+            unreachable!("Paragraphs always have children")
         };
 
         let reveal = node_line.intersects(&self.buffer.current.selection, true);
         if reveal {
-            let _ = self.show_text_line(
+            self.show_text_line(
                 ui,
                 top_left,
                 &mut wrap,
@@ -108,7 +105,7 @@ impl<'ast> Editor {
                 self.text_format_syntax(node),
                 false,
             );
-            let _ = self.show_text_line(
+            self.show_text_line(
                 ui,
                 top_left,
                 &mut wrap,
@@ -117,11 +114,9 @@ impl<'ast> Editor {
                 false,
             );
         }
-        for child in &self.children_in_range(node, node_line) {
-            self.show_inline(ui, child, top_left, &mut wrap);
-        }
+        self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
         if reveal {
-            let _ = self.show_text_line(
+            self.show_text_line(
                 ui,
                 top_left,
                 &mut wrap,
@@ -129,7 +124,7 @@ impl<'ast> Editor {
                 self.text_format_syntax(node),
                 false,
             );
-            let _ = self.show_text_line(
+            self.show_text_line(
                 ui,
                 top_left,
                 &mut wrap,
@@ -143,21 +138,21 @@ impl<'ast> Editor {
     pub fn compute_bounds_paragraph(&mut self, node: &'ast AstNode<'ast>) {
         for line in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line];
-            self.compute_bounds_paragraph_line(node, line);
+            let node_line = self.node_line(node, line);
+
+            self.compute_bounds_paragraph_line(node, node_line);
         }
     }
 
     pub fn compute_bounds_paragraph_line(
-        &mut self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+        &mut self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset),
     ) {
-        let node_line = self.node_line(node, line);
-
         // "The paragraph's raw content is formed by concatenating the lines
         // and removing initial and final whitespace"
         let Some((pre_node, pre_children, children, post_children, post_node)) =
-            self.line_ranges(node, node_line)
+            self.split_range(node, node_line)
         else {
-            unreachable!("Paragraphs always have children") // todo: but not always on every line
+            unreachable!("Paragraphs always have children")
         };
 
         if !pre_node.is_empty() {

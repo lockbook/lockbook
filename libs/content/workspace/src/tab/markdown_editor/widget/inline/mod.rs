@@ -25,6 +25,7 @@ pub(crate) mod text;
 pub(crate) mod underline;
 pub(crate) mod wiki_link;
 
+#[derive(Default)]
 pub struct Response {
     pub clicked: bool,
     pub hovered: bool,
@@ -38,7 +39,9 @@ impl std::ops::BitOrAssign for Response {
 }
 
 impl<'ast> Editor {
-    pub fn span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
+    pub fn span(
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+    ) -> f32 {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => 0.,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
@@ -57,27 +60,27 @@ impl<'ast> Editor {
             NodeValue::TableRow(_) => unimplemented!("not an inline"),
 
             // inline
-            NodeValue::Image(_) => self.span_image(node, wrap),
-            NodeValue::Code(_) => self.span_code(node, wrap),
-            NodeValue::Emph => self.span_emph(node, wrap),
-            NodeValue::Escaped => self.span_escaped(node, wrap),
-            NodeValue::EscapedTag(_) => self.span_escaped_tag(node, wrap),
+            NodeValue::Image(_) => self.span_image(node, wrap, range),
+            NodeValue::Code(_) => self.span_code(node, wrap, range),
+            NodeValue::Emph => self.span_emph(node, wrap, range),
+            NodeValue::Escaped => self.span_escaped(node, wrap, range),
+            NodeValue::EscapedTag(_) => self.span_escaped_tag(node, wrap, range),
             NodeValue::FootnoteReference(NodeFootnoteReference { ix, .. }) => {
-                self.span_footnote_reference(node, wrap, *ix)
+                self.span_footnote_reference(node, wrap, *ix, range)
             }
-            NodeValue::HtmlInline(_) => self.span_html_inline(node, wrap),
-            NodeValue::LineBreak => self.span_line_break(wrap),
-            NodeValue::Link(_) => self.span_link(node, wrap),
-            NodeValue::Math(_) => self.span_math(node, wrap),
-            NodeValue::SoftBreak => self.span_soft_break(wrap),
-            NodeValue::SpoileredText => self.span_spoilered_text(node, wrap),
-            NodeValue::Strikethrough => self.span_strikethrough(node, wrap),
-            NodeValue::Strong => self.span_strong(node, wrap),
-            NodeValue::Subscript => self.span_subscript(node, wrap),
-            NodeValue::Superscript => self.span_superscript(node, wrap),
-            NodeValue::Text(text) => self.span_text(node, wrap, text),
-            NodeValue::Underline => self.span_underline(node, wrap),
-            NodeValue::WikiLink(_) => self.span_wikilink(node, wrap),
+            NodeValue::HtmlInline(_) => self.span_html_inline(node, wrap, range),
+            NodeValue::LineBreak => self.span_line_break(node, wrap, range),
+            NodeValue::Link(_) => self.span_link(node, wrap, range),
+            NodeValue::Math(_) => self.span_math(node, wrap, range),
+            NodeValue::SoftBreak => self.span_soft_break(node, wrap, range),
+            NodeValue::SpoileredText => self.span_spoilered_text(node, wrap, range),
+            NodeValue::Strikethrough => self.span_strikethrough(node, wrap, range),
+            NodeValue::Strong => self.span_strong(node, wrap, range),
+            NodeValue::Subscript => self.span_subscript(node, wrap, range),
+            NodeValue::Superscript => self.span_superscript(node, wrap, range),
+            NodeValue::Text(_) => self.span_text(node, wrap, range),
+            NodeValue::Underline => self.span_underline(node, wrap, range),
+            NodeValue::WikiLink(_) => self.span_wikilink(node, wrap, range),
 
             // leaf_block
             NodeValue::CodeBlock(_) => unimplemented!("not an inline"),
@@ -94,9 +97,10 @@ impl<'ast> Editor {
 
     pub fn show_inline(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
+        range: (DocCharOffset, DocCharOffset),
     ) -> Response {
         match &node.data.borrow().value {
-            NodeValue::FrontMatter(_) => Response { clicked: false, hovered: false },
+            NodeValue::FrontMatter(_) => Default::default(),
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
@@ -114,27 +118,29 @@ impl<'ast> Editor {
             NodeValue::TaskItem(_) => unimplemented!("not an inline"),
 
             // inline
-            NodeValue::Image(_) => self.show_image(ui, node, top_left, wrap),
-            NodeValue::Code(_) => self.show_code(ui, node, top_left, wrap),
-            NodeValue::Emph => self.show_emph(ui, node, top_left, wrap),
-            NodeValue::Escaped => self.show_escaped(ui, node, top_left, wrap),
-            NodeValue::EscapedTag(_) => self.show_escaped_tag(ui, node, top_left, wrap),
+            NodeValue::Image(_) => self.show_image(ui, node, top_left, wrap, range),
+            NodeValue::Code(_) => self.show_code(ui, node, top_left, wrap, range),
+            NodeValue::Emph => self.show_emph(ui, node, top_left, wrap, range),
+            NodeValue::Escaped => self.show_escaped(ui, node, top_left, wrap, range),
+            NodeValue::EscapedTag(_) => self.show_escaped_tag(ui, node, top_left, wrap, range),
             NodeValue::FootnoteReference(NodeFootnoteReference { ix, .. }) => {
-                self.show_footnote_reference(ui, node, top_left, wrap, *ix)
+                self.show_footnote_reference(ui, node, top_left, wrap, *ix, range)
             }
-            NodeValue::HtmlInline(_) => self.show_html_inline(ui, node, top_left, wrap),
-            NodeValue::LineBreak => self.show_line_break(wrap),
-            NodeValue::Link(node_link) => self.show_link(ui, node, top_left, wrap, node_link),
-            NodeValue::Math(_) => self.show_math(ui, node, top_left, wrap),
-            NodeValue::SoftBreak => self.show_soft_break(wrap),
-            NodeValue::SpoileredText => self.show_spoilered_text(ui, node, top_left, wrap),
-            NodeValue::Strikethrough => self.show_strikethrough(ui, node, top_left, wrap),
-            NodeValue::Strong => self.show_strong(ui, node, top_left, wrap),
-            NodeValue::Subscript => self.show_subscript(ui, node, top_left, wrap),
-            NodeValue::Superscript => self.show_superscript(ui, node, top_left, wrap),
-            NodeValue::Text(_) => self.show_text(ui, node, top_left, wrap),
-            NodeValue::Underline => self.show_underline(ui, node, top_left, wrap),
-            NodeValue::WikiLink(_) => self.show_wikilink(ui, node, top_left, wrap),
+            NodeValue::HtmlInline(_) => self.show_html_inline(ui, node, top_left, wrap, range),
+            NodeValue::LineBreak => self.show_line_break(node, wrap, range),
+            NodeValue::Link(node_link) => {
+                self.show_link(ui, node, top_left, wrap, node_link, range)
+            }
+            NodeValue::Math(_) => self.show_math(ui, node, top_left, wrap, range),
+            NodeValue::SoftBreak => self.show_soft_break(node, wrap, range),
+            NodeValue::SpoileredText => self.show_spoilered_text(ui, node, top_left, wrap, range),
+            NodeValue::Strikethrough => self.show_strikethrough(ui, node, top_left, wrap, range),
+            NodeValue::Strong => self.show_strong(ui, node, top_left, wrap, range),
+            NodeValue::Subscript => self.show_subscript(ui, node, top_left, wrap, range),
+            NodeValue::Superscript => self.show_superscript(ui, node, top_left, wrap, range),
+            NodeValue::Text(_) => self.show_text(ui, node, top_left, wrap, range),
+            NodeValue::Underline => self.show_underline(ui, node, top_left, wrap, range),
+            NodeValue::WikiLink(_) => self.show_wikilink(ui, node, top_left, wrap, range),
 
             // leaf_block
             NodeValue::CodeBlock(_) => unimplemented!("not an inline"),
@@ -150,10 +156,12 @@ impl<'ast> Editor {
 
     // the span of an inline that contains inlines is the sum of the spans of
     // the inlines
-    pub fn inline_children_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
+    pub fn inline_children_span(
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+    ) -> f32 {
         let mut tmp_wrap = wrap.clone();
         for child in node.children() {
-            tmp_wrap.offset += self.span(child, &tmp_wrap);
+            tmp_wrap.offset += self.span(child, &tmp_wrap, range);
         }
         tmp_wrap.offset - wrap.offset
     }
@@ -161,10 +169,11 @@ impl<'ast> Editor {
     // inlines are stacked horizontally and wrapped
     pub fn show_inline_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
+        range: (DocCharOffset, DocCharOffset),
     ) -> Response {
-        let mut response = Response { clicked: false, hovered: false };
+        let mut response = Default::default();
         for child in node.children() {
-            response |= self.show_inline(ui, child, top_left, wrap);
+            response |= self.show_inline(ui, child, top_left, wrap, range);
         }
         response
     }
@@ -218,22 +227,35 @@ impl<'ast> Editor {
         Some((first_child_range.start(), last_child_range.end()))
     }
 
-    pub fn circumfix_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
+    pub fn circumfix_span(
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+    ) -> f32 {
         let mut tmp_wrap = wrap.clone();
 
         let any_children = node.children().next().is_some();
         if any_children {
             let reveal = self.node_intersects_selection(node);
             if reveal {
-                tmp_wrap.offset += self.prefix_span(node, &tmp_wrap);
+                if let Some(prefix_range) = self.prefix_range(node) {
+                    if range.contains_range(&prefix_range, true, true) {
+                        tmp_wrap.offset += self.prefix_span(node, &tmp_wrap);
+                    }
+                }
             }
-            tmp_wrap.offset += self.inline_children_span(node, &tmp_wrap);
+            tmp_wrap.offset += self.inline_children_span(node, &tmp_wrap, range);
             if reveal {
-                tmp_wrap.offset += self.postfix_span(node, &tmp_wrap);
+                if let Some(postfix_range) = self.postfix_range(node) {
+                    if range.contains_range(&postfix_range, true, true) {
+                        tmp_wrap.offset += self.postfix_span(node, &tmp_wrap);
+                    }
+                }
             }
         } else {
-            tmp_wrap.offset +=
-                self.span_text_line(wrap, self.node_range(node), self.text_format_syntax(node))
+            let node_range = self.node_range(node);
+            if range.contains_range(&node_range, true, true) {
+                tmp_wrap.offset +=
+                    self.span_text_line(wrap, node_range, self.text_format_syntax(node))
+            }
         }
 
         tmp_wrap.offset - wrap.offset
@@ -241,45 +263,53 @@ impl<'ast> Editor {
 
     pub fn show_circumfix(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
+        range: (DocCharOffset, DocCharOffset),
     ) -> Response {
-        let mut response = Response { clicked: false, hovered: false };
+        let mut response = Default::default();
         let any_children = node.children().next().is_some();
         if any_children {
             let reveal = self.node_intersects_selection(node);
             if reveal {
                 if let Some(prefix_range) = self.prefix_range(node) {
-                    response |= self.show_text_line(
-                        ui,
-                        top_left,
-                        wrap,
-                        prefix_range,
-                        self.text_format_syntax(node),
-                        false,
-                    );
+                    if range.contains_range(&prefix_range, true, true) {
+                        response |= self.show_text_line(
+                            ui,
+                            top_left,
+                            wrap,
+                            prefix_range,
+                            self.text_format_syntax(node),
+                            false,
+                        );
+                    }
                 }
             }
-            response |= self.show_inline_children(ui, node, top_left, wrap);
+            response |= self.show_inline_children(ui, node, top_left, wrap, range);
             if reveal {
                 if let Some(postfix_range) = self.postfix_range(node) {
-                    response |= self.show_text_line(
-                        ui,
-                        top_left,
-                        wrap,
-                        postfix_range,
-                        self.text_format_syntax(node),
-                        false,
-                    );
+                    if range.contains_range(&postfix_range, true, true) {
+                        response |= self.show_text_line(
+                            ui,
+                            top_left,
+                            wrap,
+                            postfix_range,
+                            self.text_format_syntax(node),
+                            false,
+                        );
+                    }
                 }
             }
         } else {
-            response |= self.show_text_line(
-                ui,
-                top_left,
-                wrap,
-                self.node_range(node),
-                self.text_format_syntax(node),
-                false,
-            );
+            let node_range = self.node_range(node);
+            if range.contains_range(&node_range, true, true) {
+                response |= self.show_text_line(
+                    ui,
+                    top_left,
+                    wrap,
+                    node_range,
+                    self.text_format_syntax(node),
+                    false,
+                );
+            }
         }
 
         response

@@ -159,20 +159,18 @@ impl<'ast> Editor {
             NodeValue::Raw(_) => unimplemented!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(_) => self.line_prefix_len_alert(node, line),
-            NodeValue::BlockQuote => self.line_prefix_len_block_quote(node, line),
+            NodeValue::Alert(_) => self.own_prefix_len_alert(node, line),
+            NodeValue::BlockQuote => self.own_prefix_len_block_quote(node, line),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
             NodeValue::Document => Some(0.into()),
-            NodeValue::FootnoteDefinition(_) => {
-                self.line_prefix_len_footnote_definition(node, line)
-            }
-            NodeValue::Item(node_list) => self.line_prefix_len_item(node, line, node_list),
+            NodeValue::FootnoteDefinition(_) => self.own_prefix_len_footnote_definition(node, line),
+            NodeValue::Item(node_list) => self.own_prefix_len_item(node, line, node_list),
             NodeValue::List(_) => Some(0.into()),
             NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => Some(0.into()),
             NodeValue::TableRow(_) => Some(0.into()),
-            NodeValue::TaskItem(_) => self.line_prefix_len_task_item(node, line),
+            NodeValue::TaskItem(_) => self.own_prefix_len_task_item(node, line),
 
             // inline
             NodeValue::Image(_) => unimplemented!("not a block: {} {:?}", sp, value),
@@ -510,10 +508,6 @@ impl<'ast> Editor {
     }
 
     pub fn compute_bounds_list(&mut self, node: &'ast AstNode<'ast>) {
-        self.compute_bounds_block_children(node);
-    }
-
-    pub fn compute_bounds_task_item(&mut self, node: &'ast AstNode<'ast>) {
         self.compute_bounds_block_children(node);
     }
 

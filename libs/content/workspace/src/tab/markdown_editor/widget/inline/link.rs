@@ -1,5 +1,6 @@
 use comrak::nodes::{AstNode, NodeLink};
 use egui::{OpenUrl, Pos2, Stroke, TextFormat, Ui};
+use lb_rs::model::text::offset_types::DocCharOffset;
 
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
@@ -15,13 +16,15 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn span_link(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
-        self.circumfix_span(node, wrap)
+    pub fn span_link(
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+    ) -> f32 {
+        self.circumfix_span(node, wrap, range)
     }
 
     pub fn show_link(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        node_link: &NodeLink,
+        node_link: &NodeLink, range: (DocCharOffset, DocCharOffset),
     ) -> Response {
         // An inline link consists of a link text followed immediately by a left
         // parenthesis `(`, optional whitespace, an optional link destination,
@@ -33,7 +36,7 @@ impl<'ast> Editor {
         // blank line.
         // https://github.github.com/gfm/#link-title
 
-        let response = self.show_circumfix(ui, node, top_left, wrap);
+        let response = self.show_circumfix(ui, node, top_left, wrap, range);
 
         let modifiers = ui.input(|i| i.modifiers);
         if response.hovered && modifiers.command {

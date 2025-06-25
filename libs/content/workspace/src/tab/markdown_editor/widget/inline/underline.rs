@@ -1,5 +1,6 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Stroke, TextFormat, Ui};
+use lb_rs::model::text::offset_types::DocCharOffset;
 
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
@@ -14,13 +15,16 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn span_underline(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
-        self.circumfix_span(node, wrap)
+    pub fn span_underline(
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+    ) -> f32 {
+        self.circumfix_span(node, wrap, range)
     }
 
     pub fn show_underline(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
+        range: (DocCharOffset, DocCharOffset),
     ) -> Response {
-        self.show_circumfix(ui, node, top_left, wrap)
+        self.show_circumfix(ui, node, top_left, wrap, range)
     }
 }

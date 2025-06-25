@@ -224,10 +224,10 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn line_prefix_len_alert(
+    pub fn own_prefix_len_alert(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> Option<RelCharOffset> {
-        self.line_prefix_len_block_quote(node, line)
+        self.own_prefix_len_block_quote(node, line)
     }
 
     pub fn compute_bounds_alert(&mut self, node: &'ast AstNode<'ast>, _node_alert: &NodeAlert) {

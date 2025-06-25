@@ -415,7 +415,7 @@ impl Debug for RelCharOffset {
 }
 
 pub trait RangeExt: Sized {
-    type Element: Copy + Sub<Self::Element>;
+    type Element: Copy + Sub<Self::Element> + Ord;
 
     fn contains(&self, value: Self::Element, start_inclusive: bool, end_inclusive: bool) -> bool;
     fn intersects(
@@ -437,6 +437,9 @@ pub trait RangeExt: Sized {
     }
     fn intersects_allow_empty(&self, other: &(Self::Element, Self::Element)) -> bool {
         self.intersects(other, true)
+    }
+    fn trim(&self, value: &(Self::Element, Self::Element)) -> (Self::Element, Self::Element) {
+        (self.start().max(value.0).min(value.1), self.end().max(value.0).min(value.1))
     }
 }
 

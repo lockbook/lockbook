@@ -1,6 +1,6 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, TextFormat, Ui};
-use lb_rs::model::text::offset_types::RangeExt as _;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
@@ -15,56 +15,77 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn span_code(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
-        let range = self.node_range(node);
+    pub fn span_code(
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+    ) -> f32 {
+        let node_range = self.node_range(node);
 
-        let infix_range = (range.start() + 1, range.end() - 1);
-        let infix_span = self.span_text_line(wrap, infix_range, self.text_format(node));
+        let prefix_range = (node_range.start(), node_range.start() + 1);
+        let infix_range = (node_range.start() + 1, node_range.end() - 1);
+        let postfix_range = (node_range.end() - 1, node_range.end());
 
-        if self.node_intersects_selection(node) {
-            let prefix_range = (range.start(), range.start() + 1);
-            let prefix_span =
-                self.span_text_line(wrap, prefix_range, self.text_format_syntax(node));
-            let postfix_range = (range.end() - 1, range.end());
-            let postfix_span =
-                self.span_text_line(wrap, postfix_range, self.text_format_syntax(node));
-            prefix_span + infix_span + postfix_span
-        } else {
-            infix_span
+        let reveal = self.node_intersects_selection(node);
+        let mut span = 0.0;
+
+        if reveal {
+            span +=
+                self.span_text_line(wrap, prefix_range.trim(&range), self.text_format_syntax(node));
         }
+        let infix_range_trim = infix_range.trim(&range);
+        if !infix_range_trim.is_empty() {
+            span += self.span_text_line(wrap, infix_range_trim, self.text_format(node));
+        }
+        if reveal {
+            span += self.span_text_line(
+                wrap,
+                postfix_range.trim(&range),
+                self.text_format_syntax(node),
+            );
+        }
+
+        span
     }
 
     pub fn show_code(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
+        range: (DocCharOffset, DocCharOffset),
     ) -> Response {
-        let range = self.node_range(node);
+        let node_range = self.node_range(node);
 
-        let prefix_range = (range.start(), range.start() + 1);
-        let infix_range = (range.start() + 1, range.end() - 1);
-        let postfix_range = (range.end() - 1, range.end());
+        let prefix_range = (node_range.start(), node_range.start() + 1);
+        let infix_range = (node_range.start() + 1, node_range.end() - 1);
+        let postfix_range = (node_range.end() - 1, node_range.end());
 
-        let mut response = Response { clicked: false, hovered: false };
+        let reveal = self.node_intersects_selection(node);
+        let mut response = Default::default();
 
-        if self.node_intersects_selection(node) {
+        if reveal {
             response |= self.show_text_line(
                 ui,
                 top_left,
                 wrap,
-                prefix_range,
+                prefix_range.trim(&range),
                 self.text_format_syntax(node),
                 false,
             );
         }
-
-        response |=
-            self.show_text_line(ui, top_left, wrap, infix_range, self.text_format(node), false);
-
-        if self.node_intersects_selection(node) {
+        let infix_range_trim = infix_range.trim(&range);
+        if !infix_range_trim.is_empty() {
             response |= self.show_text_line(
                 ui,
                 top_left,
                 wrap,
-                postfix_range,
+                infix_range_trim,
+                self.text_format(node),
+                false,
+            );
+        }
+        if reveal {
+            response |= self.show_text_line(
+                ui,
+                top_left,
+                wrap,
+                postfix_range.trim(&range),
                 self.text_format_syntax(node),
                 false,
             );

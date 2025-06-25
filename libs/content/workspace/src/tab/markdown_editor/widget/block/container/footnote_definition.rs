@@ -63,7 +63,7 @@ impl<'ast> Editor {
     // * space between the syntax and first child are part of this
     // node (e.g. they don't affect indentation requirements for nested list
     // items)
-    pub fn line_prefix_len_footnote_definition(
+    pub fn own_prefix_len_footnote_definition(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> Option<RelCharOffset> {
         // todo: change paramater type of `line` to `usize` (index instead of

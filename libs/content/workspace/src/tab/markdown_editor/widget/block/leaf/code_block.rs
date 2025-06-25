@@ -560,9 +560,7 @@ impl<'ast> Editor {
             let is_opening_fence = line_idx == first_line_idx;
             let is_closing_fence = line_idx == last_line_idx;
 
-            if is_opening_fence || is_closing_fence {
-                self.bounds.paragraphs.push(node_line);
-            } else if reveal {
+            if is_opening_fence || is_closing_fence || reveal {
                 self.bounds.paragraphs.push(node_line);
             } else {
                 self.compute_bounds_code_block_line(node, line);
@@ -589,7 +587,7 @@ impl<'ast> Editor {
         &mut self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) {
         let node_line = self.node_line(node, line);
-        let code_line = self.line_content(node, line);
+        let code_line = self.line_content(node.parent().unwrap(), line);
 
         // Push bounds for indentation prefix
         if code_line.start() > node_line.start() {

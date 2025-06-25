@@ -1,6 +1,6 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, TextFormat, Ui};
-use lb_rs::model::text::offset_types::{IntoRangeExt as _, RangeExt as _};
+use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeExt as _};
 
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
@@ -14,70 +14,100 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn span_footnote_reference(&self, node: &'ast AstNode<'ast>, wrap: &Wrap, ix: u32) -> f32 {
-        let range = self.node_range(node);
+    pub fn span_footnote_reference(
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, ix: u32,
+        range: (DocCharOffset, DocCharOffset),
+    ) -> f32 {
+        let node_range = self.node_range(node);
 
         if self.node_intersects_selection(node) {
-            let prefix_range = (range.start(), range.start() + 2);
-            let prefix_span =
-                self.span_text_line(wrap, prefix_range, self.text_format_syntax(node));
-            let infix_range = (range.start() + 2, range.end() - 1);
-            let infix_span = self.span_text_line(wrap, infix_range, self.text_format(node));
-            let postfix_range = (range.end() - 1, range.end());
-            let postfix_span =
-                self.span_text_line(wrap, postfix_range, self.text_format_syntax(node));
-            prefix_span + infix_span + postfix_span
+            let prefix_range = (node_range.start(), node_range.start() + 2);
+            let infix_range = (node_range.start() + 2, node_range.end() - 1);
+            let postfix_range = (node_range.end() - 1, node_range.end());
+
+            let mut span = 0.0;
+
+            if range.contains_range(&prefix_range, true, true) {
+                span += self.span_text_line(wrap, prefix_range, self.text_format_syntax(node));
+            }
+            if range.contains_range(&infix_range, true, true) {
+                span += self.span_text_line(wrap, infix_range, self.text_format(node));
+            }
+            if range.contains_range(&postfix_range, true, true) {
+                span += self.span_text_line(wrap, postfix_range, self.text_format_syntax(node));
+            }
+
+            span
         } else {
-            let text = format!("{}", ix);
-            self.text_mid_span(wrap, Default::default(), &text, self.text_format(node))
+            let node_range = self.node_range(node);
+            if range.contains_range(&node_range, true, true) {
+                let text = format!("{}", ix);
+                self.text_mid_span(wrap, Default::default(), &text, self.text_format(node))
+            } else {
+                0.0
+            }
         }
     }
 
     // [^footnotereference]
     pub fn show_footnote_reference(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap, ix: u32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
+        ix: u32, range: (DocCharOffset, DocCharOffset),
     ) -> Response {
-        let range = self.node_range(node);
+        let node_range = self.node_range(node);
 
-        let prefix_range = (range.start(), range.start() + 2);
-        let infix_range = (range.start() + 2, range.end() - 1);
-        let postfix_range = (range.end() - 1, range.end());
+        let prefix_range = (node_range.start(), node_range.start() + 2);
+        let infix_range = (node_range.start() + 2, node_range.end() - 1);
+        let postfix_range = (node_range.end() - 1, node_range.end());
 
-        let mut response = Response { clicked: false, hovered: false };
+        let mut response = Default::default();
 
         if self.node_intersects_selection(node) {
-            response |= self.show_text_line(
-                ui,
-                top_left,
-                wrap,
-                prefix_range,
-                self.text_format_syntax(node),
-                false,
-            );
-
-            response |=
-                self.show_text_line(ui, top_left, wrap, infix_range, self.text_format(node), false);
-
-            response |= self.show_text_line(
-                ui,
-                top_left,
-                wrap,
-                postfix_range,
-                self.text_format_syntax(node),
-                false,
-            );
+            if range.contains_range(&prefix_range, true, true) {
+                response |= self.show_text_line(
+                    ui,
+                    top_left,
+                    wrap,
+                    prefix_range,
+                    self.text_format_syntax(node),
+                    false,
+                );
+            }
+            if range.contains_range(&infix_range, true, true) {
+                response |= self.show_text_line(
+                    ui,
+                    top_left,
+                    wrap,
+                    infix_range,
+                    self.text_format(node),
+                    false,
+                );
+            }
+            if range.contains_range(&postfix_range, true, true) {
+                response |= self.show_text_line(
+                    ui,
+                    top_left,
+                    wrap,
+                    postfix_range,
+                    self.text_format_syntax(node),
+                    false,
+                );
+            }
         } else {
-            let text = format!("{}", ix);
-            response |= self.show_override_text_line(
-                ui,
-                top_left,
-                wrap,
-                (range.end() - 1).into_range(),
-                self.text_format(node),
-                false,
-                Some(&text),
-                false,
-            );
+            let node_range = self.node_range(node);
+            if range.contains_range(&node_range, true, true) {
+                let text = format!("{}", ix);
+                response |= self.show_override_text_line(
+                    ui,
+                    top_left,
+                    wrap,
+                    (node_range.end() - 1).into_range(),
+                    self.text_format(node),
+                    false,
+                    Some(&text),
+                    false,
+                );
+            }
         }
 
         response

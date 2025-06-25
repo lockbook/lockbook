@@ -117,7 +117,7 @@ impl<'ast> Editor {
     //
     // This implementation does benefit from the simplicity of the node - there
     // are only 8 cases.
-    pub fn line_prefix_len_block_quote(
+    pub fn own_prefix_len_block_quote(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> Option<RelCharOffset> {
         let node_line = self.node_line(node, line);

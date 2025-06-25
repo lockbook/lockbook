@@ -21,7 +21,7 @@ impl<'ast> Editor {
         }
 
         if let Some((pre_node, pre_children, _, post_children, post_node)) =
-            self.line_ranges(node, node_line)
+            self.split_range(node, node_line)
         {
             let reveal = node_line.intersects(&self.buffer.current.selection, true);
             if reveal {
@@ -29,9 +29,7 @@ impl<'ast> Editor {
                 wrap.offset +=
                     self.span_text_line(&wrap, pre_children, self.text_format_syntax(node));
             }
-            for child in &self.children_in_range(node, node_line) {
-                wrap.offset += self.span(child, &wrap);
-            }
+            wrap.offset += self.inline_children_span(node, &wrap, node_line);
             if reveal {
                 wrap.offset +=
                     self.span_text_line(&wrap, post_children, self.text_format_syntax(node));
@@ -59,7 +57,7 @@ impl<'ast> Editor {
         }
 
         if let Some((pre_node, pre_children, _, post_children, post_node)) =
-            self.line_ranges(node, node_line)
+            self.split_range(node, node_line)
         {
             let reveal = node_line.intersects(&self.buffer.current.selection, true);
             if reveal {
@@ -80,9 +78,7 @@ impl<'ast> Editor {
                     false,
                 );
             }
-            for child in &self.children_in_range(node, node_line) {
-                self.show_inline(ui, child, top_left, &mut wrap);
-            }
+            self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
             if reveal {
                 self.show_text_line(
                     ui,
@@ -117,7 +113,7 @@ impl<'ast> Editor {
         let node_line = self.node_range(node); // table cells are always single-line
 
         if let Some((pre_node, pre_children, children, post_children, post_node)) =
-            self.line_ranges(node, node_line)
+            self.split_range(node, node_line)
         {
             if !pre_node.is_empty() {
                 self.bounds.paragraphs.push(pre_node);

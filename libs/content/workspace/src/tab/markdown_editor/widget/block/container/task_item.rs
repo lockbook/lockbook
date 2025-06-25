@@ -64,11 +64,11 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn line_prefix_len_task_item(
+    pub fn own_prefix_len_task_item(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> Option<RelCharOffset> {
         let node_line = self.node_line(node, line);
-        let mut result = node_line.start() - line.start();
+        let mut result = 0.into();
 
         // "If a sequence of lines Ls constitutes a list item according to rule
         // #1, #2, or #3, then the result of indenting each line of Ls by 1-3
@@ -146,6 +146,26 @@ impl<'ast> Editor {
         }
 
         Some(result)
+    }
+
+    pub fn compute_bounds_task_item(&mut self, node: &'ast AstNode<'ast>) {
+        // Push bounds for line prefix
+        for line_idx in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line_idx];
+            self.bounds
+                .paragraphs
+                .push(self.line_own_prefix(node, line));
+        }
+
+        // Handle children or line content
+        let any_children = node.children().next().is_some();
+        if any_children {
+            self.compute_bounds_block_children(node);
+        } else {
+            let line = self.node_first_line(node);
+            let line_content = self.line_content(node, line);
+            self.bounds.paragraphs.push(line_content);
+        }
     }
 
     fn check_offset(&self, node: &'ast AstNode<'ast>) -> DocCharOffset {
