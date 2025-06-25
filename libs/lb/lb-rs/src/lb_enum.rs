@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub enum Lb {
     Direct(LbServer),
     Network(LbClient)
@@ -20,7 +21,7 @@ impl Lb {
     }
 
     pub async fn create_account(
-        &mut self,
+        &self,
         username: &str,
         api_url: &str,
         welcome_doc: bool,
