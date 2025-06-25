@@ -1,7 +1,9 @@
 use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
 use egui::text::LayoutJob;
 use egui::{Pos2, Rect, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeIterExt as _, RelCharOffset};
+use lb_rs::model::text::offset_types::{
+    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
+};
 
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BULLET_RADIUS, INDENT, ROW_HEIGHT};
@@ -92,7 +94,7 @@ impl<'ast> Editor {
         node_list: &NodeList,
     ) -> Option<RelCharOffset> {
         let node_line = self.node_line(node, line);
-        let mut result = 0.into();
+        let mut result: RelCharOffset = 0.into();
 
         // "If a sequence of lines Ls constitutes a list item according to rule
         // #1, #2, or #3, then the result of indenting each line of Ls by 1-3
@@ -130,6 +132,11 @@ impl<'ast> Editor {
             // and indenting subsequent lines of Ls by W + 1 spaces, is a list item
             // with Bs as its contents."
             result += marker_width_including_spaces;
+
+            println!(
+                "own prefix len item: indentation = {:?}, marker_width_including_spaces = {:?}",
+                indentation, marker_width_including_spaces
+            );
         } else {
             // "If a string of lines Ls constitute a list item with contents Bs, then
             // the result of deleting some or all of the indentation from one or
@@ -147,16 +154,20 @@ impl<'ast> Editor {
             }
         }
 
-        Some(result)
+        // marker_width_including_spaces reports the width _with_ spaces even
+        // when they're not present
+        Some(result.min(node_line.len()))
     }
 
     pub fn compute_bounds_item(&mut self, node: &'ast AstNode<'ast>) {
         // Push bounds for line prefix (bullet/number annotation)
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
-            self.bounds
-                .paragraphs
-                .push(self.line_own_prefix(node, line));
+            let line_own_prefix = self.line_own_prefix(node, line);
+
+            println!("list push line own prefix: {:?}", line_own_prefix);
+
+            self.bounds.paragraphs.push(line_own_prefix);
         }
 
         // Handle children or line content
@@ -166,6 +177,9 @@ impl<'ast> Editor {
         } else {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
+
+            println!("list push line content: {:?}", line_content);
+
             self.bounds.paragraphs.push(line_content);
         }
     }
