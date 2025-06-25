@@ -650,11 +650,12 @@ impl Workspace {
             cursor.y_range(),
         );
         let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
-        ui.painter()
-            .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
 
         let bg_color = get_apple_bg_color(ui);
         ui.painter().rect_filled(remaining_rect, 0.0, bg_color);
+
+        ui.painter()
+            .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
     }
 
     fn process_keys(&mut self) {
@@ -780,7 +781,7 @@ impl Workspace {
                         egui::Align2::LEFT_TOP.anchor_size(start, tab_intel_galley.size());
 
                     ui.painter().galley(
-                        tab_intel_rect.left_center() - egui::vec2(0.0, 5.5),
+                        start + egui::vec2(0.0, 1.0),
                         tab_intel_galley,
                         ui.visuals().text_color(),
                     );
@@ -839,7 +840,10 @@ impl Workspace {
                     let touch_mode =
                         matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
-                    if close_button_resp.clicked() || text_resp.middle_clicked() {
+                    if close_button_resp.clicked()
+                        || close_button_resp.drag_started()
+                        || text_resp.middle_clicked()
+                    {
                         result = Some(TabLabelResponse::Closed);
                     }
                     if close_button_resp.hovered() {
@@ -864,7 +868,8 @@ impl Workspace {
                         );
                     }
 
-                    if text_resp.clicked() {
+                    // drag started makes it easier to click on touch screens
+                    if text_resp.clicked() || text_resp.drag_started() {
                         result = Some(TabLabelResponse::Clicked);
                     }
 
