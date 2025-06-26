@@ -43,7 +43,7 @@ pub struct WeakRect {
     pub max: (f32, f32),
 }
 
-#[derive(Clone, Default, Copy, Serialize, Deserialize)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct WeakViewportSettings {
     /// the drawable rect in the master-transformed plane
     pub bounded_rect: Option<WeakRect>,
@@ -53,6 +53,20 @@ pub struct WeakViewportSettings {
     pub right_locked: bool,
     pub bottom_locked: bool,
     pub top_locked: bool,
+}
+
+impl Default for WeakViewportSettings {
+    fn default() -> Self {
+        Self {
+            bounded_rect: Default::default(),
+            master_transform: Default::default(),
+            left_locked: true,
+            right_locked: true,
+            bottom_locked: false,
+            top_locked: true,
+            viewport_transform: None,
+        }
+    }
 }
 
 impl Buffer {
@@ -329,7 +343,7 @@ pub fn parse_child(
                     let base64 = base64::decode(weak_images_g.id().as_bytes())
                         .expect("Failed to decode base64");
 
-                    let decoded: WeakImages = bincode::deserialize(&base64).unwrap();
+                    let decoded: WeakImages = bincode::deserialize(&base64).unwrap_or_default();
                     *weak_images = decoded;
                 }
             } else if group.id().eq(WEAK_PATH_PRESSURES_G_ID) {
@@ -337,7 +351,8 @@ pub fn parse_child(
                     let base64 = base64::decode(weak_pressures_g.id().as_bytes())
                         .expect("Failed to decode base64");
 
-                    let decoded: WeakPathPressures = bincode::deserialize(&base64).unwrap();
+                    let decoded: WeakPathPressures =
+                        bincode::deserialize(&base64).unwrap_or_default();
                     *weak_path_pressures = decoded;
                 }
             } else if group.id().eq(WEAK_VIEWPORT_SETTINGS_G_ID) {
@@ -346,7 +361,8 @@ pub fn parse_child(
                     let base64 = base64::decode(weak_viewport_settings_g.id().as_bytes())
                         .expect("Failed to decode base64");
 
-                    let decoded: WeakViewportSettings = bincode::deserialize(&base64).unwrap();
+                    let decoded: WeakViewportSettings =
+                        bincode::deserialize(&base64).unwrap_or_default();
                     *weak_viewport_settings = decoded;
                 }
             } else {
