@@ -455,14 +455,13 @@ impl<'ast> Editor {
             }
 
             let selection = self.buffer.current.selection;
-            if line_prefix.intersects(&selection, false) {
-                // line prefix contains some part of the selection
+            if line_prefix.contains(selection.start(), true, false) {
                 return true;
             }
-            if selection.end() == line_prefix.start() {
-                // start of line prefix is inclusive
+            if line_prefix.contains(selection.end(), true, false) {
                 return true;
             }
+
             if self.buffer[self.node_line(node, line)]
                 .chars()
                 .all(|c| c.is_whitespace())
