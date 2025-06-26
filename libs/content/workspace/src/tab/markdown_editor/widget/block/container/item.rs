@@ -133,11 +133,6 @@ impl<'ast> Editor {
             // and indenting subsequent lines of Ls by W + 1 spaces, is a list item
             // with Bs as its contents."
             result += marker_width_including_spaces;
-
-            println!(
-                "own prefix len item: indentation = {:?}, marker_width_including_spaces = {:?}",
-                indentation, marker_width_including_spaces
-            );
         } else {
             // "If a string of lines Ls constitute a list item with contents Bs, then
             // the result of deleting some or all of the indentation from one or
@@ -165,8 +160,6 @@ impl<'ast> Editor {
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
             let line_own_prefix = self.line_own_prefix(node, line);
-
-            println!("list push line own prefix: {:?}", line_own_prefix);
 
             self.bounds.paragraphs.push(line_own_prefix);
         }
