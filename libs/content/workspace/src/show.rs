@@ -67,6 +67,7 @@ impl Workspace {
         }
     }
 
+    #[allow(dead_code)]
     #[cfg(target_vendor = "apple")]
     fn show_mobile_landing_page(&mut self, ui: &mut egui::Ui) {
         let punchout = if ui.visuals().dark_mode {

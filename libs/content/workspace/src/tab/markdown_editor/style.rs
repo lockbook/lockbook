@@ -174,15 +174,6 @@ impl ListItemType {
     }
 }
 
-/// Represents a style that can be applied to rendered text
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum RenderStyle {
-    Selection,
-    PlaintextLink,
-    Syntax,
-    Markdown(MarkdownNode),
-}
-
 /// Represents a particular markdown node e.g. link to google.com, not a type of node e.g. link (see MarkdownNodeType)
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum MarkdownNode {

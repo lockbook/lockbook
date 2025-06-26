@@ -270,7 +270,7 @@ impl Editor {
 
         let root = comrak::parse_document(&arena, &text_with_newline, &options);
 
-        let ast_elapsed = start.elapsed();
+        let _ast_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
         // println!(
@@ -280,7 +280,7 @@ impl Editor {
         // );
         // print_ast(root);
 
-        let print_elapsed = start.elapsed();
+        let _print_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
         self.images = widget::inline::image::cache::calc(
@@ -358,7 +358,7 @@ impl Editor {
         self.bounds.lines = self.bounds.paragraphs.clone(); // todo: real lines
         self.syntax.garbage_collect();
 
-        let render_elapsed = start.elapsed();
+        let _render_elapsed = start.elapsed();
 
         // println!(
         //     "{}",
@@ -479,7 +479,7 @@ impl Editor {
     }
 }
 
-fn print_ast<'a>(root: &'a AstNode<'a>) {
+pub fn print_ast<'a>(root: &'a AstNode<'a>) {
     print_recursive(root, "");
 }
 
