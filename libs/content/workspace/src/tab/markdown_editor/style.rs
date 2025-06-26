@@ -1,9 +1,7 @@
-use crate::tab::markdown_editor::appearance::Appearance;
-use egui::{FontFamily, Stroke, TextFormat, Visuals};
+use comrak::nodes::NodeValue;
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
-use std::sync::Arc;
 
 /// Represents a type of markdown node e.g. link, not a particular node e.g. link to google.com (see MarkdownNode)
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
@@ -70,6 +68,74 @@ impl MarkdownNodeType {
     pub fn conflicts_with(&self, other: &MarkdownNodeType) -> bool {
         matches!((self, other), (Self::Block(..), Self::Block(..)))
     }
+
+    pub fn matching(value: &NodeValue) -> Option<Self> {
+        match value {
+            NodeValue::Code(_) => Some(Self::Inline(InlineNodeType::Code)),
+            NodeValue::Emph => Some(Self::Inline(InlineNodeType::Italic)),
+            NodeValue::Strong => Some(Self::Inline(InlineNodeType::Bold)),
+            NodeValue::Strikethrough => Some(Self::Inline(InlineNodeType::Strikethrough)),
+            _ => None,
+        }
+    }
+
+    pub fn matches(&self, value: &NodeValue) -> bool {
+        match (value, self) {
+            (NodeValue::FrontMatter(_), _) => false,
+            (NodeValue::Raw(_), _) => unreachable!("can only be created programmatically"),
+
+            // container_block
+            (NodeValue::Alert(_), _) => false,
+            (NodeValue::BlockQuote, _) => false,
+            (NodeValue::DescriptionItem(_), _) => unimplemented!("extension disabled"),
+            (NodeValue::DescriptionList, _) => unimplemented!("extension disabled"),
+            (NodeValue::Document, _) => false,
+            (NodeValue::FootnoteDefinition(_), _) => false,
+            (NodeValue::Item(_), _) => false,
+            (NodeValue::List(_), _) => false,
+            (NodeValue::MultilineBlockQuote(_), _) => unimplemented!("extension disabled"),
+            (NodeValue::Table(_), _) => false,
+            (NodeValue::TableRow(_), _) => false,
+            (NodeValue::TaskItem(_), _) => false,
+
+            // inline
+            (NodeValue::Image(_), _) => false,
+            (NodeValue::Code(_), MarkdownNodeType::Inline(InlineNodeType::Code)) => true,
+            (NodeValue::Code(_), _) => false,
+            (NodeValue::Emph, MarkdownNodeType::Inline(InlineNodeType::Italic)) => true,
+            (NodeValue::Emph, _) => false,
+            (NodeValue::Escaped, _) => false,
+            (NodeValue::EscapedTag(_), _) => false,
+            (NodeValue::FootnoteReference(_), _) => false,
+            (NodeValue::HtmlInline(_), _) => false,
+            (NodeValue::LineBreak, _) => false,
+            (NodeValue::Link(_), _) => false,
+            (NodeValue::Math(_), _) => false,
+            (NodeValue::SoftBreak, _) => false,
+            (NodeValue::SpoileredText, _) => false,
+            (NodeValue::Strikethrough, MarkdownNodeType::Inline(InlineNodeType::Strikethrough)) => {
+                true
+            }
+            (NodeValue::Strikethrough, _) => false,
+            (NodeValue::Strong, MarkdownNodeType::Inline(InlineNodeType::Bold)) => true,
+            (NodeValue::Strong, _) => false,
+            (NodeValue::Subscript, _) => false,
+            (NodeValue::Superscript, _) => false,
+            (NodeValue::Text(_), _) => false,
+            (NodeValue::Underline, _) => false,
+            (NodeValue::WikiLink(_), _) => false,
+
+            // leaf_block
+            (NodeValue::CodeBlock(_), _) => false,
+            (NodeValue::DescriptionDetails, _) => unimplemented!("extension disabled"),
+            (NodeValue::DescriptionTerm, _) => unimplemented!("extension disabled"),
+            (NodeValue::Heading(_), _) => false,
+            (NodeValue::HtmlBlock(_), _) => false,
+            (NodeValue::Paragraph, _) => false,
+            (NodeValue::TableCell, _) => false,
+            (NodeValue::ThematicBreak, _) => false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -106,15 +172,6 @@ impl ListItemType {
             Self::Todo => "* [ ] ",
         }
     }
-}
-
-/// Represents a style that can be applied to rendered text
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum RenderStyle {
-    Selection,
-    PlaintextLink,
-    Syntax,
-    Markdown(MarkdownNode),
 }
 
 /// Represents a particular markdown node e.g. link to google.com, not a type of node e.g. link (see MarkdownNodeType)
@@ -305,89 +362,6 @@ impl Hash for ListItem {
 pub type Url = String;
 pub type Title = String;
 pub type IndentLevel = u8;
-
-impl RenderStyle {
-    pub fn apply_style(&self, text_format: &mut TextFormat, vis: &Appearance, visuals: &Visuals) {
-        if vis.plaintext_mode {
-            match self {
-                RenderStyle::Selection => {
-                    text_format.background = vis.selection_bg();
-                }
-                RenderStyle::PlaintextLink => {
-                    text_format.color = vis.link();
-                    text_format.underline = Stroke { width: 1.5, color: vis.link() };
-                }
-                RenderStyle::Syntax => {}
-                RenderStyle::Markdown(MarkdownNode::Document) => {
-                    text_format.font_id.family = FontFamily::Monospace;
-                    text_format.font_id.size = vis.font_size();
-                    text_format.color = vis.text();
-                }
-                RenderStyle::Markdown(_) => {}
-            }
-        } else {
-            match self {
-                RenderStyle::Selection => {
-                    text_format.background = vis.selection_bg();
-                }
-                RenderStyle::PlaintextLink => {
-                    text_format.color = vis.link();
-                    text_format.underline = Stroke { width: 1.5, color: vis.link() };
-                }
-                RenderStyle::Syntax => {
-                    text_format.color = vis.syntax();
-                }
-                RenderStyle::Markdown(MarkdownNode::Document) => {
-                    text_format.font_id.size = vis.font_size();
-                    text_format.color = vis.text();
-                }
-                RenderStyle::Markdown(MarkdownNode::Paragraph) => {
-                    text_format.font_id.size = vis.font_size();
-                    text_format.color = vis.text();
-                }
-                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Code)) => {
-                    text_format.background = visuals.code_bg_color;
-                    text_format.font_id.family = FontFamily::Monospace;
-                    text_format.font_id.size *= 14.0 / 16.0;
-                    text_format.color = vis.code();
-                }
-                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Bold)) => {
-                    text_format.color = vis.bold();
-                    text_format.font_id.family = FontFamily::Name(Arc::from("Bold"));
-                }
-                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Italic)) => {
-                    text_format.color = vis.italics();
-                    text_format.italics = true;
-                }
-                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Strikethrough)) => {
-                    text_format.strikethrough = Stroke { width: 1.5, color: vis.strikethrough() };
-                }
-                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Link(..))) => {
-                    text_format.color = vis.link();
-                    text_format.underline = Stroke { width: 1.5, color: vis.link() };
-                }
-                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Image(..))) => {
-                    text_format.italics = true;
-                }
-                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Heading(level))) => {
-                    if level == &HeadingLevel::H1 {
-                        text_format.font_id.family = FontFamily::Name(Arc::from("Bold"));
-                    }
-                    text_format.color = vis.heading();
-                    text_format.font_id.size = vis.heading_size(level);
-                }
-                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Quote)) => {}
-                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Code(..))) => {
-                    text_format.color = vis.code();
-                    text_format.font_id.family = FontFamily::Monospace;
-                    text_format.font_id.size *= 14.0 / 16.0;
-                }
-                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::ListItem(..))) => {}
-                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Rule)) => {}
-            }
-        }
-    }
-}
 
 impl MarkdownNode {
     pub fn node_type(&self) -> MarkdownNodeType {

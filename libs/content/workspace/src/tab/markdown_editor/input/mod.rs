@@ -1,6 +1,5 @@
 pub mod advance;
 pub mod canonical;
-pub mod capture;
 pub mod cursor;
 pub mod events;
 pub mod mutation;
@@ -11,10 +10,12 @@ use crate::tab::markdown_editor;
 use lb_rs::model::text::offset_types::DocCharOffset;
 use markdown_editor::style::MarkdownNode;
 
-// This module processes input events, with the following major concerns:
-// * Plumbing: combining programmatic and UI input, delegating to appropriate handlers
-// * Enrichment: did the user click on a link, or select a word, or drag a selection?
-// * Buffer manipulation: text replacements & cursor movements, operational transformation, merging concurrent edits
+/*
+ * This module processes input events, with the following major concerns:
+ * * Plumbing: combining programmatic and UI input, delegating to appropriate handlers
+ * * Enrichment: did the user click on a link, or select a word, or drag a selection?
+ * * Buffer manipulation: text replacements & cursor movements, operational transformation, merging concurrent edits
+ */
 
 /// text location
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -43,13 +44,16 @@ pub enum Increment {
 /// text location relative to some absolute text location
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Offset {
-    /// text location at a bound; if you're already there, this leaves you there (e.g. cmd+left/right)
+    /// text location at a bound; if you're already there, this leaves you there
+    /// (e.g. cmd+left/right)
     To(Bound),
 
-    /// text location at the next bound; if you're already there, this goes to the next one (e.g. option+left/right)
+    /// text location at the next bound; if you're already there, this goes to
+    /// the next one (e.g. option+left/right)
     Next(Bound),
 
-    /// text location some increment away
+    /// text location some increment away; if you're in the middle of one of
+    /// these, this goes somewhere in the middle of the next one (e.g. up/down)
     By(Increment),
 }
 
@@ -68,13 +72,15 @@ pub enum Region {
     /// Currently selected text
     Selection,
 
-    /// Currently selected text, or if the selection is empty, text from the primary cursor to one char/line
-    /// before/after or to start/end of word/line/doc
+    /// Currently selected text, or if the selection is empty, text from the
+    /// primary cursor to one char/line before/after or to start/end of
+    /// word/line/doc
     SelectionOrOffset { offset: Offset, backwards: bool },
 
-    /// Text from primary cursor to one char/line before/after or to start/end of word/line/paragraph/doc. In some
-    /// situations this instead represents the start of selection (if `backwards`) or end of selection, based on what
-    /// feels intuitive when using arrow keys to navigate a document.
+    /// Text from primary cursor to one char/line before/after or to start/end
+    /// of word/line/paragraph/doc. In some situations this instead represents
+    /// the start of selection (if `backwards`) or end of selection, based on
+    /// what feels intuitive when using arrow keys to navigate a document.
     ToOffset { offset: Offset, backwards: bool, extend_selection: bool },
 
     /// Current word/line/paragraph/doc, preferring previous word if `backwards`
@@ -90,17 +96,16 @@ pub enum Region {
 pub enum Event {
     Select { region: Region },
     Replace { region: Region, text: String },
-    ToggleStyle { region: Region, style: MarkdownNode },
-    Newline { advance_cursor: bool }, // distinct from replace because it triggers auto-bullet, etc
+    ToggleStyle { region: Region, style: MarkdownNode }, // supports toolbar and inline tyle keyboard shortcuts
+    Newline { shift: bool }, // distinct from replace because it triggers auto-bullet, etc
     Delete { region: Region }, // distinct from replace because it triggers numbered list renumber, etc
-    Indent { deindent: bool },
+    Indent { deindent: bool }, // distinct from replace because it's a no-op for first list item, etc
     Find { term: String, backwards: bool },
     Undo,
     Redo,
     Cut,
     Copy,
     ToggleDebug,
-    ToggleCheckbox(usize),
     IncrementBaseFontSize,
     DecrementBaseFontSize,
 }

@@ -36,11 +36,14 @@ tracing = "0.1.5"
 tracing-test = "0.2.5"
 indexmap = { version = "2.5.0", features = ["rayon"] }
 regex = "1.10.6"
-url="2.2"
+url = "2.2"
 tokio = { version = "1.0", features = ["full"] }
 scraper = "0.14"
 num_cpus = "1.15"
 lazy_static = "1.4.0"
+comrak = "0.38.0"
+colored = "2"
+syntect = "5.2.0"
 
 lb-rs = { path = "../../lb/lb-rs" }
 
