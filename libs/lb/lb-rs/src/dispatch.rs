@@ -4,9 +4,8 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
     let payload = match req.method.as_str() {
         "create_account" => {
             let (username, api_url, welcome): (String, String, bool) =
-                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
-            let res = lb.create_account(&username, &api_url, welcome).await?;
-            bincode::serialize(&res).map_err(core_err_unexpected)?
+                deserialize_args(&raw)?;
+            call_async(|| lb.create_account(&username, &api_url, welcome)).await?
         }
 
         "import_account" => {
@@ -374,10 +373,39 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
     Ok(payload)
 }
 
+fn deserialize_args<A>(raw: &[u8]) -> LbResult<A>
+where
+    A: DeserializeOwned,
+{
+    bincode::deserialize(raw)
+        .map_err(|e| core_err_unexpected(e).into())
+}
+
+async fn call_async<R, Fut>(f: impl FnOnce() -> Fut) -> LbResult<Vec<u8>>
+where
+    Fut: Future<Output = LbResult<R>>,
+    R: Serialize,
+{
+    let res: R = f().await?;
+    bincode::serialize(&res).map_err(|e| core_err_unexpected(e).into())
+}
+
+fn call_sync<R>(f: impl FnOnce() -> LbResult<R>) -> LbResult<Vec<u8>>
+where
+    R: Serialize,
+{
+    let res: R = f()?;
+    bincode::serialize(&res).map_err(|e| core_err_unexpected(e).into())
+}
+
+
+use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use libsecp256k1::SecretKey;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::sync::Mutex;
 use uuid::Uuid;
 use crate::model::account::Account;
