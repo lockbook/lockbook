@@ -33,14 +33,14 @@ use crate::{
 
 #[derive(Clone)]
 pub struct Lb {
-    lb: crate::LbServer,
+    lb: crate::Lb,
     rt: Arc<Runtime>,
 }
 
 impl Lb {
     pub fn init(config: Config) -> LbResult<Self> {
         let rt = Arc::new(Runtime::new().unwrap());
-        let lb = rt.block_on(crate::LbServer::init(config))?;
+        let lb = rt.block_on(crate::Lb::init(config))?;
         Ok(Self { rt, lb })
     }
 
@@ -56,19 +56,27 @@ impl Lb {
     }
 
     pub fn export_account_private_key(&self) -> LbResult<String> {
-        self.lb.export_account_private_key_v1()
+        self.rt.block_on(self.lb.export_account_private_key_v1())
     }
 
     pub fn export_account_phrase(&self) -> LbResult<String> {
-        self.lb.export_account_phrase()
+        self.rt.block_on(self.lb.export_account_phrase())
     }
 
     pub fn export_account_qr(&self) -> LbResult<Vec<u8>> {
-        self.lb.export_account_qr()
+        self.rt.block_on(self.lb.export_account_qr())
     }
 
-    pub fn get_account(&self) -> LbResult<&Account> {
-        self.lb.get_account()
+    pub fn get_account(&self) -> LbResult<Account> {
+        match &self.lb {
+            crate::Lb::Direct(inner) => {
+                let acct_ref: &Account = inner.get_account()?;
+                Ok(acct_ref.clone())
+            }
+            crate::Lb::Network(proxy) => {
+                self.rt.block_on(proxy.get_account())
+            }
+        }
     }
 
     pub fn get_config(&self) -> Config {
