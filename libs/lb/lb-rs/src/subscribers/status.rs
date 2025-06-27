@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::{
     model::errors::{LbErrKind, LbResult, Unexpected},
     service::{events::Event, sync::SyncIncrement, usage::UsageMetrics},
-    LbServer as Lb,
+    LbServer,
 };
 
 #[derive(Clone, Default)]
@@ -121,7 +121,7 @@ impl Status {
     }
 }
 
-impl Lb {
+impl LbServer {
     pub async fn status(&self) -> Status {
         self.status.current_status.read().await.clone()
     }

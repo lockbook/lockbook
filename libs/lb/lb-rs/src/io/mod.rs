@@ -12,7 +12,7 @@ use crate::model::account::Account;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_file::SignedFile;
 use crate::service::activity::DocEvent;
-use crate::LbServer as Lb;
+use crate::LbServer;
 use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
 use std::ops::{Deref, DerefMut};
@@ -64,7 +64,7 @@ impl LbTx<'_> {
     }
 }
 
-impl Lb {
+impl LbServer {
     pub async fn ro_tx(&self) -> LbRO<'_> {
         let start = std::time::Instant::now();
 
