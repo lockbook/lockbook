@@ -35,6 +35,7 @@ impl Serialize for LbErr {
 impl<'de> Deserialize<'de> for LbErr {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: Deserializer<'de> {
+        todo!("Implement deser for LbErr");
         struct LbErrVisitor;
         impl<'de> Visitor<'de> for LbErrVisitor {
             type Value = LbErr;
