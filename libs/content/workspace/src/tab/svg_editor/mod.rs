@@ -223,7 +223,7 @@ impl SVGEditor {
         self.paint_background_colors(ui);
         ui.set_clip_rect(self.viewport_settings.working_rect);
 
-        self.show_background_overlay();
+        self.show_background_overlay(ui);
         let global_diff = self.show_canvas(ui);
 
         if cfg!(debug_assertions) {

@@ -342,7 +342,7 @@ impl Toolbar {
             expand_to_match_bigger(elements_bound, tlbr_ctx.viewport_settings.container_rect);
 
         let viewport_transform =
-            get_rect_identity_transform(preview_rect, tight_fit_rect, 1.0, preview_rect.center());
+            get_rect_identity_transform(preview_rect, tight_fit_rect, 0.7, preview_rect.center());
 
         let out = self.renderer.render_svg(
             ui,
