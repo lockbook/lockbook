@@ -34,7 +34,11 @@ impl Workspace {
         self.status.message = self.status_message();
 
         if self.is_empty() {
-            self.show_landing_page(ui);
+            if self.show_tabs {
+                self.show_landing_page(ui);
+            } else {
+                self.show_mobile_landing_page(ui);
+            }
         } else {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
         }
