@@ -17,12 +17,8 @@ class FilesViewModel: ObservableObject {
     
     private var cancellables: Set<AnyCancellable> = []
         
-    init() {
-        AppState.workspaceState.$reloadFiles.sink { [weak self] reload in
-            guard reload else {
-                return
-            }
-            
+    init() {        
+        AppState.lb.events.$metadataUpdated.sink { [weak self] status in
             self?.loadFiles()
         }
         .store(in: &cancellables)
