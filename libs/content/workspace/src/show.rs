@@ -71,7 +71,6 @@ impl Workspace {
         }
     }
 
-    #[cfg(target_vendor = "apple")]
     fn show_mobile_landing_page(&mut self, ui: &mut egui::Ui) {
         let punchout = if ui.visuals().dark_mode {
             include_image!("../punchout-dark.png")
