@@ -14,7 +14,7 @@ class ImportExportHelper {
             
             return true
         case .failure(let err):
-            homeState.error = .lb(error: err)
+            AppState.shared.error = .lb(error: err)
             
             return false
         }
@@ -32,7 +32,7 @@ class ImportExportHelper {
         case .success(_):
             return destination.appendingPathComponent(file.name)
         case .failure(let err):
-            homeState.error = .lb(error: err)
+            AppState.shared.error = .lb(error: err)
             
             return nil
         }

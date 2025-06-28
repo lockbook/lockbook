@@ -103,7 +103,7 @@ class CreateFolderViewModel: ObservableObject {
                 case .success(let path):
                     self.parentPath = path
                 case .failure(let err):
-                    homeState.error = .lb(error: err)
+                    AppState.shared.error = .lb(error: err)
                 }
             }
         }
