@@ -1,9 +1,12 @@
 import Bridge
 import Foundation
+import SwiftUI
+import Combine
 
 public protocol LbAPI {
     var lb: OpaquePointer? { get set }
     var lbUnsafeRawPtr: UnsafeMutableRawPointer? { get set }
+    var events: Events { get }
     
     func start(writablePath: String, logs: Bool) -> Result<Void, LbError>
     func createAccount(username: String, apiUrl: String?, welcomeDoc: Bool) -> Result<Account, LbError>
@@ -51,17 +54,28 @@ public protocol LbAPI {
     func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String) -> Result<Void, LbError>
     func cancelSubscription() -> Result<Void, LbError>
     func getSubscriptionInfo() -> Result<SubscriptionInfo?, LbError>
+    func subscribe(notify: ((LbEvent) -> Void)?)
 }
 
 public class Lb: LbAPI {
     public var lb: OpaquePointer? = nil
     public var lbUnsafeRawPtr: UnsafeMutableRawPointer? = nil
-    
+    public var events: Events = Events()
+
     public init(writablePath: String, logs: Bool) {
         print("Starting core at \(writablePath) and logs=\(logs)")
         
         let res = start(writablePath: writablePath, logs: logs)
-        print("Lb init result: \(res)")
+        
+        subscribe(notify: { event in
+            if event.status_updated {
+                self.events.status = self.getStatus()
+            } else if event.metadata_updated {
+                self.events.metadataUpdated = true
+            } else if event.pending_shares_changed {
+                self.events.pendingShares = (try? self.getPendingShares().get())?.map(\.id) ?? []
+            }
+        })
     }
             
     public func start(writablePath: String, logs: Bool) -> Result<Void, LbError> {
@@ -610,11 +624,44 @@ public class Lb: LbAPI {
             return .success(nil)
         }
     }
+    
+    public func getStatus() -> Status {
+        let res = lb_get_status(lb)
+        defer { lb_free_status(res) }
+        
+        return Status(res)
+    }
+    
+    class Notify {
+        let closure: ((LbEvent) -> Void)?
+
+        init(_ closure: ((LbEvent) -> Void)?) {
+            self.closure = closure
+        }
+        
+        func toPointer() -> UnsafeRawPointer {
+            return UnsafeRawPointer(Unmanaged.passRetained(self).toOpaque())
+        }
+        
+        static func fromPtr(_ pointer: UnsafeRawPointer) -> Notify {
+            return Unmanaged<Notify>.fromOpaque(pointer).takeUnretainedValue()
+        }
+    }
+        
+    public func subscribe(notify: ((LbEvent) -> Void)?) {
+        let notifyObj = Notify(notify).toPointer()
+        let lbNotifyFunc: LbNotify = { (obj: UnsafeRawPointer?, event: LbEvent) in
+            Notify.fromPtr(obj!).closure!(event)
+        }
+        
+        lb_subscribe(lb, notifyObj, lbNotifyFunc)
+    }
 }
 
 public class MockLb: LbAPI {
     public var lb: OpaquePointer? = nil
     public var lbUnsafeRawPtr: UnsafeMutableRawPointer? = nil
+    public var events: Events = Events()
     
     public let account = Account(username: "smail", apiUrl: "https://api.prod.lockbook.net")
     public let accountPK = "BQAAAAAAAAB0ZXN0MQkAAAAAAAAAdGVzdDEuY29tIAAAAAAAAAATIlUEJFM0ejFr3ywfEAKgZGfBAEMPuIUhb1uPiejwKg"
@@ -687,4 +734,5 @@ public class MockLb: LbAPI {
     public func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String) -> Result<Void, LbError> { .success(()) }
     public func cancelSubscription() -> Result<Void, LbError> { .success(()) }
     public func getSubscriptionInfo() -> Result<SubscriptionInfo?, LbError> { .success(nil) }
+    public func subscribe(notify: ((LbEvent) -> Void)?) { }
 }

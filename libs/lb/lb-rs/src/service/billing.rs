@@ -8,6 +8,7 @@ use crate::model::api::{
 use crate::model::errors::{core_err_unexpected, LbErrKind, LbResult};
 use crate::Lb;
 
+// todo: when core is responsible for syncing, these should probably trigger syncs and status updates
 impl Lb {
     #[instrument(level = "debug", skip(self, account_tier), err(Debug))]
     pub async fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> LbResult<()> {

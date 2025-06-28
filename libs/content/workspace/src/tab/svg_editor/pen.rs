@@ -25,6 +25,7 @@ pub const DEFAULT_HIGHLIGHTER_STROKE_WIDTH: f32 = 15.0;
 #[derive(Default)]
 pub struct Pen {
     pub active_color: DynamicColor,
+    pub colors_history: [DynamicColor; 2],
     pub active_stroke_width: f32,
     pub active_opacity: f32,
     pub pressure_alpha: f32,
@@ -88,6 +89,8 @@ impl Pen {
             blue: settings.color.b(),
         });
 
+        let pen_colors = get_pen_colors();
+
         Pen {
             active_color,
             active_stroke_width: settings.width,
@@ -98,6 +101,7 @@ impl Pen {
             hover_pos: None,
             has_inf_thick: settings.has_inf_thick,
             pressure_alpha: settings.pressure_alpha,
+            colors_history: [pen_colors[1], pen_colors[2]],
         }
     }
 
@@ -289,7 +293,7 @@ impl Pen {
                         fill: None,
                         stroke: Some(path_stroke),
                         transform: Transform::identity(),
-                        opacity: self.active_opacity,
+                        opacity: 1.0,
                         diff_state: DiffState::default(),
                         deleted: false,
                     });

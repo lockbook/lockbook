@@ -50,19 +50,19 @@ class PendingSharesIconViewModel: ObservableObject {
     @Published var pendingSharesCount: Int? = nil
     
     private var cancellables: Set<AnyCancellable> = []
-
+    private var homeState: HomeState
         
     init(homeState: HomeState) {
-        self.loadPendingSharesCount(homeState: homeState)
+        self.homeState = homeState
+        self.loadPendingSharesCount()
         
-        AppState.workspaceState.$reloadFiles.sink { [weak self] reload in
-            self?.loadPendingSharesCount(homeState: homeState)
+        AppState.lb.events.$metadataUpdated.sink { [weak self] pendingShares in
+            self?.loadPendingSharesCount()
         }
         .store(in: &cancellables)
-
     }
     
-    func loadPendingSharesCount(homeState: HomeState) {
+    func loadPendingSharesCount() {
         DispatchQueue.global(qos: .userInteractive).async {
             let res = AppState.lb.getPendingShares()
             

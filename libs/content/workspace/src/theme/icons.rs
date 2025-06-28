@@ -77,8 +77,9 @@ impl Icon {
     pub const SEARCH: Self = ic("\u{e8b6}"); // Search
     pub const SYNC: Self = ic("\u{e863}"); // Auto-renew
     pub const SHARED_FOLDER: Self = ic("\u{e2c9}"); // Shared Folder
-    pub const SYNC_DISABLED: Self = ic("\u{e628}"); // Sync Disabled
-    pub const SYNC_PROBLEM: Self = ic("\u{e629}"); // Sync Problem
+    pub const OFFLINE: Self = ic("\u{e2c1}"); // Sync Disabled
+    pub const UPDATE_REQ: Self = ic("\u{e629}"); // Sync Problem
+    pub const SYNC_PROBLEM: Self = ic("\u{e000}"); // Sync Problem
     pub const TODO_LIST: Self = ic("\u{e6b3}"); // Todo List
     pub const THUMBS_UP: Self = ic("\u{e8dc}"); // Thumbs Up
     pub const VERTICAL_SPLIT: Self = ic("\u{e949}"); // Vertical Split

@@ -239,10 +239,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let dpi = dpi.parse::<f32>().unwrap_or(96.0);
                     dpi / 96.0
                 }
-                None => {
-                    println!("Failed to get Xft.dpi");
-                    1.0
-                }
+                None => 1.0,
             };
             lb.screen.scale_factor = scale_factor;
             lb.context.set_pixels_per_point(scale_factor);

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use tokio::runtime::Runtime;
+use tokio::{runtime::Runtime, sync::broadcast::Receiver};
 use uuid::Uuid;
 
 use crate::{
@@ -20,6 +20,7 @@ use crate::{
     },
     service::{
         activity::RankingWeights,
+        events::Event,
         import_export::{ExportFileInfo, ImportStatus},
         sync::{SyncProgress, SyncStatus},
         usage::{UsageItemMetric, UsageMetrics},
@@ -198,6 +199,14 @@ impl Lb {
         self.rt.block_on(self.lb.suggested_docs(settings))
     }
 
+    pub fn clear_suggested(&self) -> LbResult<()> {
+        self.rt.block_on(self.lb.clear_suggested())
+    }
+
+    pub fn clear_suggested_id(&self, target_id: Uuid) -> LbResult<()> {
+        self.rt.block_on(self.lb.clear_suggested_id(target_id))
+    }
+
     // TODO: examine why the old get_usage does a bunch of things
     pub fn get_usage(&self) -> LbResult<UsageMetrics> {
         self.rt.block_on(self.lb.get_usage())
@@ -308,6 +317,10 @@ impl Lb {
 
     pub fn admin_set_user_tier(&self, username: &str, info: AdminSetUserTierInfo) -> LbResult<()> {
         self.rt.block_on(self.lb.set_user_tier(username, info))
+    }
+
+    pub fn subscribe(&self) -> Receiver<Event> {
+        self.lb.subscribe()
     }
 
     pub fn status(&self) -> Status {

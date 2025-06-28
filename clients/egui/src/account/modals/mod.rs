@@ -17,7 +17,7 @@ pub use file_picker::FilePickerAction;
 pub use help::HelpModal;
 pub use new_file::{NewFileParams, NewFolderModal};
 pub use search::SearchModal;
-pub use settings::{SettingsModal, SettingsResponse};
+pub use settings::SettingsModal;
 
 use super::OpenModal;
 
@@ -60,11 +60,6 @@ impl super::AccountScreen {
         if let Some(response) = show(ctx, x_offset, &mut self.modals.settings) {
             if response.closed {
                 self.save_settings();
-            } else if let Some(inner) = response.inner {
-                use SettingsResponse::*;
-                match inner {
-                    SuccessfullyUpgraded => self.workspace.tasks.queue_sync_status_update(),
-                }
             }
         }
 

@@ -1,4 +1,4 @@
-use super::data::{Data, StorageCell};
+use super::data::{Data, StorageCell, StorageTree};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use color_art;
@@ -26,6 +26,7 @@ struct ColorHelper {
 }
 
 pub struct SpaceInspector {
+    lb: Lb,
     state: Arc<Mutex<AppState>>,
     data: Data,
     layer_height: f32,
@@ -35,7 +36,7 @@ pub struct SpaceInspector {
 }
 
 #[derive(Default, Debug)]
-pub enum AppState {
+enum AppState {
     #[default]
     Loading,
     Ready(Data),
@@ -75,6 +76,7 @@ impl SpaceInspector {
             layer_height: 60.0,
             colors: vec![],
             current_rect: Rect::NOTHING,
+            lb: lb.clone(),
         }
     }
 
@@ -316,6 +318,7 @@ impl SpaceInspector {
         big_table[parent_type][layer]
     }
 
+    /// Responsible for drawing each file / folder. Also gives them interactivity with the root functionality and context menu
     pub fn follow_paint_order(
         &mut self, ui: &mut Ui, root_anchor: Rect, window: Rect,
     ) -> Option<Uuid> {
@@ -326,6 +329,8 @@ impl SpaceInspector {
         let mut visited_folders: Vec<DrawHelper> = vec![];
         let mut current_parent =
             DrawHelper { id: self.data.focused_folder, starting_position: 0.0 };
+
+        let mut deleted_id: Option<Uuid> = None;
 
         for (i, item) in self.paint_order.iter().enumerate() {
             let item_filerow = &self.data.all_files[&item.id];
@@ -445,7 +450,31 @@ impl SpaceInspector {
                 if response.clicked() && item_filerow.file.is_folder() {
                     changed_focused_folder = Some(item.id);
                 }
+                // Context menu
+                response.context_menu(|ui| {
+                    ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
 
+                    ui.label(self.data.all_files[&item.id].file.name.to_string());
+                    ui.label(&display_size);
+                    ui.separator();
+
+                    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
+                        ui.close_menu();
+                    }
+                    if item_filerow.file.is_folder() && ui.button("Focus File").clicked() {
+                        changed_focused_folder = Some(item.id);
+                        ui.close_menu();
+                    }
+
+                    if ui.button("Delete").clicked() {
+                        let lb = self.lb.clone();
+                        let id = item_filerow.file.id;
+                        deleted_id = Some(id);
+                        thread::spawn(move || {
+                            lb.delete_file(&id).unwrap();
+                        });
+                    }
+                });
                 response.on_hover_text(hover_text);
             }
 
@@ -459,6 +488,54 @@ impl SpaceInspector {
             current_position += item.portion * (root_anchor.max.x - root_anchor.min.x);
             child_number += 1;
         }
+
+        // handles visual deletion
+        if let Some(id) = deleted_id {
+            // Updates the size of all parents of deleted file
+            let deleted_size = Data::get_size(&self.data, &id);
+            self.update_parent_sizes(&id, deleted_size);
+
+            // Handles deletion of selected file and its children
+            let deleted_children = Data::get_children(&self.data, &id);
+            self.delete_children(deleted_children);
+            if Data::is_folder(&self.data, &id) {
+                self.data.folder_sizes.remove(&id);
+            }
+            self.data.all_files.remove(&id);
+            if let Some(pos) = self.paint_order.iter().position(|cell| cell.id == id) {
+                self.paint_order.remove(pos);
+            }
+        };
         changed_focused_folder
+    }
+
+    /// Recursive function that goes up to update folder sizes of parents
+    fn update_parent_sizes(&mut self, child: &Uuid, size_difference: u64) {
+        let parent_id = self.data.all_files[child].file.parent;
+        if parent_id == *child {
+            return;
+        }
+
+        let original_size = self.data.folder_sizes[&parent_id];
+        self.data
+            .folder_sizes
+            .insert(parent_id, original_size - size_difference);
+        self.update_parent_sizes(&parent_id, size_difference);
+    }
+
+    /// Recursive function that is called when file is deleted
+    fn delete_children(&mut self, trees: Vec<StorageTree>) {
+        for tree in trees {
+            if Data::is_folder(&self.data, &tree.id) {
+                self.data.folder_sizes.remove(&tree.id);
+            }
+            self.data.all_files.remove(&tree.id);
+            if let Some(pos) = self.paint_order.iter().position(|cell| cell.id == tree.id) {
+                self.paint_order.remove(pos);
+            }
+            if !tree.children.is_empty() {
+                self.delete_children(tree.children);
+            }
+        }
     }
 }

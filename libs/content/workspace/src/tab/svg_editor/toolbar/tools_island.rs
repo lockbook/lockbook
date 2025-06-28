@@ -128,11 +128,117 @@ impl Toolbar {
                         ],
                         egui::Stroke { width: 3.0, color },
                     );
+
+                    ui.add(
+                        egui::Separator::default()
+                            .shrink(ui.available_height() * 0.3)
+                            .spacing(20.),
+                    );
+
+                    self.show_tool_quick_controls(ui);
                 })
             })
         });
         self.layout.tools_island = Some(res.response.rect);
         res
+    }
+
+    fn show_tool_quick_controls(&mut self, ui: &mut egui::Ui) {
+        match self.active_tool {
+            Tool::Pen => {
+                for color in self.pen.colors_history {
+                    let res = show_color_btn(
+                        ui,
+                        ThemePalette::resolve_dynamic_color(color, ui.visuals().dark_mode),
+                        ThemePalette::resolve_dynamic_color(
+                            self.pen.active_color,
+                            ui.visuals().dark_mode,
+                        ),
+                        Some(8.0),
+                    );
+                    if res.clicked() || res.drag_started() {
+                        change_pen_color(&mut self.pen, color);
+                    }
+                }
+            }
+            _ => {
+                let dims = egui::vec2(44.0, 0.0);
+                ui.painter().line_segment(
+                    [ui.cursor().left_center(), ui.cursor().left_center() + dims],
+                    ui.visuals().widgets.noninteractive.bg_stroke,
+                );
+                ui.add_space(44.0);
+            }
+        }
+    }
+
+    pub fn show_tool_popovers_at_cursor(
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
+    ) -> Option<Response> {
+        if self.show_tool_popover {
+            self.show_at_cursor_tool_popover = None;
+        }
+
+        if self.show_at_cursor_tool_popover.is_none() || self.active_tool == Tool::Selection {
+            return None;
+        }
+
+        if let Some(maybe_pos) = self.show_at_cursor_tool_popover {
+            if maybe_pos.is_none() {
+                self.show_at_cursor_tool_popover = Some(Some(
+                    ui.input(|r| r.pointer.hover_pos()).unwrap_or(
+                        tlbr_ctx
+                            .input_ctx
+                            .last_touch
+                            .unwrap_or(tlbr_ctx.viewport_settings.container_rect.center()),
+                    ),
+                ))
+            }
+        }
+
+        let mut cursor_pos = self.show_at_cursor_tool_popover.unwrap().unwrap();
+
+        let tool_popovers_size = self.layout.tool_popover.unwrap_or(egui::Rect::ZERO).size();
+        let screen_bounds = SCREEN_PADDING
+            + self
+                .layout
+                .tools_island
+                .unwrap_or(egui::Rect::ZERO)
+                .height();
+
+        if cursor_pos.x + tool_popovers_size.x > tlbr_ctx.viewport_settings.container_rect.right() {
+            cursor_pos.x = tlbr_ctx.viewport_settings.container_rect.right()
+                - tool_popovers_size.x
+                - screen_bounds
+        }
+
+        if cursor_pos.y < tlbr_ctx.viewport_settings.container_rect.top() + screen_bounds {
+            cursor_pos.y = tlbr_ctx.viewport_settings.container_rect.top() + screen_bounds;
+        }
+
+        if cursor_pos.y + tool_popovers_size.y > tlbr_ctx.viewport_settings.container_rect.bottom()
+        {
+            cursor_pos.y = tlbr_ctx.viewport_settings.container_rect.bottom()
+                - tool_popovers_size.y
+                - screen_bounds
+        }
+
+        let tool_popover_rect = egui::Rect::from_min_size(cursor_pos, tool_popovers_size);
+        let mut ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
+        let out = ui.scope(|ui| {
+            ui.allocate_ui_at_rect(tool_popover_rect, |ui| {
+                egui::Frame::window(ui.style()).show(ui, |ui| match self.active_tool {
+                    Tool::Pen => show_pen_popover(ui, &mut self.pen, tlbr_ctx),
+                    Tool::Eraser => self.show_eraser_popover(ui),
+                    Tool::Highlighter => {
+                        show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
+                    }
+                    Tool::Selection => {}
+                })
+            })
+        });
+        self.layout.tool_popover = Some(out.inner.response.rect);
+        Some(out.inner.response)
     }
 
     pub fn show_tool_popovers(
@@ -162,7 +268,6 @@ impl Toolbar {
             max: egui::pos2(tool_popover_x_start + tool_popovers_size.x, tool_popover_y_start),
         };
 
-        ui.allocate_rect(tool_popover_rect, egui::Sense::click());
         if self.show_tool_popover {
             let tool_popover = ui.allocate_ui_at_rect(tool_popover_rect, |ui| {
                 egui::Frame::window(ui.style()).show(ui, |ui| {
@@ -188,6 +293,7 @@ impl Toolbar {
         &mut self, canvas_settings: &mut CanvasSettings, cfg: &mut WsPersistentStore,
     ) {
         self.show_tool_popover = false;
+        self.show_at_cursor_tool_popover = None;
 
         let color = self.pen.active_color.light;
         canvas_settings.pen = PenSettings {
@@ -231,7 +337,7 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
     // thickness hints.
     ui.add_space(20.0);
 
-    show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=30.0);
+    show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=10.0);
 
     if cfg!(target_os = "ios") {
         ui.add_space(10.0);
@@ -280,7 +386,7 @@ fn show_opacity_slider(ui: &mut egui::Ui, pen: &mut Pen) {
             egui::Stroke { width: 2.5, color: slider_color };
         ui.spacing_mut().slider_width = ui.available_width();
         ui.spacing_mut().slider_rail_height = 2.0;
-        ui.add(egui::Slider::new(&mut pen.active_opacity, 0.05..=1.0).show_value(false));
+        ui.add(egui::Slider::new(&mut pen.active_opacity, 0.01..=1.0).show_value(false));
     });
 }
 
@@ -318,32 +424,42 @@ fn show_highlighter_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut Too
 }
 
 fn show_color_swatches(ui: &mut egui::Ui, colors: Vec<DynamicColor>, pen: &mut Pen) {
-    colors.iter().for_each(|c| {
-        let color = ThemePalette::resolve_dynamic_color(*c, ui.visuals().dark_mode);
+    colors.iter().for_each(|&c| {
+        let color = ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode);
         let active_color =
             ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode);
-        let color_btn = show_color_btn(ui, color, active_color);
+        let color_btn = show_color_btn(ui, color, active_color, None);
         if color_btn.clicked() || color_btn.drag_started() {
-            pen.active_color = *c;
+            change_pen_color(pen, c);
         }
     });
 }
 
+fn change_pen_color(pen: &mut Pen, new_color: DynamicColor) {
+    if new_color == pen.active_color {
+        return;
+    }
+
+    pen.colors_history[1] = pen.colors_history[0];
+    pen.colors_history[0] = pen.active_color;
+    pen.active_color = new_color;
+}
+
 fn show_color_btn(
-    ui: &mut egui::Ui, color: egui::Color32, active_color: egui::Color32,
+    ui: &mut egui::Ui, color: egui::Color32, active_color: egui::Color32, maybe_radius: Option<f32>,
 ) -> egui::Response {
-    let circle_diameter = COLOR_SWATCH_BTN_RADIUS * 2.0;
+    let circle_diameter = maybe_radius.unwrap_or(COLOR_SWATCH_BTN_RADIUS) * 2.0;
     let margin = 6.0;
     let (id, rect) =
         ui.allocate_space(egui::vec2(circle_diameter + margin, circle_diameter + margin));
 
     ui.painter()
-        .circle_filled(rect.center(), COLOR_SWATCH_BTN_RADIUS, color);
+        .circle_filled(rect.center(), circle_diameter / 2.0, color);
 
     if get_non_additive(&active_color).eq(&color) {
         ui.painter().circle_stroke(
             rect.center(),
-            COLOR_SWATCH_BTN_RADIUS - 3.0,
+            circle_diameter / 2.0 - 3.0,
             egui::Stroke { width: 1.5, color: ui.visuals().extreme_bg_color },
         );
     }

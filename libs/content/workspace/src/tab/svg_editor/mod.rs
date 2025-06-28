@@ -1,3 +1,4 @@
+mod background;
 mod clip;
 mod element;
 mod eraser;
@@ -102,7 +103,7 @@ pub struct Response {
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct CanvasSettings {
     pub pencil_only_drawing: bool,
-    show_dot_grid: bool,
+    background_type: BackgroundOverlay,
     pub left_locked: bool,
     pub right_locked: bool,
     pub bottom_locked: bool,
@@ -114,12 +115,12 @@ impl Default for CanvasSettings {
     fn default() -> Self {
         Self {
             pencil_only_drawing: false,
-            show_dot_grid: true,
             left_locked: false,
             right_locked: false,
             bottom_locked: false,
             top_locked: false,
             pen: PenSettings::default_pen(),
+            background_type: BackgroundOverlay::default(),
         }
     }
 }
@@ -130,6 +131,16 @@ pub enum CanvasOp {
     BuildingPath,
     Idle,
 }
+
+#[derive(Default, Clone, Copy, Serialize, Deserialize, PartialEq)]
+enum BackgroundOverlay {
+    #[default]
+    Dots,
+    Lines,
+    Grid,
+    Blank,
+}
+
 impl SVGEditor {
     pub fn new(
         bytes: &[u8], ctx: &egui::Context, lb: lb_rs::blocking::Lb, open_file: Uuid,
@@ -209,10 +220,10 @@ impl SVGEditor {
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
         self.viewport_settings.update_working_rect();
 
-        self.show_background(ui);
+        self.paint_background_colors(ui);
         ui.set_clip_rect(self.viewport_settings.working_rect);
 
-        self.show_dot_grid();
+        self.show_background_overlay();
         let global_diff = self.show_canvas(ui);
 
         if cfg!(debug_assertions) {
@@ -252,19 +263,6 @@ impl SVGEditor {
         Response { request_save: needs_save_and_frame_is_cheap }
     }
 
-    fn show_background(&mut self, ui: &mut egui::Ui) {
-        ui.painter().rect_filled(
-            self.viewport_settings.container_rect,
-            0.0,
-            ui.visuals().code_bg_color,
-        );
-        ui.painter().rect_filled(
-            self.viewport_settings.working_rect,
-            0.0,
-            ui.visuals().extreme_bg_color,
-        );
-    }
-
     fn show_toolbar(&mut self, ui: &mut egui::Ui) {
         let mut toolbar_context = ToolbarContext {
             buffer: &mut self.buffer,
@@ -273,6 +271,7 @@ impl SVGEditor {
             painter: &mut self.painter,
             viewport_settings: &mut self.viewport_settings,
             cfg: &mut self.cfg,
+            input_ctx: &self.input_ctx,
         };
 
         ui.with_layer_id(
@@ -285,58 +284,6 @@ impl SVGEditor {
                     .show(&mut ui, &mut toolbar_context, &mut self.skip_frame);
             },
         );
-    }
-
-    fn show_dot_grid(&self) {
-        if !self.settings.show_dot_grid {
-            return;
-        }
-
-        let mut distance_between_dots = 30.0 * self.viewport_settings.master_transform.sx;
-        let mut dot_radius = (1. * self.viewport_settings.master_transform.sx).max(0.6);
-        if distance_between_dots < 7.0 {
-            distance_between_dots *= 5.0;
-            dot_radius *= 1.5;
-        } else if distance_between_dots < 12.0 {
-            distance_between_dots *= 2.0;
-            dot_radius *= 1.5;
-        }
-
-        let offset = egui::vec2(
-            self.viewport_settings
-                .master_transform
-                .tx
-                .rem_euclid(distance_between_dots),
-            self.viewport_settings
-                .master_transform
-                .ty
-                .rem_euclid(distance_between_dots),
-        );
-
-        let end = egui::vec2(
-            (self.viewport_settings.working_rect.right() + distance_between_dots)
-                / distance_between_dots,
-            (self.viewport_settings.working_rect.bottom() + distance_between_dots)
-                / distance_between_dots,
-        );
-
-        let mut dot = egui::Pos2::ZERO;
-        for i in 0..=(end.y.ceil() as i32) {
-            dot.x = 0.0;
-            for j in 0..=(end.x.ceil() as i32) {
-                let dot = egui::pos2(
-                    j as f32 * distance_between_dots + offset.x,
-                    i as f32 * distance_between_dots + offset.y,
-                );
-
-                self.painter.circle(
-                    dot,
-                    dot_radius,
-                    egui::Color32::GRAY.gamma_multiply(0.4),
-                    egui::Stroke::NONE,
-                );
-            }
-        }
     }
 
     fn process_events(&mut self, ui: &mut egui::Ui) {
@@ -467,7 +414,7 @@ fn set_style(ui: &mut egui::Ui) {
 
 // across frame persistent state about egui's input
 #[derive(Default)]
-struct InputContext {
+pub struct InputContext {
     pub last_touch: Option<egui::Pos2>,
 }
 
