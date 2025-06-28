@@ -74,7 +74,7 @@ struct StatusBarView: View {
                 }
             }
             
-            Text(workspaceState.statusMsg)
+            Text(AppState.workspaceState.statusMsg)
                 .font(.callout)
                 .lineLimit(1)
                 .truncationMode(.tail)
