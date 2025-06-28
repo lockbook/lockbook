@@ -1023,7 +1023,7 @@ pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
 pub struct LbEvent {
     pub status_updated: bool,
     pub metadata_updated: bool,
-    pub pending_shares_changed: bool
+    pub pending_shares_changed: bool,
 }
 
 pub type LbNotify = extern "C" fn(*const c_void, LbEvent);
@@ -1041,14 +1041,13 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
             let event = match event {
                 Event::StatusUpdated => LbEvent { status_updated: true, ..Default::default() },
                 Event::MetadataChanged => LbEvent { metadata_updated: true, ..Default::default() },
-                Event::PendingSharesChanged => LbEvent { pending_shares_changed: true, ..Default::default() },
-                _ => continue
+                Event::PendingSharesChanged => {
+                    LbEvent { pending_shares_changed: true, ..Default::default() }
+                }
+                _ => continue,
             };
 
-            notify(
-                notify_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void,
-                event,
-            );
+            notify(notify_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void, event);
         }
     });
 }
