@@ -12,7 +12,7 @@ class PendingSharesViewModel: ObservableObject {
     init() {
         self.loadPendingShares()
         
-        AppState.workspaceState.$reloadFiles.sink { [weak self] reload in
+        AppState.lb.events.$pendingShares.sink { [weak self] pendingShares in
             self?.loadPendingShares()
         }
         .store(in: &cancellables)
