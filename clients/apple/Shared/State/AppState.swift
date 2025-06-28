@@ -23,6 +23,7 @@ class AppState: ObservableObject {
     static var workspaceState: WorkspaceState = WorkspaceState()
     
     @Published var isLoggedIn: Bool = false
+    @Published var error: UIError? = nil
     
     private init() {
         self.checkIfLoggedIn()
@@ -34,6 +35,36 @@ class AppState: ObservableObject {
             self.isLoggedIn = true
         case .failure(_):
             self.isLoggedIn = false
+        }
+    }
+    
+    static func isInternalLink(_ url: URL) -> Bool {
+        return url.scheme == "lb"
+    }
+}
+
+enum UIError: Identifiable {
+    case lb(error: LbError)
+    case custom(title: String, msg: String)
+    
+    var id: String {
+        switch self {
+        case .lb(let error): return "lb-\(error.msg)"
+        case .custom(let title, _): return "custom-\(title)"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .lb(_): return "Error"
+        case .custom(let title, _): return title
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .lb(let error): return error.msg
+        case .custom(_, let msg): return msg
         }
     }
 }

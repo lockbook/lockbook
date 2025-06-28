@@ -335,7 +335,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
             let url = textFromPtr(s: openedUrl)
 
             if let url = URL(string: url) {
-                NSWorkspace.shared.open(url)
+                self.workspaceState?.urlOpened = url
             }
         }
 

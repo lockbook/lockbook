@@ -71,7 +71,7 @@ class PendingSharesIconViewModel: ObservableObject {
                 case .success(let shares):
                     self.pendingSharesCount = shares.count
                 case .failure(let err):
-                    self.homeState.error = .lb(error: err)
+                    AppState.shared.error = .lb(error: err)
                 }
             }
         }

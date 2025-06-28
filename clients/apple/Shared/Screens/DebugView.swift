@@ -27,7 +27,7 @@ struct DebugView: View {
             if let debugInfo {
                 ScrollView {
                     Spacer()
-                    Button("Recalculate", action: calculateDebugInfo)
+
                     Text(debugInfo)
                         .monospaced()
                         .padding()
@@ -46,7 +46,9 @@ struct DebugView: View {
                 Spacer()
             }
         }
+        .modifier(RefereshDebugInfoViewModifier(refreshDebugInfo: calculateDebugInfo))
         .navigationTitle("Debug Info")
+        
     }
     
     func calculateDebugInfo() {
@@ -56,6 +58,23 @@ struct DebugView: View {
                 self.debugInfo = debug
             }
         }
+    }
+}
+
+struct RefereshDebugInfoViewModifier: ViewModifier {
+    let refreshDebugInfo: () -> Void
+    
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content
+            .toolbar {
+                Button(action: refreshDebugInfo, label: {
+                    Image(systemName: "arrow.triangle.2.circlepath.circle")
+                })
+            }
+        #else
+        content
+        #endif
     }
 }
 

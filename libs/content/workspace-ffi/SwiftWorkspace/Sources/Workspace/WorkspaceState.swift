@@ -18,9 +18,9 @@ public class WorkspaceState: ObservableObject {
             #endif
         }
     }
-        
+     
+    // From workspace
     @Published public var selectedFolder: UUID? = nil
-    
     @Published public var syncing: Bool = false
     @Published public var clientUpgrade: Bool = false
     @Published public var outOfSpace: Bool = false
@@ -28,23 +28,21 @@ public class WorkspaceState: ObservableObject {
     @Published public var syncProgress: Float? = nil
     @Published public var statusMsg: String = ""
     @Published public var reloadFiles: Bool = false
+    @Published public var newFolderButtonPressed: Bool = false
+    @Published public var currentTab: WorkspaceTab = .Welcome
+    @Published public var tabCount: Int = 0
+    @Published public var renameOpenDoc: Bool = false
+    @Published public var urlOpened: URL? = nil
     
+    // To workspace
     @Published public var syncRequested: Bool = false
     @Published public var openDocRequested: UUID? = nil
     @Published public var closeAllTabsRequested: Bool = false
     @Published public var closeDocRequested: UUID? = nil
-    
-    @Published public var newFolderButtonPressed: Bool = false
-    
-    @Published public var currentTab: WorkspaceTab = .Welcome
-    
-    @Published public var renameOpenDoc: Bool = false
     @Published public var fileOpCompleted: WSFileOpCompleted? = nil
     
-    @Published public var tabCount: Int = 0
-        
     public init() {}
-    
+            
     public func requestSync() {
         self.syncRequested = true
     }
@@ -55,6 +53,10 @@ public class WorkspaceState: ObservableObject {
     
     public func requestCloseAllTabs() {
         self.closeAllTabsRequested = true
+    }
+    
+    public func requestCloseDoc(id: UUID) {
+        self.closeDocRequested = id
     }
     
     public func getTabsIds() -> [UUID] {
@@ -68,10 +70,6 @@ public class WorkspaceState: ObservableObject {
         free_tab_ids(result)
         
         return newBuffer
-    }
-    
-    public func requestCloseDoc(id: UUID) {
-        self.closeDocRequested = id
     }
 }
 

@@ -104,7 +104,7 @@ class RenameFileViewModel: ObservableObject {
                 case .success(let path):
                     self.parentPath = path.nameAndPath().1
                 case .failure(let err):
-                    homeState.error = .lb(error: err)
+                    AppState.shared.error = .lb(error: err)
                 }
             }
         }
