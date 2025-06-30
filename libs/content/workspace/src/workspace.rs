@@ -576,7 +576,7 @@ impl Workspace {
             .create_file(new_file.to_name().as_str(), &focused_parent, FileType::Document)
             .map_err(|err| format!("{:?}", err));
 
-        self.out.file_created = Some(result.clone());
+        self.out.file_created = Some(result);
         self.ctx.request_repaint();
     }
 

@@ -40,6 +40,29 @@ impl Lb {
         Ok(result)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn clear_suggested(&self) -> LbResult<()> {
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+        db.doc_events.clear()?;
+        Ok(())
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn clear_suggested_id(&self, id: Uuid) -> LbResult<()> {
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+
+        let mut entries = db.doc_events.get().to_vec();
+        db.doc_events.clear()?;
+        entries.retain(|e| e.id() != id);
+        for entry in entries {
+            db.doc_events.push(entry)?;
+        }
+
+        Ok(())
+    }
+
     pub(crate) async fn add_doc_event(&self, event: DocEvent) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();

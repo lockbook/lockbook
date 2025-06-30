@@ -1052,6 +1052,30 @@ pub extern "system" fn Java_net_lockbook_Lb_suggestedDocs<'local>(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_net_lockbook_Lb_clearSuggested<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) {
+    let lb = rlb(&mut env, &class);
+
+    if let Err(err) = lb.clear_suggested() {
+        throw_err(&mut env, err);
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_net_lockbook_Lb_clearSuggestedId<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
+) {
+    let lb = rlb(&mut env, &class);
+
+    let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
+
+    if let Err(err) = lb.clear_suggested_id(id) {
+        throw_err(&mut env, err);
+    }
+}
+
+#[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_logout<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) {

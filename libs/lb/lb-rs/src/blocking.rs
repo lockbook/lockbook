@@ -199,6 +199,14 @@ impl Lb {
         self.rt.block_on(self.lb.suggested_docs(settings))
     }
 
+    pub fn clear_suggested(&self) -> LbResult<()> {
+        self.rt.block_on(self.lb.clear_suggested())
+    }
+
+    pub fn clear_suggested_id(&self, target_id: Uuid) -> LbResult<()> {
+        self.rt.block_on(self.lb.clear_suggested_id(target_id))
+    }
+
     // TODO: examine why the old get_usage does a bunch of things
     pub fn get_usage(&self) -> LbResult<UsageMetrics> {
         self.rt.block_on(self.lb.get_usage())

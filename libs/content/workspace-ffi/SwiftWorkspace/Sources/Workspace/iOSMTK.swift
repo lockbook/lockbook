@@ -1104,7 +1104,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
             if let url = URL(string: url),
                 UIApplication.shared.canOpenURL(url) {
-                UIApplication.shared.open(url)
+                self.workspaceState?.urlOpened = url
             }
         }
 

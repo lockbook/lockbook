@@ -613,6 +613,26 @@ pub extern "C" fn lb_suggested_docs(lb: *mut Lb) -> LbIdListRes {
     }
 }
 
+#[no_mangle]
+pub extern "C" fn lb_clear_suggested(lb: *mut Lb) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.clear_suggested() {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lb_clear_suggested_id(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.clear_suggested_id(id.into()) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
 #[repr(C)]
 pub struct LbUsageMetricsRes {
     err: *mut LbFfiErr,
@@ -963,6 +983,7 @@ pub struct LbIds {
 
 #[repr(C)]
 pub struct LbStatus {
+    pub offline: bool,
     pub syncing: bool,
     pub out_of_space: bool,
     pub pending_shares: bool,
@@ -1004,6 +1025,7 @@ pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
     };
 
     LbStatus {
+        offline: status.offline,
         syncing: status.syncing,
         out_of_space: status.out_of_space,
         pending_shares: status.pending_shares,
@@ -1020,6 +1042,8 @@ pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
 #[repr(C)]
 pub struct LbEvent {
     pub status_updated: bool,
+    pub metadata_updated: bool,
+    pub pending_shares_changed: bool,
 }
 
 pub type LbNotify = extern "C" fn(*const c_void, LbEvent);
@@ -1033,11 +1057,17 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
     let notify_obj = Arc::new(AtomicPtr::new(notify_obj as *mut c_void));
 
     std::thread::spawn(move || loop {
-        if let Ok(Event::StatusUpdated) = rx.try_recv() {
-            notify(
-                notify_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void,
-                LbEvent { status_updated: true },
-            );
+        if let Ok(event) = rx.try_recv() {
+            let event = match event {
+                Event::StatusUpdated => LbEvent { status_updated: true, ..Default::default() },
+                Event::MetadataChanged => LbEvent { metadata_updated: true, ..Default::default() },
+                Event::PendingSharesChanged => {
+                    LbEvent { pending_shares_changed: true, ..Default::default() }
+                }
+                _ => continue,
+            };
+
+            notify(notify_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void, event);
         }
     });
 }
