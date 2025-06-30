@@ -1,9 +1,13 @@
 use core::f32;
 
 use egui::{Response, WidgetText};
+use resvg::usvg::Transform;
 
 use crate::{
-    tab::svg_editor::toolbar::{Toolbar, ToolbarContext, SCREEN_PADDING},
+    tab::svg_editor::{
+        gesture_handler::transform_canvas,
+        toolbar::{Toolbar, ToolbarContext, SCREEN_PADDING},
+    },
     theme::icons::Icon,
     widgets::Button,
 };
@@ -17,10 +21,9 @@ impl Toolbar {
     pub fn show_page_leafer(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
     ) -> Option<Response> {
-        let bounded_rect = match tlbr_ctx.viewport_settings.bounded_rect {
-            Some(val) => val,
-            None => return None,
-        };
+        if tlbr_ctx.viewport_settings.bounded_rect.is_none() {
+            return None;
+        }
 
         let mock_leafer_rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(100.0, 10.0));
 
@@ -66,16 +69,16 @@ impl Toolbar {
             ui.add_space(7.0);
             ui.label(egui::RichText::new("Page").color(egui::Color32::GRAY));
 
-            let page_num = -(tlbr_ctx.viewport_settings.master_transform.ty
-                / tlbr_ctx.viewport_settings.bounded_rect.unwrap().height())
-            .ceil() as usize
-                + 1;
+            let page_num = get_page_num(tlbr_ctx);
 
             if Button::default()
                 .icon(&Icon::ARROW_DOWN.size(14.0))
                 .show(ui)
                 .clicked()
-            {}
+            {
+                self.scroll_to_page(ui, page_num + 1, tlbr_ctx);
+            }
+
             let page_num_label: WidgetText = page_num.to_string().into();
             let galley = page_num_label.into_galley(ui, None, f32::INFINITY, egui::TextStyle::Body);
 
@@ -93,15 +96,8 @@ impl Toolbar {
                     egui::Stroke { width: 1.5, color: egui::Color32::GRAY.linear_multiply(0.8) },
                 );
             }
-            // ui.advance_cursor_after_rect(page_num_rect);
 
-            // let border_length = page_num_rect.width() + 10.0;
-            // let page_num_rect = egui::Rect::from_center_size(
-            //     page_num_rect.center(),
-            //     egui::vec2(border_length, border_length),
-            // );
-
-            if page_num_res.clicked() {
+            if page_num_res.clicked() && !(cfg!(target_os = "ios") || cfg!(target_os = "android")) {
                 self.page_leafer.page_edit = Some(page_num.to_string());
                 let mut rename_edit_state = egui::text_edit::TextEditState::default();
                 rename_edit_state
@@ -131,19 +127,11 @@ impl Toolbar {
                 {
                     dismiss_text_edit = true;
                 }
-                // ui.scope(|ui| {
-                //     ui.allocate_ui_at_rect(page_num_rect, |ui| {
-                //         let text_edit = egui::TextEdit::singleline(text)
-                //             .desired_width(page_num_rect.width())
-                //             .frame(false);
-                //         let text_edit_res = ui.add(text_edit);
-                //         if ui.input(|r| r.key_pressed(egui::Key::Enter))
-                //             || text_edit_res.lost_focus()
-                //         {
-                //             dismiss_text_edit = true;
-                //         }
-                //     });
-                // });
+                if child_ui.input(|r| r.key_pressed(egui::Key::Enter)) {
+                    if let Ok(page_num) = text.parse::<usize>() {
+                        self.scroll_to_page(ui, page_num, tlbr_ctx);
+                    }
+                }
             }
 
             if dismiss_text_edit {
@@ -154,18 +142,36 @@ impl Toolbar {
                 .icon(&Icon::ARROW_UP.size(14.0))
                 .show(ui)
                 .clicked()
-            {}
-
-            // ui.add_space(5.0);
-            // button
+                && page_num > 0
+            {
+                self.scroll_to_page(ui, page_num - 1, tlbr_ctx);
+            }
         })
         .response
     }
 
-    /// given a page number, change the viewport by applying a transform such that a specific page 
-    /// is focused. 
+    /// given a page number, change the viewport by applying a transform such that a specific page
+    /// is focused.
     fn scroll_to_page(
-        &mut self, ui: &mut egui::Ui, page_number: usize, tlbr_ctx: &mut ToolbarContext,
+        &mut self, _ui: &mut egui::Ui, page_number: usize, tlbr_ctx: &mut ToolbarContext,
     ) {
+        let page_height = tlbr_ctx.viewport_settings.bounded_rect.unwrap().height();
+        let curr = get_page_num(tlbr_ctx);
+
+        let diff = curr as f32 - page_number as f32;
+        let ty = diff * page_height;
+        let transform = Transform::identity().post_translate(0.0, ty);
+
+        transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
+    }
+}
+
+fn get_page_num(tlbr_ctx: &mut ToolbarContext<'_>) -> usize {
+    if let Some(bounded_rect) = tlbr_ctx.viewport_settings.bounded_rect {
+        let viewport_ty = tlbr_ctx.viewport_settings.master_transform.ty
+            - tlbr_ctx.viewport_settings.container_rect.height() / 2.0;
+        (-viewport_ty / bounded_rect.height()).floor() as usize
+    } else {
+        0
     }
 }

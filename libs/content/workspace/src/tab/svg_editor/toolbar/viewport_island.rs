@@ -324,8 +324,6 @@ impl Toolbar {
         let res =
             ui.interact(preview_rect, egui::Id::new("vp_preview"), egui::Sense::click_and_drag());
 
-        preview_painter.rect_filled(preview_rect, 0.0, ui.style().visuals.extreme_bg_color);
-
         let elements_bound = calc_elements_bounds(tlbr_ctx.buffer, tlbr_ctx.viewport_settings)
             .unwrap_or(egui::Rect::from_min_size(
                 transform_point(
@@ -344,6 +342,7 @@ impl Toolbar {
         let viewport_transform =
             get_rect_identity_transform(preview_rect, tight_fit_rect, 0.7, preview_rect.center());
 
+            
         let out = self.renderer.render_svg(
             ui,
             tlbr_ctx.buffer,
