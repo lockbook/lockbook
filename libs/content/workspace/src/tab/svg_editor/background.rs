@@ -1,6 +1,12 @@
+use core::f32;
+
+use egui::WidgetText;
 use resvg::usvg::Transform;
 
-use crate::tab::svg_editor::{BackgroundOverlay, SVGEditor};
+use crate::tab::svg_editor::{
+    util::{draw_dashed_line, transform_rect},
+    BackgroundOverlay, SVGEditor,
+};
 
 impl SVGEditor {
     pub fn paint_background_colors(&mut self, ui: &mut egui::Ui) {
@@ -16,7 +22,37 @@ impl SVGEditor {
         );
     }
 
-    pub fn show_background_overlay(&self) {
+    pub fn show_background_overlay(&self, ui: &mut egui::Ui) {
+        if let Some(bounded_rect) = self.viewport_settings.bounded_rect {
+            let transform = self.viewport_settings.master_transform;
+            let height = bounded_rect.height();
+
+            let offset =
+                egui::vec2(transform.tx.rem_euclid(height), transform.ty.rem_euclid(height));
+
+            let end = egui::vec2(
+                (self.viewport_settings.container_rect.right() + height) / height,
+                (self.viewport_settings.container_rect.bottom() + height) / height,
+            );
+
+            for i in 0..=(end.y.ceil() as i32) {
+                let y = offset.y + i as f32 * height;
+                if y == self.viewport_settings.working_rect.top() {
+                    continue;
+                }
+                let points = [
+                    egui::pos2(self.viewport_settings.working_rect.left(), y),
+                    egui::pos2(self.viewport_settings.working_rect.right(), y),
+                ];
+
+                let stroke = egui::Stroke {
+                    width: 1.0 * transform.sx,
+                    color: ui.visuals().widgets.active.bg_fill,
+                };
+                self.painter.line_segment(points, stroke);
+            }
+        }
+
         match self.settings.background_type {
             BackgroundOverlay::Dots => {
                 show_dot_grid(

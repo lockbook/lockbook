@@ -1,9 +1,12 @@
 mod history_island;
+mod page_leafer;
 mod tools_island;
 mod viewport_island;
 
 use crate::{
-    tab::svg_editor::InputContext, theme::icons::Icon, widgets::Button,
+    tab::svg_editor::{toolbar::page_leafer::PageLeafer, InputContext},
+    theme::icons::Icon,
+    widgets::Button,
     workspace::WsPersistentStore,
 };
 use lb_rs::model::svg::buffer::Buffer;
@@ -33,12 +36,15 @@ pub struct Toolbar {
     layout: ToolbarLayout,
     pub viewport_popover: Option<ViewportPopover>,
     renderer: Renderer,
+
+    page_leafer: PageLeafer,
 }
 
 #[derive(Default)]
 struct ToolbarLayout {
     tools_island: Option<egui::Rect>,
     history_island: Option<egui::Rect>,
+    leafer_island: Option<egui::Rect>,
     viewport_island: Option<egui::Rect>,
     viewport_popover: Option<egui::Rect>,
     tool_popover: Option<egui::Rect>,
@@ -74,46 +80,6 @@ pub struct ToolbarContext<'a> {
     pub viewport_settings: &'a mut ViewportSettings,
     pub cfg: &'a mut WsPersistentStore,
     pub input_ctx: &'a InputContext,
-}
-
-pub enum ViewportMode {
-    Page,
-    Scroll,
-    Timeline,
-    Infinite,
-}
-
-impl ViewportMode {
-    pub fn variants() -> [ViewportMode; 4] {
-        [ViewportMode::Page, ViewportMode::Scroll, ViewportMode::Timeline, ViewportMode::Infinite]
-    }
-
-    pub fn label(&self) -> &'static str {
-        match self {
-            ViewportMode::Page => "Page",
-            ViewportMode::Scroll => "Scroll",
-            ViewportMode::Timeline => "Timeline",
-            ViewportMode::Infinite => "Infinite",
-        }
-    }
-
-    pub fn is_active(&self, tlbr_ctx: &ToolbarContext) -> bool {
-        match self {
-            ViewportMode::Page => tlbr_ctx.viewport_settings.is_page_mode(),
-            ViewportMode::Scroll => tlbr_ctx.viewport_settings.is_scroll_mode(),
-            ViewportMode::Timeline => tlbr_ctx.viewport_settings.is_timeline_mode(),
-            ViewportMode::Infinite => tlbr_ctx.viewport_settings.is_infinite_mode(),
-        }
-    }
-
-    pub fn set_active(&self, tlbr_ctx: &mut ToolbarContext) {
-        match self {
-            ViewportMode::Page => tlbr_ctx.viewport_settings.set_page_mode(),
-            ViewportMode::Scroll => tlbr_ctx.viewport_settings.set_scroll_mode(),
-            ViewportMode::Timeline => tlbr_ctx.viewport_settings.set_timeline_mode(),
-            ViewportMode::Infinite => tlbr_ctx.viewport_settings.set_infinite_mode(),
-        }
-    }
 }
 
 impl ViewportSettings {
@@ -253,6 +219,7 @@ impl Toolbar {
             layout: Default::default(),
             viewport_popover: Default::default(),
             show_at_cursor_tool_popover: None,
+            page_leafer: PageLeafer::default(),
         }
     }
 
@@ -286,6 +253,8 @@ impl Toolbar {
             return;
         }
 
+        let page_leafer_res = self.show_page_leafer(ui, tlbr_ctx);
+
         // shows the viewport island + popovers + bring home button
         let viewport_controls = self.show_viewport_controls(ui, tlbr_ctx);
 
@@ -301,6 +270,9 @@ impl Toolbar {
             overlay_res = overlay_res.union(res);
         }
         if let Some(res) = viewport_controls {
+            overlay_res = overlay_res.union(res);
+        }
+        if let Some(res) = page_leafer_res {
             overlay_res = overlay_res.union(res);
         }
 
