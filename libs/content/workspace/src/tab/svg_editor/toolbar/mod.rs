@@ -342,7 +342,9 @@ impl Toolbar {
     }
 
     pub fn toggle_at_cursor_tool_popover(&mut self) {
-        self.show_at_cursor_tool_popover = Some(None);
+        // If there's a popover then hide it. If there's no popover then show it.
+        self.show_at_cursor_tool_popover =
+            if self.show_at_cursor_tool_popover.is_some() { None } else { Some(None) };
     }
 
     fn show_overlay_toggle(
