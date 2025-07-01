@@ -1057,7 +1057,7 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
     let notify_obj = Arc::new(AtomicPtr::new(notify_obj as *mut c_void));
 
     std::thread::spawn(move || loop {
-        if let Ok(event) = rx.try_recv() {
+        if let Ok(event) = rx.blocking_recv() {
             let event = match event {
                 Event::StatusUpdated => LbEvent { status_updated: true, ..Default::default() },
                 Event::MetadataChanged => LbEvent { metadata_updated: true, ..Default::default() },
