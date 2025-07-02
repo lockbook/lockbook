@@ -195,6 +195,9 @@ impl Toolbar {
                 ))
             }
         }
+        if self.layout.tool_popover.is_none() {
+            ui.set_sizing_pass();
+        }
 
         let mut cursor_pos = self.show_at_cursor_tool_popover.unwrap().unwrap();
 
@@ -206,11 +209,10 @@ impl Toolbar {
                 .unwrap_or(egui::Rect::ZERO)
                 .height();
 
-        if cursor_pos.x + tool_popovers_size.x > tlbr_ctx.viewport_settings.container_rect.right() {
-            cursor_pos.x = tlbr_ctx.viewport_settings.container_rect.right()
-                - tool_popovers_size.x
-                - screen_bounds
-        }
+        cursor_pos.x = (cursor_pos.x - tool_popovers_size.x)
+            .max(tlbr_ctx.viewport_settings.container_rect.left() + screen_bounds);
+
+        cursor_pos.y -= tool_popovers_size.y;
 
         if cursor_pos.y < tlbr_ctx.viewport_settings.container_rect.top() + screen_bounds {
             cursor_pos.y = tlbr_ctx.viewport_settings.container_rect.top() + screen_bounds;
