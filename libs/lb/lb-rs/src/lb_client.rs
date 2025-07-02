@@ -679,11 +679,18 @@ impl LbClient {
             .map_err(core_err_unexpected)?;
         call_rpc(&mut stream, "get_last_synced", None).await
     }
+
+    pub async fn get_search(&self) -> SearchIndex {
+        let mut stream = TcpStream::connect(&self.addr)
+            .await
+            .unwrap();
+        call_rpc(&mut stream, "get_search", None).await.unwrap()
+    }
 }
 
 use crate::model::core_config::Config;
 use crate::service::sync::{SyncProgress, SyncStatus};
-use crate::subscribers::search::{SearchConfig, SearchResult};
+use crate::subscribers::search::{SearchConfig, SearchIndex, SearchResult};
 use crate::subscribers::status::Status;
 use crate::{model::errors::core_err_unexpected};
 use libsecp256k1::SecretKey;

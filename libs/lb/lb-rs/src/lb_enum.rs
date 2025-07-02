@@ -777,7 +777,7 @@ impl Lb {
         }
     }
 
-    //The follwing methods are not implemented by LbServer but exist in blocking.rs
+    //The follwing methods are not implemented by LbServer but exist in blocking.rs and needed elsewhere
     pub async fn get_config(&self) -> Config {
         match self {
             Lb::Direct(inner) => {
@@ -801,6 +801,17 @@ impl Lb {
             }
         }
     }
+
+    pub async fn get_search(&self) -> SearchIndex {
+        match self {
+            Lb::Direct(inner) => {
+                inner.search.clone()
+            }
+            Lb::Network(proxy) => {
+                proxy.get_search().await
+            }
+        }
+    }
 }
 
 use std::collections::HashMap;
@@ -815,7 +826,7 @@ use uuid::Uuid;
 
 use crate::model::{account::{Account, Username}, api::{AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo}, crypto::DecryptedDocument, file::{File, ShareMode}, file_metadata::{DocumentHmac,FileType}, errors::{LbErrKind, Warning, LbErr}, path_ops::Filter};
 use crate::service::{activity::RankingWeights, events::Event, import_export::{ExportFileInfo, ImportStatus}, usage::{UsageItemMetric, UsageMetrics},sync::{SyncProgress, SyncStatus}};
-use crate::subscribers::search::{SearchConfig, SearchResult};
+use crate::subscribers::search::{SearchConfig, SearchIndex, SearchResult};
 use crate::subscribers::status::Status;
 use crate::{LbResult, LbServer, lb_client::LbClient};
 use crate::model::core_config::Config;

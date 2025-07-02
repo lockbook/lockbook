@@ -5,7 +5,7 @@ use crate::{core, ensure_account, input::FileInput};
 #[tokio::main]
 pub async fn validate() -> CliResult<()> {
     let lb = core().await?;
-    ensure_account(&lb)?;
+    ensure_account(&lb).await?;
 
     let warnings = lb
         .test_repo_integrity()
@@ -23,7 +23,7 @@ pub async fn validate() -> CliResult<()> {
 #[tokio::main]
 pub async fn info(target: FileInput) -> Result<(), CliError> {
     let lb = &core().await?;
-    ensure_account(lb)?;
+    ensure_account(lb).await?;
 
     let f = target.find(lb).await?;
     println!("{:#?}", f);
@@ -33,7 +33,7 @@ pub async fn info(target: FileInput) -> Result<(), CliError> {
 #[tokio::main]
 pub async fn whoami() -> Result<(), CliError> {
     let lb = &core().await?;
-    ensure_account(lb)?;
+    ensure_account(lb).await?;
 
     println!("{}", lb.get_account().await?.username);
     Ok(())
@@ -42,7 +42,7 @@ pub async fn whoami() -> Result<(), CliError> {
 #[tokio::main]
 pub async fn whereami() -> Result<(), CliError> {
     let lb = &core().await?;
-    ensure_account(lb)?;
+    ensure_account(lb).await?;
 
     let account = lb.get_account().await?;
     let config = &lb.get_config().await;

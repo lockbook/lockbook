@@ -44,7 +44,7 @@ pub async fn import() -> CliResult<()> {
 #[tokio::main]
 pub async fn export(skip_check: bool) -> CliResult<()> {
     let lb = &core().await?;
-    ensure_account(lb)?;
+    ensure_account(lb).await?;
 
     let should_ask = !skip_check;
     let mut should_show = false;
@@ -70,7 +70,7 @@ pub async fn export(skip_check: bool) -> CliResult<()> {
 #[tokio::main]
 pub async fn subscribe() -> Result<(), CliError> {
     let lb = &core().await?;
-    ensure_account(lb)?;
+    ensure_account(lb).await?;
 
     println!("checking for existing payment methods...");
     let existing_card =
@@ -112,7 +112,7 @@ pub async fn subscribe() -> Result<(), CliError> {
 #[tokio::main]
 pub async fn unsubscribe() -> Result<(), CliError> {
     let lb = &core().await?;
-    ensure_account(lb)?;
+    ensure_account(lb).await?;
 
     let answer: String =
         input::std_in("are you sure you would like to cancel your subscription? [y/n]: ")?;
@@ -126,7 +126,7 @@ pub async fn unsubscribe() -> Result<(), CliError> {
 #[tokio::main]
 pub async fn status() -> Result<(), CliError> {
     let lb = &core().await?;
-    ensure_account(lb)?;
+    ensure_account(lb).await?;
 
     let last_synced = lb.get_last_synced_human().await?;
     println!("files last synced: {last_synced}");

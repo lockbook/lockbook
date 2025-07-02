@@ -419,6 +419,11 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             .unwrap_or_else(|_| vec![0])
         }
 
+        "get_search" => {
+            let res = lb.search.clone();
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+
         other => {
             return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
         }

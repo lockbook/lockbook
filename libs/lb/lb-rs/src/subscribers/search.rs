@@ -3,7 +3,7 @@ use crate::model::file::File;
 use crate::service::activity::RankingWeights;
 use crate::service::events::Event;
 use crate::LbServer;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Range;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -25,6 +25,24 @@ pub struct SearchIndex {
     pub metadata_index: Arc<RwLock<SearchMetadata>>,
     pub tantivy_index: Index,
     pub tantivy_reader: IndexReader,
+}
+
+impl Serialize for SearchIndex {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        todo!("impl serialize for SearchIndex")
+    }
+}
+
+impl<'de> Deserialize<'de> for SearchIndex {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        todo!("impl deserialize for SearchIndex")
+    }
 }
 
 #[derive(Copy, Serialize, Deserialize, Clone, Debug)]
