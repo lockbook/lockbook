@@ -340,7 +340,7 @@ impl LbClient {
     }
 
     pub async fn subscribe(&self) -> Receiver<Event> {
-       
+       todo!("implement subscribe for proxylb");
     }
 
     pub async fn create_file(
