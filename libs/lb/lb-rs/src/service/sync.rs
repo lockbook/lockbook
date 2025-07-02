@@ -22,7 +22,7 @@ use crate::LbServer;
 pub use basic_human_duration::ChronoHumanDuration;
 use futures::stream;
 use futures::StreamExt;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{hash_map, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::num::NonZeroUsize;
@@ -1235,13 +1235,13 @@ impl SyncContext {
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize,Deserialize, Clone)]
 pub struct SyncStatus {
     pub work_units: Vec<WorkUnit>,
     pub latest_server_ts: u64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize)]
 pub struct SyncProgress {
     pub total: usize,
     pub progress: usize,

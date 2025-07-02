@@ -257,7 +257,7 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             let changes: Vec<Uuid> = lb.local_changes().await;
             bincode::serialize(&changes).map_err(core_err_unexpected)?
         }
-        //TODO : events module and import_export module
+        //TODO : events module
         "import_files" => {
             let (paths, dest): (Vec<String>, Uuid) =
                 bincode::deserialize(&raw).map_err(core_err_unexpected)?;
@@ -288,6 +288,16 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             buf.extend(done_bytes);
 
             buf
+        }
+
+        "export_file" => {
+            let (id, dest, edit): (Uuid, PathBuf, bool) = deserialize_args(&raw)?;
+            call_async(|| lb.export_file(id, dest, edit, &None::<fn(ExportFileInfo)>)).await?
+        }
+
+        "export_file_recursively" => {
+            let (id, disk_path, edit): (Uuid, PathBuf, bool) = deserialize_args(&raw)?;
+            call_async(|| lb.export_file_recursively(id, &disk_path, edit, &None::<fn(ExportFileInfo)>)).await?
         }
         
         "test_repo_integrity" => {
@@ -352,7 +362,26 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             lb.reject_share(&id).await?;
             bincode::serialize(&()).map_err(core_err_unexpected)?
         }
-        //TODO sync api
+        
+        "calculate_work" => {
+            call_async(|| lb.calculate_work()).await?
+        }
+
+        "sync" => {
+            call_async(|| lb.sync(None)).await?
+        }
+
+        "get_last_synced_human" => {
+            call_async(|| lb.get_last_synced_human()).await?
+        }
+
+        "get_timestamp_human_string" => {
+            let timestamp: i64 = deserialize_args(&raw)?;
+            call_async(|| async {
+                Ok(lb.get_timestamp_human_string(timestamp))
+            }).await?
+        }
+        
         "get_usage" => {
             let res = lb.get_usage().await?;
             bincode::serialize(&res).map_err(core_err_unexpected)?
@@ -417,5 +446,5 @@ use crate::model::file::ShareMode;
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::path_ops::Filter;
 use crate::rpc::{CallbackMessage, RpcRequest};
-use crate::service::import_export::ImportStatus;
+use crate::service::import_export::{ExportFileInfo, ImportStatus};
 use crate::{LbServer,LbResult};

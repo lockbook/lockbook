@@ -475,13 +475,23 @@ impl LbClient {
     pub async fn export_file<F: Fn(ExportFileInfo)>(
         &self, id: Uuid, dest: PathBuf, edit: bool, update_status: &Option<F>,
     ) -> LbResult<()>{
-        
+        let mut stream = TcpStream::connect(&self.addr)
+            .await
+            .map_err(core_err_unexpected)?;
+        let args = bincode::serialize(&(id,dest.clone(),edit))
+            .map_err(core_err_unexpected)?;
+        call_rpc(&mut stream, "export_file", Some(args)).await
     }
 
     pub async fn export_file_recursively<F: Fn(ExportFileInfo)>(
         &self, id: Uuid, disk_path: &Path, edit: bool, update_status: &Option<F>,
     ) -> LbResult<()>{
-       
+        let mut stream = TcpStream::connect(&self.addr)
+            .await
+            .map_err(core_err_unexpected)?;
+        let args = bincode::serialize(&(id,disk_path.to_path_buf(),edit))
+            .map_err(core_err_unexpected)?;
+        call_rpc(&mut stream, "export_file_recursively", Some(args)).await
     }
 
     pub async fn test_repo_integrity(&self) -> LbResult<Vec<Warning>>{
@@ -581,6 +591,34 @@ impl LbClient {
         call_rpc(&mut stream, "reject_share", Some(args)).await
     }
 
+    pub async fn calculate_work(&self) -> LbResult<SyncStatus>{
+        let mut stream = TcpStream::connect(&self.addr)
+            .await
+            .map_err(core_err_unexpected)?;
+        call_rpc(&mut stream, "calculate_work", None).await
+    }
+
+    pub async fn sync(&self, f: Option<Box<dyn Fn(SyncProgress) + Send>>) -> LbResult<SyncStatus>{
+        let mut stream = TcpStream::connect(&self.addr)
+            .await
+            .map_err(core_err_unexpected)?;
+        call_rpc(&mut stream, "sync", None).await
+    }
+
+    pub async fn get_last_synced_human(&self) -> LbResult<String>{
+        let mut stream = TcpStream::connect(&self.addr)
+            .await
+            .map_err(core_err_unexpected)?;
+        call_rpc(&mut stream, "get_last_synced_human", None).await
+    }
+
+    pub async fn get_timestamp_human_string(&self, timestamp: i64) -> String{
+        let mut stream = TcpStream::connect(&self.addr)
+            .await.unwrap();
+        let args = bincode::serialize(&timestamp).map_err(core_err_unexpected).unwrap();
+        call_rpc(&mut stream, "sync", Some(args)).await.unwrap()
+    }
+
     pub async fn get_usage(&self) -> LbResult<UsageMetrics>{
         let mut stream = TcpStream::connect(&self.addr)
             .await
@@ -606,6 +644,7 @@ impl LbClient {
     }
 }
 
+use crate::service::sync::{SyncProgress, SyncStatus};
 use crate::{model::errors::core_err_unexpected};
 use libsecp256k1::SecretKey;
 use tokio::net::TcpStream;
