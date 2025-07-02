@@ -297,10 +297,7 @@ impl Editor {
         self.theme.apply(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
-        self.bounds.paragraphs.clear();
-        self.bounds.inline_paragraphs.clear();
         self.galleys.galleys.clear();
-        self.compute_bounds(root);
 
         if self.touch_mode {
             ui.ctx().style_mut(|style| {
@@ -353,9 +350,6 @@ impl Editor {
             }
         });
 
-        self.bounds.text = self.bounds.paragraphs.clone(); // todo: inline character capture
-        self.bounds.words = self.bounds.paragraphs.clone(); // todo: real words
-        self.bounds.lines = self.bounds.paragraphs.clone(); // todo: real lines
         self.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();
@@ -390,6 +384,20 @@ impl Editor {
         let prior_selection = self.buffer.current.selection;
         if self.process_events(ui.ctx(), root) {
             resp.text_updated = true;
+
+            // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
+            let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
+            let root = comrak::parse_document(&arena, &text_with_newline, &options);
+
+            self.bounds.paragraphs.clear();
+            self.bounds.inline_paragraphs.clear();
+            self.calc_source_lines();
+            self.compute_bounds(root);
+
+            self.bounds.text = self.bounds.paragraphs.clone(); // todo: inline character capture
+            self.bounds.words = self.bounds.paragraphs.clone(); // todo: real words
+            self.bounds.lines = self.bounds.paragraphs.clone(); // todo: real lines
+
             ui.ctx().request_repaint();
         }
         resp.selection_updated = prior_selection != self.buffer.current.selection;
