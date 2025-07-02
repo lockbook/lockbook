@@ -127,7 +127,7 @@ impl<'ast> Editor {
             NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => self.height_table(node),
             NodeValue::TableRow(_) => self.height_table_row(node),
-            NodeValue::TaskItem(_) => self.block_children_height(node),
+            NodeValue::TaskItem(_) => self.height_task_item(node),
 
             // inline
             NodeValue::Image(NodeLink { url, .. }) => self.height_image(node, url), // used when rendering the image itself
