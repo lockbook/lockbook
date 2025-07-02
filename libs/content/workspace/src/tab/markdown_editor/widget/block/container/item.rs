@@ -172,8 +172,6 @@ impl<'ast> Editor {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
 
-            println!("list push line content: {:?}", line_content);
-
             self.bounds.paragraphs.push(line_content);
         }
     }

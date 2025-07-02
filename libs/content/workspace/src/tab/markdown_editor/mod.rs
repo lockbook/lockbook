@@ -270,17 +270,17 @@ impl Editor {
 
         let root = comrak::parse_document(&arena, &text_with_newline, &options);
 
-        let _ast_elapsed = start.elapsed();
+        let ast_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
-        // println!(
-        //     "{}",
-        //     "================================================================================"
-        //         .bright_black()
-        // );
-        // print_ast(root);
+        println!(
+            "{}",
+            "================================================================================"
+                .bright_black()
+        );
+        print_ast(root);
 
-        let _print_elapsed = start.elapsed();
+        let print_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
         self.images = widget::inline::image::cache::calc(
@@ -358,34 +358,34 @@ impl Editor {
         self.bounds.lines = self.bounds.paragraphs.clone(); // todo: real lines
         self.syntax.garbage_collect();
 
-        let _render_elapsed = start.elapsed();
+        let render_elapsed = start.elapsed();
 
-        // println!(
-        //     "{}",
-        //     "--------------------------------------------------------------------------------"
-        //         .bright_black()
-        // );
-        // println!("document: {:?}", self.buffer.current.text);
-        // println!("paragraphs: {:?}", self.bounds.paragraphs);
-        // self.print_paragraphs_bounds();
-        // self.print_inline_paragraphs_bounds();
-        // println!(
-        //     "{}",
-        //     "--------------------------------------------------------------------------------"
-        //         .bright_black()
-        // );
-        // println!(
-        //     "                                                                 ast: {:?}",
-        //     ast_elapsed
-        // );
-        // println!(
-        //     "                                                               print: {:?}",
-        //     print_elapsed
-        // );
-        // println!(
-        //     "                                                              render: {:?}",
-        //     render_elapsed
-        // );
+        println!(
+            "{}",
+            "--------------------------------------------------------------------------------"
+                .bright_black()
+        );
+        println!("document: {:?}", self.buffer.current.text);
+        println!("paragraphs: {:?}", self.bounds.paragraphs);
+        self.print_paragraphs_bounds();
+        self.print_inline_paragraphs_bounds();
+        println!(
+            "{}",
+            "--------------------------------------------------------------------------------"
+                .bright_black()
+        );
+        println!(
+            "                                                                 ast: {:?}",
+            ast_elapsed
+        );
+        println!(
+            "                                                               print: {:?}",
+            print_elapsed
+        );
+        println!(
+            "                                                              render: {:?}",
+            render_elapsed
+        );
 
         let prior_selection = self.buffer.current.selection;
         if self.process_events(ui.ctx(), root) {
