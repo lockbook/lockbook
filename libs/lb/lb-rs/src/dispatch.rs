@@ -124,6 +124,11 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             bincode::serialize(&()).map_err(core_err_unexpected)?
         }
 
+        "build_index" => {
+            lb.build_index().await?;
+            bincode::serialize(&()).map_err(core_err_unexpected)?
+        }
+
         "set_user_tier" => {
             let (username, tier_info): (String, AdminSetUserTierInfo) =
                 bincode::deserialize(&raw).map_err(core_err_unexpected)?;

@@ -250,6 +250,17 @@ impl Lb {
         }
     }
 
+    pub async fn build_index(&self) -> LbResult<()>{
+        match self {
+            Lb::Direct(inner) => {
+                inner.build_index().await
+            }
+            Lb::Network(proxy) => {
+                proxy.build_index().await
+            }
+        }
+    }
+
     pub async fn set_user_tier(&self, username: &str, info: AdminSetUserTierInfo) -> LbResult<()> {
         match self {
             Lb::Direct(inner) => {

@@ -205,6 +205,13 @@ impl LbClient {
         call_rpc(&mut stream, "rebuild_index", Some(args)).await
     }
 
+    pub async fn build_index(&self) -> LbResult<()>{
+        let mut stream = TcpStream::connect(&self.addr)
+            .await
+            .map_err(core_err_unexpected)?;
+        call_rpc(&mut stream, "build_index", None).await
+    }
+
     pub async fn set_user_tier(&self, username: &str, info: AdminSetUserTierInfo) -> LbResult<()> {
         let mut stream = TcpStream::connect(&self.addr)
             .await

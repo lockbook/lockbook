@@ -35,7 +35,7 @@ pub async fn whoami() -> Result<(), CliError> {
     let lb = &core().await?;
     ensure_account(lb)?;
 
-    println!("{}", lb.get_account()?.username);
+    println!("{}", lb.get_account().await?.username);
     Ok(())
 }
 
@@ -44,8 +44,8 @@ pub async fn whereami() -> Result<(), CliError> {
     let lb = &core().await?;
     ensure_account(lb)?;
 
-    let account = lb.get_account()?;
-    let config = &lb.config;
+    let account = lb.get_account().await?;
+    let config = &lb.get_config().await;
     println!("Server: {}", account.api_url);
     println!("Core: {}", config.writeable_path);
     Ok(())
