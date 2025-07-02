@@ -1,8 +1,8 @@
 use std::env;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
     /// Where should lockbook store data, including logs?
     pub writeable_path: String,

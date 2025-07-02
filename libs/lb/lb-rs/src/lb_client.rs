@@ -642,9 +642,42 @@ impl LbClient {
 
         call_rpc(&mut stream, "geget_uncompressed_usaget_account", None).await
     }
+
+    pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>>{
+        let mut stream = TcpStream::connect(&self.addr)
+            .await
+            .map_err(core_err_unexpected)?;
+        let args = bincode::serialize(&(input.to_string(),cfg))
+            .map_err(core_err_unexpected)?;
+        call_rpc(&mut stream, "search", Some(args)).await
+    }
+
+    pub async fn status(&self) -> Status{
+        let mut stream = TcpStream::connect(&self.addr)
+            .await
+            .unwrap();
+        call_rpc(&mut stream, "status", None).await.unwrap()
+    }
+
+    pub async fn get_config(&self) -> Config {
+        let mut stream = TcpStream::connect(&self.addr)
+            .await
+            .unwrap();
+        call_rpc(&mut stream, "get_config", None).await.unwrap()
+    }
+
+    pub async fn get_last_synced(&self) -> LbResult<i64> {
+        let mut stream = TcpStream::connect(&self.addr)
+            .await
+            .map_err(core_err_unexpected)?;
+        call_rpc(&mut stream, "get_last_synced", None).await
+    }
 }
 
+use crate::model::core_config::Config;
 use crate::service::sync::{SyncProgress, SyncStatus};
+use crate::subscribers::search::{SearchConfig, SearchResult};
+use crate::subscribers::status::Status;
 use crate::{model::errors::core_err_unexpected};
 use libsecp256k1::SecretKey;
 use tokio::net::TcpStream;

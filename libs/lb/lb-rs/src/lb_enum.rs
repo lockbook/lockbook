@@ -743,6 +743,53 @@ impl Lb {
             }
         }
     }
+
+    pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>>{
+        match self {
+            Lb::Direct(inner) => {
+                inner.search(input,cfg).await
+            }
+            Lb::Network(proxy) => {
+                proxy.search(input,cfg).await
+            }
+        }
+    }
+
+    pub async fn status(&self) -> Status{
+        match self {
+            Lb::Direct(inner) => {
+                inner.status().await
+            }
+            Lb::Network(proxy) => {
+                proxy.status().await
+            }
+        }
+    }
+
+    //The follwing methods are not implemented by LbServer but exist in blocking.rs
+    pub async fn get_config(&self) -> Config {
+        match self {
+            Lb::Direct(inner) => {
+                inner.config.clone()
+            }
+            Lb::Network(proxy) => {
+                proxy.get_config().await
+            }
+        }
+    }
+
+    pub async fn get_last_synced(&self) -> LbResult<i64> {
+        match self {
+            Lb::Direct(inner) => {
+                let tx = inner.ro_tx().await;
+                let db = tx.db();
+                Ok(db.last_synced.get().copied().unwrap_or(0))
+            }
+            Lb::Network(proxy) => {
+                proxy.get_last_synced().await
+            }
+        }
+    }
 }
 
 use std::collections::HashMap;
@@ -757,5 +804,7 @@ use uuid::Uuid;
 
 use crate::model::{account::{Account, Username}, api::{AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo}, crypto::DecryptedDocument, file::{File, ShareMode}, file_metadata::{DocumentHmac,FileType}, errors::{LbErrKind, Warning, LbErr}, path_ops::Filter};
 use crate::service::{activity::RankingWeights, events::Event, import_export::{ExportFileInfo, ImportStatus}, usage::{UsageItemMetric, UsageMetrics},sync::{SyncProgress, SyncStatus}};
+use crate::subscribers::search::{SearchConfig, SearchResult};
+use crate::subscribers::status::Status;
 use crate::{LbResult, LbServer, lb_client::LbClient};
 use crate::model::core_config::Config;

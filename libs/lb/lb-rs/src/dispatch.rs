@@ -394,6 +394,26 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             let res = lb.get_uncompressed_usage().await?;
             bincode::serialize(&res).map_err(core_err_unexpected)?
         }
+        "search" => {
+            let (input, cfg): (String, SearchConfig) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+            let res = lb.search(&input,cfg).await?;
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+        "status" => {
+            let res = lb.status().await;
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+        "get_config" => {
+            let res = lb.config.clone();
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+        "get_last_synced" => {
+            let tx = lb.ro_tx().await;
+            let db = tx.db();
+            bincode::serialize(&(db.last_synced.get().copied().unwrap_or(0)))
+            .unwrap_or_else(|_| vec![0])
+        }
+
         other => {
             return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
         }
@@ -447,4 +467,5 @@ use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::path_ops::Filter;
 use crate::rpc::{CallbackMessage, RpcRequest};
 use crate::service::import_export::{ExportFileInfo, ImportStatus};
+use crate::subscribers::search::SearchConfig;
 use crate::{LbServer,LbResult};

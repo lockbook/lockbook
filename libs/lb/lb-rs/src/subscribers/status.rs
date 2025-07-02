@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{Mutex, RwLock},
     time::Instant,
@@ -34,7 +35,7 @@ pub struct SpaceUpdater {
 /// space to represent information (phones?) earlier fields are more
 /// important than later fields. Ideally anything with an ID is represented
 /// in the file tree itself.
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct Status {
     /// some recent server interaction failed due to network conditions
     pub offline: bool,

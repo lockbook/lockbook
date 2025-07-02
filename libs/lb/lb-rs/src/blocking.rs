@@ -80,7 +80,14 @@ impl Lb {
     }
 
     pub fn get_config(&self) -> Config {
-        self.lb.config.clone()
+        match &self.lb {
+            crate::Lb::Direct(inner) => {
+                inner.config.clone()
+            }
+            crate::Lb::Network(proxy) => {
+                self.rt.block_on(proxy.get_config())
+            }
+        }
     }
 
     pub fn create_file(&self, name: &str, parent: &Uuid, file_type: FileType) -> LbResult<File> {
@@ -188,11 +195,16 @@ impl Lb {
     }
 
     pub fn get_last_synced(&self) -> LbResult<i64> {
-        self.rt.block_on(async {
-            let tx = self.lb.ro_tx().await;
-            let db = tx.db();
-            Ok(db.last_synced.get().copied().unwrap_or(0))
-        })
+        match &self.lb {
+            crate::Lb::Direct(inner) => {
+                let tx = self.rt.block_on(inner.ro_tx());
+                let db = tx.db();
+                Ok(db.last_synced.get().copied().unwrap_or(0))
+            }
+            crate::Lb::Network(proxy) => {
+                self.rt.block_on(proxy.get_last_synced())
+            }
+        }
     }
 
     pub fn get_last_synced_human_string(&self) -> LbResult<String> {
@@ -200,7 +212,14 @@ impl Lb {
     }
 
     pub fn get_timestamp_human_string(&self, timestamp: i64) -> String {
-        self.lb.get_timestamp_human_string(timestamp)
+        match &self.lb {
+            crate::Lb::Direct(inner) => {
+                inner.get_timestamp_human_string(timestamp)
+            }
+            crate::Lb::Network(proxy) => {
+                self.rt.block_on(proxy.get_timestamp_human_string(timestamp))
+            }
+        }
     }
 
     pub fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
@@ -320,7 +339,14 @@ impl Lb {
     }
 
     pub fn subscribe(&self) -> Receiver<Event> {
-        self.lb.subscribe()
+        match &self.lb {
+            crate::Lb::Direct(inner) => {
+                inner.subscribe()
+            }
+            crate::Lb::Network(proxy) => {
+                self.rt.block_on(proxy.subscribe())
+            }
+        }
     }
 
     pub fn status(&self) -> Status {
