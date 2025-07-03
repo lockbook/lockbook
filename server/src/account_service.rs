@@ -9,7 +9,7 @@ use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use db_rs::Db;
 use lb_rs::model::account::Username;
-use lb_rs::model::api::NewAccountError::{PublicKeyTaken, UsernameTaken};
+use lb_rs::model::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lb_rs::model::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminDisappearAccountError,
     AdminDisappearAccountRequest, AdminGetAccountInfoError, AdminGetAccountInfoRequest,
@@ -17,20 +17,22 @@ use lb_rs::model::api::{
     AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
     GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
     GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountRequest,
-    NewAccountResponse, PaymentPlatform,
+    NewAccountResponse, PaymentPlatform, METADATA_FEE,
 };
 use lb_rs::model::clock::get_time;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
+use lb_rs::model::lazy::LazyTree;
 use lb_rs::model::server_file::IntoServerFile;
 use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
 use lb_rs::model::usage::bytes_to_human;
 use libsecp256k1::PublicKey;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::ops::DerefMut;
 use tracing::warn;
+use uuid::Uuid;
 
 impl<S, A, G, D> ServerState<S, A, G, D>
 where
@@ -61,7 +63,7 @@ where
         let now = get_time().0 as u64;
         let root = root.add_time(now);
 
-        let mut db = self.db_v5.write().await;
+        let mut db = self.index_db.lock().await;
         let handle = db.begin_transaction()?;
 
         if db.accounts.get().contains_key(&Owner(request.public_key)) {
@@ -70,6 +72,10 @@ where
 
         if db.usernames.get().contains_key(&request.username) {
             return Err(ClientError(UsernameTaken));
+        }
+
+        if db.metas.get().contains_key(root.id()) {
+            return Err(ClientError(FileIdTaken));
         }
 
         let username = request.username;
@@ -82,13 +88,10 @@ where
 
         db.accounts.insert(owner, account)?;
         db.usernames.insert(username, owner)?;
-
-        let account_db = self.new_db(owner).await?;
-        account_db
-            .write()
-            .await
-            .metas
-            .insert(*root.id(), root.clone().into())?;
+        db.owned_files.insert(owner, *root.id())?;
+        db.shared_files.create_key(owner)?;
+        db.file_children.create_key(*root.id())?;
+        db.metas.insert(*root.id(), root.clone())?;
 
         handle.drop_safely()?;
 
@@ -105,8 +108,8 @@ where
     pub async fn public_key_from_username(
         &self, username: &str,
     ) -> Result<GetPublicKeyResponse, ServerError<GetPublicKeyError>> {
-        self.db_v5
-            .read()
+        self.index_db
+            .lock()
             .await
             .usernames
             .get()
@@ -124,43 +127,88 @@ where
     pub async fn username_from_public_key(
         &self, key: PublicKey,
     ) -> Result<GetUsernameResponse, ServerError<GetUsernameError>> {
-        self.db_v5
-            .read()
+        self.index_db
+            .lock()
             .await
             .accounts
             .get()
             .get(&Owner(key))
-            .map(|account| Ok(GetUsernameResponse { username: account.username.to_string() }))
+            .map(|account| Ok(GetUsernameResponse { username: account.username.clone() }))
             .unwrap_or(Err(ClientError(GetUsernameError::UserNotFound)))
     }
 
-    /// This function is scheduled for deletion when sizes are included in meta itself
     pub async fn get_usage(
         &self, context: RequestContext<GetUsageRequest>,
     ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
-        let mut db = self.db_v5.read().await;
+        let mut lock = self.index_db.lock().await;
+        let db = lock.deref_mut();
 
-        let owner = Owner(context.public_key);
+        let cap = Self::get_cap(db, &context.public_key)?;
 
-        let tree = self.get_tree::<GetUsageError>(owner, &[]).await?;
-        let caps = tree.get_caps(&db);
-        let usage_report = tree.usage_report(caps).unwrap();
-
-        // to maintain legacy functionality
-        let cap = usage_report.caps.get(&owner).copied().unwrap();
-        let mut usages = vec![];
-        for file_id in tree.owner_db.metas.get().ids() {
-            usages.push(FileUsage {
-                file_id,
-                size_bytes: usage_report
-                    .sizes
-                    .get(&file_id)
-                    .copied()
-                    .unwrap_or_default(),
-            });
-        }
-
+        let mut tree = ServerTree::new(
+            Owner(context.public_key),
+            &mut db.owned_files,
+            &mut db.shared_files,
+            &mut db.file_children,
+            &mut db.metas,
+        )?
+        .to_lazy();
+        let usages = Self::get_usage_helper(&mut tree, db.sizes.get())?;
         Ok(GetUsageResponse { usages, cap })
+    }
+
+    pub fn get_usage_helper<T>(
+        tree: &mut LazyTree<T>, sizes: &HashMap<Uuid, u64>,
+    ) -> Result<Vec<FileUsage>, ServerError<GetUsageHelperError>>
+    where
+        T: TreeLike,
+    {
+        let ids = tree.ids();
+        let root_id = ids
+            .iter()
+            .find(|file_id| match tree.find(file_id) {
+                Ok(f) => f.is_root(),
+                Err(_) => false,
+            })
+            .ok_or(ClientError(GetUsageHelperError::UserDeleted))?;
+
+        let root_owner = tree
+            .maybe_find(root_id)
+            .ok_or(ClientError(GetUsageHelperError::UserDeleted))?
+            .owner();
+
+        let result = ids
+            .iter()
+            .filter_map(|&file_id| {
+                if let Ok(file) = tree.find(&file_id) {
+                    if file.owner() != root_owner {
+                        return None;
+                    }
+                } else {
+                    return None;
+                }
+
+                let file_size = match tree.calculate_deleted(&file_id).unwrap_or(true) {
+                    true => 0,
+                    false => *sizes.get(&file_id).unwrap_or(&0),
+                };
+
+                Some(FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
+            })
+            .collect();
+        Ok(result)
+    }
+
+    pub fn get_cap(
+        db: &ServerDb, public_key: &PublicKey,
+    ) -> Result<u64, ServerError<GetUsageHelperError>> {
+        Ok(db
+            .accounts
+            .get()
+            .get(&Owner(*public_key))
+            .ok_or(ServerError::ClientError(GetUsageHelperError::UserNotFound))?
+            .billing_info
+            .data_cap())
     }
 
     pub async fn delete_account(
@@ -176,7 +224,7 @@ where
         &self, context: RequestContext<AdminDisappearAccountRequest>,
     ) -> Result<(), ServerError<AdminDisappearAccountError>> {
         let owner = {
-            let db = &self.db_v4.lock().await;
+            let db = &self.index_db.lock().await;
 
             if !Self::is_admin::<AdminDisappearAccountError>(
                 db,
@@ -210,7 +258,7 @@ where
     pub async fn admin_list_users(
         &self, context: RequestContext<AdminListUsersRequest>,
     ) -> Result<AdminListUsersResponse, ServerError<AdminListUsersError>> {
-        let (db, request) = (&self.db_v4.lock().await, &context.request);
+        let (db, request) = (&self.index_db.lock().await, &context.request);
 
         if !Self::is_admin::<AdminListUsersError>(
             db,
@@ -262,7 +310,7 @@ where
     pub async fn admin_get_account_info(
         &self, context: RequestContext<AdminGetAccountInfoRequest>,
     ) -> Result<AdminGetAccountInfoResponse, ServerError<AdminGetAccountInfoError>> {
-        let (mut lock, request) = (self.db_v4.lock().await, &context.request);
+        let (mut lock, request) = (self.index_db.lock().await, &context.request);
         let db = lock.deref_mut();
 
         if !Self::is_admin::<AdminGetAccountInfoError>(
@@ -363,7 +411,7 @@ where
         let mut docs_to_delete = Vec::new();
 
         {
-            let mut lock = self.db_v4.lock().await;
+            let mut lock = self.index_db.lock().await;
             let db = lock.deref_mut();
             let tx = db.begin_transaction()?;
 
