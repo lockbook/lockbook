@@ -101,7 +101,7 @@ impl FileLike for Meta {
 
     fn document_hmac(&self) -> Option<&DocumentHmac> {
         match self {
-            Meta::V1 { document_hmac, .. } => document_hmac.as_ref(),
+            Meta::V1 { doc_hmac: document_hmac, .. } => document_hmac.as_ref(),
         }
     }
 

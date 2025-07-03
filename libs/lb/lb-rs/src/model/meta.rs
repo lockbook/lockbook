@@ -16,7 +16,8 @@ pub enum Meta {
         name: SecretFileName,
         owner: Owner,
         is_deleted: bool,
-        document_hmac: Option<DocumentHmac>,
+        doc_size: Option<usize>,
+        doc_hmac: Option<DocumentHmac>,
         user_access_keys: Vec<UserAccessInfo>,
         folder_access_key: EncryptedFolderAccessKey,
     },
@@ -34,10 +35,11 @@ impl PartialEq for Meta {
                     name,
                     owner,
                     is_deleted,
-                    document_hmac,
+                    doc_hmac,
                     user_access_keys,
                     // todo: verify that ignoring this is intentional
                     folder_access_key: _,
+                    doc_size,
                 },
                 Meta::V1 {
                     id: other_id,
@@ -46,10 +48,11 @@ impl PartialEq for Meta {
                     name: other_name,
                     owner: other_owner,
                     is_deleted: other_is_deleted,
-                    document_hmac: other_document_hmac,
+                    doc_hmac: other_doc_hmac,
                     user_access_keys: other_user_access_keys,
                     // todo: verify that ignoring this is intentional
                     folder_access_key: _other_folder_access_key,
+                    doc_size: other_doc_size,
                 },
             ) => {
                 id == other_id
@@ -58,8 +61,9 @@ impl PartialEq for Meta {
                     && name == other_name
                     && owner == other_owner
                     && is_deleted == other_is_deleted
-                    && document_hmac == other_document_hmac
+                    && doc_hmac == other_doc_hmac
                     && user_access_keys == other_user_access_keys
+                    && doc_size == other_doc_size
             }
         }
     }

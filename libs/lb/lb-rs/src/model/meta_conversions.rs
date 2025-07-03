@@ -12,9 +12,10 @@ impl From<FileMetadata> for Meta {
             name: value.name,
             owner: value.owner,
             is_deleted: value.is_deleted,
-            document_hmac: value.document_hmac,
+            doc_hmac: value.document_hmac,
             user_access_keys: value.user_access_keys,
             folder_access_key: value.folder_access_key,
+            doc_size: None,
         }
     }
 }
@@ -32,6 +33,6 @@ impl From<SignedFile> for SignedMeta {
 
 impl From<ServerFile> for ServerMeta {
     fn from(value: ServerFile) -> Self {
-        Self { file: todo!(), version: value.version }
+        Self { file: value.file.into(), version: value.version }
     }
 }
