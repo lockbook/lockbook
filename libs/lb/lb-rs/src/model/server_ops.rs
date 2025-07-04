@@ -1,4 +1,6 @@
 use super::errors::{DiffError, LbErrKind, LbResult};
+use super::server_meta::{IntoServerMeta, ServerMeta};
+use super::signed_meta::SignedMeta;
 use crate::model::clock::get_time;
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::FileDiff;
@@ -8,12 +10,12 @@ use crate::model::server_tree::ServerTree;
 use crate::model::signed_file::SignedFile;
 use crate::model::tree_like::TreeLike;
 
-type LazyServerStaged1<'a> = LazyStaged1<ServerTree<'a>, Vec<ServerFile>>;
+type LazyServerStaged1<'a> = LazyStaged1<ServerTree<'a>, Vec<ServerMeta>>;
 
 impl<'a> LazyTree<ServerTree<'a>> {
     /// Validates a diff prior to staging it. Performs individual validations, then validations that
     /// require a tree
-    pub fn stage_diff(self, changes: Vec<FileDiff<SignedFile>>) -> LbResult<LazyServerStaged1<'a>> {
+    pub fn stage_diff(self, changes: Vec<FileDiff<SignedMeta>>) -> LbResult<LazyServerStaged1<'a>> {
         // Check new.id == old.id
         for change in &changes {
             if let Some(old) = &change.old {
@@ -27,14 +29,14 @@ impl<'a> LazyTree<ServerTree<'a>> {
         for change in &changes {
             match &change.old {
                 Some(old) => {
-                    if old.timestamped_value.value.document_hmac
-                        != change.new.timestamped_value.value.document_hmac
+                    if old.timestamped_value.value.document_hmac()
+                        != change.new.timestamped_value.value.document_hmac()
                     {
                         return Err(LbErrKind::Diff(DiffError::HmacModificationInvalid))?;
                     }
                 }
                 None => {
-                    if change.new.timestamped_value.value.document_hmac.is_some() {
+                    if change.new.timestamped_value.value.document_hmac().is_some() {
                         return Err(LbErrKind::Diff(DiffError::HmacModificationInvalid))?;
                     }
                 }

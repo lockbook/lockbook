@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use crate::billing::billing_model::SubscriptionProfile;
-use crate::config::Config;
 use db_rs::{LookupSet, LookupTable};
 use db_rs_derive::Schema;
 use futures::lock::Mutex;
@@ -21,7 +20,7 @@ pub struct Account {
     pub billing_info: SubscriptionProfile,
 }
 
-pub type ServerDb = ServerV4;
+pub type ServerDb = ServerV5;
 
 #[derive(Schema)]
 #[cfg_attr(feature = "no-network", derive(Clone))]
@@ -59,29 +58,20 @@ async fn migrate(v4: Arc<Mutex<ServerV4>>, v5: Arc<RwLock<ServerV5>>) {
     let mut v5 = v5.write().await;
 
     for (user, owner) in v4.usernames.get() {
-        v5.usernames.insert(user.clone(), *owner);
+        v5.usernames.insert(user.clone(), *owner).unwrap();
     }
 
     for (id, meta) in v4.metas.get() {
-        v5.metas.insert(*id, ServerMeta::from(meta.clone()));
+        v5.metas
+            .insert(*id, ServerMeta::from(meta.clone()))
+            .unwrap();
     }
 
     for (id, size) in v4.sizes.get() {
         let mut meta = v5.metas.remove(id).unwrap().unwrap();
-        match meta.file.timestamped_value.value {
-            Meta::V1 {
-                id,
-                file_type,
-                parent,
-                name,
-                owner,
-                is_deleted,
-                doc_size,
-                doc_hmac,
-                user_access_keys,
-                folder_access_key,
-            } => {
-                doc_size = Some(*size as usize);
+        match &mut meta.file.timestamped_value.value {
+            Meta::V1 { doc_size, .. } => {
+                *doc_size = Some(*size as usize);
             }
         }
 
@@ -112,19 +102,19 @@ async fn migrate(v4: Arc<Mutex<ServerV4>>, v5: Arc<RwLock<ServerV5>>) {
 
     for (owner, owned_files) in v4.owned_files.get() {
         for owned_file in owned_files {
-            v5.owned_files.insert(*owner, owned_file.clone());
+            v5.owned_files.insert(*owner, owned_file.clone()).unwrap();
         }
     }
 
     for (owner, shared_files) in v4.shared_files.get() {
         for shared_file in shared_files {
-            v5.shared_files.insert(*owner, *shared_file);
+            v5.shared_files.insert(*owner, *shared_file).unwrap();
         }
     }
 
     for (id, children) in v4.file_children.get() {
         for child in children {
-            v5.file_children.insert(*id, *child);
+            v5.file_children.insert(*id, *child).unwrap();
         }
     }
 }
