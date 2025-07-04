@@ -20,13 +20,16 @@ impl RpcRequest {
 }
 
 pub async fn call_rpc<T>(
-    stream: &mut TcpStream,
+    socket_address: SocketAddrV4,
     method: &str,
     args: Option<Vec<u8>>,
 ) -> LbResult<T>
 where
     T: for<'de> Deserialize<'de>,
 {
+    let mut stream = TcpStream::connect(socket_address)
+            .await
+            .map_err(core_err_unexpected)?;
     let req = RpcRequest::new(method, args);
     let encoded = bincode::serialize(&req).map_err(core_err_unexpected)?;
     let len = encoded.len() as u32;
@@ -49,7 +52,7 @@ where
 }
 
 pub async fn call_rpc_with_callback<S, T, F>(
-    stream: &mut TcpStream,
+    socket_address: SocketAddrV4,
     method: &str,
     args: Option<Vec<u8>>,
     mut on_status: F,
@@ -59,6 +62,9 @@ where
     T: DeserializeOwned,
     F: FnMut(S),
 {
+    let mut stream = TcpStream::connect(socket_address)
+            .await
+            .map_err(core_err_unexpected)?;
     let req = RpcRequest::new(method, args);
     let req_bytes = bincode::serialize(&req).map_err(core_err_unexpected)?;
     let mut out = Vec::with_capacity(4 + req_bytes.len());
@@ -120,6 +126,7 @@ pub async fn listen_for_connections(lb: Arc<LbServer>, listener: TcpListener) ->
 }
 
 use crate::dispatch::dispatch;
+use std::net::SocketAddrV4;
 use std::sync::Arc;
 use serde::de::DeserializeOwned;
 use serde::{Serialize,Deserialize};
