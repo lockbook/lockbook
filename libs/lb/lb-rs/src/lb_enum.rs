@@ -11,6 +11,19 @@ impl Lb {
         match TcpListener::bind(socket).await {
             Ok(listener) => {
                 let inner_lb = LbServer::init(config).await?;
+
+                #[cfg(feature = "serve")]
+                {
+                    tokio::spawn({;
+                        async move {
+                            if let Err(e) = lb.clone().listen_for_connections(listener.clone()).await {
+                                return Err(LbErrKind::Unexpected(format!("Failed to start listening for connections: {e}")).into())
+                            }
+                            Ok(())
+                        }
+                    });
+                }
+
                 Ok(Lb::Direct(inner_lb))
             }
             Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => {

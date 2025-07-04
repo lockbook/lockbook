@@ -110,18 +110,20 @@ pub async fn handle_connection(stream: TcpStream, lb: Arc<LbServer>) -> LbResult
     Ok(())
 }
 
+impl LbServer {
+    pub async fn listen_for_connections(&self, listener: TcpListener) -> LbResult<()> { 
+        let lb = Arc::new(self.clone());
+        loop {
+            let (stream, _) = listener.accept().await
+                .map_err(core_err_unexpected)?;
 
-pub async fn listen_for_connections(lb: Arc<LbServer>, listener: TcpListener) -> LbResult<()> { 
-    loop {
-        let (stream, _) = listener.accept().await
-            .map_err(core_err_unexpected)?;
-
-        let lb = lb.clone();
-        tokio::spawn(async move {
-            if let Err(e) = handle_connection(stream, lb).await {
-                eprintln!("Connection error: {e:?}");
-            }
-        });
+            let lb = lb.clone();
+            tokio::spawn(async move {
+                if let Err(e) = handle_connection(stream, lb).await {
+                    eprintln!("Connection error: {e:?}");
+                }
+            });
+        }
     }
 }
 

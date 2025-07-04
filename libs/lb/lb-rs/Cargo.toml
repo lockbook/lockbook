@@ -16,6 +16,7 @@ bench = false
 [features]
 default = []
 no-network = ["db-rs/clone"]
+serve = []
 
 [dependencies]
 base64 = "0.13.0"
