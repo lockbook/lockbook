@@ -19,7 +19,6 @@ jobs:
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
           toolchain: stable
       - name: run bump script
         run: |
