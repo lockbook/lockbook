@@ -56,7 +56,7 @@ where
             )?
             .to_lazy();
 
-            let old_usage = Self::get_usage_helper(&mut tree, db.sizes.get())
+            let old_usage = Self::get_usage_helper(&mut tree)
                 .map_err(|err| internal!("{:?}", err))?
                 .iter()
                 .map(|f| f.size_bytes)
@@ -77,7 +77,7 @@ where
 
             tree.validate(req_owner)?;
 
-            let new_usage = Self::get_usage_helper(&mut tree, db.sizes.get())
+            let new_usage = Self::get_usage_helper(&mut tree)
                 .map_err(|err| internal!("{:?}", err))?
                 .iter()
                 .map(|f| f.size_bytes)
@@ -233,7 +233,7 @@ where
             )?
             .to_lazy();
 
-            let old_usage = Self::get_usage_helper(&mut tree, db.sizes.get())
+            let old_usage = Self::get_usage_helper(&mut tree)
                 .map_err(|err| internal!("{:?}", err))?
                 .iter()
                 .map(|f| f.size_bytes)

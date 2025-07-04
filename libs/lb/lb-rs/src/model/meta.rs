@@ -23,6 +23,14 @@ pub enum Meta {
     },
 }
 
+impl Meta {
+    pub fn doc_size(&self) -> &Option<usize> {
+        match self {
+            Meta::V1 { doc_size, .. } => doc_size,
+        }
+    }
+}
+
 // This is impl'd to avoid comparing encrypted values
 impl PartialEq for Meta {
     fn eq(&self, other: &Self) -> bool {
