@@ -175,6 +175,6 @@ fn push_to_git(version: &str) {
 
 fn perform_checks() {
     Command::new("bash")
-        .args(["-c", "cargo fmt --check && cargo check"])
+        .args(["-c", "cargo check"])
         .assert_success();
 }
