@@ -11,11 +11,14 @@ use db_rs::Db;
 use lb_rs::model::api::UpsertError;
 use lb_rs::model::api::*;
 use lb_rs::model::clock::get_time;
+use lb_rs::model::crypto::Timestamped;
 use lb_rs::model::errors::{LbErrKind, LbResult};
 use lb_rs::model::file_like::FileLike;
-use lb_rs::model::file_metadata::{Diff, Owner};
+use lb_rs::model::file_metadata::{Diff, FileMetadata, Owner};
+use lb_rs::model::meta::Meta;
 use lb_rs::model::server_file::{IntoServerFile, ServerFile};
 use lb_rs::model::server_tree::ServerTree;
+use lb_rs::model::signed_file::SignedFile;
 use lb_rs::model::tree_like::TreeLike;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -217,7 +220,7 @@ where
             let usage_cap =
                 Self::get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
 
-            let meta = db
+            let meta = db﻿@kousay﻿ how are things? lmk
                 .metas
                 .get()
                 .get(request.diff.new.id())
@@ -491,7 +494,37 @@ where
                 .all_files()?
                 .iter()
                 .filter(|meta| result_ids.contains(meta.id()))
-                .map(|meta| meta.file.clone())
+                .map(|meta| match meta.file.timestamped_value.value.clone() {
+                    Meta::V1 {
+                        id,
+                        file_type,
+                        parent,
+                        name,
+                        owner,
+                        is_deleted,
+                        doc_size: _,
+                        doc_hmac,
+                        user_access_keys,
+                        folder_access_key,
+                    } => SignedFile {
+                        timestamped_value: Timestamped {
+                            timestamp: meta.file.timestamped_value.timestamp,
+                            value: FileMetadata {
+                                id,
+                                file_type,
+                                parent,
+                                name,
+                                owner,
+                                is_deleted,
+                                document_hmac: doc_hmac,
+                                user_access_keys,
+                                folder_access_key,
+                            },
+                        },
+                        signature: meta.file.signature.clone(),
+                        public_key: meta.file.public_key,
+                    },
+                })
                 .collect(),
         })
     }
