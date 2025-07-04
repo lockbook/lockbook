@@ -812,6 +812,17 @@ impl Lb {
             }
         }
     }
+
+    pub async fn get_keychain(&self) -> Keychain {
+        match self {
+            Lb::Direct(inner) => {
+                inner.keychain.clone()
+            }
+            Lb::Network(proxy) => {
+                proxy.get_keychain().await
+            }
+        }
+    }
 }
 
 use std::collections::HashMap;
@@ -825,6 +836,7 @@ use tokio::sync::broadcast::Receiver;
 use uuid::Uuid;
 
 use crate::model::{account::{Account, Username}, api::{AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo}, crypto::DecryptedDocument, file::{File, ShareMode}, file_metadata::{DocumentHmac,FileType}, errors::{LbErrKind, Warning, LbErr}, path_ops::Filter};
+use crate::service::keychain::Keychain;
 use crate::service::{activity::RankingWeights, events::Event, import_export::{ExportFileInfo, ImportStatus}, usage::{UsageItemMetric, UsageMetrics},sync::{SyncProgress, SyncStatus}};
 use crate::subscribers::search::{SearchConfig, SearchIndex, SearchResult};
 use crate::subscribers::status::Status;

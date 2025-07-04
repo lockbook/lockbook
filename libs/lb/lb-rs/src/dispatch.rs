@@ -424,6 +424,11 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             bincode::serialize(&res).map_err(core_err_unexpected)?
         }
 
+        "get_keychain" => {
+            let res = lb.keychain.clone();
+            bincode::serialize(&res).map_err(core_err_unexpected)?
+        }
+
         other => {
             return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
         }

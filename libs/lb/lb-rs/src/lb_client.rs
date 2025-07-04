@@ -686,9 +686,17 @@ impl LbClient {
             .unwrap();
         call_rpc(&mut stream, "get_search", None).await.unwrap()
     }
+
+    pub async fn get_keychain(&self) -> Keychain {
+        let mut stream = TcpStream::connect(&self.addr)
+            .await
+            .unwrap();
+        call_rpc(&mut stream, "get_keychain", None).await.unwrap()
+    }
 }
 
 use crate::model::core_config::Config;
+use crate::service::keychain::Keychain;
 use crate::service::sync::{SyncProgress, SyncStatus};
 use crate::subscribers::search::{SearchConfig, SearchIndex, SearchResult};
 use crate::subscribers::status::Status;
