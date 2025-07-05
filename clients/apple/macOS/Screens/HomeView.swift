@@ -17,6 +17,7 @@ struct HomeView: View {
                         .navigationDestination(isPresented: $homeState.showPendingShares) {
                             PendingSharesView()
                         }
+                        .modifier(OutOfSpaceAlert())
                 }
             })
             .confirmationDialog(

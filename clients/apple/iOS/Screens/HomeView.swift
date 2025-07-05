@@ -60,6 +60,7 @@ struct HomeView: View {
                     }
                 }
             }
+            .modifier(OutOfSpaceAlert())
     }
     
     var detail: some View {

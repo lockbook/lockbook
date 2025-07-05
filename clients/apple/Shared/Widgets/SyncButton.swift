@@ -1,17 +1,28 @@
 import SwiftUI
+import AlertToast
 
 struct SyncButton: View {
+    @EnvironmentObject var homeState: HomeState
     @State var syncButtonStatus: SyncButtonStatus = .canSync
+    @State private var showClickToast = false
+
     @Environment(\.isPreview) var isPreview
     
     var body: some View {
         Button(action: {
+            if syncButtonStatus == .offline {
+                AppState.shared.error = .custom(title: "Your Lockbook is out of date", msg: "Update to the latest version to sync")
+            } else if syncButtonStatus == .outOfSpace {
+                homeState.showOutOfSpaceAlert = true
+            }
+            
             AppState.workspaceState.requestSync()
         }, label: {
             if syncButtonStatus == .syncing {
                 Label(title: { Text("Syncing...") }, icon: {
                     ProgressView()
-                        .progressViewStyle(.automatic)
+                        .progressViewStyle(.circular)
+                        .padding(.trailing, 1)
                         .modifier(SyncButtonProgressBarSize())
                 })
             } else {
@@ -20,28 +31,21 @@ struct SyncButton: View {
         })
         .buttonStyle(.bordered)
         .tint(getButtonTintColor())
-        .allowsHitTesting(!isButtonDisabled)
         .onReceive(AppState.lb.events.$status, perform: { status in
             guard !isPreview else { return }
             
             if status.offline {
                 syncButtonStatus = .offline
-            } else if status.syncing {
-                syncButtonStatus = .syncing
             } else if status.outOfSpace {
                 syncButtonStatus = .outOfSpace
+            } else if status.syncing {
+                syncButtonStatus = .syncing
             } else {
                 syncButtonStatus = .canSync
             }
         })
     }
-    
-    var isButtonDisabled: Bool {
-        get {
-            return syncButtonStatus == .syncing || syncButtonStatus == .outOfSpace || syncButtonStatus == .updateRequired || syncButtonStatus == .offline
-        }
-    }
-    
+        
     func getButtonTintColor() -> Color? {
         return syncButtonStatus == .updateRequired ? .red : nil
     }
