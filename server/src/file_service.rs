@@ -11,11 +11,15 @@ use db_rs::Db;
 use lb_rs::model::api::UpsertError;
 use lb_rs::model::api::*;
 use lb_rs::model::clock::get_time;
+use lb_rs::model::crypto::Timestamped;
 use lb_rs::model::errors::{LbErrKind, LbResult};
 use lb_rs::model::file_like::FileLike;
-use lb_rs::model::file_metadata::{Diff, Owner};
+use lb_rs::model::file_metadata::{Diff, FileMetadata, Owner};
+use lb_rs::model::meta::Meta;
 use lb_rs::model::server_file::{IntoServerFile, ServerFile};
+use lb_rs::model::server_meta::ServerMeta;
 use lb_rs::model::server_tree::ServerTree;
+use lb_rs::model::signed_file::SignedFile;
 use lb_rs::model::tree_like::TreeLike;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -56,7 +60,7 @@ where
             )?
             .to_lazy();
 
-            let old_usage = Self::get_usage_helper(&mut tree, db.sizes.get())
+            let old_usage = Self::get_usage_helper(&mut tree)
                 .map_err(|err| internal!("{:?}", err))?
                 .iter()
                 .map(|f| f.size_bytes)
@@ -77,7 +81,7 @@ where
 
             tree.validate(req_owner)?;
 
-            let new_usage = Self::get_usage_helper(&mut tree, db.sizes.get())
+            let new_usage = Self::get_usage_helper(&mut tree)
                 .map_err(|err| internal!("{:?}", err))?
                 .iter()
                 .map(|f| f.size_bytes)
@@ -97,14 +101,13 @@ where
                     && !prior_deleted.contains(&id)
                 {
                     let meta = tree.find(&id)?;
-                    if let Some(hmac) = meta.file.timestamped_value.value.document_hmac {
-                        db.sizes.remove(meta.id())?;
+                    if let Some(hmac) = meta.file.timestamped_value.value.document_hmac().copied() {
                         new_deleted.push((*meta.id(), hmac));
                     }
                 }
             }
 
-            let all_files: Vec<ServerFile> = tree.all_files()?.into_iter().cloned().collect();
+            let all_files: Vec<ServerMeta> = tree.all_files()?.into_iter().cloned().collect();
             for meta in all_files {
                 let id = meta.id();
                 if current_deleted.contains(id) && !prior_deleted.contains(id) {
@@ -233,7 +236,7 @@ where
             )?
             .to_lazy();
 
-            let old_usage = Self::get_usage_helper(&mut tree, db.sizes.get())
+            let old_usage = Self::get_usage_helper(&mut tree)
                 .map_err(|err| internal!("{:?}", err))?
                 .iter()
                 .map(|f| f.size_bytes)
@@ -491,7 +494,37 @@ where
                 .all_files()?
                 .iter()
                 .filter(|meta| result_ids.contains(meta.id()))
-                .map(|meta| meta.file.clone())
+                .map(|meta| match meta.file.timestamped_value.value.clone() {
+                    Meta::V1 {
+                        id,
+                        file_type,
+                        parent,
+                        name,
+                        owner,
+                        is_deleted,
+                        doc_size: _,
+                        doc_hmac,
+                        user_access_keys,
+                        folder_access_key,
+                    } => SignedFile {
+                        timestamped_value: Timestamped {
+                            timestamp: meta.file.timestamped_value.timestamp,
+                            value: FileMetadata {
+                                id,
+                                file_type,
+                                parent,
+                                name,
+                                owner,
+                                is_deleted,
+                                document_hmac: doc_hmac,
+                                user_access_keys,
+                                folder_access_key,
+                            },
+                        },
+                        signature: meta.file.signature.clone(),
+                        public_key: meta.file.public_key,
+                    },
+                })
                 .collect(),
         })
     }

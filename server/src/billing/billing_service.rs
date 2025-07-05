@@ -290,7 +290,7 @@ where
             )?
             .to_lazy();
 
-            let usage: u64 = Self::get_usage_helper(&mut tree, db.sizes.get())?
+            let usage: u64 = Self::get_usage_helper(&mut tree)?
                 .iter()
                 .map(|a| a.size_bytes)
                 .sum();

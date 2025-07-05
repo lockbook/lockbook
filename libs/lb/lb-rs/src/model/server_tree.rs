@@ -9,20 +9,21 @@ use tracing::*;
 use uuid::Uuid;
 
 use super::errors::LbResult;
+use super::server_meta::ServerMeta;
 
 pub struct ServerTree<'a> {
     pub ids: HashSet<Uuid>,
     pub owned_files: &'a mut LookupSet<Owner, Uuid>,
     pub shared_files: &'a mut LookupSet<Owner, Uuid>,
     pub file_children: &'a mut LookupSet<Uuid, Uuid>,
-    pub files: &'a mut LookupTable<Uuid, ServerFile>,
+    pub files: &'a mut LookupTable<Uuid, ServerMeta>,
 }
 
 impl<'a> ServerTree<'a> {
     pub fn new(
         owner: Owner, owned_files: &'a mut LookupSet<Owner, Uuid>,
         shared_files: &'a mut LookupSet<Owner, Uuid>, file_children: &'a mut LookupSet<Uuid, Uuid>,
-        files: &'a mut LookupTable<Uuid, ServerFile>,
+        files: &'a mut LookupTable<Uuid, ServerMeta>,
     ) -> LbResult<Self> {
         let (owned_ids, shared_ids) =
             match (owned_files.get().get(&owner), shared_files.get().get(&owner)) {
@@ -49,7 +50,7 @@ impl<'a> ServerTree<'a> {
 }
 
 impl TreeLike for ServerTree<'_> {
-    type F = ServerFile;
+    type F = ServerMeta;
 
     fn ids(&self) -> Vec<Uuid> {
         self.ids.iter().copied().collect()
