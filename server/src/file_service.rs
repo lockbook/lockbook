@@ -17,6 +17,7 @@ use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{Diff, FileMetadata, Owner};
 use lb_rs::model::meta::Meta;
 use lb_rs::model::server_file::{IntoServerFile, ServerFile};
+use lb_rs::model::server_meta::ServerMeta;
 use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::signed_file::SignedFile;
 use lb_rs::model::tree_like::TreeLike;
@@ -100,14 +101,13 @@ where
                     && !prior_deleted.contains(&id)
                 {
                     let meta = tree.find(&id)?;
-                    if let Some(hmac) = meta.file.timestamped_value.value.document_hmac {
-                        db.sizes.remove(meta.id())?;
+                    if let Some(hmac) = meta.file.timestamped_value.value.document_hmac().copied() {
                         new_deleted.push((*meta.id(), hmac));
                     }
                 }
             }
 
-            let all_files: Vec<ServerFile> = tree.all_files()?.into_iter().cloned().collect();
+            let all_files: Vec<ServerMeta> = tree.all_files()?.into_iter().cloned().collect();
             for meta in all_files {
                 let id = meta.id();
                 if current_deleted.contains(id) && !prior_deleted.contains(id) {
@@ -220,7 +220,7 @@ where
             let usage_cap =
                 Self::get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
 
-            let meta = db﻿@kousay﻿ how are things? lmk
+            let meta = db
                 .metas
                 .get()
                 .get(request.diff.new.id())

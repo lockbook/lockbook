@@ -1,4 +1,5 @@
 use super::errors::{DiffError, LbErrKind, LbResult};
+use super::meta::Meta;
 use super::server_meta::{IntoServerMeta, ServerMeta};
 use super::signed_meta::SignedMeta;
 use crate::model::clock::get_time;
@@ -15,7 +16,41 @@ type LazyServerStaged1<'a> = LazyStaged1<ServerTree<'a>, Vec<ServerMeta>>;
 impl<'a> LazyTree<ServerTree<'a>> {
     /// Validates a diff prior to staging it. Performs individual validations, then validations that
     /// require a tree
-    pub fn stage_diff(self, changes: Vec<FileDiff<SignedMeta>>) -> LbResult<LazyServerStaged1<'a>> {
+    pub fn stage_diff(self, changes: Vec<FileDiff<SignedFile>>) -> LbResult<LazyServerStaged1<'a>> {
+        let mut changes_meta: Vec<FileDiff<SignedMeta>> = vec![];
+        for change in changes {
+            let current_size = *self
+                .maybe_find(change.new.id())
+                .ok_or(LbErrKind::Diff(DiffError::OldFileNotFound))?
+                .file
+                .timestamped_value
+                .value
+                .doc_size();
+
+            let old_meta = change.old.map(|f| {
+                let mut meta: SignedMeta = f.into();
+
+                match &mut meta.timestamped_value.value {
+                    Meta::V1 { doc_size, .. } => {
+                        *doc_size = current_size;
+                    }
+                };
+
+                meta
+            });
+
+            let mut new_meta: SignedMeta = change.new.into();
+
+            match &mut new_meta.timestamped_value.value {
+                Meta::V1 { doc_size, .. } => {
+                    *doc_size = current_size;
+                }
+            };
+
+            changes_meta.push(FileDiff { old: old_meta, new: new_meta });
+        }
+        let mut changes = changes_meta;
+
         // Check new.id == old.id
         for change in &changes {
             if let Some(old) = &change.old {
@@ -43,14 +78,19 @@ impl<'a> LazyTree<ServerTree<'a>> {
             }
         }
 
-        // Check for race conditions
-        for change in &changes {
+        // Check for race conditions and populate prior size
+        for change in &mut changes {
             match &change.old {
                 Some(old) => {
                     let current = &self
                         .maybe_find(old.id())
                         .ok_or(LbErrKind::Diff(DiffError::OldFileNotFound))?
                         .file;
+
+                    match &mut change.new.timestamped_value.value {
+                        Meta::V1 { doc_size, .. } => {}
+                    }
+
                     if current != old {
                         return Err(LbErrKind::Diff(DiffError::OldVersionIncorrect))?;
                     }
