@@ -1,0 +1,96 @@
+use comrak::nodes::AstNode;
+use egui::{Pos2, TextFormat, Ui};
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+
+use crate::tab::markdown_editor::widget::inline::Response;
+use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::Editor;
+
+impl<'ast> Editor {
+    pub fn text_format_code(&self, parent: &AstNode<'_>) -> TextFormat {
+        TextFormat {
+            color: self.theme.fg().accent_secondary,
+            background: self.theme.bg().neutral_secondary,
+            ..self.text_format_code_block(parent)
+        }
+    }
+
+    pub fn span_code(
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+    ) -> f32 {
+        let node_range = self.node_range(node);
+
+        let prefix_range = (node_range.start(), node_range.start() + 1);
+        let infix_range = (node_range.start() + 1, node_range.end() - 1);
+        let postfix_range = (node_range.end() - 1, node_range.end());
+
+        let reveal = self.node_intersects_selection(node);
+        let mut span = 0.0;
+
+        if reveal {
+            span +=
+                self.span_text_line(wrap, prefix_range.trim(&range), self.text_format_syntax(node));
+        }
+        let infix_range_trim = infix_range.trim(&range);
+        if !infix_range_trim.is_empty() {
+            span += self.span_text_line(wrap, infix_range_trim, self.text_format(node));
+        }
+        if reveal {
+            span += self.span_text_line(
+                wrap,
+                postfix_range.trim(&range),
+                self.text_format_syntax(node),
+            );
+        }
+
+        span
+    }
+
+    pub fn show_code(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
+        range: (DocCharOffset, DocCharOffset),
+    ) -> Response {
+        let node_range = self.node_range(node);
+
+        let prefix_range = (node_range.start(), node_range.start() + 1);
+        let infix_range = (node_range.start() + 1, node_range.end() - 1);
+        let postfix_range = (node_range.end() - 1, node_range.end());
+
+        let reveal = self.node_intersects_selection(node);
+        let mut response = Default::default();
+
+        if reveal {
+            response |= self.show_text_line(
+                ui,
+                top_left,
+                wrap,
+                prefix_range.trim(&range),
+                self.text_format_syntax(node),
+                false,
+            );
+        }
+        let infix_range_trim = infix_range.trim(&range);
+        if !infix_range_trim.is_empty() {
+            response |= self.show_text_line(
+                ui,
+                top_left,
+                wrap,
+                infix_range_trim,
+                self.text_format(node),
+                false,
+            );
+        }
+        if reveal {
+            response |= self.show_text_line(
+                ui,
+                top_left,
+                wrap,
+                postfix_range.trim(&range),
+                self.text_format_syntax(node),
+                false,
+            );
+        }
+
+        response
+    }
+}

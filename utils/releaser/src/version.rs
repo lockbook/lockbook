@@ -58,7 +58,6 @@ fn handle_cargo_tomls(version: &str) {
         "libs/lb/test_utils",
         "libs/lb/lb-c",
         "libs/lb/lb-java",
-        "libs/content/editor/egui_editor",
         "libs/content/workspace",
         "libs/content/workspace-ffi",
         "libs/lb-fs",
