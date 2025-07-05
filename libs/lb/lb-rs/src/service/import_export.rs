@@ -2,22 +2,24 @@ use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::file_metadata::FileType;
 use crate::model::ValidationFailure;
-use crate::Lb;
+use crate::LbServer;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
+#[derive(Serialize, Deserialize, Clone)]
 pub enum ImportStatus {
     CalculatedTotal(usize),
     StartingItem(String),
     FinishedItem(File),
 }
 
-impl Lb {
+impl LbServer {
     #[instrument(level = "debug", skip(self, update_status), err(Debug))]
     pub async fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,

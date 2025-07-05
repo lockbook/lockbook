@@ -32,7 +32,7 @@ pub async fn list(
     };
 
     let mut cfg = LsConfig {
-        my_name: lb.get_account()?.username.clone(),
+        my_name: lb.get_account().await?.username.clone(),
         w_id: ID_PREFIX_LEN,
         w_name: 0,
         long,

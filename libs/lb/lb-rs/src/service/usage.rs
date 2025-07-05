@@ -3,25 +3,25 @@ use crate::model::errors::LbResult;
 use crate::model::file_like::FileLike;
 use crate::model::tree_like::TreeLike;
 use crate::model::usage::{bytes_to_human, get_usage};
-use crate::Lb;
-use serde::Serialize;
+use crate::LbServer;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize,Deserialize, Debug, Clone)]
 pub struct UsageMetrics {
     pub usages: Vec<FileUsage>,
     pub server_usage: UsageItemMetric,
     pub data_cap: UsageItemMetric,
 }
 
-#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
+#[derive(Serialize,Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct UsageItemMetric {
     pub exact: u64,
     pub readable: String,
 }
 
-impl Lb {
+impl LbServer {
     /// fetches data footprint on server along with data cap information
     /// compares this to local changes to estimate net data increase
     ///

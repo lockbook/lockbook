@@ -2,8 +2,8 @@ use crate::model::errors::{LbResult, Unexpected};
 use crate::model::file::File;
 use crate::service::activity::RankingWeights;
 use crate::service::events::Event;
-use crate::Lb;
-use serde::Serialize;
+use crate::LbServer;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Range;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -27,20 +27,38 @@ pub struct SearchIndex {
     pub tantivy_reader: IndexReader,
 }
 
-#[derive(Copy, Clone, Debug)]
+impl Serialize for SearchIndex {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        todo!("impl serialize for SearchIndex")
+    }
+}
+
+impl<'de> Deserialize<'de> for SearchIndex {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        todo!("impl deserialize for SearchIndex")
+    }
+}
+
+#[derive(Copy, Serialize, Deserialize, Clone, Debug)]
 pub enum SearchConfig {
     Paths,
     Documents,
     PathsAndDocuments,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum SearchResult {
     DocumentMatch { id: Uuid, path: String, content_matches: Vec<ContentMatch> },
     PathMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
 }
 
-impl Lb {
+impl LbServer {
     /// Lockbook's search implementation.
     ///
     /// Takes an input and a configuration. The configuration describes whether we are searching
@@ -281,7 +299,7 @@ impl Default for SearchIndex {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ContentMatch {
     pub paragraph: String,
     pub matched_indices: Vec<usize>,
@@ -329,7 +347,7 @@ pub struct SearchMetadata {
 }
 
 impl SearchMetadata {
-    async fn populate(lb: &Lb) -> LbResult<Self> {
+    async fn populate(lb: &LbServer) -> LbResult<Self> {
         let files = lb.list_metadatas().await?;
         let paths = lb.list_paths_with_ids(None).await?;
         let suggested_docs = lb.suggested_docs(RankingWeights::default()).await?;
