@@ -5,7 +5,9 @@ class SettingsViewModel: ObservableObject {
     @Published var account: Account? = nil
     @Published var usage: UsageMetrics? = nil
     @Published var isPremium: Bool? = nil
-    @Published var error: String? = nil
+    @Published var isCancellableInApp: Bool = false
+    
+    @Published var showCannotCancelForAppleAlert: Bool = false
     
     init() {
         self.loadAccount()
@@ -18,7 +20,7 @@ class SettingsViewModel: ObservableObject {
         case .success(let account):
             self.account = account
         case .failure(let err):
-            error = err.msg
+            AppState.shared.error = .lb(error: err)
         }
     }
     
@@ -30,8 +32,14 @@ class SettingsViewModel: ObservableObject {
                 switch res {
                 case .success(let info):
                     self.isPremium = info != nil
+                    
+                    if case .appStore = info?.platform {
+                        self.isCancellableInApp = false
+                    } else {
+                        self.isCancellableInApp = true
+                    }
                 case .failure(let err):
-                    self.error = err.msg
+                    AppState.shared.error = .lb(error: err)
                 }
             }
         }
@@ -45,7 +53,19 @@ class SettingsViewModel: ObservableObject {
                 case .success(let usage):
                     self.usage = usage
                 case .failure(let err):
-                    self.error = err.msg
+                    AppState.shared.error = .lb(error: err)
+                }
+            }
+        }
+    }
+    
+    func cancelSubscription() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let res = AppState.lb.cancelSubscription()
+            
+            DispatchQueue.main.async {
+                if case .failure(let err) = res {
+                    AppState.shared.error = .lb(error: err)
                 }
             }
         }
@@ -56,7 +76,7 @@ class SettingsViewModel: ObservableObject {
         case .success(_):
             exit(0)
         case .failure(let err):
-            error = err.msg
+            AppState.shared.error = .lb(error: err)
         }
     }
 }

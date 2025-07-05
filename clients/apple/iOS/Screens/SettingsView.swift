@@ -5,7 +5,8 @@ struct SettingsView: View {
     @StateObject var model = SettingsViewModel()
     
     @State var confirmLogout = false
-    @State var deleteAccountConfirmation = false
+    @State var confirmCancelSubscription = false
+    @State var confirmDeleteAccount = false
     
     @State var showAccountKeys = false
     @State var navigateToUpgradeAccount = false
@@ -73,6 +74,23 @@ struct SettingsView: View {
                 } else {
                     ProgressView()
                 }
+                
+                if model.isPremium == true {
+                    Button("Cancel Subscription", role: .destructive) {
+                        self.confirmCancelSubscription = true
+                    }
+                    .confirmationDialog("Are you sure you want to cancel your subscription?", isPresented: $confirmCancelSubscription, titleVisibility: .visible) {
+                        Button("Confirm", role: .destructive) {
+                            model.cancelSubscription()
+                        }
+                    }
+                    .alert(
+                        "You cannot cancel your subscription within the app. Please navigate to the App Store to cancel.",
+                        isPresented: $model.showCannotCancelForAppleAlert
+                    ) {
+                        Button("Dismiss", role: .cancel) { }
+                    }
+                }
             }
             
             Section(header: Text("Privacy")) {
@@ -83,9 +101,9 @@ struct SettingsView: View {
                     .foregroundColor(Color.accentColor)
 
                 Button("Delete Account", role: .destructive) {
-                    deleteAccountConfirmation = true
+                    confirmDeleteAccount = true
                 }
-                .confirmationDialog("Are you sure you want to delete your account?", isPresented: $deleteAccountConfirmation, titleVisibility: .visible) {
+                .confirmationDialog("Are you sure you want to delete your account?", isPresented: $confirmDeleteAccount, titleVisibility: .visible) {
                     Button("Delete account", role: .destructive) {
                         model.deleteAccountAndExit()
                     }
