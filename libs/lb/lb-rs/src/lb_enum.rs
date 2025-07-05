@@ -6,30 +6,36 @@ pub enum Lb {
 
 impl Lb {
     pub async fn init(config: Config) -> LbResult<Self> {
-        let socket = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080);
-
-        match TcpListener::bind(socket).await {
-            Ok(listener) => {
-                let inner_lb = LbServer::init(config).await?;
-
-                #[cfg(feature = "serve")]
-                {
-                    tokio::spawn({;
+        if let Some(port) = config.rpc_port {
+            let socket = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
+            match TcpListener::bind(socket).await {
+                Ok(listener) => {
+                    let inner_lb = LbServer::init(config).await?;
+                    let lb_clone = inner_lb.clone();
+                    tokio::spawn({
                         async move {
-                            if let Err(e) = lb.clone().listen_for_connections(listener.clone()).await {
-                                return Err(LbErrKind::Unexpected(format!("Failed to start listening for connections: {e}")).into())
+                            if let Err(e) = lb_clone.listen_for_connections(listener).await {
+                                return Err(LbErrKind::Unexpected(format!(
+                                    "Failed to start listening for connections: {e}"
+                                ))
+                                .into());
                             }
-                            Ok(())
+                            Ok::<_, LbErr>(())
                         }
                     });
+                    Ok(Lb::Direct(inner_lb))
                 }
-
-                Ok(Lb::Direct(inner_lb))
+                Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => {
+                    Ok(Lb::Network(LbClient {
+                        addr: socket,
+                        events: EventSubs::default(),
+                    }))
+                }
+                Err(error) => Err(LbErrKind::Unexpected(format!("Failed to bind: {error}")).into()),
             }
-            Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => {
-                Ok(Lb::Network(LbClient{addr: socket}))
-            }
-            Err(error) => Err(LbErrKind::Unexpected(format!("Failed to bind: {error}")).into())
+        } else {
+            let inner_lb = LbServer::init(config).await?;
+            Ok(Lb::Direct(inner_lb))
         }
     }
 
@@ -849,6 +855,7 @@ use tokio::sync::broadcast::Receiver;
 use uuid::Uuid;
 
 use crate::model::{account::{Account, Username}, api::{AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo}, crypto::DecryptedDocument, file::{File, ShareMode}, file_metadata::{DocumentHmac,FileType}, errors::{LbErrKind, Warning, LbErr}, path_ops::Filter};
+use crate::service::events::EventSubs;
 use crate::service::keychain::Keychain;
 use crate::service::{activity::RankingWeights, events::Event, import_export::{ExportFileInfo, ImportStatus}, usage::{UsageItemMetric, UsageMetrics},sync::{SyncProgress, SyncStatus}};
 use crate::subscribers::search::{SearchConfig, SearchIndex, SearchResult};

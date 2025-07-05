@@ -59,6 +59,10 @@ impl EventSubs {
         self.queue(Event::StatusUpdated);
     }
 
+    pub fn get_tx(&self) -> &Sender<Event> {
+        &self.tx
+    }
+
     fn queue(&self, evt: Event) {
         if let Err(e) = self.tx.send(evt.clone()) {
             error!(?evt, ?e, "could not queue");

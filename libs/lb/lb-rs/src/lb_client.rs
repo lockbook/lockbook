@@ -1,6 +1,7 @@
 #[derive(Clone)]
 pub struct LbClient {
-    pub addr: SocketAddrV4
+    pub addr: SocketAddrV4,
+    pub events: EventSubs
 }
 
 impl LbClient {
@@ -207,7 +208,8 @@ impl LbClient {
     }
 
     pub async fn subscribe(&self) -> Receiver<Event> {
-       todo!("implement subscribe for proxylb");
+       //todo!("implement subscribe for proxylb");
+       self.events.get_tx().subscribe()
     }
 
     pub async fn create_file(
@@ -410,7 +412,7 @@ impl LbClient {
     }
 
     pub async fn get_uncompressed_usage(&self) -> LbResult<UsageItemMetric>{
-        call_rpc(self.addr, "geget_uncompressed_usaget_account", None).await
+        call_rpc(self.addr, "get_uncompressed_usage", None).await
     }
 
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>>{
@@ -441,6 +443,7 @@ impl LbClient {
 }
 
 use crate::model::core_config::Config;
+use crate::service::events::EventSubs;
 use crate::service::keychain::Keychain;
 use crate::service::sync::{SyncProgress, SyncStatus};
 use crate::subscribers::search::{SearchConfig, SearchIndex, SearchResult};

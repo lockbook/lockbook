@@ -57,6 +57,11 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             call_async(|| lb.delete_account()).await?
         }
 
+        "suggested_docs" => {
+            let settings: RankingWeights = deserialize_args(&raw)?;
+            call_async(|| lb.suggested_docs(settings)).await?
+        }
+
         "disappear_account" => {
             let username: String = deserialize_args(&raw)?;
             call_async(|| lb.disappear_account(&username)).await?
@@ -408,6 +413,7 @@ use crate::model::file::ShareMode;
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::path_ops::Filter;
 use crate::rpc::{CallbackMessage, RpcRequest};
+use crate::service::activity::RankingWeights;
 use crate::service::import_export::{ExportFileInfo, ImportStatus};
 use crate::subscribers::search::SearchConfig;
 use crate::{LbServer,LbResult};

@@ -15,6 +15,9 @@ pub struct Config {
     pub stdout_logs: bool,
     /// Should logs be colored?
     pub colored_logs: bool,
+
+    /// Should lb listen and serve connections from client lbs?
+    pub rpc_port: Option<u16>,
 }
 
 impl Config {
@@ -27,6 +30,7 @@ impl Config {
             logs: true,
             stdout_logs: false,
             colored_logs: true,
+            rpc_port: Self::get_rpc_port_from_env()
         }
     }
 
@@ -39,6 +43,7 @@ impl Config {
             logs: true,
             stdout_logs: true,
             colored_logs: true,
+            rpc_port: Self::get_rpc_port_from_env()
         }
     }
 
@@ -58,6 +63,14 @@ impl Config {
 
         writeable_path
     }
+
+    pub fn get_rpc_port_from_env() -> Option<u16> {
+        match env::var("LOCKBOOK_RPC_PORT") {
+            Ok(val) => val.parse::<u16>().ok(),
+            Err(_) => None,
+        }
+    }
+
 }
 
 // todo: we added background work as a flag to speed up test execution in debug mode
