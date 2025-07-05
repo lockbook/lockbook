@@ -9,6 +9,7 @@ class HomeState: ObservableObject {
     
     @Published var showSettings: Bool = false
     @Published var showPendingShares: Bool = false
+    @Published var showUpgradeAccount: Bool = false
     
     @Published var sheetInfo: FileOperationSheetInfo? = nil
     @Published var selectSheetInfo: SelectFolderAction? = nil
@@ -16,6 +17,7 @@ class HomeState: ObservableObject {
     
     @Published var constrainedSidebarState: ConstrainedSidebarState = .closed
     @Published var showTabsSheet: Bool = false
+    @Published var showOutOfSpaceAlert: Bool = false
     
     init() {
         AppState.workspaceState.$renameOpenDoc.sink { [weak self] rename in

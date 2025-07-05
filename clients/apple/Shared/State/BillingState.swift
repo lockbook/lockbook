@@ -11,6 +11,10 @@ class BillingState: ObservableObject {
     
     var purchaseState: PurchaseState = .uninitiated
     
+    init() {
+        processPendingTransactions()
+    }
+    
     func processPendingTransactions() {
         processPending = Task.detached { [self] in
             await self.listenToTransactions()

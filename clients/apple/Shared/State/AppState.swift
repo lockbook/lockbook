@@ -21,6 +21,7 @@ class AppState: ObservableObject {
         return Lb(writablePath: ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] ?? LB_LOC, logs: true)
     }()
     static var workspaceState: WorkspaceState = WorkspaceState()
+    static var billingState: BillingState = BillingState()
     
     @Published var isLoggedIn: Bool = false
     @Published var error: UIError? = nil

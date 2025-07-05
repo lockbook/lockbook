@@ -16,6 +16,12 @@ import SwiftWorkspace
         #if os(macOS)
         Settings {
             SettingsView()
+                .environmentObject(AppState.billingState)
+        }
+        
+        Window("Upgrade Account", id: "upgrade-account") {
+            UpgradeAccountView(settingsModel: SettingsViewModel())
+                .environmentObject(AppState.billingState)
         }
         #endif
     }
@@ -45,11 +51,9 @@ struct ContentView: View {
 }
 
 struct HomeContextWrapper: View {
-    @StateObject var billingState = BillingState()
-    
     var body: some View {
         HomeView()
-            .environmentObject(billingState)
+            .environmentObject(AppState.billingState)
             .environmentObject(AppState.workspaceState)
     }
 }
