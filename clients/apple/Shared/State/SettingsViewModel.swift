@@ -5,7 +5,6 @@ class SettingsViewModel: ObservableObject {
     @Published var account: Account? = nil
     @Published var usage: UsageMetrics? = nil
     @Published var isPremium: Bool? = nil
-    @Published var isCancellableInApp: Bool = false
         
     init() {
         self.loadAccount()
@@ -30,12 +29,6 @@ class SettingsViewModel: ObservableObject {
                 switch res {
                 case .success(let info):
                     self.isPremium = info != nil
-                    
-                    if case .appStore = info?.platform {
-                        self.isCancellableInApp = false
-                    } else {
-                        self.isCancellableInApp = true
-                    }
                 case .failure(let err):
                     AppState.shared.error = .lb(error: err)
                 }
