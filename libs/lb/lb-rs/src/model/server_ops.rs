@@ -6,7 +6,6 @@ use crate::model::clock::get_time;
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::FileDiff;
 use crate::model::lazy::{LazyStaged1, LazyTree};
-use crate::model::server_file::{IntoServerFile, ServerFile};
 use crate::model::server_tree::ServerTree;
 use crate::model::signed_file::SignedFile;
 use crate::model::tree_like::TreeLike;
@@ -86,10 +85,6 @@ impl<'a> LazyTree<ServerTree<'a>> {
                         .maybe_find(old.id())
                         .ok_or(LbErrKind::Diff(DiffError::OldFileNotFound))?
                         .file;
-
-                    match &mut change.new.timestamped_value.value {
-                        Meta::V1 { doc_size, .. } => {}
-                    }
 
                     if current != old {
                         return Err(LbErrKind::Diff(DiffError::OldVersionIncorrect))?;

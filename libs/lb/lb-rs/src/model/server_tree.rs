@@ -1,6 +1,5 @@
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::Owner;
-use crate::model::server_file::ServerFile;
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use db_rs::{LookupSet, LookupTable};
 use std::collections::HashSet;

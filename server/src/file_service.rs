@@ -14,10 +14,9 @@ use lb_rs::model::clock::get_time;
 use lb_rs::model::crypto::Timestamped;
 use lb_rs::model::errors::{LbErrKind, LbResult};
 use lb_rs::model::file_like::FileLike;
-use lb_rs::model::file_metadata::{Diff, FileMetadata, Owner};
+use lb_rs::model::file_metadata::{Diff, FileDiff, FileMetadata, Owner};
 use lb_rs::model::meta::Meta;
-use lb_rs::model::server_file::{IntoServerFile, ServerFile};
-use lb_rs::model::server_meta::ServerMeta;
+use lb_rs::model::server_meta::{IntoServerMeta, ServerMeta};
 use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::signed_file::SignedFile;
 use lb_rs::model::tree_like::TreeLike;
@@ -199,6 +198,13 @@ where
         use ChangeDocError::*;
 
         let request = context.request;
+        let mut request = ChangeDocRequestV2 {
+            diff: FileDiff {
+                old: request.diff.old.map(|f| f.into()),
+                new: request.diff.new.into(),
+            },
+            new_content: request.new_content,
+        };
         let owner = Owner(context.public_key);
         let id = *request.diff.id();
 
@@ -241,7 +247,26 @@ where
                 .iter()
                 .map(|f| f.size_bytes)
                 .sum::<u64>();
-            let old_size = db.sizes.get().get(request.diff.id()).unwrap_or(&0);
+            let old_size = tree
+                .maybe_find(request.diff.id())
+                .map(|f| f.file.timestamped_value.value.doc_size().unwrap_or(0))
+                .unwrap_or(0) as u64;
+
+            // populate sizes in request
+            if let Some(old) = &mut request.diff.old {
+                match &mut old.timestamped_value.value {
+                    Meta::V1 { doc_size, .. } => {
+                        *doc_size = Some(old_size as usize);
+                    }
+                }
+            }
+
+            match &mut request.diff.new.timestamped_value.value {
+                Meta::V1 { doc_size, .. } => {
+                    *doc_size = Some(request.new_content.value.len());
+                }
+            }
+
             let new_size = request.new_content.value.len() as u64;
 
             let new_usage = old_usage - old_size + new_size;
@@ -328,7 +353,6 @@ where
                 &mut db.metas,
             )?
             .to_lazy();
-            let new_size = request.new_content.value.len() as u64;
 
             if tree.calculate_deleted(request.diff.new.id())? {
                 return Err(ClientError(DocumentDeleted));
@@ -345,7 +369,6 @@ where
                 }
             }
 
-            db.sizes.insert(*meta.id(), new_size)?;
             tree.stage(vec![new]).promote()?;
             db.last_seen.insert(owner, get_time().0 as u64)?;
 
@@ -578,7 +601,6 @@ where
                     if meta.is_document() && meta.owner() == owner {
                         if let Some(hmac) = meta.document_hmac() {
                             docs_to_delete.push((*meta.id(), *hmac));
-                            db.sizes.remove(&id)?;
                         }
                     }
                 }
@@ -682,7 +704,7 @@ where
             if !tree.calculate_deleted(&id)? {
                 let file = tree.find(&id)?;
                 if file.is_document() && file.document_hmac().is_some() {
-                    if db.sizes.get().get(&id).is_none() {
+                    if file.file.timestamped_value.value.doc_size().is_none() {
                         result.documents_missing_size.push(id);
                     }
 
@@ -888,25 +910,6 @@ where
                 }
             } else {
                 result.files_unmapped_as_parent.insert(*meta.parent());
-            }
-        }
-
-        // validate index: sizes (todo: validate size values)
-        for (id, _) in db.sizes.get().clone() {
-            if let Some(meta) = db.metas.get().get(&id) {
-                if meta.document_hmac().is_none() {
-                    result.sizes_mapped_for_files_without_hmac.insert(id);
-                }
-            } else {
-                result.sizes_mapped_for_nonexistent_files.insert(id);
-            }
-        }
-        for (id, meta) in db.metas.get().clone() {
-            if !deleted_ids.contains(&id)
-                && meta.document_hmac().is_some()
-                && db.sizes.get().get(&id).is_none()
-            {
-                result.sizes_unmapped_for_files_with_hmac.insert(id);
             }
         }
 

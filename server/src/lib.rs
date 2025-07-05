@@ -19,7 +19,6 @@ use serde::{Deserialize, Serialize};
 use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_error::SimplifiedStripeError;
-use crate::schema::ServerV4;
 use crate::ServerError::ClientError;
 pub use stripe;
 use tracing::log::warn;

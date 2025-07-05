@@ -9,5 +9,3 @@ impl PartialEq for SignedMeta {
             && self.public_key == other.public_key
     }
 }
-
-

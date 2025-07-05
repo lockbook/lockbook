@@ -1,7 +1,5 @@
 use super::signed_meta::SignedMeta;
-use crate::model::file_like::FileLike;
 use serde::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ServerMeta {

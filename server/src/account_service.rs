@@ -29,11 +29,10 @@ use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
 use lb_rs::model::usage::bytes_to_human;
 use libsecp256k1::PublicKey;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::ops::DerefMut;
 use tracing::warn;
-use uuid::Uuid;
 
 impl<S, A, G, D> ServerState<S, A, G, D>
 where
@@ -434,7 +433,6 @@ where
                     if meta.is_document() && &(meta.owner().0) == public_key {
                         if let Some(hmac) = meta.document_hmac() {
                             docs_to_delete.push((*meta.id(), *hmac));
-                            db.sizes.remove(&id)?;
                         }
                     }
                 }

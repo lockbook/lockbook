@@ -2,7 +2,6 @@ use crate::model::account::Account;
 use crate::model::account::Username;
 use crate::model::crypto::*;
 use crate::model::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
-use crate::model::server_file::ServerFile;
 use crate::model::signed_file::SignedFile;
 use crate::model::ValidationFailure;
 use http::Method;
@@ -14,7 +13,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use uuid::Uuid;
 
-use super::meta::Meta;
+use super::server_meta::ServerMeta;
 use super::signed_meta::SignedMeta;
 
 pub const FREE_TIER_USAGE_SIZE: u64 = 1000000;
@@ -95,6 +94,11 @@ pub enum UpsertError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocRequest {
     pub diff: FileDiff<SignedFile>,
+    pub new_content: EncryptedDocument,
+}
+
+pub struct ChangeDocRequestV2 {
+    pub diff: FileDiff<SignedMeta>,
     pub new_content: EncryptedDocument,
 }
 
@@ -673,9 +677,9 @@ pub struct AdminFileInfoRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AdminFileInfoResponse {
-    pub file: ServerFile,
-    pub ancestors: Vec<ServerFile>,
-    pub descendants: Vec<ServerFile>,
+    pub file: ServerMeta,
+    pub ancestors: Vec<ServerMeta>,
+    pub descendants: Vec<ServerMeta>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

@@ -3,12 +3,11 @@ use std::sync::Arc;
 use crate::billing::billing_model::SubscriptionProfile;
 use db_rs::{LookupSet, LookupTable};
 use db_rs_derive::Schema;
-use futures::lock::Mutex;
 use lb_rs::model::meta::Meta;
 use lb_rs::model::server_file::ServerFile;
 use lb_rs::model::{file_metadata::Owner, server_meta::ServerMeta};
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,9 +52,9 @@ pub struct ServerV5 {
     pub file_children: LookupSet<Uuid, Uuid>,
 }
 
-async fn migrate(v4: Arc<Mutex<ServerV4>>, v5: Arc<RwLock<ServerV5>>) {
+pub async fn migrate(v4: Arc<Mutex<ServerV4>>, v5: Arc<Mutex<ServerV5>>) {
     let v4 = v4.lock().await;
-    let mut v5 = v5.write().await;
+    let mut v5 = v5.lock().await;
 
     for (user, owner) in v4.usernames.get() {
         v5.usernames.insert(user.clone(), *owner).unwrap();
