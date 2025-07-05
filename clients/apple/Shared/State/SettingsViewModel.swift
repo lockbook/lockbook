@@ -6,9 +6,7 @@ class SettingsViewModel: ObservableObject {
     @Published var usage: UsageMetrics? = nil
     @Published var isPremium: Bool? = nil
     @Published var isCancellableInApp: Bool = false
-    
-    @Published var showCannotCancelForAppleAlert: Bool = false
-    
+        
     init() {
         self.loadAccount()
         self.loadTier()

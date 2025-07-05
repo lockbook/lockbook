@@ -84,12 +84,6 @@ struct SettingsView: View {
                             model.cancelSubscription()
                         }
                     }
-                    .alert(
-                        "You cannot cancel your subscription within the app. Please navigate to the App Store to cancel.",
-                        isPresented: $model.showCannotCancelForAppleAlert
-                    ) {
-                        Button("Dismiss", role: .cancel) { }
-                    }
                 }
             }
             
