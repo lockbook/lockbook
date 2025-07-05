@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State var deleteAccountConfirmation = false
     
     @State var showAccountKeys = false
+    @State var navigateToUpgradeAccount = false
     
     var body: some View {
         Form {
@@ -113,6 +114,9 @@ struct SettingsView: View {
         .navigationDestination(isPresented: $showAccountKeys, destination: {
             AccountKeysView()
         })
+        .navigationDestination(isPresented: $navigateToUpgradeAccount) {
+            UpgradeAccountView(settingsModel: model)
+        }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.large)
     }

@@ -179,10 +179,6 @@ struct SettingsUsageView: View {
                     if !isPremium {
                         NavigationLink("Upgrade Now") {
                             VStack {
-                                Text("Upgrade Your Account")
-                                    .font(.title)
-                                    .fontWeight(.bold)
-                                
                                 UpgradeAccountView(settingsModel: model)
                             }
                         }
