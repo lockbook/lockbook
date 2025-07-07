@@ -781,7 +781,7 @@ impl Workspace {
                         egui::Align2::LEFT_TOP.anchor_size(start, tab_intel_galley.size());
 
                     ui.painter().galley(
-                        start + egui::vec2(0.0, 1.0),
+                        start + egui::vec2(0.0, 3.0),
                         tab_intel_galley,
                         ui.visuals().text_color(),
                     );
