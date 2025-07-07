@@ -264,43 +264,53 @@ impl Toolbar {
             ui.label(egui::RichText::new("Choose your layout:").size(13.0));
         });
 
-        let mini_map_res = egui::Frame::default()
-            .fill(ui.visuals().code_bg_color)
-            .inner_margin(egui::Margin::same(30.0))
-            .outer_margin(egui::Margin::symmetric(0.0, 10.0))
-            .rounding(ui.visuals().window_rounding / 2.0)
-            .show(ui, |ui| self.show_mini_map(ui, tlbr_ctx))
-            .inner;
+        // let mini_map_res = egui::Frame::default()
+        //     .fill(ui.visuals().code_bg_color)
+        //     .inner_margin(egui::Margin::same(30.0))
+        //     .outer_margin(egui::Margin::symmetric(0.0, 10.0))
+        //     .rounding(ui.visuals().window_rounding / 2.0)
+        //     .show(ui, |ui| self.show_mini_map(ui, tlbr_ctx))
+        //     .inner;
 
-        ui.horizontal(|ui| {
-            for mode in ViewportMode::variants() {
-                let res = ui.radio(mode.is_active(tlbr_ctx), mode.label());
-                if res.clicked() || res.drag_started() {
-                    mode.set_active(tlbr_ctx);
-                    if let Some(bounds) = mini_map_res {
-                        if !tlbr_ctx.viewport_settings.is_infinite_mode() {
-                            tlbr_ctx.viewport_settings.bounded_rect = Some(bounds.0);
-                            tlbr_ctx.viewport_settings.viewport_transform = Some(bounds.1);
-                        }
-                    }
+        // ui.horizontal(|ui| {
+        //     for mode in ViewportMode::variants() {
+        //         let res = ui.radio(mode.is_active(tlbr_ctx), mode.label());
+        //         if res.clicked() || res.drag_started() {
+        //             mode.set_active(tlbr_ctx);
+        //             if let Some(bounds) = mini_map_res {
+        //                 if !tlbr_ctx.viewport_settings.is_infinite_mode() {
+        //                     tlbr_ctx.viewport_settings.bounded_rect = Some(bounds.0);
+        //                     tlbr_ctx.viewport_settings.viewport_transform = Some(bounds.1);
+        //                 }
+        //             }
 
-                    tlbr_ctx
-                        .settings
-                        .update_viewport_settings(tlbr_ctx.viewport_settings);
+        //             tlbr_ctx
+        //                 .settings
+        //                 .update_viewport_settings(tlbr_ctx.viewport_settings);
 
-                    tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
-                }
-                ui.add_space(8.0);
-            }
-        });
+        //             tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+        //         }
+        //         ui.add_space(8.0);
+        //     }
+        // });
 
         ui.add_space(10.0);
 
         ui.horizontal(|ui| {
             ui.label("Zoom lock");
-            // ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 switch(ui, &mut self.gesture_handler.is_zoom_locked);
+            });
+        });
+
+        ui.add_space(5.0);
+
+        ui.horizontal(|ui| {
+            ui.label("Show MiniMap");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if switch(ui, &mut tlbr_ctx.settings.show_mini_map).changed() {
+                    tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+                }
             });
         });
 
