@@ -32,7 +32,7 @@ struct SettingsAccountView: View {
     @ObservedObject var model: SettingsViewModel
     
     @State var confirmLogout = false
-    @State var deleteAccountConfirmation = false
+    @State var confirmDeleteAccount = false
     
     @State var showAccountKeys = false
     
@@ -96,9 +96,9 @@ struct SettingsAccountView: View {
                     Text("Delete Account")
                     Spacer()
                     Button("Delete Account", role: .destructive) {
-                        deleteAccountConfirmation = true
+                        confirmDeleteAccount = true
                     }
-                    .confirmationDialog("Are you sure you want to delete your account?", isPresented: $deleteAccountConfirmation, titleVisibility: .visible) {
+                    .confirmationDialog("Are you sure you want to delete your account?", isPresented: $confirmDeleteAccount, titleVisibility: .visible) {
                         Button("Delete account", role: .destructive) {
                             model.deleteAccountAndExit()
                         }
@@ -166,6 +166,8 @@ struct AccountKeysView: View {
 struct SettingsUsageView: View {
     @ObservedObject var model: SettingsViewModel
     
+    @State var confirmCancelSubscription = false
+    
     var body: some View {
         Form {
             Section("Usage") {
@@ -179,10 +181,6 @@ struct SettingsUsageView: View {
                     if !isPremium {
                         NavigationLink("Upgrade Now") {
                             VStack {
-                                Text("Upgrade Your Account")
-                                    .font(.title)
-                                    .fontWeight(.bold)
-                                
                                 UpgradeAccountView(settingsModel: model)
                             }
                         }
@@ -203,6 +201,21 @@ struct SettingsUsageView: View {
                     }
                 } else {
                     ProgressView()
+                }
+                
+                if model.isPremium == true {
+                    HStack {
+                        Text("Cancel Subscription")
+                        Spacer()
+                        Button("Cancel Subscription", role: .destructive) {
+                            self.confirmCancelSubscription = true
+                        }
+                    }
+                    .confirmationDialog("Are you sure you want to cancel your subscription?", isPresented: $confirmCancelSubscription, titleVisibility: .visible) {
+                        Button("Confirm", role: .destructive) {
+                            model.cancelSubscription()
+                        }
+                    }
                 }
             }
         }

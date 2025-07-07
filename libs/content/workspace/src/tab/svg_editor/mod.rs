@@ -66,12 +66,11 @@ pub struct SVGEditor {
 }
 #[derive(Debug, Clone, Copy)]
 pub struct ViewportSettings {
-    /// the drawable rect in the master-transformed plane.
+    /// the drawable rect in the viewport-transformed plane.
     /// **only defined if there's a lock**
     pub bounded_rect: Option<egui::Rect>,
     /// the intersection of the bounded rect and the current screen rect  
     pub working_rect: egui::Rect,
-    /// a transform applied on the none master-transformed plane  
     pub viewport_transform: Option<Transform>,
     pub master_transform: Transform,
     container_rect: egui::Rect,
@@ -109,6 +108,7 @@ pub struct CanvasSettings {
     pub bottom_locked: bool,
     pub top_locked: bool,
     pub pen: PenSettings,
+    pub show_mini_map: bool,
 }
 
 impl Default for CanvasSettings {
@@ -121,6 +121,7 @@ impl Default for CanvasSettings {
             top_locked: false,
             pen: PenSettings::default_pen(),
             background_type: BackgroundOverlay::default(),
+            show_mini_map: true,
         }
     }
 }
@@ -215,10 +216,18 @@ impl SVGEditor {
             .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
 
         self.show_toolbar(ui);
+
+        for (_, el) in &mut self.buffer.elements {
+            match el {
+                Element::Path(p) => p.diff_state = DiffState::default(),
+                Element::Image(i) => i.diff_state = DiffState::default(),
+                Element::Text(_) => todo!(),
+            }
+        }
         self.process_events(ui);
 
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
-        self.viewport_settings.update_working_rect();
+        self.viewport_settings.update_working_rect(self.settings);
 
         self.paint_background_colors(ui);
         ui.set_clip_rect(self.viewport_settings.working_rect);
@@ -250,14 +259,6 @@ impl SVGEditor {
             } else {
                 false
             };
-
-        for (_, el) in &mut self.buffer.elements {
-            match el {
-                Element::Path(p) => p.diff_state = DiffState::default(),
-                Element::Image(i) => i.diff_state = DiffState::default(),
-                Element::Text(_) => todo!(),
-            }
-        }
 
         self.buffer.master_transform_changed = false;
         Response { request_save: needs_save_and_frame_is_cheap }
