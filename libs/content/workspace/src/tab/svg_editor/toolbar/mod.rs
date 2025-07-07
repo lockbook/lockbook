@@ -1,18 +1,15 @@
 mod history_island;
+mod mini_map;
 mod tools_island;
 mod viewport_island;
 
 use crate::{
-    tab::svg_editor::{
-        gesture_handler::transform_canvas, renderer::RenderOptions, util::transform_rect,
-        InputContext,
-    },
+    tab::svg_editor::{toolbar::mini_map::MINI_MAP_WIDTH, InputContext},
     theme::icons::Icon,
     widgets::Button,
     workspace::WsPersistentStore,
 };
 use lb_rs::model::svg::buffer::Buffer;
-use resvg::usvg::Transform;
 use viewport_island::ViewportPopover;
 
 use super::{
@@ -23,7 +20,6 @@ use super::{
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
 const THICKNESS_BTN_WIDTH: f32 = 25.0;
 const SCREEN_PADDING: f32 = 20.0;
-const MINI_MAP_WIDTH: f32 = 100.0;
 
 pub struct Toolbar {
     pub active_tool: Tool,
@@ -81,46 +77,6 @@ pub struct ToolbarContext<'a> {
     pub viewport_settings: &'a mut ViewportSettings,
     pub cfg: &'a mut WsPersistentStore,
     pub input_ctx: &'a InputContext,
-}
-
-pub enum ViewportMode {
-    Page,
-    Scroll,
-    Timeline,
-    Infinite,
-}
-
-impl ViewportMode {
-    pub fn variants() -> [ViewportMode; 4] {
-        [ViewportMode::Page, ViewportMode::Scroll, ViewportMode::Timeline, ViewportMode::Infinite]
-    }
-
-    pub fn label(&self) -> &'static str {
-        match self {
-            ViewportMode::Page => "Page",
-            ViewportMode::Scroll => "Scroll",
-            ViewportMode::Timeline => "Timeline",
-            ViewportMode::Infinite => "Infinite",
-        }
-    }
-
-    pub fn is_active(&self, tlbr_ctx: &ToolbarContext) -> bool {
-        match self {
-            ViewportMode::Page => tlbr_ctx.viewport_settings.is_page_mode(),
-            ViewportMode::Scroll => tlbr_ctx.viewport_settings.is_scroll_mode(),
-            ViewportMode::Timeline => tlbr_ctx.viewport_settings.is_timeline_mode(),
-            ViewportMode::Infinite => tlbr_ctx.viewport_settings.is_infinite_mode(),
-        }
-    }
-
-    pub fn set_active(&self, tlbr_ctx: &mut ToolbarContext) {
-        match self {
-            ViewportMode::Page => tlbr_ctx.viewport_settings.set_page_mode(),
-            ViewportMode::Scroll => tlbr_ctx.viewport_settings.set_scroll_mode(),
-            ViewportMode::Timeline => tlbr_ctx.viewport_settings.set_timeline_mode(),
-            ViewportMode::Infinite => tlbr_ctx.viewport_settings.set_infinite_mode(),
-        }
-    }
 }
 
 impl ViewportSettings {
@@ -297,7 +253,7 @@ impl Toolbar {
             return;
         }
 
-        let mini_map_res = self.show_mini_map_v2(ui, tlbr_ctx);
+        let mini_map_res = self.show_mini_map(ui, tlbr_ctx);
 
         // shows the viewport island + popovers + bring home button
         let viewport_controls = self.show_viewport_controls(ui, tlbr_ctx);
@@ -327,128 +283,6 @@ impl Toolbar {
         if overlay_res.hovered() || overlay_res.clicked() || overlay_res.contains_pointer() {
             *skip_frame = true;
         }
-    }
-
-    fn show_mini_map_v2(
-        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
-    ) -> Option<egui::Response> {
-        if !tlbr_ctx.settings.show_mini_map || !tlbr_ctx.viewport_settings.is_scroll_mode() {
-            return None;
-        }
-        let mini_map_size =
-            egui::vec2(MINI_MAP_WIDTH, tlbr_ctx.viewport_settings.container_rect.height());
-
-        let mini_map_rect = egui::Rect::from_min_size(
-            tlbr_ctx.viewport_settings.container_rect.right_top()
-                - egui::vec2(mini_map_size.x, 0.0),
-            mini_map_size,
-        );
-
-        let shadow: egui::Shape = egui::Shadow {
-            offset: egui::vec2(0.0, 0.0),
-            blur: 40.0,
-            spread: 0.0,
-            color: ui.visuals().window_shadow.color,
-        }
-        .as_shape(mini_map_rect, 0.0)
-        .into();
-        let line_sep = egui::Shape::line_segment(
-            [mini_map_rect.left_top(), mini_map_rect.left_bottom()],
-            egui::Stroke { width: 1.5, color: ui.visuals().window_stroke.color },
-        );
-        ui.painter().extend([shadow, line_sep]);
-        let mut painter = ui.painter().clone();
-        painter.set_clip_rect(mini_map_rect);
-
-        /**
-         * okay let's figure out this transforming math.
-         * so given a viewport with size x we would like to fit it into size_x_1
-         * this would give us a multiplier factor
-         * now for y, we would like to make it such that the top of the viewport y is the top of some other y_1
-         * thus applying a correction tion translation
-         */
-        let bounded_rect = transform_rect(
-            tlbr_ctx.viewport_settings.bounded_rect.unwrap(),
-            tlbr_ctx
-                .viewport_settings
-                .master_transform
-                .invert()
-                .unwrap(),
-        );
-        let s = mini_map_rect.width() / bounded_rect.width();
-
-        let viewport_transform = Transform::identity().post_scale(s, s).post_translate(
-            mini_map_rect.center().x - s * bounded_rect.center().x,
-            mini_map_rect.top() - s * bounded_rect.top(),
-        );
-
-        let transformed_bounded_rect = transform_rect(bounded_rect, viewport_transform);
-
-        painter.rect_filled(painter.clip_rect(), 0.0, ui.visuals().extreme_bg_color);
-
-        let out = self.renderer.render_svg(
-            ui,
-            tlbr_ctx.buffer,
-            &mut painter,
-            RenderOptions { viewport_transform: Some(viewport_transform) },
-            tlbr_ctx.viewport_settings.master_transform,
-        );
-
-        let viewport_rect = transform_rect(
-            tlbr_ctx.viewport_settings.container_rect,
-            tlbr_ctx
-                .viewport_settings
-                .master_transform
-                .invert()
-                .unwrap()
-                .post_concat(viewport_transform),
-        );
-
-        let extended_viewport_rect = egui::Rect::from_two_pos(
-            egui::pos2(mini_map_rect.left(), viewport_rect.top()),
-            egui::pos2(mini_map_rect.right(), viewport_rect.bottom()),
-        );
-
-        let blue = ui.visuals().widgets.active.bg_fill;
-        painter.rect(
-            extended_viewport_rect,
-            0.0,
-            blue.linear_multiply(0.2),
-            egui::Stroke { width: 0.5, color: blue },
-        );
-
-        let res = ui.interact(
-            mini_map_rect,
-            egui::Id::from("scroll_mini_map"),
-            egui::Sense::click_and_drag(),
-        );
-
-        if let Some(click_pos) = ui.input(|r| r.pointer.interact_pos()) {
-            let maybe_delta = if (res.clicked() || res.drag_started())
-                && !extended_viewport_rect.contains(click_pos)
-            {
-                Some(extended_viewport_rect.center() - click_pos)
-            } else if res.dragged() {
-                Some(-res.drag_delta())
-            } else {
-                None
-            };
-
-            let transform = if let Some(delta) = maybe_delta {
-                let delta = delta / out.absolute_transform.sx;
-                Some(Transform::default().post_translate(0.0, delta.y))
-            } else {
-                None
-            };
-
-            if let Some(transform) = transform {
-                transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
-            }
-        }
-
-        // self.renderer
-        //     .render_svg(&mut ui, buffer, painter, render_options, master_transform);
-        None
     }
 
     fn handle_keyboard_shortcuts(&mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) {

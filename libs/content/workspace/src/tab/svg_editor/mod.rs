@@ -236,7 +236,7 @@ impl SVGEditor {
         let global_diff = self.show_canvas(ui);
 
         if cfg!(debug_assertions) {
-            // self.show_debug_info(ui);
+            self.show_debug_info(ui);
         }
 
         if non_empty_weak_imaegs {
