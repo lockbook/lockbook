@@ -1,9 +1,12 @@
 mod history_island;
+mod mini_map;
 mod tools_island;
 mod viewport_island;
 
 use crate::{
-    tab::svg_editor::InputContext, theme::icons::Icon, widgets::Button,
+    tab::svg_editor::{toolbar::mini_map::MINI_MAP_WIDTH, InputContext},
+    theme::icons::Icon,
+    widgets::Button,
     workspace::WsPersistentStore,
 };
 use lb_rs::model::svg::buffer::Buffer;
@@ -76,48 +79,8 @@ pub struct ToolbarContext<'a> {
     pub input_ctx: &'a InputContext,
 }
 
-pub enum ViewportMode {
-    Page,
-    Scroll,
-    Timeline,
-    Infinite,
-}
-
-impl ViewportMode {
-    pub fn variants() -> [ViewportMode; 4] {
-        [ViewportMode::Page, ViewportMode::Scroll, ViewportMode::Timeline, ViewportMode::Infinite]
-    }
-
-    pub fn label(&self) -> &'static str {
-        match self {
-            ViewportMode::Page => "Page",
-            ViewportMode::Scroll => "Scroll",
-            ViewportMode::Timeline => "Timeline",
-            ViewportMode::Infinite => "Infinite",
-        }
-    }
-
-    pub fn is_active(&self, tlbr_ctx: &ToolbarContext) -> bool {
-        match self {
-            ViewportMode::Page => tlbr_ctx.viewport_settings.is_page_mode(),
-            ViewportMode::Scroll => tlbr_ctx.viewport_settings.is_scroll_mode(),
-            ViewportMode::Timeline => tlbr_ctx.viewport_settings.is_timeline_mode(),
-            ViewportMode::Infinite => tlbr_ctx.viewport_settings.is_infinite_mode(),
-        }
-    }
-
-    pub fn set_active(&self, tlbr_ctx: &mut ToolbarContext) {
-        match self {
-            ViewportMode::Page => tlbr_ctx.viewport_settings.set_page_mode(),
-            ViewportMode::Scroll => tlbr_ctx.viewport_settings.set_scroll_mode(),
-            ViewportMode::Timeline => tlbr_ctx.viewport_settings.set_timeline_mode(),
-            ViewportMode::Infinite => tlbr_ctx.viewport_settings.set_infinite_mode(),
-        }
-    }
-}
-
 impl ViewportSettings {
-    pub fn update_working_rect(&mut self) {
+    pub fn update_working_rect(&mut self, settings: CanvasSettings) {
         let new_working_rect = if let Some(bounded_rect) = self.bounded_rect {
             let min_x = if self.left_locked {
                 bounded_rect.left().max(self.container_rect.left())
@@ -131,8 +94,12 @@ impl ViewportSettings {
                 self.container_rect.top()
             };
 
+            let mini_map_width = if settings.show_mini_map { MINI_MAP_WIDTH } else { 0.0 };
+
             let max_x = if self.right_locked {
-                bounded_rect.right().min(self.container_rect.right())
+                bounded_rect
+                    .right()
+                    .min(self.container_rect.right() - mini_map_width)
             } else {
                 self.container_rect.right()
             };
@@ -286,6 +253,8 @@ impl Toolbar {
             return;
         }
 
+        let mini_map_res = self.show_mini_map(ui, tlbr_ctx);
+
         // shows the viewport island + popovers + bring home button
         let viewport_controls = self.show_viewport_controls(ui, tlbr_ctx);
 
@@ -294,6 +263,9 @@ impl Toolbar {
 
         let mut overlay_res = history_island;
         if let Some(res) = tool_popover_at_cursor {
+            overlay_res = overlay_res.union(res);
+        }
+        if let Some(res) = mini_map_res {
             overlay_res = overlay_res.union(res);
         }
 
@@ -356,13 +328,17 @@ impl Toolbar {
             .unwrap_or(egui::Rect::from_min_size(egui::Pos2::default(), egui::vec2(10.0, 10.0)))
             .size();
 
+        let mini_map_width = if tlbr_ctx.settings.show_mini_map { MINI_MAP_WIDTH } else { 0.0 };
         let island_rect = egui::Rect {
             min: egui::pos2(
-                tlbr_ctx.viewport_settings.container_rect.right() - SCREEN_PADDING - island_size.x,
+                tlbr_ctx.viewport_settings.container_rect.right()
+                    - SCREEN_PADDING
+                    - island_size.x
+                    - mini_map_width,
                 tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING,
             ),
             max: egui::pos2(
-                tlbr_ctx.viewport_settings.container_rect.right() - SCREEN_PADDING,
+                tlbr_ctx.viewport_settings.container_rect.right() - SCREEN_PADDING - mini_map_width,
                 tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING + island_size.y,
             ),
         };
