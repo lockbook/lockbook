@@ -18,33 +18,29 @@ impl<'a> LazyTree<ServerTree<'a>> {
     pub fn stage_diff(self, changes: Vec<FileDiff<SignedFile>>) -> LbResult<LazyServerStaged1<'a>> {
         let mut changes_meta: Vec<FileDiff<SignedMeta>> = vec![];
         for change in changes {
-            let current_size = *self
-                .maybe_find(change.new.id())
-                .ok_or(LbErrKind::Diff(DiffError::OldFileNotFound))?
-                .file
-                .timestamped_value
-                .value
-                .doc_size();
+            let mut new_meta: SignedMeta = change.new.into();
+            let mut old_meta = change.old.map(|f| SignedMeta::from(f));
+            if let Some(old) = &mut old_meta {
+                let current_size = *self
+                    .maybe_find(old.id())
+                    .ok_or(LbErrKind::Diff(DiffError::OldFileNotFound))?
+                    .file
+                    .timestamped_value
+                    .value
+                    .doc_size();
 
-            let old_meta = change.old.map(|f| {
-                let mut meta: SignedMeta = f.into();
-
-                match &mut meta.timestamped_value.value {
+                match &mut old.timestamped_value.value {
                     Meta::V1 { doc_size, .. } => {
                         *doc_size = current_size;
                     }
                 };
 
-                meta
-            });
-
-            let mut new_meta: SignedMeta = change.new.into();
-
-            match &mut new_meta.timestamped_value.value {
-                Meta::V1 { doc_size, .. } => {
-                    *doc_size = current_size;
-                }
-            };
+                match &mut new_meta.timestamped_value.value {
+                    Meta::V1 { doc_size, .. } => {
+                        *doc_size = current_size;
+                    }
+                };
+            }
 
             changes_meta.push(FileDiff { old: old_meta, new: new_meta });
         }
@@ -70,6 +66,9 @@ impl<'a> LazyTree<ServerTree<'a>> {
                     }
                 }
                 None => {
+                    if change.new.timestamped_value.value.doc_size().is_some() {
+                        return Err(LbErrKind::Diff(DiffError::HmacModificationInvalid))?;
+                    }
                     if change.new.timestamped_value.value.document_hmac().is_some() {
                         return Err(LbErrKind::Diff(DiffError::HmacModificationInvalid))?;
                     }

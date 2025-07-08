@@ -223,8 +223,8 @@ where
         {
             let mut lock = self.index_db.lock().await;
             let db = lock.deref_mut();
-            let usage_cap =
-                Self::get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
+            let usage_cap = Self::get_cap(db, &context.public_key)
+                .map_err(|err| internal!("{:?}", err))? as usize;
 
             let meta = db
                 .metas
@@ -246,17 +246,14 @@ where
                 .map_err(|err| internal!("{:?}", err))?
                 .iter()
                 .map(|f| f.size_bytes)
-                .sum::<u64>();
-            let old_size = tree
-                .maybe_find(request.diff.id())
-                .map(|f| f.file.timestamped_value.value.doc_size().unwrap_or(0))
-                .unwrap_or(0) as u64;
+                .sum::<u64>() as usize;
+            let old_size = *meta.file.timestamped_value.value.doc_size();
 
             // populate sizes in request
             if let Some(old) = &mut request.diff.old {
                 match &mut old.timestamped_value.value {
                     Meta::V1 { doc_size, .. } => {
-                        *doc_size = Some(old_size as usize);
+                        *doc_size = old_size;
                     }
                 }
             }
@@ -267,9 +264,9 @@ where
                 }
             }
 
-            let new_size = request.new_content.value.len() as u64;
+            let new_size = request.new_content.value.len();
 
-            let new_usage = old_usage - old_size + new_size;
+            let new_usage = old_usage - old_size.unwrap_or_default() + new_size;
 
             debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on change doc");
 
