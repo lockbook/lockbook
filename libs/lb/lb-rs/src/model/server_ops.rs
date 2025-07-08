@@ -19,7 +19,7 @@ impl<'a> LazyTree<ServerTree<'a>> {
         let mut changes_meta: Vec<FileDiff<SignedMeta>> = vec![];
         for change in changes {
             let mut new_meta: SignedMeta = change.new.into();
-            let mut old_meta = change.old.map(|f| SignedMeta::from(f));
+            let mut old_meta = change.old.map(SignedMeta::from);
             if let Some(old) = &mut old_meta {
                 let current_size = *self
                     .maybe_find(old.id())
