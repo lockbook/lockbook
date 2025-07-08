@@ -1,4 +1,3 @@
-use crate::tab::markdown_editor::bounds::Text;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::CCursor;
 use egui::{Galley, Rect};

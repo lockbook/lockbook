@@ -213,8 +213,7 @@ impl<'ast> Editor {
             } else if response.clicked() {
                 // android native context menu: tapped selection
                 if cfg!(target_os = "android") {
-                    let offset =
-                        mutation::pos_to_char_offset(pos, &self.galleys, &self.bounds.text);
+                    let offset = mutation::pos_to_char_offset(pos, &self.galleys);
                     if self.buffer.current.selection.contains(offset, true, true) {
                         ctx.set_context_menu(
                             self.context_menu_pos(self.buffer.current.selection)

@@ -1,4 +1,4 @@
-use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _, Text};
+use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::style::{InlineNodeType, MarkdownNode, MarkdownNodeType};
@@ -609,7 +609,7 @@ impl<'ast> Editor {
         match location {
             Location::CurrentCursor => self.buffer.current.selection.1,
             Location::DocCharOffset(o) => o,
-            Location::Pos(pos) => pos_to_char_offset(pos, &self.galleys, &self.bounds.text),
+            Location::Pos(pos) => pos_to_char_offset(pos, &self.galleys),
         }
     }
 
@@ -641,7 +641,7 @@ impl<'ast> Editor {
 }
 
 // todo: find a better home along with text & link functions
-pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, text: &Text) -> DocCharOffset {
+pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys) -> DocCharOffset {
     let galley_idx = pos_to_galley(pos, galleys);
     let galley = &galleys[galley_idx];
 

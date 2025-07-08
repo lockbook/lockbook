@@ -10,15 +10,15 @@ use core::time::Duration;
 use egui::os::OperatingSystem;
 use egui::scroll_area::ScrollAreaOutput;
 use egui::{
-    scroll_area, Align2, Color32, Context, EventFilter, FontData, FontDefinitions, FontFamily,
-    FontId, FontTweak, Frame, Id, Rangef, Rect, ScrollArea, Sense, Stroke, Ui, Vec2,
+    scroll_area, Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id,
+    Rect, ScrollArea, Sense, Stroke, Ui, Vec2,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
-use input::mutation::{pos_to_char_offset, pos_to_galley, EventState};
+use input::mutation::EventState;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _};
+use lb_rs::model::text::offset_types::DocCharOffset;
 use lb_rs::{blocking::Lb, Uuid};
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
