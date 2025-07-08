@@ -401,7 +401,7 @@ impl Editor {
             self.bounds.inline_paragraphs.sort();
 
             self.bounds.text = self.bounds.paragraphs.clone(); // todo: inline character capture
-            self.bounds.words = self.bounds.paragraphs.clone(); // todo: real words
+            self.calc_words();
             self.bounds.lines = self.bounds.paragraphs.clone(); // todo: real lines
 
             ui.ctx().request_repaint();

@@ -1,8 +1,9 @@
 use crate::tab::markdown_editor::Editor;
 use comrak::nodes::{LineColumn, Sourcepos};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt};
+use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt};
 use std::cmp::Ordering;
 use std::ops::Sub;
+use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::input::Bound;
 
@@ -41,10 +42,11 @@ pub struct Bounds {
 
     /// Paragraphs are separated by newline characters. All inlines are contained within a paragraph. This definition
     /// includes table cells, code block info strings, and everywhere else that shows editable text. Paragraphs also
-    /// contain hidden characters like captured syntax that should be copied with selected text.
+    /// contain hidden characters like captured syntax and whitespace that should be copied with selected text.
     /// * Documents have at least one paragraph.
     /// * Paragraphs can be empty.
     /// * Paragraphs cannot touch.
+    // todo: terrible name
     pub paragraphs: Paragraphs,
 
     /// Text consists of all rendered text separated by captured syntax ranges. Every valid cursor position is in some text
@@ -70,6 +72,26 @@ impl Editor {
 
         let doc = (0.into(), self.last_cursor_position());
         self.bounds.source_lines = self.range_split_newlines(doc);
+    }
+
+    pub fn calc_words(&mut self) {
+        self.bounds.words.clear();
+
+        let mut prev_char_offset = DocCharOffset(0);
+        let mut prev_word = "";
+        for (byte_offset, word) in
+            (self.buffer.current.text.clone() + " ").split_word_bound_indices()
+        {
+            let char_offset = self.offset_to_char(DocByteOffset(byte_offset));
+
+            if !prev_word.trim().is_empty() {
+                // whitespace-only sequences don't count as words
+                self.bounds.words.push((prev_char_offset, char_offset));
+            }
+
+            prev_char_offset = char_offset;
+            prev_word = word;
+        }
     }
 
     /// Translates a comrak::LineColumn into an lb_rs::DocCharOffset. Note that comrak's text ranges, represented using
