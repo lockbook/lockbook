@@ -101,7 +101,7 @@ pub async fn migrate(v4: Arc<Mutex<ServerV4>>, v5: Arc<Mutex<ServerV5>>) {
 
     for (owner, owned_files) in v4.owned_files.get() {
         for owned_file in owned_files {
-            v5.owned_files.insert(*owner, owned_file.clone()).unwrap();
+            v5.owned_files.insert(*owner, *owned_file).unwrap();
         }
     }
 
