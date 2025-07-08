@@ -1,7 +1,10 @@
 use std::{f32, ops::Deref as _};
 
 use comrak::nodes::AstNode;
-use egui::{self, Align2, Color32, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
+use egui::{
+    self, Align2, Color32, CursorIcon, FontId, Id, OpenUrl, Pos2, Rect, Sense, Stroke, TextFormat,
+    Ui, Vec2,
+};
 use epaint::RectShape;
 use lb_rs::model::text::offset_types::DocCharOffset;
 
@@ -97,6 +100,14 @@ impl<'ast> Editor {
                     let padding = (width - size.x) / 2.0;
                     let image_top_left = top_left + Vec2::new(padding, 0.);
                     let rect = Rect::from_min_size(image_top_left, size);
+
+                    let resp = ui.interact(rect, Id::new(texture_id), Sense::click());
+                    if resp.hovered() {
+                        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                    }
+                    if resp.clicked() {
+                        ui.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(url)));
+                    }
 
                     ui.allocate_ui_at_rect(rect, |ui| {
                         ui.add(egui::Image::from_texture((texture_id, size)).rounding(2.));
