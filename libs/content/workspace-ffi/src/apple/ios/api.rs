@@ -612,7 +612,6 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
     };
 
     let galleys = &markdown.galleys;
-    let text = &markdown.bounds.text;
 
     let offset =
         mutation::pos_to_char_offset(Pos2 { x: point.x as f32, y: point.y as f32 }, galleys);
