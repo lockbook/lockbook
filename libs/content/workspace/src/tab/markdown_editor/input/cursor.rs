@@ -1,6 +1,6 @@
 use egui::epaint::text::cursor::Cursor;
 use egui::{text::CCursor, Pos2};
-use egui::{Rangef, Rect, Stroke, Vec2};
+use egui::{Color32, Rangef, Rect, Stroke, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_editor::widget::INLINE_PADDING;
@@ -15,17 +15,16 @@ pub struct CursorState {
 }
 
 impl Editor {
-    pub fn show_selection(&self, ui: &mut egui::Ui) {
-        let selection = self
-            .in_progress_selection
-            .unwrap_or(self.buffer.current.selection);
-
+    /// Highlights the provided range with a faded version of the provided accent color.
+    pub fn show_range(
+        &self, ui: &mut egui::Ui, highlight_range: (DocCharOffset, DocCharOffset), accent: Color32,
+    ) {
         // todo: binary search
         for galley_info in self.galleys.galleys.iter().rev() {
             let GalleyInfo { range, galley, mut rect, padded } = galley_info;
-            if range.end() < selection.start() {
+            if range.end() < highlight_range.start() {
                 break;
-            } else if range.start() > selection.end() {
+            } else if range.start() > highlight_range.end() {
                 continue;
             }
 
@@ -33,40 +32,34 @@ impl Editor {
                 rect = rect.expand2(INLINE_PADDING * Vec2::X);
             }
 
-            if range.contains(selection.start(), true, true) {
+            if range.contains(highlight_range.start(), true, true) {
                 let cursor = galley.from_ccursor(CCursor {
-                    index: (selection.start() - range.start()).0,
+                    index: (highlight_range.start() - range.start()).0,
                     prefer_next_row: true,
                 });
                 rect.min.x = cursor_to_pos_abs(galley_info, cursor).x;
             }
-            if range.contains(selection.end(), true, true) {
+            if range.contains(highlight_range.end(), true, true) {
                 let cursor = galley.from_ccursor(CCursor {
-                    index: (selection.end() - range.start()).0,
+                    index: (highlight_range.end() - range.start()).0,
                     prefer_next_row: true,
                 });
                 rect.max.x = cursor_to_pos_abs(galley_info, cursor).x;
             }
 
-            ui.painter().rect_filled(
-                rect,
-                2.,
-                self.theme.fg().accent_secondary.gamma_multiply(0.15),
-            );
+            ui.painter()
+                .rect_filled(rect, 2., accent.gamma_multiply(0.15));
         }
     }
 
+    /// Draws a cursor at the provided offset with the provided accent color.
     // todo: improve cursor rendering at the end of inline code segments and similar constructs
-    pub fn show_cursor(&self, ui: &mut egui::Ui) {
-        let selection = self
-            .in_progress_selection
-            .unwrap_or(self.buffer.current.selection);
-
-        let [top, bot] = self.cursor_line(selection.1);
+    pub fn show_offset(&self, ui: &mut egui::Ui, offset: DocCharOffset, accent: Color32) {
+        let [top, bot] = self.cursor_line(offset);
         ui.painter().clone().vline(
             top.x,
             Rangef { min: top.y, max: bot.y },
-            Stroke::new(1., self.theme.fg().accent_secondary),
+            Stroke::new(1., accent),
         );
     }
 

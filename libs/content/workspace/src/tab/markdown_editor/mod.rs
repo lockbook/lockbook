@@ -10,15 +10,15 @@ use core::time::Duration;
 use egui::os::OperatingSystem;
 use egui::scroll_area::ScrollAreaOutput;
 use egui::{
-    scroll_area, Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id,
-    Rect, ScrollArea, Sense, Stroke, Ui, Vec2,
+    scroll_area, Align2, Color32, Context, EventFilter, FontData, FontDefinitions, FontFamily,
+    FontId, FontTweak, Frame, Id, Rangef, Rect, ScrollArea, Sense, Stroke, Ui, Vec2,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
-use input::mutation::EventState;
+use input::mutation::{pos_to_char_offset, pos_to_galley, EventState};
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _};
 use lb_rs::{blocking::Lb, Uuid};
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
@@ -239,7 +239,7 @@ impl Editor {
 
         self.calc_source_lines();
 
-        // let start = std::time::Instant::now();
+        let start = std::time::Instant::now();
 
         let arena = Arena::new();
         let mut options = Options::default();
@@ -270,18 +270,18 @@ impl Editor {
 
         let root = comrak::parse_document(&arena, &text_with_newline, &options);
 
-        // let ast_elapsed = start.elapsed();
-        // let start = std::time::Instant::now();
+        let ast_elapsed = start.elapsed();
+        let start = std::time::Instant::now();
 
-        // println!(
-        //     "{}",
-        //     "================================================================================"
-        //         .bright_black()
-        // );
-        // print_ast(root);
+        println!(
+            "{}",
+            "================================================================================"
+                .bright_black()
+        );
+        print_ast(root);
 
-        // let print_elapsed = start.elapsed();
-        // let start = std::time::Instant::now();
+        let print_elapsed = start.elapsed();
+        let start = std::time::Instant::now();
 
         self.images = widget::inline::image::cache::calc(
             root,
@@ -352,37 +352,40 @@ impl Editor {
 
         self.syntax.garbage_collect();
 
-        // let render_elapsed = start.elapsed();
+        let render_elapsed = start.elapsed();
 
-        // println!(
-        //     "{}",
-        //     "--------------------------------------------------------------------------------"
-        //         .bright_black()
-        // );
-        // println!("document: {:?}", self.buffer.current.text);
-        // println!("paragraphs: {:?}", self.bounds.paragraphs);
-        // self.print_paragraphs_bounds();
-        // self.print_inline_paragraphs_bounds();
-        // println!(
-        //     "{}",
-        //     "--------------------------------------------------------------------------------"
-        //         .bright_black()
-        // );
-        // println!(
-        //     "                                                                 ast: {:?}",
-        //     ast_elapsed
-        // );
-        // println!(
-        //     "                                                               print: {:?}",
-        //     print_elapsed
-        // );
-        // println!(
-        //     "                                                              render: {:?}",
-        //     render_elapsed
-        // );
+        println!(
+            "{}",
+            "--------------------------------------------------------------------------------"
+                .bright_black()
+        );
+        println!("document: {:?}", self.buffer.current.text);
+        println!("\nparagraphs: {:?}", self.bounds.paragraphs);
+        self.print_paragraphs_bounds();
+        println!("\ninline paragraphs: {:?}", self.bounds.inline_paragraphs);
+        self.print_inline_paragraphs_bounds();
+        println!("\ntext: {:?}", self.bounds.text);
+        self.print_text_bounds();
+        println!(
+            "{}",
+            "--------------------------------------------------------------------------------"
+                .bright_black()
+        );
+        println!(
+            "                                                                 ast: {:?}",
+            ast_elapsed
+        );
+        println!(
+            "                                                               print: {:?}",
+            print_elapsed
+        );
+        println!(
+            "                                                              render: {:?}",
+            render_elapsed
+        );
 
         let prior_selection = self.buffer.current.selection;
-        if self.process_events(ui.ctx(), root) {
+        if !self.initialized || self.process_events(ui.ctx(), root) {
             resp.text_updated = true;
 
             // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
@@ -391,8 +394,11 @@ impl Editor {
 
             self.bounds.paragraphs.clear();
             self.bounds.inline_paragraphs.clear();
+
             self.calc_source_lines();
             self.compute_bounds(root);
+            self.bounds.paragraphs.sort();
+            self.bounds.inline_paragraphs.sort();
 
             self.bounds.text = self.bounds.paragraphs.clone(); // todo: inline character capture
             self.bounds.words = self.bounds.paragraphs.clone(); // todo: real words
@@ -473,12 +479,15 @@ impl Editor {
                             });
                         });
                 });
-                self.bounds.paragraphs.sort();
                 self.galleys.galleys.sort_by_key(|g| g.range);
 
                 if ui.ctx().os() != OperatingSystem::IOS {
-                    self.show_selection(ui);
-                    self.show_cursor(ui);
+                    let selection = self
+                        .in_progress_selection
+                        .unwrap_or(self.buffer.current.selection);
+                    let color = self.theme.fg().accent_secondary;
+                    self.show_range(ui, selection, color);
+                    self.show_offset(ui, selection.1, color);
                 }
                 if mem::take(&mut self.scroll_to_cursor) {
                     self.scroll_to_cursor(ui);

@@ -1,6 +1,6 @@
 use std::mem;
 
-use crate::tab::markdown_editor::bounds::{BoundExt as _, Bounds, Text};
+use crate::tab::markdown_editor::bounds::{BoundExt as _, Bounds};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::{Increment, Offset};
 use egui::Vec2;
@@ -14,10 +14,8 @@ pub trait AdvanceExt {
         self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool,
         segs: &UnicodeSegs, galleys: &Galleys, bounds: &Bounds,
     ) -> Self;
-    fn advance_by_line(
-        self, x_target: f32, backwards: bool, galleys: &Galleys, text: &Text,
-    ) -> Self;
-    fn x(self, galleys: &Galleys, text: &Text) -> f32;
+    fn advance_by_line(self, x_target: f32, backwards: bool, galleys: &Galleys) -> Self;
+    fn x(self, galleys: &Galleys) -> f32;
 }
 
 impl AdvanceExt for DocCharOffset {
@@ -30,8 +28,8 @@ impl AdvanceExt for DocCharOffset {
             Offset::To(bound) => self.advance_to_bound(bound, backwards, bounds),
             Offset::Next(bound) => self.advance_to_next_bound(bound, backwards, bounds),
             Offset::By(Increment::Line) => {
-                let x_target = maybe_x_target_value.unwrap_or(self.x(galleys, &bounds.text));
-                let result = self.advance_by_line(x_target, backwards, galleys, &bounds.text);
+                let x_target = maybe_x_target_value.unwrap_or(self.x(galleys));
+                let result = self.advance_by_line(x_target, backwards, galleys);
                 if self != 0 && self != segs.last_cursor_position() {
                     *maybe_x_target = Some(x_target);
                 }
@@ -41,17 +39,15 @@ impl AdvanceExt for DocCharOffset {
         }
     }
 
-    fn advance_by_line(
-        self, x_target: f32, backwards: bool, galleys: &Galleys, text: &Text,
-    ) -> Self {
-        let (cur_galley_idx, cur_ecursor) = galleys.galley_and_cursor_by_char_offset(self, text);
+    fn advance_by_line(self, x_target: f32, backwards: bool, galleys: &Galleys) -> Self {
+        let (cur_galley_idx, cur_ecursor) = galleys.galley_and_cursor_by_offset(self);
         let cur_galley = &galleys[cur_galley_idx];
         if backwards {
             let at_top_of_cur_galley = cur_ecursor.rcursor.row == 0;
             if !at_top_of_cur_galley {
                 // within a galley: just move up one row
                 let new_cursor = cur_galley.galley.cursor_up_one_row(&cur_ecursor);
-                return galleys.char_offset_by_galley_and_cursor(cur_galley_idx, new_cursor, text);
+                return galleys.offset_by_galley_and_cursor(cur_galley_idx, new_cursor);
             }
 
             // jump to the closest galley above that's not above another galley that's above
@@ -81,11 +77,8 @@ impl AdvanceExt for DocCharOffset {
                     let pos = cursor::cursor_to_pos_abs(new_galley, new_cursor);
                     let distance = (pos.x - x_target).abs(); // closest as in closest to target
                     if distance < closest_distance {
-                        closest_offset = Some(galleys.char_offset_by_galley_and_cursor(
-                            new_galley_idx,
-                            new_cursor,
-                            text,
-                        ));
+                        closest_offset =
+                            Some(galleys.offset_by_galley_and_cursor(new_galley_idx, new_cursor));
                         closest_distance = distance;
                     }
                 } else {
@@ -100,7 +93,7 @@ impl AdvanceExt for DocCharOffset {
             if !at_bottom_of_cur_galley {
                 // within a galley: just move down one row
                 let new_cursor = cur_galley.galley.cursor_down_one_row(&cur_ecursor);
-                return galleys.char_offset_by_galley_and_cursor(cur_galley_idx, new_cursor, text);
+                return galleys.offset_by_galley_and_cursor(cur_galley_idx, new_cursor);
             }
 
             // jump to the closest galley below that's not below another galley that's below
@@ -130,11 +123,8 @@ impl AdvanceExt for DocCharOffset {
                     let pos = cursor::cursor_to_pos_abs(new_galley, new_cursor);
                     let distance = (pos.x - x_target).abs(); // closest as in closest to target
                     if distance < closest_distance {
-                        closest_offset = Some(galleys.char_offset_by_galley_and_cursor(
-                            new_galley_idx,
-                            new_cursor,
-                            text,
-                        ));
+                        closest_offset =
+                            Some(galleys.offset_by_galley_and_cursor(new_galley_idx, new_cursor));
                         closest_distance = distance;
                     }
                 } else {
@@ -147,8 +137,8 @@ impl AdvanceExt for DocCharOffset {
     }
 
     /// returns the x coordinate of the absolute position of `self` in `galley`
-    fn x(self, galleys: &Galleys, text: &Text) -> f32 {
-        let (cur_galley_idx, cur_cursor) = galleys.galley_and_cursor_by_char_offset(self, text);
+    fn x(self, galleys: &Galleys) -> f32 {
+        let (cur_galley_idx, cur_cursor) = galleys.galley_and_cursor_by_offset(self);
         let cur_galley = &galleys[cur_galley_idx];
         cursor::x_impl(cur_galley, cur_cursor)
     }

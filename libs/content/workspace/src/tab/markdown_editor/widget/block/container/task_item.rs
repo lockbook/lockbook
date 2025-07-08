@@ -36,13 +36,6 @@ impl<'ast> Editor {
                 });
             }
         });
-        for line_idx in self.node_lines(node).iter() {
-            let line = self.bounds.source_lines[line_idx];
-
-            self.bounds
-                .paragraphs
-                .push(self.line_own_prefix(node, line));
-        }
 
         top_left.x += INDENT;
 

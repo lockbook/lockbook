@@ -654,7 +654,7 @@ pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, text: &Text) -> DocCharO
         // click position is below galley
         galley.range.end()
     } else {
-        let relative_pos = pos - expanded_rect.min;
+        let relative_pos = pos - galley.rect.min;
 
         // clamp y coordinate for forgiving cursor placement clicks
         let relative_pos =
@@ -666,7 +666,7 @@ pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, text: &Text) -> DocCharO
             galley.range.start()
         } else {
             let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-            galleys.char_offset_by_galley_and_cursor(galley_idx, new_cursor, text)
+            galleys.offset_by_galley_and_cursor(galley_idx, new_cursor)
         }
     }
 }
