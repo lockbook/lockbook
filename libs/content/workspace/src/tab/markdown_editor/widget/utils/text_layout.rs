@@ -171,12 +171,7 @@ impl Editor {
             }
 
             // paint galley row-by-row to take control of row spacing
-            let text = if text_format.color == self.theme.fg().neutral_quarternary {
-                // Replace spaces with dots for whitespace visualization
-                row.text().replace(' ', "·") // hack, replicated for span
-            } else {
-                row.text().to_string()
-            };
+            let text = row.text().to_string();
             let layout_job = LayoutJob::single_section(text, text_format.clone());
             let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
 
@@ -232,11 +227,7 @@ impl Editor {
     ) -> f32 {
         let mut tmp_wrap = Wrap { offset: wrap.offset + pre_span, ..*wrap };
 
-        let text = if text_format.color == self.theme.fg().neutral_quarternary {
-            text.replace(' ', "·") // hack, replicated for show
-        } else {
-            text.to_string()
-        };
+        let text = text.to_string();
         let mut layout_job = LayoutJob::single_section(text, text_format);
         layout_job.wrap.max_width = wrap.width;
         if let Some(first_section) = layout_job.sections.first_mut() {
