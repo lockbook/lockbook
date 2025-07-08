@@ -19,14 +19,14 @@ struct SyncButton: View {
             AppState.workspaceState.requestSync()
         }, label: {
             if syncButtonStatus == .syncing {
-                Label(title: { Text("Syncing...") }, icon: {
+                Label(title: { Text("Sync") }, icon: {
                     ProgressView()
                         .progressViewStyle(.circular)
                         .padding(.trailing, 1)
                         .modifier(SyncButtonProgressBarSize())
-                })
+                }).padding(.vertical, 5)
             } else {
-                Label("Sync", systemImage: getButtonIcon())
+                Label("Sync", systemImage: getButtonIcon()).padding(.vertical, 5)
             }
         })
         .buttonStyle(.bordered)
