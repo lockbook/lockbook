@@ -4,7 +4,7 @@ use crate::tab::markdown_editor::bounds::{BoundExt as _, Bounds};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::{Increment, Offset};
 use egui::Vec2;
-use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt};
 use lb_rs::model::text::unicode_segs::UnicodeSegs;
 
 use super::cursor;
@@ -76,7 +76,11 @@ impl AdvanceExt for DocCharOffset {
 
                     let pos = cursor::cursor_to_pos_abs(new_galley, new_cursor);
                     let distance = (pos.x - x_target).abs(); // closest as in closest to target
-                    if distance < closest_distance {
+
+                    // prefer empty galleys which are placed deliberately to affect such behavior
+                    if distance < closest_distance
+                        || (distance == closest_distance && new_galley.range.is_empty())
+                    {
                         closest_offset =
                             Some(galleys.offset_by_galley_and_cursor(new_galley_idx, new_cursor));
                         closest_distance = distance;
@@ -122,7 +126,11 @@ impl AdvanceExt for DocCharOffset {
 
                     let pos = cursor::cursor_to_pos_abs(new_galley, new_cursor);
                     let distance = (pos.x - x_target).abs(); // closest as in closest to target
-                    if distance < closest_distance {
+
+                    // prefer empty galleys which are placed deliberately to affect such behavior
+                    if distance < closest_distance
+                        || (distance == closest_distance && new_galley.range.is_empty())
+                    {
                         closest_offset =
                             Some(galleys.offset_by_galley_and_cursor(new_galley_idx, new_cursor));
                         closest_distance = distance;

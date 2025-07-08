@@ -640,7 +640,7 @@ impl<'ast> Editor {
     }
 }
 
-// todo: find a better home along with text & link functions
+// todo: find a better home
 pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys) -> DocCharOffset {
     let galley_idx = pos_to_galley(pos, galleys);
     let galley = &galleys[galley_idx];
@@ -682,7 +682,11 @@ pub fn pos_to_galley(pos: Pos2, galleys: &Galleys) -> usize {
         // this ain't yo mama's distance metric
         let x_distance = distance(pos.x, galley.rect.x_range());
         let y_distance = distance(pos.y, galley.rect.y_range());
-        if (y_distance, x_distance) < closest_distance {
+
+        // prefer empty galleys which are placed deliberately to affect such behavior
+        if ((y_distance, x_distance) < closest_distance)
+            || (((y_distance, x_distance) == closest_distance) && galley.range.is_empty())
+        {
             closest_galley = Some(galley_idx);
             closest_distance = (y_distance, x_distance);
         }

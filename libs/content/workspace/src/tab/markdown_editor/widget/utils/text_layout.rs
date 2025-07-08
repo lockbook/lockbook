@@ -151,7 +151,7 @@ impl Editor {
             ));
 
             let padded = background != Default::default();
-            let expaned_rect = if rect.area() < 1. {
+            let expanded_rect = if rect.area() < 1. {
                 rect
             } else {
                 rect.expand2(Vec2::new(INLINE_PADDING - 2., 1.))
@@ -159,11 +159,11 @@ impl Editor {
             if spoiler {
                 if hovered {
                     ui.painter()
-                        .rect_stroke(expaned_rect, 2., Stroke::new(1., background));
+                        .rect_stroke(expanded_rect, 2., Stroke::new(1., background));
                 }
             } else if padded {
                 ui.painter().rect(
-                    expaned_rect,
+                    expanded_rect,
                     2.,
                     background,
                     Stroke::new(1., self.theme.bg().neutral_tertiary),
@@ -193,7 +193,7 @@ impl Editor {
                 .hline(rect.x_range(), rect.bottom() - 2.0, underline);
 
             if spoiler && !hovered {
-                ui.painter().rect_filled(expaned_rect, 2., background);
+                ui.painter().rect_filled(expanded_rect, 2., background);
             }
 
             let galley_info = if override_text.is_some() {

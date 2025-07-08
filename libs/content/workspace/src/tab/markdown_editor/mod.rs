@@ -460,6 +460,7 @@ impl Editor {
                                 document_height + unfilled_space.max(end_of_text_padding)
                             };
                             let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
+                            let rect = rect.expand2(Vec2::X * MARGIN); // clickable margins (more forgivable to click beginning of line)
 
                             ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
                             let response = ui.interact(

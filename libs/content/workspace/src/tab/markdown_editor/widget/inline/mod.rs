@@ -1,6 +1,6 @@
 use comrak::nodes::{AstNode, NodeFootnoteReference, NodeValue};
 use egui::{Pos2, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::Editor;
@@ -269,9 +269,9 @@ impl<'ast> Editor {
         let any_children = node.children().next().is_some();
         if any_children {
             let reveal = self.node_intersects_selection(node);
-            if reveal {
-                if let Some(prefix_range) = self.prefix_range(node) {
-                    if range.contains_range(&prefix_range, true, true) {
+            if let Some(prefix_range) = self.prefix_range(node) {
+                if range.contains_range(&prefix_range, true, true) {
+                    if reveal {
                         response |= self.show_text_line(
                             ui,
                             top_left,
@@ -280,18 +280,44 @@ impl<'ast> Editor {
                             self.text_format_syntax(node),
                             false,
                         );
+                    } else {
+                        // when syntax is captured, show an empty range
+                        // representing the beginning of the prefix, so that clicking
+                        // at the start of the circumfix places the cursor before
+                        // the syntax
+                        response |= self.show_text_line(
+                            ui,
+                            top_left,
+                            wrap,
+                            prefix_range.start().into_range(),
+                            self.text_format_syntax(node),
+                            false,
+                        );
                     }
                 }
             }
             response |= self.show_inline_children(ui, node, top_left, wrap, range);
-            if reveal {
-                if let Some(postfix_range) = self.postfix_range(node) {
-                    if range.contains_range(&postfix_range, true, true) {
+            if let Some(postfix_range) = self.postfix_range(node) {
+                if range.contains_range(&postfix_range, true, true) {
+                    if reveal {
                         response |= self.show_text_line(
                             ui,
                             top_left,
                             wrap,
                             postfix_range,
+                            self.text_format_syntax(node),
+                            false,
+                        );
+                    } else {
+                        // when syntax is captured, show an empty range
+                        // representing the end of the postfix, so that clicking
+                        // at the end of the circumfix places the cursor after
+                        // the syntax
+                        response |= self.show_text_line(
+                            ui,
+                            top_left,
+                            wrap,
+                            postfix_range.end().into_range(),
                             self.text_format_syntax(node),
                             false,
                         );
