@@ -16,7 +16,7 @@ struct StatusBarView: View {
                 statusBar
             }
         }
-        .frame(height: 40, alignment: .bottom)
+        .frame(height: 50, alignment: .bottom)
     }
     
     var selectedFilesOptions: some View {
