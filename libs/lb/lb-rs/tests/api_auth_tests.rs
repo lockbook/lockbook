@@ -34,7 +34,7 @@ async fn upsert_id_takeover() {
     // If this succeeded account2 would be able to control file1
     let result = core2
         .client
-        .request(acc2, UpsertRequest { updates: vec![FileDiff::new(&file1)] })
+        .request(acc2, UpsertRequest { updates: vec![FileDiff::new(file1)] })
         .await;
     assert_matches!(
         result,
@@ -67,7 +67,7 @@ async fn upsert_id_takeover_change_parent() {
     // If this succeeded account2 would be able to control file1
     let result = core2
         .client
-        .request(account2, UpsertRequest { updates: vec![FileDiff::new(&file1)] })
+        .request(account2, UpsertRequest { updates: vec![FileDiff::new(file1)] })
         .await;
     assert_matches!(
         result,
@@ -97,7 +97,7 @@ async fn change_document_content() {
         .request(
             acc2,
             ChangeDocRequest {
-                diff: FileDiff::edit(&file1, &file2),
+                diff: FileDiff::edit(file1, file2),
                 new_content: AESEncrypted {
                     value: vec![69],
                     nonce: vec![69],
