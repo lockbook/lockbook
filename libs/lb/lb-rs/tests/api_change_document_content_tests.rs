@@ -23,7 +23,7 @@ async fn change_document_content() {
 
     // create document
     core.client
-        .request(account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
+        .request(account, UpsertRequest { updates: vec![FileDiff::new(doc.clone())] })
         .await
         .unwrap();
 
@@ -31,7 +31,7 @@ async fn change_document_content() {
     let mut doc2 = doc1.clone();
     doc2.timestamped_value.value.document_hmac = Some([0; 32]);
 
-    let diff = FileDiff::edit(&doc1, &doc2);
+    let diff = FileDiff::edit(doc1, doc2);
     // change document content
     core.client
         .request(
@@ -62,7 +62,7 @@ async fn change_document_content_not_found() {
 
     // create document
     core.client
-        .request(account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
+        .request(account, UpsertRequest { updates: vec![FileDiff::new(doc.clone())] })
         .await
         .unwrap();
 
@@ -71,7 +71,7 @@ async fn change_document_content_not_found() {
     let mut doc2 = doc1.clone();
     doc2.timestamped_value.value.document_hmac = Some([0; 32]);
 
-    let diff = FileDiff::edit(&doc1, &doc2);
+    let diff = FileDiff::edit(doc1, doc2);
     // change document content
     let res = core
         .client

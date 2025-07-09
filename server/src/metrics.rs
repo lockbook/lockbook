@@ -245,7 +245,7 @@ where
         let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
         let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
 
-        let total_bytes: u64 = Self::get_usage_helper(&mut tree, db.sizes.get())
+        let total_bytes: u64 = Self::get_usage_helper(&mut tree)
             .unwrap_or_default()
             .iter()
             .map(|f| f.size_bytes)
