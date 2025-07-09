@@ -8,6 +8,7 @@ use lb_rs::model::server_file::ServerFile;
 use lb_rs::model::{file_metadata::Owner, server_meta::ServerMeta};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
+use tracing::*;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,14 +68,17 @@ pub async fn migrate(v4: Arc<Mutex<ServerV4>>, v5: Arc<Mutex<ServerV5>>) {
     }
 
     for (id, size) in v4.sizes.get() {
-        let mut meta = v5.metas.remove(id).unwrap().unwrap();
-        match &mut meta.file.timestamped_value.value {
-            Meta::V1 { doc_size, .. } => {
-                *doc_size = Some(*size as usize);
+        if let Some(mut meta) = v5.metas.remove(id).unwrap() {
+            match &mut meta.file.timestamped_value.value {
+                Meta::V1 { doc_size, .. } => {
+                    *doc_size = Some(*size as usize);
+                }
             }
-        }
 
-        v5.metas.insert(*id, meta).unwrap();
+            v5.metas.insert(*id, meta).unwrap();
+        } else {
+            warn!("{id} has size but no meta");
+        }
     }
 
     for (gpid, owner) in v4.google_play_ids.get() {
