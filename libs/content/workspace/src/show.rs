@@ -530,6 +530,7 @@ impl Workspace {
                                 TabContent::SpaceInspector(sv) => {
                                     sv.show(ui);
                                 }
+                                TabContent::AudioVideo(av) => av.show(ui),
                             };
                         }
                     }

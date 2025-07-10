@@ -1,3 +1,4 @@
+use crate::audio_video::show::AudioVideo;
 use crate::file_cache::FilesExt as _;
 use crate::mind_map::show::MindMap;
 use crate::space_inspector::show::SpaceInspector;
@@ -169,6 +170,7 @@ pub enum TabContent {
     Svg(SVGEditor),
     MindMap(MindMap),
     SpaceInspector(SpaceInspector),
+    AudioVideo(AudioVideo),
 }
 
 impl std::fmt::Debug for TabContent {
@@ -180,6 +182,7 @@ impl std::fmt::Debug for TabContent {
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
             TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
+            TabContent::AudioVideo(_) => write!(f, "TabContent::AudioVideo"),
         }
     }
 }
@@ -193,6 +196,7 @@ impl TabContent {
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
             TabContent::MindMap(_) => None,
             TabContent::SpaceInspector(_) => None,
+            TabContent::AudioVideo(audio_video_viewer) => Some(audio_video_viewer.id),
         }
     }
 

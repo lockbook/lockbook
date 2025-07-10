@@ -1,3 +1,4 @@
+pub mod audio_video;
 pub mod file_cache;
 pub mod mind_map;
 pub mod output;
