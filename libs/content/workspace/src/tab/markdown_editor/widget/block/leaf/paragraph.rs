@@ -95,11 +95,10 @@ impl<'ast> Editor {
             unreachable!("Paragraphs always have children")
         };
 
-        let reveal = node_line.intersects(&self.buffer.current.selection, true);
-        if reveal && !pre_node.is_empty() {
+        if !pre_node.is_empty() {
             self.show_text_line(ui, top_left, &mut wrap, pre_node, self.text_format(node), false);
         }
-        if reveal && !pre_children.is_empty() {
+        if !pre_children.is_empty() {
             self.show_text_line(
                 ui,
                 top_left,
@@ -110,7 +109,7 @@ impl<'ast> Editor {
             );
         }
         self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
-        if reveal && !post_children.is_empty() {
+        if !post_children.is_empty() {
             self.show_text_line(
                 ui,
                 top_left,
@@ -120,7 +119,7 @@ impl<'ast> Editor {
                 false,
             );
         }
-        if reveal && !post_node.is_empty() {
+        if !post_node.is_empty() {
             self.show_text_line(ui, top_left, &mut wrap, post_node, self.text_format(node), false);
         }
 

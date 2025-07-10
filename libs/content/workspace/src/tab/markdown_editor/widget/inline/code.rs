@@ -59,55 +59,63 @@ impl<'ast> Editor {
         let reveal = self.node_intersects_selection(node);
         let mut response = Default::default();
 
-        if reveal {
-            response |= self.show_text_line(
-                ui,
-                top_left,
-                wrap,
-                prefix_range,
-                self.text_format_syntax(node),
-                false,
-            );
-        } else {
-            // when syntax is captured, show an empty range
-            // representing the beginning of the prefix, so that clicking
-            // at the start of the circumfix places the cursor before
-            // the syntax
-            response |= self.show_text_line(
-                ui,
-                top_left,
-                wrap,
-                prefix_range.start().into_range(),
-                self.text_format_syntax(node),
-                false,
-            );
+        if !prefix_range.is_empty() {
+            // prefix range is empty when it's trimmed to 0 because we're not
+            // rendering the line containing the prefix
+            if reveal {
+                response |= self.show_text_line(
+                    ui,
+                    top_left,
+                    wrap,
+                    prefix_range,
+                    self.text_format_syntax(node),
+                    false,
+                );
+            } else {
+                // when syntax is captured, show an empty range
+                // representing the beginning of the prefix, so that clicking
+                // at the start of the circumfix places the cursor before
+                // the syntax
+                response |= self.show_text_line(
+                    ui,
+                    top_left,
+                    wrap,
+                    prefix_range.start().into_range(),
+                    self.text_format_syntax(node),
+                    false,
+                );
+            }
         }
         if !infix_range.is_empty() {
             response |=
                 self.show_text_line(ui, top_left, wrap, infix_range, self.text_format(node), false);
         }
-        if reveal {
-            response |= self.show_text_line(
-                ui,
-                top_left,
-                wrap,
-                postfix_range.trim(&range),
-                self.text_format_syntax(node),
-                false,
-            );
-        } else {
-            // when syntax is captured, show an empty range
-            // representing the end of the postfix, so that clicking
-            // at the end of the circumfix places the cursor after
-            // the syntax
-            response |= self.show_text_line(
-                ui,
-                top_left,
-                wrap,
-                postfix_range.end().into_range(),
-                self.text_format_syntax(node),
-                false,
-            );
+        if !postfix_range.is_empty() {
+            // postfix range is empty when it's trimmed to 0 because we're not
+            // rendering the line containing the postfix
+            if reveal {
+                response |= self.show_text_line(
+                    ui,
+                    top_left,
+                    wrap,
+                    postfix_range.trim(&range),
+                    self.text_format_syntax(node),
+                    false,
+                );
+            } else {
+                // when syntax is captured, show an empty range
+                // representing the end of the postfix, so that clicking
+                // at the end of the circumfix places the cursor after
+                // the syntax
+                response |= self.show_text_line(
+                    ui,
+                    top_left,
+                    wrap,
+                    postfix_range.end().into_range(),
+                    self.text_format_syntax(node),
+                    false,
+                );
+            }
         }
 
         response

@@ -29,7 +29,7 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset),
     ) -> Response {
-        let node_range = self.node_range(node);
+        let node_range = self.node_range(node).trim(&range);
         let text_format = self.text_format(node);
         let spoiler = node
             .ancestors()
@@ -39,15 +39,19 @@ impl<'ast> Editor {
                 .ancestors()
                 .any(|node| matches!(node.data.borrow().value, NodeValue::Link(..)));
 
-        self.show_override_text_line(
-            ui,
-            top_left,
-            wrap,
-            node_range.trim(&range),
-            text_format,
-            spoiler,
-            None,
-            clickable,
-        )
+        if !node_range.is_empty() {
+            self.show_override_text_line(
+                ui,
+                top_left,
+                wrap,
+                node_range.trim(&range),
+                text_format,
+                spoiler,
+                None,
+                clickable,
+            )
+        } else {
+            Default::default()
+        }
     }
 }

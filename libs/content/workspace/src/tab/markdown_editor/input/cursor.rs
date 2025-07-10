@@ -32,14 +32,14 @@ impl Editor {
                 rect = rect.expand2(INLINE_PADDING * Vec2::X);
             }
 
-            if range.contains(highlight_range.start(), true, true) {
+            if range.contains_inclusive(highlight_range.start()) {
                 let cursor = galley.from_ccursor(CCursor {
                     index: (highlight_range.start() - range.start()).0,
                     prefer_next_row: true,
                 });
                 rect.min.x = cursor_to_pos_abs(galley_info, cursor).x;
             }
-            if range.contains(highlight_range.end(), true, true) {
+            if range.contains_inclusive(highlight_range.end()) {
                 let cursor = galley.from_ccursor(CCursor {
                     index: (highlight_range.end() - range.start()).0,
                     prefer_next_row: true,
@@ -76,7 +76,7 @@ impl Editor {
     pub fn cursor_line(&self, offset: DocCharOffset) -> [Pos2; 2] {
         for galley_info in self.galleys.galleys.iter().rev() {
             let GalleyInfo { range, galley, rect, .. } = galley_info;
-            if range.contains(offset, true, true) {
+            if range.contains_inclusive(offset) {
                 let cursor = galley.from_ccursor(CCursor {
                     index: (offset - range.start()).0,
                     prefer_next_row: true,

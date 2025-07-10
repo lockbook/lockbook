@@ -28,11 +28,13 @@ impl<'ast> Editor {
         let first_child_start = node
             .descendants()
             .skip(1)
+            .filter(|descendant| self.node_range(descendant).intersects(&range, false))
             .map(|descendant| self.node_range(descendant).start())
             .min()?;
         let last_child_end = node
             .descendants()
             .skip(1)
+            .filter(|descendant| self.node_range(descendant).intersects(&range, false))
             .map(|descendant| self.node_range(descendant).end())
             .max()?;
 
