@@ -666,7 +666,7 @@ pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys) -> DocCharOffset {
             galley.range.start()
         } else {
             let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-            galleys.offset_by_galley_and_cursor(galley_idx, new_cursor)
+            galleys.offset_by_galley_and_cursor(galley, new_cursor)
         }
     }
 }

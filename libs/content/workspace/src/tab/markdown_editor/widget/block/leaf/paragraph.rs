@@ -96,43 +96,35 @@ impl<'ast> Editor {
         };
 
         let reveal = node_line.intersects(&self.buffer.current.selection, true);
-        if reveal {
-            self.show_text_line(
-                ui,
-                top_left,
-                &mut wrap,
-                pre_node,
-                self.text_format_syntax(node),
-                false,
-            );
+        if reveal && !pre_node.is_empty() {
+            self.show_text_line(ui, top_left, &mut wrap, pre_node, self.text_format(node), false);
+        }
+        if reveal && !pre_children.is_empty() {
             self.show_text_line(
                 ui,
                 top_left,
                 &mut wrap,
                 pre_children,
-                self.text_format_syntax(node),
+                self.text_format(node),
                 false,
             );
         }
         self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
-        if reveal {
+        if reveal && !post_children.is_empty() {
             self.show_text_line(
                 ui,
                 top_left,
                 &mut wrap,
                 post_children,
-                self.text_format_syntax(node),
-                false,
-            );
-            self.show_text_line(
-                ui,
-                top_left,
-                &mut wrap,
-                post_node,
-                self.text_format_syntax(node),
+                self.text_format(node),
                 false,
             );
         }
+        if reveal && !post_node.is_empty() {
+            self.show_text_line(ui, top_left, &mut wrap, post_node, self.text_format(node), false);
+        }
+
+        self.bounds.wrap_lines.extend(wrap.row_ranges);
     }
 
     pub fn compute_bounds_paragraph(&mut self, node: &'ast AstNode<'ast>) {

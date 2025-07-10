@@ -190,6 +190,7 @@ impl<'ast> Editor {
 
                     top_left.y += wrap.height();
                     top_left.y += ROW_SPACING;
+                    self.bounds.wrap_lines.extend(wrap.row_ranges);
                 }
             }
         }
@@ -314,6 +315,7 @@ impl<'ast> Editor {
         }
 
         top_left.y += height;
+        self.bounds.wrap_lines.extend(wrap.row_ranges);
         if level == 1 {
             self.show_heading_rule(ui, top_left, width);
         }

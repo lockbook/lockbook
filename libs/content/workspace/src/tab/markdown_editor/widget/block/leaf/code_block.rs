@@ -124,19 +124,17 @@ impl<'ast> Editor {
             if is_opening_fence || is_closing_fence {
                 if reveal {
                     top_left.y += ROW_SPACING;
+                    let mut wrap = Wrap::new(width);
                     self.show_text_line(
                         ui,
                         top_left,
-                        &mut Wrap::new(width),
+                        &mut wrap,
                         node_line,
                         self.text_format_syntax(node),
                         false,
                     );
-                    top_left.y += self.height_text_line(
-                        &mut Wrap::new(width),
-                        node_line,
-                        self.text_format_syntax(node),
-                    );
+                    top_left.y += wrap.height();
+                    self.bounds.wrap_lines.extend(wrap.row_ranges);
                 }
             } else {
                 top_left.y += ROW_SPACING;
@@ -219,19 +217,17 @@ impl<'ast> Editor {
 
             if reveal {
                 let node_line = self.node_line(node, line);
+                let mut wrap = Wrap::new(width);
                 self.show_text_line(
                     ui,
                     top_left,
-                    &mut Wrap::new(width),
+                    &mut wrap,
                     node_line,
                     self.text_format_syntax(node),
                     false,
                 );
-                top_left.y += self.height_text_line(
-                    &mut Wrap::new(width),
-                    node_line,
-                    self.text_format_syntax(node),
-                );
+                top_left.y += wrap.height();
+                self.bounds.wrap_lines.extend(wrap.row_ranges);
             } else {
                 self.show_code_block_line(ui, node, top_left, node_code_block, line);
                 top_left.y += self.height_code_block_line(node, node_code_block, line);
@@ -431,6 +427,8 @@ impl<'ast> Editor {
             // no syntax highlighting
             self.show_text_line(ui, top_left, &mut wrap, code_line, self.text_format(node), false);
         }
+
+        self.bounds.wrap_lines.extend(wrap.row_ranges);
     }
 
     // "The closing code fence may be indented up to three spaces, and may be

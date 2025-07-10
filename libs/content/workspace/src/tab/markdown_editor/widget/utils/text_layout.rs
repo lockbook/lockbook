@@ -2,9 +2,11 @@ use std::mem;
 
 use egui::epaint::text::Row;
 use egui::text::LayoutJob;
-use egui::{Pos2, Sense, Stroke, TextFormat, Ui, Vec2};
+use egui::{Pos2, Rect, Sense, Stroke, TextFormat, Ui, Vec2};
+use epaint::text::cursor::RCursor;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
+use crate::tab::markdown_editor::bounds::Lines;
 use crate::tab::markdown_editor::galleys::GalleyInfo;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::{INLINE_PADDING, ROW_HEIGHT, ROW_SPACING};
@@ -15,11 +17,12 @@ pub struct Wrap {
     pub offset: f32,
     pub width: f32,
     pub row_height: f32, // overridden by headings
+    pub row_ranges: Lines,
 }
 
 impl Wrap {
     pub fn new(width: f32) -> Self {
-        Self { offset: 0.0, width, row_height: ROW_HEIGHT }
+        Self { offset: 0.0, width, row_height: ROW_HEIGHT, row_ranges: Vec::new() }
     }
 
     /// The index of the current row
@@ -52,6 +55,16 @@ impl Wrap {
         let num_rows = ((self.offset / self.width).ceil() as usize).max(1);
         let num_spacings = num_rows.saturating_sub(1);
         num_rows as f32 * self.row_height + num_spacings as f32 * ROW_SPACING
+    }
+
+    pub fn add_range(&mut self, range: (DocCharOffset, DocCharOffset)) {
+        let row = self.row();
+        if let Some(line) = self.row_ranges.get_mut(row) {
+            line.0 = line.0.min(range.0);
+            line.1 = line.1.max(range.1);
+        } else {
+            self.row_ranges.push(range);
+        }
     }
 }
 
@@ -117,6 +130,7 @@ impl Editor {
 
         let underline = mem::take(&mut text_format.underline);
         let background = mem::take(&mut text_format.background);
+        let padded = background != Default::default();
 
         let mut layout_job = LayoutJob::single_section(text.into(), text_format.clone());
         layout_job.wrap.max_width = wrap.width;
@@ -125,11 +139,12 @@ impl Editor {
         }
 
         let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
+        let galley_info = GalleyInfo { range, galley, rect: Rect::ZERO, padded: false }; // used for wrap line calculation
         let pos = top_left + Vec2::new(0., wrap.row() as f32 * (wrap.row_height + ROW_SPACING));
 
         let mut hovered = false;
         let mut clicked = false;
-        for (i, row) in galley.rows.iter().enumerate() {
+        for (i, row) in galley_info.galley.rows.iter().enumerate() {
             let rect = row.rect.translate(pos.to_vec2());
             let rect = rect.translate(Vec2::new(0., i as f32 * ROW_SPACING));
 
@@ -142,61 +157,76 @@ impl Editor {
             clicked |= response.clicked();
         }
 
+        // break galley into rows to take control of row spacing
         let mut empty_rows = 0;
-        for (i, row) in galley.rows.iter().enumerate() {
-            let rect = row.rect.translate(pos.to_vec2());
-            let rect = rect.translate(Vec2::new(
+        for (row_idx, row) in galley_info.galley.rows.iter().enumerate() {
+            let row_rect = row.rect.translate(pos.to_vec2());
+            let row_rect = row_rect.translate(Vec2::new(
                 0.,
-                i as f32 * ROW_SPACING + empty_rows as f32 * wrap.row_height,
+                row_idx as f32 * ROW_SPACING + empty_rows as f32 * wrap.row_height,
             ));
 
-            let padded = background != Default::default();
-            let expanded_rect = if rect.area() < 1. {
-                rect
+            let row_expanded_rect = if row_rect.area() < 1. {
+                row_rect
             } else {
-                rect.expand2(Vec2::new(INLINE_PADDING - 2., 1.))
+                row_rect.expand2(Vec2::new(INLINE_PADDING - 2., 1.))
             };
             if spoiler {
                 if hovered {
                     ui.painter()
-                        .rect_stroke(expanded_rect, 2., Stroke::new(1., background));
+                        .rect_stroke(row_expanded_rect, 2., Stroke::new(1., background));
                 }
             } else if padded {
                 ui.painter().rect(
-                    expanded_rect,
+                    row_expanded_rect,
                     2.,
                     background,
                     Stroke::new(1., self.theme.bg().neutral_tertiary),
                 );
             }
 
-            // paint galley row-by-row to take control of row spacing
-            let text = row.text().to_string();
-            let layout_job = LayoutJob::single_section(text, text_format.clone());
-            let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
-
-            // debug
-            // ui.painter().rect_stroke(
-            //     rect,
-            //     2.,
-            //     egui::Stroke::new(1., text_format.color.gamma_multiply(0.15)),
-            // );
+            let row_text = row.text().to_string();
+            let row_layout_job = LayoutJob::single_section(row_text, text_format.clone());
+            let row_galley = ui.fonts(|fonts| fonts.layout_job(row_layout_job));
 
             ui.painter()
-                .galley(rect.left_top(), galley.clone(), Default::default());
+                .galley(row_rect.left_top(), row_galley.clone(), Default::default());
             ui.painter()
-                .hline(rect.x_range(), rect.bottom() - 2.0, underline);
+                .hline(row_rect.x_range(), row_rect.bottom() - 2.0, underline);
 
             if spoiler && !hovered {
-                ui.painter().rect_filled(expanded_rect, 2., background);
+                ui.painter().rect_filled(row_expanded_rect, 2., background);
             }
 
             let galley_info = if override_text.is_some() {
-                GalleyInfo { range, galley, rect, padded }
+                GalleyInfo { range, galley: row_galley, rect: row_rect, padded }
             } else {
-                let byte_range = (galley_start, galley_start + row.text().len());
-                let galley_range = self.range_to_char(byte_range);
-                GalleyInfo { range: galley_range, galley, rect, padded }
+                let row_galley_byte_range = (galley_start, galley_start + row.text().len());
+                let row_galley_range = self.range_to_char(row_galley_byte_range);
+
+                // add the galley range to the wrap to compute wrap line bounds.
+                // for override text, only the first row gets ranges, so we
+                // don't increment wrap.offset (and therefore the row) until the
+                // end of the fn. this may not need to rely on egui cursor math
+                // but this is the way it's already known to work.
+                wrap.offset += row_span(row, wrap);
+                let wrap_line_range = {
+                    let start_cursor = galley_info
+                        .galley
+                        .from_rcursor(RCursor { row: row_idx, column: 0 });
+                    let row_start = self
+                        .galleys
+                        .offset_by_galley_and_cursor(&galley_info, start_cursor);
+                    let end_cursor = galley_info.galley.cursor_end_of_row(&start_cursor);
+                    let row_end = self
+                        .galleys
+                        .offset_by_galley_and_cursor(&galley_info, end_cursor);
+
+                    (row_start, row_end).trim(&row_galley_range)
+                };
+                wrap.add_range(wrap_line_range);
+
+                GalleyInfo { range: wrap_line_range, galley: row_galley, rect: row_rect, padded }
             };
 
             self.galleys.push(galley_info);
@@ -207,7 +237,9 @@ impl Editor {
             }
         }
 
-        wrap.offset += mid_span;
+        if override_text.is_some() {
+            wrap.offset += mid_span;
+        }
         wrap.offset += post_span;
 
         Response { clicked, hovered }
@@ -225,7 +257,8 @@ impl Editor {
     pub fn text_mid_span(
         &self, wrap: &Wrap, pre_span: f32, text: &str, text_format: TextFormat,
     ) -> f32 {
-        let mut tmp_wrap = Wrap { offset: wrap.offset + pre_span, ..*wrap };
+        let mut tmp_wrap =
+            Wrap { offset: wrap.offset + pre_span, row_ranges: Default::default(), ..*wrap };
 
         let text = text.to_string();
         let mut layout_job = LayoutJob::single_section(text, text_format);
@@ -247,7 +280,11 @@ impl Editor {
     ) -> f32 {
         let padded = text_format.background != Default::default();
         if padded {
-            let wrap = Wrap { offset: wrap.offset + pre_plus_mid_span, ..*wrap };
+            let wrap = Wrap {
+                offset: wrap.offset + pre_plus_mid_span,
+                row_ranges: Default::default(),
+                ..*wrap
+            };
             INLINE_PADDING.min(wrap.row_remaining())
         } else {
             0.
@@ -255,7 +292,7 @@ impl Editor {
     }
 }
 
-/// Return the span of the first row, including the remaining space on the previous row if there was one
+/// Return the span of the row, including the remaining space on the previous row if there was one
 fn row_span(row: &Row, wrap: &Wrap) -> f32 {
     row_wrap_span(row, wrap).unwrap_or_default() + row.rect.width()
 }

@@ -52,7 +52,6 @@ impl<'ast> Editor {
                 node_line,
                 self.text_format_document(),
             );
-
             result += BLOCK_SPACING;
         }
 
@@ -99,21 +98,18 @@ impl<'ast> Editor {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
 
+            let mut wrap = Wrap::new(width);
             self.show_text_line(
                 ui,
                 top_left,
-                &mut Wrap::new(width),
+                &mut wrap,
                 node_line,
                 self.text_format_document(),
                 false,
             );
-            top_left.y += self.height_text_line(
-                &mut Wrap::new(width),
-                node_line,
-                self.text_format_document(),
-            );
-
+            top_left.y += wrap.height();
             top_left.y += BLOCK_SPACING;
+            self.bounds.wrap_lines.extend(wrap.row_ranges);
         }
     }
 
@@ -187,19 +183,17 @@ impl<'ast> Editor {
 
             top_left.y += BLOCK_SPACING;
 
+            let mut wrap = Wrap::new(width);
             self.show_text_line(
                 ui,
                 top_left,
-                &mut Wrap::new(width),
+                &mut wrap,
                 node_line,
                 self.text_format_document(),
                 false,
             );
-            top_left.y += self.height_text_line(
-                &mut Wrap::new(width),
-                node_line,
-                self.text_format_document(),
-            );
+            top_left.y += wrap.height();
+            self.bounds.wrap_lines.extend(wrap.row_ranges);
         }
     }
 

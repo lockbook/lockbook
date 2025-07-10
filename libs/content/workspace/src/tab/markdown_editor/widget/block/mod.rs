@@ -192,6 +192,7 @@ impl<'ast> Editor {
 
                 top_left.y += wrap.height();
                 top_left.y += BLOCK_SPACING;
+                self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
 
             return;

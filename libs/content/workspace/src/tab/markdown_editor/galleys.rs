@@ -60,8 +60,9 @@ impl Galleys {
         (galley_index, cursor)
     }
 
-    pub fn offset_by_galley_and_cursor(&self, galley_idx: usize, cursor: Cursor) -> DocCharOffset {
-        let galley = &self.galleys[galley_idx];
+    pub fn offset_by_galley_and_cursor(
+        &self, galley: &GalleyInfo, cursor: Cursor,
+    ) -> DocCharOffset {
         let galley_text_range = galley.range;
         let mut result = galley_text_range.start() + cursor.ccursor.index;
 
@@ -74,6 +75,6 @@ impl Galleys {
             result -= 1;
         }
 
-        result
+        result.max(galley.range.start()).min(galley.range.end())
     }
 }

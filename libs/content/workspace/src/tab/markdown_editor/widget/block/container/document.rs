@@ -45,6 +45,7 @@ impl<'ast> Editor {
                 );
                 top_left.y += wrap.height();
                 top_left.y += ROW_SPACING;
+                self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
         }
     }

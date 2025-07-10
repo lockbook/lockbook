@@ -693,9 +693,9 @@ pub unsafe extern "C" fn selection_rects(
 
     let mut selection_rects = vec![];
 
-    let lines = bounds.lines.find_intersecting(range, false);
+    let lines = bounds.wrap_lines.find_intersecting(range, false);
     for line in lines.iter() {
-        let mut line = bounds.lines[line];
+        let mut line = bounds.wrap_lines[line];
         if line.0 < range.start() {
             line.0 = range.start();
         }

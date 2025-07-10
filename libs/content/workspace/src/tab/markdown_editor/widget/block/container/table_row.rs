@@ -56,14 +56,16 @@ impl<'ast> Editor {
             let line = self.node_first_line(node);
             let node_line = self.node_line(node, line);
 
+            let mut wrap = Wrap::new(self.width(node));
             self.show_text_line(
                 ui,
                 top_left,
-                &mut Wrap::new(self.width(node)),
+                &mut wrap,
                 node_line,
                 self.text_format_syntax(node),
                 false,
             );
+            self.bounds.wrap_lines.extend(wrap.row_ranges);
         } else {
             let height = self.height_table_row(node);
             let width = self.width(node);

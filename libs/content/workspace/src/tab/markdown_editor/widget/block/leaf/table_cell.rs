@@ -107,6 +107,8 @@ impl<'ast> Editor {
                 false,
             );
         }
+
+        self.bounds.wrap_lines.extend(wrap.row_ranges);
     }
 
     pub fn compute_bounds_table_cell(&mut self, node: &'ast AstNode<'ast>) {

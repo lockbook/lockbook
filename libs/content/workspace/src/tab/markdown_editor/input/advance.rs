@@ -47,7 +47,7 @@ impl AdvanceExt for DocCharOffset {
             if !at_top_of_cur_galley {
                 // within a galley: just move up one row
                 let new_cursor = cur_galley.galley.cursor_up_one_row(&cur_ecursor);
-                return galleys.offset_by_galley_and_cursor(cur_galley_idx, new_cursor);
+                return galleys.offset_by_galley_and_cursor(cur_galley, new_cursor);
             }
 
             // jump to the closest galley above that's not above another galley that's above
@@ -82,7 +82,7 @@ impl AdvanceExt for DocCharOffset {
                         || (distance == closest_distance && new_galley.range.is_empty())
                     {
                         closest_offset =
-                            Some(galleys.offset_by_galley_and_cursor(new_galley_idx, new_cursor));
+                            Some(galleys.offset_by_galley_and_cursor(new_galley, new_cursor));
                         closest_distance = distance;
                     }
                 } else {
@@ -97,7 +97,7 @@ impl AdvanceExt for DocCharOffset {
             if !at_bottom_of_cur_galley {
                 // within a galley: just move down one row
                 let new_cursor = cur_galley.galley.cursor_down_one_row(&cur_ecursor);
-                return galleys.offset_by_galley_and_cursor(cur_galley_idx, new_cursor);
+                return galleys.offset_by_galley_and_cursor(cur_galley, new_cursor);
             }
 
             // jump to the closest galley below that's not below another galley that's below
@@ -132,7 +132,7 @@ impl AdvanceExt for DocCharOffset {
                         || (distance == closest_distance && new_galley.range.is_empty())
                     {
                         closest_offset =
-                            Some(galleys.offset_by_galley_and_cursor(new_galley_idx, new_cursor));
+                            Some(galleys.offset_by_galley_and_cursor(new_galley, new_cursor));
                         closest_distance = distance;
                     }
                 } else {

@@ -64,19 +64,17 @@ impl<'ast> Editor {
                     top_left.y += BLOCK_SPACING;
                 }
 
+                let mut wrap = Wrap::new(self.width(node));
                 self.show_text_line(
                     ui,
                     top_left,
-                    &mut Wrap::new(self.width(node)),
+                    &mut wrap,
                     line_content,
                     self.text_format_syntax(node),
                     false,
                 );
-                top_left.y += self.height_text_line(
-                    &mut Wrap::new(self.width(node)),
-                    line_content,
-                    self.text_format_syntax(node),
-                );
+                top_left.y += wrap.height();
+                self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
         }
     }

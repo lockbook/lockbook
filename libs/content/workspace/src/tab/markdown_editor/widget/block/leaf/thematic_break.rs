@@ -12,10 +12,10 @@ impl<'ast> Editor {
 
     pub fn show_thematic_break(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
         let width = self.width(node);
-        let mut wrap = Wrap::new(width);
         let node_line = self.node_line(node, self.node_first_line(node));
 
         if self.node_intersects_selection(node) {
+            let mut wrap = Wrap::new(width);
             self.show_text_line(
                 ui,
                 top_left,
@@ -24,6 +24,7 @@ impl<'ast> Editor {
                 self.text_format_syntax(node),
                 false,
             );
+            self.bounds.wrap_lines.extend(wrap.row_ranges);
         } else {
             let rect = Rect::from_min_size(top_left, Vec2::new(width, ROW_HEIGHT));
             ui.painter().hline(

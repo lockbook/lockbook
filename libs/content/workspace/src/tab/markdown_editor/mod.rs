@@ -297,7 +297,9 @@ impl Editor {
         self.theme.apply(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
+        // these are computed during render
         self.galleys.galleys.clear();
+        self.bounds.wrap_lines.clear();
 
         if self.touch_mode {
             ui.ctx().style_mut(|style| {
@@ -360,12 +362,7 @@ impl Editor {
                 .bright_black()
         );
         println!("document: {:?}", self.buffer.current.text);
-        println!("\nparagraphs: {:?}", self.bounds.paragraphs);
         self.print_paragraphs_bounds();
-        println!("\ninline paragraphs: {:?}", self.bounds.inline_paragraphs);
-        self.print_inline_paragraphs_bounds();
-        println!("\ntext: {:?}", self.bounds.text);
-        self.print_text_bounds();
         println!(
             "{}",
             "--------------------------------------------------------------------------------"
@@ -400,9 +397,7 @@ impl Editor {
             self.bounds.paragraphs.sort();
             self.bounds.inline_paragraphs.sort();
 
-            self.bounds.text = self.bounds.paragraphs.clone(); // todo: inline character capture
             self.calc_words();
-            self.bounds.lines = self.bounds.paragraphs.clone(); // todo: real lines
 
             ui.ctx().request_repaint();
         }

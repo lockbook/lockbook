@@ -85,19 +85,17 @@ impl<'ast> Editor {
                 if line != first_line {
                     top_left.y += BLOCK_SPACING;
 
+                    let mut wrap = Wrap::new(self.width(node) - INDENT);
                     self.show_text_line(
                         ui,
                         top_left,
-                        &mut Wrap::new(self.width(node) - INDENT),
+                        &mut wrap,
                         line_content,
                         self.text_format_syntax(node),
                         false,
                     );
-                    top_left.y += self.height_text_line(
-                        &mut Wrap::new(self.width(node) - INDENT),
-                        line_content,
-                        self.text_format_syntax(node),
-                    );
+                    top_left.y += wrap.height();
+                    self.bounds.wrap_lines.extend(wrap.row_ranges);
                 }
             }
         }
@@ -153,14 +151,16 @@ impl<'ast> Editor {
         if line_content.intersects(&self.buffer.current.selection, true) {
             // note and title line are revealed separately from block syntax as
             // if they're a child block
+            let mut wrap = Wrap::new(self.width(node) - INDENT);
             self.show_text_line(
                 ui,
                 top_left,
-                &mut Wrap::new(self.width(node) - INDENT),
+                &mut wrap,
                 line_content,
                 self.text_format_syntax(node),
                 false,
             );
+            self.bounds.wrap_lines.extend(wrap.row_ranges);
         } else {
             let icon_space = Rect::from_min_size(top_left, Vec2::splat(ROW_HEIGHT));
             let display_text_top_left = top_left + Vec2::X * INDENT;
@@ -187,14 +187,16 @@ impl<'ast> Editor {
 
             let (_type, title) = self.alert_type_title_ranges(node);
             if node_alert.title.is_some() {
+                let mut wrap = Wrap::new(title_width);
                 self.show_text_line(
                     ui,
                     display_text_top_left,
-                    &mut Wrap::new(title_width),
+                    &mut wrap,
                     title,
                     self.text_format(node),
                     false,
                 );
+                self.bounds.wrap_lines.extend(wrap.row_ranges);
             } else {
                 let type_display_text = match node_alert.alert_type {
                     AlertType::Note => "Note",
