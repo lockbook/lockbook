@@ -9,7 +9,7 @@ use lb_rs::model::text::offset_types::{
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
-use crate::tab::markdown_editor::widget::{BLOCK_PADDING, BLOCK_SPACING};
+use crate::tab::markdown_editor::widget::BLOCK_SPACING;
 use crate::tab::markdown_editor::Editor;
 
 pub(crate) mod container;
@@ -71,10 +71,7 @@ impl<'ast> Editor {
             NodeValue::Heading(_) => indented_width(),
             NodeValue::HtmlBlock(_) => indented_width(),
             NodeValue::Paragraph => indented_width(),
-            NodeValue::TableCell => {
-                (parent_width() / node.parent().unwrap().children().count() as f32)
-                    - 2. * BLOCK_PADDING
-            }
+            NodeValue::TableCell => self.width_table_cell(node),
             NodeValue::ThematicBreak => indented_width(),
         }
     }

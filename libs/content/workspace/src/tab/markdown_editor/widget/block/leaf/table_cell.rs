@@ -3,7 +3,7 @@ use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::RangeExt as _;
 
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
-use crate::tab::markdown_editor::widget::{BLOCK_PADDING, BLOCK_SPACING};
+use crate::tab::markdown_editor::widget::{BLOCK_PADDING, BLOCK_SPACING, TABLE_CELL_MIN_WIDTH};
 use crate::tab::markdown_editor::Editor;
 
 impl<'ast> Editor {
@@ -42,6 +42,12 @@ impl<'ast> Editor {
         images_height + wrap.height()
     }
 
+    pub fn width_table_cell(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let row = node.parent().unwrap();
+        let result = self.width(row) / row.children().count() as f32;
+        result.max(TABLE_CELL_MIN_WIDTH)
+    }
+
     pub fn show_table_cell(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
         top_left.x += BLOCK_PADDING;
         let width = self.width(node) - 2.0 * BLOCK_PADDING;
@@ -56,10 +62,10 @@ impl<'ast> Editor {
             }
         }
 
+        let reveal = node_line.intersects(&self.buffer.current.selection, true);
         if let Some((pre_node, pre_children, _, post_children, post_node)) =
             self.split_range(node, node_line)
         {
-            let reveal = node_line.intersects(&self.buffer.current.selection, true);
             if reveal {
                 self.show_text_line(
                     ui,
@@ -98,14 +104,7 @@ impl<'ast> Editor {
                 );
             }
         } else {
-            self.show_text_line(
-                ui,
-                top_left,
-                &mut wrap,
-                node_line,
-                self.text_format_syntax(node),
-                false,
-            );
+            self.show_text_line(ui, top_left, &mut wrap, node_line, self.text_format(node), false);
         }
 
         self.bounds.wrap_lines.extend(wrap.row_ranges);
