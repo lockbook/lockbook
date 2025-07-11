@@ -44,7 +44,7 @@ impl<'ast> Editor {
 
                 let mut unapply = false;
                 for inline_paragraph in &self.bounds.inline_paragraphs {
-                    if inline_paragraph.intersects(&range, false) {
+                    if inline_paragraph.intersects(&range, true) {
                         let paragraph_range = (
                             range.start().max(inline_paragraph.start()),
                             range.end().min(inline_paragraph.end()),
@@ -55,7 +55,7 @@ impl<'ast> Editor {
                 }
 
                 for inline_paragraph in &self.bounds.inline_paragraphs {
-                    if inline_paragraph.intersects(&range, false) {
+                    if inline_paragraph.intersects(&range, true) {
                         let paragraph_range = (
                             range.start().max(inline_paragraph.start()),
                             range.end().min(inline_paragraph.end()),
