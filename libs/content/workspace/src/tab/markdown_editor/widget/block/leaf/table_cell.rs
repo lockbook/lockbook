@@ -3,7 +3,7 @@ use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::RangeExt as _;
 
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
-use crate::tab::markdown_editor::widget::{BLOCK_PADDING, BLOCK_SPACING, TABLE_CELL_MIN_WIDTH};
+use crate::tab::markdown_editor::widget::{BLOCK_PADDING, BLOCK_SPACING};
 use crate::tab::markdown_editor::Editor;
 
 impl<'ast> Editor {
@@ -44,8 +44,7 @@ impl<'ast> Editor {
 
     pub fn width_table_cell(&self, node: &'ast AstNode<'ast>) -> f32 {
         let row = node.parent().unwrap();
-        let result = self.width(row) / row.children().count() as f32;
-        result.max(TABLE_CELL_MIN_WIDTH)
+        self.width(row) / row.children().count() as f32
     }
 
     pub fn show_table_cell(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
