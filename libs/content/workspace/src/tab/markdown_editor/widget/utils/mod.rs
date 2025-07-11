@@ -116,19 +116,20 @@ impl<'ast> Editor {
         node
     }
 
-    /// Returns the deepest leaf block node containing the offset.
-    pub fn deepest_leaf_block_at_offset(
+    /// Returns the leaf block node containing the offset.
+    pub fn leaf_block_at_offset(
         &self, node: &'ast AstNode<'ast>, offset: DocCharOffset,
     ) -> &'ast AstNode<'ast> {
         for child in node.children() {
-            if !child.data.borrow().value.is_leaf_block() {
-                continue;
-            }
             for line_idx in self.node_lines(child).iter() {
                 let line = self.bounds.source_lines[line_idx];
                 let node_line = self.node_line(child, line);
                 if node_line.contains(offset, false, true) {
-                    return self.deepest_leaf_block_at_offset(child, offset);
+                    if child.data.borrow().value.is_leaf_block() {
+                        return child;
+                    } else {
+                        return self.leaf_block_at_offset(child, offset);
+                    }
                 }
             }
         }

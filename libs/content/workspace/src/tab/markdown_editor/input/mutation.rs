@@ -87,10 +87,7 @@ impl<'ast> Editor {
                     let own_prefix = self.line_own_prefix(container, line);
 
                     let in_code_block = matches!(
-                        self.deepest_leaf_block_at_offset(root, offset)
-                            .data
-                            .borrow()
-                            .value,
+                        self.leaf_block_at_offset(root, offset).data.borrow().value,
                         NodeValue::CodeBlock(_)
                     );
 
