@@ -4,11 +4,11 @@ use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::style::{InlineNodeType, MarkdownNode, MarkdownNodeType};
 use crate::tab::markdown_editor::widget::ROW_SPACING;
 use crate::tab::markdown_editor::Editor;
-use comrak::nodes::AstNode;
+use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Rangef, Vec2};
 use lb_rs::model::text::buffer::{self};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt, ToRangeExt as _,
+    DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt, RelByteOffset, ToRangeExt as _,
 };
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
@@ -86,20 +86,26 @@ impl<'ast> Editor {
                     let line_content = self.line_content(container, line);
                     let own_prefix = self.line_own_prefix(container, line);
 
-                    if shift {
-                        // shift -> extend
-                        let Some(extension_prefix) = self.extension_prefix(container) else {
-                            return false;
-                        };
+                    let in_code_block = matches!(
+                        self.deepest_leaf_block_at_offset(root, offset)
+                            .data
+                            .borrow()
+                            .value,
+                        NodeValue::CodeBlock(_)
+                    );
 
+                    if shift || in_code_block {
+                        // shift -> extend
                         operations.push(Operation::Replace(Replace {
                             range: current_selection,
                             text: "\n".into(),
                         }));
-                        operations.push(Operation::Replace(Replace {
-                            range: current_selection,
-                            text: extension_prefix,
-                        }));
+                        if let Some(extension_prefix) = self.extension_prefix(container) {
+                            operations.push(Operation::Replace(Replace {
+                                range: current_selection,
+                                text: extension_prefix,
+                            }));
+                        };
                     } else if line_content.is_empty() {
                         // empty container block -> terminate
 
@@ -114,19 +120,35 @@ impl<'ast> Editor {
                         }));
                     } else {
                         // nonempty container block -> insert
-                        let Some(insertion_prefix) = self.insertion_prefix(container) else {
-                            return false;
-                        };
-
                         operations.push(Operation::Replace(Replace {
                             range: current_selection,
                             text: "\n".into(),
                         }));
+                        if let Some(insertion_prefix) = self.insertion_prefix(container) {
+                            operations.push(Operation::Replace(Replace {
+                                range: current_selection,
+                                text: insertion_prefix,
+                            }));
+                        };
+                    }
+
+                    // code block auto-indentation
+                    if in_code_block {
+                        let line_content_start = self.offset_to_byte(line_content.start());
+                        let indentation_len = RelByteOffset(
+                            self.buffer[line_content].len()
+                                - self.buffer[line_content].trim_start().len(),
+                        );
+                        let indentation =
+                            (line_content_start, line_content_start + indentation_len);
+                        let indentation = self.range_to_char(indentation);
+
                         operations.push(Operation::Replace(Replace {
                             range: current_selection,
-                            text: insertion_prefix,
+                            text: self.buffer[indentation].to_string(),
                         }));
                     }
+
                     true
                 };
                 if !handled() {
