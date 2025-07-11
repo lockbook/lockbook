@@ -1,12 +1,10 @@
-use crate::tab::markdown_editor;
-use egui::{Pos2, Vec2};
-use lb_rs::model::text::offset_types::DocCharOffset;
-use lb_rs::model::text::offset_types::RangeExt as _;
-use markdown_editor::appearance::Appearance;
-use markdown_editor::bounds::Text;
-use markdown_editor::galleys::{self, Galleys};
+use egui::epaint::text::cursor::Cursor;
+use egui::{text::CCursor, Pos2};
+use egui::{Color32, Rangef, Rect, Stroke, Vec2};
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
-use super::advance::AdvanceExt as _;
+use crate::tab::markdown_editor::widget::INLINE_PADDING;
+use crate::tab::markdown_editor::{galleys::GalleyInfo, Editor};
 
 #[derive(Debug, Default)]
 pub struct CursorState {
@@ -16,21 +14,103 @@ pub struct CursorState {
     pub x_target: Option<f32>,
 }
 
-pub fn line(
-    offset: DocCharOffset, galleys: &Galleys, text: &Text, appearance: &Appearance,
-) -> [Pos2; 2] {
-    let (galley_idx, cursor) = galleys.galley_and_cursor_by_char_offset(offset, text);
-    let galley = &galleys[galley_idx];
+impl Editor {
+    /// Highlights the provided range with a faded version of the provided accent color.
+    pub fn show_range(
+        &self, ui: &mut egui::Ui, highlight_range: (DocCharOffset, DocCharOffset), accent: Color32,
+    ) {
+        // todo: binary search
+        for galley_info in self.galleys.galleys.iter().rev() {
+            let GalleyInfo { range, galley, mut rect, padded } = galley_info;
+            if range.end() < highlight_range.start() {
+                break;
+            } else if range.start() > highlight_range.end() {
+                continue;
+            }
 
-    let max = DocCharOffset::cursor_to_pos_abs(galley, cursor);
-    let min = max - Vec2 { x: 0.0, y: galley.cursor_height() };
+            if *padded {
+                rect = rect.expand2(INLINE_PADDING * Vec2::X);
+            }
 
-    if offset < galley.text_range().start() {
-        // draw cursor before offset if that's where it is
-        let annotation_offset = galleys::annotation_offset(&galley.annotation, appearance);
-        let annotation_min_x = egui::vec2(annotation_offset.min.x, 0.);
-        [min - annotation_min_x, max - annotation_min_x]
-    } else {
-        [min, max]
+            if range.contains_inclusive(highlight_range.start()) {
+                let cursor = galley.from_ccursor(CCursor {
+                    index: (highlight_range.start() - range.start()).0,
+                    prefer_next_row: true,
+                });
+                rect.min.x = cursor_to_pos_abs(galley_info, cursor).x;
+            }
+            if range.contains_inclusive(highlight_range.end()) {
+                let cursor = galley.from_ccursor(CCursor {
+                    index: (highlight_range.end() - range.start()).0,
+                    prefer_next_row: true,
+                });
+                rect.max.x = cursor_to_pos_abs(galley_info, cursor).x;
+            }
+
+            ui.painter()
+                .rect_filled(rect, 2., accent.gamma_multiply(0.15));
+        }
     }
+
+    /// Draws a cursor at the provided offset with the provided accent color.
+    // todo: improve cursor rendering at the end of inline code segments and similar constructs
+    pub fn show_offset(&self, ui: &mut egui::Ui, offset: DocCharOffset, accent: Color32) {
+        let [top, bot] = self.cursor_line(offset);
+        ui.painter().clone().vline(
+            top.x,
+            Rangef { min: top.y, max: bot.y },
+            Stroke::new(1., accent),
+        );
+    }
+
+    pub fn scroll_to_cursor(&self, ui: &mut egui::Ui) {
+        let selection = self
+            .in_progress_selection
+            .unwrap_or(self.buffer.current.selection);
+
+        let [top, bot] = self.cursor_line(selection.1);
+        let rect = Rect::from_min_max(top, bot);
+        ui.scroll_to_rect(rect.expand(rect.height()), None);
+    }
+
+    pub fn cursor_line(&self, offset: DocCharOffset) -> [Pos2; 2] {
+        for galley_info in self.galleys.galleys.iter().rev() {
+            let GalleyInfo { range, galley, rect, .. } = galley_info;
+            if range.contains_inclusive(offset) {
+                let cursor = galley.from_ccursor(CCursor {
+                    index: (offset - range.start()).0,
+                    prefer_next_row: true,
+                });
+                let x = cursor_to_pos_abs(galley_info, cursor).x;
+                let y_range = rect.y_range();
+                return [Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }];
+            }
+        }
+
+        // todo: better error handling
+        Default::default()
+    }
+}
+
+/// returns the x coordinate of the absolute position of `cursor` in `galley`
+pub fn x_impl(galley: &GalleyInfo, cursor: Cursor) -> f32 {
+    cursor_to_pos_abs(galley, cursor).x
+}
+
+/// adjusts cursor so that its absolute x coordinate matches the target (if there is one)
+pub fn from_x(x: f32, galley: &GalleyInfo, cursor: Cursor) -> Cursor {
+    let mut pos_abs = cursor_to_pos_abs(galley, cursor);
+    pos_abs.x = x;
+    pos_abs_to_cursor(galley, pos_abs)
+}
+
+/// returns the absolute position of `cursor` in `galley`
+pub fn cursor_to_pos_abs(galley: &GalleyInfo, cursor: Cursor) -> Pos2 {
+    // experimentally, max.y gives us the y that will put us in the correct row
+    galley.rect.min + galley.galley.pos_from_cursor(&cursor).max.to_vec2()
+}
+
+/// returns a cursor which has the absolute position `pos_abs` in `galley`
+pub fn pos_abs_to_cursor(galley: &GalleyInfo, pos_abs: Pos2) -> Cursor {
+    galley.galley.cursor_from_pos(pos_abs - galley.rect.min)
 }
