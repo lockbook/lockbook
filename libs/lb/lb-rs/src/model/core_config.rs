@@ -30,7 +30,7 @@ impl Config {
             logs: true,
             stdout_logs: false,
             colored_logs: true,
-            rpc_port: Self::get_rpc_port_from_env()
+            rpc_port: Self::rpc_port()
         }
     }
 
@@ -43,7 +43,7 @@ impl Config {
             logs: true,
             stdout_logs: true,
             colored_logs: true,
-            rpc_port: Self::get_rpc_port_from_env()
+            rpc_port: Self::rpc_port()
         }
     }
 
@@ -64,7 +64,7 @@ impl Config {
         writeable_path
     }
 
-    pub fn get_rpc_port_from_env() -> Option<u16> {
+    pub fn rpc_port() -> Option<u16> {
         match env::var("LOCKBOOK_RPC_PORT") {
             Ok(val) => val.parse::<u16>().ok(),
             Err(_) => None,
