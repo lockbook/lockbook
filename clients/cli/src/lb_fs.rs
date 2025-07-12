@@ -7,7 +7,7 @@ use lb_rs::model::core_config::Config;
 #[tokio::main]
 pub async fn mount() -> CliResult<()> {
     let lb = &core().await?;
-    ensure_account(lb)?;
+    ensure_account(lb).await?;
     warning()?;
     copy_data()?;
     Drive::mount().await?;

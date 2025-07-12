@@ -18,11 +18,11 @@ use crate::model::tree_like::TreeLike;
 use crate::model::work_unit::WorkUnit;
 use crate::model::{clock, svg};
 use crate::model::{symkey, ValidationFailure};
-use crate::Lb;
+use crate::LbServer;
 pub use basic_human_duration::ChronoHumanDuration;
 use futures::stream;
 use futures::StreamExt;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{hash_map, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::num::NonZeroUsize;
@@ -53,7 +53,7 @@ pub struct SyncContext {
     pulled_docs: Vec<Uuid>,
 }
 
-impl Lb {
+impl LbServer {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub async fn calculate_work(&self) -> LbResult<SyncStatus> {
         let tx = self.ro_tx().await;
@@ -1235,13 +1235,13 @@ impl SyncContext {
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize,Deserialize, Clone)]
 pub struct SyncStatus {
     pub work_units: Vec<WorkUnit>,
     pub latest_server_ts: u64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize)]
 pub struct SyncProgress {
     pub total: usize,
     pub progress: usize,
