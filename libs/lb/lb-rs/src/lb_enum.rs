@@ -6,36 +6,39 @@ pub enum Lb {
 
 impl Lb {
     pub async fn init(config: Config) -> LbResult<Self> {
-        if let Some(port) = config.rpc_port {
-            let socket = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-            match TcpListener::bind(socket).await {
-                Ok(listener) => {
-                    let inner_lb = LbServer::init(config).await?;
-                    let lb_clone = inner_lb.clone();
-                    tokio::spawn({
-                        async move {
-                            if let Err(e) = lb_clone.listen_for_connections(listener).await {
-                                return Err(LbErrKind::Unexpected(format!(
-                                    "Failed to start listening for connections: {e}"
-                                ))
-                                .into());
+        match config.rpc_port {
+            Some(port) => {
+                let socket = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
+                match TcpListener::bind(socket).await {
+                    Ok(listener) => {
+                        let inner_lb = LbServer::init(config).await?;
+                        let lb_clone = inner_lb.clone();
+                        tokio::spawn({
+                            async move {
+                                if let Err(e) = lb_clone.listen_for_connections(listener).await {
+                                    return Err(LbErrKind::Unexpected(format!(
+                                        "Failed to start listening for connections: {e}"
+                                    ))
+                                    .into());
+                                }
+                                Ok::<_, LbErr>(())
                             }
-                            Ok::<_, LbErr>(())
-                        }
-                    });
-                    Ok(Lb::Direct(inner_lb))
+                        });
+                        Ok(Lb::Direct(inner_lb))
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => {
+                        Ok(Lb::Network(LbClient {
+                            addr: socket,
+                            events: EventSubs::default(),
+                        }))
+                    }
+                    Err(error) => Err(LbErrKind::Unexpected(format!("Failed to bind: {error}")).into()),
                 }
-                Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => {
-                    Ok(Lb::Network(LbClient {
-                        addr: socket,
-                        events: EventSubs::default(),
-                    }))
-                }
-                Err(error) => Err(LbErrKind::Unexpected(format!("Failed to bind: {error}")).into()),
             }
-        } else {
-            let inner_lb = LbServer::init(config).await?;
-            Ok(Lb::Direct(inner_lb))
+            None => {
+                let inner_lb = LbServer::init(config).await?;
+                Ok(Lb::Direct(inner_lb))
+            }
         }
     }
 
