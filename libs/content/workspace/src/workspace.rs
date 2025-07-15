@@ -17,6 +17,7 @@ use std::{fs, thread};
 use tokio::sync::broadcast::error::TryRecvError;
 use tracing::{debug, error, info, instrument, trace, warn};
 
+use crate::audio::show::Audio;
 use crate::file_cache::FileCache;
 use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
@@ -394,6 +395,21 @@ impl Workspace {
                                 md.reload(String::from_utf8_lossy(&bytes).into());
                                 md.hmac = maybe_hmac;
                             }
+                        } else if ext == "mp3" || ext == "m4a" || ext == "wav" || ext == "flac" {
+                            match self.core.get_path_by_id(id) {
+                                Ok(file_path) => {
+                                    let edited_path = &file_path[1..];
+                                    println!("{}", edited_path);
+                                    tab.content = ContentState::Open(TabContent::Audio(
+                                        Audio::new(id, edited_path.to_string()),
+                                    ));
+                                }
+                                Err(_) => {
+                                    tab.content = ContentState::Failed(TabFailure::Unexpected(
+                                        format!("Failed to get path"),
+                                    ));
+                                }
+                            };
                         } else {
                             tab.content = ContentState::Failed(TabFailure::SimpleMisc(format!(
                                 "Unsupported file extension: {}",
