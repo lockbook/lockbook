@@ -844,11 +844,11 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
             ContentState::Open(tab) => match tab {
                 TabContent::Image(_) => 2,
                 TabContent::Markdown(_) => 3,
-                // TabContent::PlainText(_) => 4,
                 TabContent::Pdf(_) => 5,
                 TabContent::Svg(_) => 6,
                 TabContent::MindMap(_) => 7,
                 TabContent::SpaceInspector(_) => 8,
+                TabContent::Audio(_) => 9,
             },
             _ => 1,
         },
