@@ -218,6 +218,8 @@ impl AccountScreen {
                         self.tree.cursor = Some(file);
                         self.tree.selected.clear();
                         self.tree.selected.insert(file);
+                        self.tree.reveal_selection();
+                        self.tree.scroll_to_cursor = true;
                     }
                 }
 
