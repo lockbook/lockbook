@@ -501,7 +501,7 @@ struct ImportAccountSyncView: View {
                 }
                 .buttonStyle(.bordered)
             } else {
-                ProgressView(value: 5)
+                ProgressView(value: model.syncProgress)
                     .frame(maxWidth: 700)
                 
                 Text(model.syncMsg)
