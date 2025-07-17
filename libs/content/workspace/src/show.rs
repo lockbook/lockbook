@@ -815,21 +815,10 @@ impl Workspace {
                         Sense { click: true, drag: false, focusable: false },
                     );
 
-                    let mut close_button = LayoutJob::default();
-                    close_button.append(
-                        "x",
-                        0.0,
-                        egui::TextFormat {
-                            font_id: FontId::monospace(x_icon.size),
-                            valign: Align::Center,
-                            ..Default::default()
-                        },
-                    );
-
-                    // let close_button: egui::WidgetText = egui::RichText::new(x_icon.icon)
-                    // .line_height(Some(20.0))
-                    // .font(egui::FontId::monospace(x_icon.size))
-                    // .into();
+                    let close_button: egui::WidgetText = egui::RichText::new(x_icon.icon)
+                        .line_height(Some(14.0))
+                        .font(egui::FontId::monospace(x_icon.size))
+                        .into();
                     let close_button: egui::WidgetText = close_button.into();
                     let close_button_galley = close_button.into_galley(
                         ui,
@@ -846,8 +835,6 @@ impl Workspace {
                         close_button_galley.size(),
                     );
 
-                    ui.painter()
-                        .rect_filled(close_button_rect, Rounding::default(), Color32::RED);
                     let close_button_resp = ui.interact(
                         close_button_rect,
                         Id::new("tab label close button").with(t),
