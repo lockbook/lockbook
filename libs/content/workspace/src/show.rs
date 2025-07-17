@@ -3,9 +3,9 @@ use core::f32;
 use egui::os::OperatingSystem;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    include_image, Align, Align2, Color32, CursorIcon, EventFilter, FontSelection, Id, Image, Key,
-    Label, Modifiers, Rangef, Rect, RichText, Rounding, ScrollArea, Sense, Stroke, TextStyle,
-    TextWrapMode, Vec2, ViewportCommand, Widget as _, WidgetText,
+    include_image, vec2, Align, Align2, Color32, CursorIcon, EventFilter, FontId, FontSelection,
+    Id, Image, Key, Label, Modifiers, Rangef, Rect, RichText, Rounding, ScrollArea, Sense, Stroke,
+    TextStyle, TextWrapMode, Vec2, ViewportCommand, Widget as _, WidgetText,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
@@ -778,7 +778,7 @@ impl Workspace {
                         };
 
                         let tab_intel: egui::WidgetText = egui::RichText::new(text)
-                            // .font(egui::FontId::monospace(14.0))
+                            .font(egui::FontId::monospace(11.0))
                             .color(color)
                             .into();
                         tab_intel.into_galley(
@@ -815,20 +815,39 @@ impl Workspace {
                         Sense { click: true, drag: false, focusable: false },
                     );
 
-                    let close_button: egui::WidgetText = egui::RichText::new(x_icon.icon)
-                        .line_height(Some(14.0))
-                        .font(egui::FontId::monospace(x_icon.size))
-                        .into();
+                    let mut close_button = LayoutJob::default();
+                    close_button.append(
+                        "x",
+                        0.0,
+                        egui::TextFormat {
+                            font_id: FontId::monospace(x_icon.size),
+                            valign: Align::Center,
+                            ..Default::default()
+                        },
+                    );
+
+                    // let close_button: egui::WidgetText = egui::RichText::new(x_icon.icon)
+                    // .line_height(Some(20.0))
+                    // .font(egui::FontId::monospace(x_icon.size))
+                    // .into();
+                    let close_button: egui::WidgetText = close_button.into();
                     let close_button_galley = close_button.into_galley(
                         ui,
                         Some(TextWrapMode::Extend),
                         f32::INFINITY,
                         egui::TextStyle::Body,
                     );
-                    let close_button_rect = egui::Align2::LEFT_CENTER.anchor_size(
-                        text_rect.right_center() + egui::vec2(5.0, 0.0),
+                    let close_button_rect = egui::Align2::LEFT_TOP.anchor_size(
+                        text_rect.right_top()
+                            + vec2(
+                                5.0,
+                                (text.rect.height() - &close_button_galley.rect.height()) / 2.0,
+                            ),
                         close_button_galley.size(),
                     );
+
+                    ui.painter()
+                        .rect_filled(close_button_rect, Rounding::default(), Color32::RED);
                     let close_button_resp = ui.interact(
                         close_button_rect,
                         Id::new("tab label close button").with(t),
