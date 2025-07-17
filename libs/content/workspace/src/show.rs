@@ -3,14 +3,14 @@ use core::f32;
 use egui::os::OperatingSystem;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Label, Modifiers,
-    Rangef, Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2, ViewportCommand,
-    Widget as _, WidgetText,
+    include_image, Align, Align2, Color32, CursorIcon, EventFilter, FontSelection, Id, Image, Key,
+    Label, Modifiers, Rangef, Rect, RichText, Rounding, ScrollArea, Sense, Stroke, TextStyle,
+    TextWrapMode, Vec2, ViewportCommand, Widget as _, WidgetText,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
-use std::mem;
 use std::time::{Duration, Instant};
+use std::{marker, mem};
 use tracing::instrument;
 
 use crate::output::Response;
@@ -755,48 +755,60 @@ impl Workspace {
             .show(ui, |ui| {
                 ui.add_visible_ui(self.tabs[t].rename.is_none(), |ui| {
                     let start = ui.available_rect_before_wrap().min;
-                    let tab_intel_text = if status == TabStatus::Clean {
-                        (t + 1).to_string()
-                    } else {
-                        "*".to_string()
-                    };
-
-                    let tab_intel_color = if status == TabStatus::Clean {
-                        ui.style().visuals.hyperlink_color
-                    } else {
-                        ui.style().visuals.warn_fg_color
-                    };
-
-                    let tab_intel: egui::WidgetText = egui::RichText::new(tab_intel_text)
-                        .font(egui::FontId::monospace(12.0))
-                        .color(tab_intel_color)
-                        .into();
-                    let tab_intel_galley = tab_intel.into_galley(
-                        ui,
-                        Some(TextWrapMode::Extend),
-                        f32::INFINITY,
-                        egui::TextStyle::Body,
-                    );
-                    let tab_intel_rect =
-                        egui::Align2::LEFT_TOP.anchor_size(start, tab_intel_galley.size());
-
-                    ui.painter().galley(
-                        start + egui::vec2(0.0, 3.0),
-                        tab_intel_galley,
-                        ui.visuals().text_color(),
-                    );
 
                     let text: egui::WidgetText = self.tab_title(&self.tabs[t]).into();
-                    let text_galley = text.into_galley(
+                    let text = text.into_galley(
                         ui,
                         Some(TextWrapMode::Truncate),
                         200.0,
                         egui::TextStyle::Body,
                     );
-                    let text_rect = egui::Align2::LEFT_TOP.anchor_size(
-                        tab_intel_rect.right_top() + egui::vec2(7.0, 0.0),
-                        text_galley.size(),
+
+                    let tab_marker = {
+                        let text = if status == TabStatus::Clean {
+                            (t + 1).to_string()
+                        } else {
+                            "*".to_string()
+                        };
+
+                        let color = if status == TabStatus::Clean {
+                            ui.style().visuals.hyperlink_color
+                        } else {
+                            ui.style().visuals.warn_fg_color
+                        };
+
+                        let tab_intel: egui::WidgetText = egui::RichText::new(text)
+                            // .font(egui::FontId::monospace(14.0))
+                            .color(color)
+                            .into();
+                        tab_intel.into_galley(
+                            ui,
+                            Some(TextWrapMode::Extend),
+                            f32::INFINITY,
+                            egui::TextStyle::Body,
+                        )
+                    };
+
+                    let marker_rect = Align2::LEFT_TOP.anchor_size(
+                        start
+                            + egui::vec2(
+                                0.0,
+                                text.rect.height() / 2.0 - tab_marker.rect.height() / 2.0,
+                            ),
+                        tab_marker.size(),
                     );
+
+                    ui.painter().galley(
+                        marker_rect.left_top(),
+                        tab_marker.clone(),
+                        ui.visuals().text_color(),
+                    );
+
+                    let text_rect = egui::Align2::LEFT_TOP.anchor_size(
+                        start + egui::vec2(tab_marker.rect.width() + 7.0, 0.0),
+                        text.size(),
+                    );
+
                     let text_resp = ui.interact(
                         text_rect,
                         Id::new("tab label").with(t),
@@ -835,7 +847,7 @@ impl Workspace {
                     };
 
                     // draw the tab text
-                    ui.painter().galley(text_rect.min, text_galley, text_color);
+                    ui.painter().galley(text_rect.min, text, text_color);
 
                     let touch_mode =
                         matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
