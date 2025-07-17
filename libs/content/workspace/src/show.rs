@@ -835,15 +835,15 @@ impl Workspace {
                         close_button_galley.size(),
                     );
 
-                    ui.painter().rect_filled(
-                        marker_rect,
-                        Rounding::default(),
-                        Color32::RED.linear_multiply(0.5),
-                    );
-                    ui.painter()
-                        .rect_filled(text_rect, Rounding::default(), Color32::RED);
-                    ui.painter()
-                        .rect_filled(close_button_rect, Rounding::default(), Color32::RED);
+                    // ui.painter().rect_filled(
+                    //     marker_rect,
+                    //     Rounding::default(),
+                    //     Color32::RED.linear_multiply(0.5),
+                    // );
+                    // ui.painter()
+                    //     .rect_filled(text_rect, Rounding::default(), Color32::RED);
+                    // ui.painter()
+                    //     .rect_filled(close_button_rect, Rounding::default(), Color32::RED);
                     let close_button_resp = ui.interact(
                         close_button_rect,
                         Id::new("tab label close button").with(t),
