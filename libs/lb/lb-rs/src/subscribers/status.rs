@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{Mutex, RwLock},
     time::Instant,
@@ -9,7 +10,7 @@ use uuid::Uuid;
 use crate::{
     model::errors::{LbErrKind, LbResult, Unexpected},
     service::{events::Event, sync::SyncIncrement, usage::UsageMetrics},
-    Lb,
+    LbServer,
 };
 
 #[derive(Clone, Default)]
@@ -34,7 +35,7 @@ pub struct SpaceUpdater {
 /// space to represent information (phones?) earlier fields are more
 /// important than later fields. Ideally anything with an ID is represented
 /// in the file tree itself.
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct Status {
     /// some recent server interaction failed due to network conditions
     pub offline: bool,
@@ -121,7 +122,7 @@ impl Status {
     }
 }
 
-impl Lb {
+impl LbServer {
     pub async fn status(&self) -> Status {
         self.status.current_status.read().await.clone()
     }
