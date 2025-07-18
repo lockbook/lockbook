@@ -260,7 +260,7 @@ impl Toolbar {
                     tlbr_ctx.viewport_settings.container_rect.center(),
                 )
             } else {
-                get_zoom_fit_transform(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, false)
+                get_zoom_fit_transform(tlbr_ctx.viewport_settings)
             }
             .unwrap_or_default();
 
@@ -399,7 +399,7 @@ impl Toolbar {
 
         ui.add_space(5.0);
 
-        ui.add(egui::Separator::default());
+        ui.add(egui::Separator::default().shrink(ui.available_width()));
 
         ui.add_space(5.0);
 
@@ -628,8 +628,8 @@ fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>
 fn show_bring_back_btn(
     ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>, viewport_island_rect: egui::Rect,
 ) -> Option<Response> {
-    let elements_bound = match calc_elements_bounds(tlbr_ctx.buffer, tlbr_ctx.viewport_settings) {
-        Some(rect) => transform_rect(rect, tlbr_ctx.viewport_settings.master_transform),
+    let elements_bound = match tlbr_ctx.viewport_settings.bounded_rect {
+        Some(rect) => rect,
         None => return None,
     };
 

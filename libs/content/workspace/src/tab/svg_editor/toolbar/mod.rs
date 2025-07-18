@@ -4,18 +4,19 @@ mod tools_island;
 mod viewport_island;
 
 use crate::{
-    tab::svg_editor::{toolbar::mini_map::MINI_MAP_WIDTH, InputContext},
+    tab::svg_editor::{gesture_handler::calc_elements_bounds, InputContext},
     theme::icons::Icon,
     widgets::Button,
     workspace::WsPersistentStore,
 };
-use lb_rs::model::svg::buffer::Buffer;
+use lb_rs::model::svg::{buffer::Buffer, diff::DiffState};
 use viewport_island::ViewportPopover;
 
 use super::{
     gesture_handler::GestureHandler, history::History, pen::PenSettings, renderer::Renderer,
     selection::Selection, CanvasSettings, Eraser, Pen, ViewportSettings,
 };
+pub const MINI_MAP_WIDTH: f32 = 100.0;
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
 const THICKNESS_BTN_WIDTH: f32 = 25.0;
@@ -80,8 +81,21 @@ pub struct ToolbarContext<'a> {
 }
 
 impl ViewportSettings {
-    pub fn update_working_rect(&mut self, settings: CanvasSettings) {
-        let new_working_rect = if let Some(bounded_rect) = self.bounded_rect {
+    pub fn update_working_rect(
+        &mut self, settings: CanvasSettings, buffer: &Buffer, diff_state: &DiffState,
+    ) {
+        let is_page_mode = self.is_page_mode();
+        let new_working_rect = if let Some(bounded_rect) = &mut self.bounded_rect {
+            if diff_state.is_dirty() && diff_state.transformed.is_none() {
+                if let Some(elements_bounds) = calc_elements_bounds(&buffer) {
+                    if is_page_mode {
+                        bounded_rect.max.y = elements_bounds.max.y
+                    } else {
+                        *bounded_rect = elements_bounds;
+                    }
+                }
+            }
+
             let min_x = if self.left_locked {
                 bounded_rect.left().max(self.container_rect.left())
             } else {

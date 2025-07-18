@@ -3,21 +3,23 @@ use resvg::usvg::Transform;
 use crate::tab::svg_editor::{
     gesture_handler::transform_canvas,
     renderer::RenderOptions,
-    toolbar::{Toolbar, ToolbarContext},
+    toolbar::{Toolbar, ToolbarContext, MINI_MAP_WIDTH},
     util::transform_rect,
 };
-
-pub const MINI_MAP_WIDTH: f32 = 100.0;
 
 impl Toolbar {
     pub fn show_mini_map(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
     ) -> Option<egui::Response> {
-        if !tlbr_ctx.settings.show_mini_map || !tlbr_ctx.viewport_settings.is_scroll_mode() {
+        if !tlbr_ctx.settings.show_mini_map
+            || !tlbr_ctx.viewport_settings.is_scroll_mode()
+            || tlbr_ctx.viewport_settings.bounded_rect.is_none()
+        {
             return None;
         }
+
         let mini_map_size =
-            egui::vec2(MINI_MAP_WIDTH, tlbr_ctx.viewport_settings.container_rect.height());
+            egui::vec2(MINI_MAP_WIDTH, tlbr_ctx.viewport_settings.container_rect.height() / 2.0);
 
         let mini_map_rect = egui::Rect::from_min_size(
             tlbr_ctx.viewport_settings.container_rect.right_top()
@@ -49,11 +51,39 @@ impl Toolbar {
                 .invert()
                 .unwrap(),
         );
+
+        let container_rect = transform_rect(
+            tlbr_ctx.viewport_settings.container_rect,
+            tlbr_ctx
+                .viewport_settings
+                .master_transform
+                .invert()
+                .unwrap(),
+        );
+        let scroll_percentage = container_rect.bottom() / bounded_rect.height();
         let s = mini_map_rect.width() / bounded_rect.width();
+        let absolute_mini_map_rect = transform_rect(
+            mini_map_rect,
+            tlbr_ctx
+                .viewport_settings
+                .master_transform
+                .invert()
+                .unwrap(),
+        );
+
+        let no_scroll_diff = (bounded_rect.height() / s) - absolute_mini_map_rect.height();
+        let mini_map_no_scroll_height = (bounded_rect.height() / s) / scroll_percentage;
+
+        let y_offset =
+            (bounded_rect.top() - (absolute_mini_map_rect.top())) * s * scroll_percentage;
+        println!("y_ossfet: {:#?}| scroll percentage: {:#?}", y_offset, scroll_percentage);
+
+        let scroll_ratio = container_rect.top() / bounded_rect.height();
+        let small_scroll_position = scroll_ratio * absolute_mini_map_rect.height();
 
         let viewport_transform = Transform::identity().post_scale(s, s).post_translate(
             mini_map_rect.center().x - s * bounded_rect.center().x,
-            mini_map_rect.top() - s * bounded_rect.top(),
+            mini_map_rect.top() - s * bounded_rect.top() - small_scroll_position / s,
         );
 
         painter.rect_filled(painter.clip_rect(), 0.0, ui.visuals().extreme_bg_color);
