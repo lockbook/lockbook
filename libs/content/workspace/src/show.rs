@@ -794,7 +794,6 @@ impl Workspace {
                     let close_button: egui::WidgetText = egui::RichText::new(x_icon.icon)
                         .font(egui::FontId::monospace(x_icon.size))
                         .into();
-                    let close_button: egui::WidgetText = close_button.into();
                     let close_button = close_button.into_galley(
                         ui,
                         Some(TextWrapMode::Extend),
@@ -821,7 +820,7 @@ impl Workspace {
                     let close_button_rect = centered_galley_rect(&close_button);
                     let close_button_rect = egui::Align2::LEFT_TOP.anchor_size(
                         text_rect.right_top()
-                            + vec2(5.0, (text.rect.height() - &close_button_rect.height()) / 2.0),
+                            + vec2(5.0, (text.rect.height() - close_button_rect.height()) / 2.0),
                         close_button_rect.size(),
                     );
 
