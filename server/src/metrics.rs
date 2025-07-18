@@ -183,6 +183,7 @@ where
                 .with_label_values(&[APP_STORE_LABEL_NAME])
                 .set(premium_app_store_users);
 
+            info!("metrics refresh finished");
             tokio::time::sleep(self.config.metrics.time_between_metrics_refresh).await;
         }
     }
