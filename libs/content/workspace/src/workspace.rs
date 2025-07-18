@@ -382,6 +382,7 @@ impl Workspace {
                             if tab_created {
                                 tab.content =
                                     ContentState::Open(TabContent::Markdown(Markdown::new(
+                                        self.ctx.clone(),
                                         core.clone(),
                                         &String::from_utf8_lossy(&bytes),
                                         id,
@@ -391,7 +392,7 @@ impl Workspace {
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
-                                md.reload(String::from_utf8_lossy(&bytes).into());
+                                md.buffer.reload(String::from_utf8_lossy(&bytes).into());
                                 md.hmac = maybe_hmac;
                             }
                         } else {
