@@ -3,14 +3,14 @@ use core::f32;
 use egui::os::OperatingSystem;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    include_image, vec2, Align, Align2, Color32, CursorIcon, EventFilter, FontId, FontSelection,
-    Id, Image, Key, Label, Modifiers, Rangef, Rect, RichText, Rounding, ScrollArea, Sense, Stroke,
-    TextStyle, TextWrapMode, Vec2, ViewportCommand, Widget as _, WidgetText,
+    include_image, vec2, Align, Align2, CursorIcon, EventFilter, FontSelection, Galley, Id, Image,
+    Key, Label, Modifiers, Rangef, Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode,
+    Vec2, ViewportCommand, Widget as _, WidgetText,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
+use std::mem;
 use std::time::{Duration, Instant};
-use std::{marker, mem};
 use tracing::instrument;
 
 use crate::output::Response;
@@ -756,6 +756,9 @@ impl Workspace {
                 ui.add_visible_ui(self.tabs[t].rename.is_none(), |ui| {
                     let start = ui.available_rect_before_wrap().min;
 
+                    // create galleys - text layout
+
+                    // tab label - the actual file name
                     let text: egui::WidgetText = self.tab_title(&self.tabs[t]).into();
                     let text = text.into_galley(
                         ui,
@@ -764,44 +767,50 @@ impl Workspace {
                         egui::TextStyle::Body,
                     );
 
-                    let tab_marker = {
-                        let text = if status == TabStatus::Clean {
-                            (t + 1).to_string()
-                        } else {
-                            "*".to_string()
-                        };
+                    // tab marker - tab status / tab number
+                    let tab_marker = if status == TabStatus::Clean {
+                        (t + 1).to_string()
+                    } else {
+                        "*".to_string()
+                    };
 
-                        let color = if status == TabStatus::Clean {
+                    let tab_marker: egui::WidgetText = egui::RichText::new(tab_marker)
+                        .font(egui::FontId::monospace(12.0))
+                        .color(if status == TabStatus::Clean {
                             ui.style().visuals.hyperlink_color
                         } else {
                             ui.style().visuals.warn_fg_color
-                        };
+                        })
+                        .into();
 
-                        let tab_intel: egui::WidgetText = egui::RichText::new(text)
-                            .font(egui::FontId::monospace(11.0))
-                            .color(color)
-                            .into();
-                        tab_intel.into_galley(
-                            ui,
-                            Some(TextWrapMode::Extend),
-                            f32::INFINITY,
-                            egui::TextStyle::Body,
-                        )
-                    };
+                    let tab_marker = tab_marker.into_galley(
+                        ui,
+                        Some(TextWrapMode::Extend),
+                        f32::INFINITY,
+                        egui::TextStyle::Body,
+                    );
 
+                    // close button - the x
+                    let close_button: egui::WidgetText = egui::RichText::new(x_icon.icon)
+                        .font(egui::FontId::monospace(x_icon.size))
+                        .into();
+                    let close_button: egui::WidgetText = close_button.into();
+                    let close_button = close_button.into_galley(
+                        ui,
+                        Some(TextWrapMode::Extend),
+                        f32::INFINITY,
+                        egui::TextStyle::Body,
+                    );
+
+                    // create rects - place these relative to one another
+                    let marker_rect = centered_galley_rect(&tab_marker);
                     let marker_rect = Align2::LEFT_TOP.anchor_size(
                         start
                             + egui::vec2(
                                 0.0,
-                                text.rect.height() / 2.0 - tab_marker.rect.height() / 2.0,
+                                text.rect.height() / 2.0 - marker_rect.height() / 2.0,
                             ),
-                        tab_marker.size(),
-                    );
-
-                    ui.painter().galley(
-                        marker_rect.left_top(),
-                        tab_marker.clone(),
-                        ui.visuals().text_color(),
+                        marker_rect.size(),
                     );
 
                     let text_rect = egui::Align2::LEFT_TOP.anchor_size(
@@ -809,32 +818,14 @@ impl Workspace {
                         text.size(),
                     );
 
-                    let text_resp = ui.interact(
-                        text_rect,
-                        Id::new("tab label").with(t),
-                        Sense { click: true, drag: false, focusable: false },
-                    );
-
-                    let close_button: egui::WidgetText = egui::RichText::new(x_icon.icon)
-                        .line_height(Some(14.0))
-                        .font(egui::FontId::monospace(x_icon.size))
-                        .into();
-                    let close_button: egui::WidgetText = close_button.into();
-                    let close_button_galley = close_button.into_galley(
-                        ui,
-                        Some(TextWrapMode::Extend),
-                        f32::INFINITY,
-                        egui::TextStyle::Body,
-                    );
+                    let close_button_rect = centered_galley_rect(&close_button);
                     let close_button_rect = egui::Align2::LEFT_TOP.anchor_size(
                         text_rect.right_top()
-                            + vec2(
-                                5.0,
-                                (text.rect.height() - &close_button_galley.rect.height()) / 2.0,
-                            ),
-                        close_button_galley.size(),
+                            + vec2(5.0, (text.rect.height() - &close_button_rect.height()) / 2.0),
+                        close_button_rect.size(),
                     );
 
+                    // uncomment to see geometry debug views
                     // ui.painter().rect_filled(
                     //     marker_rect,
                     //     Rounding::default(),
@@ -844,6 +835,20 @@ impl Workspace {
                     //     .rect_filled(text_rect, Rounding::default(), Color32::RED);
                     // ui.painter()
                     //     .rect_filled(close_button_rect, Rounding::default(), Color32::RED);
+
+                    // render & process input
+                    ui.painter().galley(
+                        marker_rect.left_top(),
+                        tab_marker.clone(),
+                        ui.visuals().text_color(),
+                    );
+
+                    let text_resp = ui.interact(
+                        text_rect,
+                        Id::new("tab label").with(t),
+                        Sense { click: true, drag: false, focusable: false },
+                    );
+
                     let close_button_resp = ui.interact(
                         close_button_rect,
                         Id::new("tab label close button").with(t),
@@ -890,7 +895,7 @@ impl Workspace {
                     if show_close_button {
                         ui.painter().galley(
                             close_button_rect.min,
-                            close_button_galley,
+                            close_button,
                             ui.visuals().text_color(),
                         );
                     }
@@ -1008,6 +1013,17 @@ fn get_apple_bg_color(ui: &mut egui::Ui) -> egui::Color32 {
     } else {
         egui::Color32::from_rgb(240, 240, 239)
     }
+}
+
+/// egui, when rendering a single monospace symbol character doesn't seem to be able to center a character vertically
+/// this fn takes into account where the text was positioned within the galley and computes a size using mesh_bounds
+/// and retruns a rect with uniform padding.
+fn centered_galley_rect(galley: &Galley) -> Rect {
+    let min = galley.rect.min;
+    let offset = galley.rect.min - galley.mesh_bounds.min;
+    let max = galley.mesh_bounds.max - offset;
+
+    Rect { min, max }
 }
 
 enum TabLabelResponse {
