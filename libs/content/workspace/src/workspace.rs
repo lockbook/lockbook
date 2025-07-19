@@ -396,13 +396,11 @@ impl Workspace {
                                 md.hmac = maybe_hmac;
                             }
                         } else if ext == "mp3" || ext == "m4a" || ext == "wav" || ext == "flac" {
-                            match self.core.get_path_by_id(id) {
-                                Ok(file_path) => {
-                                    let edited_path = &file_path[1..];
-                                    println!("{}", edited_path);
-                                    tab.content = ContentState::Open(TabContent::Audio(
-                                        Audio::new(id, edited_path.to_string()),
-                                    ));
+                            match self.core.read_document(id, false) {
+                                Ok(bytes) => {
+                                    tab.content = {
+                                        ContentState::Open(TabContent::Audio(Audio::new(id, bytes)))
+                                    }
                                 }
                                 Err(_) => {
                                     tab.content = ContentState::Failed(TabFailure::Unexpected(

@@ -1,5 +1,5 @@
 use egui::Ui;
-use egui_player::player::Player;
+use egui_player::{player::Player, InputMode};
 use lb_rs::Uuid;
 
 pub struct Audio {
@@ -8,8 +8,8 @@ pub struct Audio {
 }
 
 impl Audio {
-    pub fn new(id: Uuid, file_path: String) -> Self {
-        let mut player = Player::new(&file_path);
+    pub fn new(id: Uuid, bytes: Vec<u8>) -> Self {
+        let mut player = Player::new(InputMode::Bytes(bytes));
         player.set_transcript_settings(egui_player::TranscriptionSettings::TranscriptLabel);
 
         Audio { id, player }
