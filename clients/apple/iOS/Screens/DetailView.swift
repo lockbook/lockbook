@@ -24,7 +24,7 @@ struct DetailView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                HStack(alignment: .center, spacing: 5) {
+                HStack(alignment: .lastTextBaseline, spacing: 5) {
                     if workspaceState.openDoc != nil {
                         Button(action: {
                             runOnOpenDoc { file in
@@ -56,7 +56,6 @@ struct DetailView: View {
                                     .font(.footnote)
                                     .foregroundColor(.accentColor)
                             }
-                            .padding(.top, 2)
                         })
                     }
                 }
