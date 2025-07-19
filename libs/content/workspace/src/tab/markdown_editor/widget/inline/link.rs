@@ -44,7 +44,6 @@ impl<'ast> Editor {
         }
         if response.clicked && modifiers.command {
             let url = &node_link.url;
-            let url = if !url.contains("://") { &format!("https://{}", url) } else { url };
             ui.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(url)));
         }
 
