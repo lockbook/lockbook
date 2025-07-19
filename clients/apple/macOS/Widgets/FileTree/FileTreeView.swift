@@ -64,7 +64,6 @@ struct FileTreeView: NSViewRepresentable {
             self.delegate = FileTreeDelegate(homeState: homeState, filesModel: filesModel)
             
             AppState.workspaceState.$selectedFolder.sink { [weak self, weak treeView] selectedFolder in
-                print("getting selected folder....")
                 if self?.delegate.supressnextOpenFolder == true {
                     self?.delegate.supressnextOpenFolder = false
                     return
@@ -413,7 +412,8 @@ class FileItemView: NSTableCellView {
         label.isBezeled = false
         label.drawsBackground = false
         label.lineBreakMode = .byTruncatingTail
-        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        label.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        icon.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         let stackView = NSStackView(views: [icon, label])
         stackView.orientation = .horizontal
