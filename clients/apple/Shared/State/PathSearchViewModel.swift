@@ -10,10 +10,14 @@ class PathSearchViewModel: ObservableObject {
     @Published var selected = 0
     
     func openSelected() {
-        guard selected < results.count else {
+        guard selected != -1 || (selected == -1 && !results.isEmpty) else {
             return
         }
         
+        guard selected < results.count else {
+            return
+        }
+                
         guard let file = try? AppState.lb.getFile(id: results[selected].id).get() else {
             return
         }
