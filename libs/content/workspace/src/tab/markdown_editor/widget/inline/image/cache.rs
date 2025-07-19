@@ -60,9 +60,18 @@ pub fn calc<'ast>(
                         let maybe_lb_id = match url.strip_prefix("lb://") {
                             Some(id) => Some(Uuid::parse_str(id).map_err(|e| e.to_string())?),
                             None => {
-                                tab::core_get_by_relative_path(&core, file_id, &PathBuf::from(&url))
-                                    .map(|f| f.id)
-                                    .ok()
+                                let parent_id = core
+                                    .get_file_by_id(file_id)
+                                    .map_err(|e| e.to_string())?
+                                    .parent;
+
+                                tab::core_get_by_relative_path(
+                                    &core,
+                                    parent_id,
+                                    &PathBuf::from(&url),
+                                )
+                                .map(|f| f.id)
+                                .ok()
                             }
                         };
 
