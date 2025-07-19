@@ -100,37 +100,39 @@ struct NewDrawerView<Main: View, Side: View>: View {
                 }
             }
             
-            Rectangle()
-                .fill(Color.clear)
-                .frame(width: dragActivationClosedX)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture()
-                        .updating($gestureOffset) { value, out, _ in
-                            out = min(value.translation.width, sidebarWidth(width: geometry.size.width))
-                        }
-                        .onEnded { value in
-                            onOpenEnd(translation: value.translation.width, velocity: value.velocity.width, sidebarWidth: sidebarWidth(width: geometry.size.width))
-                        }
-                )
-                .disabled(homeState.constrainedSidebarState == .openPartial)
+            if homeState.constrainedSidebarState == .closed {
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(width: dragActivationClosedX)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture()
+                            .updating($gestureOffset) { value, out, _ in
+                                out = min(value.translation.width, sidebarWidth(width: geometry.size.width))
+                            }
+                            .onEnded { value in
+                                onOpenEnd(translation: value.translation.width, velocity: value.velocity.width, sidebarWidth: sidebarWidth(width: geometry.size.width))
+                            }
+                    )
+            }
             
-            Rectangle()
-                .fill(Color.clear)
-                .frame(width: dragActivationClosedX)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture()
-                        .updating($gestureOffset) { value, out, _ in
-                            out = max(value.translation.width, -sidebarWidth(width: geometry.size.width))
-                        }
-                        .onEnded { value in
-                            onCloseEnd(translation: value.translation.width, velocity: value.velocity.width, sidebarWidth: sidebarWidth(width: geometry.size.width))
-                        }
-                )
-                .disabled(homeState.constrainedSidebarState == .closed)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, sidebarTrailingPadding - 20)
+            if homeState.constrainedSidebarState == .openPartial {
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(width: dragActivationClosedX)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture()
+                            .updating($gestureOffset) { value, out, _ in
+                                out = max(value.translation.width, -sidebarWidth(width: geometry.size.width))
+                            }
+                            .onEnded { value in
+                                onCloseEnd(translation: value.translation.width, velocity: value.velocity.width, sidebarWidth: sidebarWidth(width: geometry.size.width))
+                            }
+                    )
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.trailing, sidebarTrailingPadding - 20)
+            }
         }
     }
     
