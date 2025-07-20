@@ -1,212 +1,207 @@
-pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
-
-    let raw = req.args.unwrap_or_default();
-    let payload = match req.method.as_str() {
-        "create_account" => {
-            let (username, api_url, welcome): (String, String, bool) =
-                deserialize_args(&raw)?;
+pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult<Vec<u8>> {
+    let res = match method {
+        Method::CreateAccount => {
+            let (username, api_url, welcome): (String, String, bool) = deserialize_args(raw)?;
             call_async(|| lb.create_account(&username, &api_url, welcome)).await?
         }
 
-        "import_account" => {
-            let (key, maybe_url): (String, Option<String>) = deserialize_args(&raw)?;
+        Method::ImportAccount => {
+            let (key, maybe_url): (String, Option<String>) = deserialize_args(raw)?;
             call_async(|| lb.import_account(&key, maybe_url.as_deref())).await?
         }
 
-        "import_account_private_key_v1" => {
-            let account: crate::model::account::Account = deserialize_args(&raw)?;
+        Method::ImportAccountPrivateKeyV1 => {
+            let account: crate::model::account::Account = deserialize_args(raw)?;
             call_async(|| lb.import_account_private_key_v1(account)).await?
         }
 
-        "import_account_private_key_v2" => {
-            let (pk_bytes, api_url): ([u8; 32], String) = deserialize_args(&raw)?;
+        Method::ImportAccountPrivateKeyV2 => {
+            let (pk_bytes, api_url): ([u8; 32], String) = deserialize_args(raw)?;
             let sk = SecretKey::parse(&pk_bytes).map_err(core_err_unexpected)?;
             call_async(|| lb.import_account_private_key_v2(sk, &api_url)).await?
         }
 
-        "import_account_phrase" => {
-            let (phrase_vec, api_url): (Vec<String>, String) = deserialize_args(&raw)?;
+        Method::ImportAccountPhrase => {
+            let (phrase_vec, api_url): (Vec<String>, String) = deserialize_args(raw)?;
             let slice: Vec<&str> = phrase_vec.iter().map(|s| s.as_str()).collect();
-            let phrase_arr: [&str; 24] = slice
-                .try_into()
-                .map_err(core_err_unexpected)?;
+            let phrase_arr: [&str; 24] = slice.try_into().map_err(core_err_unexpected)?;
             call_async(|| lb.import_account_phrase(phrase_arr, &api_url)).await?
         }
 
-        "export_account_private_key" => {
+        Method::ExportAccountPrivateKey => {
             call_sync(|| lb.export_account_private_key())?
         }
 
-        "export_account_private_key_v1" => {
+        Method::ExportAccountPrivateKeyV1 => {
             call_sync(|| lb.export_account_private_key_v1())?
         }
 
-        "export_account_private_key_v2" => {
+        Method::ExportAccountPrivateKeyV2 => {
             call_sync(|| lb.export_account_private_key_v2())?
         }
 
-        "export_account_phrase" => {
+        Method::ExportAccountPhrase => {
             call_sync(|| lb.export_account_phrase())?
         }
 
-        "export_account_qr" => {
+        Method::ExportAccountQr => {
             call_sync(|| lb.export_account_qr())?
         }
 
-        "delete_account" => {
+        Method::DeleteAccount => {
             call_async(|| lb.delete_account()).await?
         }
 
-        "suggested_docs" => {
-            let settings: RankingWeights = deserialize_args(&raw)?;
+        Method::SuggestedDocs => {
+            let settings: RankingWeights = deserialize_args(raw)?;
             call_async(|| lb.suggested_docs(settings)).await?
         }
 
-        "disappear_account" => {
-            let username: String = deserialize_args(&raw)?;
+        Method::DisappearAccount => {
+            let username: String = deserialize_args(raw)?;
             call_async(|| lb.disappear_account(&username)).await?
         }
 
-        "disappear_file" => {
-            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::DisappearFile => {
+            let id: Uuid = deserialize_args(raw)?;
             call_async(|| lb.disappear_file(id)).await?
         }
 
-        "list_users" => {
-            let filter: Option<AccountFilter> = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::ListUsers => {
+            let filter: Option<AccountFilter> = deserialize_args(raw)?;
             call_async(|| lb.list_users(filter)).await?
         }
 
-        "get_account_info" => {
-            let identifier: AccountIdentifier = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::GetAccountInfo => {
+            let identifier: AccountIdentifier = deserialize_args(raw)?;
             call_async(|| lb.get_account_info(identifier)).await?
         }
 
-        "validate_account" => {
-            let username: String = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::ValidateAccount => {
+            let username: String = deserialize_args(raw)?;
             call_async(|| lb.validate_account(&username)).await?
         }
 
-        "validate_server" => {
+        Method::ValidateServer => {
             call_async(|| lb.validate_server()).await?
         }
 
-        "file_info" => {
-            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::FileInfo => {
+            let id: Uuid = deserialize_args(raw)?;
             call_async(|| lb.file_info(id)).await?
         }
 
-        "rebuild_index" => {
-            let index: ServerIndex = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::RebuildIndex => {
+            let index: ServerIndex = deserialize_args(raw)?;
             call_async(|| lb.rebuild_index(index)).await?
         }
 
-        "build_index" => {
+        Method::BuildIndex => {
             call_async(|| lb.build_index()).await?
         }
 
-        "set_user_tier" => {
-            let (username, tier_info): (String, AdminSetUserTierInfo) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::SetUserTier => {
+            let (username, tier_info): (String, AdminSetUserTierInfo) = deserialize_args(raw)?;
             call_async(|| lb.set_user_tier(&username, tier_info)).await?
         }
 
-        "upgrade_account_stripe" => {
-            let tier: StripeAccountTier = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::UpgradeAccountStripe => {
+            let tier: StripeAccountTier = deserialize_args(raw)?;
             call_async(|| lb.upgrade_account_stripe(tier)).await?
         }
 
-        "upgrade_account_google_play" => {
-            let (purchase_token, account_id): (String, String) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::UpgradeAccountGooglePlay => {
+            let (purchase_token, account_id): (String, String) = deserialize_args(raw)?;
             call_async(|| lb.upgrade_account_google_play(&purchase_token, &account_id)).await?
         }
 
-        "upgrade_account_app_store" => {
-            let (original_transaction_id, app_account_token): (String, String) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::UpgradeAccountAppStore => {
+            let (original_transaction_id, app_account_token): (String, String) = deserialize_args(raw)?;
             call_async(|| lb.upgrade_account_app_store(original_transaction_id, app_account_token)).await?
         }
 
-        "cancel_subscription" => {
+        Method::CancelSubscription => {
             call_async(|| lb.cancel_subscription()).await?
         }
 
-        "get_subscription_info" => {
+        Method::GetSubscriptionInfo => {
             call_async(|| lb.get_subscription_info()).await?
         }
 
-        "debug_info" => {
-            let os_info: String = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::DebugInfo => {
+            let os_info: String = deserialize_args(raw)?;
             call_async(|| lb.debug_info(os_info)).await?
         }
 
-        "read_document" => {
-            let (id, user_activity): (Uuid, bool) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::ReadDocument => {
+            let (id, user_activity): (Uuid, bool) = deserialize_args(raw)?;
             call_async(|| lb.read_document(id, user_activity)).await?
         }
 
-        "write_document" => {
-            let (id, content): (Uuid, Vec<u8>) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::WriteDocument => {
+            let (id, content): (Uuid, Vec<u8>) = deserialize_args(raw)?;
             call_async(|| lb.write_document(id, &content)).await?
         }
 
-        "read_document_with_hmac" => {
-            let (id, user_activity): (Uuid, bool) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::ReadDocumentWithHmac => {
+            let (id, user_activity): (Uuid, bool) = deserialize_args(raw)?;
             call_async(|| lb.read_document_with_hmac(id, user_activity)).await?
         }
 
-        "safe_write" => {
-            let (id, old_hmac, content): (Uuid, Option<DocumentHmac>, Vec<u8>) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::SafeWrite => {
+            let (id, old_hmac, content): (Uuid, Option<DocumentHmac>, Vec<u8>) = deserialize_args(raw)?;
             call_async(|| lb.safe_write(id, old_hmac, content)).await?
         }
 
-        "create_file" => {
-            let (name, parent, file_type): (String, Uuid, FileType) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::CreateFile => {
+            let (name, parent, file_type): (String, Uuid, FileType) = deserialize_args(raw)?;
             call_async(|| lb.create_file(&name, &parent, file_type)).await?
         }
 
-        "rename_file" => {
-            let (id, new_name): (Uuid, String) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::RenameFile => {
+            let (id, new_name): (Uuid, String) = deserialize_args(raw)?;
             call_async(|| lb.rename_file(&id, &new_name)).await?
         }
 
-        "move_file" => {
-            let (id, new_parent): (Uuid, Uuid) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::MoveFile => {
+            let (id, new_parent): (Uuid, Uuid) = deserialize_args(raw)?;
             call_async(|| lb.move_file(&id, &new_parent)).await?
         }
 
-        "delete" => {
-            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::Delete => {
+            let id: Uuid = deserialize_args(raw)?;
             call_async(|| lb.delete(&id)).await?
         }
 
-        "root" => {
+        Method::Root => {
             call_async(|| lb.root()).await?
         }
 
-        "list_metadatas" => {
+        Method::ListMetadatas => {
             call_async(|| lb.list_metadatas()).await?
         }
 
-        "get_children" => {
-            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::GetChildren => {
+            let id: Uuid = deserialize_args(raw)?;
             call_async(|| lb.get_children(&id)).await?
         }
 
-        "get_and_get_children_recursively" => {
-            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::GetAndGetChildrenRecursively => {
+            let id: Uuid = deserialize_args(raw)?;
             call_async(|| lb.get_and_get_children_recursively(&id)).await?
         }
 
-        "get_file_by_id" => {
-            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::GetFileById => {
+            let id: Uuid = deserialize_args(raw)?;
             call_async(|| lb.get_file_by_id(id)).await?
         }
 
-        "local_changes" => {
+        Method::LocalChanges => {
             let changes: Vec<Uuid> = lb.local_changes().await;
             bincode::serialize(&changes).map_err(core_err_unexpected)?
         }
         //TODO : events module
-        "import_files" => {
+        Method::ImportFiles => {
             let (paths, dest): (Vec<String>, Uuid) =
                 bincode::deserialize(&raw).map_err(core_err_unexpected)?;
             let sources: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
@@ -238,137 +233,132 @@ pub async fn dispatch(lb: Arc<LbServer>, req: RpcRequest) -> LbResult<Vec<u8>> {
             buf
         }
 
-        "export_file" => {
-            let (id, dest, edit): (Uuid, PathBuf, bool) = deserialize_args(&raw)?;
+        Method::ExportFile => {
+            let (id, dest, edit): (Uuid, PathBuf, bool) = deserialize_args(raw)?;
             call_async(|| lb.export_file(id, dest, edit, &None::<fn(ExportFileInfo)>)).await?
         }
 
-        "export_file_recursively" => {
-            let (id, disk_path, edit): (Uuid, PathBuf, bool) = deserialize_args(&raw)?;
+        Method::ExportFileRecursively => {
+            let (id, disk_path, edit): (Uuid, PathBuf, bool) = deserialize_args(raw)?;
             call_async(|| lb.export_file_recursively(id, &disk_path, edit, &None::<fn(ExportFileInfo)>)).await?
         }
 
-        "test_repo_integrity" => {
+        Method::TestRepoIntegrity => {
             call_async(|| lb.test_repo_integrity()).await?
         }
 
-        "get_account" => {
+        Method::GetAccount => {
             call_sync(|| lb.get_account()).map_err(core_err_unexpected)?
         }
 
-        "create_link_at_path" => {
-            let (path, target_id): (String, Uuid) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::CreateLinkAtPath => {
+            let (path, target_id): (String, Uuid) = deserialize_args(raw)?;
             call_async(|| lb.create_link_at_path(&path, target_id)).await?
         }
 
-        "create_at_path" => {
-            let path: String = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::CreateAtPath => {
+            let path: String = deserialize_args(raw)?;
             call_async(|| lb.create_at_path(&path)).await?
         }
 
-        "get_by_path" => {
-            let path: String = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::GetByPath => {
+            let path: String = deserialize_args(raw)?;
             call_async(|| lb.get_by_path(&path)).await?
         }
 
-        "get_path_by_id" => {
-            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::GetPathById => {
+            let id: Uuid = deserialize_args(raw)?;
             call_async(|| lb.get_path_by_id(id)).await?
         }
 
-        "list_paths" => {
-            let filter: Option<Filter> = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::ListPaths => {
+            let filter: Option<Filter> = deserialize_args(raw)?;
             call_async(|| lb.list_paths(filter)).await?
         }
 
-        "list_paths_with_ids" => {
-            let filter: Option<Filter> = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::ListPathsWithIds => {
+            let filter: Option<Filter> = deserialize_args(raw)?;
             call_async(|| lb.list_paths_with_ids(filter)).await?
         }
 
-        "share_file" => {
-            let (id, username, mode): (Uuid, String, ShareMode) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::ShareFile => {
+            let (id, username, mode): (Uuid, String, ShareMode) = deserialize_args(raw)?;
             call_async(|| lb.share_file(id, &username, mode)).await?
         }
 
-        "get_pending_shares" => {
+        Method::GetPendingShares => {
             call_async(|| lb.get_pending_shares()).await?
         }
 
-        "reject_share" => {
-            let id: Uuid = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::RejectShare => {
+            let id: Uuid = deserialize_args(raw)?;
             call_async(|| lb.reject_share(&id)).await?
         }
 
-        "calculate_work" => {
+        Method::CalculateWork => {
             call_async(|| lb.calculate_work()).await?
         }
 
-        "sync" => {
+        Method::Sync => {
             call_async(|| lb.sync(None)).await?
         }
 
-        "get_last_synced_human" => {
+        Method::GetLastSyncedHuman => {
             call_async(|| lb.get_last_synced_human()).await?
         }
 
-        "get_timestamp_human_string" => {
-            let timestamp: i64 = deserialize_args(&raw)?;
+        Method::GetTimestampHumanString => {
+            let timestamp: i64 = deserialize_args(raw)?;
             call_async(|| async {
                 Ok(lb.get_timestamp_human_string(timestamp))
             }).await?
         }
-        
-        "get_usage" => {
+
+        Method::GetUsage => {
             call_async(|| lb.get_usage()).await?
         }
 
-        "get_uncompressed_usage_breakdown" => {
+        Method::GetUncompressedUsageBreakdown => {
             call_async(|| lb.get_uncompressed_usage_breakdown()).await?
         }
 
-        "get_uncompressed_usage" => {
+        Method::GetUncompressedUsage => {
             call_async(|| lb.get_uncompressed_usage()).await?
         }
 
-        "search" => {
-            let (input, cfg): (String, SearchConfig) = bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+        Method::Search => {
+            let (input, cfg): (String, SearchConfig) = deserialize_args(raw)?;
             call_async(|| lb.search(&input, cfg)).await?
         }
 
-        "status" => {
+        Method::Status => {
             let res = lb.status().await;
             bincode::serialize(&res).map_err(core_err_unexpected)?
         }
 
-        "get_config" => {
+        Method::GetConfig => {
             let res = lb.config.clone();
             bincode::serialize(&res).map_err(core_err_unexpected)?
         }
 
-        "get_last_synced" => {
+        Method::GetLastSynced => {
             let tx = lb.ro_tx().await;
             let db = tx.db();
             bincode::serialize(&(db.last_synced.get().copied().unwrap_or(0)))
                 .unwrap_or_else(|_| vec![0])
         }
 
-        "get_search" => {
+        Method::GetSearch => {
             let res = lb.search.clone();
             bincode::serialize(&res).map_err(core_err_unexpected)?
         }
 
-        "get_keychain" => {
+        Method::GetKeychain => {
             let res = lb.keychain.clone();
             bincode::serialize(&res).map_err(core_err_unexpected)?
         }
-
-        other => {
-            return Err(LbErrKind::Unexpected(format!("Unknown method: {}", other)).into())
-        }
     };
-
-    Ok(payload)
+    Ok(res)
 }
 
 fn deserialize_args<A>(raw: &[u8]) -> LbResult<A>
@@ -412,7 +402,7 @@ use crate::model::errors::{core_err_unexpected};
 use crate::model::file::ShareMode;
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::path_ops::Filter;
-use crate::rpc::{CallbackMessage, RpcRequest};
+use crate::rpc::{CallbackMessage, Method, RpcRequest};
 use crate::service::activity::RankingWeights;
 use crate::service::import_export::{ExportFileInfo, ImportStatus};
 use crate::subscribers::search::SearchConfig;

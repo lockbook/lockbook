@@ -1,7 +1,81 @@
-#[derive(Serialize, Deserialize)]
-pub struct RpcRequest {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u16)]
+pub enum Method {
+    CreateAccount = 0,
+    ImportAccount,
+    ImportAccountPrivateKeyV1,
+    ImportAccountPrivateKeyV2,
+    ImportAccountPhrase,
+    ExportAccountPrivateKey,
+    ExportAccountPrivateKeyV1,
+    ExportAccountPrivateKeyV2,
+    ExportAccountPhrase,
+    ExportAccountQr,
+    DeleteAccount,
+    SuggestedDocs,
+    DisappearAccount,
+    DisappearFile,
+    ListUsers,
+    GetAccountInfo,
+    ValidateAccount,
+    ValidateServer,
+    FileInfo,
+    RebuildIndex,
+    BuildIndex,
+    SetUserTier,
+    UpgradeAccountStripe,
+    UpgradeAccountGooglePlay,
+    UpgradeAccountAppStore,
+    CancelSubscription,
+    GetSubscriptionInfo,
+    DebugInfo,
+    ReadDocument,
+    WriteDocument,
+    ReadDocumentWithHmac,
+    SafeWrite,
+    CreateFile,
+    RenameFile,
+    MoveFile,
+    Delete,
+    Root,
+    ListMetadatas,
+    GetChildren,
+    GetAndGetChildrenRecursively,
+    GetFileById,
+    LocalChanges,
+    ImportFiles,
+    ExportFile,
+    ExportFileRecursively,
+    TestRepoIntegrity,
+    GetAccount,
+    CreateLinkAtPath,
+    CreateAtPath,
+    GetByPath,
+    GetPathById,
+    ListPaths,
+    ListPathsWithIds,
+    ShareFile,
+    GetPendingShares,
+    RejectShare,
+    CalculateWork,
+    Sync,
+    GetLastSyncedHuman,
+    GetTimestampHumanString,
+    GetUsage,
+    GetUncompressedUsageBreakdown,
+    GetUncompressedUsage,
+    Search,
+    Status,
+    GetConfig,
+    GetLastSynced,
+    GetSearch,
+    GetKeychain,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RpcRequest<T> {
     pub method: String,
-    pub args: Option<Vec<u8>>,
+    pub args: T,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -10,8 +84,8 @@ pub enum CallbackMessage<S, T> {
     Done(LbResult<T>),
 }
 
-impl RpcRequest {
-    pub fn new(method: impl Into<String>, args: Option<Vec<u8>>) -> Self {
+impl<T> RpcRequest<T> {
+    pub fn new(method: impl Into<String>, args: T) -> Self {
         Self {
             method: method.into(),
             args,
@@ -19,24 +93,28 @@ impl RpcRequest {
     }
 }
 
-pub async fn call_rpc<T>(
+pub async fn call_rpc<T, R>(
     socket_address: SocketAddrV4,
-    method: &str,
-    args: Option<Vec<u8>>,
-) -> LbResult<T>
+    method: Method,
+    args: T,
+) -> LbResult<R>
 where
-    T: for<'de> Deserialize<'de>,
+    T: Serialize,
+    R: for<'de> Deserialize<'de>,
 {
     let mut stream = TcpStream::connect(socket_address)
-            .await
-            .map_err(core_err_unexpected)?;
-    let req = RpcRequest::new(method, args);
-    let encoded = bincode::serialize(&req).map_err(core_err_unexpected)?;
-    let len = encoded.len() as u32;
+        .await
+        .map_err(core_err_unexpected)?;
 
-    let mut full_msg = Vec::with_capacity(4 + encoded.len());
-    full_msg.extend_from_slice(&len.to_be_bytes());
-    full_msg.extend_from_slice(&encoded);
+    let msg = bincode::serialize(&args).map_err(core_err_unexpected)?;
+
+    let method_id = method as u16;
+    let msg_len = msg.len() as u32;
+
+    let mut full_msg = Vec::with_capacity(2 + 4 + msg.len());
+    full_msg.extend_from_slice(&method_id.to_le_bytes());
+    full_msg.extend_from_slice(&msg_len.to_le_bytes());
+    full_msg.extend_from_slice(&msg);
 
     stream.write_all(&full_msg).await.map_err(core_err_unexpected)?;
 
@@ -47,7 +125,7 @@ where
     let mut resp_buf = vec![0u8; resp_len as usize];
     stream.read_exact(&mut resp_buf).await.map_err(core_err_unexpected)?;
 
-    let resp: T = bincode::deserialize(&resp_buf).map_err(core_err_unexpected)?;
+    let resp: R = bincode::deserialize(&resp_buf).map_err(core_err_unexpected)?;
     Ok(resp)
 }
 
@@ -92,39 +170,43 @@ where
 pub async fn handle_connection(stream: TcpStream, lb: Arc<LbServer>) -> LbResult<()> {
     let mut stream = stream;
 
+    let mut id_buf = [0u8; 2];
+    stream.read_exact(&mut id_buf).await?;
+    let method_id = u16::from_le_bytes(id_buf);
+
     let mut len_buf = [0u8; 4];
     stream.read_exact(&mut len_buf).await?;
-    let msg_len = u32::from_be_bytes(len_buf) as usize;
+    let msg_len = u32::from_le_bytes(len_buf);
 
-    let mut buf = vec![0u8; msg_len];
-    stream.read_exact(&mut buf).await?;
+    let mut msg = vec![0u8; msg_len as usize];
+    stream.read_exact(&mut msg).await?;
 
-    let req: RpcRequest = bincode::deserialize(&buf).map_err(core_err_unexpected)?;
-    let payload = dispatch(lb, req).await?;
+    let method: Method = unsafe { std::mem::transmute(method_id) };
 
-    let mut out = Vec::with_capacity(4 + payload.len());
-    out.extend_from_slice(&(payload.len() as u32).to_be_bytes());
-    out.extend_from_slice(&payload);
+    let response = dispatch(lb, method, &msg).await?;
+
+    let mut out = Vec::with_capacity(4 + response.len());
+    out.extend_from_slice(&(response.len() as u32).to_be_bytes());
+    out.extend_from_slice(&response);
     stream.write_all(&out).await?;
-
     Ok(())
 }
 
 impl LbServer {
-    pub async fn listen_for_connections(&self, listener: TcpListener) -> LbResult<()> { 
-        let lb = Arc::new(self.clone());
-        loop {
-            let (stream, _) = listener.accept().await
-                .map_err(core_err_unexpected)?;
+        pub async fn listen_for_connections(&self, listener: TcpListener) -> LbResult<()> { 
+            let lb = Arc::new(self.clone());
+            loop {
+                let (stream, _) = listener.accept().await
+                    .map_err(core_err_unexpected)?;
 
-            let lb = lb.clone();
-            tokio::spawn(async move {
-                if let Err(e) = handle_connection(stream, lb).await {
-                    eprintln!("Connection error: {e:?}");
-                }
-            });
+                let lb = lb.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = handle_connection(stream, lb).await {
+                        eprintln!("Connection error: {e:?}");
+                    }
+                });
+            }
         }
-    }
 }
 
 use crate::dispatch::dispatch;
