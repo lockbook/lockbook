@@ -22,9 +22,11 @@ pub enum ImportStatus {
 impl LbServer {
     #[instrument(level = "debug", skip(self, update_status), err(Debug))]
     pub async fn import_files<F: Fn(ImportStatus)>(
-        &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
+        &self, sources: &[PathBuf], dest: Uuid, update_status: &Option<F>,
     ) -> LbResult<()> {
-        update_status(ImportStatus::CalculatedTotal(get_total_child_count(sources)?));
+        if let Some(update_status) = update_status {
+            update_status(ImportStatus::CalculatedTotal(get_total_child_count(sources)?));
+        }
 
         let parent = self.get_file_by_id(dest).await?;
         if !parent.is_folder() {
@@ -50,10 +52,11 @@ impl LbServer {
     }
 
     async fn import_file_recursively<F: Fn(ImportStatus)>(
-        &self, disk_path: &Path, dest: Uuid, update_status: &F,
+        &self, disk_path: &Path, dest: Uuid, update_status: &Option<F>,
     ) -> LbResult<()> {
-        update_status(ImportStatus::StartingItem(format!("{}", disk_path.display())));
-
+        if let Some(update_status) = update_status {
+            update_status(ImportStatus::StartingItem(format!("{}", disk_path.display())));
+        }
         if !disk_path.exists() {
             return Err(LbErrKind::DiskPathInvalid.into());
         }
@@ -93,12 +96,15 @@ impl LbServer {
             FileType::Document => {
                 let content = fs::read(disk_path).map_err(LbErr::from)?;
                 self.write_document(file.id, content.as_slice()).await?;
-
-                update_status(ImportStatus::FinishedItem(file));
+                if let Some(update_status) = update_status {
+                    update_status(ImportStatus::FinishedItem(file));
+                }
             }
             FileType::Folder => {
                 let id = file.id;
-                update_status(ImportStatus::FinishedItem(file));
+                if let Some(update_status) = update_status {
+                    update_status(ImportStatus::FinishedItem(file));
+                }
 
                 let disk_children = fs::read_dir(disk_path).map_err(LbErr::from)?;
 

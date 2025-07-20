@@ -744,7 +744,7 @@ impl AccountScreen {
             .collect::<Vec<path::PathBuf>>();
 
         thread::spawn(move || {
-            let result = core.import_files(&paths, parent.id, &|status| match status {
+            let result = core.import_files(&paths, parent.id, &Some(|status| match status {
                 ImportStatus::CalculatedTotal(count) => {
                     println!("importing {} files", count);
                 }
@@ -754,7 +754,7 @@ impl AccountScreen {
                 ImportStatus::FinishedItem(item) => {
                     println!("finished import of {} as lb://{}", item.name, item.id);
                 }
-            });
+            }));
 
             let result = result.map_err(|err| format!("{:?}", err));
 

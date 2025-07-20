@@ -538,7 +538,7 @@ impl Lb {
     }
 
     pub async fn import_files<F: Fn(ImportStatus)>(
-        &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
+        &self, sources: &[PathBuf], dest: Uuid, update_status: &Option<F>,
     ) -> LbResult<()>{
         match self {
             Lb::Direct(inner) => {

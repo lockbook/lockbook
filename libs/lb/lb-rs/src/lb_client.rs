@@ -44,27 +44,27 @@ impl LbClient {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn export_account_private_key(&self) -> LbResult<String> {
-        call_rpc(self.addr, Method::ExportAccountPrivateKey, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::ExportAccountPrivateKey, ()).await
     }
 
     pub(crate) async  fn export_account_private_key_v1(&self) -> LbResult<String> {
-        call_rpc(self.addr, Method::ExportAccountPrivateKeyV1, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::ExportAccountPrivateKeyV1, ()).await
     }
 
     pub(crate) async fn export_account_private_key_v2(&self) -> LbResult<String> {
-       call_rpc(self.addr, Method::ExportAccountPrivateKeyV2, Vec::<()>::new()).await
+       call_rpc(self.addr, Method::ExportAccountPrivateKeyV2, ()).await
     }
 
     pub async fn export_account_phrase(&self) -> LbResult<String> {
-        call_rpc(self.addr, Method::ExportAccountPhrase, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::ExportAccountPhrase, ()).await
     }
 
     pub async fn export_account_qr(&self) -> LbResult<Vec<u8>> {
-        call_rpc(self.addr, Method::ExportAccountQr, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::ExportAccountQr, ()).await
     }
 
     pub async fn delete_account(&self) -> LbResult<()> {
-        call_rpc(self.addr, Method::DeleteAccount, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::DeleteAccount, ()).await
     }
     
     pub async fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
@@ -98,7 +98,7 @@ impl LbClient {
     }
 
     pub async fn validate_server(&self) -> LbResult<AdminValidateServer>{
-        call_rpc(self.addr, Method::ValidateServer,Vec::<()>::new()).await
+        call_rpc(self.addr, Method::ValidateServer,()).await
     }
 
     pub async fn file_info(&self, id: Uuid) -> LbResult<AdminFileInfoResponse>{
@@ -112,7 +112,7 @@ impl LbClient {
     }
 
     pub async fn build_index(&self) -> LbResult<()>{
-        call_rpc(self.addr, Method::BuildIndex, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::BuildIndex, ()).await
     }
 
     pub async fn set_user_tier(&self, username: &str, info: AdminSetUserTierInfo) -> LbResult<()> {
@@ -140,11 +140,11 @@ impl LbClient {
     }
 
     pub async fn cancel_subscription(&self) -> LbResult<()>{
-        call_rpc(self.addr, Method::CancelSubscription, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::CancelSubscription, ()).await
     }
 
     pub async fn get_subscription_info(&self) -> LbResult<Option<SubscriptionInfo>>{
-        call_rpc(self.addr, Method::GetSubscriptionInfo, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::GetSubscriptionInfo, ()).await
     }
 
     pub async fn debug_info(&self, os_info: String) -> LbResult<String>{
@@ -188,8 +188,35 @@ impl LbClient {
     }
 
     pub async fn subscribe(&self) -> Receiver<Event> {
-       //todo!("implement subscribe for proxylb");
-       self.events.get_tx().subscribe()
+        let (local_tx, local_rx) = broadcast::channel(1000);
+        let addr = self.addr;
+
+        tokio::spawn(async move {
+            match TcpStream::connect(addr).await {
+                Ok(mut stream) => {
+                    if let Err(e) = send_rpc_request(&mut stream, Method::Subscribe, &()).await {
+                        eprintln!("Subscribe send error: {:?}", e);
+                        return;
+                    }
+                    loop {
+                        match recv_rpc_response::<Event>(&mut stream).await {
+                            Ok(event) => {
+                                let _ = local_tx.send(event); 
+                            }
+                            Err(e) => {
+                                eprintln!("Subscribe receive error: {:?}", e);
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Subscribe connection error: {:?}", e);
+                }
+            }
+        });
+
+        local_rx
     }
 
     pub async fn create_file(
@@ -229,11 +256,11 @@ impl LbClient {
     }
 
     pub async fn root(&self) -> LbResult<File> {
-        call_rpc(self.addr, Method::Root, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::Root, ()).await
     }
 
     pub async fn list_metadatas(&self) -> LbResult<Vec<File>> {
-        call_rpc(self.addr, Method::ListMetadatas, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::ListMetadatas, ()).await
     }
 
     pub async fn get_children(
@@ -261,23 +288,17 @@ impl LbClient {
     }
 
     pub async fn local_changes(&self) -> Vec<Uuid> {
-        call_rpc(self.addr, Method::LocalChanges, Vec::<()>::new())
+        call_rpc(self.addr, Method::LocalChanges, ())
             .await
             .unwrap()         
     }
 
     pub async fn import_files<F: Fn(ImportStatus)>(
-        &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
+        &self, sources: &[PathBuf], dest: Uuid, update_status: &Option<F>,
     ) -> LbResult<()>{
         let source_paths: Vec<String> = sources.iter().map(|path| path.to_string_lossy().into_owned()).collect();
         let args = bincode::serialize(&(source_paths, dest)).map_err(core_err_unexpected)?;
-        call_rpc_with_callback::<ImportStatus, (), _>(
-            self.addr,
-            "import_files",
-            Some(args),
-            update_status,
-        )
-        .await
+        call_rpc(self.addr, Method::ImportFiles, args).await
     }
 
     pub async fn export_file<F: Fn(ExportFileInfo)>(
@@ -295,11 +316,11 @@ impl LbClient {
     }
 
     pub async fn test_repo_integrity(&self) -> LbResult<Vec<Warning>>{
-        call_rpc(self.addr, Method::TestRepoIntegrity, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::TestRepoIntegrity, ()).await
     }
 
     pub async fn get_account(&self) -> LbResult<Account>{
-        call_rpc(self.addr, Method::GetAccount, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::GetAccount, ()).await
     }
 
     pub async fn create_link_at_path(&self, path: &str, target_id: Uuid) -> LbResult<File>{
@@ -340,7 +361,7 @@ impl LbClient {
     }
 
     pub async fn get_pending_shares(&self) -> LbResult<Vec<File>>{
-        call_rpc(self.addr, Method::GetPendingShares, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::GetPendingShares, ()).await
     }
 
     pub async fn reject_share(&self, id: &Uuid) -> Result<(), LbErr>{
@@ -349,15 +370,15 @@ impl LbClient {
     }
 
     pub async fn calculate_work(&self) -> LbResult<SyncStatus>{
-        call_rpc(self.addr, Method::CalculateWork, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::CalculateWork, ()).await
     }
 
     pub async fn sync(&self, f: Option<Box<dyn Fn(SyncProgress) + Send>>) -> LbResult<SyncStatus>{
-        call_rpc(self.addr, Method::Sync, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::Sync, ()).await
     }
 
     pub async fn get_last_synced_human(&self) -> LbResult<String>{
-        call_rpc(self.addr, Method::GetLastSyncedHuman, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::GetLastSyncedHuman, ()).await
     }
 
     pub async fn get_timestamp_human_string(&self, timestamp: i64) -> String{
@@ -366,15 +387,15 @@ impl LbClient {
     }
 
     pub async fn get_usage(&self) -> LbResult<UsageMetrics>{
-        call_rpc(self.addr, Method::GetUsage, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::GetUsage, ()).await
     }
 
     pub async fn get_uncompressed_usage_breakdown(&self) -> LbResult<HashMap<Uuid, usize>>{
-        call_rpc(self.addr, Method::GetUncompressedUsageBreakdown, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::GetUncompressedUsageBreakdown, ()).await
     }
 
     pub async fn get_uncompressed_usage(&self) -> LbResult<UsageItemMetric>{
-        call_rpc(self.addr, Method::GetUncompressedUsage, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::GetUncompressedUsage, ()).await
     }
 
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>>{
@@ -383,23 +404,23 @@ impl LbClient {
     }
 
     pub async fn status(&self) -> Status{
-        call_rpc(self.addr, Method::Status, Vec::<()>::new()).await.unwrap()
+        call_rpc(self.addr, Method::Status, ()).await.unwrap()
     }
 
     pub async fn get_config(&self) -> Config {
-        call_rpc(self.addr, Method::GetConfig, Vec::<()>::new()).await.unwrap()
+        call_rpc(self.addr, Method::GetConfig, ()).await.unwrap()
     }
 
     pub async fn get_last_synced(&self) -> LbResult<i64> {
-        call_rpc(self.addr, Method::GetLastSynced, Vec::<()>::new()).await
+        call_rpc(self.addr, Method::GetLastSynced, ()).await
     }
 
     pub async fn get_search(&self) -> SearchIndex {
-        call_rpc(self.addr, Method::GetSearch, Vec::<()>::new()).await.unwrap()
+        call_rpc(self.addr, Method::GetSearch, ()).await.unwrap()
     }
 
     pub async fn get_keychain(&self) -> Keychain {
-        call_rpc(self.addr, Method::GetKeychain, Vec::<()>::new()).await.unwrap()
+        call_rpc(self.addr, Method::GetKeychain, ()).await.unwrap()
     }
 }
 
@@ -411,13 +432,15 @@ use crate::subscribers::search::{SearchConfig, SearchIndex, SearchResult};
 use crate::subscribers::status::Status;
 use crate::{model::errors::core_err_unexpected};
 use libsecp256k1::SecretKey;
-use crate::rpc::{call_rpc, call_rpc_with_callback, Method};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+use crate::rpc::{call_rpc, recv_rpc_response, send_rpc_request, Method};
 use crate::Uuid;
 use std::collections::HashMap;
 use std::net::SocketAddrV4;
 use std::path::{Path, PathBuf};
 use std::vec;
-use tokio::sync::broadcast::Receiver;
+use tokio::sync::broadcast::{self, Receiver};
 use crate::model::{account::{Account, Username}, api::{AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo}, crypto::DecryptedDocument, file::{File, ShareMode}, file_metadata::{DocumentHmac,FileType}, errors::{Warning, LbErr}, path_ops::Filter};
 use crate::service::{activity::RankingWeights, events::Event, import_export::{ExportFileInfo, ImportStatus}, usage::{UsageItemMetric, UsageMetrics}};
 use crate::LbResult;

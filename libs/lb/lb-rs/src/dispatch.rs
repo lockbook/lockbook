@@ -200,37 +200,12 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
             let changes: Vec<Uuid> = lb.local_changes().await;
             bincode::serialize(&changes).map_err(core_err_unexpected)?
         }
-        //TODO : events module
+
         Method::ImportFiles => {
             let (paths, dest): (Vec<String>, Uuid) =
                 bincode::deserialize(&raw).map_err(core_err_unexpected)?;
             let sources: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
-            let statuses = Arc::new(Mutex::new(Vec::new()));
-
-            let cb_statuses = statuses.clone();
-            let status_cb = move |status: ImportStatus| {
-                let mut guard = cb_statuses.lock().unwrap();
-                guard.push(status);
-            };
-            lb.import_files(&sources, dest, &status_cb).await?;
-
-            let mut buf = Vec::new();
-            let mut guard = statuses.lock().unwrap();
-            for status in guard.drain(..) {
-                let msg: CallbackMessage<ImportStatus, ()> =
-                    CallbackMessage::Status(status);
-                let bytes = bincode::serialize(&msg).map_err(core_err_unexpected)?;
-                buf.extend(&(bytes.len() as u32).to_be_bytes());
-                buf.extend(bytes);
-            }
-
-            let done_msg: CallbackMessage<ImportStatus, ()> =
-                CallbackMessage::Done(Ok(()));
-            let done_bytes = bincode::serialize(&done_msg).map_err(core_err_unexpected)?;
-            buf.extend(&(done_bytes.len() as u32).to_be_bytes());
-            buf.extend(done_bytes);
-
-            buf
+            call_async(|| lb.import_files(&sources, dest, &None::<fn(ImportStatus)>)).await?
         }
 
         Method::ExportFile => {
@@ -357,6 +332,10 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
             let res = lb.keychain.clone();
             bincode::serialize(&res).map_err(core_err_unexpected)?
         }
+
+        other => {
+            return Err(LbErrKind::Unexpected(format!("Unknown method: {:?}", other)).into())
+        }
     };
     Ok(res)
 }
@@ -402,7 +381,7 @@ use crate::model::errors::{core_err_unexpected};
 use crate::model::file::ShareMode;
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::path_ops::Filter;
-use crate::rpc::{CallbackMessage, Method, RpcRequest};
+use crate::rpc::Method;
 use crate::service::activity::RankingWeights;
 use crate::service::import_export::{ExportFileInfo, ImportStatus};
 use crate::subscribers::search::SearchConfig;

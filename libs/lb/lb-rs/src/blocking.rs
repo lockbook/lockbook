@@ -240,7 +240,7 @@ impl Lb {
     }
 
     pub fn import_files<F: Fn(ImportStatus)>(
-        &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
+        &self, sources: &[PathBuf], dest: Uuid, update_status: &Option<F>,
     ) -> LbResult<()> {
         self.rt
             .block_on(self.lb.import_files(sources, dest, update_status))

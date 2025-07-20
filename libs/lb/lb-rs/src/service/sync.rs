@@ -22,7 +22,7 @@ use crate::LbServer;
 pub use basic_human_duration::ChronoHumanDuration;
 use futures::stream;
 use futures::StreamExt;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{hash_map, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::num::NonZeroUsize;
@@ -1255,10 +1255,33 @@ impl Display for SyncProgress {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SyncIncrement {
     SyncStarted,
     PullingDocument(Uuid, bool),
     PushingDocument(Uuid, bool),
+    #[serde(
+        serialize_with   = "serialize_finish",
+        deserialize_with = "deserialize_finish"
+    )]
     SyncFinished(Option<LbErrKind>),
+}
+
+fn serialize_finish<S>(
+    opt: &Option<LbErrKind>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_bool(opt.is_some())
+}
+ 
+fn deserialize_finish<'de, D>(
+    _deserializer: D,
+) -> Result<Option<LbErrKind>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(None)
 }
