@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use egui::Response;
 use resvg::usvg::Transform;
 
@@ -5,10 +7,10 @@ use crate::{
     tab::svg_editor::{
         background::{show_dot_grid, show_lines_background},
         gesture_handler::{
-            calc_elements_bounds, get_rect_identity_transform, get_zoom_fit_transform,
-            transform_canvas, zoom_percentage_to_transform, MIN_ZOOM_LEVEL,
+            get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
+            zoom_percentage_to_transform, MIN_ZOOM_LEVEL,
         },
-        util::transform_rect,
+        util::draw_dashed_line,
         BackgroundOverlay,
     },
     theme::icons::Icon,
@@ -21,6 +23,38 @@ use super::{Toolbar, ToolbarContext};
 pub enum ViewportPopover {
     More,
     ZoomStops,
+}
+
+pub enum ViewportMode {
+    Scroll,
+    Infinite,
+}
+
+impl ViewportMode {
+    pub fn variants() -> [ViewportMode; 2] {
+        [ViewportMode::Scroll, ViewportMode::Infinite]
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            ViewportMode::Scroll => "Notebook",
+            ViewportMode::Infinite => "Infinite",
+        }
+    }
+
+    pub fn is_active(&self, tlbr_ctx: &ToolbarContext) -> bool {
+        match self {
+            ViewportMode::Scroll => tlbr_ctx.viewport_settings.is_scroll_mode(),
+            ViewportMode::Infinite => tlbr_ctx.viewport_settings.is_infinite_mode(),
+        }
+    }
+
+    pub fn set_active(&self, tlbr_ctx: &mut ToolbarContext) {
+        match self {
+            ViewportMode::Scroll => tlbr_ctx.viewport_settings.set_scroll_mode(),
+            ViewportMode::Infinite => tlbr_ctx.viewport_settings.set_infinite_mode(),
+        }
+    }
 }
 
 impl Toolbar {
@@ -216,19 +250,7 @@ impl Toolbar {
 
     fn show_zoom_stops_popover(&self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) {
         if Button::default().text("FIT").show(ui).clicked() {
-            let transform = if tlbr_ctx.viewport_settings.is_page_mode()
-                && tlbr_ctx.viewport_settings.bounded_rect.is_some()
-            {
-                get_rect_identity_transform(
-                    tlbr_ctx.viewport_settings.container_rect,
-                    tlbr_ctx.viewport_settings.bounded_rect.unwrap(),
-                    1.0,
-                    tlbr_ctx.viewport_settings.container_rect.center(),
-                )
-            } else {
-                get_zoom_fit_transform(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, false)
-            }
-            .unwrap_or_default();
+            let transform = get_zoom_fit_transform(tlbr_ctx.viewport_settings).unwrap_or_default();
 
             transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
         }
@@ -252,9 +274,114 @@ impl Toolbar {
 
         ui.add_space(10.0);
 
-        show_background_selector(ui, tlbr_ctx);
+        ui.scope(|ui| {
+            show_background_selector(ui, tlbr_ctx);
+        });
 
         ui.add_space(20.0);
+        ui.label(
+            egui::RichText::new("Layout".to_uppercase())
+                .font(egui::FontId::new(12.0, egui::FontFamily::Name(Arc::from("Bold"))))
+                .color(egui::Color32::GRAY),
+        );
+        egui::Frame::default()
+            .fill(ui.visuals().code_bg_color)
+            .inner_margin(egui::Margin::same(30.0))
+            .outer_margin(egui::Margin::symmetric(0.0, 5.0))
+            .rounding(ui.visuals().window_rounding / 2.0)
+            .show(ui, |ui| {
+                // let's take the full width
+                ui.set_width(ui.available_width());
+
+                let max_preview = egui::vec2(100.0, 100.0);
+                let scale_down_factor = if tlbr_ctx.viewport_settings.container_rect.height()
+                    > tlbr_ctx.viewport_settings.container_rect.width()
+                {
+                    max_preview.y / tlbr_ctx.viewport_settings.container_rect.height()
+                } else {
+                    max_preview.x / tlbr_ctx.viewport_settings.container_rect.width()
+                };
+
+                let preview_size = egui::vec2(
+                    tlbr_ctx.viewport_settings.container_rect.width() * scale_down_factor,
+                    tlbr_ctx.viewport_settings.container_rect.height() * scale_down_factor,
+                );
+
+                let preview_rect = egui::Rect::from_min_size(
+                    egui::pos2(
+                        ui.cursor().left() + (ui.available_width() - preview_size.x) / 2.0,
+                        ui.cursor().top(),
+                    ),
+                    preview_size,
+                );
+
+                let preview_painter = ui.painter_at(preview_rect);
+
+                preview_painter.rect_filled(preview_rect, 0.0, ui.style().visuals.extreme_bg_color);
+                ui.advance_cursor_after_rect(preview_rect);
+                // Draw the shadows
+
+                let shadow = egui::Shadow {
+                    offset: egui::vec2(0.0, 0.0),
+
+                    blur: 40.0,
+
+                    spread: 10.0,
+
+                    color: ui.visuals().extreme_bg_color,
+                }
+                .as_shape(preview_rect, 0.0);
+
+                let left_bound_rect = egui::Rect::from_two_pos(
+                    preview_rect.min,
+                    preview_rect.min + egui::vec2(-100.0, preview_rect.height()),
+                );
+
+                let right_bound_rect = egui::Rect::from_two_pos(
+                    preview_rect.max,
+                    preview_rect.max + egui::vec2(100.0, -preview_rect.height()),
+                );
+
+                let top_bound_rect = egui::Rect::from_two_pos(
+                    preview_rect.min,
+                    preview_rect.min + egui::vec2(preview_rect.width(), -100.0),
+                );
+
+                let bottom_bound_rect = egui::Rect::from_two_pos(
+                    preview_rect.max,
+                    preview_rect.max + egui::vec2(-preview_rect.width(), 100.0),
+                );
+
+                show_side_controls(ui, Side::Left, left_bound_rect, shadow.into(), tlbr_ctx);
+                show_side_controls(ui, Side::Right, right_bound_rect, shadow.into(), tlbr_ctx);
+                show_side_controls(ui, Side::Top, top_bound_rect, shadow.into(), tlbr_ctx);
+                show_side_controls(ui, Side::Bottom, bottom_bound_rect, shadow.into(), tlbr_ctx);
+            });
+
+        ui.add_space(5.0);
+        ui.vertical(|ui| {
+            for mode in ViewportMode::variants() {
+                let res = ui.radio(mode.is_active(tlbr_ctx), mode.label());
+
+                if res.clicked() || res.drag_started() {
+                    mode.set_active(tlbr_ctx);
+
+                    tlbr_ctx
+                        .settings
+                        .update_viewport_settings(tlbr_ctx.viewport_settings);
+
+                    tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+                }
+
+                ui.add_space(8.0);
+            }
+        });
+
+        ui.add_space(5.0);
+
+        ui.add(egui::Separator::default().shrink(ui.available_width()));
+
+        ui.add_space(5.0);
 
         ui.horizontal(|ui| {
             ui.label("Show mini map");
@@ -271,7 +398,6 @@ impl Toolbar {
                 ui.label("Zoom lock");
             });
         });
-
         ui.add_space(10.0);
     }
 
@@ -291,7 +417,11 @@ impl Toolbar {
 }
 
 fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>) {
-    ui.label("Background");
+    ui.label(
+        egui::RichText::new("Background".to_uppercase())
+            .font(egui::FontId::new(12.0, egui::FontFamily::Name(Arc::from("Bold"))))
+            .color(egui::Color32::GRAY),
+    );
     ui.add_space(5.0);
 
     let x_padding = 15.0;
@@ -477,8 +607,8 @@ fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>
 fn show_bring_back_btn(
     ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>, viewport_island_rect: egui::Rect,
 ) -> Option<Response> {
-    let elements_bound = match calc_elements_bounds(tlbr_ctx.buffer, tlbr_ctx.viewport_settings) {
-        Some(rect) => transform_rect(rect, tlbr_ctx.viewport_settings.master_transform),
+    let elements_bound = match tlbr_ctx.viewport_settings.bounded_rect {
+        Some(rect) => rect,
         None => return None,
     };
 
@@ -545,4 +675,93 @@ fn show_bring_back_btn(
     } else {
         None
     }
+}
+
+enum Side {
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
+fn show_side_controls(
+    ui: &mut egui::Ui, side: Side, rect: egui::Rect, shadow: egui::Shape,
+    tlbr_ctx: &mut ToolbarContext,
+) -> Response {
+    let line_extension = 5.0;
+
+    let (layout, segment_edges, is_locked) = match side {
+        Side::Left => {
+            let edges = [
+                rect.right_top() - egui::vec2(0.0, line_extension),
+                rect.right_bottom() + egui::vec2(0.0, line_extension),
+            ];
+
+            let layout = egui::Layout::right_to_left(egui::Align::Center);
+
+            (layout, edges, &mut tlbr_ctx.viewport_settings.left_locked)
+        }
+
+        Side::Right => {
+            let layout = egui::Layout::left_to_right(egui::Align::Center);
+
+            let edges = [
+                rect.left_top() - egui::vec2(0.0, line_extension),
+                rect.left_bottom() + egui::vec2(0.0, line_extension),
+            ];
+
+            (layout, edges, &mut tlbr_ctx.viewport_settings.right_locked)
+        }
+
+        Side::Top => {
+            let layout = egui::Layout::bottom_up(egui::Align::Center);
+
+            let edges = [
+                rect.left_bottom() - egui::vec2(line_extension, 0.0),
+                rect.right_bottom() + egui::vec2(line_extension, 0.0),
+            ];
+
+            (layout, edges, &mut tlbr_ctx.viewport_settings.top_locked)
+        }
+
+        Side::Bottom => {
+            let layout = egui::Layout::top_down(egui::Align::Center);
+
+            let edges = [
+                rect.left_top() - egui::vec2(line_extension, 0.0),
+                rect.right_top() + egui::vec2(line_extension, 0.0),
+            ];
+
+            (layout, edges, &mut tlbr_ctx.viewport_settings.bottom_locked)
+        }
+    };
+
+    let unlocked_stroke =
+        egui::Stroke { width: 1.0, color: egui::Color32::GRAY.linear_multiply(0.8) };
+
+    let locked_stroke = egui::Stroke { width: 1.4, color: egui::Color32::GRAY };
+
+    let child_ui = &mut ui.child_ui(rect, layout, None);
+
+    if !*is_locked {
+        child_ui.set_clip_rect(rect);
+
+        child_ui.painter().add(shadow);
+    }
+
+    let opacity = if *is_locked { 1.0 } else { 0.3 };
+
+    child_ui.set_opacity(opacity);
+
+    let icon = if *is_locked { Icon::LOCK_CLOSED } else { Icon::LOCK_OPEN };
+
+    let res = Button::default().icon(&icon.size(13.0)).show(child_ui);
+
+    if *is_locked {
+        ui.painter().line_segment(segment_edges, locked_stroke);
+    } else {
+        draw_dashed_line(ui.painter(), &segment_edges, 5.0, 3.0, unlocked_stroke);
+    }
+
+    res
 }

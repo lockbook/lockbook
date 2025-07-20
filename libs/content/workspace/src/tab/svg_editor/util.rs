@@ -139,3 +139,44 @@ impl CanvasSettings {
         self.top_locked = vs.top_locked;
     }
 }
+
+pub fn draw_dashed_line(
+    painter: &egui::Painter, edges: &[egui::Pos2], dash_length: f32, gap_length: f32,
+    stroke: egui::Stroke,
+) {
+    let start = edges[0];
+
+    let end = edges[1];
+
+    let vec = end - start;
+
+    let length = vec.length();
+
+    let dir = vec / length;
+
+    let dash_gap = dash_length + gap_length;
+
+    let dash_count = (length / dash_gap).floor() as usize;
+
+    for i in 0..dash_count {
+        let dash_start = start + dir * (i as f32 * dash_gap);
+
+        let dash_end = dash_start + dir * dash_length.min(length - i as f32 * dash_gap);
+
+        painter.line_segment([dash_start, dash_end], stroke);
+    }
+
+    // Draw the remaining part if there's space
+
+    let remaining = length - dash_count as f32 * dash_gap;
+
+    if remaining > 0.0 {
+        let last_dash_start = start + dir * (dash_count as f32 * dash_gap);
+
+        let last_dash_end = last_dash_start + dir * remaining.min(dash_length);
+
+        if (last_dash_end - last_dash_start).length() > 0.0 {
+            painter.line_segment([last_dash_start, last_dash_end], stroke);
+        }
+    }
+}
