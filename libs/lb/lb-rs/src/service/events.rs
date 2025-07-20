@@ -2,7 +2,7 @@ pub use tokio::sync::broadcast::{self, Receiver, Sender};
 use tracing::*;
 use uuid::Uuid;
 
-use crate::Lb;
+use crate::LbServer;
 
 use super::sync::SyncIncrement;
 
@@ -63,6 +63,10 @@ impl EventSubs {
         self.queue(Event::StatusUpdated);
     }
 
+    pub fn get_tx(&self) -> &Sender<Event> {
+        &self.tx
+    }
+
     fn queue(&self, evt: Event) {
         if let Err(e) = self.tx.send(evt.clone()) {
             error!(?evt, ?e, "could not queue");
@@ -70,7 +74,7 @@ impl EventSubs {
     }
 }
 
-impl Lb {
+impl LbServer {
     pub fn subscribe(&self) -> Receiver<Event> {
         self.events.tx.subscribe()
     }
