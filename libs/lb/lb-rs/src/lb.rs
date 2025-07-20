@@ -1,3 +1,18 @@
+use std::collections::HashMap;
+use std::net::{Ipv4Addr, SocketAddrV4};
+use std::path::{Path, PathBuf};
+use tokio::net::TcpListener;
+use tokio::sync::broadcast::Receiver;
+use uuid::Uuid;
+use crate::model::{account::{Account, Username}, api::{AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo}, crypto::DecryptedDocument, file::{File, ShareMode}, file_metadata::{DocumentHmac,FileType}, errors::{LbErrKind, Warning, LbErr}, path_ops::Filter};
+use crate::service::events::EventSubs;
+use crate::service::keychain::Keychain;
+use crate::service::{activity::RankingWeights, events::Event, import_export::{ExportFileInfo, ImportStatus}, usage::{UsageItemMetric, UsageMetrics},sync::{SyncProgress, SyncStatus}};
+use crate::subscribers::search::{SearchConfig, SearchIndex, SearchResult};
+use crate::subscribers::status::Status;
+use crate::{LbResult, LbServer, lb_client::LbClient};
+use crate::model::core_config::Config;
+
 #[derive(Clone)]
 pub enum Lb {
     Direct(LbServer),
@@ -813,22 +828,3 @@ impl LbServer {
         self.config.clone()
     }
 }
-
-use std::collections::HashMap;
-use std::net::{Ipv4Addr, SocketAddrV4};
-use std::path::{Path, PathBuf};
-
-use libsecp256k1::SecretKey;
-use tokio::net::TcpListener;
-use tokio::sync::broadcast::Receiver;
-
-use uuid::Uuid;
-
-use crate::model::{account::{Account, Username}, api::{AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo}, crypto::DecryptedDocument, file::{File, ShareMode}, file_metadata::{DocumentHmac,FileType}, errors::{LbErrKind, Warning, LbErr}, path_ops::Filter};
-use crate::service::events::EventSubs;
-use crate::service::keychain::Keychain;
-use crate::service::{activity::RankingWeights, events::Event, import_export::{ExportFileInfo, ImportStatus}, usage::{UsageItemMetric, UsageMetrics},sync::{SyncProgress, SyncStatus}};
-use crate::subscribers::search::{SearchConfig, SearchIndex, SearchResult};
-use crate::subscribers::status::Status;
-use crate::{LbResult, LbServer, lb_client::LbClient};
-use crate::model::core_config::Config;

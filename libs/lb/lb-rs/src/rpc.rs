@@ -1,3 +1,13 @@
+use crate::dispatch::dispatch;
+use std::net::SocketAddrV4;
+use std::sync::Arc;
+use serde::{Serialize,Deserialize};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use bincode;
+use crate::{LbResult, LbServer};
+use crate::model::errors::{core_err_unexpected};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u16)]
 pub enum Method {
@@ -189,14 +199,3 @@ impl LbServer {
             Ok(())
         }
 }
-
-use crate::dispatch::dispatch;
-use std::net::SocketAddrV4;
-use std::sync::Arc;
-use serde::de::DeserializeOwned;
-use serde::{Serialize,Deserialize};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use bincode;
-use crate::{LbResult, LbServer};
-use crate::model::errors::{core_err_unexpected};

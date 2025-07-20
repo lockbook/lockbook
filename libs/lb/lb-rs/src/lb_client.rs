@@ -1,3 +1,21 @@
+use crate::model::core_config::Config;
+use crate::service::events::EventSubs;
+use crate::service::keychain::Keychain;
+use crate::service::sync::{SyncProgress, SyncStatus};
+use crate::subscribers::search::{SearchConfig, SearchIndex, SearchResult};
+use crate::subscribers::status::Status;
+use crate::{model::errors::core_err_unexpected};
+use tokio::net::TcpStream;
+use crate::rpc::{call_rpc, recv_rpc_response, send_rpc_request, Method};
+use crate::Uuid;
+use std::collections::HashMap;
+use std::net::SocketAddrV4;
+use std::path::{Path, PathBuf};
+use tokio::sync::broadcast::{self, Receiver};
+use crate::model::{account::{Account, Username}, api::{AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo}, crypto::DecryptedDocument, file::{File, ShareMode}, file_metadata::{DocumentHmac,FileType}, errors::{Warning, LbErr}, path_ops::Filter};
+use crate::service::{activity::RankingWeights, events::Event, import_export::{ExportFileInfo, ImportStatus}, usage::{UsageItemMetric, UsageMetrics}};
+use crate::LbResult;
+
 #[derive(Clone)]
 pub struct LbClient {
     pub addr: SocketAddrV4,
@@ -407,24 +425,3 @@ impl LbClient {
         call_rpc(self.addr, Method::GetKeychain, ()).await.unwrap()
     }
 }
-
-use crate::model::core_config::Config;
-use crate::service::events::EventSubs;
-use crate::service::keychain::Keychain;
-use crate::service::sync::{SyncProgress, SyncStatus};
-use crate::subscribers::search::{SearchConfig, SearchIndex, SearchResult};
-use crate::subscribers::status::Status;
-use crate::{model::errors::core_err_unexpected};
-use libsecp256k1::SecretKey;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
-use crate::rpc::{call_rpc, recv_rpc_response, send_rpc_request, Method};
-use crate::Uuid;
-use std::collections::HashMap;
-use std::net::SocketAddrV4;
-use std::path::{Path, PathBuf};
-use std::vec;
-use tokio::sync::broadcast::{self, Receiver};
-use crate::model::{account::{Account, Username}, api::{AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo}, crypto::DecryptedDocument, file::{File, ShareMode}, file_metadata::{DocumentHmac,FileType}, errors::{Warning, LbErr}, path_ops::Filter};
-use crate::service::{activity::RankingWeights, events::Event, import_export::{ExportFileInfo, ImportStatus}, usage::{UsageItemMetric, UsageMetrics}};
-use crate::LbResult;
