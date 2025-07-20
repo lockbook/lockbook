@@ -3,18 +3,15 @@ use resvg::usvg::Transform;
 use crate::tab::svg_editor::{
     gesture_handler::transform_canvas,
     renderer::RenderOptions,
-
     toolbar::{Toolbar, ToolbarContext, MINI_MAP_WIDTH},
     util::transform_rect,
 };
 const SCROLLBAR_WIDTH: f32 = 15.0;
 
-
 impl Toolbar {
     pub fn show_mini_map(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
     ) -> Option<egui::Response> {
-
         if !tlbr_ctx.settings.show_mini_map
             || !tlbr_ctx.viewport_settings.is_scroll_mode()
             || tlbr_ctx.viewport_settings.bounded_rect.is_none()
@@ -40,7 +37,6 @@ impl Toolbar {
         }
         .as_shape(mini_map_rect, 0.0)
         .into();
-
 
         let mini_map_line_sep = egui::Shape::line_segment(
             [mini_map_rect.left_top(), mini_map_rect.left_bottom()],
@@ -93,7 +89,6 @@ impl Toolbar {
             tlbr_ctx.viewport_settings.master_transform,
         );
 
-
         let viewport_rect =
             transform_rect(tlbr_ctx.viewport_settings.container_rect, out.absolute_transform);
 
@@ -104,7 +99,6 @@ impl Toolbar {
             blue.linear_multiply(0.2),
             egui::Stroke { width: 0.5, color: blue },
         );
-
 
         self.show_scroll_bar(ui, tlbr_ctx, mini_map_rect);
 
@@ -118,7 +112,6 @@ impl Toolbar {
         );
 
         if let Some(click_pos) = ui.input(|r| r.pointer.interact_pos()) {
-
             let maybe_delta =
                 if (res.clicked() || res.drag_started()) && !viewport_rect.contains(click_pos) {
                     Some((viewport_rect.center() - click_pos) / out.absolute_transform.sx)
@@ -140,7 +133,6 @@ impl Toolbar {
                 transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
             }
         }
-
 
         ui.painter()
             .extend([shadow, scroll_bar_line_sep, mini_map_line_sep]);
@@ -222,8 +214,4 @@ impl Toolbar {
             transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
         }
     }
-
-        None
-    }
-
 }
