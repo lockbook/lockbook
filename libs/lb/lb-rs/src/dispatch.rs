@@ -202,8 +202,10 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
         }
 
         Method::LocalChanges => {
-            let changes: Vec<Uuid> = lb.local_changes().await;
-            bincode::serialize(&changes).map_err(core_err_unexpected)?
+             call_async(|| async move {
+                let changes: Vec<Uuid> = lb.local_changes().await;
+                Ok(changes)
+            }).await?
         }
 
         Method::ImportFiles => {
@@ -312,30 +314,34 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
         }
 
         Method::Status => {
-            let res = lb.status().await;
-            bincode::serialize(&res).map_err(core_err_unexpected)?
+            call_async(|| async {
+                let status = lb.status().await;
+                Ok(status)
+            }).await?
         }
 
         Method::GetConfig => {
-            let res = lb.config.clone();
-            bincode::serialize(&res).map_err(core_err_unexpected)?
+            call_async(|| async {
+                Ok(lb.get_config())
+            }).await?
         }
 
         Method::GetLastSynced => {
-            let tx = lb.ro_tx().await;
-            let db = tx.db();
-            bincode::serialize(&(db.last_synced.get().copied().unwrap_or(0)))
-                .unwrap_or_else(|_| vec![0])
+            call_async(|| async {
+                Ok(lb.get_last_synced().await)
+            }).await?
         }
 
         Method::GetSearch => {
-            let res = lb.search.clone();
-            bincode::serialize(&res).map_err(core_err_unexpected)?
+            call_async(|| async {
+                Ok(lb.get_search())
+            }).await?
         }
 
         Method::GetKeychain => {
-            let res = lb.keychain.clone();
-            bincode::serialize(&res).map_err(core_err_unexpected)?
+            call_async(|| async {
+                Ok(lb.get_keychain())
+            }).await?
         }
 
         other => {
