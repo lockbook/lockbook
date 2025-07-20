@@ -15,19 +15,6 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
             call_async(|| lb.import_account_private_key_v1(account)).await?
         }
 
-        Method::ImportAccountPrivateKeyV2 => {
-            let (pk_bytes, api_url): ([u8; 32], String) = deserialize_args(raw)?;
-            let sk = SecretKey::parse(&pk_bytes).map_err(core_err_unexpected)?;
-            call_async(|| lb.import_account_private_key_v2(sk, &api_url)).await?
-        }
-
-        Method::ImportAccountPhrase => {
-            let (phrase_vec, api_url): (Vec<String>, String) = deserialize_args(raw)?;
-            let slice: Vec<&str> = phrase_vec.iter().map(|s| s.as_str()).collect();
-            let phrase_arr: [&str; 24] = slice.try_into().map_err(core_err_unexpected)?;
-            call_async(|| lb.import_account_phrase(phrase_arr, &api_url)).await?
-        }
-
         Method::ExportAccountPrivateKey => {
             call_sync(|| lb.export_account_private_key())?
         }

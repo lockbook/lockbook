@@ -4,8 +4,6 @@ pub enum Method {
     CreateAccount = 0,
     ImportAccount,
     ImportAccountPrivateKeyV1,
-    ImportAccountPrivateKeyV2,
-    ImportAccountPhrase,
     ExportAccountPrivateKey,
     ExportAccountPrivateKeyV1,
     ExportAccountPrivateKeyV2,

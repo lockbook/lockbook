@@ -81,32 +81,6 @@ impl Lb {
         }
     }
 
-    pub async fn import_account_private_key_v2(
-        &self, private_key: SecretKey, api_url: &str,
-    ) -> LbResult<Account> {
-         match self {
-            Lb::Direct(inner) => {
-                inner.import_account_private_key_v2(private_key,api_url).await
-            }
-            Lb::Network(proxy) => {
-                proxy.import_account_private_key_v2(private_key, api_url).await
-            }
-        }
-    }
-
-    pub async fn import_account_phrase(
-        &self, phrase: [&str; 24], api_url: &str,
-    ) -> LbResult<Account>{
-        match self {
-            Lb::Direct(inner) => {
-                inner.import_account_phrase(phrase,api_url).await
-            }
-            Lb::Network(proxy) => {
-                proxy.import_account_phrase(phrase,api_url).await
-            }
-        }
-    }
-
     pub async fn export_account_private_key(&self) -> LbResult<String> {
         match self {
             Lb::Direct(inner) => {
@@ -125,17 +99,6 @@ impl Lb {
             }
             Lb::Network(proxy) => {
                 proxy.export_account_private_key_v1().await
-            }
-        }
-    }
-
-    pub(crate) async  fn export_account_private_key_v2(&self) -> LbResult<String> {
-        match self {
-            Lb::Direct(inner) => {
-                inner.export_account_private_key_v2()
-            }
-            Lb::Network(proxy) => {
-                proxy.export_account_private_key_v2().await
             }
         }
     }

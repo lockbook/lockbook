@@ -26,22 +26,6 @@ impl LbClient {
 
     }
 
-    pub async fn import_account_private_key_v2(
-        &self, private_key: SecretKey, api_url: &str,
-    ) -> LbResult<Account> {
-        let private_key_bytes=  private_key.serialize();
-        let args = (private_key_bytes, api_url.to_string());
-        call_rpc(self.addr, Method::ImportAccountPrivateKeyV2, args).await
-    }
-
-    pub async fn import_account_phrase(
-        &self, phrase: [&str; 24], api_url: &str,
-    ) -> LbResult<Account> {
-        let phrase_vec: Vec<String> = phrase.iter().map(|&s| s.to_string()).collect();
-        let args = (phrase_vec, api_url.to_string());
-        call_rpc(self.addr, Method::ImportAccountPhrase, args).await
-    }
-
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn export_account_private_key(&self) -> LbResult<String> {
         call_rpc(self.addr, Method::ExportAccountPrivateKey, ()).await
