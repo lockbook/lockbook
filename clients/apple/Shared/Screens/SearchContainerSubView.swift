@@ -27,7 +27,7 @@ struct SearchContainerSubView<Content: View>: View {
                             results
                         }
                     }
-                    .listStyle(.inset)
+                    .modifier(SearchListViewModifier())
                 }
             } else {
                 content
@@ -124,3 +124,13 @@ class SearchContainerViewModel: ObservableObject {
     }
 }
 
+
+struct SearchListViewModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content.listStyle(.inset)
+        #else
+        content.listStyle(.sidebar)
+        #endif
+    }
+}

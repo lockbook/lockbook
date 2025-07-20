@@ -24,7 +24,7 @@ struct DetailView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                HStack(alignment: .bottom, spacing: 5) {
+                HStack(alignment: .lastTextBaseline, spacing: 5) {
                     if workspaceState.openDoc != nil {
                         Button(action: {
                             runOnOpenDoc { file in
@@ -43,16 +43,18 @@ struct DetailView: View {
                         })
                     }
                         
-                    if isConstrainedLayout && workspaceState.tabCount > 1 {
+                    if isConstrainedLayout && workspaceState.tabCount > 0 {
                         Button(action: {
                             self.showTabsSheet()
                         }, label: {
-                            ZStack {
-                                Image(systemName: "rectangle.fill")
-                                
+                            ZStack(alignment: .center) {
+                                RoundedRectangle(cornerSize: .init(width: 4, height: 4))
+                                    .stroke(Color.accentColor, lineWidth: 2)
+                                    .frame(width: 20, height: 20)
+                                    
                                 Text(workspaceState.tabCount < 100 ? String(workspaceState.tabCount) : ":D")
-                                    .font(.callout)
-                                    .foregroundColor(.white)
+                                    .font(.footnote)
+                                    .foregroundColor(.accentColor)
                             }
                         })
                     }
