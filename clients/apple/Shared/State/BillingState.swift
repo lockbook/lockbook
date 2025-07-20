@@ -50,7 +50,7 @@ class BillingState: ObservableObject {
             return
         }
         
-        guard case .success(nil) = AppState.lb.getSubscriptionInfo() else {
+        if case .success(.some(let info)) = AppState.lb.getSubscriptionInfo(), info.isPremium() == true {
             return
         }
         

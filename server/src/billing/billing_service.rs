@@ -100,20 +100,13 @@ where
 
         {
             let db = self.index_db.lock().await;
-            if let Some(owner) = db.app_store_ids.get().get(&request.app_account_token) {
-                if let Some(other_account) = db.accounts.get().get(owner) {
-                    if let Some(BillingPlatform::AppStore(ref info)) =
-                        other_account.billing_info.billing_platform
-                    {
-                        if info.account_token == request.app_account_token
-                            && other_account.billing_info.is_premium()
-                        {
-                            return Err(ClientError(
-                                UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked,
-                            ));
-                        }
-                    }
-                }
+            if db
+                .app_store_ids
+                .get()
+                .get(&request.app_account_token)
+                .is_some()
+            {
+                return Err(ClientError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked));
             }
         }
 
