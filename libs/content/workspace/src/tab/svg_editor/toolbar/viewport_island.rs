@@ -37,7 +37,7 @@ impl ViewportMode {
 
     pub fn label(&self) -> &'static str {
         match self {
-            ViewportMode::Scroll => "Scroll",
+            ViewportMode::Scroll => "Notebook",
             ViewportMode::Infinite => "Infinite",
         }
     }
