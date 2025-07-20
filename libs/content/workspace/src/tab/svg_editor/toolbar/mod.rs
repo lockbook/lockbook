@@ -84,11 +84,11 @@ impl ViewportSettings {
     pub fn update_working_rect(
         &mut self, settings: CanvasSettings, buffer: &Buffer, diff_state: &DiffState,
     ) {
-        let is_page_mode = self.is_page_mode();
+        let is_scroll_mode = self.is_scroll_mode();
         let new_working_rect = if let Some(bounded_rect) = &mut self.bounded_rect {
             if diff_state.is_dirty() && diff_state.transformed.is_none() {
                 if let Some(elements_bounds) = calc_elements_bounds(&buffer) {
-                    if is_page_mode {
+                    if is_scroll_mode {
                         bounded_rect.max.y = elements_bounds.max.y
                     } else {
                         *bounded_rect = elements_bounds;
@@ -342,7 +342,12 @@ impl Toolbar {
             .unwrap_or(egui::Rect::from_min_size(egui::Pos2::default(), egui::vec2(10.0, 10.0)))
             .size();
 
-        let mini_map_width = if tlbr_ctx.settings.show_mini_map { MINI_MAP_WIDTH } else { 0.0 };
+        let mini_map_width =
+            if tlbr_ctx.settings.show_mini_map && tlbr_ctx.viewport_settings.is_scroll_mode() {
+                MINI_MAP_WIDTH
+            } else {
+                0.0
+            };
         let island_rect = egui::Rect {
             min: egui::pos2(
                 tlbr_ctx.viewport_settings.container_rect.right()

@@ -404,11 +404,14 @@ impl Toolbar {
         ui.add_space(5.0);
 
         ui.horizontal(|ui| {
-            ui.label("Show mini map");
-            ui.add_space(10.0);
-            if switch(ui, &mut tlbr_ctx.settings.show_mini_map).changed() {
-                tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
-            }
+            ui.add_enabled_ui(tlbr_ctx.viewport_settings.is_scroll_mode(), |ui| {
+                ui.label("Show mini map");
+                ui.add_space(10.0);
+                if switch(ui, &mut tlbr_ctx.settings.show_mini_map).changed() {
+                    tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+                }
+            });
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     switch(ui, &mut self.gesture_handler.is_zoom_locked);
