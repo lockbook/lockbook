@@ -32,7 +32,6 @@ struct HomeView: View {
                         }
                     })
                     .environment(\.isConstrainedLayout, false)
-                    
                 }
             }
         }
@@ -63,6 +62,7 @@ struct HomeView: View {
             .modifier(OutOfSpaceAlert())
     }
     
+    @ViewBuilder
     var detail: some View {
         DetailView()
             .navigationDestination(isPresented: $homeState.showSettings) {
