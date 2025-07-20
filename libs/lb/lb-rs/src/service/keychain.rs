@@ -107,6 +107,10 @@ impl LbServer {
     pub fn get_account(&self) -> LbResult<&Account> {
         self.keychain.get_account()
     }
+
+    pub fn get_keychain(&self) -> Keychain {
+        self.keychain.clone()
+    }
 }
 
 impl Keychain {

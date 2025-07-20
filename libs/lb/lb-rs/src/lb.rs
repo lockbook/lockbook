@@ -803,7 +803,7 @@ impl Lb {
     pub async fn get_config(&self) -> Config {
         match self {
             Lb::Direct(inner) => {
-                inner.config.clone()
+                inner.get_config()
             }
             Lb::Network(proxy) => {
                 proxy.get_config().await
@@ -814,9 +814,7 @@ impl Lb {
     pub async fn get_last_synced(&self) -> LbResult<i64> {
         match self {
             Lb::Direct(inner) => {
-                let tx = inner.ro_tx().await;
-                let db = tx.db();
-                Ok(db.last_synced.get().copied().unwrap_or(0))
+                inner.get_last_synced().await
             }
             Lb::Network(proxy) => {
                 proxy.get_last_synced().await
@@ -827,7 +825,7 @@ impl Lb {
     pub async fn get_search(&self) -> SearchIndex {
         match self {
             Lb::Direct(inner) => {
-                inner.search.clone()
+                inner.get_search()
             }
             Lb::Network(proxy) => {
                 proxy.get_search().await
@@ -838,12 +836,18 @@ impl Lb {
     pub async fn get_keychain(&self) -> Keychain {
         match self {
             Lb::Direct(inner) => {
-                inner.keychain.clone()
+                inner.get_keychain()
             }
             Lb::Network(proxy) => {
                 proxy.get_keychain().await
             }
         }
+    }
+}
+
+impl LbServer {
+    pub fn get_config(&self) -> Config {
+        self.config.clone()
     }
 }
 

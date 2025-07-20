@@ -270,6 +270,10 @@ impl LbServer {
 
         index_writer.commit().unwrap();
     }
+
+    pub fn get_search(&self) -> SearchIndex {
+        self.search.clone()         
+    }
 }
 
 impl Default for SearchIndex {

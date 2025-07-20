@@ -1167,6 +1167,12 @@ impl LbServer {
             "never".to_string()
         }
     }
+
+    pub async fn get_last_synced(&self) -> LbResult<i64> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+        Ok(db.last_synced.get().copied().unwrap_or(0))
+    }
 }
 
 impl SyncContext {
