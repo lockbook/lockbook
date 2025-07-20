@@ -1,4 +1,3 @@
-use egui::Painter;
 use resvg::usvg::Transform;
 
 use crate::tab::svg_editor::{
@@ -21,14 +20,12 @@ impl Toolbar {
         }
         let bounded_rect = tlbr_ctx.viewport_settings.bounded_rect.unwrap();
 
-        let mini_map_size = egui::vec2(
-            MINI_MAP_WIDTH - SCROLLBAR_WIDTH,
-            tlbr_ctx.viewport_settings.container_rect.height(),
-        );
+        let mini_map_size =
+            egui::vec2(MINI_MAP_WIDTH, tlbr_ctx.viewport_settings.container_rect.height());
 
         let mini_map_rect = egui::Rect::from_min_size(
             tlbr_ctx.viewport_settings.container_rect.right_top()
-                - egui::vec2(mini_map_size.x + SCROLLBAR_WIDTH, 0.0),
+                - egui::vec2(mini_map_size.x, 0.0),
             mini_map_size,
         );
         let shadow: egui::Shape = egui::Shadow {
@@ -39,13 +36,14 @@ impl Toolbar {
         }
         .as_shape(mini_map_rect, 0.0)
         .into();
+
         let mini_map_line_sep = egui::Shape::line_segment(
             [mini_map_rect.left_top(), mini_map_rect.left_bottom()],
             egui::Stroke { width: 1., color: ui.visuals().window_stroke.color },
         );
         let scroll_bar_line_sep = egui::Shape::line_segment(
             [mini_map_rect.right_top(), mini_map_rect.right_bottom()],
-            egui::Stroke { width: 0., color: ui.visuals().window_stroke.color },
+            egui::Stroke { width: 0.5, color: ui.visuals().window_stroke.color },
         );
 
         let mut painter = ui.painter().clone();
@@ -76,7 +74,8 @@ impl Toolbar {
 
         let viewport_transform = Transform::identity().post_scale(s, s).post_translate(
             mini_map_rect.left() - s * bounded_rect.left() + bounded_rect_offset.x * s,
-            mini_map_rect.top() - s * bounded_rect.top() + bounded_rect_offset.y * s - offset,
+            mini_map_rect.top() - s * bounded_rect.top() + bounded_rect_offset.y * s
+                - offset.max(0.0),
         );
 
         painter.rect_filled(painter.clip_rect(), 0.0, ui.visuals().extreme_bg_color);
@@ -103,7 +102,10 @@ impl Toolbar {
         self.show_scroll_bar(ui, tlbr_ctx, mini_map_rect);
 
         let res = ui.interact(
-            mini_map_rect,
+            egui::Rect::from_min_size(
+                mini_map_rect.min,
+                egui::vec2(MINI_MAP_WIDTH - SCROLLBAR_WIDTH, mini_map_rect.height()),
+            ),
             egui::Id::from("scroll_mini_map"),
             egui::Sense::click_and_drag(),
         );
@@ -123,11 +125,8 @@ impl Toolbar {
                     None
                 };
 
-            let transform = if let Some(delta) = maybe_delta {
-                Some(Transform::default().post_translate(delta.x, delta.y))
-            } else {
-                None
-            };
+            let transform =
+                maybe_delta.map(|delta| Transform::default().post_translate(delta.x, delta.y));
 
             if let Some(transform) = transform {
                 transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
@@ -165,28 +164,24 @@ impl Toolbar {
 
         let scrollarea_size = egui::vec2(SCROLLBAR_WIDTH, mini_map_rect.height());
 
-        let scrollarea_rect = egui::Rect::from_min_size(mini_map_rect.right_top(), scrollarea_size);
+        let scrollarea_rect = egui::Rect::from_min_size(
+            mini_map_rect.right_top() - egui::vec2(SCROLLBAR_WIDTH, 0.0),
+            scrollarea_size,
+        );
 
         let mut painter = ui.painter().clone();
         painter.set_clip_rect(scrollarea_rect);
 
-        painter.rect_filled(scrollarea_rect, 0.0, ui.visuals().extreme_bg_color);
-
         let scale_down_factor = scrollarea_rect.height() / bounded_rect.height();
-        let scrollbar_rect = egui::Rect::from_min_size(
+        let scrollbar_rect = egui::Rect::from_center_size(
             egui::pos2(
-                scrollarea_rect.left(),
-                container_rect.top() * scale_down_factor + mini_map_rect.top(),
+                scrollarea_rect.center().x,
+                container_rect.center().y * scale_down_factor + mini_map_rect.top(),
             ),
-            egui::vec2(scrollarea_size.x, container_rect.height() * scale_down_factor),
+            egui::vec2(scrollarea_size.x / 3.0, container_rect.height() * scale_down_factor),
         );
         let blue = ui.visuals().widgets.active.bg_fill;
-        painter.rect(
-            scrollbar_rect,
-            0.0,
-            blue.linear_multiply(0.2),
-            egui::Stroke { width: 0.5, color: blue },
-        );
+        painter.rect_filled(scrollbar_rect, ui.visuals().window_rounding, blue);
 
         let scrollarea_res = ui.interact(
             scrollarea_rect,

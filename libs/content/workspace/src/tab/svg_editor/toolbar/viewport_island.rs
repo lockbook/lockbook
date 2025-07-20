@@ -7,10 +7,10 @@ use crate::{
     tab::svg_editor::{
         background::{show_dot_grid, show_lines_background},
         gesture_handler::{
-            calc_elements_bounds, get_rect_identity_transform, get_zoom_fit_transform,
-            transform_canvas, zoom_percentage_to_transform, MIN_ZOOM_LEVEL,
+            get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
+            zoom_percentage_to_transform, MIN_ZOOM_LEVEL,
         },
-        util::{draw_dashed_line, transform_rect},
+        util::draw_dashed_line,
         BackgroundOverlay,
     },
     theme::icons::Icon,
@@ -250,19 +250,7 @@ impl Toolbar {
 
     fn show_zoom_stops_popover(&self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) {
         if Button::default().text("FIT").show(ui).clicked() {
-            let transform = if tlbr_ctx.viewport_settings.is_page_mode()
-                && tlbr_ctx.viewport_settings.bounded_rect.is_some()
-            {
-                get_rect_identity_transform(
-                    tlbr_ctx.viewport_settings.container_rect,
-                    tlbr_ctx.viewport_settings.bounded_rect.unwrap(),
-                    1.0,
-                    tlbr_ctx.viewport_settings.container_rect.center(),
-                )
-            } else {
-                get_zoom_fit_transform(tlbr_ctx.viewport_settings)
-            }
-            .unwrap_or_default();
+            let transform = get_zoom_fit_transform(tlbr_ctx.viewport_settings).unwrap_or_default();
 
             transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
         }
@@ -368,8 +356,7 @@ impl Toolbar {
                 show_side_controls(ui, Side::Right, right_bound_rect, shadow.into(), tlbr_ctx);
                 show_side_controls(ui, Side::Top, top_bound_rect, shadow.into(), tlbr_ctx);
                 show_side_controls(ui, Side::Bottom, bottom_bound_rect, shadow.into(), tlbr_ctx);
-            })
-            .inner;
+            });
 
         ui.add_space(5.0);
         ui.vertical(|ui| {

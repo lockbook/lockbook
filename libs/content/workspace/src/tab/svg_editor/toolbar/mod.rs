@@ -87,7 +87,7 @@ impl ViewportSettings {
         let is_scroll_mode = self.is_scroll_mode();
         let new_working_rect = if let Some(bounded_rect) = &mut self.bounded_rect {
             if diff_state.is_dirty() && diff_state.transformed.is_none() {
-                if let Some(elements_bounds) = calc_elements_bounds(&buffer) {
+                if let Some(elements_bounds) = calc_elements_bounds(buffer) {
                     if is_scroll_mode {
                         bounded_rect.max.y = elements_bounds.max.y
                     } else {
