@@ -100,10 +100,13 @@ where
 
         {
             let db = self.index_db.lock().await;
-            if let Some(owner) = db.app_store_ids.get().get(&request.app_account_token) {
-                return Err(ClientError(
-                    UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked,
-                ));
+            if db
+                .app_store_ids
+                .get()
+                .get(&request.app_account_token)
+                .is_some()
+            {
+                return Err(ClientError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked));
             }
         }
 
