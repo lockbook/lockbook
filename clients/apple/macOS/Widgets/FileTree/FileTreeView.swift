@@ -83,8 +83,25 @@ struct FileTreeView: NSViewRepresentable {
             }
             .store(in: &cancellables)
             
-            filesModel.$files.sink { _ in
+            filesModel.$files.sink { [weak treeView] _ in
+                guard let treeView else { return }
+                
+                let selectedId = {
+                    let ids = treeView.selectedRowIndexes.compactMap { row in
+                        (treeView.item(atRow: row) as? File)?.id
+                    }
+                    
+                    return ids.count == 1 ? ids[0] : nil
+                }()
+                
                 treeView.reloadData()
+                
+                guard let selectedId else { return }
+                
+                guard let file = try? AppState.lb.getFile(id: selectedId).get() else { return }
+                let row = treeView.row(forItem: file)
+                
+                treeView.selectRowIndexes([row], byExtendingSelection: false)
             }
             .store(in: &cancellables)
         }
