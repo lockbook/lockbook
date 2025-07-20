@@ -111,15 +111,19 @@ impl Toolbar {
         if let Some(click_pos) = ui.input(|r| r.pointer.interact_pos()) {
             let maybe_delta =
                 if (res.clicked() || res.drag_started()) && !viewport_rect.contains(click_pos) {
-                    Some(viewport_rect.center() - click_pos)
+                    Some((viewport_rect.center() - click_pos) / out.absolute_transform.sx)
                 } else if res.dragged() {
-                    Some(-res.drag_delta())
+                    let delta_factor = if mini_map_full_height > mini_map_rect.height() {
+                        mini_map_rect.height() / mini_map_full_height
+                    } else {
+                        1.0
+                    };
+                    Some(-res.drag_delta() / out.absolute_transform.sx / delta_factor)
                 } else {
                     None
                 };
 
             let transform = if let Some(delta) = maybe_delta {
-                let delta = delta / out.absolute_transform.sx;
                 Some(Transform::default().post_translate(delta.x, delta.y))
             } else {
                 None
