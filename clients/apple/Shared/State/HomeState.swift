@@ -9,6 +9,7 @@ class HomeState: ObservableObject {
     
     @Published var showSettings: Bool = false
     @Published var showPendingShares: Bool = false
+    @Published var showUpgradeAccount: Bool = false
     
     @Published var sheetInfo: FileOperationSheetInfo? = nil
     @Published var selectSheetInfo: SelectFolderAction? = nil
@@ -16,6 +17,7 @@ class HomeState: ObservableObject {
     
     @Published var constrainedSidebarState: ConstrainedSidebarState = .closed
     @Published var showTabsSheet: Bool = false
+    @Published var showOutOfSpaceAlert: Bool = false
     
     init() {
         AppState.workspaceState.$renameOpenDoc.sink { [weak self] rename in
@@ -44,16 +46,8 @@ class HomeState: ObservableObject {
     }
     
     func expandSidebarIfNoDocs() {
-        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.5) {
-            while AppState.workspaceState.wsHandle == nil {
-                Thread.sleep(until: .now + 0.1)
-            }
-            
-            if AppState.workspaceState.openDoc == nil {
-                DispatchQueue.main.async {
-                    self.constrainedSidebarState = .openPartial
-                }
-            }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.constrainedSidebarState = .openPartial
         }
     }
     

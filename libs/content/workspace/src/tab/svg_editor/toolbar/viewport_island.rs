@@ -10,6 +10,7 @@ use crate::{
             get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
             zoom_percentage_to_transform, MIN_ZOOM_LEVEL,
         },
+
         util::draw_dashed_line,
         BackgroundOverlay,
     },
@@ -24,6 +25,7 @@ pub enum ViewportPopover {
     More,
     ZoomStops,
 }
+
 
 pub enum ViewportMode {
     Scroll,
@@ -56,6 +58,7 @@ impl ViewportMode {
         }
     }
 }
+
 
 impl Toolbar {
     pub fn show_viewport_controls(
@@ -274,6 +277,7 @@ impl Toolbar {
 
         ui.add_space(10.0);
 
+
         ui.scope(|ui| {
             show_background_selector(ui, tlbr_ctx);
         });
@@ -397,7 +401,27 @@ impl Toolbar {
                 if switch(ui, &mut tlbr_ctx.settings.show_mini_map).changed() {
                     tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
                 }
+=======
+
+        show_background_selector(ui, tlbr_ctx);
+
+        ui.add_space(20.0);
+
+        ui.horizontal(|ui| {
+            ui.label("Show mini map");
+            ui.add_space(10.0);
+            if switch(ui, &mut tlbr_ctx.settings.show_mini_map).changed() {
+                tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    switch(ui, &mut self.gesture_handler.is_zoom_locked);
+                });
+                ui.add_space(10.0);
+
+                ui.label("Zoom lock");
             });
+
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -408,7 +432,6 @@ impl Toolbar {
                 ui.label("Zoom lock");
             });
         });
-
         ui.add_space(10.0);
     }
 
@@ -687,6 +710,7 @@ fn show_bring_back_btn(
         None
     }
 }
+
 
 enum Side {
     Left,

@@ -1,8 +1,8 @@
 import Bridge
 
 public struct SubscriptionInfo {
-    let periodEnd: UInt64
-    let platform: PaymentPlatform
+    public let periodEnd: UInt64
+    public let platform: PaymentPlatform
     
     init(_ res: LbSubscriptionInfo) {
         self.periodEnd = res.period_end

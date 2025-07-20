@@ -4,6 +4,7 @@ mod tools_island;
 mod viewport_island;
 
 use crate::{
+
     tab::svg_editor::{gesture_handler::calc_elements_bounds, InputContext},
     theme::icons::Icon,
     widgets::Button,
@@ -81,6 +82,7 @@ pub struct ToolbarContext<'a> {
 }
 
 impl ViewportSettings {
+
     pub fn update_working_rect(
         &mut self, settings: CanvasSettings, buffer: &Buffer, diff_state: &DiffState,
     ) {
@@ -95,6 +97,7 @@ impl ViewportSettings {
                     }
                 }
             }
+
 
             let min_x = if self.left_locked {
                 bounded_rect.left().max(self.container_rect.left())
@@ -341,6 +344,7 @@ impl Toolbar {
             .overlay_toggle
             .unwrap_or(egui::Rect::from_min_size(egui::Pos2::default(), egui::vec2(10.0, 10.0)))
             .size();
+
 
         let mini_map_width =
             if tlbr_ctx.settings.show_mini_map && tlbr_ctx.viewport_settings.is_scroll_mode() {

@@ -2,29 +2,64 @@ import SwiftUI
 import SwiftWorkspace
 
 struct StatusBarView: View {
+    @EnvironmentObject var homeState: HomeState
+    @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceState: WorkspaceState
     
     var body: some View {
         HStack {
-            Text(workspaceState.statusMsg.isEmpty ? "..." : workspaceState.statusMsg)
-                .lineLimit(1)
+            SyncButton()
             
             Spacer()
             
-            if !workspaceState.syncing {
+            fileActionButtons
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
+        .padding(.top, 8)
+    }
+    
+    var fileActionButtons: some View {
+        HStack {
+            if let root = filesModel.root {
                 Button(action: {
-                    workspaceState.requestSync()
+                    filesModel.createDoc(parent: selectedFolderOrRoot(root).id, isDrawing: false)
                 }) {
-                    Text("Sync now")
-                        .font(.callout)
-                        .lineLimit(1)
+                    Image(systemName: "doc.badge.plus")
+                        .font(.title2)
+                        .foregroundColor(.accentColor)
                 }
-                .buttonStyle(.borderless)
+                .padding(.trailing, 5)
+                
+                Button(action: {
+                    filesModel.createDoc(parent: selectedFolderOrRoot(root).id, isDrawing: false)
+                }) {
+                    Image(systemName: "pencil.tip.crop.circle.badge.plus")
+                        .font(.title2)
+                        .foregroundColor(.accentColor)
+                }
+                .padding(.trailing, 2)
+                
+                Button(action: {
+                    homeState.sheetInfo = .createFolder(parent: selectedFolderOrRoot(root))
+                }) {
+                    Image(systemName: "folder.badge.plus")
+                        .font(.title2)
+                        .foregroundColor(.accentColor)
+                }
+            } else {
+                ProgressView()
             }
         }
-        .padding(8)
-        .cardBackground(background: Color.accentColor.opacity(0.2))
-        .padding(8)
+        .buttonStyle(.borderless)
+    }
+
+    func selectedFolderOrRoot(_ root: File) -> File {
+        guard let selectedFolder = AppState.workspaceState.selectedFolder else {
+            return root
+        }
+        
+        return filesModel.idsToFiles[selectedFolder] ?? root
     }
 }
 
@@ -34,4 +69,6 @@ struct StatusBarView: View {
     
     return StatusBarView()
         .environmentObject(workspaceState)
+        .environmentObject(FilesViewModel())
+        .environmentObject(HomeState())
 }

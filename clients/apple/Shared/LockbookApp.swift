@@ -3,6 +3,40 @@ import SwiftWorkspace
 
 @main struct LockbookApp: App {
     var body: some Scene {
+        #if os(macOS)
+        macOS
+        #else
+        iOS
+        #endif
+    }
+    
+    #if os(macOS)
+    @SceneBuilder
+    var macOS: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+        .windowToolbarStyle(.unifiedCompact)
+        .commands {
+            // verify what shortcut its blocking
+            CommandGroup(replacing: .saveItem) {}
+            
+            SidebarCommands()
+        }
+        
+        Settings {
+            SettingsView()
+                .environmentObject(AppState.billingState)
+        }
+        
+        Window("Upgrade Account", id: "upgrade-account") {
+            UpgradeAccountView(settingsModel: SettingsViewModel())
+                .environmentObject(AppState.billingState)
+        }
+    }
+    #else
+    @SceneBuilder
+    var iOS: some Scene {
         WindowGroup {
             ContentView()
         }
@@ -12,13 +46,8 @@ import SwiftWorkspace
             
             SidebarCommands()
         }
-        
-        #if os(macOS)
-        Settings {
-            SettingsView()
-        }
-        #endif
     }
+    #endif
 }
 
 struct ContentView: View {
@@ -45,11 +74,9 @@ struct ContentView: View {
 }
 
 struct HomeContextWrapper: View {
-    @StateObject var billingState = BillingState()
-    
     var body: some View {
         HomeView()
-            .environmentObject(billingState)
+            .environmentObject(AppState.billingState)
             .environmentObject(AppState.workspaceState)
     }
 }

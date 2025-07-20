@@ -254,7 +254,8 @@ impl<T: TreeLike> LazyTree<T> {
         Ok(children)
     }
 
-    /// Returns ids of files for which the argument is an ancestor—the files' children, recursively. Does not include the argument.
+    /// Returns ids of files for which the argument is an ancestor—the files' children, recursively.
+    /// Does not include the argument.
     /// This function tolerates cycles.
     pub fn descendants(&mut self, id: &Uuid) -> LbResult<HashSet<Uuid>> {
         // todo: caching?

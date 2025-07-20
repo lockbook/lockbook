@@ -8,7 +8,7 @@ extension EnvironmentValues {
     
     public var isConstrainedLayout: Bool {
         get { self[isConstraintLayoutEnvironmentKey.self] }
-        set {  }
+        set { self[isConstraintLayoutEnvironmentKey.self] = newValue }
     }
 }
 

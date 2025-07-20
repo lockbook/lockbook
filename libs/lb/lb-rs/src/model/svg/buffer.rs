@@ -329,7 +329,7 @@ pub fn parse_child(
                     let base64 = base64::decode(weak_images_g.id().as_bytes())
                         .expect("Failed to decode base64");
 
-                    let decoded: WeakImages = bincode::deserialize(&base64).unwrap();
+                    let decoded: WeakImages = bincode::deserialize(&base64).unwrap_or_default();
                     *weak_images = decoded;
                 }
             } else if group.id().eq(WEAK_PATH_PRESSURES_G_ID) {
@@ -337,7 +337,8 @@ pub fn parse_child(
                     let base64 = base64::decode(weak_pressures_g.id().as_bytes())
                         .expect("Failed to decode base64");
 
-                    let decoded: WeakPathPressures = bincode::deserialize(&base64).unwrap();
+                    let decoded: WeakPathPressures =
+                        bincode::deserialize(&base64).unwrap_or_default();
                     *weak_path_pressures = decoded;
                 }
             } else if group.id().eq(WEAK_VIEWPORT_SETTINGS_G_ID) {
@@ -346,7 +347,8 @@ pub fn parse_child(
                     let base64 = base64::decode(weak_viewport_settings_g.id().as_bytes())
                         .expect("Failed to decode base64");
 
-                    let decoded: WeakViewportSettings = bincode::deserialize(&base64).unwrap();
+                    let decoded: WeakViewportSettings =
+                        bincode::deserialize(&base64).unwrap_or_default();
                     *weak_viewport_settings = decoded;
                 }
             } else {
