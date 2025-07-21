@@ -237,8 +237,12 @@ impl SVGEditor {
         if cfg!(debug_assertions) {
             self.show_debug_info(ui);
         }
-        self.viewport_settings
-            .update_working_rect(self.settings, &self.buffer, &global_diff);
+        self.viewport_settings.update_working_rect(
+            self.settings,
+            &self.buffer,
+            &global_diff,
+            self.toolbar.hide_overlay,
+        );
 
         if non_empty_weak_imaegs {
             self.has_queued_save_request = true;
