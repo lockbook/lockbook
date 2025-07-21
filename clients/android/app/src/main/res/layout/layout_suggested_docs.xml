@@ -27,6 +27,7 @@
             android:layout_height="match_parent"
             android:text="@string/clear_suggested_docs"
             android:textAllCaps="false"
+            android:letterSpacing="0"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
