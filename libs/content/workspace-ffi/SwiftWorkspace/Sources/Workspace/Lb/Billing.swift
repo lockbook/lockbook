@@ -39,6 +39,17 @@ public struct SubscriptionInfo {
             platform = .stripe(cardLast4Digits: String(cString: res.stripe.pointee.card_last_4_digits))
         }
     }
+    
+    public func isPremium() -> Bool {
+        switch self.platform {
+        case .stripe(let cardLast4Digits):
+            return true
+        case .googlePlay(let state):
+            return state == .ok || state == .gracePeriod || state == .canceled
+        case .appStore(let state):
+            return state == .ok || state == .gracePeriod
+        }
+    }
 }
 
 public enum PaymentPlatform {
