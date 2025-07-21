@@ -31,7 +31,7 @@ pub struct Toolbar {
     pub previous_tool: Option<Tool>,
     pub gesture_handler: GestureHandler,
 
-    hide_overlay: bool,
+    pub hide_overlay: bool,
     pub show_tool_popover: bool,
     pub show_at_cursor_tool_popover: Option<Option<egui::Pos2>>,
     layout: ToolbarLayout,
@@ -83,6 +83,7 @@ pub struct ToolbarContext<'a> {
 impl ViewportSettings {
     pub fn update_working_rect(
         &mut self, settings: CanvasSettings, buffer: &Buffer, diff_state: &DiffState,
+        hide_overlay: bool,
     ) {
         let is_scroll_mode = self.is_scroll_mode();
         let new_working_rect = if let Some(bounded_rect) = &mut self.bounded_rect {
@@ -108,7 +109,11 @@ impl ViewportSettings {
                 self.container_rect.top()
             };
 
-            let mini_map_width = if settings.show_mini_map { MINI_MAP_WIDTH } else { 0.0 };
+            let mini_map_width = if settings.show_mini_map && is_scroll_mode && !hide_overlay {
+                MINI_MAP_WIDTH
+            } else {
+                0.0
+            };
 
             let max_x = if self.right_locked {
                 bounded_rect
@@ -342,12 +347,14 @@ impl Toolbar {
             .unwrap_or(egui::Rect::from_min_size(egui::Pos2::default(), egui::vec2(10.0, 10.0)))
             .size();
 
-        let mini_map_width =
-            if tlbr_ctx.settings.show_mini_map && tlbr_ctx.viewport_settings.is_scroll_mode() {
-                MINI_MAP_WIDTH
-            } else {
-                0.0
-            };
+        let mini_map_width = if tlbr_ctx.settings.show_mini_map
+            && tlbr_ctx.viewport_settings.is_scroll_mode()
+            && !self.hide_overlay
+        {
+            MINI_MAP_WIDTH
+        } else {
+            0.0
+        };
         let island_rect = egui::Rect {
             min: egui::pos2(
                 tlbr_ctx.viewport_settings.container_rect.right()
