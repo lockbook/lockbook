@@ -9,6 +9,7 @@ import android.text.method.LinkMovementMethod
 import android.view.*
 import android.widget.ImageView
 import android.widget.LinearLayout
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
@@ -409,7 +410,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             this.withLayoutManager(LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false))
 
             withItem<SuggestedDocsViewHolderInfo, SuggestedDocsItemViewHolder>(R.layout.suggested_doc_item) {
-                onBind(::SuggestedDocsItemViewHolder) { _, item ->
+                onBind(::SuggestedDocsItemViewHolder) { i, item ->
                     name.text = item.fileMetadata.name
                     folderName.text = getString(R.string.suggested_docs_parent_folder, item.folderName)
                     lastEdited.text = Lb.getTimestampHumanString(item.fileMetadata.lastModified)
@@ -424,16 +425,44 @@ class FilesListFragment : Fragment(), FilesFragment {
                     }
 
                     icon.setImageResource(iconResource)
+
+                    itemView.setOnLongClickListener { view ->
+                        val popup = PopupMenu(view.context, view)
+
+                        popup.menu.add(0,1,0,"Remove")
+                        popup.menu.add(0,2,1,"Remove All")
+
+                        popup.setOnMenuItemClickListener { menuItem ->
+                            when (menuItem.itemId){
+                                1 -> {
+                                    Lb.clearSuggestedId(item.fileMetadata.id)
+                                    model.suggestedDocs.removeAt(i)
+                                    true
+                                }
+                                2 -> {
+                                    model.suggestedDocs.clear()
+                                    Lb.clearSuggested()
+                                    // todo: how to hide suggested docs?
+                                    //  i'd need to call maybeToggleSuggestedDocs() ? 
+                                    true
+                                }
+                                else -> false
+                            }
+                        }
+                        popup.show()
+                        true
+                    }
                 }
 
                 onClick {
                     enterFile(item.fileMetadata)
                 }
+
             }
         }
     }
 
-    private fun enterFile(item: File) {
+private fun enterFile(item: File) {
         when (item.type) {
             FileType.Document -> {
                 // TODO: consider that not all updates to the screen may go through because of postVal
