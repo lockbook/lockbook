@@ -18,6 +18,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.futured.donut.DonutProgressView
@@ -35,6 +36,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textview.MaterialTextView
+import kotlinx.coroutines.launch
 import net.lockbook.File
 import net.lockbook.File.FileType
 import net.lockbook.Lb
@@ -405,6 +407,14 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
         }
 
+        binding.suggestedDocsLayout.clearAllBtn.setOnClickListener{
+            model.suggestedDocs.clear()
+            Lb.clearSuggested()
+            lifecycleScope.launch {
+                model.maybeToggleSuggestedDocs()
+            }
+        }
+
         binding.suggestedDocsLayout.suggestedDocsList.setup {
             withDataSource(model.suggestedDocs)
             this.withLayoutManager(LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false))
@@ -430,25 +440,13 @@ class FilesListFragment : Fragment(), FilesFragment {
                         val popup = PopupMenu(view.context, view)
 
                         popup.menu.add(0,1,0,"Remove")
-                        popup.menu.add(0,2,1,"Remove All")
 
                         popup.setOnMenuItemClickListener { menuItem ->
-                            when (menuItem.itemId){
-                                1 -> {
-                                    Lb.clearSuggestedId(item.fileMetadata.id)
-                                    model.suggestedDocs.removeAt(i)
-                                    true
-                                }
-                                2 -> {
-                                    model.suggestedDocs.clear()
-                                    Lb.clearSuggested()
-                                    // todo: how to hide suggested docs?
-                                    //  i'd need to call maybeToggleSuggestedDocs() ? 
-                                    true
-                                }
-                                else -> false
-                            }
+                            Lb.clearSuggestedId(item.fileMetadata.id)
+                            model.suggestedDocs.removeAt(i)
+                            true
                         }
+
                         popup.show()
                         true
                     }
