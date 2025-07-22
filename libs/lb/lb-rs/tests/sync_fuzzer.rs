@@ -46,7 +46,7 @@ async fn stress_test_sync() {
 
     let pb = setup_progress_bar();
     for event_id in 0..ACTION_COUNT {
-        let action = rng.gen::<Actions>();
+        let action = rng.r#gen::<Actions>();
         if SHOW_PROGRESS {
             pb.set_message(format!("{event_id}: {action:?}"));
             pb.inc(1)

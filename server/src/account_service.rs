@@ -181,13 +181,16 @@ where
         let result = ids
             .iter()
             .filter_map(|&file_id| {
-                let file = if let Ok(file) = tree.find(&file_id) {
-                    if file.owner() != root_owner {
+                let file = match tree.find(&file_id) {
+                    Ok(file) => {
+                        if file.owner() != root_owner {
+                            return None;
+                        }
+                        file.clone()
+                    }
+                    _ => {
                         return None;
                     }
-                    file.clone()
-                } else {
-                    return None;
                 };
 
                 let file_size = match tree.calculate_deleted(&file_id).unwrap_or(true) {
