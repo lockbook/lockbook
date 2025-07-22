@@ -19,11 +19,9 @@ impl Audio {
             .order(Order::Background)
             .fixed_pos(Pos2 { x: ui.max_rect().min.x, y: 50.0 })
             .show(ui.ctx(), |ui| {
-                Frame::none()
-                    .fill(egui::Color32::from_gray(30))
-                    .show(ui, |ui| {
-                        let _ = self.player.ui(ui);
-                    });
+                Frame::none().show(ui, |ui| {
+                    let _ = self.player.ui(ui);
+                });
             });
     }
 }
