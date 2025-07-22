@@ -14,7 +14,9 @@ use std::time::{Duration, Instant};
 use tracing::instrument;
 
 use crate::output::Response;
-use crate::tab::{image_viewer, ContentState, Tab, TabContent, TabStatus};
+use crate::tab::{
+    core_get_by_relative_path, image_viewer, ContentState, Tab, TabContent, TabStatus,
+};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::Workspace;
@@ -478,7 +480,9 @@ impl Workspace {
 
             ui.centered_and_justified(|ui| {
                 let mut rename_req = None;
+                let mut open_id = None;
                 if let Some(tab) = self.current_tab_mut() {
+                    let id = tab.id().unwrap();
                     match &mut tab.content {
                         ContentState::Loading(_) => {
                             ui.spinner();
@@ -532,9 +536,24 @@ impl Workspace {
                             };
                         }
                     }
+
+                    ui.ctx().output_mut(|w| {
+                        if let Some(url) = &w.open_url {
+                            let id = self.core.get_file_by_id(id).unwrap().parent;
+                            let id = core_get_by_relative_path(&self.core, id, &url.url)
+                                .unwrap()
+                                .id;
+
+                            open_id = Some(id);
+                            w.open_url = None;
+                        }
+                    });
                 }
                 if let Some(req) = rename_req {
                     self.rename_file(req, false);
+                }
+                if let Some(id) = open_id {
+                    self.open_file(id, false, true);
                 }
             });
         });
