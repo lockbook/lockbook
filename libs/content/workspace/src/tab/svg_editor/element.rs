@@ -129,10 +129,10 @@ impl PromoteBufferWeakImages for Buffer {
             image.diff_state.transformed = None;
 
             if weak_image.z_index >= self.elements.len() {
-                self.elements.insert(id, Element::Image(image));
+                self.elements.insert(id, Element::Image(Box::new(image)));
             } else {
                 self.elements
-                    .shift_insert(weak_image.z_index, id, Element::Image(image));
+                    .shift_insert(weak_image.z_index, id, Element::Image(Box::new(image)));
             };
         });
     }

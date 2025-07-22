@@ -156,12 +156,14 @@ impl TabsExt for Vec<Tab> {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum ContentState {
     Loading(Uuid),
     Open(TabContent),
     Failed(TabFailure),
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum TabContent {
     Image(ImageViewer),
     Markdown(Markdown),

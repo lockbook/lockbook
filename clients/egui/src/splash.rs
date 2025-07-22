@@ -13,6 +13,7 @@ pub struct SplashHandOff {
     pub maybe_acct_data: Option<Vec<File>>,
 }
 
+#[allow(clippy::large_enum_variant)]
 enum SplashUpdate {
     Status(String),
     Error(String),
