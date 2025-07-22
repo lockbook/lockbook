@@ -2730,7 +2730,6 @@ dependencies = [
 [[package]]
 name = "egui_player"
 version = "0.1.2"
-source = "git+https://github.com/AravDesai/egui-player.git?branch=2021-rust-edition#24907ba054dfb2d17c9ccf56678ef17c0e87cf18"
 dependencies = [
  "eframe",
  "futures-util",
