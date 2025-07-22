@@ -39,7 +39,7 @@ impl Manager {
         match self.handle_impl(conn, db, screen_num, window, cursor_icon) {
             Ok(_) => {}
             Err(e) => {
-                println!("Failed to set cursor: {:?}", e);
+                println!("Failed to set cursor: {e:?}");
             }
         }
     }
