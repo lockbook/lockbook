@@ -61,9 +61,7 @@ pub async fn all_ids(core: &Lb, expected_ids: &[Uuid]) {
     actual_ids.sort();
     expected_ids.sort();
     if actual_ids != expected_ids {
-        panic!(
-            "ids did not match expectation. expected={expected_ids:?}; actual={actual_ids:?}"
-        );
+        panic!("ids did not match expectation. expected={expected_ids:?}; actual={actual_ids:?}");
     }
 }
 
@@ -80,9 +78,7 @@ pub async fn all_children_ids(core: &Lb, id: &Uuid, expected_ids: &[Uuid]) {
     actual_ids.sort();
     expected_ids.sort();
     if actual_ids != expected_ids {
-        panic!(
-            "ids did not match expectation. expected={expected_ids:?}; actual={actual_ids:?}"
-        );
+        panic!("ids did not match expectation. expected={expected_ids:?}; actual={actual_ids:?}");
     }
 }
 
@@ -99,9 +95,7 @@ pub async fn all_recursive_children_ids(core: &Lb, id: Uuid, expected_ids: &[Uui
     actual_ids.sort();
     expected_ids.sort();
     if actual_ids != expected_ids {
-        panic!(
-            "ids did not match expectation. expected={expected_ids:?}; actual={actual_ids:?}"
-        );
+        panic!("ids did not match expectation. expected={expected_ids:?}; actual={actual_ids:?}");
     }
 }
 

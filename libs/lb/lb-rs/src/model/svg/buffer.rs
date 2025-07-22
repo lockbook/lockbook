@@ -289,8 +289,7 @@ pub fn serialize_inner(
         let binary_data = bincode::serialize(&weak_images).expect("Failed to serialize");
         let base64_data = base64::encode(&binary_data);
 
-        let _ =
-            write!(&mut root, "<g id=\"{WEAK_IMAGE_G_ID}\"> <g id=\"{base64_data}\"></g></g>");
+        let _ = write!(&mut root, "<g id=\"{WEAK_IMAGE_G_ID}\"> <g id=\"{base64_data}\"></g></g>");
     }
 
     if !weak_pressures.is_empty() {

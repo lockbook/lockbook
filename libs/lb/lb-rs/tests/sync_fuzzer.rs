@@ -137,9 +137,9 @@ impl Actions {
                                 kind: LbErrKind::Validation(ValidationFailure::Cycle(_)),
                                 ..
                             }) => {}
-                            _ => panic!(
-                                "Unexpected error while moving file: {move_file_result:#?}"
-                            ),
+                            _ => {
+                                panic!("Unexpected error while moving file: {move_file_result:#?}")
+                            }
                         }
                         print!(
                             "[{:?}]\t{:?} to {:?}",
