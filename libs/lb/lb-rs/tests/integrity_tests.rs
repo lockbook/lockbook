@@ -202,7 +202,7 @@ async fn test_empty_file() {
 async fn test_invalid_utf8() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("document.txt").await.unwrap();
-    core.write_document(doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref())
+    core.write_document(doc.id, rand::thread_rng().r#gen::<[u8; 32]>().as_ref())
         .await
         .unwrap();
     let warnings = core.test_repo_integrity().await;
@@ -213,7 +213,7 @@ async fn test_invalid_utf8() {
 async fn test_invalid_utf8_ignores_non_utf_file_extensions() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("document.png").await.unwrap();
-    core.write_document(doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref())
+    core.write_document(doc.id, rand::thread_rng().r#gen::<[u8; 32]>().as_ref())
         .await
         .unwrap();
     let warnings = core.test_repo_integrity().await;

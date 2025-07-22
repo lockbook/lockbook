@@ -195,11 +195,11 @@ impl Buffer {
     pub fn remove(&mut self, id: Uuid) {
         if let Some(el) = self.elements.get_mut(&id) {
             match el {
-                Element::Path(ref mut path) => {
+                Element::Path(path) => {
                     path.deleted = true;
                     path.diff_state.delete_changed = true;
                 }
-                Element::Image(ref mut image) => {
+                Element::Image(image) => {
                     image.deleted = true;
                     image.diff_state.delete_changed = true;
                 }
