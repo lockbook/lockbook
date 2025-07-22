@@ -327,7 +327,7 @@ impl OnboardScreen {
                                                     },
                                                 );
                                                 job.append(
-                                                    &format!("{}\n", word),
+                                                    &format!("{word}\n"),
                                                     0.0,
                                                     egui::TextFormat {
                                                         font_id: egui::FontId::new(

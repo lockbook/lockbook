@@ -11,7 +11,7 @@ async fn assert_valid_list_metadatas(c: &Lb) {
     // no links
     for file in c.list_metadatas().await.unwrap() {
         if !file.is_document() && !file.is_folder() {
-            panic!("non document/folder file in listed metadata: {:#?}", file);
+            panic!("non document/folder file in listed metadata: {file:#?}");
         }
         files.insert(file.id);
     }

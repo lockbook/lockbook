@@ -143,7 +143,7 @@ async fn get_children(
             };
             // Determine column widths.
             {
-                let n = if cfg.paths { format!("{}{}", dirname, name).len() } else { name.len() };
+                let n = if cfg.paths { format!("{dirname}{name}").len() } else { name.len() };
                 if n > cfg.w_name {
                     cfg.w_name = n;
                 }

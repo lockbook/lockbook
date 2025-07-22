@@ -43,7 +43,7 @@ impl Lb {
         logging::init(&config)?;
 
         let db = CoreDb::init(db_rs::Config::in_folder(&config.writeable_path))
-            .map_err(|err| LbErrKind::Unexpected(format!("{:#?}", err)))?;
+            .map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
         let keychain = Keychain::from(db.account.get());
         let db = Arc::new(RwLock::new(db));
         let docs = AsyncDocs::from(&config);

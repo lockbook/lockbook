@@ -81,7 +81,7 @@ impl Lb {
                     ) =>
                 {
                     tries += 1;
-                    retry_name = format!("{}-{}", name, tries);
+                    retry_name = format!("{name}-{tries}");
                 }
                 Err(err) => return Err(err),
             }

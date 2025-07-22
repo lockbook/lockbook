@@ -30,7 +30,7 @@ impl Settings {
 
     pub fn read_from_file() -> Result<Self, Box<dyn std::error::Error>> {
         let path = match data_dir() {
-            Ok(dir) => format!("{}/egui/settings.json", dir),
+            Ok(dir) => format!("{dir}/egui/settings.json"),
             Err(err) => return Err(err.into()),
         };
         let mut s: Self = match fs::File::open(&path) {

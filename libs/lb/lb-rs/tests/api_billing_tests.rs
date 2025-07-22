@@ -206,7 +206,7 @@ async fn card_decline() {
             Err(ApiError::<UpgradeAccountStripeError>::Endpoint(err)) => {
                 assert_eq!(err, expected_err)
             }
-            other => panic!("expected {:?}, got {:?}", expected_err, other),
+            other => panic!("expected {expected_err:?}, got {other:?}"),
         }
     }
 }
@@ -269,7 +269,7 @@ async fn invalid_cards() {
             Err(ApiError::<UpgradeAccountStripeError>::Endpoint(err)) => {
                 assert_eq!(err, expected_err)
             }
-            other => panic!("expected {:?}, got {:?}", expected_err, other),
+            other => panic!("expected {expected_err:?}, got {other:?}"),
         }
     }
 }

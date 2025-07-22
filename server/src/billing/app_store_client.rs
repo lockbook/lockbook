@@ -73,7 +73,7 @@ impl AppStoreClient for Client {
     {
         let resp = gen_auth_req(
             config,
-            self.get(format!("{}/{}", SUB_STATUS_PROD, original_transaction_id)),
+            self.get(format!("{SUB_STATUS_PROD}/{original_transaction_id}")),
         )?
         .send()
         .await?;
@@ -105,7 +105,7 @@ impl AppStoreClient for Client {
 
                     let resp = gen_auth_req(
                         config,
-                        self.get(format!("{}/{}", SUB_STATUS_SANDBOX, original_transaction_id)),
+                        self.get(format!("{SUB_STATUS_SANDBOX}/{original_transaction_id}")),
                     )?
                     .send()
                     .await?;

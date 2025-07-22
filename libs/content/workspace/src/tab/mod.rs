@@ -253,7 +253,7 @@ impl From<LbErr> for TabFailure {
     fn from(err: LbErr) -> Self {
         match err.kind {
             LbErrKind::Unexpected(msg) => Self::Unexpected(msg),
-            _ => Self::SimpleMisc(format!("{:?}", err)),
+            _ => Self::SimpleMisc(format!("{err:?}")),
         }
     }
 }
@@ -262,7 +262,7 @@ impl TabFailure {
     pub fn msg(&self) -> String {
         match self {
             TabFailure::SimpleMisc(msg) => msg.clone(),
-            TabFailure::Unexpected(msg) => format!("Unexpected error: {}", msg),
+            TabFailure::Unexpected(msg) => format!("Unexpected error: {msg}"),
         }
     }
 }
@@ -462,7 +462,7 @@ pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> File {
 
     let file = core
         .create_file(
-            &format!("pasted_image_{}.{}", human_readable_time, file_extension),
+            &format!("pasted_image_{human_readable_time}.{file_extension}"),
             &imports_folder.id,
             FileType::Document,
         )

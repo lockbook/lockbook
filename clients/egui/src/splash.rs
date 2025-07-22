@@ -53,7 +53,7 @@ impl SplashScreen {
             let core = match Lb::init(cfg) {
                 Ok(core) => core,
                 Err(err) => {
-                    tx.send(SplashUpdate::Error(format!("{:?}", err))).unwrap();
+                    tx.send(SplashUpdate::Error(format!("{err:?}"))).unwrap();
                     ctx.request_repaint();
                     return;
                 }
@@ -61,7 +61,7 @@ impl SplashScreen {
             let is_signed_in = match is_signed_in(&core) {
                 Ok(is_signed_in) => is_signed_in,
                 Err(err) => {
-                    tx.send(SplashUpdate::Error(format!("{:?}", err))).unwrap();
+                    tx.send(SplashUpdate::Error(format!("{err:?}"))).unwrap();
                     ctx.request_repaint();
                     return;
                 }
@@ -74,7 +74,7 @@ impl SplashScreen {
                 let files = match core.list_metadatas() {
                     Ok(files) => files,
                     Err(err) => {
-                        tx.send(SplashUpdate::Error(format!("{:?}", err))).unwrap();
+                        tx.send(SplashUpdate::Error(format!("{err:?}"))).unwrap();
                         ctx.request_repaint();
                         return;
                     }
@@ -129,7 +129,7 @@ fn is_signed_in(core: &Lb) -> Result<bool, String> {
         Ok(_acct) => Ok(true),
         Err(err) => match err.kind {
             LbErrKind::AccountNonexistent => Ok(false),
-            _ => Err(format!("{:?}", err)), // todo(steve): display
+            _ => Err(format!("{err:?}")), // todo(steve): display
         },
     }
 }

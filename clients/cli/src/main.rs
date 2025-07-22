@@ -258,7 +258,7 @@ async fn search(query: &str) -> CliResult<()> {
                             result = format!("{result}{c}");
                         }
                     }
-                    println!("{}", result);
+                    println!("{result}");
                 }
                 println!();
             }

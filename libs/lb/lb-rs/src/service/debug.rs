@@ -142,7 +142,7 @@ impl Lb {
             lb_version: get_code_version().into(),
             rust_triple: format!("{arch}.{family}.{os}"),
             server_url: account.api_url.clone(),
-            integrity: format!("{:?}", integrity),
+            integrity: format!("{integrity:?}"),
             log_tail: log_tail?,
             lb_dir: self.config.writeable_path.clone(),
             last_synced,

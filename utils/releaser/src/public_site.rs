@@ -22,7 +22,7 @@ pub fn release() -> CliResult<()> {
 
 fn work_dir() -> PathBuf {
     let loc = tempfile::tempdir().unwrap().into_path();
-    println!("operating in {:?}", loc);
+    println!("operating in {loc:?}");
     loc
 }
 
