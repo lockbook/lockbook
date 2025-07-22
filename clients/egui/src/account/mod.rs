@@ -659,13 +659,13 @@ impl AccountScreen {
             if self.tree.files.get_by_id(f).parent == target {
                 continue;
             }
-            if let Err(err) = self.core.move_file(&f, &target) {
+            match self.core.move_file(&f, &target) { Err(err) => {
                 // todo: show error
                 println!("error moving file: {err:?}");
                 return;
-            } else {
+            } _ => {
                 ctx.request_repaint();
-            }
+            }}
         }
 
         ctx.request_repaint();

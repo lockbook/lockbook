@@ -1,21 +1,21 @@
 use egui::{PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
+use jni::JNIEnv;
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
-use jni::JNIEnv;
-use lb_c::model::text::offset_types::DocCharOffset;
 use lb_c::Uuid;
+use lb_c::model::text::offset_types::DocCharOffset;
 use serde::Serialize;
 use std::panic::catch_unwind;
+use workspace_rs::tab::TabContent;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
 use workspace_rs::tab::svg_editor::Tool;
-use workspace_rs::tab::TabContent;
 use workspace_rs::tab::{ContentState, ExtendedInput};
 
 use super::keyboard::AndroidKeys;
 use super::response::*;
 use crate::WgpuWorkspace;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
     env: JNIEnv, _: JClass, obj: jlong,
 ) -> jstring {
@@ -310,7 +310,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getAllText(
             return env
                 .new_string("")
                 .expect("Couldn't create JString from rust string!")
-                .into_raw()
+                .into_raw();
         }
     };
 
@@ -461,7 +461,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
             return env
                 .new_string("")
                 .expect("Couldn't create JString from rust string!")
-                .into_raw()
+                .into_raw();
         }
     };
 

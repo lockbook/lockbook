@@ -191,7 +191,7 @@ macro_rules! core_req {
 
 pub fn core_routes<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone
+) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = Rejection> + Clone + use<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
@@ -292,7 +292,7 @@ static STRIPE_WEBHOOK_ROUTE: &str = "stripe-webhooks";
 
 pub fn stripe_webhooks<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = warp::Rejection> + Clone + use<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
@@ -346,7 +346,7 @@ static PLAY_WEBHOOK_ROUTE: &str = "google_play_notification_webhook";
 
 pub fn google_play_notification_webhooks<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = warp::Rejection> + Clone + use<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
@@ -408,7 +408,7 @@ where
 static APP_STORE_WEBHOOK_ROUTE: &str = "app_store_notification_webhook";
 pub fn app_store_notification_webhooks<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = warp::Rejection> + Clone + use<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
