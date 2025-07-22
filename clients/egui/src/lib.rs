@@ -165,7 +165,7 @@ mod lb_wgpu {
                     return Default::default();
                 }
                 Err(e) => {
-                    eprintln!("Dropped frame with error: {}", e);
+                    eprintln!("Dropped frame with error: {e}");
                     return Default::default();
                 }
             };
