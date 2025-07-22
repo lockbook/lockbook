@@ -5,21 +5,21 @@ use bezier_rs::{Bezier, Subpath};
 use glam::{DAffine2, DMat2, DVec2};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+use usvg::{Color, Paint};
 use usvg::{
+    Options, Transform,
     fontdb::Database,
     tiny_skia_path::{PathSegment, Point},
-    Options, Transform,
 };
-use usvg::{Color, Paint};
 use uuid::Uuid;
 
 use super::{
-    diff::DiffState,
-    element::{Element, ManipulatorGroupId, Path},
+    WeakTransform,
+    element::{DynamicColor, Stroke, WeakImage, WeakImages, WeakPathPressures},
 };
 use super::{
-    element::{DynamicColor, Stroke, WeakImage, WeakImages, WeakPathPressures},
-    WeakTransform,
+    diff::DiffState,
+    element::{Element, ManipulatorGroupId, Path},
 };
 
 const ZOOM_G_ID: &str = "lb_master_transform";
@@ -195,11 +195,11 @@ impl Buffer {
     pub fn remove(&mut self, id: Uuid) {
         if let Some(el) = self.elements.get_mut(&id) {
             match el {
-                Element::Path(ref mut path) => {
+                Element::Path(path) => {
                     path.deleted = true;
                     path.diff_state.delete_changed = true;
                 }
-                Element::Image(ref mut image) => {
+                Element::Image(image) => {
                     image.deleted = true;
                     image.diff_state.delete_changed = true;
                 }
