@@ -37,7 +37,15 @@ where
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&F> {
-        if let Some(f) = self { if id == f.id() { self.as_ref() } else { None } } else { None }
+        if let Some(f) = self {
+            if id == f.id() {
+                self.as_ref()
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -51,7 +59,11 @@ where
 
     fn remove(&mut self, id: Uuid) -> LbResult<Option<F>> {
         if let Some(f) = self {
-            if &id == f.id() { Ok(self.take()) } else { Ok(None) }
+            if &id == f.id() {
+                Ok(self.take())
+            } else {
+                Ok(None)
+            }
         } else {
             Ok(None)
         }

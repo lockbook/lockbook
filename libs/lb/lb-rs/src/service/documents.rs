@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 
-use crate::Lb;
 use crate::model::clock::get_time;
 use crate::model::crypto::DecryptedDocument;
 use crate::model::errors::{LbErrKind, LbResult};
@@ -11,6 +10,7 @@ use crate::model::lazy::LazyTree;
 use crate::model::signed_file::SignedFile;
 use crate::model::tree_like::TreeLike;
 use crate::model::validate;
+use crate::Lb;
 use uuid::Uuid;
 
 use super::activity;

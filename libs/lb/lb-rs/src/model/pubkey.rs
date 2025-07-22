@@ -1,4 +1,4 @@
-use crate::model::clock::{TimeGetter, timestamp};
+use crate::model::clock::{timestamp, TimeGetter};
 use crate::model::crypto::*;
 use libsecp256k1::Message;
 use libsecp256k1::{PublicKey, SecretKey, SharedSecret, Signature};

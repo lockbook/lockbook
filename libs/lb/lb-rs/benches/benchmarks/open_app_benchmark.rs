@@ -1,5 +1,5 @@
 use crate::*;
-use criterion::{Criterion, black_box, criterion_group};
+use criterion::{black_box, criterion_group, Criterion};
 use lb_rs::model::file_metadata::FileType;
 use uuid::Uuid;
 

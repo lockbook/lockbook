@@ -447,7 +447,11 @@ impl Trial {
         }
 
         self.status = if self.devices_by_user.is_empty() {
-            if let Err(err) = self.create_clients() { err } else { Running }
+            if let Err(err) = self.create_clients() {
+                err
+            } else {
+                Running
+            }
         } else {
             Running
         };

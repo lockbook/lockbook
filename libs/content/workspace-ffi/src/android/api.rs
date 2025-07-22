@@ -1,14 +1,14 @@
 use egui::{PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
-use jni::JNIEnv;
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
-use lb_c::Uuid;
+use jni::JNIEnv;
 use lb_c::model::text::offset_types::DocCharOffset;
+use lb_c::Uuid;
 use serde::Serialize;
 use std::panic::catch_unwind;
-use workspace_rs::tab::TabContent;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
 use workspace_rs::tab::svg_editor::Tool;
+use workspace_rs::tab::TabContent;
 use workspace_rs::tab::{ContentState, ExtendedInput};
 
 use super::keyboard::AndroidKeys;

@@ -8,7 +8,7 @@ use std::{
     collections::HashSet,
     io::ErrorKind,
     path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicBool},
+    sync::{atomic::AtomicBool, Arc},
 };
 use tokio::{
     fs::{self, File, OpenOptions},

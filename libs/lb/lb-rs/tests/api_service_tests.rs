@@ -3,7 +3,7 @@ use libsecp256k1::PublicKey;
 use lb_rs::get_code_version;
 use lb_rs::io::network::{ApiError, Network};
 use lb_rs::model::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
-use lb_rs::model::clock::{Timestamp, get_time};
+use lb_rs::model::clock::{get_time, Timestamp};
 use test_utils::assert_matches;
 use test_utils::test_core_with_account;
 

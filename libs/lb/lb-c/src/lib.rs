@@ -520,36 +520,38 @@ pub type UpdateSyncStatus = extern "C" fn(*const c_void, usize, usize, LbUuid, *
 #[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn lb_sync(
     lb: *mut Lb, update_status_obj: *const c_void, update_status: *const UpdateSyncStatus,
-) -> LbSyncRes { unsafe {
-    let lb = rlb(lb);
+) -> LbSyncRes {
+    unsafe {
+        let lb = rlb(lb);
 
-    let update_status_obj = Arc::new(AtomicPtr::new(update_status_obj as *mut c_void));
+        let update_status_obj = Arc::new(AtomicPtr::new(update_status_obj as *mut c_void));
 
-    let f: Option<Box<dyn Fn(SyncProgress) + Send>> = if !update_status.is_null() {
-        let update_status = *update_status;
-        let update_status_obj = update_status_obj.clone();
+        let f: Option<Box<dyn Fn(SyncProgress) + Send>> = if !update_status.is_null() {
+            let update_status = *update_status;
+            let update_status_obj = update_status_obj.clone();
 
-        Some(Box::new(move |sync_progress: SyncProgress| {
-            let update_status_obj =
-                update_status_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void;
+            Some(Box::new(move |sync_progress: SyncProgress| {
+                let update_status_obj =
+                    update_status_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void;
 
-            update_status(
-                update_status_obj,
-                sync_progress.total,
-                sync_progress.progress,
-                sync_progress
-                    .file_being_processed
-                    .unwrap_or_else(Uuid::nil)
-                    .into(),
-                cstring(sync_progress.msg),
-            );
-        }))
-    } else {
-        None
-    };
+                update_status(
+                    update_status_obj,
+                    sync_progress.total,
+                    sync_progress.progress,
+                    sync_progress
+                        .file_being_processed
+                        .unwrap_or_else(Uuid::nil)
+                        .into(),
+                    cstring(sync_progress.msg),
+                );
+            }))
+        } else {
+            None
+        };
 
-    lb.sync(f).into()
-}}
+        lb.sync(f).into()
+    }
+}
 
 #[repr(C)]
 pub struct LbLastSyncedi64 {

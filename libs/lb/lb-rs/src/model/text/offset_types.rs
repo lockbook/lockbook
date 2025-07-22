@@ -1,4 +1,4 @@
-use std::cmp::{Ordering, max, min};
+use std::cmp::{max, min, Ordering};
 use std::fmt::{Debug, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 

@@ -4,12 +4,12 @@ use std::{
 };
 
 use crate::{
-    Lb,
     model::{
         account::Account,
         crypto::AESKey,
         errors::{LbErrKind, LbResult},
     },
+    Lb,
 };
 use libsecp256k1::PublicKey;
 use tokio::sync::OnceCell;

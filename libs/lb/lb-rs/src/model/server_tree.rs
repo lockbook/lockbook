@@ -56,7 +56,11 @@ impl TreeLike for ServerTree<'_> {
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
-        if self.ids.contains(id) { self.files.maybe_find(id) } else { None }
+        if self.ids.contains(id) {
+            self.files.maybe_find(id)
+        } else {
+            None
+        }
     }
 }
 

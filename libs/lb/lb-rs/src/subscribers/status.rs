@@ -7,9 +7,9 @@ use tokio::{
 use uuid::Uuid;
 
 use crate::{
-    Lb,
     model::errors::{LbErrKind, LbResult, Unexpected},
     service::{events::Event, sync::SyncIncrement, usage::UsageMetrics},
+    Lb,
 };
 
 #[derive(Clone, Default)]

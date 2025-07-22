@@ -5,21 +5,21 @@ use bezier_rs::{Bezier, Subpath};
 use glam::{DAffine2, DMat2, DVec2};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use usvg::{Color, Paint};
 use usvg::{
-    Options, Transform,
     fontdb::Database,
     tiny_skia_path::{PathSegment, Point},
+    Options, Transform,
 };
+use usvg::{Color, Paint};
 use uuid::Uuid;
 
 use super::{
-    WeakTransform,
-    element::{DynamicColor, Stroke, WeakImage, WeakImages, WeakPathPressures},
-};
-use super::{
     diff::DiffState,
     element::{Element, ManipulatorGroupId, Path},
+};
+use super::{
+    element::{DynamicColor, Stroke, WeakImage, WeakImages, WeakPathPressures},
+    WeakTransform,
 };
 
 const ZOOM_G_ID: &str = "lb_master_transform";
