@@ -369,16 +369,13 @@ impl Editor {
                 .bright_black()
         );
         println!(
-            "                                                                 ast: {:?}",
-            ast_elapsed
+            "                                                                 ast: {ast_elapsed:?}"
         );
         println!(
-            "                                                               print: {:?}",
-            print_elapsed
+            "                                                               print: {print_elapsed:?}"
         );
         println!(
-            "                                                              render: {:?}",
-            render_elapsed
+            "                                                              render: {render_elapsed:?}"
         );
 
         let prior_selection = self.buffer.current.selection;
@@ -505,7 +502,7 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
             "{} {:?} {}{}{}",
             if node.data.borrow().value.block() { "□" } else { "☰" }.blue(),
             node.data.borrow().value,
-            format!("{}", sourcepos).yellow(),
+            format!("{sourcepos}").yellow(),
             if node.children().count() > 0 {
                 format!(" +{} ", node.children().count())
             } else {
@@ -531,7 +528,7 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
             if last_child { "└>" } else { "├>" }.bright_black(),
             if node.data.borrow().value.block() { "□" } else { "☰" }.blue(),
             node.data.borrow().value,
-            format!("{}", sourcepos).yellow(),
+            format!("{sourcepos}").yellow(),
             if node.children().count() > 0 {
                 format!(" +{} ", node.children().count())
             } else {

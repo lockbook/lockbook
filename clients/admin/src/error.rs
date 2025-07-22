@@ -5,7 +5,7 @@ pub struct Error;
 
 impl<T: Debug> From<T> for Error {
     fn from(err: T) -> Self {
-        eprintln!("error: {:?}", err);
+        eprintln!("error: {err:?}");
         eprintln!("{:?}", Backtrace::force_capture());
         Error
     }

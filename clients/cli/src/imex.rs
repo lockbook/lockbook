@@ -52,7 +52,7 @@ pub async fn export(target: FileInput, dest: PathBuf) -> CliResult<()> {
         dest,
         false,
         &Some(|i| {
-            println!("{:?}", i);
+            println!("{i:?}");
         }),
     )
     .await?;

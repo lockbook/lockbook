@@ -137,7 +137,7 @@ async fn usage_go_back_down_after_delete_folder() {
     let usage = core
         .get_usage()
         .await
-        .unwrap_or_else(|err| panic!("{:?}", err));
+        .unwrap_or_else(|err| panic!("{err:?}"));
 
     assert_eq!(usage.usages.len(), 5);
 }
@@ -235,7 +235,7 @@ async fn upsert_meta_over_data_cap() {
         (FREE_TIER_USAGE_SIZE - local_encrypted.len() as u64) as f64 / METADATA_FEE as f64;
 
     for i in 0..file_capacity as i64 - 2 {
-        core.create_at_path(format!("document{}.md", i).as_str())
+        core.create_at_path(format!("document{i}.md").as_str())
             .await
             .unwrap();
         core.sync(None).await.unwrap();

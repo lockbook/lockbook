@@ -71,12 +71,10 @@ impl AppStoreClient for Client {
         &self, config: &AppleConfig, original_transaction_id: &str,
     ) -> Result<(LastTransactionItem, TransactionInfo), ServerError<UpgradeAccountAppStoreError>>
     {
-        let resp = gen_auth_req(
-            config,
-            self.get(format!("{}/{}", SUB_STATUS_PROD, original_transaction_id)),
-        )?
-        .send()
-        .await?;
+        let resp =
+            gen_auth_req(config, self.get(format!("{SUB_STATUS_PROD}/{original_transaction_id}")))?
+                .send()
+                .await?;
 
         let resp_status = resp.status().as_u16();
         match resp_status {
@@ -105,7 +103,7 @@ impl AppStoreClient for Client {
 
                     let resp = gen_auth_req(
                         config,
-                        self.get(format!("{}/{}", SUB_STATUS_SANDBOX, original_transaction_id)),
+                        self.get(format!("{SUB_STATUS_SANDBOX}/{original_transaction_id}")),
                     )?
                     .send()
                     .await?;

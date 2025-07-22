@@ -274,7 +274,7 @@ async fn fetch_title(url: &str) -> Result<String, Box<dyn std::error::Error>> {
     let normalized_url = if url.starts_with("http://") || url.starts_with("https://") {
         url.to_string()
     } else {
-        format!("https://{}", url)
+        format!("https://{url}")
     };
     // println!("{}", normalized_url);
     let client = reqwest::Client::builder()

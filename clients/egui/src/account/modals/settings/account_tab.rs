@@ -144,7 +144,7 @@ impl super::SettingsModal {
             let result = core
                 .export_account_qr()
                 .map(|png| Image::from_bytes("bytes://qr.png", png))
-                .map_err(|err| format!("{:?}", err));
+                .map_err(|err| format!("{err:?}"));
             update_tx.send(Update::OpenQrCode(result)).unwrap();
             ctx.request_repaint();
         });

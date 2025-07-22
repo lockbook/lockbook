@@ -597,7 +597,7 @@ impl AccountScreen {
         thread::spawn(move || {
             let result = core
                 .create_file(&params.name, &parent.id, params.ftype)
-                .map_err(|err| format!("{:?}", err));
+                .map_err(|err| format!("{err:?}"));
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
         });
     }
@@ -661,7 +661,7 @@ impl AccountScreen {
             }
             if let Err(err) = self.core.move_file(&f, &target) {
                 // todo: show error
-                println!("error moving file: {:?}", err);
+                println!("error moving file: {err:?}");
                 return;
             } else {
                 ctx.request_repaint();
@@ -677,7 +677,7 @@ impl AccountScreen {
             f.id,
             dest.clone(),
             true,
-            &Some(Box::new(|info| println!("{:?}", info))),
+            &Some(Box::new(|info| println!("{info:?}"))),
         );
         match res {
             Ok(()) => self.toasts.success(format!(
@@ -706,7 +706,7 @@ impl AccountScreen {
         thread::spawn(move || {
             let result = core
                 .create_file(&target.name, &parent.id, FileType::Link { target: target.id })
-                .map_err(|err| format!("{:?}", err));
+                .map_err(|err| format!("{err:?}"));
 
             update_tx
                 .send(AccountUpdate::ShareAccepted(result))
@@ -721,7 +721,7 @@ impl AccountScreen {
 
         thread::spawn(move || {
             core.delete_pending_share(&target.id)
-                .map_err(|err| format!("{:?}", err))
+                .map_err(|err| format!("{err:?}"))
                 .unwrap();
         });
     }
@@ -738,17 +738,17 @@ impl AccountScreen {
         thread::spawn(move || {
             let result = core.import_files(&paths, parent.id, &|status| match status {
                 ImportStatus::CalculatedTotal(count) => {
-                    println!("importing {} files", count);
+                    println!("importing {count} files");
                 }
                 ImportStatus::StartingItem(item) => {
-                    println!("starting import: {}", item);
+                    println!("starting import: {item}");
                 }
                 ImportStatus::FinishedItem(item) => {
                     println!("finished import of {} as lb://{}", item.name, item.id);
                 }
             });
 
-            let result = result.map_err(|err| format!("{:?}", err));
+            let result = result.map_err(|err| format!("{err:?}"));
 
             update_tx.send(AccountUpdate::FileImported(result)).unwrap();
             ctx.request_repaint();

@@ -36,7 +36,7 @@ async fn import_file_successfully() {
 
     core.import_files(&[doc_path], root.id, &f).await.unwrap();
 
-    core.get_by_path(&format!("/{}", name)).await.unwrap();
+    core.get_by_path(&format!("/{name}")).await.unwrap();
 
     // generating folder with a document in /tmp/
     let parent_name = Uuid::new_v4().to_string();
@@ -53,7 +53,7 @@ async fn import_file_successfully() {
         .await
         .unwrap();
 
-    core.get_by_path(&format!("/{}/{}", parent_name, child_name))
+    core.get_by_path(&format!("/{parent_name}/{child_name}"))
         .await
         .unwrap();
 }

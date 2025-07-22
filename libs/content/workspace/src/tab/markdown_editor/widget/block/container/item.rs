@@ -55,7 +55,7 @@ impl<'ast> Editor {
                 let sibling_index = self.sibling_index(node, &siblings);
                 let number = start + sibling_index;
 
-                let text = format!("{}.", number);
+                let text = format!("{number}.");
                 let layout_job = LayoutJob::single_section(text, annotation_text_format);
                 let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
                 ui.painter()

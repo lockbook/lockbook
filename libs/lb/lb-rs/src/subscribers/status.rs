@@ -90,7 +90,7 @@ impl Status {
             }
 
             if let Some(last_synced) = &self.sync_status {
-                return Some(format!("Offline, last synced: {}", last_synced));
+                return Some(format!("Offline, last synced: {last_synced}"));
             }
 
             return Some("Offline.".to_string());
@@ -114,7 +114,7 @@ impl Status {
         }
 
         if let Some(last_synced) = &self.sync_status {
-            return Some(format!("Last synced: {}", last_synced));
+            return Some(format!("Last synced: {last_synced}"));
         }
 
         None

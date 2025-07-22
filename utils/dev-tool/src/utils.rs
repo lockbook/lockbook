@@ -81,7 +81,7 @@ pub fn target_dir<P: AsRef<Path>>(root_dir: P) -> PathBuf {
 }
 
 pub fn api_url(port: &str) -> String {
-    format!("http://localhost:{}", port)
+    format!("http://localhost:{port}")
 }
 
 pub fn build_info_address(port: &str) -> String {

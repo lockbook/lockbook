@@ -105,7 +105,7 @@ where
     T: FromStr,
     <T as FromStr>::Err: Debug,
 {
-    print!("{}", prompt);
+    print!("{prompt}");
     io::stdout().flush()?;
 
     let mut answer = String::new();

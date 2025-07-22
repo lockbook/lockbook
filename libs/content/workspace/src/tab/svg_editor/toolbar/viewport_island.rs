@@ -607,10 +607,7 @@ fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>
 fn show_bring_back_btn(
     ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>, viewport_island_rect: egui::Rect,
 ) -> Option<Response> {
-    let elements_bound = match tlbr_ctx.viewport_settings.bounded_rect {
-        Some(rect) => rect,
-        None => return None,
-    };
+    let elements_bound = tlbr_ctx.viewport_settings.bounded_rect?;
 
     if tlbr_ctx
         .buffer

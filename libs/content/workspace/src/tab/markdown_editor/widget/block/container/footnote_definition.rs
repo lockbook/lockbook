@@ -103,7 +103,6 @@ impl<'ast> Editor {
     /// it's intended behavior. This is why [`Self::sorted_siblings`] exists.
     /// Anyway, we leverage this behavior to determine the number we should
     /// render for the definition, since the node itself does not contain it.
-
     fn definition_number(&self, node: &'ast AstNode<'ast>) -> usize {
         let mut result = 0;
         let document = node.ancestors().last().expect("There is always a document");
