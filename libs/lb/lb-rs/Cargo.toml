@@ -54,7 +54,6 @@ unicode-segmentation = "1.10.0"
 usvg = "0.41.0"
 glam = "0.22.0"
 tantivy = { version = "0.24", package = "lb-tantivy" } 
-egui_player = { git = "https://github.com/AravDesai/egui_player"}
 
 [target.'cfg(target_os = "android")'.dependencies]
 tracing-logcat = "=0.1.0"
