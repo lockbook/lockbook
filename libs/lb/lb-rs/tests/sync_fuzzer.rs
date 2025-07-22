@@ -2,11 +2,11 @@ use std::cmp::Ordering;
 
 use crate::Actions::*;
 use indicatif::{ProgressBar, ProgressStyle};
+use lb_rs::Lb;
+use lb_rs::model::ValidationFailure;
 use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType::{Document, Folder};
-use lb_rs::model::ValidationFailure;
-use lb_rs::Lb;
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -46,7 +46,7 @@ async fn stress_test_sync() {
 
     let pb = setup_progress_bar();
     for event_id in 0..ACTION_COUNT {
-        let action = rng.gen::<Actions>();
+        let action = rng.r#gen::<Actions>();
         if SHOW_PROGRESS {
             pb.set_message(format!("{event_id}: {action:?}"));
             pb.inc(1)

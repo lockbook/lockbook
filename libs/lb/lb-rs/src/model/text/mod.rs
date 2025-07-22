@@ -110,7 +110,7 @@ pub fn diff(from: &str, to: &str) -> Vec<Replace> {
 
 #[cfg(test)]
 mod test {
-    use rand::{rngs::StdRng, Rng as _, SeedableRng as _};
+    use rand::{Rng as _, SeedableRng as _, rngs::StdRng};
 
     #[test]
     fn diff_full_replace() {

@@ -1,6 +1,6 @@
+use crate::Lb;
 use crate::model::clock;
 use crate::model::errors::LbResult;
-use crate::Lb;
 use crate::{get_code_version, service::logging::LOG_FILE};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::NaiveDateTime;
