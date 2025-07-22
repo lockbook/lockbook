@@ -38,8 +38,8 @@ enum Actions {
 #[ignore]
 /// Run with: cargo test --release stress_test_sync -- --nocapture --ignored
 async fn stress_test_sync() {
-    println!("seed: {}", SEED);
-    println!("clients: {}", CLIENTS);
+    println!("seed: {SEED}");
+    println!("clients: {CLIENTS}");
 
     let mut rng = StdRng::seed_from_u64(SEED);
     let clients = create_clients().await;
@@ -48,10 +48,10 @@ async fn stress_test_sync() {
     for event_id in 0..ACTION_COUNT {
         let action = rng.gen::<Actions>();
         if SHOW_PROGRESS {
-            pb.set_message(format!("{}: {:?}", event_id, action));
+            pb.set_message(format!("{event_id}: {action:?}"));
             pb.inc(1)
         } else {
-            print!("\n{}: {:?}\t", event_id, action);
+            print!("\n{event_id}: {action:?}\t");
             match action {
                 NewFolder | RenameFile | DeleteFile => print!("\t"),
                 SyncAndCheck => println!(),
@@ -137,10 +137,9 @@ impl Actions {
                                 kind: LbErrKind::Validation(ValidationFailure::Cycle(_)),
                                 ..
                             }) => {}
-                            _ => panic!(
-                                "Unexpected error while moving file: {:#?}",
-                                move_file_result
-                            ),
+                            _ => {
+                                panic!("Unexpected error while moving file: {move_file_result:#?}")
+                            }
                         }
                         print!(
                             "[{:?}]\t{:?} to {:?}",
@@ -177,7 +176,7 @@ impl Actions {
 
     fn random_client(clients: &[Lb], rng: &mut StdRng) -> Lb {
         let client_index = rng.gen_range(0..CLIENTS) as usize;
-        print!("client index = {:?}\t", client_index);
+        print!("client index = {client_index:?}\t");
         clients[client_index].clone()
     }
 

@@ -120,7 +120,7 @@ impl Lb {
         let encrypted_document = tree.update_document(&id, &content, &self.keychain)?;
         let hmac = tree.find(&id)?.document_hmac();
         let hmac = *hmac.ok_or_else(|| {
-            LbErrKind::Unexpected(format!("hmac missing for a document we just wrote {}", id))
+            LbErrKind::Unexpected(format!("hmac missing for a document we just wrote {id}"))
         })?;
         self.docs
             .insert(id, Some(hmac), &encrypted_document)

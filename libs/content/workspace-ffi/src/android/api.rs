@@ -70,7 +70,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
     if pressed == 1 && (modifiers.shift_only() || modifiers.is_none()) && key.valid_text() {
         let text: String = match env.get_string(&content) {
             Ok(cont) => cont.into(),
-            Err(err) => format!("# The error is: {:?}", err),
+            Err(err) => format!("# The error is: {err:?}"),
         };
 
         obj.raw_input.events.push(egui::Event::Text(text));
@@ -394,7 +394,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
 
     let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("error: {:?}", err),
+        Err(err) => format!("error: {err:?}"),
     };
 
     obj.context.push_markdown_event(Event::Replace {
@@ -414,7 +414,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insert(
 
     let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("error: {:?}", err),
+        Err(err) => format!("error: {err:?}"),
     };
 
     let loc = Location::DocCharOffset(DocCharOffset(index as usize));
@@ -438,7 +438,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
 
     let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("error: {:?}", err),
+        Err(err) => format!("error: {err:?}"),
     };
 
     let loc = Location::DocCharOffset(markdown.buffer.current.segs.last_cursor_position());
@@ -516,7 +516,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
 
     let content: String = match env.get_string(&content) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("# The error is: {:?}", err),
+        Err(err) => format!("# The error is: {err:?}"),
     };
 
     obj.raw_input.events.push(egui::Event::Paste(content));

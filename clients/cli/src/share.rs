@@ -18,7 +18,7 @@ pub async fn new(target: FileInput, username: String, read_only: bool) -> CliRes
     let id = target.find(lb).await?.id;
     let mode = if read_only { ShareMode::Read } else { ShareMode::Write };
     lb.share_file(id, &username, mode).await?;
-    println!("done!\nfile '{}' will be shared next time you sync.", id);
+    println!("done!\nfile '{id}' will be shared next time you sync.");
     Ok(())
 }
 
@@ -51,7 +51,7 @@ pub async fn accept(target: &Uuid, dest: FileInput) -> CliResult<()> {
 
     lb.create_file(&share.name, &parent.id, FileType::Link { target: share.id })
         .await
-        .map_err(|err| CliError::from(format!("{:?}", err)))?;
+        .map_err(|err| CliError::from(format!("{err:?}")))?;
 
     Ok(())
 }

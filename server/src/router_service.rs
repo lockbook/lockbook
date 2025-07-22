@@ -312,7 +312,7 @@ where
                     Level::INFO,
                     "matched_request",
                     method = "POST",
-                    route = format!("/{}", STRIPE_WEBHOOK_ROUTE).as_str()
+                    route = format!("/{STRIPE_WEBHOOK_ROUTE}").as_str()
                 );
                 let _enter = span.enter();
                 info!("webhook routed");
@@ -368,7 +368,7 @@ where
                     Level::INFO,
                     "matched_request",
                     method = "POST",
-                    route = format!("/{}", PLAY_WEBHOOK_ROUTE).as_str()
+                    route = format!("/{PLAY_WEBHOOK_ROUTE}").as_str()
                 );
                 let _enter = span.enter();
                 info!("webhook routed");
@@ -426,7 +426,7 @@ where
                 Level::INFO,
                 "matched_request",
                 method = "POST",
-                route = format!("/{}", APP_STORE_WEBHOOK_ROUTE).as_str()
+                route = format!("/{APP_STORE_WEBHOOK_ROUTE}").as_str()
             );
             let _enter = span.enter();
             info!("webhook routed");

@@ -127,11 +127,11 @@ fn send_to_pagerduty(handle: &Handle, env: String, api_key: &str, alert: AlertDe
                         .event(event)
                         .await
                         .err()
-                        .map(|err| eprintln!("Failed reporting event to PagerDuty! {}", err))
+                        .map(|err| eprintln!("Failed reporting event to PagerDuty! {err}"))
                 })
                 .await
                 .err()
-                .map(|err| eprintln!("Failed spawning task in Tokio runtime! {}", err))
+                .map(|err| eprintln!("Failed spawning task in Tokio runtime! {err}"))
         })
     });
 }
@@ -166,7 +166,7 @@ impl AlertDetails {
 impl Visit for AlertDetails {
     fn record_debug(&mut self, field: &Field, value: &dyn Debug) {
         if field.name() == "message" {
-            write!(self.message, "{:?}", value).unwrap();
+            write!(self.message, "{value:?}").unwrap();
         }
     }
 }

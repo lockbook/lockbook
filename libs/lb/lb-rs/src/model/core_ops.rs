@@ -287,7 +287,7 @@ where
         let key = self.decrypt_key(&id, keychain)?;
         let hmac = {
             let mut mac = HmacSha256::new_from_slice(&key)
-                .map_err(|err| LbErrKind::Unexpected(format!("hmac creation error: {:?}", err)))?;
+                .map_err(|err| LbErrKind::Unexpected(format!("hmac creation error: {err:?}")))?;
             mac.update(document);
             mac.finalize().into_bytes()
         }

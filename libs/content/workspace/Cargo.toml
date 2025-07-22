@@ -41,9 +41,11 @@ tokio = { version = "1.0", features = ["full"] }
 scraper = "0.14"
 num_cpus = "1.15"
 lazy_static = "1.4.0"
-comrak = "0.38.0"
+comrak = { git = "https://github.com/lockbook/comrak" }
 colored = "2"
-syntect = "5.2.0"
+syntect = { default-features = false, version = "5.0", features = [
+    "default-fancy"
+]}
 
 lb-rs = { path = "../../lb/lb-rs" }
 

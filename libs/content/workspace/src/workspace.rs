@@ -316,7 +316,7 @@ impl Workspace {
                         let (maybe_hmac, bytes) = match content_result {
                             Ok((hmac, bytes)) => (hmac, bytes),
                             Err(err) => {
-                                let msg = format!("failed to load file: {:?}", err);
+                                let msg = format!("failed to load file: {err:?}");
                                 error!(msg);
                                 tab.content =
                                     ContentState::Failed(TabFailure::Unexpected(msg.clone()));
@@ -335,7 +335,7 @@ impl Workspace {
                             Err(e) => {
                                 self.out
                                     .failure_messages
-                                    .push(format!("failed to get id for loaded file: {:?}", e));
+                                    .push(format!("failed to get id for loaded file: {e:?}"));
                                 continue;
                             }
                         };
@@ -397,8 +397,7 @@ impl Workspace {
                             }
                         } else {
                             tab.content = ContentState::Failed(TabFailure::SimpleMisc(format!(
-                                "Unsupported file extension: {}",
-                                ext
+                                "Unsupported file extension: {ext}"
                             )));
                         };
 
@@ -448,7 +447,7 @@ impl Workspace {
                                     self.open_file(id, false, false);
                                 } else {
                                     tab.content = ContentState::Failed(TabFailure::Unexpected(
-                                        format!("{:?}", err),
+                                        format!("{err:?}"),
                                     ))
                                 }
                             }
@@ -568,13 +567,13 @@ impl Workspace {
         };
 
         let file_format = if is_drawing { "svg" } else { "md" };
-        let new_file = NameComponents::from(&format!("untitled.{}", file_format))
+        let new_file = NameComponents::from(&format!("untitled.{file_format}"))
             .next_in_children(self.core.get_children(&focused_parent).unwrap());
 
         let result = self
             .core
             .create_file(new_file.to_name().as_str(), &focused_parent, FileType::Document)
-            .map_err(|err| format!("{:?}", err));
+            .map_err(|err| format!("{err:?}"));
 
         self.out.file_created = Some(result);
         self.ctx.request_repaint();
@@ -613,7 +612,7 @@ impl Workspace {
                 if by_user {
                     self.out
                         .failure_messages
-                        .push(format!("Rename failed: {}", kind));
+                        .push(format!("Rename failed: {kind}"));
                 }
                 warn!(?id, "failed to rename file: {:?}", kind);
             }
@@ -651,7 +650,7 @@ impl Workspace {
             Err(LbErr { kind, .. }) => {
                 self.out
                     .failure_messages
-                    .push(format!("Move failed: {}", kind));
+                    .push(format!("Move failed: {kind}"));
                 warn!(?id, "failed to move file: {:?}", kind);
             }
         }

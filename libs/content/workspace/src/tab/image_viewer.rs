@@ -13,7 +13,7 @@ pub struct ImageViewer {
 impl ImageViewer {
     pub fn new(id: Uuid, ext: &str, bytes: &[u8]) -> Self {
         let bytes = Vec::from(bytes);
-        let uri = format!("bytes://{}.{}", id, ext);
+        let uri = format!("bytes://{id}.{ext}");
         let img = Image::from_bytes(uri, bytes);
 
         Self { id, img, zoom_factor: 1.0, pan: egui::Vec2::ZERO }

@@ -278,7 +278,7 @@ impl Renderer {
 
                 self.tex_cache.entry(id).or_insert_with(|| {
                     let texture = ui.ctx().load_texture(
-                        format!("canvas_img_{}", id),
+                        format!("canvas_img_{id}"),
                         egui_image,
                         Default::default(),
                     );

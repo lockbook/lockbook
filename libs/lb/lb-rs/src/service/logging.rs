@@ -87,10 +87,10 @@ fn panic_capture(config: &Config) {
     panic::set_hook(Box::new(move |panic_info| {
         let bt = Backtrace::force_capture();
         tracing::error!("panic detected: {panic_info} {}", bt);
-        eprintln!("panic detected and logged: {panic_info} {}", bt);
+        eprintln!("panic detected and logged: {panic_info} {bt}");
         let timestamp = Local::now().format("%Y-%m-%d---%H-%M-%S");
-        let file_name = format!("{}/panic---{}.log", path, timestamp);
-        let file = format!("INFO: {}\nBT: {}", panic_info, bt);
+        let file_name = format!("{path}/panic---{timestamp}.log");
+        let file = format!("INFO: {panic_info}\nBT: {bt}");
         fs::write(file_name, file).unwrap();
     }));
 }

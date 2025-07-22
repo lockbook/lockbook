@@ -90,7 +90,7 @@ async fn request_device(
         .await;
     match res {
         Err(err) => {
-            panic!("request_device failed: {:?}", err);
+            panic!("request_device failed: {err:?}");
         }
         Ok((device, queue)) => (adapter, device, queue),
     }

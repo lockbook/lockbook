@@ -53,7 +53,7 @@ impl PdfViewer {
         let pdfium_binary_path = if !cfg!(target_os = "android") {
             data_dir.to_string()
         } else {
-            format!("{}/egui", data_dir)
+            format!("{data_dir}/egui")
         };
 
         println!("{pdfium_binary_path}");
@@ -294,7 +294,7 @@ impl PdfViewer {
                         ui.add_space(7.0);
                         ui.colored_label(
                             ui.visuals().text_color().linear_multiply(0.7),
-                            format!("{}%", zoom_percentage),
+                            format!("{zoom_percentage}%"),
                         );
                     });
                 });

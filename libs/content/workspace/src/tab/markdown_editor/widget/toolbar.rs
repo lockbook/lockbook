@@ -182,7 +182,7 @@ impl<'ast> Editor {
 
         let resp = IconButton::new(&Icon::HEADER_1)
             .colored(applied)
-            .tooltip(format!("{}", style))
+            .tooltip(format!("{style}"))
             .show(ui);
         if resp.clicked() {
             self.toolbar.heading_last_click_at = Instant::now();
@@ -210,7 +210,7 @@ impl<'ast> Editor {
         let applied = self.styled(root, self.buffer.current.selection, &style);
         let resp = IconButton::new(icon)
             .colored(applied)
-            .tooltip(format!("{}", style))
+            .tooltip(format!("{style}"))
             .show(ui);
         if resp.clicked() {
             Some(Event::ToggleStyle { region: Region::Selection, style })

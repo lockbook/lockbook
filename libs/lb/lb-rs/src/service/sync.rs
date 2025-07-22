@@ -411,8 +411,7 @@ impl Lb {
                             }
                         }
                         return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topomodelal order for file creations: {:?}",
-                            deletion_creations
+                            "sync failed to find a topomodelal order for file creations: {deletion_creations:?}"
                         ))
                         .into());
                     }
@@ -490,8 +489,7 @@ impl Lb {
                             }
                         }
                         return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topomodelal order for file creations: {:?}",
-                            creations
+                            "sync failed to find a topomodelal order for file creations: {creations:?}"
                         ))
                         .into());
                     }
@@ -769,8 +767,7 @@ impl Lb {
                                     continue 'merge_construction;
                                 } else {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve broken link (deletion): {:?}",
-                                        link
+                                        "sync failed to resolve broken link (deletion): {link:?}"
                                     ))
                                     .into());
                                 }
@@ -801,8 +798,7 @@ impl Lb {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve cycle: {:?}",
-                                        ids
+                                        "sync failed to resolve cycle: {ids:?}"
                                     ))
                                     .into());
                                 }
@@ -828,8 +824,7 @@ impl Lb {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve path conflict: {:?}",
-                                        ids
+                                        "sync failed to resolve path conflict: {ids:?}"
                                     ))
                                     .into());
                                 }
@@ -850,8 +845,7 @@ impl Lb {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                    "sync failed to resolve shared link: link: {:?}, shared_ancestor: {:?}",
-                                    link, shared_ancestor
+                                    "sync failed to resolve shared link: link: {link:?}, shared_ancestor: {shared_ancestor:?}"
                                 )).into());
                                 }
                             }
@@ -865,8 +859,7 @@ impl Lb {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve duplicate link: target: {:?}",
-                                        target
+                                        "sync failed to resolve duplicate link: target: {target:?}"
                                     ))
                                     .into());
                                 }
@@ -875,8 +868,7 @@ impl Lb {
                                 // delete local link with this target
                                 if !links_to_delete.insert(*link) {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve broken link: {:?}",
-                                        link
+                                        "sync failed to resolve broken link: {link:?}"
                                     ))
                                     .into());
                                 }
@@ -899,8 +891,7 @@ impl Lb {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve owned link: {:?}",
-                                        link
+                                        "sync failed to resolve owned link: {link:?}"
                                     ))
                                     .into());
                                 }

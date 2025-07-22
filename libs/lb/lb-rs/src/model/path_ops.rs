@@ -77,7 +77,7 @@ where
             }
             let next = *current_meta.parent();
             let current_name = self.name_using_links(&current, keychain)?;
-            path = format!("/{}{}", current_name, path);
+            path = format!("/{current_name}{path}");
             current = next;
         }
     }

@@ -73,8 +73,7 @@ async fn search_paths_successfully() {
         if let SearchResult::PathMatch { path, .. } = result {
             assert!(
                 matched_paths_2.contains(&path.as_str()),
-                "A path from the second set didn't match: {}",
-                path
+                "A path from the second set didn't match: {path}"
             );
         } else {
             panic!("Non-path search result.")

@@ -65,7 +65,7 @@ impl SVGEditor {
                                 let id = Uuid::new_v4();
                                 self.buffer.elements.insert(
                                     id,
-                                    Element::Image(Image {
+                                    Element::Image(Box::new(Image {
                                         data: resvg::usvg::ImageKind::PNG(data.into()),
                                         visibility: resvg::usvg::Visibility::Visible,
                                         transform,
@@ -80,7 +80,7 @@ impl SVGEditor {
                                         opacity: 1.0,
                                         diff_state: DiffState::new(),
                                         deleted: false,
-                                    }),
+                                    })),
                                 );
 
                                 self.toolbar.active_tool = Tool::Selection;

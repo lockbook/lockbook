@@ -66,7 +66,7 @@ impl Buffer {
         let maybe_tree = usvg::Tree::from_str(content, &Options::default(), &Database::default());
 
         if let Err(err) = maybe_tree {
-            println!("{:#?}", err);
+            println!("{err:#?}");
         } else {
             let utree = maybe_tree.unwrap();
 
@@ -289,8 +289,7 @@ pub fn serialize_inner(
         let binary_data = bincode::serialize(&weak_images).expect("Failed to serialize");
         let base64_data = base64::encode(&binary_data);
 
-        let _ =
-            write!(&mut root, "<g id=\"{}\"> <g id=\"{}\"></g></g>", WEAK_IMAGE_G_ID, base64_data);
+        let _ = write!(&mut root, "<g id=\"{WEAK_IMAGE_G_ID}\"> <g id=\"{base64_data}\"></g></g>");
     }
 
     if !weak_pressures.is_empty() {
@@ -299,8 +298,7 @@ pub fn serialize_inner(
 
         let _ = write!(
             &mut root,
-            "<g id=\"{}\"> <g id=\"{}\"></g></g>",
-            WEAK_PATH_PRESSURES_G_ID, base64_data
+            "<g id=\"{WEAK_PATH_PRESSURES_G_ID}\"> <g id=\"{base64_data}\"></g></g>"
         );
     }
 
@@ -309,11 +307,10 @@ pub fn serialize_inner(
 
     let _ = write!(
         &mut root,
-        "<g id=\"{}\"> <g id=\"{}\"></g></g>",
-        WEAK_VIEWPORT_SETTINGS_G_ID, base64_data
+        "<g id=\"{WEAK_VIEWPORT_SETTINGS_G_ID}\"> <g id=\"{base64_data}\"></g></g>"
     );
 
-    let _ = write!(&mut root, "{} </svg>", zoom_level);
+    let _ = write!(&mut root, "{zoom_level} </svg>");
     root
 }
 

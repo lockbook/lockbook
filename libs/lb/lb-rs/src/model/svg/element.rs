@@ -14,7 +14,7 @@ use super::{buffer::u_transform_to_bezier, diff::DiffState};
 #[derive(Clone)]
 pub enum Element {
     Path(Path),
-    Image(Image),
+    Image(Box<Image>),
     Text(Text),
 }
 

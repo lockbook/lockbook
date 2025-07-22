@@ -47,7 +47,7 @@ impl FromStr for BumpType {
 
 impl Display for BumpType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", format!("{:?}", self).to_ascii_lowercase())
+        write!(f, "{}", format!("{self:?}").to_ascii_lowercase())
     }
 }
 
@@ -97,8 +97,8 @@ fn handle_apple(version: &str) {
         let year = now.year();
 
         // add leading zeros where missing
-        let month = format!("{:0>2}", month);
-        let day = format!("{:0>2}", day);
+        let month = format!("{month:0>2}");
+        let day = format!("{day:0>2}");
 
         Command::new("/usr/libexec/Plistbuddy")
             .args(["-c", &format!("Set CFBundleVersion {year}{month}{day}"), plist])

@@ -109,7 +109,7 @@ impl FileTree {
                 }
                 Err(err) => {
                     // todo: better error surfacing
-                    println!("Failed to calculate suggested files: {:?}", err);
+                    println!("Failed to calculate suggested files: {err:?}");
                 }
             }
             ctx.request_repaint();
@@ -1911,7 +1911,7 @@ mod test {
         File {
             id: ids[idx],
             parent: ids[parent_idx],
-            name: format!("{}", idx),
+            name: format!("{idx}"),
             file_type,
             last_modified: Default::default(),
             last_modified_by: Default::default(),

@@ -19,6 +19,7 @@ use crate::onboard::{OnboardHandOff, OnboardScreen};
 use crate::splash::{SplashHandOff, SplashScreen};
 use std::sync::{Arc, RwLock};
 
+#[allow(clippy::large_enum_variant)]
 pub enum Lockbook {
     /// The first screen a user sees everytime while the application is initializing. If there's a
     /// major error, it's shown here. If all goes well, we move on to either the Onboard screen or
@@ -164,7 +165,7 @@ mod lb_wgpu {
                     return Default::default();
                 }
                 Err(e) => {
-                    eprintln!("Dropped frame with error: {}", e);
+                    eprintln!("Dropped frame with error: {e}");
                     return Default::default();
                 }
             };

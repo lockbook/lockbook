@@ -11,7 +11,8 @@ use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::{Schema, Value, STORED, TEXT};
 use tantivy::{
-    doc, Index, IndexReader, IndexWriter, ReloadPolicy, SnippetGenerator, TantivyDocument, Term,
+    doc, snippet::SnippetGenerator, Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument,
+    Term,
 };
 use tokio::sync::RwLock;
 use uuid::Uuid;

@@ -134,19 +134,18 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
                 internal!("Cannot verify stripe webhook request because server is using a bad signing key")
             }
             stripe::WebhookError::BadHeader(bad_header_err) => {
-                ClientError(StripeWebhookError::InvalidHeader(format!("{:?}", bad_header_err)))
+                ClientError(StripeWebhookError::InvalidHeader(format!("{bad_header_err:?}")))
             }
             stripe::WebhookError::BadSignature => {
                 ClientError(StripeWebhookError::InvalidHeader("Bad signature".to_string()))
             }
             stripe::WebhookError::BadTimestamp(bad_timestamp_err) => {
                 ClientError(StripeWebhookError::InvalidHeader(format!(
-                    "Timestamp for webhook is too old: {}",
-                    bad_timestamp_err
+                    "Timestamp for webhook is too old: {bad_timestamp_err}"
                 )))
             }
             stripe::WebhookError::BadParse(bad_parse_err) => ClientError(
-                StripeWebhookError::ParseError(format!("Parsing error: {:?}", bad_parse_err)),
+                StripeWebhookError::ParseError(format!("Parsing error: {bad_parse_err:?}")),
             ),
         }
     }

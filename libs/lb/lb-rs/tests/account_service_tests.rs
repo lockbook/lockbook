@@ -74,9 +74,7 @@ async fn create_account_invalid_username() {
 
         assert!(
             matches!(err.kind, LbErrKind::UsernameInvalid),
-            "Username \"{}\" should have been InvalidUsername but instead was {:?}",
-            uname,
-            err
+            "Username \"{uname}\" should have been InvalidUsername but instead was {err:?}"
         )
     }
 }

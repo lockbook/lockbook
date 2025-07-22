@@ -83,7 +83,7 @@ impl DocumentService for OnDiskDocuments {
         let mut path = self.config.files.path.clone();
         // we may need to truncate this
         let hmac = base64::encode_config(hmac, base64::URL_SAFE);
-        path.push(format!("{}-{}", id, hmac));
+        path.push(format!("{id}-{hmac}"));
         path
     }
 }

@@ -38,10 +38,10 @@ pub fn list(
             Some(AccountFilter::StripePremium) => "There are no premium stripe users.",
         };
 
-        println!("{}", msg);
+        println!("{msg}");
     } else {
         for user in users {
-            println!("{}", user);
+            println!("{user}");
         }
     }
 
@@ -61,7 +61,7 @@ pub fn info(lb: &Lb, username: Option<String>, public_key: Option<String>) -> Re
     };
 
     let account_info = lb.admin_get_account_info(identifier)?;
-    println!("{:#?}", account_info);
+    println!("{account_info:#?}");
 
     Ok(())
 }

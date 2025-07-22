@@ -10,12 +10,12 @@ pub async fn validate() -> CliResult<()> {
     let warnings = lb
         .test_repo_integrity()
         .await
-        .map_err(|err| CliError::from(format!("validating: {:?}", err)))?;
+        .map_err(|err| CliError::from(format!("validating: {err:?}")))?;
     if warnings.is_empty() {
         return Ok(());
     }
     for w in &warnings {
-        eprintln!("{:#?}", w);
+        eprintln!("{w:#?}");
     }
     Err(CliError::from(format!("{} warnings found", warnings.len())))
 }
@@ -26,7 +26,7 @@ pub async fn info(target: FileInput) -> Result<(), CliError> {
     ensure_account(lb)?;
 
     let f = target.find(lb).await?;
-    println!("{:#?}", f);
+    println!("{f:#?}");
     Ok(())
 }
 

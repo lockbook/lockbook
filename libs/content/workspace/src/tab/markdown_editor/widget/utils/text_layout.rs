@@ -123,7 +123,7 @@ impl Editor {
 
         #[cfg(debug_assertions)]
         if text.contains('\n') {
-            panic!("show_text_line: text contains newline: {:?}", text);
+            panic!("show_text_line: text contains newline: {text:?}");
         }
 
         let mut galley_start = self.range_to_byte(range).start();

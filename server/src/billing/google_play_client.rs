@@ -59,10 +59,10 @@ impl From<Error> for SimpleGCPError {
                 if err.status() == StatusCode::NOT_FOUND {
                     Self::PurchaseTokenNotFound
                 } else {
-                    Self::Unexpected(format!("{:#?}", err))
+                    Self::Unexpected(format!("{err:#?}"))
                 }
             }
-            _ => Self::Unexpected(format!("{:#?}", err)),
+            _ => Self::Unexpected(format!("{err:#?}")),
         }
     }
 }

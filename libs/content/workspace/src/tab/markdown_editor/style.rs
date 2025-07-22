@@ -389,8 +389,8 @@ impl Display for MarkdownNode {
         match self {
             Self::Document => write!(f, "Document"),
             Self::Paragraph => write!(f, "Paragraph"),
-            Self::Inline(inline_node) => write!(f, "{}", inline_node),
-            Self::Block(block_node) => write!(f, "{}", block_node),
+            Self::Inline(inline_node) => write!(f, "{inline_node}"),
+            Self::Block(block_node) => write!(f, "{block_node}"),
         }
     }
 }

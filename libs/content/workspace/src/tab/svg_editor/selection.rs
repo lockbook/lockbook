@@ -860,7 +860,7 @@ impl Selection {
 
             let res = ui.interact(
                 rect.expand(5.0),
-                egui::Id::new(format!("{:#?}{}", scale_op, i)),
+                egui::Id::new(format!("{scale_op:#?}{i}")),
                 egui::Sense::drag(),
             );
 

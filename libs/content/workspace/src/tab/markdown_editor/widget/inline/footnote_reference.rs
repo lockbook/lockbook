@@ -41,7 +41,7 @@ impl<'ast> Editor {
         } else {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
-                let text = format!("{}", ix);
+                let text = format!("{ix}");
                 self.text_mid_span(wrap, Default::default(), &text, self.text_format(node))
             } else {
                 0.0
@@ -96,7 +96,7 @@ impl<'ast> Editor {
         } else {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
-                let text = format!("{}", ix);
+                let text = format!("{ix}");
                 response |= self.show_override_text_line(
                     ui,
                     top_left,

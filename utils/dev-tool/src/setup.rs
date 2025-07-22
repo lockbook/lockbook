@@ -14,13 +14,13 @@ pub fn verify_ci_environment() {
             .unwrap();
 
         if !command_result.success() {
-            panic!("You do not have '{}'", command);
+            panic!("You do not have '{command}'");
         }
     }
 
     for env_var in REQUIRED_ENV_VARS {
         if env::var(env_var).is_err() {
-            panic!("'{}' environment variable is not set.", env_var);
+            panic!("'{env_var}' environment variable is not set.");
         }
     }
 }
