@@ -235,9 +235,31 @@ pub fn serialize_inner(
                 }
                 let mut curv_attrs = " ".to_string();
                 // if it's empty then the curve will not be converted to string via bezier_rs
+                println!("serializeing inner: {:#?}", p.fill);
+                let maybe_fill = p
+                    .fill
+                    .clone()
+                    .map(|f| {
+                        if let usvg::Paint::Color(color) = f.paint() {
+                            Some(format!(
+                                "fill='rgba({},{},{},{})'",
+                                color.red,
+                                color.green,
+                                color.blue,
+                                f.opacity()
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(None);
+
+                curv_attrs = maybe_fill.unwrap_or("fill='none'".to_owned());
+
                 if let Some(stroke) = p.stroke {
                     curv_attrs = format!(
-                        "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}' transform='{}'",
+                        "{} stroke-width='{}' stroke='rgba({},{},{},{})' id='{}' transform='{}'",
+                        curv_attrs,
                         stroke.width,
                         stroke.color.light.red,
                         stroke.color.light.green,
@@ -391,7 +413,6 @@ pub fn parse_child(
             data.apply_transform(u_transform_to_bezier(
                 &path.abs_transform().invert().unwrap_or_default(),
             ));
-
             elements.insert(
                 id,
                 Element::Path(Path {
@@ -484,6 +505,7 @@ pub fn get_pen_colors() -> Vec<DynamicColor> {
 fn usvg_d_to_subpath(path: &usvg::Path) -> Subpath<ManipulatorGroupId> {
     let mut prev = Point::default();
     let mut subpath: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
+
     for segment in path.data().segments() {
         match segment {
             PathSegment::MoveTo(p) => {
@@ -513,7 +535,21 @@ fn usvg_d_to_subpath(path: &usvg::Path) -> Subpath<ManipulatorGroupId> {
                 subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
                 prev = p;
             }
-            _ => {}
+            PathSegment::QuadTo(p1, p2) => {
+                let bez = Bezier::from_quadratic_coordinates(
+                    prev.x.into(),
+                    prev.y.into(),
+                    p1.x.into(),
+                    p1.y.into(),
+                    p2.x.into(),
+                    p2.y.into(),
+                );
+                subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
+                prev = p2;
+            }
+            PathSegment::Close => {
+                subpath.set_closed(true);
+            }
         }
     }
 

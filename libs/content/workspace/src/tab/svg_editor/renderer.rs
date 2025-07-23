@@ -3,16 +3,17 @@ use std::collections::HashMap;
 use egui::{Mesh, TextureHandle};
 use glam::f64::DVec2;
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::{Element, Image, Path, WeakPathPressures};
+use lb_rs::model::svg::element::{Element, Image, Path, Stroke, WeakPathPressures};
 use lb_rs::Uuid;
-use lyon::path::{AttributeIndex, LineCap, LineJoin};
+use lyon::path::traits::PathBuilder;
+use lyon::path::{AttributeIndex, FillRule, LineCap, LineJoin};
 use lyon::tessellation::{
-    self, BuffersBuilder, FillVertexConstructor, StrokeOptions, StrokeTessellator,
-    StrokeVertexConstructor, VertexBuffers,
+    self, BuffersBuilder, FillBuilder, FillOptions, FillTessellator, FillVertexConstructor,
+    StrokeOptions, StrokeTessellator, StrokeVertexConstructor, VertexBuffers,
 };
 
 use rayon::prelude::*;
-use resvg::usvg::{ImageKind, Transform};
+use resvg::usvg::{Color, ImageKind, Transform};
 use tracing::{span, Level};
 
 use crate::theme::palette::ThemePalette;
@@ -323,25 +324,23 @@ fn tesselate_path<'a>(
 ) -> Option<(Uuid, RenderOp<'a>)> {
     let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
     let mut stroke_tess = StrokeTessellator::new();
+    let mut fill_tess = FillTessellator::new();
 
     let span = span!(Level::TRACE, "tessellating path", frame = frame);
     let _ = span.enter();
-    if let Some(stroke) = p.stroke {
+    if p.stroke.is_some() || p.fill.is_some() {
         if p.data.is_empty() {
             return Some((*id, RenderOp::Delete));
         }
-        let stroke_color = ThemePalette::resolve_dynamic_color(stroke.color, dark_mode)
-            .linear_multiply(stroke.opacity)
-            .linear_multiply(p.opacity);
 
         let mut builder = lyon::path::BuilderWithAttributes::new(1);
-
         let mut first = None;
         let mut i = 0;
 
         while let Some(mut seg) = p.data.get_segment(i) {
+            let stroke_width = if let Some(stroke) = p.stroke { stroke.width } else { 0.0 };
             let mut thickness =
-                stroke.width * (p.transform.sx + p.transform.sy) / 2.0 * viewport_transform.sx;
+                stroke_width * (p.transform.sx + p.transform.sy) / 2.0 * viewport_transform.sx;
 
             if let Some(forces) = weak_path_pressures.get(id) {
                 let pressure_at_segment =
@@ -371,7 +370,8 @@ fn tesselate_path<'a>(
             if first.is_none() {
                 first = Some(start);
                 builder.begin(start, &[thickness]);
-                builder.line_to(start, &[thickness]);
+                builder.line_to(end, &[thickness]);
+                println!("MOVE TO {:#?}", end);
             } else if seg.handle_end().is_some() && seg.handle_start().is_some() {
                 let handle_start = devc_to_point(seg.handle_start().unwrap());
                 let handle_end = devc_to_point(seg.handle_end().unwrap());
@@ -379,22 +379,46 @@ fn tesselate_path<'a>(
                 builder.cubic_bezier_to(handle_start, handle_end, end, &[thickness]);
             } else if seg.handle_end().is_none() && seg.handle_start().is_none() {
                 builder.line_to(end, &[thickness]);
+                println!("LINE TO {:#?}", end);
             }
+
             i += 1;
         }
+
         if first.is_some() {
-            builder.end(false);
+            println!("CLOSE");
+            builder.end(p.data.closed());
         }
+
         let path = builder.build();
 
-        let _ = stroke_tess.tessellate_path(
-            &path,
-            &StrokeOptions::default()
-                .with_line_cap(LineCap::Round)
-                .with_line_join(LineJoin::Round)
-                .with_variable_line_width(STROKE_WIDTH),
-            &mut BuffersBuilder::new(&mut mesh, VertexConstructor { color: stroke_color }),
-        );
+        if let Some(stroke) = p.stroke {
+            let color = ThemePalette::resolve_dynamic_color(stroke.color, dark_mode)
+                .linear_multiply(stroke.opacity)
+                .linear_multiply(p.opacity);
+
+            let _ = stroke_tess.tessellate_path(
+                &path,
+                &StrokeOptions::default()
+                    .with_line_cap(LineCap::Round)
+                    .with_line_join(LineJoin::Round)
+                    .with_variable_line_width(STROKE_WIDTH),
+                &mut BuffersBuilder::new(&mut mesh, VertexConstructor { color }),
+            );
+        }
+
+        if let Some(fill) = &p.fill {
+            let color = if let resvg::usvg::Paint::Color(color) = *fill.paint() {
+                egui::Color32::from_rgb(color.red, color.green, color.blue)
+            } else {
+                egui::Color32::TRANSPARENT
+            };
+            let _ = fill_tess.tessellate_path(
+                &path,
+                &FillOptions::default(),
+                &mut BuffersBuilder::new(&mut mesh, VertexConstructor { color }),
+            );
+        }
 
         let mesh = egui::epaint::Mesh {
             indices: mesh.indices.clone(),
