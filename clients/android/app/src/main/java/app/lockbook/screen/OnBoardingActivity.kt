@@ -15,6 +15,7 @@ import androidx.fragment.app.Fragment
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import app.lockbook.R
 import app.lockbook.databinding.ActivityOnBoardingBinding
+import app.lockbook.databinding.FragmentOnBoardWelcomeBinding
 import app.lockbook.databinding.FragmentOnBoardingCreateAccountBinding
 import app.lockbook.databinding.FragmentOnBoardingImportAccountBinding
 import app.lockbook.model.AlertModel
@@ -46,19 +47,23 @@ class OnBoardingActivity : AppCompatActivity() {
         _binding = ActivityOnBoardingBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.onBoardingCreateImportViewPager.adapter = CreateImportFragmentAdapter(this)
-        binding.onBoardingLearnMore.movementMethod = LinkMovementMethod.getInstance()
+        if (savedInstanceState == null) {
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.on_boarding_fragment_container, WelcomeFragment())
+                .commit()
+        }
+//        binding.onBoardingCreateImportViewPager.adapter = CreateImportFragmentAdapter(this)
 
-        TabLayoutMediator(
-            binding.onBoardingSwitcher,
-            binding.onBoardingCreateImportViewPager
-        ) { tabLayout, position ->
-            tabLayout.text = if (position == 0) {
-                resources.getText(R.string.on_boarding_create)
-            } else {
-                resources.getText(R.string.on_boarding_import)
-            }
-        }.attach()
+//        TabLayoutMediator(
+//            binding.onBoardingSwitcher,
+//            binding.onBoardingCreateImportViewPager
+//        ) { tabLayout, position ->
+//            tabLayout.text = if (position == 0) {
+//                resources.getText(R.string.on_boarding_create)
+//            } else {
+//                resources.getText(R.string.on_boarding_import)
+//            }
+//        }.attach()
     }
 
     inner class CreateImportFragmentAdapter(activity: AppCompatActivity) :
@@ -72,6 +77,37 @@ class OnBoardingActivity : AppCompatActivity() {
                 ImportFragment()
             }
         }
+    }
+}
+
+
+class WelcomeFragment :  Fragment(){
+    private var _welcomeBinding: FragmentOnBoardWelcomeBinding? = null
+
+    private val welcomeBinding get() = _welcomeBinding!!
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _welcomeBinding = FragmentOnBoardWelcomeBinding.inflate(inflater, container, false)
+
+        welcomeBinding.loginButton.setOnClickListener{
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.on_boarding_fragment_container, ImportFragment())
+                .addToBackStack(null)
+                .commit()
+        }
+
+        welcomeBinding.getStartedButton.setOnClickListener{
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.on_boarding_fragment_container, CreateFragment())
+                .addToBackStack(null)
+                .commit()
+        }
+
+        return welcomeBinding.root
     }
 }
 
@@ -153,7 +189,7 @@ class ImportFragment : Fragment() {
     private fun importAccount(account: String) {
         val onBoardingActivity = (requireActivity() as OnBoardingActivity)
 
-        onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
+//        onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
         uiScope.launch {
             try {
@@ -162,7 +198,7 @@ class ImportFragment : Fragment() {
                 onBoardingActivity.finishAffinity()
             } catch (err: LbError) {
                 withContext(Dispatchers.Main) {
-                    onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
+//                    onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
                     importBinding.onBoardingImportAccountHolder.error = err.msg
                 }
             }
@@ -204,7 +240,7 @@ class CreateFragment : Fragment() {
     private fun createAccount(username: String) {
         val onBoardingActivity = (requireActivity() as OnBoardingActivity)
 
-        onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
+//        onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
         uiScope.launch {
             try {
@@ -215,7 +251,7 @@ class CreateFragment : Fragment() {
                 onBoardingActivity.finishAffinity()
             } catch (err: LbError) {
                 withContext(Dispatchers.Main) {
-                    onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
+//                    onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
                     createBinding.onBoardingCreateAccountInputHolder.error = err.msg
                 }
             }

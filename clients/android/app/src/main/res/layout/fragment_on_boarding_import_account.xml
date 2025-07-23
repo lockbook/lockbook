@@ -3,9 +3,25 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:gravity="center_horizontal"
     android:orientation="vertical"
-    android:paddingHorizontal="25dp">
+    android:paddingHorizontal="16dp">
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/on_boarding_lockbook_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/import_header"
+        android:paddingTop="40dp"
+        android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
+        android:textStyle="bold" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingTop="40dp"
+        android:paddingBottom="10dp"
+        android:text="@string/import_copy"
+        android:textAppearance="@style/TextAppearance.Material3.BodyLarge" />
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/on_boarding_import_account_holder"
