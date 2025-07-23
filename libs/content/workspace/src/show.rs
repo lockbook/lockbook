@@ -539,12 +539,20 @@ impl Workspace {
 
                     ui.ctx().output_mut(|w| {
                         if let Some(url) = &w.open_url {
-                            let id = self.core.get_file_by_id(id).unwrap().parent;
-                            let id = core_get_by_relative_path(&self.core, id, &url.url)
-                                .unwrap()
-                                .id;
+                            // lookup this file so we can get the parent
+                            let Ok(file) = self.core.get_file_by_id(id) else {
+                                return;
+                            };
 
-                            open_id = Some(id);
+                            // evaluate relative path based on parent location
+                            let Ok(file) =
+                                core_get_by_relative_path(&self.core, file.parent, &url.url)
+                            else {
+                                return;
+                            };
+
+                            // if all that found something then open within lockbook
+                            open_id = Some(file.id);
                             w.open_url = None;
                         }
                     });
