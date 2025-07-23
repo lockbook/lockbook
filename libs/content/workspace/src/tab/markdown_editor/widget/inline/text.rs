@@ -34,10 +34,7 @@ impl<'ast> Editor {
         let spoiler = node
             .ancestors()
             .any(|node| matches!(node.data.borrow().value, NodeValue::SpoileredText));
-        let clickable = ui.input(|i| i.modifiers.command)
-            && node
-                .ancestors()
-                .any(|node| matches!(node.data.borrow().value, NodeValue::Link(..)));
+        let sense = self.sense_inline(ui, node);
 
         if !node_range.is_empty() {
             self.show_override_text_line(
@@ -48,7 +45,7 @@ impl<'ast> Editor {
                 text_format,
                 spoiler,
                 None,
-                clickable,
+                sense,
             )
         } else {
             Default::default()

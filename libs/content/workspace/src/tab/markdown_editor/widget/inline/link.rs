@@ -38,13 +38,11 @@ impl<'ast> Editor {
 
         let response = self.show_circumfix(ui, node, top_left, wrap, range);
 
-        let modifiers = ui.input(|i| i.modifiers);
-        if response.hovered && modifiers.command {
+        if response.hovered && self.sense_inline(ui, node).click {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
         }
-        if response.clicked && modifiers.command {
-            let url = &node_link.url;
-            ui.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(url)));
+        if response.clicked {
+            ui.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(&node_link.url)));
         }
 
         response

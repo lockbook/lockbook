@@ -87,8 +87,17 @@ impl<'ast> Editor {
             }
         }
         if !infix_range.is_empty() {
-            response |=
-                self.show_text_line(ui, top_left, wrap, infix_range, self.text_format(node), false);
+            let sense = self.sense_inline(ui, node);
+            response |= self.show_override_text_line(
+                ui,
+                top_left,
+                wrap,
+                infix_range,
+                self.text_format(node),
+                false,
+                None,
+                sense,
+            );
         }
         if !postfix_range.is_empty() {
             // postfix range is empty when it's trimmed to 0 because we're not

@@ -1,5 +1,5 @@
 use comrak::nodes::{AlertType, AstNode, NodeAlert};
-use egui::{Pos2, Rect, Stroke, TextFormat, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
+use egui::{Pos2, Rect, Sense, Stroke, TextFormat, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
@@ -213,7 +213,7 @@ impl<'ast> Editor {
                     self.text_format(node),
                     false,
                     Some(type_display_text),
-                    false,
+                    Sense { click: false, drag: false, focusable: false },
                 );
             }
         }
