@@ -1,5 +1,5 @@
-use crate::config::Config;
 use crate::ServerError;
+use crate::config::Config;
 use async_trait::async_trait;
 use lb_rs::model::crypto::EncryptedDocument;
 use lb_rs::model::file_metadata::DocumentHmac;
@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tokio::fs::{remove_file, File};
+use tokio::fs::{File, remove_file};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 

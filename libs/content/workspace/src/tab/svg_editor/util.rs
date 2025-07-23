@@ -1,14 +1,13 @@
 use std::collections::HashSet;
 
-use super::{element::BoundedElement, CanvasSettings, ViewportSettings};
+use super::element::BoundedElement;
+use super::{CanvasSettings, ViewportSettings};
 
 use bezier_rs::{Bezier, Subpath};
 use egui::TouchPhase;
 use glam::DVec2;
-use lb_rs::model::svg::{
-    element::{Element, ManipulatorGroupId},
-    WeakRect,
-};
+use lb_rs::model::svg::WeakRect;
+use lb_rs::model::svg::element::{Element, ManipulatorGroupId};
 use lyon::math::Point;
 use resvg::usvg::Transform;
 

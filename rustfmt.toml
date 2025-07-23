@@ -1,4 +1,9 @@
+style_edition = "2024"
+
 use_small_heuristics = "Max"
 chain_width=60
 fn_params_layout="Compressed"
 use_field_init_shorthand = true
+
+# cargo +nightly fmt
+# imports_granularity = "module"

@@ -10,24 +10,25 @@ use core::time::Duration;
 use egui::os::OperatingSystem;
 use egui::scroll_area::ScrollAreaOutput;
 use egui::{
-    scroll_area, Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id,
-    Rect, ScrollArea, Sense, Stroke, Ui, Vec2,
+    Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Rect,
+    ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
 use input::mutation::EventState;
+use lb_rs::Uuid;
+use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::DocCharOffset;
-use lb_rs::{blocking::Lb, Uuid};
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use theme::Theme;
-use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::block::LayoutCache;
+use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::find::Find;
 use widget::inline::image::cache::ImageCache;
-use widget::toolbar::{Toolbar, MOBILE_TOOL_BAR_SIZE};
+use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
 use widget::{MARGIN, MAX_WIDTH};
 
 pub mod bounds;

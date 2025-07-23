@@ -1,5 +1,6 @@
 use egui::{Context, ViewportCommand};
 
+use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
 use lb_rs::model::file::File;
@@ -8,7 +9,6 @@ use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg;
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::service::events::{self, Actor, Event};
-use lb_rs::Uuid;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -21,7 +21,7 @@ use crate::file_cache::FileCache;
 use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
 use crate::space_inspector::show::SpaceInspector;
-use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
+use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
@@ -443,7 +443,10 @@ impl Workspace {
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
-                                    debug!("reloading file after save failed with re-read required: {}", id);
+                                    debug!(
+                                        "reloading file after save failed with re-read required: {}",
+                                        id
+                                    );
                                     self.open_file(id, false, false);
                                 } else {
                                     tab.content = ContentState::Failed(TabFailure::Unexpected(

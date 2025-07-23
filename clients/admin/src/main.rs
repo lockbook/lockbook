@@ -6,10 +6,10 @@ mod info;
 mod validate;
 
 use clap::{Parser, Subcommand};
+use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::api::UnixTimeMillis;
 use lb::model::core_config::Config;
-use lb::Uuid;
 
 use crate::error::Error;
 use crate::indexes::CliIndex;

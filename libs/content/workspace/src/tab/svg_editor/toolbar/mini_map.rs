@@ -1,11 +1,9 @@
 use resvg::usvg::Transform;
 
-use crate::tab::svg_editor::{
-    gesture_handler::transform_canvas,
-    renderer::RenderOptions,
-    toolbar::{Toolbar, ToolbarContext, MINI_MAP_WIDTH},
-    util::transform_rect,
-};
+use crate::tab::svg_editor::gesture_handler::transform_canvas;
+use crate::tab::svg_editor::renderer::RenderOptions;
+use crate::tab::svg_editor::toolbar::{MINI_MAP_WIDTH, Toolbar, ToolbarContext};
+use crate::tab::svg_editor::util::transform_rect;
 const SCROLLBAR_WIDTH: f32 = 15.0;
 
 impl Toolbar {

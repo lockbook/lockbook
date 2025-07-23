@@ -1,8 +1,8 @@
 use std::io::{Read, Write};
 
+use flate2::Compression;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use flate2::Compression;
 
 use super::errors::{LbErrKind, LbResult};
 

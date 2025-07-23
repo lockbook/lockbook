@@ -11,7 +11,7 @@ use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
-use prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus::{IntGaugeVec, register_int_gauge_vec};
 use prometheus_static_metric::make_static_metric;
 use std::fmt::Debug;
 use tracing::*;
@@ -142,8 +142,8 @@ where
                         match billing_info.billing_platform {
                             None => {
                                 return Err(internal!(
-                        "Could not retrieve billing platform although it was used moments before."
-                    ));
+                                    "Could not retrieve billing platform although it was used moments before."
+                                ));
                             }
                             Some(billing_platform) => match billing_platform {
                                 BillingPlatform::GooglePlay { .. } => {

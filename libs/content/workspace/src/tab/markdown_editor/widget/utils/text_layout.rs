@@ -6,11 +6,11 @@ use egui::{Pos2, Rect, Sense, Stroke, TextFormat, Ui, Vec2};
 use epaint::text::cursor::RCursor;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
+use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::Lines;
 use crate::tab::markdown_editor::galleys::GalleyInfo;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::{INLINE_PADDING, ROW_HEIGHT, ROW_SPACING};
-use crate::tab::markdown_editor::Editor;
 
 #[derive(Clone, Debug)]
 pub struct Wrap {

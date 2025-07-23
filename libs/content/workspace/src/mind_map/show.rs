@@ -1,16 +1,15 @@
 use super::data::{
-    lockbook_data, start_extraction_names, stop_extraction, Graph, LinkNode, DONE, URL_NAME_STORE,
+    DONE, Graph, LinkNode, URL_NAME_STORE, lockbook_data, start_extraction_names, stop_extraction,
 };
 use egui::ahash::{HashMap, HashMapExt};
 use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
-use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
+use lb_rs::blocking::Lb;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
-use std::thread;
-use std::time::Duration;
-use std::{f32, time::Instant};
+use std::time::{Duration, Instant};
+use std::{f32, thread};
 
 struct Grid {
     cell_size: f32,

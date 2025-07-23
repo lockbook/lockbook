@@ -10,9 +10,9 @@ use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 
 use crate::tab::markdown_editor::{self, Editor};
+use markdown_editor::Event;
 use markdown_editor::input::Region;
 use markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
-use markdown_editor::Event;
 
 pub const MOBILE_TOOL_BAR_SIZE: f32 = 45.0;
 

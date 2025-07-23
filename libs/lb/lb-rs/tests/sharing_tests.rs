@@ -1,8 +1,8 @@
+use lb_rs::Lb;
+use lb_rs::model::ValidationFailure;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::FileType;
-use lb_rs::model::ValidationFailure;
-use lb_rs::Lb;
 use test_utils::*;
 use uuid::Uuid;
 

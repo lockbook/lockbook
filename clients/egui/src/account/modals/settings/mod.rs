@@ -4,8 +4,7 @@ mod debug_tab;
 mod general_tab;
 mod usage_tab;
 
-use std::sync::Mutex;
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock, mpsc};
 
 use egui::TextStyle;
 use egui_extras::{Size, StripBuilder};

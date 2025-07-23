@@ -110,7 +110,8 @@ impl Lockbook {
 
 #[cfg(feature = "egui_wgpu_backend")]
 mod lb_wgpu {
-    use std::{iter, time::Instant};
+    use std::iter;
+    use std::time::Instant;
 
     use egui::{PlatformOutput, Pos2, Rect, ViewportIdMap, ViewportOutput};
     use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode};

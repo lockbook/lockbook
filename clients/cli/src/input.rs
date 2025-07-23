@@ -1,11 +1,11 @@
-use std::{
-    fmt::{self, Debug, Display, Formatter},
-    io::{self, Write},
-    str::FromStr,
-};
+use std::fmt::{self, Debug, Display, Formatter};
+use std::io::{self, Write};
+use std::str::FromStr;
 
 use cli_rs::cli_error::{CliError, CliResult};
-use lb_rs::{model::file::File, model::path_ops::Filter, Lb, Uuid};
+use lb_rs::model::file::File;
+use lb_rs::model::path_ops::Filter;
+use lb_rs::{Lb, Uuid};
 
 use crate::core;
 

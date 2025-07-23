@@ -19,28 +19,22 @@ use crate::workspace::WsPersistentStore;
 
 use element::PromoteBufferWeakImages;
 pub use eraser::Eraser;
-pub use history::DeleteElement;
-pub use history::Event;
-pub use history::InsertElement;
+pub use history::{DeleteElement, Event, InsertElement};
+use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
-use lb_rs::model::svg::buffer::u_transform_to_bezier;
-use lb_rs::model::svg::buffer::Buffer;
+use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::Element;
-use lb_rs::Uuid;
 pub use path_builder::PathBuilder;
 pub use pen::Pen;
 use pen::PenSettings;
 use renderer::Renderer;
 use resvg::usvg::Transform;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
-use toolbar::ToolContext;
-use toolbar::ToolbarContext;
-use tracing::span;
-use tracing::Level;
+use toolbar::{ToolContext, ToolbarContext};
+use tracing::{Level, span};
 
 pub struct SVGEditor {
     pub buffer: Buffer,

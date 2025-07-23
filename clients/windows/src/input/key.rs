@@ -1,7 +1,8 @@
 use lbeguiapp::WgpuLockbook;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 
-use super::{clipboard_paste, message::MessageAppDep};
+use super::clipboard_paste;
+use super::message::MessageAppDep;
 
 struct Key {
     vk: VIRTUAL_KEY,

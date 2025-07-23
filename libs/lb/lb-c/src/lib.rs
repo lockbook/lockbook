@@ -1,32 +1,30 @@
-use std::{
-    ffi::{c_char, c_uchar, c_void},
-    fs,
-    path::PathBuf,
-    process,
-    ptr::null_mut,
-};
+use std::ffi::{c_char, c_uchar, c_void};
+use std::path::PathBuf;
+use std::ptr::null_mut;
+use std::{fs, process};
 
 use ffi_utils::{
     carray, cstring, cstring_array, lb_err, r_opt_str, r_paths, rlb, rstr, rstring, rvec,
 };
 use lb_c_err::LbFfiErr;
 use lb_file::{LbFile, LbFileList, LbFileType};
+pub use lb_rs::blocking::Lb;
+pub use lb_rs::model::core_config::Config;
+use lb_rs::model::file::ShareMode;
+use lb_rs::service::activity::RankingWeights;
+use lb_rs::service::events::Event;
 pub use lb_rs::*;
-pub use lb_rs::{blocking::Lb, model::core_config::Config};
-use lb_rs::{
-    model::file::ShareMode,
-    service::{activity::RankingWeights, events::Event},
-};
 use lb_work::LbSyncRes;
 use model::api::{
     AppStoreAccountState, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
     StripeAccountTier, UnixTimeMillis,
 };
-use service::{import_export::ImportStatus, sync::SyncProgress};
+use service::import_export::ImportStatus;
+use service::sync::SyncProgress;
 use subscribers::search::{SearchConfig, SearchResult};
 
-use std::sync::atomic::AtomicPtr;
 use std::sync::Arc;
+use std::sync::atomic::AtomicPtr;
 
 #[repr(C)]
 pub struct LbInitRes {
@@ -1058,18 +1056,25 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
     let mut rx = lb.subscribe();
     let notify_obj = Arc::new(AtomicPtr::new(notify_obj as *mut c_void));
 
-    std::thread::spawn(move || loop {
-        if let Ok(event) = rx.blocking_recv() {
-            let event = match event {
-                Event::StatusUpdated => LbEvent { status_updated: true, ..Default::default() },
-                Event::MetadataChanged => LbEvent { metadata_updated: true, ..Default::default() },
-                Event::PendingSharesChanged => {
-                    LbEvent { pending_shares_changed: true, ..Default::default() }
-                }
-                _ => continue,
-            };
+    std::thread::spawn(move || {
+        loop {
+            if let Ok(event) = rx.blocking_recv() {
+                let event = match event {
+                    Event::StatusUpdated => LbEvent { status_updated: true, ..Default::default() },
+                    Event::MetadataChanged => {
+                        LbEvent { metadata_updated: true, ..Default::default() }
+                    }
+                    Event::PendingSharesChanged => {
+                        LbEvent { pending_shares_changed: true, ..Default::default() }
+                    }
+                    _ => continue,
+                };
 
-            notify(notify_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void, event);
+                notify(
+                    notify_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void,
+                    event,
+                );
+            }
         }
     });
 }

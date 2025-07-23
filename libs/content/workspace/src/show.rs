@@ -3,9 +3,9 @@ use core::f32;
 use egui::os::OperatingSystem;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    include_image, vec2, Align, Align2, CursorIcon, EventFilter, FontSelection, Galley, Id, Image,
-    Key, Label, Modifiers, Rangef, Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode,
-    Vec2, ViewportCommand, Widget as _, WidgetText,
+    Align, Align2, CursorIcon, EventFilter, FontSelection, Galley, Id, Image, Key, Label,
+    Modifiers, Rangef, Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2,
+    ViewportCommand, Widget as _, WidgetText, include_image, vec2,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
@@ -15,7 +15,7 @@ use tracing::instrument;
 
 use crate::output::Response;
 use crate::tab::{
-    core_get_by_relative_path, image_viewer, ContentState, Tab, TabContent, TabStatus,
+    ContentState, Tab, TabContent, TabStatus, core_get_by_relative_path, image_viewer,
 };
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
@@ -1108,11 +1108,7 @@ impl ElapsedHumanString for time::Duration {
         let minutes = self.whole_minutes();
         let seconds = self.whole_seconds();
         if seconds > 0 && minutes == 0 {
-            if seconds <= 1 {
-                "1 second ago".to_string()
-            } else {
-                format!("{seconds} seconds ago")
-            }
+            if seconds <= 1 { "1 second ago".to_string() } else { format!("{seconds} seconds ago") }
         } else {
             self.format_human().to_string()
         }

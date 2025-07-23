@@ -4,11 +4,14 @@ use crate::widgets::Button;
 use color_art;
 use colors_transform::{self, Color};
 use egui::{
-    self, menu, Color32, Context, Id, LayerId, Pos2, Rect, Rounding, Sense, Stroke, TextWrapMode,
-    Ui,
+    self, Color32, Context, Id, LayerId, Pos2, Rect, Rounding, Sense, Stroke, TextWrapMode, Ui,
+    menu,
 };
-use lb_rs::model::{errors::LbErr, file::File, usage::bytes_to_human};
-use lb_rs::{blocking::Lb, LbErrKind, Uuid};
+use lb_rs::blocking::Lb;
+use lb_rs::model::errors::LbErr;
+use lb_rs::model::file::File;
+use lb_rs::model::usage::bytes_to_human;
+use lb_rs::{LbErrKind, Uuid};
 use std::sync::{Arc, Mutex};
 use std::thread;
 

@@ -1,15 +1,14 @@
+use crate::ServerError;
+use crate::ServerError::ClientError;
 use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
 use crate::schema::ServerDb;
-use crate::ServerError;
-use crate::ServerError::ClientError;
 
 use crate::{RequestContext, ServerState};
 use db_rs::Db;
-use lb_rs::model::api::UpsertError;
-use lb_rs::model::api::*;
+use lb_rs::model::api::{UpsertError, *};
 use lb_rs::model::clock::get_time;
 use lb_rs::model::crypto::Timestamped;
 use lb_rs::model::errors::{LbErrKind, LbResult};

@@ -5,7 +5,7 @@ use crate::config::AppleConfig;
 use crate::{ClientError, ServerError};
 use async_trait::async_trait;
 use itertools::Itertools;
-use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use lb_rs::model::api::UpgradeAccountAppStoreError;
 use lb_rs::model::clock::get_time;
 use reqwest::{Client, RequestBuilder};
@@ -89,7 +89,11 @@ impl AppStoreClient for Client {
                     }
                 }
 
-                Err(internal!("No usable data returned from apple's production subscriptions statuses endpoint despite assumed match. resp_body: {:?}, monthly_sub_group: {}", sub_status, config.monthly_sub_group_id))
+                Err(internal!(
+                    "No usable data returned from apple's production subscriptions statuses endpoint despite assumed match. resp_body: {:?}, monthly_sub_group: {}",
+                    sub_status,
+                    config.monthly_sub_group_id
+                ))
             }
             400 | 404 => {
                 let error: ErrorBody = resp.json().await?;
@@ -123,7 +127,11 @@ impl AppStoreClient for Client {
                                 }
                             }
 
-                            return Err(internal!("No usable data returned from apple's sandbox subscriptions statuses endpoint despite assumed match. resp_body: {:?}, monthly_sub_group: {}", sub_status, config.monthly_sub_group_id));
+                            return Err(internal!(
+                                "No usable data returned from apple's sandbox subscriptions statuses endpoint despite assumed match. resp_body: {:?}, monthly_sub_group: {}",
+                                sub_status,
+                                config.monthly_sub_group_id
+                            ));
                         }
                         400 | 404 => {
                             error!(

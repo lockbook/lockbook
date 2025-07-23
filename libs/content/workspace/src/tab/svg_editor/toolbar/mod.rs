@@ -3,19 +3,21 @@ mod mini_map;
 mod tools_island;
 mod viewport_island;
 
-use crate::{
-    tab::svg_editor::{gesture_handler::calc_elements_bounds, InputContext},
-    theme::icons::Icon,
-    widgets::Button,
-    workspace::WsPersistentStore,
-};
-use lb_rs::model::svg::{buffer::Buffer, diff::DiffState};
+use crate::tab::svg_editor::InputContext;
+use crate::tab::svg_editor::gesture_handler::calc_elements_bounds;
+use crate::theme::icons::Icon;
+use crate::widgets::Button;
+use crate::workspace::WsPersistentStore;
+use lb_rs::model::svg::buffer::Buffer;
+use lb_rs::model::svg::diff::DiffState;
 use viewport_island::ViewportPopover;
 
-use super::{
-    gesture_handler::GestureHandler, history::History, pen::PenSettings, renderer::Renderer,
-    selection::Selection, CanvasSettings, Eraser, Pen, ViewportSettings,
-};
+use super::gesture_handler::GestureHandler;
+use super::history::History;
+use super::pen::PenSettings;
+use super::renderer::Renderer;
+use super::selection::Selection;
+use super::{CanvasSettings, Eraser, Pen, ViewportSettings};
 pub const MINI_MAP_WIDTH: f32 = 100.0;
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;

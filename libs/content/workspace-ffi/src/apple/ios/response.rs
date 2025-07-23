@@ -1,8 +1,6 @@
-use lb_c::{
-    model::text::offset_types::{DocCharOffset, RangeExt as _},
-    Uuid,
-};
-use std::ffi::{c_char, CString};
+use lb_c::Uuid;
+use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use std::ffi::{CString, c_char};
 use workspace_rs::tab::markdown_editor::input::{Bound, Location, Region};
 
 use super::super::response::*;
@@ -250,20 +248,12 @@ impl From<CTextRange> for Option<Region> {
 
 impl From<CTextPosition> for Option<Location> {
     fn from(value: CTextPosition) -> Self {
-        if value.none {
-            None
-        } else {
-            Some(Location::DocCharOffset(value.pos.into()))
-        }
+        if value.none { None } else { Some(Location::DocCharOffset(value.pos.into())) }
     }
 }
 
 impl From<CTextPosition> for Option<DocCharOffset> {
     fn from(value: CTextPosition) -> Self {
-        if value.none {
-            None
-        } else {
-            Some(value.pos.into())
-        }
+        if value.none { None } else { Some(value.pos.into()) }
     }
 }

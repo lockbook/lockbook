@@ -1,4 +1,5 @@
-use tracing_subscriber::{filter, fmt, prelude::*, Layer};
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{Layer, filter, fmt};
 
 pub fn init() {
     let subscriber = tracing_subscriber::Registry::default().with(

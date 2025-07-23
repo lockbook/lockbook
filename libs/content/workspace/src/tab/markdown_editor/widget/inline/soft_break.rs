@@ -1,9 +1,9 @@
 use comrak::nodes::AstNode;
 use lb_rs::model::text::offset_types::DocCharOffset;
 
+use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
-use crate::tab::markdown_editor::Editor;
 
 impl<'ast> Editor {
     pub fn span_soft_break(

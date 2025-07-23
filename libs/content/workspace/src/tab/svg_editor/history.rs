@@ -1,9 +1,9 @@
-use std::{collections::VecDeque, fmt::Debug};
+use std::collections::VecDeque;
+use std::fmt::Debug;
 
-use lb_rs::{
-    model::svg::{buffer::Buffer, element::Element},
-    Uuid,
-};
+use lb_rs::Uuid;
+use lb_rs::model::svg::buffer::Buffer;
+use lb_rs::model::svg::element::Element;
 use resvg::usvg::Transform;
 
 #[derive(Default, Debug)]

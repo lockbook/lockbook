@@ -1,9 +1,9 @@
 use crate::secrets::*;
-use crate::utils::{android_version_code, lb_repo, lb_version, CommandRunner};
+use crate::utils::{CommandRunner, android_version_code, lb_repo, lb_version};
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use google_androidpublisher3::api::{AppEdit, LocalizedText, Track, TrackRelease};
-use google_androidpublisher3::{hyper, hyper_rustls, oauth2, AndroidPublisher};
+use google_androidpublisher3::{AndroidPublisher, hyper, hyper_rustls, oauth2};
 use std::fs::File;
 use std::process::Command;
 use tokio::runtime::Runtime;

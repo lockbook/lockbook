@@ -1,9 +1,12 @@
 use egui::DroppedFile;
 use lbeguiapp::WgpuLockbook;
-use windows::{
-    core::*, Win32::Foundation::*, Win32::System::Com::*, Win32::System::Memory::*,
-    Win32::System::Ole::*, Win32::System::SystemServices::*, Win32::UI::Shell::*,
-};
+use windows::Win32::Foundation::*;
+use windows::Win32::System::Com::*;
+use windows::Win32::System::Memory::*;
+use windows::Win32::System::Ole::*;
+use windows::Win32::System::SystemServices::*;
+use windows::Win32::UI::Shell::*;
+use windows::core::*;
 
 #[derive(Clone, Debug)]
 pub enum Message {

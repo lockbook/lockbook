@@ -3,7 +3,7 @@ use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::{FileType, Owner};
 use lb_rs::model::tree_like::TreeLike;
-use lb_rs::model::{symkey, ValidationFailure};
+use lb_rs::model::{ValidationFailure, symkey};
 use test_utils::*;
 use uuid::Uuid;
 

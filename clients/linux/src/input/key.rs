@@ -1,8 +1,9 @@
 use crate::input;
 use egui::Modifiers;
 use lbeguiapp::WgpuLockbook;
-use x11rb::{protocol::xproto::KeyButMask, xcb_ffi::XCBConnection};
-use xkbcommon::xkb::{self, x11, Keycode};
+use x11rb::protocol::xproto::KeyButMask;
+use x11rb::xcb_ffi::XCBConnection;
+use xkbcommon::xkb::{self, Keycode, x11};
 
 pub struct Keyboard {
     state: xkb::State,

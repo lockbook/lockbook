@@ -1,7 +1,10 @@
-use super::{
-    crypto::Timestamped, file_metadata::FileMetadata, meta::Meta, server_file::ServerFile,
-    server_meta::ServerMeta, signed_file::SignedFile, signed_meta::SignedMeta,
-};
+use super::crypto::Timestamped;
+use super::file_metadata::FileMetadata;
+use super::meta::Meta;
+use super::server_file::ServerFile;
+use super::server_meta::ServerMeta;
+use super::signed_file::SignedFile;
+use super::signed_meta::SignedMeta;
 
 impl From<FileMetadata> for Meta {
     fn from(value: FileMetadata) -> Self {

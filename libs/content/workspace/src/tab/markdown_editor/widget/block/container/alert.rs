@@ -4,9 +4,9 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
+use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT, ROW_HEIGHT};
-use crate::tab::markdown_editor::Editor;
 use crate::theme::icons::Icon;
 
 impl<'ast> Editor {

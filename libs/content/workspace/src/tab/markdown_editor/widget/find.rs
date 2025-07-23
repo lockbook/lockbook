@@ -1,10 +1,9 @@
 use egui::{EventFilter, Frame, Id, Key, Label, Margin, Stroke, TextEdit, Ui, Widget as _};
-use lb_rs::model::text::{
-    buffer::Buffer,
-    offset_types::{DocByteOffset, DocCharOffset, RangeExt as _},
-};
+use lb_rs::model::text::buffer::Buffer;
+use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _};
 
-use crate::{theme::icons::Icon, widgets::IconButton};
+use crate::theme::icons::Icon;
+use crate::widgets::IconButton;
 
 use super::super::Editor;
 

@@ -1,29 +1,25 @@
 mod java_utils;
 
-use std::{fs, str::FromStr};
+use std::fs;
+use std::str::FromStr;
 
 use java_utils::{jbyte_array, jni_string, rbyte_array, rlb, rstring, throw_err};
-use jni::{
-    objects::{JByteArray, JClass, JObject, JObjectArray, JString, JValue},
-    sys::{jboolean, jbyteArray, jlong, jobject, jobjectArray, jstring},
-    JNIEnv,
+use jni::JNIEnv;
+use jni::objects::{JByteArray, JClass, JObject, JObjectArray, JString, JValue};
+use jni::sys::{jboolean, jbyteArray, jlong, jobject, jobjectArray, jstring};
+pub use lb_rs::blocking::Lb;
+use lb_rs::model::account::Account;
+use lb_rs::model::api::{
+    AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo,
 };
+pub use lb_rs::model::core_config::Config;
+use lb_rs::model::file::{File, ShareMode};
+use lb_rs::model::file_metadata::FileType;
+use lb_rs::model::work_unit::WorkUnit;
+use lb_rs::service::activity::RankingWeights;
+use lb_rs::service::sync::{SyncProgress, SyncStatus};
+use lb_rs::service::usage::{UsageItemMetric, UsageMetrics};
 pub use lb_rs::*;
-pub use lb_rs::{blocking::Lb, model::core_config::Config};
-use lb_rs::{
-    model::{
-        account::Account,
-        api::{AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo},
-        file::{File, ShareMode},
-        file_metadata::FileType,
-        work_unit::WorkUnit,
-    },
-    service::{
-        activity::RankingWeights,
-        sync::{SyncProgress, SyncStatus},
-        usage::{UsageItemMetric, UsageMetrics},
-    },
-};
 use subscribers::search::{SearchConfig, SearchResult};
 
 #[unsafe(no_mangle)]

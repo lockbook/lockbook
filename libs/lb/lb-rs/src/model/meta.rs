@@ -1,11 +1,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{
-    access_info::{EncryptedFolderAccessKey, UserAccessInfo},
-    file_metadata::{DocumentHmac, FileType, Owner},
-    secret_filename::SecretFileName,
-};
+use super::access_info::{EncryptedFolderAccessKey, UserAccessInfo};
+use super::file_metadata::{DocumentHmac, FileType, Owner};
+use super::secret_filename::SecretFileName;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum Meta {

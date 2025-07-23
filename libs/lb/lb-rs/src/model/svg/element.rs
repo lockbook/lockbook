@@ -1,7 +1,5 @@
-use std::{
-    collections::HashMap,
-    ops::{Deref, DerefMut},
-};
+use std::collections::HashMap;
+use std::ops::{Deref, DerefMut};
 
 use bezier_rs::{Identifier, Subpath};
 use serde::{Deserialize, Serialize};
@@ -9,7 +7,8 @@ use serde::{Deserialize, Serialize};
 use usvg::{self, Color, Fill, ImageKind, NonZeroRect, Text, Transform, Visibility};
 use uuid::Uuid;
 
-use super::{buffer::u_transform_to_bezier, diff::DiffState};
+use super::buffer::u_transform_to_bezier;
+use super::diff::DiffState;
 
 #[derive(Clone)]
 pub enum Element {

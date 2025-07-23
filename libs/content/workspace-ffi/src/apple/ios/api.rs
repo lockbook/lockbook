@@ -1,22 +1,22 @@
 use egui::{Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt, RelCharOffset};
 use std::cmp;
-use std::ffi::{c_char, c_void, CStr, CString};
+use std::ffi::{CStr, CString, c_char, c_void};
 use std::ptr::null;
 use tracing::instrument;
 use workspace_rs::tab::markdown_editor::bounds::RangesExt;
 use workspace_rs::tab::markdown_editor::input::advance::AdvanceExt as _;
-use workspace_rs::tab::markdown_editor::input::mutation;
-use workspace_rs::tab::markdown_editor::input::{Bound, Event, Increment, Offset, Region};
+use workspace_rs::tab::markdown_editor::input::{
+    Bound, Event, Increment, Offset, Region, mutation,
+};
 use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;
-use workspace_rs::tab::TabContent;
-use workspace_rs::tab::{ContentState, ExtendedInput as _};
+use workspace_rs::tab::{ContentState, ExtendedInput as _, TabContent};
 
 use super::super::response::*;
 use super::response::*;
-use crate::apple::keyboard::UIKeys;
 use crate::WgpuWorkspace;
+use crate::apple::keyboard::UIKeys;
 
 #[no_mangle]
 #[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).context.frame_nr()))]

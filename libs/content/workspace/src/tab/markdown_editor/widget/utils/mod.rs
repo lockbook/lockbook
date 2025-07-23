@@ -1,7 +1,8 @@
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _, RangeIterExt};
 
-use crate::tab::markdown_editor::{bounds::RangesExt as _, Editor};
+use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::bounds::RangesExt as _;
 
 pub(crate) mod text_layout;
 

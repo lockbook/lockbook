@@ -1,6 +1,5 @@
-use crate::core;
-use crate::ensure_account_and_root;
 use crate::input::FileInput;
+use crate::{core, ensure_account_and_root};
 use cli_rs::cli_error::CliResult;
 use std::io;
 use std::io::{Read, Write};

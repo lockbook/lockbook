@@ -1,6 +1,7 @@
-use crate::{theme::icons::Icon, widgets::Button};
+use crate::theme::icons::Icon;
+use crate::widgets::Button;
 
-use super::{Toolbar, ToolbarContext, SCREEN_PADDING};
+use super::{SCREEN_PADDING, Toolbar, ToolbarContext};
 
 impl Toolbar {
     pub fn show_history_island(

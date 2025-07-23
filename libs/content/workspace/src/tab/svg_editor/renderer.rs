@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use egui::{Mesh, TextureHandle};
 use glam::f64::DVec2;
+use lb_rs::Uuid;
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::{Element, Image, Path, WeakPathPressures};
-use lb_rs::Uuid;
 use lyon::path::{AttributeIndex, LineCap, LineJoin};
 use lyon::tessellation::{
     self, BuffersBuilder, FillVertexConstructor, StrokeOptions, StrokeTessellator,
@@ -13,12 +13,12 @@ use lyon::tessellation::{
 
 use rayon::prelude::*;
 use resvg::usvg::{ImageKind, Transform};
-use tracing::{span, Level};
+use tracing::{Level, span};
 
 use crate::theme::palette::ThemePalette;
 
-use super::util::{devc_to_point, transform_point, transform_rect};
 use super::Buffer;
+use super::util::{devc_to_point, transform_point, transform_rect};
 
 const STROKE_WIDTH: AttributeIndex = 0;
 

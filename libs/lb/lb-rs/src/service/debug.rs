@@ -1,7 +1,7 @@
 use crate::model::clock;
 use crate::model::errors::LbResult;
-use crate::Lb;
-use crate::{get_code_version, service::logging::LOG_FILE};
+use crate::service::logging::LOG_FILE;
+use crate::{Lb, get_code_version};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::NaiveDateTime;
 use serde::Serialize;

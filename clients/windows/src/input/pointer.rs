@@ -1,9 +1,13 @@
-use std::{collections::HashMap, mem, ops::BitAnd, time::Instant};
+use std::collections::HashMap;
+use std::mem;
+use std::ops::BitAnd;
+use std::time::Instant;
 
 use lbeguiapp::WgpuLockbook;
-use windows::Win32::{
-    Foundation::*, Graphics::Gdi::*, UI::Input::Pointer::*, UI::WindowsAndMessaging::*,
-};
+use windows::Win32::Foundation::*;
+use windows::Win32::Graphics::Gdi::*;
+use windows::Win32::UI::Input::Pointer::*;
+use windows::Win32::UI::WindowsAndMessaging::*;
 
 #[derive(Default)]
 pub struct PointerManager {

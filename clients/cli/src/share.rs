@@ -1,14 +1,11 @@
 use crate::core;
 use cli_rs::cli_error::{CliError, CliResult};
-use lb_rs::{
-    model::{
-        file::{File, ShareMode},
-        file_metadata::FileType,
-    },
-    Uuid,
-};
+use lb_rs::Uuid;
+use lb_rs::model::file::{File, ShareMode};
+use lb_rs::model::file_metadata::FileType;
 
-use crate::{ensure_account_and_root, input::FileInput};
+use crate::ensure_account_and_root;
+use crate::input::FileInput;
 
 #[tokio::main]
 pub async fn new(target: FileInput, username: String, read_only: bool) -> CliResult<()> {

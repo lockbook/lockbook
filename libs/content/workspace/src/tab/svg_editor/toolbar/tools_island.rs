@@ -4,29 +4,26 @@ use bezier_rs::{Cap, Subpath};
 use egui::{InnerResponse, Response, RichText};
 use egui_animation::{animate_eased, easing};
 use glam::DVec2;
-use lb_rs::model::svg::{
-    buffer::{get_highlighter_colors, get_pen_colors},
-    element::{DynamicColor, ManipulatorGroupId},
-};
+use lb_rs::model::svg::buffer::{get_highlighter_colors, get_pen_colors};
+use lb_rs::model::svg::element::{DynamicColor, ManipulatorGroupId};
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, VertexBuffers};
 
-use crate::{
-    set_tool,
-    tab::svg_editor::{
-        eraser::DEFAULT_ERASER_RADIUS,
-        gesture_handler::get_rect_identity_transform,
-        pen::{PenSettings, DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH},
-        renderer::VertexConstructor,
-        util::{bb_to_rect, devc_to_point},
-        CanvasSettings, Pen, Tool,
-    },
-    theme::{icons::Icon, palette::ThemePalette},
-    widgets::{switch, Button},
-    workspace::WsPersistentStore,
+use crate::set_tool;
+use crate::tab::svg_editor::eraser::DEFAULT_ERASER_RADIUS;
+use crate::tab::svg_editor::gesture_handler::get_rect_identity_transform;
+use crate::tab::svg_editor::pen::{
+    DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH, PenSettings,
 };
+use crate::tab::svg_editor::renderer::VertexConstructor;
+use crate::tab::svg_editor::util::{bb_to_rect, devc_to_point};
+use crate::tab::svg_editor::{CanvasSettings, Pen, Tool};
+use crate::theme::icons::Icon;
+use crate::theme::palette::ThemePalette;
+use crate::widgets::{Button, switch};
+use crate::workspace::WsPersistentStore;
 
 use super::{
-    Toolbar, ToolbarContext, COLOR_SWATCH_BTN_RADIUS, SCREEN_PADDING, THICKNESS_BTN_WIDTH,
+    COLOR_SWATCH_BTN_RADIUS, SCREEN_PADDING, THICKNESS_BTN_WIDTH, Toolbar, ToolbarContext,
 };
 
 impl Toolbar {

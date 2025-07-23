@@ -1,6 +1,6 @@
 use crate::{Res, Uuid};
-use dialoguer::theme::ColorfulTheme;
 use dialoguer::Confirm;
+use dialoguer::theme::ColorfulTheme;
 use lb::blocking::Lb;
 
 pub fn file(lb: &Lb, id: Uuid) -> Res<()> {

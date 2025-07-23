@@ -1,6 +1,5 @@
 use std::backtrace::Backtrace;
-use std::fmt::Display;
-use std::fmt::{self, Formatter};
+use std::fmt::{self, Display, Formatter};
 use std::io;
 use std::panic::Location;
 use std::sync::PoisonError;

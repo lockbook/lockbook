@@ -1,9 +1,9 @@
+use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::style::{InlineNodeType, MarkdownNode, MarkdownNodeType};
 use crate::tab::markdown_editor::widget::ROW_SPACING;
-use crate::tab::markdown_editor::Editor;
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Rangef, Vec2};
 use lb_rs::model::text::buffer::{self};
@@ -751,11 +751,7 @@ impl<'ast> Editor {
                     &(&self.buffer)[(offset, offset + 1)]
                 };
                 if c == " " {
-                    if tail {
-                        offset -= 1
-                    } else {
-                        offset += 1
-                    }
+                    if tail { offset -= 1 } else { offset += 1 }
                 } else {
                     break;
                 }

@@ -1,4 +1,4 @@
-use crate::utils::{lb_version, CommandRunner};
+use crate::utils::{CommandRunner, lb_version};
 use cli_rs::cli_error::CliResult;
 use regex::{Captures, Regex};
 use std::fmt::{Display, Formatter};
@@ -6,7 +6,7 @@ use std::fs;
 use std::process::Command;
 use std::str::FromStr;
 use time::OffsetDateTime;
-use toml_edit::{value, Document};
+use toml_edit::{Document, value};
 
 pub fn bump(bump_type: BumpType) -> CliResult<()> {
     let new_version = determine_new_version(bump_type);

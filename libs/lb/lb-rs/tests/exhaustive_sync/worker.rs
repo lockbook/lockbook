@@ -1,10 +1,9 @@
 use std::sync::atomic::Ordering;
-use std::{fs, thread, time::Duration};
+use std::time::Duration;
+use std::{fs, thread};
 
-use super::{
-    coordinator::{Coordinator, ThreadID},
-    trial_cache::TrialCache,
-};
+use super::coordinator::{Coordinator, ThreadID};
+use super::trial_cache::TrialCache;
 
 pub struct Worker {
     id: ThreadID,

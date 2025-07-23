@@ -1,19 +1,16 @@
-use std::{
-    convert::Infallible,
-    env, fs,
-    io::Write,
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::convert::Infallible;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use std::{env, fs};
 
-use cli_rs::{
-    cli_error::{CliError, CliResult},
-    flag::Flag,
-};
+use cli_rs::cli_error::{CliError, CliResult};
+use cli_rs::flag::Flag;
 use hotwatch::{Event, EventKind, Hotwatch};
 use lb_rs::{Lb, Uuid};
 
-use crate::{core, ensure_account_and_root, input::FileInput};
+use crate::input::FileInput;
+use crate::{core, ensure_account_and_root};
 
 #[tokio::main]
 pub async fn edit(editor: Editor, target: FileInput) -> CliResult<()> {
@@ -143,7 +140,9 @@ fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
 
     let command = match editor {
         Editor::Vim | Editor::Nvim | Editor::Emacs | Editor::Nano => {
-            eprintln!("Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor.");
+            eprintln!(
+                "Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor."
+            );
             return false;
         }
         Editor::Sublime => format!("subl --wait {}", path_str),

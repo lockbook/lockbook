@@ -157,8 +157,7 @@ impl Account {
 
 pub mod secret_key_serializer {
     use libsecp256k1::SecretKey;
-    use serde::de::Deserialize;
-    use serde::de::Deserializer;
+    use serde::de::{Deserialize, Deserializer};
     use serde::ser::Serializer;
 
     pub fn serialize<S>(sk: &SecretKey, serializer: S) -> Result<S::Ok, S::Error>

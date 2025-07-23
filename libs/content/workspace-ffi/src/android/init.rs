@@ -1,11 +1,9 @@
-use egui::Context;
-use egui::FontDefinitions;
-use egui_wgpu_backend::wgpu;
+use egui::{Context, FontDefinitions};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
-use egui_wgpu_backend::ScreenDescriptor;
+use egui_wgpu_backend::{ScreenDescriptor, wgpu};
+use jni::JNIEnv;
 use jni::objects::JClass;
 use jni::sys::*;
-use jni::JNIEnv;
 use lb_java::Lb;
 use ndk_sys::{
     ANativeWindow, ANativeWindow_fromSurface, ANativeWindow_getHeight, ANativeWindow_getWidth,

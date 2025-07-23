@@ -41,22 +41,24 @@ fn poll_system_theme(
 
     let mut mode = initial_mode;
 
-    thread::spawn(move || loop {
-        if s.read().unwrap().theme_mode == ThemeMode::System {
-            match dark_light::detect() {
-                Ok(m) => {
-                    if mode != m {
-                        mode = m;
-                        ctx.set_visuals(egui_visuals(m, s.read().unwrap().theme_color));
-                        ctx.request_repaint();
+    thread::spawn(move || {
+        loop {
+            if s.read().unwrap().theme_mode == ThemeMode::System {
+                match dark_light::detect() {
+                    Ok(m) => {
+                        if mode != m {
+                            mode = m;
+                            ctx.set_visuals(egui_visuals(m, s.read().unwrap().theme_color));
+                            ctx.request_repaint();
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to detect current dark/light mode: {e:?}")
                     }
                 }
-                Err(e) => {
-                    eprintln!("Failed to detect current dark/light mode: {e:?}")
-                }
             }
+            thread::sleep(Duration::from_secs(1));
         }
-        thread::sleep(Duration::from_secs(1));
     });
 }
 

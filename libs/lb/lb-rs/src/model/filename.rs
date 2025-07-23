@@ -31,11 +31,7 @@ pub struct NameComponents {
 impl NameComponents {
     pub fn from(file_name: &str) -> NameComponents {
         let extension_location = file_name.rfind('.').and_then(|location| {
-            if location == file_name.len() - 1 {
-                None
-            } else {
-                Some(location)
-            }
+            if location == file_name.len() - 1 { None } else { Some(location) }
         });
 
         let name_with_variant = match extension_location {
@@ -81,11 +77,7 @@ impl NameComponents {
             .iter()
             .filter_map(|f| {
                 let nc = NameComponents::from(&f.name);
-                if nc.name == next.name && nc.extension == next.extension {
-                    Some(nc)
-                } else {
-                    None
-                }
+                if nc.name == next.name && nc.extension == next.extension { Some(nc) } else { None }
             })
             .collect();
 
@@ -129,8 +121,9 @@ impl NameComponents {
 mod unit_tests {
     use uuid::Uuid;
 
+    use crate::model::file::File;
+    use crate::model::file_metadata::FileType;
     use crate::model::filename::NameComponents;
-    use crate::model::{file::File, file_metadata::FileType};
 
     fn from_components(
         name: &str, variant: Option<usize>, extension: Option<&str>,

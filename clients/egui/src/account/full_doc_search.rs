@@ -4,10 +4,10 @@ use std::sync::{Arc, Mutex};
 use std::{mem, thread};
 
 use egui::{Id, Key, Modifiers};
+use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::subscribers::search::{ContentMatch, SearchConfig, SearchResult};
-use lb::Uuid;
 use workspace_rs::show::InputStateExt;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;

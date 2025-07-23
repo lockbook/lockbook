@@ -1,16 +1,15 @@
-use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-};
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Color32, FontFamily, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt};
-use syntect::{easy::HighlightLines, highlighting::Style};
+use syntect::easy::HighlightLines;
+use syntect::highlighting::Style;
 
+use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BLOCK_PADDING, ROW_SPACING};
-use crate::tab::markdown_editor::Editor;
 
 impl<'ast> Editor {
     pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> TextFormat {

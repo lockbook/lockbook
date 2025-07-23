@@ -1,5 +1,6 @@
 use egui::ScrollArea;
-use workspace_rs::{theme::icons::Icon, widgets::IconButton};
+use workspace_rs::theme::icons::Icon;
+use workspace_rs::widgets::IconButton;
 
 impl super::SettingsModal {
     pub fn show_debug_tab(&mut self, ui: &mut egui::Ui) {

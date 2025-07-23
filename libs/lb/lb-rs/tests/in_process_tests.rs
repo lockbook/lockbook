@@ -4,8 +4,7 @@ mod ip_tests {
     use lb_rs::model::errors::LbErrKind;
     use lb_rs::service::network::no_network::{CoreIP, InProcess};
     use std::default::Default;
-    use test_utils::test_config;
-    use test_utils::*;
+    use test_utils::{test_config, *};
 
     #[tokio::test]
     fn with_init_username_taken() {

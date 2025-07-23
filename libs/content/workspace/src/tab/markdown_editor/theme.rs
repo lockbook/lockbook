@@ -1,7 +1,5 @@
-use egui::{
-    style::{WidgetVisuals, Widgets},
-    Color32, Context, Rounding, Stroke, Ui,
-};
+use egui::style::{WidgetVisuals, Widgets};
+use egui::{Color32, Context, Rounding, Stroke, Ui};
 
 macro_rules! hex_color {
     ($hex:expr) => {{
@@ -62,20 +60,12 @@ impl Theme {
 
     /// Get the color set closest to the background color.
     pub fn bg(&self) -> &ColorSet {
-        if self.ctx.style().visuals.dark_mode {
-            &self.dim
-        } else {
-            &self.bright
-        }
+        if self.ctx.style().visuals.dark_mode { &self.dim } else { &self.bright }
     }
 
     /// Get the color set closest to the foreground color.
     pub fn fg(&self) -> &ColorSet {
-        if self.ctx.style().visuals.dark_mode {
-            &self.bright
-        } else {
-            &self.dim
-        }
+        if self.ctx.style().visuals.dark_mode { &self.bright } else { &self.dim }
     }
 
     pub fn apply(&self, ui: &mut Ui) {

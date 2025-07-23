@@ -4,8 +4,8 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
-use crate::tab::markdown_editor::widget::INDENT;
 use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::widget::INDENT;
 
 pub(crate) mod alert;
 pub(crate) mod block_quote;

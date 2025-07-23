@@ -2,9 +2,9 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{RangeExt, RangeIterExt as _};
 
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
-use crate::tab::markdown_editor::widget::BLOCK_SPACING;
 use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::widget::BLOCK_SPACING;
+use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn height_table(&self, node: &'ast AstNode<'ast>) -> f32 {

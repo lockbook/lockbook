@@ -2,7 +2,8 @@ use comrak::nodes::{AstNode, NodeCodeBlock, NodeHeading, NodeValue};
 use egui::TextFormat;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
-use super::{bounds::RangesExt as _, Editor};
+use super::Editor;
+use super::bounds::RangesExt as _;
 
 pub(crate) mod block;
 pub(crate) mod find;

@@ -16,14 +16,14 @@ use tracing_appender::rolling::RollingFileAppender;
 use tracing_gcp::GcpLayer;
 use tracing_subscriber::filter::FilterFn;
 use tracing_subscriber::layer::Context;
-use tracing_subscriber::{filter, fmt, prelude::*, Layer};
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{Layer, filter, fmt};
 
 use pagerduty_rs::eventsv2async::EventsV2;
-use pagerduty_rs::types::Event as PagerEvent;
-use pagerduty_rs::types::{AlertTrigger, AlertTriggerPayload, Severity};
+use pagerduty_rs::types::{AlertTrigger, AlertTriggerPayload, Event as PagerEvent, Severity};
 
-use crate::config::Config;
 use crate::CARGO_PKG_VERSION;
+use crate::config::Config;
 
 static LOG_FILE: &str = "lockbook_server.log";
 

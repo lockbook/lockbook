@@ -1,18 +1,18 @@
 use std::mem;
 
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
-use crate::tab::{self, markdown_editor, ClipContent, ExtendedInput as _, ExtendedOutput as _};
+use crate::tab::{self, ClipContent, ExtendedInput as _, ExtendedOutput as _, markdown_editor};
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 use comrak::nodes::AstNode;
 use egui::{Context, EventFilter, Pos2, Stroke, ViewportCommand};
 use lb_rs::model::text::buffer;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
-use markdown_editor::input::{Event, Region};
 use markdown_editor::Editor;
+use markdown_editor::input::{Event, Region};
 
 use super::canonical::translate_egui_keyboard_event;
-use super::{mutation, Bound, Location};
+use super::{Bound, Location, mutation};
 
 impl<'ast> Editor {
     pub fn process_events(&mut self, ctx: &Context, root: &'ast AstNode<'ast>) -> bool {

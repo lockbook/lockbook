@@ -5,12 +5,13 @@ mod tree;
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{Arc, RwLock, mpsc};
 use std::time::Duration;
 use std::{path, process, thread};
 
 use egui::style::ScrollStyle;
 use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, Vec2};
+use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
@@ -18,7 +19,6 @@ use lb::service::events::broadcast::error::TryRecvError;
 use lb::service::events::{self, Event};
 use lb::service::import_export::ImportStatus;
 use lb::subscribers::status::Status;
-use lb::Uuid;
 use tree::FilesExt;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;

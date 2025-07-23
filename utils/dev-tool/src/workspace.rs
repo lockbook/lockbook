@@ -1,5 +1,5 @@
-use crate::utils::CommandRunner;
 use crate::ToolEnvironment;
+use crate::utils::CommandRunner;
 use std::process::Command;
 
 pub fn fmt_workspace(tool_env: &ToolEnvironment) {
