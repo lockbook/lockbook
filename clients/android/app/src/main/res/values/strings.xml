@@ -122,6 +122,7 @@
     <string name="create_copy">Use letters <b>(A–Z)</b> and numbers <b>(0–9)</b>. Special characters aren\'t allowed.\n\nYou cannot change your username later.</string>
     <string name="copy_key_header">This is your account key</string>
     <string name="copy_key_copy">It proves you\'re you, and it is a secret. If you lose it, you can\'t recover your account.\n\nYou can view your key again in the settings.</string>
+    <string name="copy_key_pledge">I\'ve stored my account key in a safe place.</string>
     <string name="copy_compact_key">Copy compact key</string>
     <string name="next">Next</string>
 

@@ -70,6 +70,11 @@
         android:paddingBottom="20dp"
         android:orientation="vertical">
 
+        <CheckBox android:id="@+id/pledge_checkbox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/copy_key_pledge"/>
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/copy_key_button"
             android:layout_width="match_parent"

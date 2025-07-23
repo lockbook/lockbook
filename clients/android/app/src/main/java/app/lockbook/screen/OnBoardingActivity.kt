@@ -24,6 +24,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getSystemService
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import app.lockbook.R
@@ -143,8 +144,11 @@ class CopyKeyFragment : Fragment() {
             phrase = Lb.exportAccountPhrase()
         }
 
+        copyKeyBinding.pledgeCheckbox.setOnCheckedChangeListener { buttonView, isChecked ->
+            copyKeyBinding.nextButton.isEnabled = isChecked
+        }
+
         copyKeyBinding.copyKeyButton.setOnClickListener {
-            copyKeyBinding.nextButton.isEnabled = true
             val clipboard  = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val clip = ClipData.newPlainText("account phrase", phrase)
             clipboard.setPrimaryClip(clip)
@@ -344,7 +348,7 @@ class CreateFragment : Fragment() {
                         .commit()
                 }
                 //                onBoardingActivity.startActivity(Intent(context, MainScreenActivity::class.java))
-                //                onBoardingActivity.finishAffinity()
+                                onBoardingActivity.finishAffinity()
             } catch (err: LbError) {
                 withContext(Dispatchers.Main) {
 //                    onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
