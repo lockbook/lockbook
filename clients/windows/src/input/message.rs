@@ -1,6 +1,6 @@
-use windows::{
-    Win32::Foundation::*, Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::WindowsAndMessaging::*,
-};
+use windows::Win32::Foundation::*;
+use windows::Win32::UI::Input::KeyboardAndMouse::*;
+use windows::Win32::UI::WindowsAndMessaging::*;
 
 use super::file_drop;
 

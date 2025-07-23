@@ -6,10 +6,14 @@ use tracing::trace;
 
 use crate::tab::svg_editor::toolbar::MINI_MAP_WIDTH;
 
-use super::{element::BoundedElement, util::transform_rect, SVGEditor, ViewportSettings};
-use lb_rs::model::svg::{buffer::u_transform_to_bezier, element::Element};
+use super::element::BoundedElement;
+use super::util::transform_rect;
+use super::{SVGEditor, ViewportSettings};
+use lb_rs::model::svg::buffer::u_transform_to_bezier;
+use lb_rs::model::svg::element::Element;
 
-use super::{toolbar::ToolContext, Buffer};
+use super::Buffer;
+use super::toolbar::ToolContext;
 pub const MIN_ZOOM_LEVEL: f32 = 0.1;
 
 #[derive(Default)]
@@ -348,11 +352,7 @@ pub fn calc_elements_bounds(buffer: &Buffer) -> Option<egui::Rect> {
         elements_bound.max.x = elements_bound.max.x.max(el_rect.max.x);
         elements_bound.max.y = elements_bound.max.y.max(el_rect.max.y);
     }
-    if !dirty_bound {
-        None
-    } else {
-        Some(elements_bound)
-    }
+    if !dirty_bound { None } else { Some(elements_bound) }
 }
 
 pub fn zoom_percentage_to_transform(

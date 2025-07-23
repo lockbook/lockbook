@@ -1,8 +1,8 @@
+use crate::ServerError::InternalError;
 use crate::account_service::DeleteAccountHelperError;
 use crate::billing::billing_service::{AppStoreNotificationError, LockBillingWorkflowError};
 use crate::billing::google_play_client::SimpleGCPError;
 use crate::metrics::MetricsError;
-use crate::ServerError::InternalError;
 use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
@@ -131,7 +131,9 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
     fn from(e: stripe::WebhookError) -> Self {
         match e {
             stripe::WebhookError::BadKey => {
-                internal!("Cannot verify stripe webhook request because server is using a bad signing key")
+                internal!(
+                    "Cannot verify stripe webhook request because server is using a bad signing key"
+                )
             }
             stripe::WebhookError::BadHeader(bad_header_err) => {
                 ClientError(StripeWebhookError::InvalidHeader(format!("{bad_header_err:?}")))

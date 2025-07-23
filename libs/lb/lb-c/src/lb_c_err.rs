@@ -1,12 +1,8 @@
-use std::{
-    ffi::{c_char, CString},
-    ptr,
-};
+use std::ffi::{CString, c_char};
+use std::ptr;
 
-use lb_rs::model::{
-    errors::{LbErr, LbErrKind},
-    ValidationFailure,
-};
+use lb_rs::model::ValidationFailure;
+use lb_rs::model::errors::{LbErr, LbErrKind};
 
 use crate::ffi_utils::cstring;
 

@@ -1,19 +1,18 @@
 use std::collections::HashMap;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
 use std::{mem, thread};
 
 use egui::Context;
+use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::crypto::DecryptedDocument;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
-use lb_rs::Uuid;
-use tracing::{debug, error, instrument, span, trace, warn, Level};
+use tracing::{Level, debug, error, instrument, span, trace, warn};
 
-use crate::tab::TabsExt as _;
-use crate::tab::{Tab, TabSaveContent};
+use crate::tab::{Tab, TabSaveContent, TabsExt as _};
 
 #[derive(Default)]
 pub struct Tasks {

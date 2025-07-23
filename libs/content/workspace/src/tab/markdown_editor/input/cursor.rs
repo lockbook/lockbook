@@ -1,10 +1,11 @@
 use egui::epaint::text::cursor::Cursor;
-use egui::{text::CCursor, Pos2};
-use egui::{Color32, Rangef, Rect, Stroke, Vec2};
+use egui::text::CCursor;
+use egui::{Color32, Pos2, Rangef, Rect, Stroke, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
+use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::galleys::GalleyInfo;
 use crate::tab::markdown_editor::widget::INLINE_PADDING;
-use crate::tab::markdown_editor::{galleys::GalleyInfo, Editor};
 
 #[derive(Debug, Default)]
 pub struct CursorState {

@@ -1,5 +1,4 @@
-use std::fs;
-use std::io;
+use std::{fs, io};
 
 use workspace_rs::theme::palette::ColorAlias;
 

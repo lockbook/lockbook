@@ -1,9 +1,9 @@
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Ui};
 
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
-use crate::tab::markdown_editor::widget::BLOCK_SPACING;
 use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::widget::BLOCK_SPACING;
+use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn block_pre_spacing_height(&self, node: &'ast AstNode<'ast>) -> f32 {

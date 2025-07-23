@@ -490,11 +490,7 @@ impl BoundExt for DocCharOffset {
 
     fn advance_bound(self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds) -> Self {
         if let Some(range) = self.range_bound(bound, backwards, jump, bounds) {
-            if backwards {
-                range.start()
-            } else {
-                range.end()
-            }
+            if backwards { range.start() } else { range.end() }
         } else if !bounds.paragraphs.is_empty() {
             if backwards {
                 bounds.paragraphs[0].start()
@@ -565,11 +561,7 @@ where
             } else if offset > range.start() && offset < range.end() {
                 Ordering::Equal
             } else if offset == range.end() {
-                if end_inclusive {
-                    Ordering::Equal
-                } else {
-                    Ordering::Less
-                }
+                if end_inclusive { Ordering::Equal } else { Ordering::Less }
             } else if offset > range.end() {
                 Ordering::Less
             } else {
@@ -770,11 +762,9 @@ mod test {
     use lb_rs::model::text::offset_types::DocCharOffset;
 
     use super::Bounds;
-    use crate::tab::markdown_editor::{
-        bounds::{BoundExt as _, RangesExt as _},
-        input::Bound,
-        Editor,
-    };
+    use crate::tab::markdown_editor::Editor;
+    use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
+    use crate::tab::markdown_editor::input::Bound;
 
     #[test]
     fn range_before_after_no_ranges() {

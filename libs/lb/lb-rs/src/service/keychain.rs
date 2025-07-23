@@ -1,16 +1,10 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
-use crate::{
-    model::{
-        account::Account,
-        crypto::AESKey,
-        errors::{LbErrKind, LbResult},
-    },
-    Lb,
-};
+use crate::Lb;
+use crate::model::account::Account;
+use crate::model::crypto::AESKey;
+use crate::model::errors::{LbErrKind, LbResult};
 use libsecp256k1::PublicKey;
 use tokio::sync::OnceCell;
 use uuid::Uuid;

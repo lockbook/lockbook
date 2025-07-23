@@ -6,7 +6,7 @@ use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 
 use crate::secrets::Github;
-use crate::utils::{lb_repo, lb_version, CommandRunner};
+use crate::utils::{CommandRunner, lb_repo, lb_version};
 
 pub fn release() -> CliResult<()> {
     build()?;

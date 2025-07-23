@@ -2,8 +2,8 @@ use comrak::nodes::{AstNode, NodeFootnoteReference, NodeValue};
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
 
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 
 pub(crate) mod code;
 pub(crate) mod emph;

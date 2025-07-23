@@ -1,5 +1,6 @@
 use cli_rs::cli_error::CliResult;
-use cli_rs::{command::Command, parser::Cmd};
+use cli_rs::command::Command;
+use cli_rs::parser::Cmd;
 use lb_fs::fs_impl::Drive;
 use lb_fs::logger;
 

@@ -1,6 +1,7 @@
-use std::{fs, sync::mpsc};
+use std::fs;
+use std::sync::mpsc;
 
-use egui::{vec2, Button, Image, TextWrapMode, Widget};
+use egui::{Button, Image, TextWrapMode, Widget, vec2};
 
 pub struct AccountSettings {
     update_tx: mpsc::Sender<Update>,

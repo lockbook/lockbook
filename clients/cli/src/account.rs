@@ -1,12 +1,11 @@
-use std::{io, str::FromStr};
+use std::io;
+use std::str::FromStr;
 
 use cli_rs::cli_error::{CliError, CliResult};
 
 use is_terminal::IsTerminal;
-use lb_rs::model::{
-    api::{PaymentMethod, PaymentPlatform, StripeAccountTier},
-    work_unit::WorkUnit,
-};
+use lb_rs::model::api::{PaymentMethod, PaymentPlatform, StripeAccountTier};
+use lb_rs::model::work_unit::WorkUnit;
 
 use crate::{core, ensure_account, input};
 

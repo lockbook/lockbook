@@ -3,19 +3,15 @@ use std::sync::Arc;
 use egui::Response;
 use resvg::usvg::Transform;
 
-use crate::{
-    tab::svg_editor::{
-        background::{show_dot_grid, show_lines_background},
-        gesture_handler::{
-            get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
-            zoom_percentage_to_transform, MIN_ZOOM_LEVEL,
-        },
-        util::draw_dashed_line,
-        BackgroundOverlay,
-    },
-    theme::icons::Icon,
-    widgets::{switch, Button},
+use crate::tab::svg_editor::BackgroundOverlay;
+use crate::tab::svg_editor::background::{show_dot_grid, show_lines_background};
+use crate::tab::svg_editor::gesture_handler::{
+    MIN_ZOOM_LEVEL, get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
+    zoom_percentage_to_transform,
 };
+use crate::tab::svg_editor::util::draw_dashed_line;
+use crate::theme::icons::Icon;
+use crate::widgets::{Button, switch};
 
 use super::{Toolbar, ToolbarContext};
 

@@ -7,13 +7,14 @@ async fn get_subscription_info() {
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
 
-    assert!(core
-        .client
-        .request(account, GetSubscriptionInfoRequest {})
-        .await
-        .unwrap()
-        .subscription_info
-        .is_none());
+    assert!(
+        core.client
+            .request(account, GetSubscriptionInfoRequest {})
+            .await
+            .unwrap()
+            .subscription_info
+            .is_none()
+    );
 
     core.client
         .request(
@@ -30,11 +31,12 @@ async fn get_subscription_info() {
         .await
         .unwrap();
 
-    assert!(core
-        .client
-        .request(account, GetSubscriptionInfoRequest {})
-        .await
-        .unwrap()
-        .subscription_info
-        .is_some());
+    assert!(
+        core.client
+            .request(account, GetSubscriptionInfoRequest {})
+            .await
+            .unwrap()
+            .subscription_info
+            .is_some()
+    );
 }

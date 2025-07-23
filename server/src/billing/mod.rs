@@ -15,18 +15,14 @@ use async_trait::async_trait;
 use google_androidpublisher3::api::SubscriptionPurchase;
 use lb_rs::model::api::UpgradeAccountAppStoreError;
 
-use crate::{
-    config::{AppleConfig, Config},
-    ServerError,
-};
+use crate::ServerError;
+use crate::config::{AppleConfig, Config};
 
-use self::{
-    app_store_client::AppStoreClient,
-    app_store_model::{LastTransactionItem, TransactionInfo},
-    google_play_client::{GooglePlayClient, SimpleGCPError},
-    stripe_client::StripeClient,
-    stripe_error::SimplifiedStripeError,
-};
+use self::app_store_client::AppStoreClient;
+use self::app_store_model::{LastTransactionItem, TransactionInfo};
+use self::google_play_client::{GooglePlayClient, SimpleGCPError};
+use self::stripe_client::StripeClient;
+use self::stripe_error::SimplifiedStripeError;
 
 #[derive(Clone)]
 pub struct Nop {}
