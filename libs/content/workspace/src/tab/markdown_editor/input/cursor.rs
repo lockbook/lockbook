@@ -1,11 +1,16 @@
+use std::mem;
+
 use egui::epaint::text::cursor::Cursor;
 use egui::text::CCursor;
-use egui::{Color32, Pos2, Rangef, Rect, Stroke, Vec2};
+use egui::{Color32, Pos2, Rangef, Rect, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
+use crate::tab::ExtendedInput as _;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::galleys::GalleyInfo;
 use crate::tab::markdown_editor::widget::INLINE_PADDING;
+
+use super::{Event, Location, Region};
 
 #[derive(Debug, Default)]
 pub struct CursorState {
@@ -18,7 +23,7 @@ pub struct CursorState {
 impl Editor {
     /// Highlights the provided range with a faded version of the provided accent color.
     pub fn show_range(
-        &self, ui: &mut egui::Ui, highlight_range: (DocCharOffset, DocCharOffset), accent: Color32,
+        &self, ui: &mut Ui, highlight_range: (DocCharOffset, DocCharOffset), accent: Color32,
     ) {
         // todo: binary search
         for galley_info in self.galleys.galleys.iter().rev() {
@@ -55,7 +60,7 @@ impl Editor {
 
     /// Draws a cursor at the provided offset with the provided accent color.
     // todo: improve cursor rendering at the end of inline code segments and similar constructs
-    pub fn show_offset(&self, ui: &mut egui::Ui, offset: DocCharOffset, accent: Color32) {
+    pub fn show_offset(&self, ui: &mut Ui, offset: DocCharOffset, accent: Color32) {
         let [top, bot] = self.cursor_line(offset);
         ui.painter().clone().vline(
             top.x,
@@ -64,7 +69,78 @@ impl Editor {
         );
     }
 
-    pub fn scroll_to_cursor(&self, ui: &mut egui::Ui) {
+    pub fn show_selection_handles(&mut self, ui: &mut Ui) {
+        let color = self.theme.fg().accent_secondary;
+        let selection_start_line = self.cursor_line(self.buffer.current.selection.0);
+        let selection_end_line = self.cursor_line(self.buffer.current.selection.1);
+
+        let render_radius = 5.0;
+        let hitbox_size = 10.0;
+
+        // draw selection handles
+        // handles invisible but still draggable when selection is empty
+        // we must allocate handles to check if they were dragged last frame
+        if !self.buffer.current.selection.is_empty() {
+            let selection_start_center =
+                Pos2 { x: selection_start_line[0].x, y: selection_start_line[0].y - 5.0 };
+            ui.painter()
+                .circle_filled(selection_start_center, render_radius, color);
+            let selection_end_center =
+                Pos2 { x: selection_end_line[1].x, y: selection_end_line[1].y + 5.0 };
+            ui.painter()
+                .circle_filled(selection_end_center, render_radius, color);
+        }
+
+        // allocate rects to capture selection handle drag
+        let selection_start_handle_rect = Rect {
+            min: Pos2 {
+                x: selection_start_line[0].x - hitbox_size,
+                y: selection_start_line[0].y - 2. * hitbox_size,
+            },
+            max: Pos2 { x: selection_start_line[0].x + hitbox_size, y: selection_start_line[0].y },
+        };
+        let start_response = ui.allocate_rect(selection_start_handle_rect, Sense::drag());
+        let selection_end_handle_rect = Rect {
+            min: Pos2 { x: selection_end_line[1].x - hitbox_size, y: selection_end_line[1].y },
+            max: Pos2 {
+                x: selection_end_line[1].x + hitbox_size,
+                y: selection_end_line[1].y + 2. * hitbox_size,
+            },
+        };
+        let end_response = ui.allocate_rect(selection_end_handle_rect, Sense::drag());
+
+        // adjust cursor based on selection handle drag
+        if start_response.drag_stopped() {
+            if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
+                let region = Region::from(in_progress_selection);
+                ui.ctx().push_markdown_event(Event::Select { region });
+            }
+        } else if start_response.dragged() {
+            let region = Region::BetweenLocations {
+                start: Location::Pos(ui.input(|i| {
+                    i.pointer.interact_pos().unwrap_or_default() + Vec2 { x: 0.0, y: 10.0 }
+                })),
+                end: Location::DocCharOffset(self.buffer.current.selection.1),
+            };
+            self.in_progress_selection = Some(self.region_to_range(region));
+        }
+        if end_response.drag_stopped() {
+            if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
+                let region = Region::from(in_progress_selection);
+                ui.ctx().push_markdown_event(Event::Select { region });
+            }
+        } else if end_response.dragged() {
+            let region = Region::BetweenLocations {
+                start: Location::DocCharOffset(self.buffer.current.selection.0),
+                end: Location::Pos(ui.input(|i| {
+                    i.pointer.interact_pos().unwrap_or_default() - Vec2 { x: 0.0, y: 10.0 }
+                })),
+            };
+            self.in_progress_selection = Some(self.region_to_range(region));
+        }
+    }
+
+    pub fn scroll_to_cursor(&self, ui: &mut Ui) {
         let selection = self
             .in_progress_selection
             .unwrap_or(self.buffer.current.selection);
