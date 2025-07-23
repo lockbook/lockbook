@@ -68,7 +68,7 @@ pub fn calc<'ast>(
                                 tab::core_get_by_relative_path(
                                     &core,
                                     parent_id,
-                                    &PathBuf::from(&url),
+                                    PathBuf::from(&url),
                                 )
                                 .map(|f| f.id)
                                 .ok()
