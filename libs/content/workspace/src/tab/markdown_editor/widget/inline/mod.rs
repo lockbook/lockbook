@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeFootnoteReference, NodeValue};
-use egui::{Pos2, Ui};
+use egui::{Pos2, Sense, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
@@ -140,7 +140,9 @@ impl<'ast> Editor {
             NodeValue::Superscript => self.show_superscript(ui, node, top_left, wrap, range),
             NodeValue::Text(_) => self.show_text(ui, node, top_left, wrap, range),
             NodeValue::Underline => self.show_underline(ui, node, top_left, wrap, range),
-            NodeValue::WikiLink(_) => self.show_wikilink(ui, node, top_left, wrap, range),
+            NodeValue::WikiLink(node_wiki_link) => {
+                self.show_wikilink(ui, node, top_left, wrap, node_wiki_link, range)
+            }
 
             // leaf_block
             NodeValue::CodeBlock(_) => unimplemented!("not an inline"),
@@ -151,6 +153,27 @@ impl<'ast> Editor {
             NodeValue::Paragraph => unimplemented!("not an inline"),
             NodeValue::TableCell => unimplemented!("not an inline"),
             NodeValue::ThematicBreak => unimplemented!("not an inline"),
+        }
+    }
+
+    #[allow(clippy::only_used_in_recursion)]
+    pub fn sense_inline(&self, ui: &Ui, node: &'ast AstNode<'ast>) -> Sense {
+        match &node.data.borrow().value {
+            NodeValue::Link(_) | NodeValue::WikiLink(_) => {
+                let is_mobile = ui.ctx().os() == egui::os::OperatingSystem::Android
+                    || ui.ctx().os() == egui::os::OperatingSystem::IOS;
+                let clickable = if is_mobile { true } else { ui.input(|i| i.modifiers.command) };
+                Sense { click: clickable, drag: false, focusable: false }
+            }
+            _ => {
+                let clickable = node.ancestors().any(|ancestor| {
+                    matches!(
+                        ancestor.data.borrow().value,
+                        NodeValue::Link(_) | NodeValue::WikiLink(_)
+                    ) && self.sense_inline(ui, ancestor).click
+                });
+                Sense { click: clickable, drag: false, focusable: false }
+            }
         }
     }
 

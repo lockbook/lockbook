@@ -91,7 +91,16 @@ impl Editor {
         &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset), text_format: TextFormat, spoiler: bool,
     ) -> Response {
-        self.show_override_text_line(ui, top_left, wrap, range, text_format, spoiler, None, false)
+        self.show_override_text_line(
+            ui,
+            top_left,
+            wrap,
+            range,
+            text_format,
+            spoiler,
+            None,
+            Sense { click: false, drag: false, focusable: false },
+        )
     }
 
     /// Kinda hacky. You probably mean to pass a fresh Wrap here.
@@ -112,7 +121,7 @@ impl Editor {
     pub fn show_override_text_line(
         &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset), mut text_format: TextFormat, spoiler: bool,
-        override_text: Option<&str>, clickable: bool,
+        override_text: Option<&str>, sense: Sense,
     ) -> Response {
         let text = override_text.unwrap_or(&self.buffer[range]);
         let pre_span = self.text_pre_span(wrap, text_format.clone());
@@ -148,10 +157,7 @@ impl Editor {
             let rect = row.rect.translate(pos.to_vec2());
             let rect = rect.translate(Vec2::new(0., i as f32 * ROW_SPACING));
 
-            let response = ui.allocate_rect(
-                rect.expand2(Vec2::new(INLINE_PADDING, 1.)),
-                Sense { click: clickable, drag: false, focusable: false },
-            );
+            let response = ui.allocate_rect(rect.expand2(Vec2::new(INLINE_PADDING, 1.)), sense);
 
             hovered |= response.hovered();
             clicked |= response.clicked();
