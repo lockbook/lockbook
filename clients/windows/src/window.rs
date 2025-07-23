@@ -137,7 +137,7 @@ pub fn main() -> Result<()> {
         )
     };
     if let Err(error) = unsafe { GetLastError() } {
-        print!("error: {}", error);
+        print!("error: {error}");
     }
 
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
@@ -491,7 +491,7 @@ async fn request_device(
         .await;
     match res {
         Err(err) => {
-            panic!("request_device failed: {:?}", err);
+            panic!("request_device failed: {err:?}");
         }
         Ok((device, queue)) => (adapter, device, queue),
     }
