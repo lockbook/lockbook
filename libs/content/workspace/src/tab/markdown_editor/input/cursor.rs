@@ -71,10 +71,13 @@ impl Editor {
 
     pub fn show_selection_handles(&mut self, ui: &mut Ui) {
         let color = self.theme.fg().accent_secondary;
-        let selection_start_line = self.cursor_line(self.buffer.current.selection.0);
-        let selection_end_line = self.cursor_line(self.buffer.current.selection.1);
+        let selection = self
+            .in_progress_selection
+            .unwrap_or(self.buffer.current.selection);
+        let selection_start_line = self.cursor_line(selection.0);
+        let selection_end_line = self.cursor_line(selection.1);
 
-        let render_radius = 5.0;
+        let render_radius = 10.0;
         let hitbox_size = 10.0;
 
         // draw selection handles
