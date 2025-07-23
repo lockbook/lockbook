@@ -66,6 +66,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         android:paddingHorizontal="16dp"
+        android:paddingBottom="20dp"
         android:orientation="vertical">
 
         <com.google.android.material.button.MaterialButton

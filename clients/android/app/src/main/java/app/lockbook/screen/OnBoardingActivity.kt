@@ -1,6 +1,7 @@
 package app.lockbook.screen
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -10,12 +11,18 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.autofill.AutofillManager
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat.finishAffinity
+import androidx.core.content.ContextCompat.getSystemService
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import app.lockbook.R
 import app.lockbook.databinding.ActivityOnBoardingBinding
-import app.lockbook.databinding.FragmentOnBoardWelcomeBinding
+import app.lockbook.databinding.FragmentOnBoardingCopyKeyBinding
+import app.lockbook.databinding.FragmentOnBoardingWelcomeBinding
 import app.lockbook.databinding.FragmentOnBoardingCreateAccountBinding
 import app.lockbook.databinding.FragmentOnBoardingImportAccountBinding
 import app.lockbook.model.AlertModel
@@ -82,7 +89,7 @@ class OnBoardingActivity : AppCompatActivity() {
 
 
 class WelcomeFragment :  Fragment(){
-    private var _welcomeBinding: FragmentOnBoardWelcomeBinding? = null
+    private var _welcomeBinding: FragmentOnBoardingWelcomeBinding? = null
 
     private val welcomeBinding get() = _welcomeBinding!!
 
@@ -91,7 +98,7 @@ class WelcomeFragment :  Fragment(){
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _welcomeBinding = FragmentOnBoardWelcomeBinding.inflate(inflater, container, false)
+        _welcomeBinding = FragmentOnBoardingWelcomeBinding.inflate(inflater, container, false)
 
         welcomeBinding.loginButton.setOnClickListener{
             parentFragmentManager.beginTransaction()
@@ -108,6 +115,38 @@ class WelcomeFragment :  Fragment(){
         }
 
         return welcomeBinding.root
+    }
+}
+
+class CopyKeyFragment : Fragment() {
+    private var _copyKeyBinding: FragmentOnBoardingCopyKeyBinding? = null
+
+    private val copyKeyBinding get() = _copyKeyBinding!!
+
+    private lateinit var phrase : String
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _copyKeyBinding = FragmentOnBoardingCopyKeyBinding.inflate(inflater, container, false)
+
+        copyKeyBinding.copyKeyButton.setOnClickListener {
+            copyKeyBinding.nextButton.isEnabled = true
+        }
+
+        copyKeyBinding.nextButton.setOnClickListener {
+            startActivity(Intent(context, MainScreenActivity::class.java))
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            phrase = Lb.exportAccountPhrase()
+        }
+        phrase.split(" ").forEachIndexed { i, word ->  "$i. $word"}
+        copyKeyBinding.keyFirstHalf.text
+
+        return copyKeyBinding.root
     }
 }
 
@@ -222,6 +261,8 @@ class CreateFragment : Fragment() {
     ): View {
         _createBinding = FragmentOnBoardingCreateAccountBinding.inflate(inflater, container, false)
 
+
+
         createBinding.onBoardingCreateAccountInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 createAccount(createBinding.onBoardingCreateAccountInput.text.toString())
@@ -237,6 +278,16 @@ class CreateFragment : Fragment() {
         return createBinding.root
     }
 
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        createBinding.onBoardingCreateAccountInput.requestFocus()
+
+
+        val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.showSoftInput(createBinding.onBoardingCreateAccountInput, InputMethodManager.SHOW_IMPLICIT)
+    }
+
     private fun createAccount(username: String) {
         val onBoardingActivity = (requireActivity() as OnBoardingActivity)
 
@@ -244,11 +295,16 @@ class CreateFragment : Fragment() {
 
         uiScope.launch {
             try {
-                Lb.createAccount(username, null, true)
+                Lb.createAccount(username, "http://192.168.1.72:8000", true)
                 getApp().isNewAccount = true
 
-                onBoardingActivity.startActivity(Intent(context, MainScreenActivity::class.java))
-                onBoardingActivity.finishAffinity()
+                withContext(Dispatchers.Main) {
+                    parentFragmentManager.beginTransaction()
+                        .replace(R.id.on_boarding_fragment_container, CopyKeyFragment())
+                        .commit()
+                }
+                //                onBoardingActivity.startActivity(Intent(context, MainScreenActivity::class.java))
+                //                onBoardingActivity.finishAffinity()
             } catch (err: LbError) {
                 withContext(Dispatchers.Main) {
 //                    onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
