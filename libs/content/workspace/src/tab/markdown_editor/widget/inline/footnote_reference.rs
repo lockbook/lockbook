@@ -1,5 +1,5 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, TextFormat, Ui};
+use egui::{Pos2, Sense, TextFormat, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
@@ -105,7 +105,7 @@ impl<'ast> Editor {
                     self.text_format(node),
                     false,
                     Some(&text),
-                    false,
+                    Sense { click: false, drag: false, focusable: false },
                 );
             }
         }
