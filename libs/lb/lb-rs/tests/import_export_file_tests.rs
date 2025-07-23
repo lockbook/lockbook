@@ -17,7 +17,7 @@ async fn import_file_successfully() {
     let name = Uuid::new_v4().to_string();
     let doc_path = tmp_path.join(&name);
 
-    std::fs::write(&doc_path, rand::thread_rng().gen::<[u8; 32]>()).unwrap();
+    std::fs::write(&doc_path, rand::thread_rng().r#gen::<[u8; 32]>()).unwrap();
 
     let root = core.root().await.unwrap();
 
@@ -47,7 +47,7 @@ async fn import_file_successfully() {
     let child_name = Uuid::new_v4().to_string();
     let child_path = parent_path.join(&child_name);
 
-    std::fs::write(child_path, rand::thread_rng().gen::<[u8; 32]>()).unwrap();
+    std::fs::write(child_path, rand::thread_rng().r#gen::<[u8; 32]>()).unwrap();
 
     core.import_files(&[parent_path], root.id, &f)
         .await
@@ -72,7 +72,7 @@ async fn export_file_successfully() {
         .create_file(&name, &root.id, FileType::Document)
         .await
         .unwrap();
-    core.write_document(file.id, &rand::thread_rng().gen::<[u8; 32]>())
+    core.write_document(file.id, &rand::thread_rng().r#gen::<[u8; 32]>())
         .await
         .unwrap();
 
@@ -102,7 +102,7 @@ async fn export_file_successfully() {
         .await
         .unwrap();
 
-    core.write_document(child.id, &rand::thread_rng().gen::<[u8; 32]>())
+    core.write_document(child.id, &rand::thread_rng().r#gen::<[u8; 32]>())
         .await
         .unwrap();
 

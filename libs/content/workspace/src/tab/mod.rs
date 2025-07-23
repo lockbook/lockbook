@@ -535,7 +535,10 @@ pub fn canonicalize_path(path: &str) -> String {
     result.to_string_lossy().to_string()
 }
 
-pub fn core_get_by_relative_path(core: &Lb, from: Uuid, path: &Path) -> Result<File, String> {
+pub fn core_get_by_relative_path<P: AsRef<Path>>(
+    core: &Lb, from: Uuid, path: P,
+) -> Result<File, String> {
+    let path = path.as_ref();
     let target_path = if path.is_relative() {
         let mut open_file_path =
             PathBuf::from(core.get_path_by_id(from).map_err(|e| e.to_string())?);
