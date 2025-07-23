@@ -1,17 +1,15 @@
-use crate::{
-    cache::FileEntry,
-    utils::{fmt, get_string},
-};
+use crate::cache::FileEntry;
+use crate::utils::{fmt, get_string};
 use async_trait::async_trait;
-use lb_rs::{model::file_metadata::FileType, Lb, Uuid};
-use nfsserve::{
-    nfs::{
-        fattr3, fileid3, filename3, nfspath3, nfsstat3, nfsstring, sattr3, set_atime, set_gid3,
-        set_mode3, set_mtime, set_size3, set_uid3,
-    },
-    vfs::{DirEntry, NFSFileSystem, ReadDirResult, VFSCapabilities},
+use lb_rs::model::file_metadata::FileType;
+use lb_rs::{Lb, Uuid};
+use nfsserve::nfs::{
+    fattr3, fileid3, filename3, nfspath3, nfsstat3, nfsstring, sattr3, set_atime, set_gid3,
+    set_mode3, set_mtime, set_size3, set_uid3,
 };
-use std::{collections::HashMap, sync::Arc};
+use nfsserve::vfs::{DirEntry, NFSFileSystem, ReadDirResult, VFSCapabilities};
+use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, instrument, warn};
 

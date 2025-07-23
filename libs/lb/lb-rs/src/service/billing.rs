@@ -1,3 +1,4 @@
+use crate::Lb;
 use crate::io::network::ApiError;
 use crate::model::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
@@ -5,8 +6,7 @@ use crate::model::api::{
     UpgradeAccountAppStoreRequest, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
     UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
-use crate::model::errors::{core_err_unexpected, LbErrKind, LbResult};
-use crate::Lb;
+use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 
 // todo: when core is responsible for syncing, these should probably trigger syncs and status updates
 impl Lb {

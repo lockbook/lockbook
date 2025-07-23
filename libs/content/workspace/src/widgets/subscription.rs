@@ -1,8 +1,8 @@
-use lb_rs::{
-    model::api::{AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo},
-    model::usage::bytes_to_human,
-    service::usage::{UsageItemMetric, UsageMetrics},
+use lb_rs::model::api::{
+    AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo,
 };
+use lb_rs::model::usage::bytes_to_human;
+use lb_rs::service::usage::{UsageItemMetric, UsageMetrics};
 
 use crate::widgets::ProgressBar;
 

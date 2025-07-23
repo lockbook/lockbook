@@ -1,12 +1,12 @@
-use super::{trial::Trial, trial_cache::TrialCache, worker::Worker};
-use std::{
-    collections::HashMap,
-    fs,
-    fs::{File, OpenOptions},
-    io::Write,
-    sync::atomic::{AtomicU64, Ordering},
-    sync::{Arc, Mutex},
-};
+use super::trial::Trial;
+use super::trial_cache::TrialCache;
+use super::worker::Worker;
+use std::collections::HashMap;
+use std::fs;
+use std::fs::{File, OpenOptions};
+use std::io::Write;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use time::Instant;
 use uuid::Uuid;
 

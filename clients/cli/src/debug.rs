@@ -1,6 +1,7 @@
 use cli_rs::cli_error::{CliError, CliResult};
 
-use crate::{core, ensure_account, input::FileInput};
+use crate::input::FileInput;
+use crate::{core, ensure_account};
 
 #[tokio::main]
 pub async fn validate() -> CliResult<()> {

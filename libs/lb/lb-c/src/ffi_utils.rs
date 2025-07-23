@@ -1,10 +1,9 @@
-use std::{
-    ffi::{c_char, CStr, CString},
-    mem,
-    path::PathBuf,
-};
+use std::ffi::{CStr, CString, c_char};
+use std::mem;
+use std::path::PathBuf;
 
-use lb_rs::{blocking::Lb, model::errors::LbErr};
+use lb_rs::blocking::Lb;
+use lb_rs::model::errors::LbErr;
 
 use crate::lb_c_err::LbFfiErr;
 

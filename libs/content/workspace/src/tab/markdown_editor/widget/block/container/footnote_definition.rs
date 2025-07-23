@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
 use comrak::nodes::{AstNode, NodeValue};
-use egui::{text::LayoutJob, FontFamily, Pos2, Rect, TextFormat, Ui, Vec2};
+use egui::text::LayoutJob;
+use egui::{FontFamily, Pos2, Rect, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 
-use crate::tab::markdown_editor::{
-    widget::{INDENT, ROW_HEIGHT},
-    Editor,
-};
+use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::widget::{INDENT, ROW_HEIGHT};
 
 impl<'ast> Editor {
     pub fn text_format_footnote_definition(&self, parent: &AstNode<'_>) -> TextFormat {

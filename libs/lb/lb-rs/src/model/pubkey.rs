@@ -1,7 +1,6 @@
-use crate::model::clock::{timestamp, TimeGetter};
+use crate::model::clock::{TimeGetter, timestamp};
 use crate::model::crypto::*;
-use libsecp256k1::Message;
-use libsecp256k1::{PublicKey, SecretKey, SharedSecret, Signature};
+use libsecp256k1::{Message, PublicKey, SecretKey, SharedSecret, Signature};
 use rand::rngs::OsRng;
 use serde::Serialize;
 use sha2::{Digest, Sha256};

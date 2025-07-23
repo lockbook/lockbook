@@ -1,10 +1,10 @@
+use crate::Lb;
+use crate::model::ValidationFailure;
 use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::file_metadata::FileType;
-use crate::model::ValidationFailure;
-use crate::Lb;
-use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+use futures::stream::FuturesUnordered;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;

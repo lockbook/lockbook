@@ -1,3 +1,4 @@
+use crate::ServerError::ClientError;
 use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::billing_model::BillingPlatform;
 use crate::billing::google_play_client::GooglePlayClient;
@@ -5,7 +6,6 @@ use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
 use crate::schema::{Account, ServerDb};
 use crate::utils::username_is_valid;
-use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use db_rs::Db;
 use lb_rs::model::account::Username;
@@ -16,8 +16,8 @@ use lb_rs::model::api::{
     AdminGetAccountInfoResponse, AdminListUsersError, AdminListUsersRequest,
     AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
     GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
-    GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountRequest,
-    NewAccountResponse, PaymentPlatform, METADATA_FEE,
+    GetUsernameError, GetUsernameRequest, GetUsernameResponse, METADATA_FEE, NewAccountError,
+    NewAccountRequest, NewAccountResponse, PaymentPlatform,
 };
 use lb_rs::model::clock::get_time;
 use lb_rs::model::file_like::FileLike;

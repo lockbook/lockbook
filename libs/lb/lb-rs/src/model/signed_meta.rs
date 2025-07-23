@@ -1,4 +1,5 @@
-use super::{crypto::ECSigned, meta::Meta};
+use super::crypto::ECSigned;
+use super::meta::Meta;
 
 pub type SignedMeta = ECSigned<Meta>;
 

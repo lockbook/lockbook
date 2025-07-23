@@ -1,10 +1,8 @@
 use lb_rs::service::api_service::no_network::CoreIP;
 
 use super::trial::{Action, Trial};
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 const CACHE_SIZE: usize = 500000;
 

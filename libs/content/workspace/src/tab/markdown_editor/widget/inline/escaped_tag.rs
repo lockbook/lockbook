@@ -2,9 +2,9 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, TextFormat, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
+use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
-use crate::tab::markdown_editor::Editor;
 
 impl<'ast> Editor {
     pub fn text_format_escaped_tag(&self, parent: &AstNode<'_>) -> TextFormat {

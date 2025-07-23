@@ -1,11 +1,12 @@
-use crate::model::errors::{core_err_unexpected, LbResult};
 use crate::Config;
+use crate::model::errors::{LbResult, core_err_unexpected};
 use chrono::Local;
 use std::backtrace::Backtrace;
 use std::{env, fs, panic};
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::{filter, fmt, prelude::*, Layer};
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{Layer, filter, fmt};
 
 pub static LOG_FILE: &str = "lockbook.log";
 

@@ -1,7 +1,5 @@
-use lb::{
-    model::file::{File, Share, ShareMode},
-    Uuid,
-};
+use lb::Uuid;
+use lb::model::file::{File, Share, ShareMode};
 use workspace_rs::widgets::switch;
 
 pub struct CreateShareParams {

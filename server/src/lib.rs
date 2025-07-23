@@ -16,10 +16,10 @@ use libsecp256k1::PublicKey;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
+use crate::ServerError::ClientError;
 use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_error::SimplifiedStripeError;
-use crate::ServerError::ClientError;
 pub use stripe;
 use tracing::log::warn;
 

@@ -1,8 +1,8 @@
+use crate::Lb;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::path_ops::Filter;
 use crate::model::tree_like::TreeLike;
-use crate::Lb;
 use uuid::Uuid;
 
 impl Lb {

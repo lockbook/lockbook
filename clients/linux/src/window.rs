@@ -1,29 +1,22 @@
 use egui::{Context, PlatformOutput, ViewportCommand, Visuals};
-use egui_wgpu_backend::{
-    wgpu::{self, CompositeAlphaMode},
-    ScreenDescriptor,
-};
+use egui_wgpu_backend::ScreenDescriptor;
+use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode};
 use lbeguiapp::{Output, WgpuLockbook};
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
     RawWindowHandle, WindowHandle, XcbDisplayHandle, XcbWindowHandle,
 };
-use std::{
-    ffi::c_void,
-    num::NonZeroU32,
-    ptr::NonNull,
-    sync::atomic::{AtomicBool, Ordering},
-    time::Instant,
-};
-use x11rb::{
-    atom_manager,
-    connection::Connection,
-    protocol::xproto::{ConnectionExt as _, *},
-    protocol::{xproto, Event},
-    wrapper::ConnectionExt as _,
-    xcb_ffi::XCBConnection,
-    COPY_DEPTH_FROM_PARENT,
-};
+use std::ffi::c_void;
+use std::num::NonZeroU32;
+use std::ptr::NonNull;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
+use x11rb::connection::Connection;
+use x11rb::protocol::xproto::{ConnectionExt as _, *};
+use x11rb::protocol::{Event, xproto};
+use x11rb::wrapper::ConnectionExt as _;
+use x11rb::xcb_ffi::XCBConnection;
+use x11rb::{COPY_DEPTH_FROM_PARENT, atom_manager};
 use xkbcommon::xkb::x11;
 
 // A collection of the atoms we will need.
@@ -62,10 +55,9 @@ atom_manager! {
     }
 }
 
-use crate::{
-    input::{self, clipboard_paste, key::Keyboard},
-    output,
-};
+use crate::input::key::Keyboard;
+use crate::input::{self, clipboard_paste};
+use crate::output;
 
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
