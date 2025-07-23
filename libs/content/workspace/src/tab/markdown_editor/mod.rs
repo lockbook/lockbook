@@ -108,6 +108,8 @@ impl Drop for Editor {
     }
 }
 
+static PRINT: bool = false;
+
 impl Editor {
     pub fn new(
         ctx: Context, core: Lb, md: &str, file_id: Uuid, hmac: Option<DocumentHmac>,
@@ -273,12 +275,14 @@ impl Editor {
         let ast_elapsed = start.elapsed();
         let start = std::time::Instant::now();
 
-        println!(
-            "{}",
-            "================================================================================"
-                .bright_black()
-        );
-        print_ast(root);
+        if PRINT {
+            println!(
+                "{}",
+                "================================================================================"
+                    .bright_black()
+            );
+            print_ast(root);
+        }
 
         let print_elapsed = start.elapsed();
         let start = std::time::Instant::now();
@@ -356,28 +360,29 @@ impl Editor {
 
         let render_elapsed = start.elapsed();
 
-        println!(
-            "{}",
-            "--------------------------------------------------------------------------------"
-                .bright_black()
-        );
-        println!("document: {:?}", self.buffer.current.text);
-        self.print_paragraphs_bounds();
-        println!(
-            "{}",
-            "--------------------------------------------------------------------------------"
-                .bright_black()
-        );
-        println!(
-            "                                                                 ast: {ast_elapsed:?}"
-        );
-        println!(
-            "                                                               print: {print_elapsed:?}"
-        );
-        println!(
-            "                                                              render: {render_elapsed:?}"
-        );
-
+        if PRINT {
+            println!(
+                "{}",
+                "--------------------------------------------------------------------------------"
+                    .bright_black()
+            );
+            println!("document: {:?}", self.buffer.current.text);
+            self.print_paragraphs_bounds();
+            println!(
+                "{}",
+                "--------------------------------------------------------------------------------"
+                    .bright_black()
+            );
+            println!(
+                "                                                                 ast: {ast_elapsed:?}"
+            );
+            println!(
+                "                                                               print: {print_elapsed:?}"
+            );
+            println!(
+                "                                                              render: {render_elapsed:?}"
+            );
+        }
         let prior_selection = self.buffer.current.selection;
         if !self.initialized || self.process_events(ui.ctx(), root) {
             resp.text_updated = true;
