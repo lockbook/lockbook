@@ -1,11 +1,17 @@
 package app.lockbook.screen
 
 import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.text.SpannableStringBuilder
 import android.text.method.LinkMovementMethod
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -14,6 +20,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat.finishAffinity
+import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getSystemService
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
@@ -132,21 +139,54 @@ class CopyKeyFragment : Fragment() {
     ): View {
         _copyKeyBinding = FragmentOnBoardingCopyKeyBinding.inflate(inflater, container, false)
 
+        viewLifecycleOwner.lifecycleScope.launch {
+            phrase = Lb.exportAccountPhrase()
+        }
+
         copyKeyBinding.copyKeyButton.setOnClickListener {
             copyKeyBinding.nextButton.isEnabled = true
+            val clipboard  = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("account phrase", phrase)
+            clipboard.setPrimaryClip(clip)
         }
 
         copyKeyBinding.nextButton.setOnClickListener {
             startActivity(Intent(context, MainScreenActivity::class.java))
         }
 
-        viewLifecycleOwner.lifecycleScope.launch {
-            phrase = Lb.exportAccountPhrase()
-        }
-        phrase.split(" ").forEachIndexed { i, word ->  "$i. $word"}
-        copyKeyBinding.keyFirstHalf.text
+
+        val words = phrase.split(" ")
+
+        copyKeyBinding.keyFirstHalf.text = createColoredNumberedList(words.take(12), 1)
+        copyKeyBinding.keySecondHalf.text = createColoredNumberedList(words.drop(12), 13)
 
         return copyKeyBinding.root
+    }
+
+    private fun createColoredNumberedList(words: List<String>, startIndex: Int = 1): SpannableStringBuilder {
+        val builder = SpannableStringBuilder()
+        val numberColor = ContextCompat.getColor(requireContext(), R.color.md_theme_secondary)
+
+        words.forEachIndexed { i, word ->
+            val numberText = "${startIndex + i}. "
+            val wordText = if (i < words.size - 1) "$word\n" else word
+
+            // Add colored number
+            val numberStart = builder.length
+            builder.append(numberText)
+            builder.setSpan(StyleSpan(Typeface.BOLD), numberStart, builder.length, 0)
+            builder.setSpan(
+                ForegroundColorSpan(numberColor),
+                numberStart,
+                builder.length,
+                0
+            )
+
+            // Add regular text
+            builder.append(wordText)
+        }
+
+        return builder
     }
 }
 
