@@ -21,10 +21,9 @@ pub struct CursorState {
 }
 
 impl Editor {
-    /// Highlights the provided range with a faded version of the provided accent color.
-    pub fn show_range(
-        &self, ui: &mut Ui, highlight_range: (DocCharOffset, DocCharOffset), accent: Color32,
-    ) {
+    pub fn range_rects(&self, highlight_range: (DocCharOffset, DocCharOffset)) -> Vec<Rect> {
+        let mut result = Vec::new();
+
         // todo: binary search
         for galley_info in self.galleys.galleys.iter().rev() {
             let GalleyInfo { range, galley, mut rect, padded } = galley_info;
@@ -53,9 +52,10 @@ impl Editor {
                 rect.max.x = cursor_to_pos_abs(galley_info, cursor).x;
             }
 
-            ui.painter()
-                .rect_filled(rect, 2., accent.gamma_multiply(0.15));
+            result.push(rect);
         }
+
+        result
     }
 
     /// Draws a cursor at the provided offset with the provided accent color.

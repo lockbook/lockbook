@@ -1,10 +1,9 @@
 use egui::{Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
-use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt, RelCharOffset};
+use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 use std::cmp;
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::ptr::null;
 use tracing::instrument;
-use workspace_rs::tab::markdown_editor::bounds::RangesExt;
 use workspace_rs::tab::markdown_editor::input::advance::AdvanceExt as _;
 use workspace_rs::tab::markdown_editor::input::{
     Bound, Event, Increment, Offset, Region, mutation,
@@ -680,8 +679,6 @@ pub unsafe extern "C" fn selection_rects(
         None => return UITextSelectionRects::default(),
     };
 
-    let bounds = &markdown.bounds;
-
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
     let range = match range {
         Some(range) => range,
@@ -691,30 +688,12 @@ pub unsafe extern "C" fn selection_rects(
         }
     };
 
-    let mut selection_rects = vec![];
-
-    let lines = bounds.wrap_lines.find_intersecting(range, false);
-    for line in lines.iter() {
-        let mut line = bounds.wrap_lines[line];
-        if line.0 < range.start() {
-            line.0 = range.start();
-        }
-        if line.1 > range.end() {
-            line.1 = range.end();
-        }
-        if line.is_empty() {
-            continue;
-        }
-
-        let start_line = markdown.cursor_line(line.0);
-        let end_line = markdown.cursor_line(line.1);
-        selection_rects.push(CRect {
-            min_x: (start_line[1].x) as f64,
-            min_y: start_line[0].y as f64,
-            max_x: end_line[1].x as f64,
-            max_y: end_line[1].y as f64,
-        });
-    }
+    let selection_rects = markdown
+        // .range_rects(markdown.buffer.current.selection)
+        .range_rects(range)
+        .into_iter()
+        .map(|r| r.into())
+        .collect::<Vec<CRect>>();
 
     UITextSelectionRects {
         size: selection_rects.len() as i32,

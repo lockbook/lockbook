@@ -485,7 +485,10 @@ impl Editor {
                         .in_progress_selection
                         .unwrap_or(self.buffer.current.selection);
                     let color = self.theme.fg().accent_secondary;
-                    self.show_range(ui, selection, color);
+                    for rect in self.range_rects(selection) {
+                        ui.painter()
+                            .rect_filled(rect, 2., color.gamma_multiply(0.15));
+                    }
                     self.show_offset(ui, selection.1, color);
                 }
                 if ui.ctx().os() == OperatingSystem::Android {

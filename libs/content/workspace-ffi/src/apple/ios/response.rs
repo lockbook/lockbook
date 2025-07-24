@@ -219,6 +219,26 @@ pub struct CRect {
     pub max_y: f64,
 }
 
+impl From<egui::Rect> for CRect {
+    fn from(value: egui::Rect) -> Self {
+        Self {
+            min_x: value.min.x as f64,
+            min_y: value.min.y as f64,
+            max_x: value.max.x as f64,
+            max_y: value.max.y as f64,
+        }
+    }
+}
+
+impl From<CRect> for egui::Rect {
+    fn from(value: CRect) -> Self {
+        egui::Rect::from_min_max(
+            egui::Pos2::new(value.min_x as f32, value.min_y as f32),
+            egui::Pos2::new(value.max_x as f32, value.max_y as f32),
+        )
+    }
+}
+
 impl From<CTextRange> for Option<(DocCharOffset, DocCharOffset)> {
     fn from(value: CTextRange) -> Self {
         if value.none {
