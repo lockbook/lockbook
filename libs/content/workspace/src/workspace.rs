@@ -270,6 +270,17 @@ impl Workspace {
             Ok(evt) => match evt {
                 Event::MetadataChanged => {
                     self.files = FileCache::new(&self.core).log_and_ignore();
+                    if let Some(files) = &self.files {
+                        let mut tabs_to_delete = vec![];
+                        for (i, tab) in self.tabs.iter().enumerate() {
+                            if files.files.iter().any(|f| Some(f.id) == tab.id()) {
+                                tabs_to_delete.push(i);
+                            }
+                        }
+                        for i in tabs_to_delete {
+                            self.remove_tab(i);
+                        }
+                    }
                 }
                 Event::DocumentWritten(id, Some(Actor::Sync)) => {
                     for i in 0..self.tabs.len() {
