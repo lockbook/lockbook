@@ -482,7 +482,7 @@ impl Workspace {
                 let mut rename_req = None;
                 let mut open_id = None;
                 if let Some(tab) = self.current_tab_mut() {
-                    let id = tab.id().unwrap();
+                    let id = tab.id();
                     match &mut tab.content {
                         ContentState::Loading(_) => {
                             ui.spinner();
@@ -539,6 +539,11 @@ impl Workspace {
 
                     ui.ctx().output_mut(|w| {
                         if let Some(url) = &w.open_url {
+                            // only intercept open urls for tabs representing files
+                            let Some(id) = id else {
+                                return;
+                            };
+
                             // lookup this file so we can get the parent
                             let Ok(file) = self.core.get_file_by_id(id) else {
                                 return;
