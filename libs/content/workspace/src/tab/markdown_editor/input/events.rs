@@ -155,7 +155,8 @@ impl<'ast> Editor {
                         .range_bound(Bound::Word, true, true, &self.bounds)
                         .unwrap_or((offset, offset));
                     ctx.set_context_menu(self.context_menu_pos(range).unwrap_or(pos));
-                    return Vec::new();
+
+                    Region::BoundAt { bound: Bound::Word, location, backwards: true }
                 } else if self.buffer.current.selection.is_empty() {
                     // double click behavior
                     Region::BoundAt { bound: Bound::Word, location, backwards: true }
