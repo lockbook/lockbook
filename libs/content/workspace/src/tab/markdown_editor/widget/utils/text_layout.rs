@@ -153,14 +153,22 @@ impl Editor {
 
         let mut hovered = false;
         let mut clicked = false;
+        let mut empty_rows = 0;
         for (i, row) in galley_info.galley.rows.iter().enumerate() {
             let rect = row.rect.translate(pos.to_vec2());
-            let rect = rect.translate(Vec2::new(0., i as f32 * ROW_SPACING));
+            let rect = rect.translate(Vec2::new(
+                0.,
+                i as f32 * ROW_SPACING + empty_rows as f32 * wrap.row_height,
+            ));
 
             let response = ui.allocate_rect(rect.expand2(Vec2::new(INLINE_PADDING, 1.)), sense);
 
             hovered |= response.hovered();
             clicked |= response.clicked();
+
+            if row.rect.area() < 1. {
+                empty_rows += 1;
+            }
         }
 
         // break galley into rows to take control of row spacing
